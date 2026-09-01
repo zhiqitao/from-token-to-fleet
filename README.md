@@ -113,6 +113,9 @@ so the build process itself is as inspectable as the content. See [`craft/README
 for the index, and [`craft/archify-diagram-craft.md`](craft/archify-diagram-craft.md)
 for the figure pipeline in full.
 
+Contributing? Start with [`CONTRIBUTING.md`](CONTRIBUTING.md) — it covers the
+binding evidence rules, the build runbook, and the verification bar.
+
 ---
 
 ## License
