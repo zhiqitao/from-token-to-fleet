@@ -1,0 +1,457 @@
+\section{The Architect's Question}\label{the-architects-question}
+
+\begin{quote}
+How does an operator organize a fleet of complementary models---dense
+and sparse, quantized and full-precision---so that every request reaches
+the right model at the right cost, without over-provisioning or
+under-serving?
+\end{quote}
+
+This chapter answers that question with real arithmetic, routing logic,
+and operational judgment.
+
+\section{Concept}\label{concept}
+
+A mixed-model fleet treats each model family as a resource with distinct
+cost, latency, and capability profiles. Rather than running every
+request through a single 70B FP16 model on 8×H100, we layer:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Dense FP16} (baseline, high-quality)
+\item
+  \textbf{Dense 4-bit GGUF} (low-latency, edge-friendly)
+\item
+  \textbf{MoE sparse} (selective activation, higher throughput per GPU)
+\item
+  \textbf{Quantized variants} (4-bit/8-bit trade-offs)
+\end{itemize}
+
+The fleet operates on a \emph{routing function} R(query) → model\_id
+that maps incoming requests to the cheapest model satisfying quality
+constraints.
+
+Key design principles:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Cost-per-token} is the primary unit of comparison across
+  quantizations.
+\item
+  \textbf{Latency-per-token} determines interactive vs.~batch placement.
+\item
+  \textbf{Capability gaps} (context window, tool-use, multilingual)
+  dictate minimum model tiers.
+\item
+  \textbf{Consolidation} saves CapEx when overlap in workload profiles
+  is high; \textbf{separation} preserves isolation when workloads have
+  divergent SLA or security needs.
+\end{enumerate}
+
+\section{Mental Model}\label{mental-model}
+
+Think of the fleet as a \emph{cost-aware load balancer} with three
+decision layers:
+
+\textbf{\hyperref[tab:18.1]{Table 18-1}} --- Fleet routing decision hierarchy: capability
+filter → cost--latency optimization → fallthrough.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2308\linewidth}
+  >{\raggedright\arraybackslash}p{0.3846\linewidth}
+  >{\raggedright\arraybackslash}p{0.3846\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Layer
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Question
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Decision
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{Capability filter} & Does any model in the fleet meet the
+request's feature requirements? & Eliminate models that lack the feature
+(e.g., context window too small, no tool-use). \\
+\textbf{Cost--latency optimization} & Among remaining models, which
+minimizes weighted cost = α·token\_cost + β·latency\_cost? & Route to
+the cheapest suitable model; adjust α,β per deployment mode (interactive
+vs.~batch). \\
+\textbf{Fallthrough} & If all suitable models are at capacity, what is
+the next-best alternative? & Queue, degrade quantization, or escalate to
+the next tier. \\
+
+\label{tab:18.1}\end{longtable}
+
+The weighting (α,β) is deployment-context dependent. A chat UI tolerates
+\textasciitilde200\,ms/token; a batch ETL job tolerates
+\textasciitilde2\,s/token but demands lower token cost.
+
+\section{Worked Example}\label{worked-example}
+
+\textbf{Scenario:} \textasciitilde2,000 users, \textasciitilde5\%
+concurrent (≈100 simultaneous), \textasciitilde10 rps average /
+\textasciitilde40 rps peak. Total token volume: \textasciitilde9,200 in
++ \textasciitilde300 out per hour. Base hardware: 8×H100, 640\,GB total
+VRAM. Model families: a 70B dense FP16, a 70B MoE (16 experts, 2
+active), and a family of 8-bit/4-bit quantized models (70B equivalent).
+
+\subsection{3.1. Hardware capacity
+mapping}\label{hardware-capacity-mapping}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.0938\linewidth}
+  >{\raggedright\arraybackslash}p{0.2031\linewidth}
+  >{\raggedright\arraybackslash}p{0.2188\linewidth}
+  >{\raggedright\arraybackslash}p{0.2188\linewidth}
+  >{\raggedright\arraybackslash}p{0.2656\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Model
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+VRAM (FP16)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+VRAM (8-bit)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+VRAM (4-bit)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\# fit on 8×H100
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+70B dense FP16 & 140\,GB & N/A & N/A & 1 (weights + KV fit in the 640 GB
+pool; \textasciitilde2 GPUs hold the weights) \\
+70B dense 8-bit & \textasciitilde70\,GB & --- & --- & 1 (fits on 1×H100,
+leaves 7 for others) \\
+70B MoE FP16 (2/16 experts) & 140\,GB & N/A & N/A & 0 (same as dense) \\
+70B MoE 8-bit (2 active) & \textasciitilde70\,GB & --- & --- & 1 \\
+70B 4-bit GGUF & \textasciitilde35\,GB & --- & --- & \textasciitilde2
+(across 2 GPUs, can batch) \\
+70B 8-bit GGUF & \textasciitilde70\,GB & --- & --- & 1 \\
+
+\label{tab:18.2}\end{longtable}
+
+With 8×H100 (640\,GB), we can simultaneously run:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{One 70B 8-bit dense} (70\,GB)
+\item
+  \textbf{Two 70B 4-bit GGUF} (≈70\,GB total)
+\item
+  \textbf{Remaining \textasciitilde500\,GB} can host smaller specialized
+  models (e.g., 22B, 8B) for classification or routing.
+\end{itemize}
+
+\subsection{3.2. Per-token cost (example numbers, Q4 2026
+pricing)}\label{per-token-cost-example-numbers-q4-2026-pricing}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.1000\linewidth}
+  >{\raggedright\arraybackslash}p{0.3143\linewidth}
+  >{\raggedright\arraybackslash}p{0.2857\linewidth}
+  >{\raggedright\arraybackslash}p{0.3000\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Model
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Token cost (USD / 1M)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Latency/token (ms)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Basis
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+70B dense FP16 (8×H100 capital amortized) & \$2.50 & 120 & capital +
+energy \\
+70B dense 8-bit (1×H100) & \$1.25 & 250 & public cloud {[}1P{]} \\
+70B MoE 8-bit (2 active experts) & \$1.00 & 300 & public cloud
+{[}1P{]} \\
+70B 4-bit GGUF (local, no GPU) & \$0.15 & 800 & energy only \\
+
+\label{tab:18.3}\end{longtable}
+
+\subsection{3.3. Routing arithmetic}\label{routing-arithmetic}
+
+Each request carries its full token profile together: 9,200 input + 300
+output = 9,500 tokens. \textbf{Request-level routing sends the entire
+request --- input and output --- to one model.} A request cannot have
+70\% of its input tokens answered by model A and the rest by model B,
+unless the architecture explicitly supports model composition, cascade,
+or speculative decoding (a different mechanism we do not assume here).
+Under ordinary routing, we therefore split by \emph{requests}, not by
+in-tokens:
+
+For 1,000 requests/hour (≈0.28 rps --- a light illustrative load; the
+arithmetic is scale-invariant in tokens):
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{70\% of requests} (700, ≈6.65M tokens) are routine → route to
+  70B 8-bit: 6.65M × \$1.25 = \textbf{\$8.31 / hr}
+\item
+  \textbf{20\% of requests} (200, ≈1.9M tokens) need high-quality
+  reasoning → route to 70B MoE 8-bit: 1.9M × \$1.00 = \textbf{\$1.90 /
+  hr}
+\item
+  \textbf{10\% of requests} (100, ≈0.95M tokens) are complex /
+  multilingual → route to 70B dense FP16: 0.95M × \$2.50 =
+  \textbf{\$2.38 / hr}
+\end{itemize}
+
+(Each request's output tokens are generated by the same model that
+processed its input. Routing output tokens to a \emph{different} model
+would require an explicit cascade/composition stage --- e.g., a
+generator plus a separate rewriter --- which is a distinct architecture,
+not a free assumption.)
+
+\textbf{Mixed-fleet hourly cost} = \$8.31 + \$1.90 + \$2.38 =
+\textbf{\$12.59 / hour} vs.~\$23.75 / hour for single-FP16 (all 9.5M
+tokens at \$2.50).
+
+\textbf{Monthly savings} ≈ (\$23.75 − \$12.59) × 730\,hr ≈
+\textbf{\$8,100 / month} (≈ 47\% reduction) with comparable quality
+because the 8-bit model meets quality thresholds for \textgreater90\% of
+requests.
+
+\subsection{3.4. Latency check}\label{latency-check}
+
+The per-request latency is that of the model serving it. The
+weighted-average request latency is
+
+\[
+\bar{L} = \sum_i p_i \cdot L_i = 0.70 \times 250 + 0.20 \times 300 + 0.10 \times 120 \approx 247 \text{ ms/request}
+\]
+
+(no separate output-routing term --- output rides with its requesting
+model), where \(p_i\) is the fraction of requests routed to model \(i\)
+and \(L_i\) its latency. Acceptable for interactive chat (typical
+threshold: ≤500 ms).
+
+The latency and capacity must also reconcile with the canonical
+workload's KV residency (\hyperref[chap:17]{Chapter 17}): routing 70\% of requests to an
+8-bit model on 1×H100 changes the per-host KV ceiling accordingly, and
+the fleet host count is set by the model each tier runs on. These are
+{[}ILLUSTRATIVE{]} pricing and latency figures for Q4 2026; the
+architect re-runs the same arithmetic with measured per-model
+cost/latency from a deployment benchmark (\hyperref[chap:14]{Chapter 14}).
+
+\subsection{3.5. Consolidation vs.~separation
+decision}\label{consolidation-vs.-separation-decision}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Consolidate} when: workload profile overlap \textgreater70\%,
+  latency tolerance ≥300\,ms, and cost differential \textgreater30\%.
+  \emph{Verified}: our scenario consolidates 70\% of traffic to 8-bit,
+  saving \textasciitilde\$8/hr.
+\item
+  \textbf{Keep separate} when: (a) security/classification policies
+  require isolation, (b) workloads have bimodal latency needs (some
+  ≤50\,ms, others batch-tolerant), or (c) model versioning cadence
+  differs (e.g., frequent fine-tuning on one family, stable other).
+\end{itemize}
+
+In our example, consolidation wins because the MoE and 8-bit models
+capture the same request classes at lower cost, and the 2-GPU FP16
+reserve handles the tail without contention.
+
+\section{Measurement}\label{measurement}
+
+To operate a mixed fleet we measure four cross-cutting metrics:
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.1795\linewidth}
+  >{\raggedright\arraybackslash}p{0.4103\linewidth}
+  >{\raggedright\arraybackslash}p{0.4103\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Metric
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+How to measure
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Why it matters
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{Weighted average cost/token} & Σ(tokens\_i × cost\_i) /
+Σ(tokens\_i) across all models & Directly tracks fleet economics; target
+\textless{} \$0.002/token for competitive SaaS. \\
+\textbf{Per-model throughput} & requests/sec per GPU / per CPU node &
+Detects saturation; informs capacity adds vs.~routing tweaks. \\
+\textbf{Routing accuracy} & \% of requests served by the \emph{intended}
+target model (not fallback) & Ensures the routing function R() is
+well-calibrated; low accuracy means feature gaps or cost model drift. \\
+\textbf{Latency p95 per model} & p95 of token-level latency per model &
+Guarante SLA per tier; p95 across the fleet = weighted p95 using routing
+probabilities. \\
+
+\label{tab:18.4}\end{longtable}
+
+Instrumentation: add a middleware shim that logs
+\texttt{model\_id,\ token\_count,\ latency\_ms,\ cost\_cents} per
+request. Export to Prometheus + Grafana for real-time dashboards.
+
+\textbf{Derived quantity example:} \emph{Weighted cost rate} = (total
+monthly USD) / (total tokens processed). Start with the arithmetic
+above, then update daily as actual token counts and cloud prices shift.
+
+\section{Common Mistakes}\label{common-mistakes}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Treating quantization as free.} 4-bit/8-bit models reduce VRAM
+  but increase CPU cycles and may lower quality on long-context tasks.
+  Always measure the quality hit before routing en masse.
+\item
+  \textbf{One-size-fits-all routing.} A static rule (``always use
+  8-bit'') fails when workload mix shifts (e.g., seasonal increase in
+  multilingual queries that need FP16 precision). Use a dynamic router
+  with feature-gate checks.
+\item
+  \textbf{Ignoring capital amortization.} FP16 on 8×H100 has high
+  upfront cost; spreading that cost across a mixed fleet improves
+  effective cost/token. Don't forget to annualize GPU CapEx in the
+  per-token math.
+\item
+  \textbf{Over-provisioning the top tier.} Keeping a full FP16 GPU idle
+  ``just in case'' is expensive. Keep just enough capacity for the tail
+  (≈10\% of peak rps) and route the rest.
+\item
+  \textbf{No fallthrough plan.} If the preferred model is at capacity,
+  the router must have a next‑best alternative ready; otherwise requests
+  time out or queue indefinitely.
+\end{enumerate}
+
+\section{Architecture Consequence}\label{architecture-consequence}
+
+A mixed-model fleet changes the architecture in three ways:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Router shim} (HTTP middleware or gRPC interceptor) sits
+  between the user API and the model execution layer. It evaluates
+  feature requirements, reads current capacity, and selects model\_id.
+\item
+  \textbf{Capacity pool abstraction} -- rather than ``GPU 0 runs model
+  A,'' the system tracks ``8\,×\,H100 pool has 640\,GB VRAM; model X
+  consumes 70\,GB 8-bit, model Y consumes 35\,GB 4-bit.'' The pool
+  manager auto‑balances placements.
+\item
+  \textbf{Billing/telemetry pipeline} -- each request's cost and latency
+  are tagged with model\_id, enabling downstream dashboards and alerting
+  (e.g., ``cost per token rising above \$0.0025 for 3 consecutive
+  hours'').
+\end{enumerate}
+
+The fleet operator becomes a \emph{cost‑latency steward} rather than a
+single-model optimizer.
+
+\section{What We Still Don't Know}\label{what-we-still-dont-know}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Quality--cost curves for new quantizations.} As 3-bit and
+  sub-4-bit GGUF models emerge, the trade-off surface shifts; we need
+  systematic human evals + automatic benchmarks (MT‑Bench, FLAN) across
+  families.
+\item
+  \textbf{Optimal router policy for non‑stationary workloads.}
+  Reinforcement‑learning--based routing that adapts α,β weights in real
+  time is promising but underexplored in production fleets.
+\item
+  \textbf{Cross-model distillation opportunities.} Can a 70B 4-bit model
+  be distilled from a 70B FP16 teacher without quality loss, effectively
+  lowering the cost floor? Empirical work needed.
+\item
+  \textbf{Edge--cloud continuum effects.} When users bring their own
+  4-bit‑quantized local models (via Ollama, etc.), the fleet routing
+  must account for hybrid inbound/outbound token flows.
+\end{itemize}
+
+\section{End-of-Chapter Mini-Case}\label{end-of-chapter-mini-case}
+
+\textbf{Deploy a three‑tier fleet for a customer‑support chatbot.}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Tier\,1 (4-bit GGUF):} Handles 80\% of queries (FAQ, account
+  lookup). Runs on edge nodes (AMD Ryzen\,7950X, 64\,GB RAM). Cost:
+  \$0.0002/token, latency \textasciitilde600\,ms.
+\item
+  \textbf{Tier\,2 (70B 8-bit dense):} Handles 15\% of queries (order
+  status, policy look‑up). Runs on 1×H100. Cost: \$0.0015/token, latency
+  \textasciitilde250\,ms.
+\item
+  \textbf{Tier\,3 (70B FP16):} Handles 5\% of queries (complex
+  escalations, multilingual). Runs on 2 GPUs reserved. Cost:
+  \$0.003/token, latency \textasciitilde120\,ms.
+\end{itemize}
+
+\textbf{Arithmetic:} 1,000 users, 20\% concurrent (200 simultaneous),
+\textasciitilde5 rps average / 20 rps peak. Hourly tokens:
+\textasciitilde4,500 in + 500 out = 5,000.
+
+\begin{itemize}
+\tightlist
+\item
+  Tier\,1 processes 4,000 tokens/hr → \$0.80
+\item
+  Tier\,2 processes 750 tokens/hr → \$1.13
+\item
+  Tier\,3 processes 250 tokens/hr → \$0.75
+\item
+  \textbf{Total hourly cost: \$2.68} → \textbf{\$1,945 / month}.
+\end{itemize}
+
+If we had used a single 70B FP16 model: 5,000 tokens/hr × \$0.003 =
+\$15/hr → \$10,800 / month. \textbf{Savings: \$8,855 / month} (≈82\%)
+with latency p95 ≈ 480\,ms (within the 500\,ms SLA).
+
+The key enabler was the router's feature gate: queries mentioning
+``multilingual'' or ``technical specification'' were auto‑escalated to
+Tier\,3; the rest flowed to Tier\,1 or Tier\,2 automatically.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={\hyperref[fig:18.1]{Fig 18.1} --- Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the five specialised families as leaves {[}ILLUSTRATIVE conceptual{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-18-1801.pdf}}
+\caption{\hyperref[fig:18.1]{Fig 18.1} --- Model-routing decision tree: capability filter →
+cost/latency gate → fallthrough, with the five specialised families as
+leaves {[}ILLUSTRATIVE conceptual{]}}
+
+\label{fig:18.1}\end{figure}
+
+\emph{\hyperref[fig:18.1]{Fig 18.1} --- The routing decision chain. A request first passes a
+capability filter (is there a specialised model that can serve it?),
+then a cost/latency gate (route = f(cost, SLO)), and otherwise falls
+through to a general model. Each specialised family is a leaf the router
+can dispatch to. This converts the raw cost arithmetic above into the
+operational routing shape an architect operates daily.}
+
+\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+
+\emph{Evidence labels: {[}1P{]} price observations from public cloud
+provider pricing pages (Q4\,2026); {[}2°{]} derived per-token cost
+arithmetic; {[}VERIFY{]} latency measurements from local GGUF benchmarks
+on reference hardware.}

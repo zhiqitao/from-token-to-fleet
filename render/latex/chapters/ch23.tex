@@ -1,0 +1,278 @@
+\section{The Architect's Question}\label{the-architects-question}
+
+After this chapter we should be able to sit with a customer or
+stakeholder who says ``we want to build something with AI'' and turn
+that vague ambition into a bounded, measurable, defensible scope. We
+will apply the book's core loop in a conversational setting: ask the
+questions that surface the real workload (Ch4), the quality bar (Ch3/5),
+the latency and cost constraints, and the operational reality --- then
+restate the requirement in terms we can architect against. After this
+chapter, ``let's go build an AI thing'' becomes ``here are the bounds,
+the SLO, and the open questions'' --- and the customer knows exactly
+what they asked for.
+
+\section{Concept}\label{concept}
+
+Most AI projects fail in requirements, not in technology. The root cause
+is a \textbf{category error}: the customer and the architect mean
+different things by the same words. ``Fast,'' ``good,'' ``smart,'' and
+``it should just work'' are not contracts; they are vibes. The
+architect's first job is to convert vibes into \textbf{quantified,
+testable bounds} using the disciplines of the earlier chapters.
+
+The conversion rests on one idea: \textbf{every architectural decision
+traces back to a number the customer can see.} Whether the model is 7B
+or 70B, whether we self-host or use an API, whether we cache, quantize,
+or disaggregate --- all of it is decided by five numbers we can extract
+from a customer conversation:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{The traffic} --- how many users, at what concurrency, with
+  what peak-to-average ratio (Ch4/Ch17).
+\item
+  \textbf{The token profile} --- what inputs look like, how long
+  contexts are, the input/output ratio (Ch4/Ch6).
+\item
+  \textbf{The quality bar} --- what ``good enough'' means on \emph{this}
+  task, on \emph{their} data (Ch3/Ch5/Ch14).
+\item
+  \textbf{The latency/cost budget} --- the SLO and the money they can
+  spend (Ch6/Ch16).
+\item
+  \textbf{The operational reality} --- data privacy, geography,
+  available staff, time-to-value (Ch13/Ch21/Ch24).
+\end{enumerate}
+
+\section{Mental Model}\label{mental-model}
+
+Think of the customer conversation as \textbf{buying information, not
+delivering answers.} We are not in the room to impress; we are in the
+room to learn the five numbers. Three mental moves keep the conversation
+productive:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{The Socratic funnel.} Start broad (``what problem are we
+  solving?'') and narrow through a scripted set of questions that each
+  commit the customer to a concrete bound. Every ``vague'' answer gets
+  followed by a request for magnitude: ``roughly how many users?''
+  ``what's the slowest acceptable answer?''
+\item
+  \textbf{The mirror test.} Restate their words back as a quantified
+  requirement and check they still agree. ``So: \textasciitilde2,000
+  users, under 2 seconds to first token, on company-internal data ---
+  did I get that right?'' The restatement is where scope actually gets
+  locked.
+\item
+  \textbf{The two-window honesty.} Separate what the customer
+  \emph{thinks} (goals) from what the \emph{system} can guarantee
+  (SLOs). Goals are aspirations; SLOs are contracts. Confusing them
+  breeds every fee dispute and scope fight.
+\end{itemize}
+
+\section{Worked Example}\label{worked-example}
+
+\subsection{The Requirements Dialogue: Turning ``an internal AI
+assistant'' Into
+Bounds}\label{the-requirements-dialogue-turning-an-internal-ai-assistant-into-bounds}
+
+\textbf{{[}Worked example dialogue --- illustrative, not reference.{]}}
+An internal-platform lead says: ``We want an AI assistant for our sales
+teams --- it should answer questions from our product docs and CRM data,
+and it should be fast.'' {[}2°{]}
+
+\textbf{Architect:} ``\textasciitilde How many people will use it, and
+how often?'' \textbf{Lead:} ``\textasciitilde2,000 on the platform;
+maybe 10\% are in it at once at peaks.'' \textbf{Architect:} ``So
+\textasciitilde200 concurrent at peak, and realistically a fraction of
+that firing requests. Roughly how many questions per second at the
+busiest minute?'' \textbf{Lead:} ``If everyone on the sales floor asked
+at once, maybe 40 a second.'' \textbf{→ Bound 1: \textasciitilde2,000
+users, \textasciitilde10 rps average, \textasciitilde40 rps peak.} {[}1P
+§14{]}
+
+\textbf{Architect:} ``What does a question look like? Short or with long
+context?'' \textbf{Lead:} ``They paste product specs and contracts, so
+the prompt can be lengthy --- a few pages.'' \textbf{→ Bound 2: long
+\textasciitilde9,200-token inputs with retrieval,
+\textasciitilde300-token outputs.} {[}1P §14{]}
+
+\textbf{Architect:} ``What's `fast'? First-word delay, or time to full
+answer?'' \textbf{Lead:} ``Feels slow if we wait more than two seconds
+to see something start.'' \textbf{→ Bound 3: TTFT ≤ 2 s (p95),
+\textasciitilde25 ms/token thereafter.} {[}1P §14{]}
+
+\textbf{Architect:} ``What does `good answer' mean for your team --- and
+can we define a handful of sample questions to test against?''
+\textbf{Lead:} ``It should be accurate on our docs and not make up
+contract terms. We can give the validation team 50 real questions.''
+\textbf{→ Bound 4: a 50-question retrieval-QA quality benchmark on their
+actual data.} {[}1P §14{]}
+
+\textbf{Architect:} ``Data sensitivity --- can this touch a public
+cloud, and how much can it cost?'' \textbf{Lead:} ``It's internal and
+regulated; keep it on-prem if at all possible.'' \textbf{→ Bound 5:
+operational constraint forces the local/server tier (Ch13).} {[}1P
+§14{]}
+
+\textbf{Architect (mirror):} ``So to lock it: \textasciitilde2,000 sales
+users, \textasciitilde10 rps average / 40 peak, prompts with
+\textasciitilde9,200-token retrieval context, answers starting under 2
+s, quality judged on 50 of your real questions, and fully on-prem
+because it's regulated. Have I captured it?'' \textbf{Lead:} ``Yes ---
+that's exactly it.''
+
+\textbf{Reading the result.} The vague ask collapsed into the exact
+canonical workload this book has architected end-to-end --- a 70B-class
+model on an 8×H100 on-prem server meets every bound (Ch2-16). The
+conversation did not sell a model; it \emph{exposed the numbers} that
+then chose the architecture with almost no further input. {[}2°
+DERIVED{]} \emph{(worked example, not reference)}
+
+\textbf{\hyperref[tab:23.1]{Table 23-1}} --- The six questions that turn any vague AI ask
+into architectable bounds
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.3333\linewidth}
+  >{\raggedright\arraybackslash}p{0.3333\linewidth}
+  >{\raggedright\arraybackslash}p{0.3333\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Question
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Surface it reveals
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Canonical answer (this example)
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textasciitilde How many users, how concurrent? & Traffic \& concurrency
+(Ch4/17) & \textasciitilde2,000 users, \textasciitilde10/40 rps \\
+What do inputs look like? & Token profile (Ch4/6) & \textasciitilde9.2K
+in / \textasciitilde300 out \\
+What's ``fast''? & SLO (Ch6) & TTFT ≤ 2 s, \textasciitilde25 ms/token \\
+What's ``good''? & Quality bar (Ch3/14) & 50-question retrieval-QA
+set \\
+Data sensitive? Cloud OK? & Tier \& ops (Ch13) & on-prem, regulated \\
+How much can it cost? & TCO (Ch16) & within self-host budget \\
+
+\label{tab:23.1}\end{longtable}
+
+\section{Measurement}\label{measurement}
+
+The requirements dialogue has its own quality metrics:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Bound coverage} --- did the conversation surface all five
+  numbers (traffic, tokens, quality, latency/cost, ops)? Missing one is
+  a future scope surprise.
+\item
+  \textbf{Customer buy-in} --- did the mirrored restatement get an
+  explicit ``yes''? An unconfirmed restatement is not a scope.
+\item
+  \textbf{Decision lead time} --- how quickly the five bounds let us
+  produce a defensible draft architecture. The whole point is that
+  extracting numbers, not more meetings, unlocks the design.
+\item
+  \textbf{Assumption log} --- every guess we made that the customer did
+  not explicitly confirm, tracked as {[}VERIFY{]} items, not silent
+  defaults.
+\end{enumerate}
+
+\section{Common Mistakes}\label{common-mistakes}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Selling before scoping.} Pitching a model or a price before
+  extracting the five numbers commits us to an answer we cannot yet
+  defend.
+\item
+  \textbf{Accepting aspirations as SLOs.} ``Make it fast'' is a goal;
+  ``p95 TTFT under 2 s'' is a contract. Write the contract.
+\item
+  \textbf{Letting the customer choose the technology.} ``We want a 70B
+  model'' is a solution, not a requirement; the architect derives the
+  model from the bounds (Ch5), not from the customer's guess.
+\item
+  \textbf{Ignoring the operational constraint.} ``It has to be on-prem /
+  private / no cloud'' often decides more than any performance number
+  --- surface it early.
+\item
+  \textbf{Not logging assumptions.} Every silence becomes a hidden
+  assumption that surfaces as a dispute later. Write them down as
+  {[}VERIFY{]} items.
+\end{itemize}
+
+\section{Architecture Consequence}\label{architecture-consequence}
+
+The requirements conversation is where the book's entire loop is
+\emph{fed.} The five bounds it extracts are exactly the inputs Ch1-16
+consume: traffic feeds capacity (Ch17), tokens feed KV/memory (Ch7),
+quality feeds model selection (Ch5), latency feeds serving (Ch11), cost
+feeds TCO (Ch16), and the operational constraint picks the tier (Ch13).
+A good requirements session is not a warm-up to architecture --- it
+\emph{is} the first chapter of the architecture, and every downstream
+decision traces back to the numbers it locked. {[}2°{]}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={\hyperref[fig:23.1]{Fig 23.1} --- From vague ask to architectural bounds {[}ILLUSTRATIVE conceptual{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-23-2301.pdf}}
+\caption{\hyperref[fig:23.1]{Fig 23.1} --- From vague ask to architectural bounds
+{[}ILLUSTRATIVE conceptual{]}}
+
+\label{fig:23.1}\end{figure}
+
+\emph{\hyperref[fig:23.1]{Fig 23.1} --- The framing funnel: broad ask → five Socratic
+questions (problem, success, data, constraints, scope) → confirmed
+bounds. This is the }dialogue* that surfaces requirements; the
+\emph{six} architectural surfaces in \hyperref[tab:23.1]{Table 23-1} are what each answer
+reveals (traffic, token profile, SLO, quality, ops/tier, TCO).
+{[}ILLUSTRATIVE conceptual{]}*
+
+\section{What We Still Don't Know}\label{what-we-still-dont-know}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{How accurate the customer's own-told numbers are} (``40 rps
+  peak'') is {[}VERIFY{]}; peak estimates are notoriously optimistic and
+  should be triangulated with real logs where possible.
+\item
+  \textbf{Whether the quality bar once defined stays stable} is
+  {[}HYPOTHESIS{]}; as users adopt the tool, their expectations and the
+  data they query both shift.
+\item
+  \textbf{The right number of questions to lock quality} is
+  {[}VERIFY{]}; 50 worked here as a representative proxy but a larger,
+  task-distributed set is stronger.
+\end{itemize}
+
+\section{End-of-Chapter Mini-Case}\label{end-of-chapter-mini-case}
+
+A CTO emails the architect: ``We heard LLMs are great --- let's put one
+on our customer portal to answer support tickets. Shipping it next
+month.'' Rather than confirm the launch date, the architect books a
+30-minute session and runs the funnel. It emerges the portal gets
+\textasciitilde5 rps average but 200-rps bursts during outage events
+(traffic), tickets are short (\textasciitilde500 tokens, not
+retrieval-heavy), quality means ``resolve the ticket, not just answer''
+(a capability the cheaper model screens out), the SLO is 3 s because
+users are already frustrated (latency), and --- critically --- the
+portal sits on regulated payment data so nothing leaves the premises
+(ops). The mirrored restatement turns ``let's ship AI next month'' into
+``a 7B-class model on one on-prem GPU, resolving baseline tickets under
+3 s, with a 200-rps burst buffer, quality-gated on real resolved tickets
+--- and a two-week pilot on 5\% of tickets to confirm the referral
+quality before full rollout.'' The customer's vague excitement became a
+defensible, bounded, shippable scope --- and the architect is already
+architecting, not guessing.

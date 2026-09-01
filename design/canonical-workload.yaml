@@ -1,0 +1,49 @@
+# Canonical Scenario & Equation Set — single source of truth
+# Every chapter's quantitative claims derive from here (book-architecture.md §14).
+# Freeze this file; chapters cite it instead of re-inventing numbers.
+# Version: v1  (2026-08-30 numerical-audit baseline; aligns Ch5/Ch7 canonical values)
+
+scenario:
+  name: "Enterprise Q&A over internal documents (RAG)"
+  registered_users: 2000
+  concurrency_factor: 0.05            # ~5% concurrently active
+  requests_per_user_interval_s: 200   # one request ~every 200 s -> 10 rps avg
+  peak_rps: 40
+  prompt_tokens: 1200
+  retrieved_context_tokens: 8000
+  input_tokens: 9200                  # 1200 + 8000
+  output_tokens: 300
+
+model:
+  params: 70e9                        # 70B-class dense
+  precision_weights: "FP16"
+  weight_bytes_per_param: 2           # FP16
+  weight_gb: 140                      # = 70e9 * 2 / 1e9
+  layers: 80
+  hidden_dim: 8192                    # canonical full-MHA teaching model
+  kv_heads: 8192                      # full MHA: H_kv * D_head = hidden_dim (=8192)
+  head_dim: 1                         # so H_kv * D_head = hidden_dim
+  kv_bytes_per_element: 2             # FP16 KV
+
+hardware:
+  host: "1 host, 8 x H100-class GPUs"
+  gpus: 8
+  hbm_per_gpu_gb: 80
+  hbm_total_gb: 640
+  hbm_usable_fraction: 0.8            # after runtime/workspace reserve
+  hbm_usable_gb: 512
+  peak_tflops_fp16_per_gpu: 1000
+  peak_flops_system: 8e15             # 8 x 1000 TFLOPS
+  hbm_bandwidth_per_gpu_tbps: 3.35
+
+equations:
+  kv_per_token_bytes: 2621440         # 2 * layers * hidden_dim * kv_bytes = 2*80*8192*2
+  kv_per_token_mb: 2.5                # rounded; 2,560 KB (book convention); exact 2.62 MB
+
+derived:                              # computed by render/canonical_calc.py
+  kv_9200_gb: 23.9                    # 9200 x 2.5 MB (book rounded); exact 24.1
+  kv_300_gb: 0.75                     # 300 x 2.5 MB
+  kv_total_inference_gb: 24.7         # 23.9 + 0.75
+  inference_residency_9200_gb: 164.7  # weights 140 + KV 24.7
+  kv_gqa_variant_mb: 0.33             # e.g. H_kv=8, D_head=128 -> 1024: 2*80*1024*2/1e6
+  kv_fp8_variant_mb: 1.3              # 1 byte/element -> 2*80*8192*1/1e6 = 1.31
