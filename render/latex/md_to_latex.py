@@ -49,7 +49,8 @@ def read_yaml_chapters():
 
 
 # regex that tolerates nested brackets in alt text (e.g. '[1P]' inside alt)
-IMG_RE = re.compile(r"!\[((?:[^\[\]]|\[[^\]]*\])*)\]\(([^)]+)\)")
+# (handles arbitrary nesting depth: '[2° DERIVED; a [1P: vendor datasheet]]')
+IMG_RE = re.compile(r"!\[((?:[^\[\]]|\[(?:[^\[\]]|\[[^\[\]]*\])*\])*)\]\(([^)]+)\)")
 
 
 def fix_colspec(tex_path):

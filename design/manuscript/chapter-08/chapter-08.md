@@ -98,7 +98,7 @@ This rough sizing illustrates that prefill is FLOP-bound at this scale — the c
 
 ### Decode: bandwidth-bound at low batch
 
-![Fig 8.1 — Prefill above the ridge (compute-bound), decode below it (memory-bound). H100 (solid) vs H200 (dashed) ridge points from vendor datasheets (989 TFLOPS, 3.35 / 4.8 TB/s); Continuous-Batching arrow shows decode climbing the slope as batch grows [2° DERIVED; H100/H200 peaks [1P: vendor datasheet]](figures/fig-08-0801.png)
+![Fig 8.1 — Prefill above the ridge (compute-bound), decode below it (memory-bound). H100 (solid) vs H200 (dashed) ridge points from vendor datasheets (989 TFLOPS, 3.35 / 4.8 TB/s); Continuous-Batching arrow shows decode climbing the slope as batch grows [2° DERIVED] [1P: vendor datasheet]](figures/fig-08-0801.png)
 
 *Fig 8.1 — The roofline: prefill is compute-bound, low-batch decode is memory-bound.*
 
