@@ -16,9 +16,13 @@ The critical architectural insight: prefill is dominated by FLOPs (matrix-multip
 
 ## 2. Mental Model
 
-Think of inference as two gears turning at different speeds. The prefill gear is large and toothed: it does a lot of work per revolution (many FLOPs), but it only turns once per request. The decode gear is small and smooth: it turns every token, doing relatively little work per step, but it keeps turning for every output token. The prefill gear is limited by how fast the compute engines can crank (FLOPS); the decode gear is limited by how fast data can be fed from memory (GB/s). When we ask "is this workload compute-bound or bandwidth-bound?" the answer depends entirely on which gear is doing the work.
+Think of inference as two fundamentally different physical processes, distinguished by what limits them.
 
-A useful concrete image: prefill is like filling a bucket from a fire hose — a burst of high-rate flow that fills the entire capacity in one go. Decode is like drinking from that bucket one sip at a time — each sip is small, but we keep sipping until the bucket is empty. The hose is limited by pipe width (bandwidth); the sips are limited by cup size and swallowing rate (compute).
+**Prefill is compute-bound.** It is like turning on a massive industrial fire hose to fill a reservoir. The burst of flow is enormous, and the time it takes is limited entirely by the raw horsepower of the pump (compute/FLOPs) pushing the water. The pipe is wide open, but the motor is working at its absolute limit.
+
+**Decode is bandwidth-bound.** It is like trying to empty a 140,000-gallon swimming pool through a standard garden hose every 25 milliseconds just to produce a single glass of water. The pump (compute) is more than powerful enough, but the diameter of the hose (HBM bandwidth) physically cannot move that volume of water in that time frame.
+
+When we ask "is this workload compute-bound or bandwidth-bound?" the answer depends entirely on which physical constraint we are hitting: the horsepower of the engine, or the diameter of the pipe.
 
 ## 3. Worked Example
 
