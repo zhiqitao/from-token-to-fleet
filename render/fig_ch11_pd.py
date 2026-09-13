@@ -33,17 +33,18 @@ ax.text(20.2, 1.5, 'steady token generation\nhigh bandwidth utilization', fontsi
 
 # ---- Bridge: KV cache transfer ----
 ax.annotate('', xy=(16.9, 4.2), xytext=(7.2, 4.2), arrowprops=dict(arrowstyle='-|>', lw=3, color='#a93226', connectionstyle='arc3,rad=0.0'))
-ax.text(12, 5.1, 'KV CACHE TRANSFER\nover NVLink / fabric', fontsize=10, ha='center', color='#a93226', fontweight='bold')
-ax.text(12, 4.7, 'prefill writes per-token KV; decode reads it\n(shaded-dominant with Mooncake)', fontsize=8, ha='center', color='#555')
+ax.text(12.1, 5.2, 'KV CACHE TRANSFER', fontsize=10, ha='center', color='#a93226', fontweight='bold')
+ax.text(12.1, 4.75, 'over NVLink / fabric', fontsize=10, ha='center', color='#a93226', fontweight='bold')
+ax.text(12.1, 4.25, 'prefill writes per-token KV,\ndecode reads it', fontsize=8, ha='center', color='#555')
 
 # ---- Incoming request / output outside pools ----
 ax.text(3.8, 7.1, 'input prompt →', fontsize=9, ha='left', color='#333', fontweight='bold')
 ax.annotate('', xy=(3.8, 6.5), xytext=(3.8, 7.05), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#333'))
-ax.text(20.2, 0.5, '← tokens out to client', fontsize=9, ha='center', color='#333', fontweight='bold')
+ax.text(20.2, 0.55, '← tokens out to client', fontsize=9, ha='center', color='#333', fontweight='bold')
 
-# ---- Why: resource conflict ----
-ax.text(12, -0.1, 'Why split?  prefill  ~1.19 PFLOPS required vs 0.989 peak (FLOP-starved);  decode  5.6 TB/s vs 3.35 TB/s (bandwidth-starved).  One pool forces a compromise for both.  [2° DERIVED]',
-        fontsize=8, ha='center', color='#444')
+# ---- Why: resource conflict (wrapped so it doesn't clip at the column edge) ----
+ax.text(12, -0.2, 'Why split?  prefill  ~1.19 PFLOPS required vs 0.989 peak (FLOP-starved);', fontsize=8, ha='center', color='#444')
+ax.text(12, -0.8, 'decode  5.6 TB/s vs 3.35 TB/s (bandwidth-starved).  One pool forces a compromise for both.  [2° DERIVED]', fontsize=8, ha='center', color='#444')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-11/figures/fig-11-1103.png', dpi=150)
