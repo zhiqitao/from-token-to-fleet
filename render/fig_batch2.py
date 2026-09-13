@@ -118,12 +118,19 @@ print('Ch23 done')
 fig, ax = plt.subplots(figsize=(12, 4.5))
 ax.set_xlim(0, 16); ax.set_ylim(0, 4.5); ax.axis('off')
 comps = ['Context', 'Options', 'Decision', 'Rationale', 'Consequences']
-xs = [0.3, 2.9, 5.5, 8.1, 10.9]
-for i, (c, x) in enumerate(zip(comps, xs)):
-    ax.add_patch(FancyBboxPatch((x, 1.5), 2.3, 1.5, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
-    ax.text(x+1.15, 2.25, c, ha='center', va='center', color='white', fontsize=10, fontweight='bold')
+# All boxes share the width required by the longest label ('Consequences')
+# so the row is uniformly balanced.
+bw = [2.9, 2.9, 2.9, 2.9, 2.9]
+xs = []
+_cx = 0.3
+for b in bw:
+    xs.append(_cx)
+    _cx += b + 0.35
+for i, (c, x, w) in enumerate(zip(comps, xs, bw)):
+    ax.add_patch(FancyBboxPatch((x, 1.5), w, 1.5, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
+    ax.text(x + w/2, 2.25, c, ha='center', va='center', color='white', fontsize=10, fontweight='bold')
     if i < len(comps)-1:
-        ax.annotate('', xy=(x+2.5, 2.25), xytext=(x+2.3, 2.25), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
+        ax.annotate('', xy=(x+w+0.35, 2.25), xytext=(x+w, 2.25), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 ax.text(8, 0.6, 'An ADR supersedes an old one: the why is captured at decision time', fontsize=11, fontweight='bold', ha='center', color='#333')
 plt.tight_layout()
 plt.savefig(base % (25, 25, 25), dpi=150); plt.close()

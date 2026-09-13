@@ -36,18 +36,25 @@ TARGET_SIZE_PT = 8.5
 # Absolute cap so we never balloon a figure's type into absurdity.
 MAX_SCALE = 3.2
 
-_scaled_fignums = set()   # reset per script so each figure is scaled once
+_scaled_fignums = set()   # object-ids of figures already scaled (per script)
 
 _orig_savefig = plt.savefig
 
 
 def _is_text_art(fig):
-    """An 'axis-off' diagram: no visible axes and at least one drawn patch."""
+    """An 'axis-off' diagram: no visible axes AND drawn patches.
+
+    `ax.axis('off')` sets `ax.axison=False` (it does NOT flip
+    `get_xaxis().get_visible()`), so detect via `get_axison()` -- and also treat
+    an axes whose tick labels are all hidden as axis-off.  A real chart keeps
+    at least one visible axis."
+    """
     if not fig.axes:
         return False
-    if any(ax.get_xaxis().get_visible() or ax.get_yaxis().get_visible()
-           for ax in fig.axes):
-        return False
+    for ax in fig.axes:
+        # `ax.axis('off')` flips the `axison` flag.  A real chart keeps it True.
+        if getattr(ax, "axison", True):
+            return False        # an axis is on -> real chart
     return any(getattr(ax, "patches", None) for ax in fig.axes)
 
 
@@ -132,43 +139,28 @@ def _fix_crowded_chart(fig):
 
 
 def _scale_text_art(fig, factor):
-    """For axis-off diagrams, grow the font AND the drawn patch geometry so the
-    boxes enlarge to hold the bigger labels (keeps a readable relative size)."""
+    """For axis-off diagrams, grow the FONT so labels reach ~body size at print.
+
+    We deliberately do NOT scale the patch geometry: scaling box coords about the
+    axes centre pushes edge boxes past the axes boundary (they get clipped by the
+    tight-crop) and desyncs the connector arrows, which are anchored at fixed
+    data coordinates.  The boxes are authored with enough slack that the bigger
+    font still fits inside them; any genuinely too-small box is fixed in its
+    own generator.
+    """
     for ax in fig.axes:
-        # Scale patch geometry about the axis centre.
-        try:
-            x0, x1 = ax.get_xlim(); y0, y1 = ax.get_ylim()
-        except Exception:
-            x0, y0, x1, y1 = 0.0, 0.0, 1.0, 1.0
-        for p in getattr(ax, "patches", []):
-            try:
-                if hasattr(p, "get_xy"):
-                    xy = p.get_xy()
-                    cx, cy = x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5
-                    nxy = [(cx + (a - cx) * factor, cy + (b - cy) * factor)
-                           for a, b in xy]
-                    p.set_xy(nxy)
-                if hasattr(p, "get_width") and hasattr(p, "get_height"):
-                    p.set_width(p.get_width() * factor)
-                    p.set_height(p.get_height() * factor)
-                if hasattr(p, "get_x") and hasattr(p, "get_y"):
-                    x, y = p.get_x(), p.get_y()
-                    cx, cy = x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5
-                    p.set_x(cx + (x - cx) * factor)
-                    p.set_y(cy + (y - cy) * factor)
-            except Exception:
-                pass
-        # Scale text positions toward the centre too, so labels stay put.
         for t in ax.texts:
-            try:
-                tx, ty = t.get_position()
-                cx, cy = x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5
-                t.set_position((cx + (tx - cx) * factor, cy + (ty - cy) * factor))
-            except Exception:
-                pass
             t.set_fontsize(t.get_fontsize() * factor)
-        # Scale annotation/arrow text.
-        for an in getattr(ax, "texts", []):
+        for t in ax.xaxis.get_ticklabels():
+            t.set_fontsize(t.get_fontsize() * factor)
+        for t in ax.yaxis.get_ticklabels():
+            t.set_fontsize(t.get_fontsize() * factor)
+        try:
+            if ax.get_title():
+                ax.title.set_fontsize(ax.title.get_fontsize() * factor)
+            ax.xaxis.label.set_fontsize(ax.xaxis.label.get_fontsize() * factor)
+            ax.yaxis.label.set_fontsize(ax.yaxis.label.get_fontsize() * factor)
+        except Exception:
             pass
     for t in fig.texts:
         t.set_fontsize(t.get_fontsize() * factor)
@@ -177,9 +169,10 @@ def _scale_text_art(fig, factor):
 def _scale_figure_fonts(fig, num):
     """Scale fonts up so the smallest label reaches roughly body size at print,
     then reflow; for text-art diagrams scale the geometry too."""
-    if num in _scaled_fignums:
-        return
-    _scaled_fignums.add(num)
+    key = id(fig)          # key by object identity, not figure number: in
+    if key in _scaled_fignums:   # multi-figure scripts the same number is
+        return                    # reused across subplots() calls.
+    _scaled_fignums.add(key)
     try:
         width_in = fig.get_size_inches()[0]
     except Exception:
@@ -286,6 +279,11 @@ def main():
             # exec all scripts in ONE interpreter, swallow that so the regen
             # loop (and every later figure script) keeps running.
             continue
+        finally:
+            # Each figure script is standalone; close every figure it opened so
+            # stale figures from prior scripts can't leak into the next
+            # script's _duo_savefig (which scales + tight-crops every open fig).
+            plt.close("all")
     print("DONE")
 
 
