@@ -217,14 +217,13 @@ def _scale_figure_fonts(fig, num):
             _scale_axes_fonts(ax, factor)
         try:
             w, h = fig.get_size_inches()
-            # Give wide-short figures more height so enlarged bottom/multi-line
-            # labels fit after reflow; cap so (a) we don't create tall slivers
-            # and (b) the placed figure stays within a book page (~8in tall at
-            # 6.1in column => aspect >= ~0.75).  Only grow when clearly
-            # wider-than-tall so we never make an already-tall figure taller.
-            if w > h:
-                hscale = min(factor, 1.7, (h * 1.7) / h if h > 0 else 1.7)
-                hscale = max(1.0, hscale)
+            # Give wide-short subplot (multi-axes) figures more height so the
+            # enlarged bottom/multi-line labels fit after reflow; single-axis
+            # charts (the common case) are NOT stretched -- they stay at their
+            # authored aspect so they don't turn into a tall sliver.  Cap so the
+            # placed figure stays within a book page.
+            if len(fig.axes) > 1 and w > h:
+                hscale = min(factor, 1.7)
                 fig.set_size_inches(w, h * hscale)
         except Exception:
             pass
