@@ -82,7 +82,9 @@ def _num(tag, name):
 
 
 def crop_viewbox(min_html):
-    """Rewrite the SVG viewBox to the content bbox (+pad), save in place."""
+    """Rewrite the SVG viewBox to the content bbox (+pad), AND boost the inline
+    SVG font sizes modestly (nodes have padding, so ~1.3x stays inside boxes)
+    so the fine sub-labels/annotations are readable at print.  Save in place."""
     t = open(min_html, encoding="utf-8").read()
     m = re.search(r'(viewBox="0 0 )([0-9.]+) ([0-9.]+)(")', t)
     if not m:
