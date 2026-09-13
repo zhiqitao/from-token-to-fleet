@@ -71,11 +71,50 @@ def fix_colspec(tex_path):
     return False
 
 
+def fix_wide_tables(tex_path):
+    """Scale down pandoc longtable colspecs whose p{\\\\linewidth} column widths
+    sum to near (or over) the text block, so the total table width (columns plus
+    longtable's inter-column \\\\tabcolsep padding) does not overflow the ~6.1in
+    column.  Keeps a target sum (<=0.88) to leave room for the padding; never
+    widens an already-narrow table.  Also makes long filename-like tokens in
+    cells breakable (allowbreak before '.json'/'.pt'/'.png'/'/'-separators) so a
+    single unhyphenatable name cannot push a column past the margin."""
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    # Operate on each longtable block, from \\begin{longtable} up to the first
+    # \\toprule / \\end{longtable}.  The colspec (the p{...} widths) lives there.
+    def repl(blk):
+        spec = blk[:blk.find("\\toprule") if "\\toprule" in blk else len(blk)]
+        fracs = [float(x) for x in _re.findall(r"p\{([0-9.]+)\\linewidth\}", spec)]
+        if not fracs:
+            return blk
+        total = sum(fracs)
+        scale = (0.88 / total) if total > 0.88 else 1.0
+        def rep2(mm):
+            return "p{%s\\linewidth}" % ("%.4f" % (float(mm.group(1)) * scale))
+        return _re.sub(r"p\{([0-9.]+)\\linewidth\}", rep2, blk)
+    new = _re.sub(r"(?s)(\\begin\{longtable\}.*?\\toprule|\\begin\{longtable\}.*?\\end\{longtable\})",
+                  lambda mm: repl(mm.group(1)), tex)
+    # Breakable filename tokens in TABLE CELL text.  Never touch
+    # \includegraphics{...} paths (those sit in figures/, not cells) -- guard by
+    # only rewriting inside \begin{longtable}...\end{longtable} blocks.
+    def break_files(blk):
+        # Break long filename-like tokens at their extension dot.
+        return _re.sub(r"([A-Za-z0-9_./-]+)\.(json|pt|png|pdf|csv|yaml|yml)\b",
+                       r"\1.\\allowbreak\\hbox{}\2", blk)
+    new = _re.sub(r"(?s)(\\begin\{longtable\}.*?\\end\{longtable\})",
+                  lambda mm: break_files(mm.group(1)), new)
+    if new != tex:
+        open(tex_path, "w", encoding="utf-8").write(new)
+        return True
+    return False
+
+
 def fix_figure_width(tex_path):
-    """Ensure every pandoc \\includegraphics is width-constrained to the text
+    """Ensure every pandoc \includegraphics is width-constrained to the text
     block (scale down over-wide figures, never enlarge). Pandoc emits
-    \\includegraphics[keepaspectratio,alt={...}]{figures/x.png} with no width;
-    append width=\\maxwidth{\\textwidth} so wide source images fit."""
+    \includegraphics[keepaspectratio,alt={...}]{figures/x.png} with no width;
+    append width=\maxwidth{\textwidth} so wide source images fit."""
     tex = open(tex_path, encoding="utf-8").read()
     # Rewrite \includegraphics[keepaspectratio,alt={...}]{file} to add width.
     import re as _re
@@ -86,6 +125,47 @@ def fix_figure_width(tex_path):
             return m.group(0)
         return "\\includegraphics[%s,width=\\maxwidth{\\textwidth},keepaspectratio]{%s}" % (opts, m.group(2))
     new = pat.sub(repl, tex)
+    if new != tex:
+        open(tex_path, "w", encoding="utf-8").write(new)
+        return True
+    return False
+
+
+def fix_verbatim(tex_path):
+    """Route pandoc's plain \\\\begin{verbatim} blocks through fancyvrb's
+    Verbatim with breaklines/breakanywhere so long code lines wrap instead of
+    overflowing the ~6.1in text column."""
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    if "\\begin{verbatim}" not in tex:
+        return False
+    tex = tex.replace("\\begin{verbatim}",
+        "\\begin{Verbatim}[breaklines=true, breakanywhere=true, fontsize=\\small]")
+    tex = tex.replace("\\end{verbatim}", "\\end{Verbatim}")
+    open(tex_path, "w", encoding="utf-8").write(tex)
+    return True
+
+
+def fix_urls(tex_path):
+    """Wrap long bare URLs in body text in \\\\url{} so the hyphens url-package
+    lets them break across lines (a raw http://... string cannot break and
+    overflows the text column).  Skip URLs already wrapped and those inside
+    \\includegraphics / tables (handled elsewhere)."""
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    # Only rewrite outside longtable and outside \texttt{...}/\url{...}.
+    parts = _re.split(r"(?s)(\\begin\{longtable\}.*?\\end\{longtable\})", tex)
+    changed = False
+    def wrap(body):
+        out = _re.sub(r"(?<!\\url\{)(https?://[^\s}\\]+\S*)",
+                      lambda mm: "\\url{%s}" % mm.group(1).replace("_", "\\_"),
+                      body)
+        return out
+    new = parts[0]
+    for k in range(1, len(parts), 2):
+        new += parts[k]                      # longtable block: leave alone
+        if k + 1 < len(parts):
+            new += wrap(parts[k + 1])
     if new != tex:
         open(tex_path, "w", encoding="utf-8").write(new)
         return True
@@ -219,7 +299,10 @@ def convert(mapping):
         if r.returncode != 0:
             print(f"pandoc fail ch{n}: {r.stderr[-400:]}")
         fix_colspec(out)
+        fix_wide_tables(out)
         fix_figure_width(out)
+        fix_verbatim(out)
+        fix_urls(out)
         fix_crossrefs(out, n)
         built[n] = (chapters[n]["title"], out)
     return built

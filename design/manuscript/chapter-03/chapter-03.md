@@ -142,7 +142,7 @@ An architect is fleshing out the design of the internal Q&A tool described in Ch
 
 From the model-understanding chapter, the architect can answer: *Weight residency yes — active parameters take ~28 GB vs. 140 GB for a dense 70B, we could fit the model on fewer GPUs or a smaller host. But KV-cache memory no — the attention layers still process every token densely, so the cache budget for a 9.2K-context input is the same regardless of whether the model is dense or MoE. We still need to provision for ~12 GB of KV cache (at 8-bit) or ~24 GB (at the precision pattern discussed in Ch. 7) per request, and we'll also need expert-routing infrastructure on top of that.*
 
-The architect's decision therefore hinges on whether the compute savings from MoE (fewer FLOPs per token, potentially lower $/token) outweigh the added routing complexity and the fact that KV-cache memory is unchanged. The team decides on a MoE model for the compute/$ advantage, but provisions the KV-cache budget at the dense-model rate, and adds one GPU dedicated to the routing dispatcher.
+The architect's decision therefore hinges on whether the compute savings from MoE (fewer FLOPs per token, potentially lower \$/token) outweigh the added routing complexity and the fact that KV-cache memory is unchanged. The team decides on a MoE model for the compute/\$ advantage, but provisions the KV-cache budget at the dense-model rate, and adds one GPU dedicated to the routing dispatcher.
 
 * * *
 ![Fig 3.1 — Dense vs MoE parameter allocation and KV-cache behavior [2° DERIVED]](figures/fig-03-0301.png)

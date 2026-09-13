@@ -51,7 +51,11 @@ We price the canonical 70B enterprise-Q&A workload at the canonical traffic (~10
 - A hosted frontier-70B-class API at ~$0.002/input + ~$0.008/output per 1K tokens (typical as of 2026). The per-request token cost is
 
 $$
-\text{cost/req} = p_\text{in} \cdot \frac{I}{1000} + p_\text{out} \cdot \frac{O}{1000} = 0.002 \times 9.2 + 0.008 \times 0.3 \approx \$0.0184 + \$0.0024 \approx \$0.0208 \approx \$20.8 \text{ per 1,000 requests}
+\begin{aligned}
+\text{cost/req} &= p_\text{in} \cdot \frac{I}{1000} + p_\text{out} \cdot \frac{O}{1000}\\
+&= 0.002 \times 9.2 + 0.008 \times 0.3 \approx \$0.0184 + \$0.0024\\
+&\approx \$0.0208 \approx \$20.8 \text{ per 1,000 requests}
+\end{aligned}
 $$
 
 [2° FACT, illustrative]

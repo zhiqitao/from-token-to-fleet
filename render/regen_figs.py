@@ -24,9 +24,55 @@ FIG_SCRIPTS = sorted(glob.glob(os.path.join(REPO, "render", "fig_*.py")))
 
 _orig_savefig = plt.savefig
 
+# The book's text column is ~6.1in but every figure is authored at 8-16in wide,
+# then clamped to \textwidth, so the fonts shrink proportionally and become
+# unreadable in print (~0.4-0.6x of nominal).  Scale every figure's type back up
+# by (figure width in inches / 6.1) so text lands at its nominal point size on
+# the page.  Preserves relative sizes (titles remain larger than labels).
+TEXTW_IN = 6.1
+_scaled_fignums = set()   # reset per script so each figure is scaled once
+
+
+def _scale_figure_fonts(fig, num):
+    """Multiply all text font sizes in a figure by figwidth/TEXTW_IN (once)."""
+    if num in _scaled_fignums:
+        return
+    _scaled_fignums.add(num)
+    try:
+        factor = fig.get_size_inches()[0] / TEXTW_IN
+    except Exception:
+        return
+    if factor <= 1.05:      # near or below column width: leave alone
+        return
+    for txt in fig.texts:
+        txt.set_fontsize(txt.get_fontsize() * factor)
+    for ax in fig.axes:
+        if ax.title:
+            ax.title.set_fontsize(ax.title.get_fontsize() * factor)
+        if ax.xaxis.label:
+            ax.xaxis.label.set_fontsize(ax.xaxis.label.get_fontsize() * factor)
+        if ax.yaxis.label:
+            ax.yaxis.label.set_fontsize(ax.yaxis.label.get_fontsize() * factor)
+        for l in ax.xaxis.get_ticklabels():
+            l.set_fontsize(l.get_fontsize() * factor)
+        for l in ax.yaxis.get_ticklabels():
+            l.set_fontsize(l.get_fontsize() * factor)
+        leg = ax.get_legend()
+        if leg:
+            for t in leg.get_texts():
+                t.set_fontsize(t.get_fontsize() * factor)
+        for t in ax.texts:
+            t.set_fontsize(t.get_fontsize() * factor)
+
 
 def _duo_savefig(fname, *args, **kwargs):
     """Write the original output (PNG), then a sibling vector PDF."""
+    # Scale fonts up on every open figure so print-size type is legible.
+    try:
+        for num in plt.get_fignums():
+            _scale_figure_fonts(plt.figure(num), num)
+    except Exception as e:
+        print("  (font-scale skipped:", e, ")")
     # Original call (writes the .png exactly as before)
     _orig_savefig(fname, *args, **kwargs)
     if isinstance(fname, str) and fname.lower().endswith(".png"):
@@ -42,6 +88,7 @@ def main():
     for script in FIG_SCRIPTS:
         name = os.path.basename(script)
         print("==", name)
+        _scaled_fignums.clear()  # fresh figure set per script
         src = open(script, encoding="utf-8").read()
         # exec in an isolated namespace; relative paths (design/...) resolve
         # from the repo root (cwd).

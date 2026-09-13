@@ -43,7 +43,7 @@ Three realistic options, each with documented properties:
 |---|---|---|---|---|
 | all‑MiniLM‑L6‑v2 | 384 | ~85M | ~0.3 GFLOPs | Light‑weight, high‑throughput search |
 | all‑mpnet‑base‑v2 | 768 | ~110M | ~1 GFLOPs | General‑purpose, quality‑first |
-| bge‑large‑en | 1024 | ~335M | ~2 GFLOPs | Dense‑retrieval‑optimal, technical docs |
+| bge‑large‑en | 1024 | ~335M | ~2 GFLOPs | Dense-retrieval-optimal, technical docs |
 
 [VERIFY] HYPOTHESIS: across surveyed RAG deployments for enterprise internal-document Q&A, higher-dimensional embeddings (e.g. 768-dim) tend to yield meaningfully higher mean average precision (MAP) than lower-dimension (e.g. 384-dim) for technical domain chunks, at roughly 2× the FLOP cost per embedding — but the exact magnitude (reports range from a few to ~15%) is domain- and corpus-specific and needs validation on the target corpus. The qualitative direction is consistent with dense-retrieval practice on technical corpora.
 

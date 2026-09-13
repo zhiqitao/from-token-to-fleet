@@ -71,7 +71,7 @@ Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS 
 | Continuous batching (Orca) | Admit/evict at each decode step | compute+bandwidth util | high concurrency | S1 [1P] |
 | PagedAttention / vLLM | Block-based KV pages | memory capacity | many concurrent requests | S2 [1P] |
 | Prefix caching (RadixAttention/APC) | Cache shared-prefix KV | prefill FLOPs + memory | repeated-context RAG | S3 [1P] |
-| P/D disaggregation (Splitwise/DistServe/Mooncake) | Split prefill/decode pools + KV transfer | both at scale | workload outgrows a node | S4 [1P] |
+| P/D disaggregation | Split prefill/decode pools + KV transfer | both at scale | workload outgrows a node | S4 [1P] |
 
 ## 4. Measurement
 
