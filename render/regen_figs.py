@@ -1,15 +1,22 @@
+#!/usr/bin/env python3
 """Regenerate all chapter figures as BOTH bitmap PNG (HTML) and vector PDF (LaTeX).
 
 Strategy: monkeypatch matplotlib.pyplot.savefig so that every existing
 `plt.savefig('...png', dpi=...)` call writes the PNG as-is AND a sibling
 vector .pdf (matplotlib's 'pdf' backend, which ignores dpi).  This lets us
-reuse the 11 existing fig_*.py scripts verbatim, without editing 36 call
-sites.  The LaTeX pipeline then includes the vector .pdf, shrinking the
-final book PDF and keeping figures crisp at any zoom.
+reuse the existing fig_*.py scripts without editing every call site.
 
-Run from the repo root:
-    python3 render/regen_figs.py
+Print-typography fixes applied to EVERY figure at save time:
+  * The book places figures at ~6.1in column width, but figures are authored at
+    8-16in wide, so every font is downscaled to ~0.4-0.6x and becomes
+    unreadable in print.  We scale fonts up to a TARGET final print size (so the
+    smallest label lands near body size), then reflow the axes (tight_layout)
+    so the enlarged labels don't clip against panel edges.
+  * Axis-off text-art diagrams draw boxes/labels at fixed data coordinates, so
+    we scale the text AND the patch geometry together (boxes grow to hold the
+    larger text) and crop the canvas tightly so the diagram fills the column.
 """
+
 import glob
 import os
 import sys
@@ -22,93 +29,246 @@ import matplotlib.pyplot as plt
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIG_SCRIPTS = sorted(glob.glob(os.path.join(REPO, "render", "fig_*.py")))
 
+# The book's print text column (inches).  Figures are clamped to this width.
+TEXTW_IN = 6.1
+# Desired minimum final print font size (points) for figure labels.
+TARGET_SIZE_PT = 8.5
+# Absolute cap so we never balloon a figure's type into absurdity.
+MAX_SCALE = 3.2
+
+_scaled_fignums = set()   # reset per script so each figure is scaled once
+
 _orig_savefig = plt.savefig
 
-# The book's text column is ~6.1in but every figure is authored at 8-16in wide,
-# then clamped to \textwidth, so the fonts shrink proportionally and become
-# unreadable in print (~0.4-0.6x of nominal).  Scale every figure's type back up
-# by (figure width in inches / 6.1) so text lands at its nominal point size on
-# the page.  Preserves relative sizes (titles remain larger than labels).
-TEXTW_IN = 6.1
-_scaled_fignums = set()   # reset per script so each figure is scaled once
+
+def _is_text_art(fig):
+    """An 'axis-off' diagram: no visible axes and at least one drawn patch."""
+    if not fig.axes:
+        return False
+    if any(ax.get_xaxis().get_visible() or ax.get_yaxis().get_visible()
+           for ax in fig.axes):
+        return False
+    return any(getattr(ax, "patches", None) for ax in fig.axes)
+
+
+def _all_text_sizes(fig):
+    """Collect every text font size in the figure."""
+    sizes = []
+    def add(t):
+        if t is not None:
+            try:
+                sizes.append(t.get_fontsize())
+            except Exception:
+                pass
+    for t in fig.texts:
+        add(t)
+    for ax in fig.axes:
+        add(ax.title)
+        add(ax.xaxis.label); add(ax.yaxis.label)
+        for l in ax.xaxis.get_ticklabels():
+            add(l)
+        for l in ax.yaxis.get_ticklabels():
+            add(l)
+        for t in ax.texts:
+            add(t)
+        leg = ax.get_legend()
+        if leg:
+            for t in leg.get_texts():
+                add(t)
+    return sizes
+
+
+def _scale_axes_fonts(ax, factor):
+    def s(t):
+        if t is not None:
+            t.set_fontsize(t.get_fontsize() * factor)
+    s(ax.title)
+    s(ax.xaxis.label); s(ax.yaxis.label)
+    for l in ax.xaxis.get_ticklabels():
+        l.set_fontsize(l.get_fontsize() * factor)
+    for l in ax.yaxis.get_ticklabels():
+        l.set_fontsize(l.get_fontsize() * factor)
+    for t in ax.texts:
+        t.set_fontsize(t.get_fontsize() * factor)
+    leg = ax.get_legend()
+    if leg:
+        for t in leg.get_texts():
+            t.set_fontsize(t.get_fontsize() * factor)
+
+
+def _fix_crowded_chart(fig):
+    """For chart figures, relieve the common 'labels collide' failure modes:
+    - Long/multi-line x-tick labels in narrow panels -> rotate ~35deg right-
+      aligned so adjacent labels don't overlap horizontally.
+    - Legends sitting inside a dense plot -> move outside/clear area and shrink.
+    This is the class of defect Astra flagged on many multi-panel charts."""
+    for ax in fig.axes:
+        try:
+            labels = [t.get_text() for t in ax.get_xticklabels()]
+            longest = max((len(s) for s in labels), default=0)
+            # Long categorical labels (candidate names, model names, etc.)
+            # overrun narrow panels once fonts grow.
+            if longest > 8:
+                for t in ax.get_xticklabels():
+                    t.set_rotation(35)
+                    t.set_ha("right")
+                    t.set_rotation_mode("anchor")
+        except Exception:
+            pass
+        try:
+            leg = ax.get_legend()
+            if leg:
+                # If the legend overlaps the plot's data box, move it to a
+                # clearer location (below/outside) and keep it small.
+                bb = leg.get_window_extent()
+                axbb = ax.get_window_extent()
+                inside = (axbb.x0 <= bb.x1 <= axbb.x1 and
+                          axbb.y0 <= bb.y1 <= axbb.y1)
+                if inside and len(leg.get_texts()) >= 2:
+                    leg.set_loc("upper left")
+                    leg.set_framealpha(0.9)
+        except Exception:
+            pass
+
+
+def _scale_text_art(fig, factor):
+    """For axis-off diagrams, grow the font AND the drawn patch geometry so the
+    boxes enlarge to hold the bigger labels (keeps a readable relative size)."""
+    for ax in fig.axes:
+        # Scale patch geometry about the axis centre.
+        try:
+            x0, x1 = ax.get_xlim(); y0, y1 = ax.get_ylim()
+        except Exception:
+            x0, y0, x1, y1 = 0.0, 0.0, 1.0, 1.0
+        for p in getattr(ax, "patches", []):
+            try:
+                if hasattr(p, "get_xy"):
+                    xy = p.get_xy()
+                    cx, cy = x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5
+                    nxy = [(cx + (a - cx) * factor, cy + (b - cy) * factor)
+                           for a, b in xy]
+                    p.set_xy(nxy)
+                if hasattr(p, "get_width") and hasattr(p, "get_height"):
+                    p.set_width(p.get_width() * factor)
+                    p.set_height(p.get_height() * factor)
+                if hasattr(p, "get_x") and hasattr(p, "get_y"):
+                    x, y = p.get_x(), p.get_y()
+                    cx, cy = x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5
+                    p.set_x(cx + (x - cx) * factor)
+                    p.set_y(cy + (y - cy) * factor)
+            except Exception:
+                pass
+        # Scale text positions toward the centre too, so labels stay put.
+        for t in ax.texts:
+            try:
+                tx, ty = t.get_position()
+                cx, cy = x0 + (x1 - x0) * 0.5, y0 + (y1 - y0) * 0.5
+                t.set_position((cx + (tx - cx) * factor, cy + (ty - cy) * factor))
+            except Exception:
+                pass
+            t.set_fontsize(t.get_fontsize() * factor)
+        # Scale annotation/arrow text.
+        for an in getattr(ax, "texts", []):
+            pass
+    for t in fig.texts:
+        t.set_fontsize(t.get_fontsize() * factor)
 
 
 def _scale_figure_fonts(fig, num):
-    """Multiply all text font sizes in a figure by figwidth/TEXTW_IN (once)."""
+    """Scale fonts up so the smallest label reaches roughly body size at print,
+    then reflow; for text-art diagrams scale the geometry too."""
     if num in _scaled_fignums:
         return
     _scaled_fignums.add(num)
     try:
-        factor = fig.get_size_inches()[0] / TEXTW_IN
+        width_in = fig.get_size_inches()[0]
     except Exception:
         return
-    if factor <= 1.05:      # near or below column width: leave alone
+    if width_in <= 1.05:
         return
-    # Axis-off text-art diagrams draw boxes/labels at fixed data coordinates, so
-    # enlarging the fonts clips labels at the boxes/canvas edges.  Leave these
-    # figures alone: their internal proportions are authored to fit, and clamping
-    # to the column already shrinks everything together without clipping.
-    text_art = all(not ax.get_xaxis().get_visible() and not ax.get_yaxis().get_visible()
-                   for ax in fig.axes) and any(ax.patches for ax in fig.axes)
-    if text_art:
+
+    # Do NOT scale charts that already land near print size.
+    # Reduce figsize to 6.1in so it's placed ~1:1 and fonts are already nominal.
+    # We keep the original figsize for the data layout, but we will downscale
+    # the SAVED image to the column width via the LaTeX \maxwidth clamp, so the
+    # effective on-page factor is (TEXTW_IN / width_in) * scale.
+    downscale = width_in / TEXTW_IN     # >1 => figure is wider than column
+
+    sizes = _all_text_sizes(fig)
+    if not sizes:
         return
-    # Cap the scale so labels on dense multi-panel charts don't overflow their
-    # allotted space (two-line x-tick names especially).  ~1.5x is a good
-    # legibility/overflow balance.
-    factor = min(factor, 1.5)
-    for txt in fig.texts:
-        txt.set_fontsize(txt.get_fontsize() * factor)
-    for ax in fig.axes:
-        if ax.title:
-            ax.title.set_fontsize(ax.title.get_fontsize() * factor)
-        if ax.xaxis.label:
-            ax.xaxis.label.set_fontsize(ax.xaxis.label.get_fontsize() * factor)
-        if ax.yaxis.label:
-            ax.yaxis.label.set_fontsize(ax.yaxis.label.get_fontsize() * factor)
-        for l in ax.xaxis.get_ticklabels():
-            l.set_fontsize(l.get_fontsize() * factor)
-        for l in ax.yaxis.get_ticklabels():
-            l.set_fontsize(l.get_fontsize() * factor)
-        leg = ax.get_legend()
-        if leg:
-            for t in leg.get_texts():
-                t.set_fontsize(t.get_fontsize() * factor)
-        for t in ax.texts:
+    # Current smallest label on-page (approx) = smallest * (TEXTW_IN / width_in).
+    smallest = min(sizes)
+    on_page = smallest / downscale
+    factor = TARGET_SIZE_PT / on_page if on_page > 0 else 1.0
+    factor = max(1.0, min(factor, MAX_SCALE / max(1.0, downscale)))
+
+    if _is_text_art(fig):
+        # Text-art: scale fonts + geometry together (boxes grow), then the
+        # canvas is tight-cropped so the diagram fills the column.
+        _scale_text_art(fig, factor)
+    else:
+        # Chart: enlarge fonts, and grow the figure HEIGHT so multi-line axis
+        # labels / legends have room (a wide-short figure clips them); then
+        # reflow the axes so labels stay inside panels.
+        for t in fig.texts:
             t.set_fontsize(t.get_fontsize() * factor)
+        for ax in fig.axes:
+            _scale_axes_fonts(ax, factor)
+        try:
+            w, h = fig.get_size_inches()
+            # Give wide-short figures more height so enlarged bottom/multi-line
+            # labels fit after reflow; cap so (a) we don't create tall slivers
+            # and (b) the placed figure stays within a book page (~8in tall at
+            # 6.1in column => aspect >= ~0.75).  Only grow when clearly
+            # wider-than-tall so we never make an already-tall figure taller.
+            if w > h:
+                hscale = min(factor, 1.7, (h * 1.7) / h if h > 0 else 1.7)
+                hscale = max(1.0, hscale)
+                fig.set_size_inches(w, h * hscale)
+        except Exception:
+            pass
+        try:
+            fig.tight_layout(pad=1.5)
+        except Exception:
+            try:
+                fig.set_layout_engine("constrained")
+            except Exception:
+                pass
+        # Rotate long x-labels, clear legends, then reflow once more.
+        _fix_crowded_chart(fig)
+        try:
+            fig.tight_layout(pad=1.5)
+        except Exception:
+            pass
 
 
 def _duo_savefig(fname, *args, **kwargs):
     """Write the original output (PNG), then a sibling vector PDF."""
-    # Scale fonts up on every open figure so print-size type is legible.
-    text_art_fig = None
+    text_art_save = False
     try:
         for num in plt.get_fignums():
             fig = plt.figure(num)
             _scale_figure_fonts(fig, num)
-            # For axis-off text-art diagrams (which we don't font-scale), crop
-            # their excess whitespace with bbox_inches='tight' so the drawing
-            # fills more of the printed column.  Charts with far-off clip_on
-            # annotations must NOT use tight bbox (it can balloon the canvas).
-            ta = all(not ax.get_xaxis().get_visible() and not ax.get_yaxis().get_visible()
-                     for ax in fig.axes) and any(ax.patches for ax in fig.axes)
-            if ta:
-                text_art_fig = num
+            if _is_text_art(fig):
+                text_art_save = True
     except Exception as e:
         print("  (font-scale skipped:", e, ")")
-    # Original call (writes the .png exactly as before)
-    kw_save = dict(kwargs)
-    if text_art_fig is not None:
-        kw_save.setdefault("bbox_inches", "tight")
-        kw_save.setdefault("pad_inches", 0.05)
-    _orig_savefig(fname, *args, **kw_save)
+    # Charts may use tight/constrained layout, which is already applied.
+
+    kw = dict(kwargs)
+    if text_art_save:
+        kw.setdefault("bbox_inches", "tight")
+        kw.setdefault("pad_inches", 0.1)
+    _orig_savefig(fname, *args, **kw)
     if isinstance(fname, str) and fname.lower().endswith(".png"):
         pdf_path = fname[:-4] + ".pdf"
-        kw = dict(kwargs)
-        kw.pop("dpi", None)  # vector backend ignores dpi
-        if text_art_fig is not None:
-            kw.setdefault("bbox_inches", "tight")
-            kw.setdefault("pad_inches", 0.05)
-        _orig_savefig(pdf_path, format="pdf", **kw)
+        kwo = dict(kwargs)
+        kwo.pop("dpi", None)
+        if text_art_save:
+            kwo.setdefault("bbox_inches", "tight")
+            kwo.setdefault("pad_inches", 0.1)
+        _orig_savefig(pdf_path, format="pdf", **kwo)
         print("  +vector", pdf_path)
 
 
@@ -119,8 +279,6 @@ def main():
         print("==", name)
         _scaled_fignums.clear()  # fresh figure set per script
         src = open(script, encoding="utf-8").read()
-        # exec in an isolated namespace; relative paths (design/...) resolve
-        # from the repo root (cwd).
         ns = {"__name__": "__main__", "__file__": script}
         try:
             exec(compile(src, script, "exec"), ns)

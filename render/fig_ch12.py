@@ -10,13 +10,16 @@ import numpy as np
 # decode pool bandwidth-bound (no single digit); (c) fails the quality
 # ceiling and is EXCLUDED at the quality gate, so no throughput bar.
 # All digits are [2 DEG DERIVED] worked examples from the §14 canonical case.
-cands = ['(a) 8×H100\n+prefix cache', '(b) P/D-disagg\n2×8×H100', '(c) KV-quant\n7B 1×H100']
+# NOTE: panels are STACKED vertically (3 rows x 1 col) so the long multi-word
+# candidate names get the full 6.1in column width and never overlap (the old
+# 1x3 layout clipped them).
+cands = ['(a) 8×H100 + prefix cache', '(b) P/D-disagg 2×8×H100', '(c) KV-quant 7B 1×H100']
 weight = [140, 140, 14]   # GB (Table 12.1)
 kv     = [24, 24, 6]      # GB
 
 total = [a+b for a, b in zip(weight, kv)]
 
-fig, axes = plt.subplots(1, 3, figsize=(11, 3.8))
+fig, axes = plt.subplots(3, 1, figsize=(7, 9.5))
 
 # Panel 1: memory SLO satisfaction (weight+KV stacked, ceiling lines)
 ax = axes[0]
@@ -26,10 +29,10 @@ for i, t in enumerate(total):
     ax.text(i, t+8, f'{t} GB', ha='center', fontsize=10, fontweight='bold')
 ax.axhline(640, color='#27408b', ls='--', lw=1.5, label='8×H100 ceiling')
 ax.axhline(80, color='#888', ls=':', lw=1.2, label='1×H100 ceiling')
-ax.set_xticks(range(3)); ax.set_xticklabels(cands, fontsize=8)
+ax.set_xticks(range(3)); ax.set_xticklabels(cands, fontsize=9)
 ax.set_ylabel('Resident memory (GB)')
 ax.set_title('(1) Memory footprint')
-ax.legend(fontsize=7, loc='upper right')
+ax.legend(fontsize=7, loc='upper left', ncol=2, framealpha=0.9)
 ax.grid(alpha=0.3, axis='y')
 ax.set_ylim(0, 700)
 
@@ -39,10 +42,10 @@ w = 0.38
 # (a) prefill 1200/decode 300; (b) prefill-pool 2471, decode bandwidth-bound
 bars = ax.bar([-w/2, 1-w/2], [1200, 2471], w, color='#3a6ea5', label='prefill')
 ax.bar([w/2], [300], w, color='#6f9e5f', label='decode')
-ax.text(-w/2, 1280, '1,200', ha='center', fontsize=8, fontweight='bold')
-ax.text(1-w/2, 2550, '2,471', ha='center', fontsize=8, fontweight='bold')
-ax.text(w/2, 380, '300', ha='center', fontsize=8, fontweight='bold')
-ax.set_xticks([0, 1, 2]); ax.set_xticklabels(cands, fontsize=8)
+ax.text(-w/2, 1280, '1,200', ha='center', fontsize=9, fontweight='bold')
+ax.text(1-w/2, 2550, '2,471', ha='center', fontsize=9, fontweight='bold')
+ax.text(w/2, 380, '300', ha='center', fontsize=9, fontweight='bold')
+ax.set_xticks([0, 1, 2]); ax.set_xticklabels(cands, fontsize=9)
 ax.set_ylabel('Throughput (tokens/s)')
 ax.set_title('(2) Throughput')
 ax.legend(fontsize=8, loc='upper left')
@@ -61,7 +64,7 @@ colors = ['#6f9e5f', '#6f9e5f', '#c0392b']
 bars = ax.bar(cands, [1,1,1], color=colors)
 for b, v in zip(bars, verdicts):
     ax.text(b.get_x()+b.get_width()/2, 0.5, v, ha='center', va='center',
-            fontsize=9, color='white', fontweight='bold')
+            fontsize=10, color='white', fontweight='bold')
 ax.set_ylim(0, 1.6)
 ax.set_yticks([])
 ax.set_title('(3) Constraint verdict')
