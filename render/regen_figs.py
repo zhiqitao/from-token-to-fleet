@@ -44,6 +44,18 @@ def _scale_figure_fonts(fig, num):
         return
     if factor <= 1.05:      # near or below column width: leave alone
         return
+    # Axis-off text-art diagrams draw boxes/labels at fixed data coordinates, so
+    # enlarging the fonts clips labels at the boxes/canvas edges.  Leave these
+    # figures alone: their internal proportions are authored to fit, and clamping
+    # to the column already shrinks everything together without clipping.
+    text_art = all(not ax.get_xaxis().get_visible() and not ax.get_yaxis().get_visible()
+                   for ax in fig.axes) and any(ax.patches for ax in fig.axes)
+    if text_art:
+        return
+    # Cap the scale so labels on dense multi-panel charts don't overflow their
+    # allotted space (two-line x-tick names especially).  ~1.5x is a good
+    # legibility/overflow balance.
+    factor = min(factor, 1.5)
     for txt in fig.texts:
         txt.set_fontsize(txt.get_fontsize() * factor)
     for ax in fig.axes:
@@ -68,17 +80,34 @@ def _scale_figure_fonts(fig, num):
 def _duo_savefig(fname, *args, **kwargs):
     """Write the original output (PNG), then a sibling vector PDF."""
     # Scale fonts up on every open figure so print-size type is legible.
+    text_art_fig = None
     try:
         for num in plt.get_fignums():
-            _scale_figure_fonts(plt.figure(num), num)
+            fig = plt.figure(num)
+            _scale_figure_fonts(fig, num)
+            # For axis-off text-art diagrams (which we don't font-scale), crop
+            # their excess whitespace with bbox_inches='tight' so the drawing
+            # fills more of the printed column.  Charts with far-off clip_on
+            # annotations must NOT use tight bbox (it can balloon the canvas).
+            ta = all(not ax.get_xaxis().get_visible() and not ax.get_yaxis().get_visible()
+                     for ax in fig.axes) and any(ax.patches for ax in fig.axes)
+            if ta:
+                text_art_fig = num
     except Exception as e:
         print("  (font-scale skipped:", e, ")")
     # Original call (writes the .png exactly as before)
-    _orig_savefig(fname, *args, **kwargs)
+    kw_save = dict(kwargs)
+    if text_art_fig is not None:
+        kw_save.setdefault("bbox_inches", "tight")
+        kw_save.setdefault("pad_inches", 0.05)
+    _orig_savefig(fname, *args, **kw_save)
     if isinstance(fname, str) and fname.lower().endswith(".png"):
         pdf_path = fname[:-4] + ".pdf"
         kw = dict(kwargs)
         kw.pop("dpi", None)  # vector backend ignores dpi
+        if text_art_fig is not None:
+            kw.setdefault("bbox_inches", "tight")
+            kw.setdefault("pad_inches", 0.05)
         _orig_savefig(pdf_path, format="pdf", **kw)
         print("  +vector", pdf_path)
 
@@ -93,7 +122,13 @@ def main():
         # exec in an isolated namespace; relative paths (design/...) resolve
         # from the repo root (cwd).
         ns = {"__name__": "__main__", "__file__": script}
-        exec(compile(src, script, "exec"), ns)
+        try:
+            exec(compile(src, script, "exec"), ns)
+        except SystemExit:
+            # A retired script may call sys.exit(0) to skip itself; since we
+            # exec all scripts in ONE interpreter, swallow that so the regen
+            # loop (and every later figure script) keeps running.
+            continue
     print("DONE")
 
 
