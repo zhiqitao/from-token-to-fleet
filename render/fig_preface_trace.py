@@ -58,7 +58,7 @@ ax.set_title('Read the book two ways: layer-by-layer (parts) or '
 COLW = 3.7          # part-band width
 BAND_H = 3.4        # vertical space per part (holds 2 cell rows)
 X0 = 0.3
-col_x = [X0, X0 + 7.2]
+col_x = [X0, X0 + 6.6]
 col_parts = [parts[0:3], parts[3:6]]
 
 for colidx, colgrp in enumerate(col_parts):
@@ -69,7 +69,7 @@ for colidx, colgrp in enumerate(col_parts):
         # part band
         ax.add_patch(FancyBboxPatch((bx-0.1, band_top-3.05), COLW+0.2, 3.3,
                      boxstyle='round,pad=0.0', fc='#eef2f7', ec='#3a6ea5', lw=1.0))
-        ax.text(bx+0.06, band_top-0.22, ptitle, fontsize=6.6, fontweight='bold',
+        ax.text(bx+0.06, band_top-0.22, ptitle, fontsize=7.6, fontweight='bold',
                 color='#27408b', va='center')
         # 3-col grid of stacked cells, up to 2 rows
         for ci, (tag, qty, dec) in enumerate(rows):
@@ -77,10 +77,10 @@ for colidx, colgrp in enumerate(col_parts):
             gy = band_top - 1.45 - (ci // 3)*1.35
             # chip
             ax.add_patch(Rectangle((gx, gy), 0.52, 0.28, fc='#3a6ea5', ec='white'))
-            ax.text(gx+0.26, gy+0.14, tag, fontsize=7.2, ha='center', va='center',
+            ax.text(gx+0.26, gy+0.14, tag, fontsize=8.2, ha='center', va='center',
                     color='white', fontweight='bold')
-            ax.text(gx+0.62, gy+0.14, qty, fontsize=6.9, color='#333', va='center')
-            ax.text(gx+0.02, gy-0.22, '↓ '+dec, fontsize=6.7, color='#555', va='top')
+            ax.text(gx+0.62, gy+0.14, qty, fontsize=7.9, color='#333', va='center')
+            ax.text(gx+0.02, gy-0.22, '↓ '+dec, fontsize=7.7, color='#555', va='top')
 
 plt.tight_layout()
 plt.savefig('render/latex/assets/preface-trace.pdf', format='pdf', bbox_inches='tight')
