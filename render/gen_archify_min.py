@@ -18,6 +18,8 @@ SHELL = os.path.join(ARCH, "ch5-two-leg-min.html")   # known-good shell
 
 def build(name):
     deliver = os.path.join(ARCH, name + ".html")
+    if not os.path.exists(deliver):
+        deliver = os.path.join(ARCH, name + "-deliver.html")
     minhtml = os.path.join(ARCH, name + "-min.html")
     if not os.path.exists(deliver):
         print("no deliver.html for", name); return False

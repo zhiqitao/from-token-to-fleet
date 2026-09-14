@@ -85,9 +85,11 @@ def _num(tag, name):
 
 
 def crop_viewbox(min_html):
-    """Rewrite the SVG viewBox to the content bbox (+pad), AND boost the inline
-    SVG font sizes modestly (nodes have padding, so ~1.3x stays inside boxes)
-    so the fine sub-labels/annotations are readable at print.  Save in place."""
+    """Rewrite the SVG viewBox to the content bbox (+pad) AND boost inline SVG
+    font sizes so the fine diagram labels reach a readable print size (the
+    Archify SVGs use 5.5-8px fonts in a ~1000-unit viewBox, so even after the
+    crop they sit well below ~9pt body text).  Save in place."""
+    FONTBOOST = float(os.environ.get("FONTBOOST", "1.45"))
     t = open(min_html, encoding="utf-8").read()
     m = re.search(r'(viewBox="0 0 )([0-9.]+) ([0-9.]+)(")', t)
     if not m:
@@ -104,8 +106,19 @@ def crop_viewbox(min_html):
     w = max(x1 - x0, 1e-6); h = max(y1 - y0, 1e-6)
     pad = PAD * w
     x0 -= pad; y0 -= pad; x1 += pad; y1 += pad; w = x1 - x0; h = y1 - y0
-    new_vb = f'viewBox="{x0:.1f} {y0:.1f} {w:.1f} {h:.1f}"'
+    new_vb = 'viewBox="%.1f %.1f %.1f %.1f"' % (x0, y0, w, h)
     t = t[:m.start()] + new_vb + t[m.end():]
+
+    # Boost every inline font-size (both 'font-size:NNpx' and 'font-size="NN"').
+    # The Archify label boxes have enough padding that a modest boost stays
+    # inside them; combined with the viewBox crop (which enlarges boxes too)
+    # this lifts the fine sub-labels toward body size.
+    def _boost(match):
+        val = float(match.group(2))
+        return match.group(1) + "%.1f" % (val * FONTBOOST) + match.group(3)
+    t = re.sub(r'(font-size\s*:\s*)([0-9.]+)(px)', _boost, t)
+    t = re.sub(r'(font-size\s*=\s*")([0-9.]+)(")', _boost, t)
+
     open(min_html, "w", encoding="utf-8").write(t)
     return (x0, y0, x1, y1)
 
