@@ -162,8 +162,6 @@ The architect now has a concrete model shortlist: 768‑dim all‑mpnet‑base�
 
 ---
 
-### Figures
-
 ![Fig 5.1 — Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision [ILLUSTRATIVE conceptual]](figures/fig-05-0501.png)
 
 
