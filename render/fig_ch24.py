@@ -5,8 +5,8 @@ from matplotlib.patches import FancyBboxPatch
 import numpy as np
 
 # ---- fig-24-2401: Red Team / Green Team cycle (pipeline + probe domains + backlog) ----
-fig, ax = plt.subplots(figsize=(13.5, 6.2))
-ax.set_xlim(0, 20); ax.set_ylim(0, 8.5); ax.axis('off')
+fig, ax = plt.subplots(figsize=(8.5, 6.5))
+ax.set_xlim(0, 20); ax.set_ylim(0, 9.2); ax.axis('off')
 
 # ---- Row 1 (top, y=6.7): the cyclic pipeline in order ----
 pipe = [

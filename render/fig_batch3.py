@@ -171,16 +171,16 @@ plt.savefig(base % (24, 24, 24), dpi=150); plt.close()
 print('Ch24 done')
 
 # ---- Ch26: pattern application diagram ----
-fig, ax = plt.subplots(figsize=(12, 5))
-ax.set_xlim(0, 14); ax.set_ylim(0, 5); ax.axis('off')
+fig, ax = plt.subplots(figsize=(8.5, 5.8))
+ax.set_xlim(0, 14); ax.set_ylim(0, 6.2); ax.axis('off')
 patterns = ['Canary\ndeploy', 'Autoscale', 'Prefix cache', 'P/D split', 'Circuit\nbreaker', 'ADR']
 col = '#3a6ea5'
 for i, p in enumerate(patterns):
     x = 0.4 + i*2.2
-    ax.add_patch(FancyBboxPatch((x, 1.7), 1.8, 1.6, boxstyle='round,pad=0.02', fc=col, ec='none'))
-    ax.text(x+0.9, 2.5, p, ha='center', va='center', color='white', fontsize=9, fontweight='bold')
-ax.text(7, 4.3, 'Ch26 — applying the pattern library to a new architecture problem', fontsize=12, fontweight='bold', ha='center')
-ax.text(7, 0.8, 'detect the situation → recall the pattern → apply with the ADR loop', fontsize=9.5, ha='center', color='#555')
+    ax.add_patch(FancyBboxPatch((x, 2.2), 1.8, 1.8, boxstyle='round,pad=0.02', fc=col, ec='none'))
+    ax.text(x+0.9, 3.1, p, ha='center', va='center', color='white', fontsize=10, fontweight='bold')
+ax.text(7, 5.3, 'Ch26 — applying the pattern library to a new architecture problem', fontsize=12.5, fontweight='bold', ha='center')
+ax.text(7, 1.0, 'detect the situation → recall the pattern → apply with the ADR loop', fontsize=10, ha='center', color='#555')
 plt.tight_layout()
 plt.savefig(base % (26, 26, 26), dpi=150); plt.close()
 print('Ch26 done')

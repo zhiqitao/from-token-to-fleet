@@ -6,8 +6,8 @@ from matplotlib.patches import FancyBboxPatch, Rectangle
 # Fig A.3 — The layered evolution of frontier systems (Appendix section 6)
 # Horizontal chain: Transformer -> ... -> Agent Fleet, color-coded efficiency(adds context/cost) vs capability(raises intelligence)
 
-fig, ax = plt.subplots(figsize=(16, 5.5))
-ax.set_xlim(0, 16); ax.set_ylim(0, 5.5)
+fig, ax = plt.subplots(figsize=(9.5, 6.5))
+ax.set_xlim(0, 16); ax.set_ylim(0, 7.8)
 ax.axis('off')
 
 steps = [
@@ -37,25 +37,25 @@ step_w = 1.42
 x = 0.4
 buttons = []
 for i, (name, kind, tag) in enumerate(steps):
-    box = FancyBboxPatch((x, 1.9), step_w, 1.7, boxstyle='round,pad=0.02',
+    box = FancyBboxPatch((x, 2.9), step_w, 2.0, boxstyle='round,pad=0.02',
                          fc=color_of(kind), ec='none', alpha=0.9)
     ax.add_patch(box)
-    ax.text(x+step_w/2, 2.75, name, fontsize=10.5, fontweight='bold', color='white', ha='center', va='center')
+    ax.text(x+step_w/2, 3.9, name, fontsize=11.5, fontweight='bold', color='white', ha='center', va='center')
     # arrow to next
     if i < len(steps)-1:
-        ax.annotate('', xy=(x+step_w+0.12, 2.75), xytext=(x+step_w+0.0, 2.75),
+        ax.annotate('', xy=(x+step_w+0.12, 3.9), xytext=(x+step_w+0.0, 3.9),
                     arrowprops=dict(arrowstyle='-|>', lw=2, color='#555'))
     x += step_w + 0.22
 
 # legend: capability vs efficiency entries, each label immediately followed by its colour swatch, placed in the clear band above the box row
-ax.add_patch(Rectangle((7.0, 4.85), 0.32, 0.32, fc=color_of('cap'), ec='none', alpha=0.9))
-ax.text(7.4, 5.01, 'Capability-led (reasoning / test-time / agentic)', fontsize=9, color='#5a9bd5', va='center')
-ax.add_patch(Rectangle((0.4, 4.85), 0.32, 0.32, fc=color_of('eff'), ec='none', alpha=0.9))
-ax.text(0.8, 5.01, 'Efficiency-led (context / cost / capacity-per-FLOP)', fontsize=9, color='#cf9240', va='center')
+ax.add_patch(Rectangle((7.0, 6.3), 0.34, 0.34, fc=color_of('cap'), ec='none', alpha=0.9))
+ax.text(7.42, 6.47, 'Capability-led (reasoning / test-time / agentic)', fontsize=10, color='#5a9bd5', va='center')
+ax.add_patch(Rectangle((0.4, 6.3), 0.34, 0.34, fc=color_of('eff'), ec='none', alpha=0.9))
+ax.text(0.82, 6.47, 'Efficiency-led (context / cost / capacity-per-FLOP)', fontsize=10, color='#cf9240', va='center')
 
-ax.text(8.0, 0.6, 'From a single model to a whole system — the spine of this handbook (Appendix §6)', fontsize=10,
+ax.text(8.0, 1.0, 'From a single model to a whole system — the spine of this handbook (Appendix §6)', fontsize=10.5,
         fontstyle='italic', color='#555', ha='center')
-ax.set_ylim(0, 5.6)
+ax.set_ylim(0, 7.8)
 
 plt.tight_layout()
 out = 'design/manuscript/chapter-27/figures/fig-27-2703.png'
