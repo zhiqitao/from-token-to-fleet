@@ -22,14 +22,11 @@ def val(x, y, s, fs=9, bold=False, c='white'):
             fontweight='bold' if bold else 'normal', clip_on=False)
 
 for x, (label, kv) in zip(xs, ctxs):
-    ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'],
-           edgecolor='white', linewidth=0.8)
+    ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'], hatch='//', edgecolor='white', linewidth=0.8)
     val(x, 27, '64', fs=9)
-    ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'],
-           edgecolor='white', linewidth=0.8)
+    ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'], hatch='xx', edgecolor='white', linewidth=0.8)
     val(x, 122, '140', fs=10, bold=True)
-    ax.bar(x, kv, width=bar_w, bottom=204, color=cols['kv'],
-           edgecolor='white', linewidth=0.8, alpha=0.92)
+    ax.bar(x, kv, width=bar_w, bottom=204, color=cols['kv'], hatch='..', edgecolor='white', linewidth=0.8, alpha=0.92)
     total = 204 + kv
     ax.text(x+bar_w/2, 204+kv+18, f'{kv:.1f}'.rstrip('0').rstrip('.')+' GB KV',
             ha='center', va='bottom', fontsize=10, color='#c0392b',
@@ -43,7 +40,7 @@ ax.text(0.15, 656, '640 GB pool = 8×H100 HBM', fontsize=9.5, color='#a93226',
         fontweight='bold')
 
 # legend below the axes (vertical, compact so the figure isn't a wide sliver)
-leg = [mpatches.Patch(color=cols['kv'], label='KV cache (grows w/ context)'),
+leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, label='KV cache (grows w/ context)'),
        mpatches.Patch(color=cols['weights'], label='weights 140 GB'),
        mpatches.Patch(color=cols['runtime'], label='runtime / NCCL ~64 GB')]
 ax.legend(handles=leg, loc='upper center', bbox_to_anchor=(0.5, -0.13),

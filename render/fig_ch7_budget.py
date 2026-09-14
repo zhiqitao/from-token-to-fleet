@@ -28,9 +28,9 @@ span_weights = (0, weights)
 span_runtime = (weights, weights + runtime)
 span_kv = (weights + runtime, total)
 
-ax.barh(y, weights, left=0, height=0.8, color='#3a6ea5', edgecolor='none')
-ax.barh(y, runtime, left=weights, height=0.8, color='#9aa0a6', edgecolor='none')
-ax.barh(y, kv, left=weights + runtime, height=0.8, color='#6f9e5f', edgecolor='none')
+ax.barh(y, weights, left=0, height=0.8, color='#3a6ea5', edgecolor='white', hatch='//', lw=0.5)
+ax.barh(y, runtime, left=weights, height=0.8, color='#9aa0a6', edgecolor='white', hatch='xx', lw=0.5)
+ax.barh(y, kv, left=weights + runtime, height=0.8, color='#6f9e5f', edgecolor='white', hatch='..', lw=0.5)
 
 # ---- segment labels ----
 ax.text(weights / 2, y, f'{weights} GB\nweights', ha='center', va='center',
