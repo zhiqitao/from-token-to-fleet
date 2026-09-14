@@ -68,30 +68,30 @@ plt.savefig(base % (16, 16, 16), dpi=150); plt.close()
 print('Ch16 done')
 
 # ---- Ch21: AI Factory promotion pipeline (evaluate-gate + rollback edge) ----
-fig, ax = plt.subplots(figsize=(14, 4.8))
-ax.set_xlim(0, 16); ax.set_ylim(0, 4.8); ax.axis('off')
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.set_xlim(0, 16); ax.set_ylim(0, 6.2); ax.axis('off')
 steps = ['Data', 'Train', 'Evaluate', 'Canary', 'Observe', 'Promote', 'Rollback', 'Serve']
 xs = [0.3, 2.0, 3.7, 5.4, 7.1, 8.8, 10.5, 12.2]
 for i, (s, x) in enumerate(zip(steps, xs)):
     col = '#3a6ea5' if i < len(steps)-1 else '#6f9e5f'
-    ax.add_patch(FancyBboxPatch((x, 1.5), 1.5, 1.5, boxstyle='round,pad=0.02', fc=col, ec='none'))
-    ax.text(x+0.75, 2.25, s, ha='center', va='center', color='white', fontsize=8.5, fontweight='bold')
+    ax.add_patch(FancyBboxPatch((x, 3.0), 1.5, 1.5, boxstyle='round,pad=0.02', fc=col, ec='none'))
+    ax.text(x+0.75, 3.75, s, ha='center', va='center', color='white', fontsize=9, fontweight='bold')
     if i < len(steps)-1:
-        ax.annotate('', xy=(x+1.6, 2.25), xytext=(x+1.5, 2.25), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
+        ax.annotate('', xy=(x+1.6, 3.75), xytext=(x+1.5, 3.75), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 # evaluate->canary: gate glyph (pass/fail)
-ax.text(5.25, 3.4, 'gate', fontsize=7.5, color='#c0392b', ha='right')
-ax.annotate('', xy=(5.4, 3.0), xytext=(5.2, 3.0), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#c0392b'))
+ax.text(5.25, 4.5, 'gate', fontsize=8, color='#c0392b', ha='right')
+ax.annotate('', xy=(5.4, 4.2), xytext=(5.2, 4.2), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#c0392b'))
 # rollback edge from Serve back to Rollback (and on to Evaluate)
-ax.annotate('', xy=(10.6, 0.9), xytext=(13.1, 0.9), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#c0392b',
+ax.annotate('', xy=(10.6, 2.4), xytext=(13.1, 2.4), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#c0392b',
             connectionstyle='arc3,rad=0.25'))
-ax.annotate('', xy=(9.3, 1.4), xytext=(10.55, 1.0), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#c0392b',
+ax.annotate('', xy=(9.3, 2.8), xytext=(10.55, 2.35), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#c0392b',
             connectionstyle='arc3,rad=0.2'))
 # feedback arrow: from Serve box bottom back to Data box bottom
-ax.annotate('', xy=(1.05, 1.0), xytext=(12.95, 1.0), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#3d6e35',
-            connectionstyle='arc3,rad=-0.25'))
-ax.text(7, 0.3, 'production feedback → data / evaluation (green, bottom); rollback on SLO breach (red)',
-        fontsize=8.5, color='#555', ha='center')
-ax.text(8, 4.2, 'The AI Factory promotion pipeline (canary gate on promote, rollback path)',
+ax.annotate('', xy=(1.05, 2.4), xytext=(12.95, 2.4), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#3d6e35',
+            connectionstyle='arc3,rad=0.25'))
+ax.text(7, 1.4, 'production feedback → data / evaluation (green, bottom); rollback on SLO breach (red)',
+        fontsize=9, color='#555', ha='center')
+ax.text(8, 5.7, 'The AI Factory promotion pipeline (canary gate on promote, rollback path)',
         fontsize=12, fontweight='bold', ha='center')
 plt.tight_layout()
 plt.savefig(base % (21, 21, 21), dpi=150); plt.close()
