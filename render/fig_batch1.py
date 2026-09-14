@@ -15,7 +15,7 @@ prefill_budget_s = 1.08  # implicit ~1 s budget at 9.2K ctx full pass
 prefill_rate = prefill_work / prefill_budget_s  # ~1.2 PFLOPS required
 fig, axes = plt.subplots(1, 2, figsize=(11, 5))
 ax = axes[0]
-ax.bar(['decode\n(needed)', 'H100\n(supply)'], [5.6, 3.35], color=['#c0392b', '#3a6ea5'])
+ax.bar(['decode\n(needed)', 'H100\n(supply)'], [5.6, 3.35], color=['#c0392b', '#3a6ea5'], hatch=['//', ''], edgecolor=['#7a1f1a','none'])
 for i, v in enumerate([5.6, 3.35]):
     ax.text(i, v+0.1, f'{v} TB/s', ha='center', fontweight='bold')
 ax.set_ylabel('HBM bandwidth (TB/s)')
@@ -23,7 +23,7 @@ ax.set_title('Decode: HBM-bandwidth-bound\n(5.6 needed > 3.35 supply)')
 ax.grid(alpha=0.3, axis='y')
 # right: required prefill compute RATE (~1.2 PFLOPS) vs H100 peak RATE (0.989 PFLOPS)
 ax = axes[1]
-ax.bar(['prefill\n(req. rate)', 'H100\n(peak rate)'], [prefill_rate, 0.989], color=['#c0392b', '#3a6ea5'])
+ax.bar(['prefill\n(req. rate)', 'H100\n(peak rate)'], [prefill_rate, 0.989], color=['#c0392b', '#3a6ea5'], hatch=['//', ''], edgecolor=['#7a1f1a','none'])
 for i, v in enumerate([prefill_rate, 0.989]):
     ax.text(i, v+0.03, f'{v:.2f} PFLOPS', ha='center', fontweight='bold')
 ax.set_ylabel('Compute rate (PFLOPS)')
