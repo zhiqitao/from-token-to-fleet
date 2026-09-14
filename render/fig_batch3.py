@@ -41,10 +41,10 @@ ax.plot(batch, no_cache, '-o', color='#c0392b', label='no prefix cache')
 ax.plot(batch, cache, '-s', color='#3a6ea5', label='with prefix/prompt cache')
 ax.set_xlabel('Decode batch size')
 ax.set_ylabel('Relative goodput (a.u.)')
-ax.set_title('Ch15 — batching raises decode goodput; prefix cache raises the ceiling')
-ax.annotate('prefix cache removes prefill recompute\n(the decode bottleneck is unchanged)', xy=(16, cache[4]), xytext=(30, 55),
+ax.set_title('Batching raises decode goodput;\nprefix cache raises the ceiling', fontsize=11)
+ax.annotate('prefix cache removes prefill recompute\n(the decode bottleneck is unchanged)', xy=(16, cache[4]), xytext=(34, 62),
             fontsize=8.5, color='#3a6ea5', arrowprops=dict(arrowstyle='->', color='#3a6ea5'))
-ax.legend(fontsize=9)
+ax.legend(fontsize=9, loc='upper left')
 ax.grid(alpha=0.3)
 plt.tight_layout()
 plt.savefig(base % (15, 15, 15), dpi=150); plt.close()
