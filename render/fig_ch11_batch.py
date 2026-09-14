@@ -7,7 +7,7 @@ from matplotlib.patches import Rectangle, FancyArrowPatch
 # Left: discrete batching — one batch runs to completion, others wait; slots idle.
 # Right: continuous batching — slots are filled as soon as a sequence finishes.
 
-fig, axes = plt.subplots(1, 2, figsize=(12, 5.5))
+fig, axes = plt.subplots(1, 2, figsize=(9, 6.4))
 colors = ['#3a6ea5', '#6f9e5f', '#e67e22', '#c0392b', '#8055b5']
 
 # ---------- discrete (left) ----------

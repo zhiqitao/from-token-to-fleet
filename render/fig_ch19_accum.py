@@ -6,7 +6,7 @@ from matplotlib.patches import FancyBboxPatch
 # ---- fig-19-1903: Agentic Context Accumulation sequence ----
 # Canonical (Ch 19): I0=9200, delta=800 retrieved, gamma=65 generated per turn.
 # KV @ 2.5 MB/token: single-shot 23.8 GB; with turns 25.9, 28.1, 30.2, 32.4 GB (cumulative).
-fig, ax = plt.subplots(figsize=(12, 6.4))
+fig, ax = plt.subplots(figsize=(9, 6.4))
 ax.set_xlim(0, 24); ax.set_ylim(0, 8); ax.axis('off')
 
 ax.text(12, 7.7, 'Agentic context accumulation: the KV block grows every turn', fontsize=13, fontweight='bold', ha='center', color='#1a1a1a')

@@ -12,7 +12,7 @@ base = 'design/manuscript/chapter-%02d/figures/fig-%02d-%02d01.png'
 # Asset: design/manuscript/chapter-13/figures/fig-13-1301.{pdf,png}.
 
 # ---- Ch14: capability screen then deployment benchmark ----
-fig, ax = plt.subplots(figsize=(13, 4.5))
+fig, ax = plt.subplots(figsize=(9, 5.2))
 ax.set_xlim(0, 16); ax.set_ylim(0, 4.5); ax.axis('off')
 steps = ['Candidate\nmodels', 'Capability screen\n(MMLU/GSM8K/retrieval-QA)', 'Survivors',
          'Deployment benchmark\n(TTFT/goodput/KV)', 'Selection + TCO']

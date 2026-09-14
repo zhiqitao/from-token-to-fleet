@@ -6,7 +6,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 # ---- fig-11-1103: P/D Disaggregation Topology ----
 # Left: prefill pool (compute bound, FLOPs). Right: decode pool (bandwidth bound, HBM).
 # Bridge: KV cache transfer over NVLink/fabric. Canonical numbers from Ch11.
-fig, ax = plt.subplots(figsize=(12.5, 6.2))
+fig, ax = plt.subplots(figsize=(9.0, 6.8))
 ax.set_xlim(0, 24); ax.set_ylim(0, 8); ax.axis('off')
 
 # Title

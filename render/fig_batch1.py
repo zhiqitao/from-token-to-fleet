@@ -103,7 +103,7 @@ plt.savefig(base % (9, 9, 9), dpi=150); plt.close()
 print('Ch09 done')
 
 # ---- Ch11: serving stack flow ----
-fig, ax = plt.subplots(figsize=(13, 4.6))
+fig, ax = plt.subplots(figsize=(9, 4.9))
 ax.set_xlim(0, 16); ax.set_ylim(0, 4.6); ax.axis('off')
 steps = ['Request\nstream', 'Scheduler', 'KV page table\n+ prefix cache', 'Prefill pool', 'Decode pool', 'Output']
 xs = [0.3, 2.8, 5.3, 8.0, 10.6, 13.2]
