@@ -17,8 +17,8 @@ fig, ax = plt.subplots(figsize=(8.5, 5))
 ax2 = ax.twinx()
 w = 0.4
 x = Ts
-b1 = ax.bar(x - w/2, inp, w, color='#3a6ea5', label='input tokens')
-b2 = ax.bar(x - w/2, [Of]*5, w, bottom=inp, color='#6f9e5f', label='output tokens')
+b1 = ax.bar(x - w/2, inp, w, color='#3a6ea5', hatch='//', edgecolor='white', linewidth=0.6, label='input tokens')
+b2 = ax.bar(x - w/2, [Of]*5, w, bottom=inp, color='#6f9e5f', hatch='..', edgecolor='white', linewidth=0.6, label='output tokens')
 # KV line on twin axis
 ax2.plot(x, kv_gb, '-o', color='#c0392b', lw=2, label='KV cache (GB, FP16)')
 for i, v in enumerate(kv_gb):

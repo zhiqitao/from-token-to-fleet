@@ -24,7 +24,7 @@ The strategy names tell us what gets split:
 
 These are not alternatives; production systems **compose** them (e.g. DP across nodes × TP within a node × PP across a few nodes; or TP+CP within a decode pool + a separate prefill pool). The architect's job is deciding which dimension to split first, and in which mode (training vs inference) the parallelism is being applied.
 
-![Fig 10.1 — Composing the dimensions: each PP stage holds a DP replica, TP-sharded across GPUs; and EP's per-token all-to-all routes each token to the GPU holding its experts (ILLUSTRATIVE)](figures/fig-10-1002.png)
+![Fig 10.1 — Composing the dimensions: each PP stage holds a DP replica, TP-sharded across GPUs; and EP's per-token all-to-all routes each token to the GPU holding its experts (illustrative)](figures/fig-10-1002.png)
 
 *Fig 10.1 — The strategies are not either/or. Left: a DP × TP × PP stack — the layer stack is cut into PP stages (green), each stage is DP-replicated (orange) across nodes, and within a stage TP shards the weights across 4 GPUs (blue). Right: expert parallel is a per-token all-to-all — each token may leave its home GPU to reach the GPU holding its top-k experts. Which dimension binds determines which you split first.*
 

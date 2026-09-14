@@ -50,7 +50,7 @@ $$
 
 — looks fine. But under a p95 TTFT SLO of ≤ 2 s, the 99th-percentile straggler blows the p95 budget the moment the outlier fraction crosses 5%. Averages wash out the tail; percentiles expose it.
 
-![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean. The mean (~0.84 s) hides the 1% stragglers at ~5 s that breach the p95 TTFT budget (ILLUSTRATIVE)](figures/fig-06-0602.png)
+![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean. The mean (~0.84 s) hides the 1% stragglers at ~5 s that breach the p95 TTFT budget (illustrative)](figures/fig-06-0602.png)
 
 *Fig 6.2 — Why the mean is not a signal. The same request stream of 99% @ 0.8 s + 1% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s), yet the p95 and p99 paint a very different picture under a 2 s SLO. Log the distribution; SLO against the percentile.*
 

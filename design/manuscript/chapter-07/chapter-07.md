@@ -61,7 +61,7 @@ $$
 
 — about **8× smaller**. For the canonical 9.2K context that is ~3 GB of KV instead of ~24 GB, and the fleet-sizing arithmetic of Chapter 17 changes accordingly (many more concurrent requests fit for KV). We keep the full-MHA bound as the canonical conservative residual because an architect should size against the worst case the *chosen* model actually presents — the honest move is to read the model card’s KV-head count and substitute it into the GQA formula above. The framework is unchanged; only the constant changes. (`kv_gqa_variant_mb` is recorded in `canonical-workload.yaml`.)
 
-![Fig 7.1 — Grouped-Query Attention: 64 query heads share 8 KV heads, cutting per-token KV 8× from 2.5 MB to ~0.33 MB (ILLUSTRATIVE, after LLaMA-2 70B head layout)](figures/fig-07-0703.png)
+![Fig 7.1 — Grouped-Query Attention: 64 query heads share 8 KV heads, cutting per-token KV 8× from 2.5 MB to ~0.33 MB (illustrative, after LLaMA-2 70B head layout)](figures/fig-07-0703.png)
 
 *Fig 7.1 — The visual proof of the 8× saving. Full MHA caches a K,V per query head (64/token → 2.5 MB/token); GQA shares one K,V across a group of 8 query heads, so only 8 K/V per token → ~0.33 MB/token. Head count is the real dial: substitute the model's KV-head count into `2 × layers × KV_heads × head_dim × bytes`.*
 

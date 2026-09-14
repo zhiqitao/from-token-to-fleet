@@ -36,7 +36,7 @@ The canonical RAG scenario is one point in a much larger design space (Chapter 1
 
 New workloads are evaluated by *locating the dominant constraint*, not by matching the canonical row count. The matrix answers "where does the SLO saturate first?" — and that single question routes to the correct strategy class, keeping the canonical case a teaching instrument rather than a ceiling.
 
-![Fig 26.1 — Workload fingerprints on the six axes of §4: long-context RAG Q&A, high-throughput chat, and batch inference occupy distinct regions of the space (ILLUSTRATIVE, relative 0–1)](figures/fig-26-2602.png)
+![Fig 26.1 — Workload fingerprints on the six axes of §4: long-context RAG Q&A, high-throughput chat, and batch inference occupy distinct regions of the space (illustrative, relative 0–1)](figures/fig-26-2602.png)
 
 *Fig 26.1 — The §4 six-axis characterization rendered as a fingerprint. The three workload families from Table 26-1 sit in distinct regions: RAG Q&A is quality- and context-heavy with short outputs; chat is traffic- and latency-sensitive with long outputs; batch inference is cost-sensitive and latency-tolerant. Reading a new workload's radar against this front-end is the first move before consulting the §26 matrix.*
 
