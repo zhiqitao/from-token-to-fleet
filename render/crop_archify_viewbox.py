@@ -85,17 +85,50 @@ def _num(tag, name):
 
 
 def crop_viewbox(min_html):
-    """Rewrite the SVG viewBox to the content bbox (+pad) AND boost inline SVG
-    font sizes so the fine diagram labels reach a readable print size (the
-    Archify SVGs use 5.5-8px fonts in a ~1000-unit viewBox, so even after the
-    crop they sit well below ~9pt body text).  Save in place."""
+    """Rewrite the SVG viewBox to the content bbox (+pad) AND grow every inline
+    font and box so the fine diagram labels land at a readable print size.
+
+    The Archify SVGs use 5.5-8px fonts in a ~1000-unit viewBox, so even after a
+    content crop the labels sit well below ~9pt body text.  We grow fonts by
+    FONTBOOST and boxes by a SMALLER GBOX (about each box's own centre), so the
+    text-to-layout ratio rises: labels get relatively bigger than the diagram.
+    Boxes grow just enough to hold the bigger text; labels stay centred; the
+    connectors (fixed coords) are unchanged so arrows stay attached.  The crop
+    is then computed on the GROWN content so nothing is clipped.  Save in place.
+    """
     FONTBOOST = float(os.environ.get("FONTBOOST", "1.45"))
+    GBOX = float(os.environ.get("GBOX", "1.18"))
     t = open(min_html, encoding="utf-8").read()
     m = re.search(r'(viewBox="0 0 )([0-9.]+) ([0-9.]+)(")', t)
     if not m:
         print("  no viewBox; skipping", min_html)
         return None
     vbw, vbh = float(m.group(2)), float(m.group(3))
+
+    # 1) Grow every inline font (both 'font-size:NNpx' and 'font-size="NN"').
+    def _boost(match):
+        return match.group(1) + "%g" % (float(match.group(2)) * FONTBOOST) + match.group(3)
+    t = re.sub(r'(font-size\s*:\s*)([0-9.]+)(px)', _boost, t)
+    t = re.sub(r'(font-size\s*=\s*")([0-9.]+)(")', _boost, t)
+
+    # 2) Grow every box <rect> about its own centre by GBOX.  Skip the
+    #    full-canvas background rect (it has no x/y and 'width="100%"'), the
+    #    tiny label backplates that belong to markers (<~50px), and the
+    #    c-mask/c-external backplates already sized for their label.
+    def _grow(match):
+        pre = match.group(1)
+        x = float(match.group(2)); y = float(match.group(3))
+        w = float(match.group(4)); h = float(match.group(5))
+        if w <= 0 or h <= 0:
+            return match.group(0)
+        nx = x + w / 2.0; ny = y + h / 2.0
+        nw = w * GBOX; nh = h * GBOX
+        return '%s x="%.1f" y="%.1f" width="%.1f" height="%.1f"' % (
+            pre, nx - nw / 2, ny - nh / 2, nw, nh)
+    t = re.sub(r'(<rect\b[^>]*?)\sx="([0-9.+-]+)"\sy="([0-9.+-]+)"'
+               r'\swidth="([0-9.+-]+)"\sheight="([0-9.+-]+)"', _grow, t)
+
+    # 3) Crop to the (now grown) content bbox.
     svg = re.search(r"<svg.*?</svg>", t, re.S)
     if not svg:
         return None
@@ -107,17 +140,10 @@ def crop_viewbox(min_html):
     pad = PAD * w
     x0 -= pad; y0 -= pad; x1 += pad; y1 += pad; w = x1 - x0; h = y1 - y0
     new_vb = 'viewBox="%.1f %.1f %.1f %.1f"' % (x0, y0, w, h)
-    t = t[:m.start()] + new_vb + t[m.end():]
-
-    # Boost every inline font-size (both 'font-size:NNpx' and 'font-size="NN"').
-    # The Archify label boxes have enough padding that a modest boost stays
-    # inside them; combined with the viewBox crop (which enlarges boxes too)
-    # this lifts the fine sub-labels toward body size.
-    def _boost(match):
-        val = float(match.group(2))
-        return match.group(1) + "%.1f" % (val * FONTBOOST) + match.group(3)
-    t = re.sub(r'(font-size\s*:\s*)([0-9.]+)(px)', _boost, t)
-    t = re.sub(r'(font-size\s*=\s*")([0-9.]+)(")', _boost, t)
+    # Rewrite the viewBox by regex on the (grown) string: the m.start()/m.end()
+    # indices describe the PRE-growth string and are stale after the growth
+    # re.sub changed its length.
+    t = re.sub(r'viewBox="[0-9.+-]+ [0-9.+-]+ [0-9.+-]+ [0-9.+-]+"', new_vb, t, count=1)
 
     open(min_html, "w", encoding="utf-8").write(t)
     return (x0, y0, x1, y1)
