@@ -72,6 +72,13 @@ def content_bbox(svg, vbw=1000.0, vbh=600.0):
     # (Connectors, icons and labels sit between/inside the boxes, so the box
     #  extents give a safe, tight viewBox.  We deliberately do NOT parse
     #  <path> fan-out coords here -- they can extend well past the boxes.)
+    # Optional: also include <path> route extents (for loop-back diagrams whose
+    #  feedback path runs outside the node band). Enabled via INCLUDE_PATHS=1.
+    if os.environ.get("INCLUDE_PATHS", "0") == "1":
+        for m in re.finditer(r'<path\b[^>]*\bd="([^"]*)"', svg):
+            d = m.group(1)
+            for mm in re.finditer(r'(-?[\d.]+)[ ,]+(-?[\d.]+)', d):
+                xs.append(float(mm.group(1))); ys.append(float(mm.group(2)))
     if not xs or not ys:
         return None
     return min(xs), min(ys), max(xs), max(ys)
