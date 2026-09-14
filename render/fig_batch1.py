@@ -102,26 +102,26 @@ plt.tight_layout()
 plt.savefig(base % (9, 9, 9), dpi=150); plt.close()
 print('Ch09 done')
 
-# ---- Ch11: serving stack flow ----
-fig, ax = plt.subplots(figsize=(9, 4.9))
-ax.set_xlim(0, 16); ax.set_ylim(0, 4.6); ax.axis('off')
-steps = ['Request\nstream', 'Scheduler', 'KV page table\n+ prefix cache', 'Prefill pool', 'Decode pool', 'Output']
-xs = [0.3, 2.8, 5.3, 8.0, 10.6, 13.2]
-for i, (s, x) in enumerate(zip(steps, xs)):
-    ax.add_patch(FancyBboxPatch((x, 1.6), 2.2, 1.6, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
-    ax.text(x+1.1, 2.4, s, ha='center', va='center', color='white', fontsize=9.5, fontweight='bold')
-    if i < len(steps)-1:
-        ax.annotate('', xy=(x+2.4, 2.4), xytext=(x+2.2, 2.4), arrowprops=dict(arrowstyle='-|>', lw=2, color='#555'))
-# KV-transfer edge from Prefill pool back to Decode pool (continuous batching moves KV)
-ax.annotate('', xy=(10.6, 2.0), xytext=(10.2, 1.0), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#c0392b',
-            connectionstyle='arc3,rad=0.25'))
-ax.text(10.0, 0.55, 'KV transfer\n(prefill→decode)', fontsize=8.5, color='#c0392b', ha='center')
-# mechanism tags under each box
-ax.text(3.9, 1.1, 'batching: latency↔throughput', fontsize=7.5, color='#555', ha='center')
-ax.text(6.6, 1.1, 'prefix cache: skips prefill', fontsize=7.5, color='#555', ha='center')
-ax.text(9.2, 0.0, 'P/D split: memory↔throughput\nKV passes between pools', fontsize=7.5, color='#c0392b', ha='center')
-ax.text(8, 4.3, 'The serving stack: batching trades latency, prefix cache skips prefill, P/D split trades memory & throughput',
-        fontsize=10.5, fontweight='bold', ha='center', color='#333')
+# ---- Ch11: serving stack flow ---- (compact 3x2 grid so it places 1:1 at column width)
+fig, ax = plt.subplots(figsize=(6.0, 5.4))
+ax.set_xlim(0, 12); ax.set_ylim(0, 10); ax.axis('off')
+steps = ['Request stream', 'Scheduler', 'KV page table\n+ prefix cache']
+row2  = ['Prefill pool', 'Decode pool', 'Output']
+xs = [0.4, 4.4, 8.4]
+def _row(yt, items):
+    for i, s in enumerate(items):
+        x = xs[i]
+        ax.add_patch(FancyBboxPatch((x, yt), 3.2, 1.9, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
+        ax.text(x+1.6, yt+0.95, s, ha='center', va='center', color='white', fontsize=10, fontweight='bold')
+    for i in range(len(items)-1):
+        ax.annotate('', xy=(xs[i]+3.3, yt+0.95), xytext=(xs[i]+3.2, yt+0.95), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555'))
+_row(6.0, steps)
+_row(1.6, row2)
+# down arrow between rows (KV flows prefill -> decode)
+ax.annotate('', xy=(4.4, 5.8), xytext=(4.4, 3.8), arrowprops=dict(arrowstyle='-|>', lw=2, color='#c0392b'))
+ax.text(6.6, 4.8, 'KV transfer\n(prefill→decode)', fontsize=9, color='#c0392b', ha='left')
+ax.text(6, 9.2, 'The serving stack: batching trades latency,\nprefix cache skips prefill, P/D split trades memory & throughput',
+    fontsize=8.5, fontweight='bold', ha='center', color='#333')
 plt.tight_layout()
 plt.savefig(base % (11, 11, 11), dpi=150); plt.close()
 print('Ch11 done')

@@ -12,19 +12,19 @@ base = 'design/manuscript/chapter-%02d/figures/fig-%02d-%02d01.png'
 # Asset: design/manuscript/chapter-13/figures/fig-13-1301.{pdf,png}.
 
 # ---- Ch14: capability screen then deployment benchmark ----
-fig, ax = plt.subplots(figsize=(9, 5.2))
+fig, ax = plt.subplots(figsize=(6.4, 4.8))
 ax.set_xlim(0, 16); ax.set_ylim(0, 4.5); ax.axis('off')
-steps = ['Candidate\nmodels', 'Capability screen\n(MMLU/GSM8K/retrieval-QA)', 'Survivors',
-         'Deployment benchmark\n(TTFT/goodput/KV)', 'Selection + TCO']
+steps = ['Candidate\nmodels', 'Capability screen\n(MMLU/GSM8K/QA)', 'Survivors',
+         'Deployment bench\n(TTFT/goodput/KV)', 'Selection + TCO']
 xs = [0.3, 3.0, 5.9, 8.6, 12.0]
 for i, (s, x) in enumerate(zip(steps, xs)):
     col = '#3a6ea5' if i not in (1, 3) else '#e67e22'
-    ax.add_patch(FancyBboxPatch((x, 1.4), 2.4, 1.7, boxstyle='round,pad=0.02', fc=col, ec='none'))
-    ax.text(x+1.2, 2.25, s, ha='center', va='center', color='white', fontsize=8.5, fontweight='bold')
+    ax.add_patch(FancyBboxPatch((x, 1.9), 2.6, 2.0, boxstyle='round,pad=0.02', fc=col, ec='none'))
+    ax.text(x+1.3, 2.9, s, ha='center', va='center', color='white', fontsize=9, fontweight='bold')
     if i < len(steps)-1:
-        ax.annotate('', xy=(x+2.6, 2.25), xytext=(x+2.4, 2.25), arrowprops=dict(arrowstyle='-|>', lw=2, color='#555'))
-ax.text(8, 0.7, 'Screen on capability first, then benchmark on the real workload against the SLO gate',
-        fontsize=11, fontweight='bold', ha='center', color='#333')
+        ax.annotate('', xy=(x+2.8, 2.9), xytext=(x+2.6, 2.9), arrowprops=dict(arrowstyle='-|>', lw=2, color='#555'))
+ax.text(8, 0.8, 'Screen on capability first, then benchmark on the real workload\nagainst the SLO gate',
+        fontsize=9, fontweight='bold', ha='center', color='#333')
 plt.tight_layout()
 plt.savefig(base % (14, 14, 14), dpi=150); plt.close()
 print('Ch14 done')
