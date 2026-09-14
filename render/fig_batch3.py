@@ -106,7 +106,7 @@ ax.plot(hosts, qps, '-o', color='#3a6ea5', label='ideal linear (3.7 req/s/host)'
 ax.plot(hosts, qps*0.9, '--s', color='#c0392b', label='with scheduling overhead (~90%)')
 ax.set_xlabel('Host count')
 ax.set_ylabel('Fleet throughput (req/s)')
-ax.set_title('Ch20 — fleet throughput vs host count (honest 3.7 req/s/host)')
+ax.set_title('Throughput vs host count\n(honest 3.7 req/s/host)', fontsize=10.5)
 ax.legend(fontsize=8)
 ax.grid(alpha=0.3)
 # p99 in seconds (decode-dominated ~7.5 s); SLO-aware routing adds a queueing term
@@ -115,7 +115,7 @@ lat = 7.5 + 0.4*hosts    # seconds-scale p99, grows mildly with queueing under l
 ax.plot(hosts, lat, '-o', color='#e67e22')
 ax.set_xlabel('Host count')
 ax.set_ylabel('P99 latency (s)')
-ax.set_title('Ch20 — p99 latency vs host count (decode-dominated, seconds-scale)')
+ax.set_title('P99 latency vs host count\n(decode-dominated)', fontsize=10.5)
 ax.grid(alpha=0.3)
 ax.axhline(7.5, color='#888', ls=':', lw=1)
 ax.text(1, 7.7, 'decode floor ~7.5 s (ILLUSTRATIVE)', fontsize=8, color='#555')

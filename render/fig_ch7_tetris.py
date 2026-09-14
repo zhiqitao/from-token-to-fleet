@@ -8,7 +8,7 @@ import matplotlib.patches as mpatches
 # 9.2K -> ~23.8 GB KV ; 32K -> ~80 GB ; 128K -> ~320 GB
 fig, ax = plt.subplots(figsize=(8.5, 5.2))
 ax.set_xlim(0, 8.0); ax.set_ylim(0, 720)
-ax.set_yticks([]); ax.set_xticks([])
+ax.axis('off')   # no numeric axes: it's a schematic -> regen tight-crops to content
 ax.set_title('Memory Tetris: how the 8×H100 host (640 GB) fills with context',
              fontsize=12.5, fontweight='bold', pad=14)
 
