@@ -13,7 +13,10 @@ import numpy as np
 # NOTE: panels are STACKED vertically (3 rows x 1 col) so the long multi-word
 # candidate names get the full 6.1in column width and never overlap (the old
 # 1x3 layout clipped them).
-cands = ['(a) 8×H100 + prefix cache', '(b) P/D-disagg 2×8×H100', '(c) KV-quant 7B 1×H100']
+# Short x-labels that fit the panel width after font scaling; the full names
+# ("(a) 8xH100 + prefix cache", etc.) live in the chapter text/caption, so the
+# axis stays readable instead of truncating.
+cands = ['(a) prefix cache', '(b) P/D-disagg', '(c) KV-quant 7B']
 weight = [140, 140, 14]   # GB (Table 12.1)
 kv     = [24, 24, 6]      # GB
 

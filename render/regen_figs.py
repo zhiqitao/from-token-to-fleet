@@ -114,8 +114,11 @@ def _fix_crowded_chart(fig):
             labels = [t.get_text() for t in ax.get_xticklabels()]
             longest = max((len(s) for s in labels), default=0)
             # Long categorical labels (candidate names, model names, etc.)
-            # overrun narrow panels once fonts grow.
-            if longest > 8:
+            # overrun narrow panels once fonts grow.  Only rotate when there
+            # are enough labels that horizontal spacing is genuinely tight
+            # (>=4 ticks); with just 2-3 short-ish candidates across the full
+            # column width they fit horizontally and rotation wastes space.
+            if longest > 10 and len(labels) >= 4:
                 for t in ax.get_xticklabels():
                     t.set_rotation(35)
                     t.set_ha("right")
