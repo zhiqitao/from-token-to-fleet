@@ -53,25 +53,11 @@ plt.savefig(base % (4, 4, 4), dpi=150); plt.close()
 print('Ch04 done')
 
 # ---- Ch05: Model selection flowchart ----
-fig, ax = plt.subplots(figsize=(12, 8))
-ax.set_xlim(0, 14); ax.set_ylim(0, 10); ax.axis('off')
-# Source node top-left
-ax.add_patch(FancyBboxPatch((1.0, 8.3), 3.6, 1.4, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
-ax.text(2.8, 9.0, 'Workload\nCharacterization', ha='center', va='center', color='white', fontweight='bold')
-# Five surfaces in a single vertical column on the right; arrows run horizontally
-# from the source's right edge to each box's left edge -- no crossings.
-surfaces = ['Capability / quality', 'Latency / compute', 'Context / KV cost', 'Cost / token', 'RAG vs end-to-end']
-for i, s in enumerate(surfaces):
-    y = 7.6 - i * 1.35
-    ax.annotate('', xy=(6.0, y), xytext=(4.7, y),
-                arrowprops=dict(arrowstyle='-|>', lw=1.5, color='#c0392b'))
-    ax.add_patch(FancyBboxPatch((6.2, y - 0.35), 6.0, 0.7, boxstyle='round,pad=0.02', fc='#e67e22', ec='none'))
-    ax.text(9.2, y, s, ha='center', va='center', color='white', fontsize=11)
-ax.text(7, 0.6, 'Model selection surface (driven by workload, not vice-versa)',
-        fontsize=12, fontweight='bold', ha='center')
-plt.tight_layout()
-plt.savefig(base % (5, 5, 5), dpi=150); plt.close()
-print('Ch05 done')
+# RETIRED: competes with the Archify-rendered two-leg asset (render/archify/ch5-two-leg.json
+# -> design/manuscript/chapter-05/figures/fig-05-0501.{png,pdf}), which matches the
+# manuscript caption 'workload -> five selection surfaces -> two legs -> decision'.
+# regen_figs.py must not clobber the Archify asset.
+print('fig-05-0501: Archify-rendered asset; matplotlib generator retired')
 
 # ---- Ch09: collective completion time vs data volume (the promised chart) ----
 # all-reduce completion ~ O(2 data / B_eff); lines for the interconnect tiers

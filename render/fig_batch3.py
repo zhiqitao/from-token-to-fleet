@@ -55,38 +55,44 @@ print('Ch15 done')
 # render/archify/fleet-hierarchy.*) and checked in as fig-17-1701.{png,pdf}.
 
 # ---- Ch18: model-routing decision tree (capability filter -> cost/latency -> fallthrough) ----
-fig, ax = plt.subplots(figsize=(14, 6))
-ax.set_xlim(0, 15); ax.set_ylim(0, 6.5); ax.axis('off')
-# root
-ax.add_patch(FancyBboxPatch((6.3, 5.3), 2.4, 1.0, boxstyle='round,pad=0.02', fc='#27408b', ec='none'))
-ax.text(7.5, 5.8, 'Request', ha='center', va='center', color='white', fontsize='10', fontweight='bold')
-# three routing stages
-stages = ['Capability filter\n(specialised model?)', 'Cost / latency gate\n(route = f(cost, SLO))', 'Fallthrough\nto general model']
-xs = [1.0, 6.3, 11.3]
-for s, x in zip(stages, xs):
-    ax.add_patch(FancyBboxPatch((x, 2.3), 2.6, 1.2, boxstyle='round,pad=0.02', fc='#e67e22', ec='none'))
-    ax.text(x+1.3, 2.9, s, ha='center', va='center', color='white', fontsize='9', fontweight='bold')
-# leaves: the five families
+# 2-row reflow with 3 DISTINCT stage boxes and rail-based routing (no crossing mesh).
+fig, ax = plt.subplots(figsize=(6.6, 7.0))
+ax.set_xlim(0, 9.0); ax.set_ylim(0, 8.8); ax.axis('off')
+# title
+ax.text(4.5, 8.4, 'Ch18 — routing every request to the right specialised model',
+        fontsize=11, fontweight='bold', ha='center', color='#333')
+# root (top center)
+ax.add_patch(FancyBboxPatch((3.3, 6.9), 2.4, 0.95, boxstyle='round,pad=0.02', fc='#27408b', ec='none'))
+ax.text(4.5, 7.37, 'Request', ha='center', va='center', color='white', fontsize=10.5, fontweight='bold')
+# three DISTINCT routing stages (row 1, small boxes with gaps)
+stages = [('Capability filter\n(specialised model?)', 0.4, '#e67e22'),
+          ('Cost / latency gate\n(route = f(cost, SLO))', 3.3, '#e67e22'),
+          ('Fallthrough\nto general model', 6.2, '#e67e22')]
+for lbl, x, c in stages:
+    ax.add_patch(FancyBboxPatch((x, 5.0), 2.5, 1.25, boxstyle='round,pad=0.02', fc=c, ec='none'))
+    ax.text(x+1.25, 5.62, lbl, ha='center', va='center', color='white', fontsize=9, fontweight='bold')
+# five families (leaves, row 2)
 leaves = ['Embedding', 'Small gen', 'Large frontier', 'Math / reasoning', 'Vision']
 col = ['#3a6ea5', '#6f9e5f', '#c0392b', '#e67e22', '#8055b5']
 for i, (lm, c) in enumerate(zip(leaves, col)):
-    x = 0.4 + i*2.9
-    ax.add_patch(FancyBboxPatch((x, 0.4), 2.4, 0.9, boxstyle='round,pad=0.02', fc=c, ec='none'))
-    ax.text(x+1.2, 0.85, lm, ha='center', va='center', color='white', fontsize='8.5', fontweight='bold')
-# arrows root -> stages
-ax.annotate('', xy=(2.3, 3.5), xytext=(7.3, 5.3), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#555'))
-ax.annotate('', xy=(7.5, 3.5), xytext=(7.5, 5.3), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#555'))
-ax.annotate('', xy=(12.6, 3.5), xytext=(7.7, 5.3), arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#555'))
-# stage -> leaves: draw from each stage box's bottom down to the leaves band
-for i, x in enumerate(xs):
-    # stage box bottom center is (x+1.3, 2.3)
-    # fan to the leaves it can reach; simple: cascade down to all leaves
-    for li in range(5):
-        lx = 0.4 + li*2.9 + 1.2
-        ax.plot([x+1.3, lx], [2.3, 1.35], color='#999', lw=0.8)
-ax.text(7.5, 5.0, 'capability → cost/SLO → fallthrough', fontsize=9, color='#555', ha='center')
-ax.text(7.5, 6.3, 'Ch18 — routing every request to the right specialised model (decision tree)',
-        fontsize=12, fontweight='bold', ha='center')
+    x = 0.3 + i*1.75
+    ax.add_patch(FancyBboxPatch((x, 1.3), 1.55, 1.0, boxstyle='round,pad=0.02', fc=c, ec='none'))
+    ax.text(x+0.775, 1.8, lm, ha='center', va='center', color='white', fontsize=8.5, fontweight='bold')
+# Request -> each stage (3 clean arrows from Request bottom to stage top)
+for x in [1.65, 4.5, 7.45]:
+    ax.annotate('', xy=(x, 6.3), xytext=(4.5, 6.88), arrowprops=dict(arrowstyle='-|>', lw=1.3, color='#555'))
+# stage row -> leaf row via a horizontal rail (drops from each stage bottom to rail, then to leaves)
+rail_y = 2.55
+ax.plot([0.5, 8.6], [rail_y, rail_y], color='#8a8a8a', lw=1.0, zorder=1)
+# vertical stubs from EACH stage box down to the rail
+for sx in [1.65, 4.5, 7.45]:
+    ax.plot([sx, sx], [5.0, rail_y], color='#8a8a8a', lw=1.0, zorder=0)
+# from rail, short drops to each leaf
+for i in range(5):
+    lx = 0.3 + i*1.75 + 0.775
+    ax.plot([lx, lx], [rail_y, 2.3], color='#8a8a8a', lw=1.0, zorder=1)
+    ax.annotate('', xy=(lx, 2.3), xytext=(lx, rail_y), arrowprops=dict(arrowstyle='-|>', lw=0.9, color='#8a8a8a'))
+ax.text(4.5, 3.1, 'capability → cost/SLO → fallthrough', fontsize=9, color='#555', ha='center', zorder=3)
 plt.tight_layout()
 plt.savefig(base % (18, 18, 18), dpi=150); plt.close()
 print('Ch18 done')
