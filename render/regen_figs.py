@@ -188,7 +188,20 @@ def _scale_figure_fonts(fig, num):
     # We keep the original figsize for the data layout, but we will downscale
     # the SAVED image to the column width via the LaTeX \maxwidth clamp, so the
     # effective on-page factor is (TEXTW_IN / width_in) * scale.
+    # For text-art we must use the *tight-cropped* content width (not the raw
+    # figsize, which is much wider because of padding), otherwise we badly
+    # underestimate the downscale and under-scale the fonts.
     downscale = width_in / TEXTW_IN     # >1 => figure is wider than column
+    if _is_text_art(fig):
+        try:
+            fig.canvas.draw()
+            ren = fig.canvas.get_renderer()
+            tb = fig.get_tightbbox(ren)
+            content_w_in = (tb.x1 - tb.x0) / 72.0  # pt -> in
+            if content_w_in > 0.5:
+                downscale = content_w_in / TEXTW_IN
+        except Exception:
+            pass
 
     sizes = _all_text_sizes(fig)
     if not sizes:
