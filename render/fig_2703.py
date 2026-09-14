@@ -6,8 +6,8 @@ from matplotlib.patches import FancyBboxPatch, Rectangle
 # Fig A.3 — The layered evolution of frontier systems (Appendix section 6)
 # Horizontal chain: Transformer -> ... -> Agent Fleet, color-coded efficiency(adds context/cost) vs capability(raises intelligence)
 
-fig, ax = plt.subplots(figsize=(9.5, 6.5))
-ax.set_xlim(0, 16); ax.set_ylim(0, 7.8)
+fig, ax = plt.subplots(figsize=(8.8, 6.2))
+ax.set_xlim(0, 16.6); ax.set_ylim(0, 7.8)
 ax.axis('off')
 
 steps = [
@@ -33,19 +33,23 @@ colors = {
 def color_of(k):
     return colors.get(k, '#888')
 
-step_w = 1.42
-x = 0.4
+def border_of(k):
+    # non-color group distinction: dashed border for efficiency-led, solid for capability-led
+    return '--' if k in ('eff', 'eff+cap') else '-'
+
+step_w = 1.68
+x = 0.05
 buttons = []
 for i, (name, kind, tag) in enumerate(steps):
     box = FancyBboxPatch((x, 2.9), step_w, 2.0, boxstyle='round,pad=0.02',
-                         fc=color_of(kind), ec='none', alpha=0.9)
+                         fc=color_of(kind), ec='white', lw=1.2, linestyle=border_of(kind), alpha=0.9)
     ax.add_patch(box)
-    ax.text(x+step_w/2, 3.9, name, fontsize=11.5, fontweight='bold', color='white', ha='center', va='center')
+    ax.text(x+step_w/2, 3.9, name, fontsize=9.5, fontweight='bold', color='white', ha='center', va='center')
     # arrow to next
     if i < len(steps)-1:
         ax.annotate('', xy=(x+step_w+0.12, 3.9), xytext=(x+step_w+0.0, 3.9),
                     arrowprops=dict(arrowstyle='-|>', lw=2, color='#555'))
-    x += step_w + 0.22
+    x += step_w + 0.16
 
 # legend: capability vs efficiency entries, each label immediately followed by its colour swatch, placed in the clear band above the box row
 ax.add_patch(Rectangle((7.0, 6.3), 0.34, 0.34, fc=color_of('cap'), ec='none', alpha=0.9))
