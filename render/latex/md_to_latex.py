@@ -157,10 +157,15 @@ def fix_urls(tex_path):
     parts = _re.split(r"(?s)(\\begin\{longtable\}.*?\\end\{longtable\})", tex)
     changed = False
     def wrap(body):
-        out = _re.sub(r"(?<!\\url\{)(https?://[^\s}\\]+\S*)",
-                      lambda mm: "\\url{%s}" % mm.group(1).replace("_", "\\_"),
-                      body)
-        return out
+        # Match a bare URL, then trim trailing punctuation (; , . ) ] ), and
+        # un-escape any \\_ pandoc emitted so it doesn't render a literal
+        # backslash inside \\url{} (url handles underscores natively).
+        pat = _re.compile(r"(?<!\\url\{)(https?://[^\s}]+)")
+        def repl(mm):
+            u = mm.group(1)
+            u = _re.sub(r"[;,.)\]]+$", "", u)
+            return "\\url{%s}" % u.replace("\\_", "_")
+        return pat.sub(repl, body)
     new = parts[0]
     for k in range(1, len(parts), 2):
         new += parts[k]                      # longtable block: leave alone
@@ -168,6 +173,57 @@ def fix_urls(tex_path):
             new += wrap(parts[k + 1])
     if new != tex:
         open(tex_path, "w", encoding="utf-8").write(new)
+        return True
+    return False
+
+
+def fix_captions(tex_path):
+    """Strip the manually-written 'Fig X.Y' prefix from captions and alt text.
+
+    Pandoc copies the markdown caption verbatim (e.g. '*Fig 1.1 — The KV cache…*'),
+    so the resulting \\caption{Fig 1.1 — …} duplicates the figure environment's
+    auto-generated 'Figure 1.1:' label.  Also strip the editorial bracket markers
+    ([ILLUSTRATIVE…], [VERIFY], [HYPOTHESIS], [DERIVED]) from captions/alt so they
+    do not leak into the List of Figures or the accessibility alt text.
+    """
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    orig = tex
+
+    # Strip a leading self-referential 'Fig X.Y' (optionally inside
+    # \\hyperref[fig:X.Y]{Fig X.Y}) plus the following dash run.
+    lead = _re.compile(
+        r"(?:\\hyperref\[fig:\d+\.\d+\]\{)?"
+        r"\s*Fig(?:ure)?\s+\d+\.\d+\}?\s*(?:---|--|[—–-]|\\textemdash)+\s*"
+    )
+    # Also a leading bare 'Fig X.Y —' with no link.
+    lead2 = _re.compile(r"\s*Fig(?:ure)?\s+\d+\.\d+\s*(?:---|--|[—–-])+\s*")
+
+    def strip_lead(t):
+        t = lead.sub("", t)
+        t = lead2.sub("", t)
+        return t
+
+    def clean_marks(t):
+        # Remove editorial bracket markers: {[}ILLUSTRATIVE textual{]},
+        # [ILLUSTRATIVE…], [VERIFY…], [HYPOTHESIS…], [DERIVED…], [1P], [2°…],
+        # and the pandoc-escaped braces around them.
+        t = _re.sub(r"\{\[\}\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\{\]\}", "", t)
+        t = _re.sub(r"\[\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\]", "", t)
+        t = _re.sub(r"\s+", " ", t).strip()
+        return t
+
+    # Apply to every \\caption{...} and alt={...}.
+    def cap_repl(m):
+        return "\\caption{" + clean_marks(strip_lead(m.group(1))) + "}"
+    tex = _re.sub(r"\\caption\{((?:[^{}]|\{[^{}]*\})*)\}", cap_repl, tex)
+
+    def alt_repl(m):
+        return "alt={" + clean_marks(strip_lead(m.group(1))) + "}"
+    tex = _re.sub(r"alt=\{((?:[^{}]|\{[^{}]*\})*)\}", alt_repl, tex)
+
+    if tex != orig:
+        open(tex_path, "w", encoding="utf-8").write(tex)
         return True
     return False
 
@@ -304,6 +360,7 @@ def convert(mapping):
         fix_verbatim(out)
         fix_urls(out)
         fix_crossrefs(out, n)
+        fix_captions(out)
         built[n] = (chapters[n]["title"], out)
     return built
 
