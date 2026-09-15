@@ -53,9 +53,9 @@ ax.axhline(640, color='#27408b', ls='--', lw=1, label='8×H100 (640 GB)')
 ax.axhline(80, color='#6f9e5f', ls='--', lw=1, label='1×H100 (80 GB)')
 ax.axvspan(0, 2.5, color='#6f9e5f', alpha=0.06)
 ax.set_ylim(0, 1450)
-ax.annotate('QLoRA runs on a single H100', xy=(2, 60), xytext=(0.05, 0.86), xycoords=('data','axes fraction'),
+ax.annotate('QLoRA runs on a single H100', xy=(2, 60), xytext=(0.6, 300),
             fontsize=8.5, color='#3d6e35', arrowprops=dict(arrowstyle='->', color='#3d6e35'))
-ax.text(1.0, 1300, 'full fine-tune > 8×H100 host:\nneeds multi-node or offload\n(weights~140 + grad ~140 +\nopt states ~840 + activations)',
+ax.text(1.0, 1300, 'full fine-tune > 8×H100 host: needs\nmulti-node or offload (weights ~140 +\ngrad ~140 + opt states ~840 + activations)',
         fontsize=8, color='#c0392b', ha='center')
 ax.legend(fontsize=8)
 ax.grid(alpha=0.3, axis='y')
