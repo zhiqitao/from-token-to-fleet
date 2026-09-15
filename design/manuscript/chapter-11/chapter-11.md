@@ -95,7 +95,7 @@ Good serving telemetry answers "are we meeting the SLO while keeping the GPU bus
 
 - **Choosing P/D disaggregation too early.** Splitting pools adds fabric + orchestration; for a single host it is overhead without the resource conflict that motivates it.
 
-- **Believing speculative decoding (DFlash >4.3× / 1.5× [S5][1P]) is a serving baseline.** It is an optimization for bandwidth-bound decode, not a requirement, and must be validated on the workload.
+- **Believing speculative decoding (DFlash >6× / up to 2.5× [S5][1P]) is a serving baseline.** It is an optimization for bandwidth-bound decode, not a requirement, and must be validated on the workload.
 
 ## 6. Architecture Consequence
 
@@ -119,7 +119,7 @@ The serving stack dictates the deployment choices:
 
 ## 7. What We Still Don't Know
 
-- **Portable end-to-end goodput across real enterprise RAG** — Mooncake's 525%/75% [S4][1P] and DFlash's 4.3× [S5][1P] are strong anchors but are workload-specific; general rules are (a hypothesis).
+- **Portable end-to-end goodput across real enterprise RAG** — Mooncake's 525%/75% [S4][1P] and DFlash's >6× [S5][1P] are strong anchors but are workload-specific; general rules are (a hypothesis).
 - **Prefix-cache hit rates in mixed traffic** — the real reduction in prefill FLOPs from RadixAttention/APC for a given document-distribution is (to be verified).
 - **KV-transfer cost at scale** — Mooncake's engine moves KV to CPU/DRAM/SSD [S4][1P], but the exact latency/bandwidth crossover where disaggregation wins is (to be verified).
 

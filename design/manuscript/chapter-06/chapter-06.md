@@ -110,13 +110,13 @@ The metric hierarchy directly dictates architecture. For the canonical workload:
 - **Bandwidth-bound decode + compute-bound prefill ⇒ consider P/D disaggregation** (Splitwise/DistServe/Mooncake) at scale, because squeezing both regimes from one resource pool fights itself. [S4][1P]
 - **Repeat-prefix RAG ⇒ enable prefix caching** (RadixAttention/APC), which turns repeated 9.2K prefills into cached lookups and defends the p95 TTFT against the 40 rps peaks. [S3][1P]
 - **KV-cache pressure ⇒ quantize or offload KV.** FP8 KV is ≈54% of BF16 [S6][1P], and vLLM KV-offloading cuts TTFT by 2–22× [S6][1P] — both are memory-layer fixes the telemetry would call for when KV occupancy nears capacity.
-- **Speculative decoding where decode bandwidth is the wall** — DFlash reports >4.3× over baseline / 1.5× vs native MTP [S5][1P] — because it reduces weight reads per accepted token.
+- **Speculative decoding where decode bandwidth is the wall** — DFlash reports over 6× lossless acceleration, up to 2.5× over EAGLE-3 [S5][1P] — because it reduces weight reads per accepted token.
 
 <!-- Figure spec: mechanism-first diagram; three stacked layers labeled Workload/Serving/Resource, arrows showing read-order on diagnostics. -->
 
 ## 7. What We Still Don't Know
 
-- **Goodput in production is rarely published.** The research corpus gives strong qualitative and some quantitative anchors (Mooncake 525% simulated throughput / 75% more requests [S4][1P], DFlash >4.3× [S5][1P]), but portable end-to-end goodput figures across real enterprise RAG workloads remain (a hypothesis).
+- **Goodput in production is rarely published.** The research corpus gives strong qualitative and some quantitative anchors (Mooncake 525% simulated throughput / 75% more requests [S4][1P], DFlash >6× [S5][1P]), but portable end-to-end goodput figures across real enterprise RAG workloads remain (a hypothesis).
 - **Prefix-cache hit rates in mixed workloads** are workload-dependent; the actual reduction in prefill FLOPs from APC/RadixAttention for a given document-retrieval distribution is (to be verified).
 - **Tail-latency drivers under batching** interact: batch size, arrival burstiness, and KV fragmentation each affect p99 differently, and their joint effect is (a hypothesis).
 
