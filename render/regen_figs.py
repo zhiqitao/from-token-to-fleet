@@ -276,7 +276,13 @@ def _duo_savefig(fname, *args, **kwargs):
         if text_art_save:
             kwo.setdefault("bbox_inches", "tight")
             kwo.setdefault("pad_inches", 0.1)
-        _orig_savefig(pdf_path, format="pdf", **kwo)
+        # Embed fonts as TrueType (Type 42) instead of Type 3 so the PDF is
+        # accessible / searchable and Type-3 warnings are gone.
+        with matplotlib.rc_context({
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+        }):
+            _orig_savefig(pdf_path, format="pdf", **kwo)
         print("  +vector", pdf_path)
 
 
