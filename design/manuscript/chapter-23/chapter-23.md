@@ -75,7 +75,7 @@ The requirements dialogue has its own quality metrics:
 1. **Bound coverage** — did the conversation surface all five numbers (traffic, tokens, quality, latency/cost, ops)? Missing one is a future scope surprise.
 2. **Customer buy-in** — did the mirrored restatement get an explicit "yes"? An unconfirmed restatement is not a scope.
 3. **Decision lead time** — how quickly the five bounds let us produce a defensible draft architecture. The whole point is that extracting numbers, not more meetings, unlocks the design.
-4. **Assumption log** — every guess we made that the customer did not explicitly confirm, tracked as [VERIFY] items, not silent defaults.
+4. **Assumption log** — every guess we made that the customer did not explicitly confirm, tracked as (to be verified) items, not silent defaults.
 
 ## 5. Common Mistakes
 
@@ -83,7 +83,7 @@ The requirements dialogue has its own quality metrics:
 - **Accepting aspirations as SLOs.** "Make it fast" is a goal; "p95 TTFT under 2 s" is a contract. Write the contract.
 - **Letting the customer choose the technology.** "We want a 70B model" is a solution, not a requirement; the architect derives the model from the bounds (Ch5), not from the customer's guess.
 - **Ignoring the operational constraint.** "It has to be on-prem / private / no cloud" often decides more than any performance number — surface it early.
-- **Not logging assumptions.** Every silence becomes a hidden assumption that surfaces as a dispute later. Write them down as [VERIFY] items.
+- **Not logging assumptions.** Every silence becomes a hidden assumption that surfaces as a dispute later. Write them down as (to be verified) items.
 
 ## 6. Architecture Consequence
 
@@ -97,9 +97,9 @@ The requirements conversation is where the book's entire loop is *fed.* The five
 
 ## 7. What We Still Don't Know
 
-- **How accurate the customer's own-told numbers are** ("40 rps peak") is [VERIFY]; peak estimates are notoriously optimistic and should be triangulated with real logs where possible.
-- **Whether the quality bar once defined stays stable** is [HYPOTHESIS]; as users adopt the tool, their expectations and the data they query both shift.
-- **The right number of questions to lock quality** is [VERIFY]; 50 worked here as a representative proxy but a larger, task-distributed set is stronger.
+- **How accurate the customer's own-told numbers are** ("40 rps peak") is (to be verified); peak estimates are notoriously optimistic and should be triangulated with real logs where possible.
+- **Whether the quality bar once defined stays stable** is (a hypothesis); as users adopt the tool, their expectations and the data they query both shift.
+- **The right number of questions to lock quality** is (to be verified); 50 worked here as a representative proxy but a larger, task-distributed set is stronger.
 
 ## 8. End-of-Chapter Mini-Case
 

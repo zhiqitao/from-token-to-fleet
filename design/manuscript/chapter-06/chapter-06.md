@@ -116,9 +116,9 @@ The metric hierarchy directly dictates architecture. For the canonical workload:
 
 ## 7. What We Still Don't Know
 
-- **Goodput in production is rarely published.** The research corpus gives strong qualitative and some quantitative anchors (Mooncake 525% simulated throughput / 75% more requests [S4][1P], DFlash >4.3× [S5][1P]), but portable end-to-end goodput figures across real enterprise RAG workloads remain [HYPOTHESIS].
-- **Prefix-cache hit rates in mixed workloads** are workload-dependent; the actual reduction in prefill FLOPs from APC/RadixAttention for a given document-retrieval distribution is [VERIFY].
-- **Tail-latency drivers under batching** interact: batch size, arrival burstiness, and KV fragmentation each affect p99 differently, and their joint effect is [HYPOTHESIS].
+- **Goodput in production is rarely published.** The research corpus gives strong qualitative and some quantitative anchors (Mooncake 525% simulated throughput / 75% more requests [S4][1P], DFlash >4.3× [S5][1P]), but portable end-to-end goodput figures across real enterprise RAG workloads remain (a hypothesis).
+- **Prefix-cache hit rates in mixed workloads** are workload-dependent; the actual reduction in prefill FLOPs from APC/RadixAttention for a given document-retrieval distribution is (to be verified).
+- **Tail-latency drivers under batching** interact: batch size, arrival burstiness, and KV fragmentation each affect p99 differently, and their joint effect is (a hypothesis).
 
 ## 8. End-of-Chapter Mini-Case
 

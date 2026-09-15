@@ -73,7 +73,7 @@ $$
 | Cloud on-demand | $0 | ~$1K (40% duty) | ~$0.04 | ~$1K+staff | low duty cycle, bursty, no staff for ops |
 | Managed API | $0 | usage | ~$21 | ~$546K | tiny volume, fastest time-to-value |
 
-*(Figures are worked-example estimates as of Q4 2026, not vendor quotes; treat as [2° DERIVED] illustrative, [VERIFY] before budgeting.)*
+*(Figures are worked-example estimates as of Q4 2026, not vendor quotes; treat as [2° DERIVED] illustrative, to be re-priced before budgeting.)*
 
 ## 4. Measurement
 
@@ -104,9 +104,9 @@ TCO is the final gate in the design loop (Ch12 candidates → Ch14 benchmark →
 
 ## 7. What We Still Don't Know
 
-- **Real equipment/power/staff numbers** for a given deployment are [VERIFY] site-specific; the illustrative quotes above must be re-priced.
-- **How rapidly GPU list and amortization prices fall** over the 5-year horizon is [HYPOTHESIS]; newer cards (H200/B200-class) change the per-card economics.
-- **The true staff overhead of self-hosting** (SRE time, security, upgrades) is [HYPOTHESIS] until the team bills its own time honestly.
+- **Real equipment/power/staff numbers** for a given deployment are (to be verified) site-specific; the illustrative quotes above must be re-priced.
+- **How rapidly GPU list and amortization prices fall** over the 5-year horizon is (a hypothesis); newer cards (H200/B200-class) change the per-card economics.
+- **The true staff overhead of self-hosting** (SRE time, security, upgrades) is (a hypothesis) until the team bills its own time honestly.
 
 ## 8. End-of-Chapter Mini-Case
 

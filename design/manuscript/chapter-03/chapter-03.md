@@ -26,7 +26,7 @@ The durable mental model: **total parameters set the ceiling; active parameters 
 
 ## 3. Worked Example
 
-We now carry concrete arithmetic using the canonical enterprise Q&A scenario (§14: ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is labeled [VERIFY].
+We now carry concrete arithmetic using the canonical enterprise Q&A scenario (§14: ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is labeled (to be verified).
 
 ### Dense 70B model (canonical, [1P])
 
@@ -47,8 +47,8 @@ We contrast with a representative MoE model in the Mixtral lineage. The exact pa
 |---|---|---|
 | Total parameters (across 8 experts) | ~47B | ~6B per expert × 8 + embeddings [2° DERIVED] |
 | Active parameters per token (top-2 routing) | ~14B | Top-2 from 8 experts, ~3–5% active/total ratio (frontier MoE [2° DERIVED]); actual activation ~25% for top-2-from-8 configuration shown |
-| FP16 active residency per token | ~28 GB | 14B × 2 bytes = 28 GB [VERIFY DERIVED] |
-| FLOPs per forward pass (approx.) | ~0.56T | 14B active × 4 FLOP/param [VERIFY DERIVED] |
+| FP16 active residency per token | ~28 GB | 14B × 2 bytes = 28 GB (derived — verify the input) |
+| FLOPs per forward pass (approx.) | ~0.56T | 14B active × 4 FLOP/param (derived — verify the input) |
 | Compute ratio (active/total) | ~3–5% (frontier) | 14B ÷ 47B [2° DERIVED] |
 
 *Table 3.2 — MoE model parameter arithmetic (worked example, not reference).*
@@ -126,11 +126,11 @@ Knowing whether a model is dense or MoE, and whether the quoted parameter count 
 
 ## 7. What We Still Don't Know
 
-As of 2026-08, several questions remain open and are flagged [VERIFY]:
+As of 2026-08, several questions remain open and are flagged (to be verified):
 
-- **Exact active-fraction per token for commercial MoE models.** Model cards rarely publish the precise top-k routing distribution under real workloads. We know the architectural top-k (e.g., top-2 from 8 experts), but the actual fraction of active parameters may vary with prompt content, token position, and expert availability. [VERIFY HYPOTHESIS]
-- **Whether router latency offsets MoE compute savings.** The cost of computing routing scores and dispatching to experts is not always included in published FLOP counts. On some hardware the routing overhead can be significant enough to narrow the compute gap between MoE and dense. [VERIFY HYPOTHESIS]
-- **KV-cache behavior under MoE with expert swapping.** When experts do not fit on a single GPU and must be swapped (offloaded), does the KV cache interact with the swapping mechanism in ways that change its effective size or access pattern? This has not been systematically characterized. [VERIFY HYPOTHESIS]
+- **Exact active-fraction per token for commercial MoE models.** Model cards rarely publish the precise top-k routing distribution under real workloads. We know the architectural top-k (e.g., top-2 from 8 experts), but the actual fraction of active parameters may vary with prompt content, token position, and expert availability. (a hypothesis awaiting verification)
+- **Whether router latency offsets MoE compute savings.** The cost of computing routing scores and dispatching to experts is not always included in published FLOP counts. On some hardware the routing overhead can be significant enough to narrow the compute gap between MoE and dense. (a hypothesis awaiting verification)
+- **KV-cache behavior under MoE with expert swapping.** When experts do not fit on a single GPU and must be swapped (offloaded), does the KV cache interact with the swapping mechanism in ways that change its effective size or access pattern? This has not been systematically characterized. (a hypothesis awaiting verification)
 
 These flags exist because home-lab measurements are not reference per the evidence taxonomy; they will be resolved (promoted, dropped, or demoted) before publication.
 

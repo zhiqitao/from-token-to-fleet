@@ -24,7 +24,7 @@ This appendix surveys vendor-reported material, so we are careful to separate th
 
 - **Observed** — what the vendor's technical report or model card actually states (e.g., "DeepSeek-V4 reports a reduced KV footprint"). This is [1P] *fact about the claim*, not the same as the third layer.
 - **Interpretation** — our read of what architectural mechanism the report demonstrates (e.g., "the KV reduction suggests the model changes how attention stores state"). This is analysis, ours, and could be wrong.
-- **Hypothesis** — a prediction about consequence we draw for serving architecture (e.g., "we expect long-context serving to become more memory-comfortable at equal context"). This is a testable [HYPOTHESIS], not a fact.
+- **Hypothesis** — a prediction about consequence we draw for serving architecture (e.g., "we expect long-context serving to become more memory-comfortable at equal context"). This is a testable (a hypothesis), not a fact.
 
 When we write "Four independent labs converged" or "MoE is arguably a larger architectural innovation," read those as **Interpretation / Hypothesis** — defensible reads of the frontier signal, not independent measurements. Vendor numbers stay tagged [1P] and flagged verify-on-own-hardware; our reads sit one register lower and should be read with the same skepticism we ask of any vendor claim. The practical rule: *if it's a percentage from a report, it's Observed [1P]; if it's a claim about what the industry trend means, it's ours — treat it as analysis, tune it against the reader's real workload.*
 
@@ -61,14 +61,14 @@ When we write "Four independent labs converged" or "MoE is arguably a larger arc
 The book's canonical scenario is a 70B dense FP16, ~9.2K-token RAG workload on 8×H100. The 2026 frontier does not invalidate it — it *refines* the interpretation an architect should carry:
 
 - The **KV constant** (Ch7: ~2.5 MB/token FP16, ~1.3 MB 8-bit) is a LLaMA-style floor. Hybrid-attention models cut it 4–10× at the mechanism, so "context fits on N GPUs" must be re-derived per model, not looked up once. [1P]
-- The **roofline** (Ch8) still holds; what changed is where a frontier model's prefill/decode ride it. Vendor-reported FLOP/KV reductions are [1P] but not yet independently reprofiled — an architect should re-run Ch8's measurement on the candidate model before betting capacity. [1P] → [VERIFY-candidate]
+- The **roofline** (Ch8) still holds; what changed is where a frontier model's prefill/decode ride it. Vendor-reported FLOP/KV reductions are [1P] but not yet independently reprofiled — an architect should re-run Ch8's measurement on the candidate model before betting capacity. [1P] → (to be re-verified for this candidate)
 - The **MoE memory decision** (Ch10) is now dominated by active parameters + KV + expert-fabric comm, not total size. [1P]
 
 None of this changes the book's *mechanisms*; it changes the *constants* an architect plugs into them. This is exactly why we wrote the arithmetic as verifiable, first-principles reasoning rather than as a fixed catalog of numbers.
 
 ## 6. Where 2026 Capability Actually Comes From (beyond Architecture)
 
-A recurring error — easy to fall into after reading four new model cards — is to attribute frontier gains to the attention mechanism splashed across the front page. The industry is converging not just on *architectures* (MoE + efficient attention + very long context) but on a *multi-layered recipe* in which architecture is one ingredient, and arguably not the dominant one. A qualitative decomposition [VERIFY: qualitative, not a measured percentage]:
+A recurring error — easy to fall into after reading four new model cards — is to attribute frontier gains to the attention mechanism splashed across the front page. The industry is converging not just on *architectures* (MoE + efficient attention + very long context) but on a *multi-layered recipe* in which architecture is one ingredient, and arguably not the dominant one. A qualitative decomposition (a qualitative decomposition):
 
 | Lever | Primary effect |
 |---|---|

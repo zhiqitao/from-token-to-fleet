@@ -119,9 +119,9 @@ The serving stack dictates the deployment choices:
 
 ## 7. What We Still Don't Know
 
-- **Portable end-to-end goodput across real enterprise RAG** — Mooncake's 525%/75% [S4][1P] and DFlash's 4.3× [S5][1P] are strong anchors but are workload-specific; general rules are [HYPOTHESIS].
-- **Prefix-cache hit rates in mixed traffic** — the real reduction in prefill FLOPs from RadixAttention/APC for a given document-distribution is [VERIFY].
-- **KV-transfer cost at scale** — Mooncake's engine moves KV to CPU/DRAM/SSD [S4][1P], but the exact latency/bandwidth crossover where disaggregation wins is [VERIFY].
+- **Portable end-to-end goodput across real enterprise RAG** — Mooncake's 525%/75% [S4][1P] and DFlash's 4.3× [S5][1P] are strong anchors but are workload-specific; general rules are (a hypothesis).
+- **Prefix-cache hit rates in mixed traffic** — the real reduction in prefill FLOPs from RadixAttention/APC for a given document-distribution is (to be verified).
+- **KV-transfer cost at scale** — Mooncake's engine moves KV to CPU/DRAM/SSD [S4][1P], but the exact latency/bandwidth crossover where disaggregation wins is (to be verified).
 
 ## 8. End-of-Chapter Mini-Case
 

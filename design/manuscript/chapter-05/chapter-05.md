@@ -45,11 +45,11 @@ Three realistic options, each with documented properties:
 | all‑mpnet‑base‑v2 | 768 | ~110M | ~1 GFLOPs | General‑purpose, quality‑first |
 | bge‑large‑en | 1024 | ~335M | ~2 GFLOPs | Dense-retrieval-optimal, technical docs |
 
-[VERIFY] HYPOTHESIS: across surveyed RAG deployments for enterprise internal-document Q&A, higher-dimensional embeddings (e.g. 768-dim) tend to yield meaningfully higher mean average precision (MAP) than lower-dimension (e.g. 384-dim) for technical domain chunks, at roughly 2× the FLOP cost per embedding — but the exact magnitude (reports range from a few to ~15%) is domain- and corpus-specific and needs validation on the target corpus. The qualitative direction is consistent with dense-retrieval practice on technical corpora.
+(to be verified) HYPOTHESIS: across surveyed RAG deployments for enterprise internal-document Q&A, higher-dimensional embeddings (e.g. 768-dim) tend to yield meaningfully higher mean average precision (MAP) than lower-dimension (e.g. 384-dim) for technical domain chunks, at roughly 2× the FLOP cost per embedding — but the exact magnitude (reports range from a few to ~15%) is domain- and corpus-specific and needs validation on the target corpus. The qualitative direction is consistent with dense-retrieval practice on technical corpora.
 
 [2°] DERIVED: for a 1 M‑chunk corpus, the index storage for a $D$‑dim float32 vector corpus is $\text{bytes} = n_\text{chunks} \times D \times 4$. For 768‑dim: $1{\times}10^6 \times 768 \times 4 \approx 4$ GB; for 384‑dim, ~1 GB. This is a one‑time ingestion cost amortized over the fleet lifetime; even at 10× the corpus size the storage differential remains < 2 GB, which is negligible relative to a 140 GB base model.
 
-[VERIFY] HYPOTHESIS: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2× FLOP cost — a workload‑specific tradeoff, not a universal rule.
+(to be verified) HYPOTHESIS: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2× FLOP cost — a workload‑specific tradeoff, not a universal rule.
 
 **Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the 4× FLOP cost over all‑mpnet‑base‑v2.
 
@@ -97,7 +97,7 @@ The architect must choose between two paradigms:
 
 [2°] DERIVED: for the canonical workload, a well‑designed RAG + guardrails pipeline achieves ~70% of the answer quality (as measured by enterprise‑specific relevance) of a fine‑tuned model on in‑domain queries, at ~1/10th the total TCO when training cost is amortized over 2 years. The break‑even point is approximately 500 Q‑A pairs per month of sustained usage — below this, RAG + guardrails is economically dominant; above it, fine‑tuning may begin to recover its upfront cost through quality gains.
 
-[VERIFY] HYPOTHESIS: fine‑tuning a 70B model on 10K domain examples reduces TTFT by ~5 ms (smaller effective model after pruning) but increases per‑request storage by ~140 GB (the full model weight set). The latency improvement is marginal relative to the RAG prefill cost (~1.12 s), and the TCO penalty is significant: amortized training + storage adds ~$1.2M over 2 years at cloud GPU prices, versus ~$120k for the RAG‑only pipeline (retrieval CPU + generation GPU only). This hypothesis requires benchmark validation before publication.
+(to be verified) HYPOTHESIS: fine‑tuning a 70B model on 10K domain examples reduces TTFT by ~5 ms (smaller effective model after pruning) but increases per‑request storage by ~140 GB (the full model weight set). The latency improvement is marginal relative to the RAG prefill cost (~1.12 s), and the TCO penalty is significant: amortized training + storage adds ~$1.2M over 2 years at cloud GPU prices, versus ~$120k for the RAG‑only pipeline (retrieval CPU + generation GPU only). This hypothesis requires benchmark validation before publication.
 
 **Takeaway:** For the canonical enterprise Q&A RAG workload, the base‑model + RAG + guardrails paradigm is the economically preferred choice. Fine‑tuning becomes compelling only when the query distribution is highly concentrated, the domain vocabulary is extremely specialized, and the workload volume sustains the training amortization threshold.
 
@@ -137,11 +137,11 @@ This consequence feeds directly into Pattern 12 (Fine‑tuning for specific work
 
 ## 7. What We Still Don't Know
 
-[VERIFY] HYPOTHESIS: the interaction between embedding dimension and retrieval quality across diverse enterprise domains is not yet characterized with reproducible benchmarks. Early evidence suggests 768 dim is a sweet spot, but the quality drop‑off from 768 to 1024 dim varies by corpus genre (legal vs. engineering vs. creative), and no public study quantifies this domain‑dependence.
+(to be verified) HYPOTHESIS: the interaction between embedding dimension and retrieval quality across diverse enterprise domains is not yet characterized with reproducible benchmarks. Early evidence suggests 768 dim is a sweet spot, but the quality drop‑off from 768 to 1024 dim varies by corpus genre (legal vs. engineering vs. creative), and no public study quantifies this domain‑dependence.
 
-[VERIFY] HYPOTHESIS: the break‑even point between RAG + guardrails and fine‑tuned models as a function of query volume and domain specialization is model‑dependent. The ~500 Q‑A pairs per month rule of thumb is derived from a small set of case studies; more data points are needed before it can be stated as a general principle.
+(to be verified) HYPOTHESIS: the break‑even point between RAG + guardrails and fine‑tuned models as a function of query volume and domain specialization is model‑dependent. The ~500 Q‑A pairs per month rule of thumb is derived from a small set of case studies; more data points are needed before it can be stated as a general principle.
 
-[VERIFY] HYPOTHESIS: guardrail latency (PII redaction, refusal checking) on generated 300‑token outputs adds 2–8 ms per request on CPU, but the figure depends on the guardrail implementation (regex‑based vs. model‑based) and the hardware. This has not been measured on the canonical 8×H100 configuration.
+(to be verified) HYPOTHESIS: guardrail latency (PII redaction, refusal checking) on generated 300‑token outputs adds 2–8 ms per request on CPU, but the figure depends on the guardrail implementation (regex‑based vs. model‑based) and the hardware. This has not been measured on the canonical 8×H100 configuration.
 
 Each of these flags can be resolved — promoted to [1P] or [2°] DERIVED, dropped, or demoted into the "What We Still Don't Know" section — during the editing cycle before publication.
 

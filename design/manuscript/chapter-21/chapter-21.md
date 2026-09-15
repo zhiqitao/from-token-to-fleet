@@ -50,7 +50,7 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 | Ungated | ~216K in a bad release | high (all traffic) | post-hoc | slow | tiny/experimental |
 | Gated (5% canary) | ~3.6K | low (confined) | automated | fast | business-critical serving |
 
-*(Worked-example numbers for a 2-hour canary at 5% traffic; [2° DERIVED] illustrative, [VERIFY] per deployment.)*
+*(Worked-example numbers for a 2-hour canary at 5% traffic; [2° DERIVED] illustrative, to be verified per deployment.)*
 
 ## 4. Measurement
 
@@ -81,9 +81,9 @@ The AI Factory is the operational backbone that makes the book's whole loop dura
 
 ## 7. What We Still Don't Know
 
-- **The true cost of model churn** (retraining + reeval + redeploy) per productivity gain is [HYPOTHESIS] and workload-specific; there is no universal cadence.
-- **How well evaluation suites generalize** across distribution shifts in real traffic is [VERIFY]; a suite tuned on last quarter's data may misjudge this quarter's model.
-- **The right canary size** for a given risk posture is [VERIFY] per service; 5% worked here but high-risk systems may need smaller, staged canaries.
+- **The true cost of model churn** (retraining + reeval + redeploy) per productivity gain is (a hypothesis) and workload-specific; there is no universal cadence.
+- **How well evaluation suites generalize** across distribution shifts in real traffic is (to be verified); a suite tuned on last quarter's data may misjudge this quarter's model.
+- **The right canary size** for a given risk posture is to be verified per service; 5% worked here but high-risk systems may need smaller, staged canaries.
 
 ## 8. End-of-Chapter Mini-Case
 

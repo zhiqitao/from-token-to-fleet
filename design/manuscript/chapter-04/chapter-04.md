@@ -44,7 +44,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 | **Traffic** | ~10 rps average; peaks ~40 rps | **Derivation**: 2,000 registered users × 5% concurrency = 100 concurrent users. By Little's Law (L = λW), with L = 100 and average request duration W ≈ 10 s, throughput λ = L/W = 100/10 ≈ 10 rps. Peaks ~40 rps arise when concurrency spikes to ~20% (400 users) with the same 10 s duration, yielding λ = 400/10 = 40 rps. |
 | **Token profile** | Input: ~1,200 prompt + ~8,000 retrieved context ≈ 9,200 tokens; Output: ~300 tokens; total ≈ 9,500 tokens/request | [1P] §14 canonical scenario; tokenizer‑verified on the target model's tokenizer |
 | **Latency** | TTFT budget 1.2 s (retrieval ~120 ms + prefill ~1.08 s); TPOT budget ~25 ms/token; p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms | [2°] SLO-derived from user‑experience targets; retrieval latency from vector DB on same‑region deployment |
-| **Economic constraints** | ~$1.20 per 1M input tokens, ~$2.00 per 1M output tokens on 8×H100 cloud instance; ~95,000 input tokens/s per dollar at 10 rps; infrastructure cost ≈ $3.50/hour for the host | [VERIFY] DERIVED from cloud GPU pricing as of 2026 (on‑demand H100 instances); tokens/s per dollar = total token throughput ÷ per-second cost ($3.50/hr ÷ 3600) |
+| **Economic constraints** | ~$1.20 per 1M input tokens, ~$2.00 per 1M output tokens on 8×H100 cloud instance; ~95,000 input tokens/s per dollar at 10 rps; infrastructure cost ≈ $3.50/hour for the host | derived from cloud GPU pricing as of 2026 (on‑demand H100 instances); tokens/s per dollar = total token throughput ÷ per-second cost ($3.50/hr ÷ 3600) |
 | **Operational constraints** | Multi‑region deployment (active‑active for availability); embeddings refreshed daily from document store; privacy‑sensitive documents force on‑prem or VPC‑local retrieval; 99.9% availability SLA | [2°] DERIVED from typical enterprise IT policy and the canonical scenario's availability requirements |
 
 #### Table 4-2 — Canonical workload characterization across six dimensions
@@ -55,7 +55,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 | Traffic | 10 rps avg; 40 rps peak [2° DERIVED] | 2,000 users × 5% concurrency = 100 concurrent; 100/10s = 10 rps; peaks at 20% concurrency → 40 rps |
 | Token profile | 9,200 input tokens + 300 output tokens [1P §14] | 1,200 prompt + 8K context; 300‑token answer |
 | Latency | TTFT 1.2 s (retrieval ~120 ms + prefill); TPOT ~25 ms/token [2° SLO] | User‑experience targets |
-| Economics | $1.20/M input; $2.00/M output [VERIFY DERIVED] | 2026 on‑demand H100 pricing; tokens/s per dollar |
+| Economics | $1.20/M input; $2.00/M output (derived — verify the input) | 2026 on‑demand H100 pricing; tokens/s per dollar |
 | Operational | Multi‑region; daily embedding refresh; 99.9% availability [2° DERIVED] | Enterprise IT policy |
 
 *(All figures trace to the §14 canonical scenario; none are independent measurement claims. Table 4-2 consolidates the six‑dimension characterization for quick reference.)*
@@ -116,7 +116,7 @@ The economic dimension translates the token profile and traffic into a cost stru
 
 - **Infrastructure**: A single host with 8 × H100 GPUs (640 GB total GPU memory, 140 GB model FP16 weights fit with room for KV cache). Capital cost ≈ $3.50/hour on-demand, or ~$2,500/month reserved.
 - **Token pricing**: ~$1.20 per million input tokens, ~$2.00 per million output tokens on the same H100 instance (derived from cloud provider pricing as of 2026).
-- **Throughput per dollar**: At 10 rps average, the system processes ~92,000 input tokens/s + ~3,000 output tokens/s. Dividing by the $3.50/hour infrastructure cost (≈ $0.00097 per second) yields ~95,000 input tokens/s per dollar and ~3,100 output tokens/s per dollar. These [VERIFY DERIVED] numbers are the economics framing the canonical scenario. (Chapter 5 expresses the same economics on a GPU list-price basis as **tokens per dollar-hour**; see its unit-reconciliation note before cross-chapter comparison.)
+- **Throughput per dollar**: At 10 rps average, the system processes ~92,000 input tokens/s + ~3,000 output tokens/s. Dividing by the $3.50/hour infrastructure cost (≈ $0.00097 per second) yields ~95,000 input tokens/s per dollar and ~3,100 output tokens/s per dollar. These (derived — verify the input) numbers are the economics framing the canonical scenario. (Chapter 5 expresses the same economics on a GPU list-price basis as **tokens per dollar-hour**; see its unit-reconciliation note before cross-chapter comparison.)
 - **Cost per request**: At 10 rps, each request carries ~9,500 tokens (9,200 input + 300 output). At the per‑million rates, cost per request ≈ ($1.20 × 9.2 + $2.00 × 0.3) / 1,000 ≈ $0.015 per request per inference cycle. At 40 rps peak, cost scales linearly.
 
 The economic constraint is what makes the workload real: a 70B FP16 model on one host can serve the canonical workload at the target SLO, but scaling to higher traffic or longer contexts would require additional hosts, and the cost line must be re‑evaluated.
@@ -160,10 +160,10 @@ The six‑dimension characterization directly dictates the architectural path fo
 
 ## 7. What We Still Don't Know
 
-- **Tokenizer exactness for technical domains**: While the "one token ≈ 4 characters" rule of thumb is convenient, enterprise Q&A prompts may contain code, JSON, or domain‑specific terminology that tokenizes differently. The exact per‑token count for a given prompt distribution is [VERIFY] and would require running the model's tokenizer on a representative sample of real user queries.
-- **KV cache scaling with longer contexts**: The canonical scenario uses ~9.2 K input tokens. If retrieval quality degrades and context lengths grow to 32 K or 128 K, the KV cache memory per request grows linearly, and the single‑host FP16 architecture would no longer suffice without quantization or model parallelism. The breakpoint is [VERIFY] and workload‑dependent.
-- **Impact of reranking on latency**: The TTFT budget assumes retrieval (~120 ms) plus prefill. If a late‑stage reranker is added to the pipeline, the retrieval component's latency may increase, eating into the TTFT budget and potentially requiring a wider SLO margin or a faster retriever. The magnitude of this effect is [HYPOTHESIS] and should be measured before production deployment.
-- **Economic durability at scale**: The tokens‑per‑dollar numbers are derived from 2026 on‑demand H100 pricing. Spot instances, reserved contracts, or custom cloud agreements could shift the economics significantly. The durability of the economic model across provider changes is [HYPOTHESIS].
+- **Tokenizer exactness for technical domains**: While the "one token ≈ 4 characters" rule of thumb is convenient, enterprise Q&A prompts may contain code, JSON, or domain‑specific terminology that tokenizes differently. The exact per‑token count for a given prompt distribution is (to be verified) and would require running the model's tokenizer on a representative sample of real user queries.
+- **KV cache scaling with longer contexts**: The canonical scenario uses ~9.2 K input tokens. If retrieval quality degrades and context lengths grow to 32 K or 128 K, the KV cache memory per request grows linearly, and the single‑host FP16 architecture would no longer suffice without quantization or model parallelism. The breakpoint is (to be verified) and workload‑dependent.
+- **Impact of reranking on latency**: The TTFT budget assumes retrieval (~120 ms) plus prefill. If a late‑stage reranker is added to the pipeline, the retrieval component's latency may increase, eating into the TTFT budget and potentially requiring a wider SLO margin or a faster retriever. The magnitude of this effect is (a hypothesis) and should be measured before production deployment.
+- **Economic durability at scale**: The tokens‑per‑dollar numbers are derived from 2026 on‑demand H100 pricing. Spot instances, reserved contracts, or custom cloud agreements could shift the economics significantly. The durability of the economic model across provider changes is (a hypothesis).
 
 ## 8. End-of-Chapter Mini-Case
 

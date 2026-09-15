@@ -172,6 +172,7 @@ def emit_book():
     lines.append("")
     lines.append(r"\backmatter")
     lines.append(r"\input{backmatter/glossary}")
+    lines.append(r"\input{backmatter/references}")
     lines.append(r"\input{backmatter/sources}")
     lines.append("")
     lines.append(r"\end{document}")

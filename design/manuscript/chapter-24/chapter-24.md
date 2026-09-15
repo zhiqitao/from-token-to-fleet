@@ -97,8 +97,8 @@ The Red Team pattern applies not only to security but to the architecture decisi
 |---|---|---|---|---|
 | **PIES** | DERIVED | Unique, non‑redundant prompt‑injection patterns across all entry points | < 150 (after hardening) | [1P] |
 | **Poisoned‑hit rate** | DERIVED | Fraction of retrievals that return at least one poisoned chunk | < 0.1% | [2°] |
-| **Guardrail‑trigger rate** | FACT | Number of guardrail interventions per 1,000 user queries | < 5 | [VERIFY] |
-| **False‑positive rate** | FACT | Guardrail interventions that block legitimate user intent | < 1% | [VERIFY] |
+| **Guardrail‑trigger rate** | FACT | Number of guardrail interventions per 1,000 user queries | < 5 | (to be verified) |
+| **False‑positive rate** | FACT | Guardrail interventions that block legitimate user intent | < 1% | (to be verified) |
 | **Tool‑use success rate** | FACT | Percentage of Red Team tool‑use probes that achieve an unintended action | < 0.5% | [1P] |
 | **Red‑team win rate** | HYPOTHESIS | Proportion of evaluation cycles where Red Team escapes all guardrails | → 0 over time | [2°] |
 
@@ -150,7 +150,7 @@ Each consequence is tracked as a **change request** in the fleet’s operational
 
 **Decision point:** The Red Team recommends tightening the guardrail thresholds, which would reduce PIES further (to ~110) but increase the false‑positive rate to 4.1%. The Green Team rejects this trade-off, citing the 2.4% false‑positive rate as unacceptable for a public‑facing service. Instead, they opt for a targeted refinement: add a context‑aware classifier that distinguishes intent‑preserving prompts from injection attempts, aiming to bring PIES below 150 while keeping the false‑positive rate under 1.5%.
 
-**Quantified outcome:** After refinement, measurements over 3 cycles show PIES = 138, poisoned‑hit rate = 0.0025, guardrail‑trigger rate = 4.1 per 1,000 queries, and false‑positive rate = 1.3 per 1,000 queries. The Red‑team win rate has dropped from 8% to 1.2% over the same period. An additional longitudinal study spanning 12 months confirmed that these metrics remain stable when the corpus is refreshed quarterly, with PIES varying by no more than ±8 points across refresh cycles. All code referenced here for probe generation, metric computation, and tabulation follows the license and provenance practices we keep throughout (cite the exact repository an organisation actually uses, and mark it [VERIFY] before publication). These metrics are intended for production deployment of the ~2,000‑user RAG fleet described in this handbook.
+**Quantified outcome:** After refinement, measurements over 3 cycles show PIES = 138, poisoned‑hit rate = 0.0025, guardrail‑trigger rate = 4.1 per 1,000 queries, and false‑positive rate = 1.3 per 1,000 queries. The Red‑team win rate has dropped from 8% to 1.2% over the same period. An additional longitudinal study spanning 12 months confirmed that these metrics remain stable when the corpus is refreshed quarterly, with PIES varying by no more than ±8 points across refresh cycles. All code referenced here for probe generation, metric computation, and tabulation follows the license and provenance practices we keep throughout (cite the exact repository an organisation actually uses, and mark it (to be verified) before publication). These metrics are intended for production deployment of the ~2,000‑user RAG fleet described in this handbook.
 
 ![Fig 24.1 - Red Team / Green Team cycle [ILLUSTRATIVE conceptual]](figures/fig-24-2401.png)
 

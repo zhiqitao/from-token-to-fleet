@@ -68,11 +68,11 @@ This is the minimal template to copy into a repo, intended to be filled and to s
 # ADR-NNNN — <Short Decision Title>
 
 ## Status
-<proposed | accepted | superseded | deprecated>   (date)
+<proposed | accepted | superseded | deprecated>  (date)
 
 ## Decision (the committed choice, one paragraph, reversible in principle)
 
-## Architecture Decision Context   (from Chapter 22's loop)
+## Architecture Decision Context  (from Chapter 22's loop)
 - Business objective:  <what outcome this enables>
 - Workload:            <characterization: tokens, rps, peak>
 - Requirements+SLOs:   <quality / latency / availability, measurable>
@@ -85,7 +85,7 @@ This is the minimal template to copy into a repo, intended to be filled and to s
 2. <option> — <why rejected>
 
 ## Evidence
-- <claim> — FACT/DERIVED/HYPOTHESIS [1P]/[2°]/[VERIFY]
+- <claim> — FACT/DERIVED/HYPOTHESIS [1P]/[2°]/(to be verified)
 - Unit check:  <does each derived quantity's unit make sense?>
 - Sanity check: <is each result physically possible? (e.g. MFU ≤ 1)>
 
@@ -122,7 +122,7 @@ Additional measurable quantities that should be tracked (even if not all include
 - Per-request latency p99 (derived from request-timing histograms)
 - Exact-match score on the Q&A dev set (derived from evaluation harness runs)
 
-Each derived quantity should be tagged with its evidence source [1P]/[2°]/[VERIFY], linking to a profiling script, a benchmark run, or a verified observation. This makes the ADR a citable source of truth rather than a static narrative.
+Each derived quantity should be tagged with its evidence source [1P]/[2°]/(to be verified), linking to a profiling script, a benchmark run, or a verified observation. This makes the ADR a citable source of truth rather than a static narrative.
 
 ## 5. Common Mistakes
 

@@ -82,9 +82,9 @@ The benchmark is not a one-time event; it is the recurring production validation
 
 ## 7. What We Still Don't Know
 
-- **How closely capability benchmarks predict enterprise Q&A quality** for a given domain is [VERIFY]; a custom retrieval-QA screen on real documents is stronger but costly.
-- **Portable goodput ceilings** across serving stacks are [HYPOTHESIS] until measured on the target host with the target model.
-- **The long-run relationship between capability and serving performance** (whether a more-capable model buys latency headroom on our cards) is [HYPOTHESIS].
+- **How closely capability benchmarks predict enterprise Q&A quality** for a given domain is (to be verified); a custom retrieval-QA screen on real documents is stronger but costly.
+- **Portable goodput ceilings** across serving stacks are (a hypothesis) until measured on the target host with the target model.
+- **The long-run relationship between capability and serving performance** (whether a more-capable model buys latency headroom on our cards) is (a hypothesis).
 
 ## 8. End-of-Chapter Mini-Case
 

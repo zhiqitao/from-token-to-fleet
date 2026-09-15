@@ -106,13 +106,13 @@ The key architectural decision this enables: **can we disaggregate prefill and d
 
 ## 7. What We Still Don't Know
 
-- **Sustained HBM bandwidth for weight-read kernels.** The 3.35 TB/s H100 figure is a theoretical peak; real serving kernels (vLLM, TGI, transformer-engine) may achieve different sustained rates depending on kernel fusion, graph optimization, and batch size. [VERIFY HYPOTHESIS] — measure on real hardware before citing.
+- **Sustained HBM bandwidth for weight-read kernels.** The 3.35 TB/s H100 figure is a theoretical peak; real serving kernels (vLLM, TGI, transformer-engine) may achieve different sustained rates depending on kernel fusion, graph optimization, and batch size. — a hypothesis to be measured on real hardware before it is cited.
 
-- **Prefill FLOP cost per token under continuous batching.** The 2 × params × tokens approximation ignores that continuous batching reuses activations across requests, potentially reducing the effective FLOP count per request. The magnitude of this effect at fleet scale is not yet pinned down. [VERIFY HYPOTHESIS] — benchmark with realistic concurrency patterns.
+- **Prefill FLOP cost per token under continuous batching.** The 2 × params × tokens approximation ignores that continuous batching reuses activations across requests, potentially reducing the effective FLOP count per request. The magnitude of this effect at fleet scale is not yet pinned down. — to be benchmarked with realistic concurrency patterns.
 
 - **Cross-technology bandwidth numbers.** HBM3e (next-generation) promises ~6+ TB/s per GPU, and AMD MI300X promises ~5.3 TB/s. How these compare to the 5.6 TB/s decode demand shifts the GPU count equation but does not change the fundamental bandwidth-bound vs compute-bound classification. [2° FACT] — vendor-published numbers, verify against the specific generation in use.
 
-- **Effect of quantization on decode bandwidth vs prefill FLOPs.** Int4 or FP8 quantization reduces the weight bytes (e.g., 70B at FP8 = 70 GB instead of 140 GB) and may change the FLOP arithmetic (8-bit matmuls may use tensor cores at different utilization). The direction of the shift is clear (both bottlenecks improve), but the precise trade-off point where decode becomes compute-bound rather than bandwidth-bound depends on the quantization scheme and hardware support. [VERIFY HYPOTHESIS] — workload-dependent.
+- **Effect of quantization on decode bandwidth vs prefill FLOPs.** Int4 or FP8 quantization reduces the weight bytes (e.g., 70B at FP8 = 70 GB instead of 140 GB) and may change the FLOP arithmetic (8-bit matmuls may use tensor cores at different utilization). The direction of the shift is clear (both bottlenecks improve), but the precise trade-off point where decode becomes compute-bound rather than bandwidth-bound depends on the quantization scheme and hardware support. — workload-dependent.
 
 ## 8. End-of-Chapter Mini-Case
 

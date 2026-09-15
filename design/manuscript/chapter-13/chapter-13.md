@@ -97,9 +97,9 @@ The archetype sets the entire downstream design vocabulary. On the **server** ti
 
 ## 7. What We Still Don't Know
 
-- **Exact host goodput ceilings** depend on the specific server, model, degree and batching; the representative numbers here are [VERIFY] per deployment.
-- **When P/D disaggregation's benefit crosses its cost** for mid-tier workloads is [HYPOTHESIS]; the breakpoint is workload- and fabric-specific.
-- **Fleet-level economics** (Ch16 TCO across a cluster) interact with the tier choice in ways that are [HYPOTHESIS] until a real cost model is applied.
+- **Exact host goodput ceilings** depend on the specific server, model, degree and batching; the representative numbers here are to be verified per deployment.
+- **When P/D disaggregation's benefit crosses its cost** for mid-tier workloads is (a hypothesis); the breakpoint is workload- and fabric-specific.
+- **Fleet-level economics** (Ch16 TCO across a cluster) interact with the tier choice in ways that are (a hypothesis) until a real cost model is applied.
 
 ## 8. End-of-Chapter Mini-Case
 

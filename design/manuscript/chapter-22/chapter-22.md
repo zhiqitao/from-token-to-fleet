@@ -46,7 +46,7 @@ $$
 
 **Step 5 — Record in Table 22-1.** The full table of derived quantities appears below.
 
-This loop — stakeholder ask → measured token counts → traffic profile → token throughput → architecture-relevant derived quantities — is the canonical thought process an AI solution architect runs, every time, before a single architecture decision is made. It is how we move from "we need a Q&A system" to "our prefill will be compute-bound at ~1.29 PFLOP per request, and our decode will be bandwidth-bound at ~5.6 TB/s per token." The loop is the chapter's central contribution; the quantities that issue from it are the evidence [1P]/[2°]/[VERIFY] that every following chapter trades on.
+This loop — stakeholder ask → measured token counts → traffic profile → token throughput → architecture-relevant derived quantities — is the canonical thought process an AI solution architect runs, every time, before a single architecture decision is made. It is how we move from "we need a Q&A system" to "our prefill will be compute-bound at ~1.29 PFLOP per request, and our decode will be bandwidth-bound at ~5.6 TB/s per token." The loop is the chapter's central contribution; the quantities that issue from it are the evidence [1P]/[2°]/(to be verified) that every following chapter trades on.
 
 ::: {#tab-22-1}
 ### Table 22-1 — Derived quantities from the canonical loop (worked example, not reference)
@@ -111,9 +111,9 @@ The **Decision** rung is where the loop's output is committed — an ADR, an own
 This chapter's numbers lean on the same open questions the book raises at the
 mechanism layer. Rather than restating them, we point to the fuller treatment:
 
-- **Sustained HBM bandwidth for weight-read kernels** — discussed in Chapter 2 §7; the 3.35 TB/s H100 figure is a theoretical peak and real serving kernels may sustain less. [VERIFY HYPOTHESIS]
-- **Prefill FLOP cost under continuous batching** — Chapter 2 §7; the 2 × params × tokens approximation ignores activation reuse across batched requests. [VERIFY HYPOTHESIS]
-- **Effect of quantization on decode vs prefill** — Chapter 2 §7; quantization shifts both bottlenecks but the precise trade-off point is workload-dependent. [VERIFY HYPOTHESIS]
+- **Sustained HBM bandwidth for weight-read kernels** — discussed in Chapter 2 §7; the 3.35 TB/s H100 figure is a theoretical peak and real serving kernels may sustain less. (a hypothesis awaiting verification)
+- **Prefill FLOP cost under continuous batching** — Chapter 2 §7; the 2 × params × tokens approximation ignores activation reuse across batched requests. (a hypothesis awaiting verification)
+- **Effect of quantization on decode vs prefill** — Chapter 2 §7; quantization shifts both bottlenecks but the precise trade-off point is workload-dependent. (a hypothesis awaiting verification)
 - **Cross-technology bandwidth numbers** — Chapter 2 §7; HBM3e and MI300X publish higher peaks, which move the GPU-count equation without changing the compute-bound vs bandwidth-bound classification. [2° FACT]
 
 ## 8. End-of-Chapter Mini-Case

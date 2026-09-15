@@ -142,11 +142,11 @@ The parallelism strategy is forced by the binding constraint, and that constrain
 
 ## 7. What We Still Don't Know
 
-- **Optimal split for very large MoE or long-context models** is workload- and interconnect-dependent; the exact NVLink-vs-fabric crossover for a given model is [VERIFY].
+- **Optimal split for very large MoE or long-context models** is workload- and interconnect-dependent; the exact NVLink-vs-fabric crossover for a given model is (to be verified).
 
 - **2026 MoE scaling has moved the specialist/EP frontier.** Kimi K3 activates just 16 of 896 routed experts per token (2.8T total / 104B active) via its Stable LatentMoE [1P: arXiv 2607.24653]; Qwen3.8-Flash-Next routes 10+1 of 512 experts (125B total / 6B active) [1P: HF Qwen/Qwen3.8-Flash-Next]. These extreme sparsities (16/896 ≈ 1.8% expert activation) are why expert-parallel and fused cross-expert comm kernels (e.g. MoE expert parallelism with fused compute/communication, as in DeepSeek's DeepEP/TileLang infra) are increasingly central to serving large MoE fleets [1P: arXiv 2606.19348]. For the architect this changes the serving calculus: a frontier MoE's activated footprint (Kimi 104B, Qwen 6B) can be dramatically smaller than its total size, so the memory-bound EP decision must be made against *active* parameters, not total.
-- **Communication-overlap efficiency** in real kernels is hard to predict from spec; sustained all-reduce throughput is [HYPOTHESIS] until measured on the target cluster.
-- **The right parallelism for mixed prefill/decode (P/D disaggregated) serving** — where the prefill pool and decode pool may want different splits — is an active research area and [HYPOTHESIS] for this book.
+- **Communication-overlap efficiency** in real kernels is hard to predict from spec; sustained all-reduce throughput is (a hypothesis) until measured on the target cluster.
+- **The right parallelism for mixed prefill/decode (P/D disaggregated) serving** — where the prefill pool and decode pool may want different splits — is an active research area and (a hypothesis) for this book.
 
 ## 8. End-of-Chapter Mini-Case
 
