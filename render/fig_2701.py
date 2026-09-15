@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # 2026 Frontier Architecture data [1P]
-models = ['DeepSeek-V4\n(Flash)', 'Kimi K3', 'Qwen3.8\nFlash Next', 'GLM-5.3\nFlash']
+models = ['DeepSeek-V4', 'Kimi K3', 'Qwen3.8', 'GLM-5.3']
 total_b = [284, 2800, 125, 320]       # total params (B) [1P]
 active_b = [13, 104, 6, 18]           # active params (B) [1P]
 
-fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+fig, axes = plt.subplots(1, 2, figsize=(8.6, 5))
 
 # Panel 1: Total vs Active (log scale)
 x = np.arange(len(models))
