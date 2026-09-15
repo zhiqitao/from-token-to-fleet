@@ -106,7 +106,7 @@ def make_copyrightpage():
     lines.append("")
     lines.append(r"\noindent\textbf{Technical disclaimer.} This book describes an evolving field. Model names, parameter counts, prices, context limits, throughput and latency figures, licenses, and benchmark results change quickly and may differ by regional cloud pricing, hardware SKU, precision/sparsity configuration, batch and concurrency, software stack, and measurement methodology. Every number here is a dated snapshot from the author's home lab or a cited public source as of the book's dated version, and must be re-verified against the vendor's current documentation before any procurement or deployment decision. Nothing here is vendor-endorsed; product names are used for identification only.")
     lines.append("")
-    lines.append(r"\noindent\footnotesize \textbf{Currency.} Technical content is current as of the dated build; the fastest-moving claims (Appendix A and the economics chapters) are flagged in-text as \texttt{[VERIFY]} precisely because they require re-checking.")
+    lines.append(r"\noindent\footnotesize \textbf{Currency.} Technical content is current as of the dated build; the fastest-moving claims (Appendix A and the economics chapters) are flagged in-text as items that require re-checking against current vendor documentation.")
     lines.append(r"\vfill")
     lines.append(r"\noindent\footnotesize The work is provided ``as is'', without warranty of any kind.")
     lines.append(r"\end{titlepage}")

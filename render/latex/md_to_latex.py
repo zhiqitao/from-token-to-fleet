@@ -194,10 +194,10 @@ def fix_captions(tex_path):
     # \\hyperref[fig:X.Y]{Fig X.Y}) plus the following dash run.
     lead = _re.compile(
         r"(?:\\hyperref\[fig:\d+\.\d+\]\{)?"
-        r"\s*Fig(?:ure)?\s+\d+\.\d+\}?\s*(?:---|--|[—–-]|\\textemdash)+\s*"
+        r"\s*Fig(?:ure)?\s+(?:\d+\.\d+|[A-Z]\.\d+)\}?\s*(?:---|--|[—–-]|\\textemdash)+\s*"
     )
     # Also a leading bare 'Fig X.Y —' with no link.
-    lead2 = _re.compile(r"\s*Fig(?:ure)?\s+\d+\.\d+\s*(?:---|--|[—–-])+\s*")
+    lead2 = _re.compile(r"\s*Fig(?:ure)?\s+(?:\d+\.\d+|[A-Z]\.\d+)\s*(?:---|--|[—–-])+\s*")
 
     def strip_lead(t):
         t = lead.sub("", t)

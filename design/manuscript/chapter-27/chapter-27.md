@@ -122,7 +122,7 @@ Every host layer maps to chapters in this book:
 
 Deciding where intelligence lives — rather than which attention variant a model card lists — is the actual job of an AI Solution Architect. The frontier of 2026 makes that explicit: DeepSeek-V4-Flash vs Qwen3.8-Flash vs a fleet of specialised agents on a 2×DGX cluster are no longer merely *model* choices; they are *placement-of-intelligence* choices whose economics this handbook's chapters give the tools to evaluate.
 
-## 8. One-Hand Sources (all [1P])
+## 8. First-hand Sources (all [1P])
 
 - DeepSeek-V4: technical report arXiv:2606.19348; model card https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro; org https://github.com/deepseek-ai
 - Kimi K3: technical report arXiv:2607.24653; model card https://huggingface.co/moonshotai/Kimi-K3; https://github.com/moonshotai
