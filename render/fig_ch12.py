@@ -35,7 +35,7 @@ ax.axhline(80, color='#888', ls=':', lw=1.2, label='1×H100 ceiling')
 ax.set_xticks(range(3)); ax.set_xticklabels(cands, fontsize=9)
 ax.set_ylabel('Resident memory (GB)')
 ax.set_title('(1) Memory footprint')
-ax.legend(fontsize=7, loc='upper left', ncol=2, framealpha=0.9)
+ax.legend(fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=4, framealpha=0.9)
 ax.grid(alpha=0.3, axis='y')
 ax.set_ylim(0, 700)
 
@@ -55,9 +55,9 @@ ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, axis='y')
 ax.set_ylim(0, 3000)
 # qualitative labels where the table has no single digit
-ax.text(1.5, 900, 'decode pool:\nbandwidth-bound\n(no digit)', ha='center',
+ax.text(1.0, 900, 'decode pool:\nbandwidth-bound\n(no digit)', ha='center',
         fontsize=7, color='#555')
-ax.text(1.9, 2350, '(c) excluded at\nquality gate', ha='center', fontsize=7.5,
+ax.text(2.0, 2400, '(c) excluded at\nquality gate', ha='center', fontsize=7.5,
         color='#c0392b', fontweight='bold')
 
 # Panel 3: latency / SLO verdict (assertions, no uncertainty '?')
