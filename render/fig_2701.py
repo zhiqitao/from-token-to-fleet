@@ -8,7 +8,7 @@ models = ['DeepSeek-V4', 'Kimi K3', 'Qwen3.8', 'GLM-5.3']
 total_b = [284, 2800, 125, 320]       # total params (B) [1P]
 active_b = [13, 104, 6, 18]           # active params (B) [1P]
 
-fig, axes = plt.subplots(1, 2, figsize=(8.6, 5))
+fig, axes = plt.subplots(1, 2, figsize=(9.6, 5), gridspec_kw={'wspace': 0.35})
 
 # Panel 1: Total vs Active (log scale)
 x = np.arange(len(models))
@@ -19,7 +19,7 @@ ax.bar(x + width/2, active_b, width, label='Active', color='#ff8c42')
 ax.set_yscale('log')
 ax.set_xticks(x); ax.set_xticklabels(models, fontsize=9)
 ax.set_ylabel('Parameters (B, log)')
-ax.set_title('Frontier MoE: total vs active params [1P]', fontsize=11)
+ax.set_title('Frontier MoE total vs active params', fontsize=11)
 ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, which='both')
 
