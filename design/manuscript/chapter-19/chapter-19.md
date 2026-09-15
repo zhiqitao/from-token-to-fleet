@@ -145,7 +145,8 @@ Introducing an agentic layer reshapes the system architecture in four ways:
 **Task economics.** The deepest shift an agentic workload imposes is a change in *what the architect optimizes*. For conventional inference, the unit of cost is the token: the architect optimizes token economics — cost per token, latency per token, KV per token. For an agentic system, the unit of value is the *task*: the architect optimizes task economics, because a task consumes a variable, data-dependent number of model calls, tool calls, and tokens, and may fail. The right denominator is therefore **cost per successful task**, not cost per token:
 
 ```
-cost / successful task ≈ (model calls/task × tokens/call × $/token)
+cost / successful task ≈
+         (model calls/task × tokens/call × $/token)
                             + (tool calls/task × $/tool)
                             + (retries/task × cost/retry)
              divided by the success rate of the task

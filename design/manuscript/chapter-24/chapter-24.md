@@ -19,7 +19,10 @@ This chapter assumes a canonical deployment: ~2,000 concurrent users, a 70B dens
 ## 2. Mental Model
 
 ```
-Red Team → Probes → Exposure Surface → Guardrails → Metrics → Green Team → Harden → Reduce → Loop
+Red Team → Probes →
+Exposure Surface → Guardrails →
+Metrics → Green Team →
+Harden → Reduce → Loop
 ```
 
 The mental model consists of five layers:

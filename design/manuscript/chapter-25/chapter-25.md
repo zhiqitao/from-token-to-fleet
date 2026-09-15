@@ -70,13 +70,17 @@ This is the minimal template to copy into a repo, intended to be filled and to s
 ## Status
 <proposed | accepted | superseded | deprecated>  (date)
 
-## Decision (the committed choice, one paragraph, reversible in principle)
+## Decision (the committed choice, one paragraph,
+   reversible in principle)
 
 ## Architecture Decision Context  (from Chapter 22's loop)
 - Business objective:  <what outcome this enables>
-- Workload:            <characterization: tokens, rps, peak>
-- Requirements+SLOs:   <quality / latency / availability, measurable>
-- Constraints:         <privacy, region, ops, procurement, budget>
+- Workload:            <characterization:
+                         tokens, rps, peak>
+- Requirements+SLOs:   <quality / latency / availability,
+                         measurable>
+- Constraints:         <privacy, region, ops,
+                         procurement, budget>
 
 ## Decision
 
@@ -85,9 +89,12 @@ This is the minimal template to copy into a repo, intended to be filled and to s
 2. <option> — <why rejected>
 
 ## Evidence
-- <claim> — FACT/DERIVED/HYPOTHESIS [1P]/[2°]/(to be verified)
-- Unit check:  <does each derived quantity's unit make sense?>
-- Sanity check: <is each result physically possible? (e.g. MFU ≤ 1)>
+- <claim> — FACT/DERIVED/HYPOTHESIS
+  [1P]/[2°]/(to be verified)
+- Unit check:  <does each derived quantity's
+  unit make sense?>
+- Sanity check: <is each result physically
+  possible? (e.g. MFU ≤ 1)>
 
 ## Trade-offs & consequences
 - Pro:   <expected positive effects>
@@ -98,13 +105,15 @@ This is the minimal template to copy into a repo, intended to be filled and to s
 <person / team>
 
 ## Validation plan
-<how this decision will be benchmarked/verified post-deploy>
+<how this decision will be
+  benchmarked/verified post-deploy>
 
 ## Rollback plan
 <how we unwind if the decision fails its SLO>
 
 ## Review trigger
-<what event (metric, date, new evidence) re-opens this ADR>
+<what event (metric, date, new evidence)
+  re-opens this ADR>
 ```
 
 The three blocks most often skipped are the **Architecture Decision Context**, the **unit check**, and the **decision owner + review trigger** — and skipping exactly those three is what turns an ADR into a decision log instead of a decision *apparatus*. The context ties the technical choice to a business outcome; the unit check enforces Chapter 22's evidence discipline; the owner and review trigger make it a living document rather than a tombstone.
