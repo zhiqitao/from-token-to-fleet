@@ -22,8 +22,12 @@ tasks = [(0, 1.8, 0), (0, 2.6, 1), (0, 1.5, 2), (0, 3.0, 3)]
 for (x0, w, s) in tasks:
     ax.add_patch(Rectangle((x0, 4 - 0.7*s - 0.55), w, 0.6, fc=colors[s], ec='none', alpha=0.9))
 ax.text(8.2, 4 - 0.7*2 - 0.25, 'idle (bubble)', fontsize=7, color='#c0392b', ha='left', fontweight='bold')
+ax.annotate('', xy=(7.7, 4 - 0.7*2 - 0.55), xytext=(7.9, 4 - 0.7*2 - 0.25),
+            arrowprops=dict(arrowstyle='-', lw=0.7, color='#c0392b'))
 ax.add_patch(Rectangle((1.0, 0.4), 3.0, 0.6, fc='#bbb', ec='none', alpha=0.6))
 ax.text(2.5, 0.7, 'next batch waits', fontsize=8, color='#555', ha='center')
+ax.annotate('', xy=(2.5, 1.0), xytext=(2.5, 0.7),
+            arrowprops=dict(arrowstyle='-', lw=0.7, color='#555'))
 ax.text(5.0, 0.1, 'GPU slots idle (red) when a\nsequence finishes early', fontsize=7.5, color='#c0392b', ha='center')
 
 # ---------- continuous (right) ----------
