@@ -61,7 +61,8 @@ X0 = 0.4
 col_x = [X0, X0 + 7.8]
 col_parts = [parts[0:3], parts[3:6]]
 ROW_H = 1.30
-HEAD = 0.95
+HEAD = 1.20
+GAP = 0.50          # inter-band gap (was 0.7)
 
 for colidx, colgrp in enumerate(col_parts):
     bx = col_x[colidx]
@@ -69,11 +70,12 @@ for colidx, colgrp in enumerate(col_parts):
     for ptitle, rows in colgrp:
         band_h = HEAD + ROW_H * len(rows) + 0.35
         band_top = y_cursor
-        y_cursor = band_top - band_h - 0.7
+        y_cursor = band_top - band_h - GAP
         ax.add_patch(FancyBboxPatch((bx - 0.15, band_top - band_h),
                      COLW + 0.3, band_h, boxstyle='round,pad=0.02',
                      fc='#eef2f7', ec='#3a6ea5', lw=1.1))
-        ax.text(bx + 0.10, band_top - 0.30, ptitle, fontsize=8.9,
+        # Part title: clear top padding inside the band (not flush with border)
+        ax.text(bx + 0.10, band_top - 0.42, ptitle, fontsize=8.9,
                 fontweight='bold', color='#27408b', va='center')
         for ci, (tag, qty, dec) in enumerate(rows):
             ry = band_top - HEAD - (ci + 0.5) * ROW_H
