@@ -66,7 +66,7 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 
 :::
 
-![Fig 22.1 - Prefill vs decode bottleneck divergence [2° DERIVED]](figures/fig-22-2201.png)
+![Fig 22.1 - Prefill compute grows super-linearly with context while decode stays flat [2° DERIVED]](figures/fig-22-2201.png)
 
 *Fig 22.1 — Prefill FLOPs grow sharply with context length (linear 2NL, red) and faster still once the quadratic attention term is added (orange band, +17% at 9.2K → ~2.4× at 128K); the 9.2K canonical point is marked. Prefill is compute-bound (~1.29 PFLOP/request → ~1.19 PFLOPS required at the ~1.08 s budget vs H100 ~0.989 PFLOPS peak). Decode is absent from this axis because it is a fixed ~140 GFLOP/token (~0.00014 PFLOP, ~9,000× below this axis' floor) and stays bandwidth-bound (Ch6): the two regimes are deliberately drawn on different resources. *
 

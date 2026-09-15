@@ -48,11 +48,11 @@ $$
 \mathbb{E}[L] = \sum_i p_i \cdot L_i = 0.99 \times 0.8 + 0.01 \times 5.0 \approx 0.84 \text{ s}
 $$
 
-— looks fine. But under a p95 TTFT SLO of ≤ 2 s, the 99th-percentile straggler blows the p95 budget the moment the outlier fraction crosses 5%. Averages wash out the tail; percentiles expose it.
+— looks fine. But the distribution actually has a long tail: p50 = 0.80 s, p90 = 0.94 s, p95 = 0.99 s, and p99 = 1.33 s. The mean hides the tail; percentiles expose it. With a p99 TTFT SLO of ≤ 2 s, the 1% stragglers pushing to 5 s are the ones that breach the budget. (A p95 throat would not be breached here — p95 stays near 1 s — because a p95 budget fails only when more than ~5% of observations cross it; this is a common misconception, so we show the p99 case explicitly.)
 
-![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean. The mean (~0.84 s) hides the 1% stragglers at ~5 s that breach the p95 TTFT budget (illustrative)](figures/fig-06-0602.png)
+![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean. The mean (~0.84 s) hides the 1% stragglers at ~5 s; it is the p99 budget (not p95) they breach (illustrative)](figures/fig-06-0602.png)
 
-*Fig 6.2 — Why the mean is not a signal. The same request stream of 99% @ 0.8 s + 1% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s), yet the p95 and p99 paint a very different picture under a 2 s SLO. Log the distribution; SLO against the percentile.*
+*Fig 6.2 — Why the mean is not a signal. The same request stream of 99% @ 0.8 s + 1% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s), yet p99 paints a very different picture under a 2 s SLO. Log the distribution; SLO against the percentile.*
 
 Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s) with a p95 ≤ 2 s. Suppose a flash crowd (the ~40 rps peak) causes prefill requests to queue. If on average the batch is well-behaved, p50 TTFT might sit at ~1.0 s. But the jobs that arrive behind 3 same-time prefill requests each pay the full 1.08 s prefill of the job ahead of them, so p95 TTFT drifts to ~2.5 s. The *average* says "fine"; the *p95* says "we just violated our SLO." We hence log p50, p90, p95, and p99 independently and run the SLO against the percentile, never the mean. [2°] SLO-derived from the §14 canonical latency budget; the arithmetic is the point, not a citation.
 
