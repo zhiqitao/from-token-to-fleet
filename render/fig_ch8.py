@@ -63,16 +63,16 @@ for name, a, t, tag in pts:
 ax.annotate('', xy=(45, 989*0.92), xytext=(9.5, 989*0.92),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#6f9e5f', ls='--'))
 # drift explanation parked in the empty bottom-left (memory-bound), well clear of points
-ax.text(0.25, 0.25, 'longer context → prefill climbs the\nplateau: +60% @32K, ~2.4× @128K (Ch.8)',
+ax.text(0.12, 0.12, 'longer context → prefill climbs the plateau\n(+60% @32K, ~2.4× @128K, Ch.8)',
         fontsize=8, color='#6f9e5f')
 
 ax.set_xlabel('Arithmetic intensity (FLOP/byte)')
 ax.set_ylabel('Achievable performance (TFLOPS)')
-ax.set_title('Arithmetic-intensity roofline — 70B FP16 on 8×H100 / 8×H200')
+ax.set_title('Roofline — 70B FP16 on 8×H100 / 8×H200')
 ax.grid(alpha=0.3, which='both')
 ax.legend(fontsize=8, loc='lower right')
 ax.text(1.6*r100, 500, 'compute-bound', fontsize=9, color='#6f9e5f', ha='center')
-ax.text(0.18*r100, 1.2, 'memory-bound', fontsize=9, color='#e67e22', ha='center')
+ax.text(0.06*r100, 0.9, 'memory-bound', fontsize=9, color='#e67e22', ha='center')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-08/figures/fig-08-0801.png', dpi=150)
 plt.close()
