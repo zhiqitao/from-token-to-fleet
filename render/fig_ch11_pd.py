@@ -34,13 +34,15 @@ ax.text(14.0, 1.9, 'steady token generation\nhigh bandwidth utilization', fontsi
 
 # ---- Bridge: KV cache transfer ----
 ax.annotate('', xy=(11.3, 4.5), xytext=(5.7, 4.5), arrowprops=dict(arrowstyle='-|>', lw=2.6, color='#a93226', connectionstyle='arc3,rad=0.0'))
-ax.text(8.5, 5.5, 'KV CACHE\nTRANSFER', fontsize=9, ha='center', color='#a93226', fontweight='bold')
-ax.text(8.5, 4.0, 'over NVLink / fabric\nprefill writes per-token KV,\ndecode reads it', fontsize=7.5, ha='center', color='#555')
+ax.text(8.5, 5.5, 'KV CACHE\nTRANSFER (initial)', fontsize=9, ha='center', color='#a93226', fontweight='bold')
+ax.text(8.5, 3.9, 'prefill writes the prompt KV, then\ndecode READS it AND keeps appending\nper generated token (ownership splits)',
+        fontsize=7.5, ha='center', color='#555')
 
-# ---- Incoming request / output outside pools ----
+# ---- Incoming request / output outside pools (anchor endpoints) ----
 ax.text(3.0, 8.0, 'input prompt →', fontsize=8, ha='left', color='#333', fontweight='bold')
 ax.annotate('', xy=(3.0, 7.75), xytext=(3.0, 8.0), arrowprops=dict(arrowstyle='-|>', lw=1.5, color='#333'))
-ax.text(14.0, 0.5, '← tokens out to client', fontsize=8, ha='center', color='#333', fontweight='bold')
+ax.text(14.0, 0.6, '← tokens out to client', fontsize=8, ha='center', color='#333', fontweight='bold')
+ax.annotate('', xy=(14.0, 1.45), xytext=(14.0, 0.75), arrowprops=dict(arrowstyle='-|>', lw=1.5, color='#333'))
 
 # ---- Why: resource conflict (wrapped so it doesn't clip at the column edge) ----
 ax.text(8.5, -0.3, 'Why split?  prefill ~1.19 PFLOPS vs 0.989 peak (FLOP-starved);\ndecode 5.6 TB/s vs 3.35 TB/s (bandwidth-starved). One pool forces a compromise. [2° DERIVED]',
