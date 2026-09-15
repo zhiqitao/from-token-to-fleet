@@ -24,20 +24,20 @@ ax.clabel(cs8, inline=1, fontsize=8, fmt='%d')
 
 ax.set_xlabel('Average latency L (s)')
 ax.set_ylabel('Peak request rate λ (rps)')
-ax.set_title('Ch17 — host count H = ⌈λ·L/(C·util)⌉  (filled=FP16 KV, dashed=FP8 KV)')
+ax.set_title('Ch17 — host count H = ⌈λ·L/(C·util)⌉')
 
 # mark the canonical operating points as (lambda, latency) -> plot (x=L, y=lambda)
 canon = [(40,1.0),(100,1.0),(100,2.0),(40,0.5)]
-offsets = {(40,1.0):(0.18,0),(100,1.0):(0.18,0),(100,2.0):(0.18,0),(40,0.5):(-0.3,-14)}
+offsets = {(40,1.0):(0.18,0),(100,1.0):(0.18,0),(100,2.0):(0.18,0),(40,0.5):(-0.90,-6)}
 for (la, l) in canon:
     ox, oy = offsets[(la,l)]
     ax.plot(l, la, '*', ms=16, color='#c0392b', mec='#7b241c', zorder=6)
     ax.annotate(f'λ={la}, L={l}s', xy=(l,la), xytext=(l+ox, la+oy), fontsize=8, fontweight='bold')
 # 'You are here' callout at the canonical 40 rps / 100 rps scenarios
-ax.annotate('You are here (40 rps, 1.0 s)\nFP16 ≈ 3 hosts', xy=(1.0, 40), xytext=(2.6, 78),
+ax.annotate('You are here (40 rps, 1.0 s)\nFP16 ≈ 3 hosts', xy=(1.0, 40), xytext=(2.5, 60),
             fontsize=9, fontweight='bold', color='#c0392b',
             arrowprops=dict(arrowstyle='->', color='#c0392b', lw=1.6))
-ax.set_xlim(0.2, 4.0)
+ax.set_xlim(0.2, 4.6)
 ax.set_ylim(10, 120)
 
 cb = fig.colorbar(cs16, ax=ax, label='hosts (FP16 KV)')
