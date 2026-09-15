@@ -7,8 +7,8 @@ import matplotlib.patches as mpatches
 # Canonical (Ch 7): weights 140 GB, runtime/NCCL ~64 GB, KV FP16 ~2.5 MB/token
 # 9.2K -> ~23.8 GB KV ; 32K -> ~80 GB ; 128K -> ~320 GB
 fig, ax = plt.subplots(figsize=(7.2, 5.6))
-ax.set_xlim(0, 8.0); ax.set_ylim(0, 720)
-ax.axis('off')   # no numeric axes: it's a schematic -> regen tight-crops to content
+ax.set_xlim(0, 8.0); ax.set_ylim(0, 760)
+ax.axis('off')   # schematic; regen tight-crops to content
 ax.set_title('Memory Tetris: how the 8×H100 host (640 GB) fills with context',
              fontsize=12.5, fontweight='bold', pad=14)
 
@@ -17,36 +17,30 @@ ctxs = [('9.2K context', 23.8), ('32K context', 80), ('128K context', 320)]
 xs = [1.6, 4.0, 6.4]
 cols = {'runtime': '#95a5a6', 'weights': '#27408b', 'kv': '#e67e22'}
 
-def val(x, y, s, fs=9, bold=False, c='white'):
-    ax.text(x+bar_w/2, y, s, ha='center', va='center', fontsize=fs, color=c,
-            fontweight='bold' if bold else 'normal', clip_on=False)
-
+# Put each segment's total label ABOVE its bar, outside the fill, so nothing
+# collides with an in-bar value.  Bars carry only a small white value where it
+# fits; the KV value (the one that varies) is always shown above its bar.
 for x, (label, kv) in zip(xs, ctxs):
     ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'], hatch='//', edgecolor='white', linewidth=0.8)
-    val(x, 27, '64', fs=9)
     ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'], hatch='xx', edgecolor='white', linewidth=0.8)
-    val(x, 122, '140', fs=10, bold=True)
     ax.bar(x, kv, width=bar_w, bottom=204, color=cols['kv'], hatch='..', edgecolor='white', linewidth=0.8, alpha=0.92)
     total = 204 + kv
-    ax.text(x+bar_w/2, 204+kv+18, f'{kv:.1f}'.rstrip('0').rstrip('.')+' GB KV',
-            ha='center', va='bottom', fontsize=10, color='#c0392b',
-            fontweight='bold', clip_on=False)
-    ax.text(x+bar_w/2, -34, label, ha='center', fontsize=10, fontweight='bold')
-    ax.text(x+bar_w/2, -62, f'= {total:.0f} GB used', ha='center', fontsize=9,
-            color='#555')
+    # KV value above its bar (clip_on=False so it is never cut off)
+    ax.text(x+bar_w/2, 204+kv+16, f'{kv:.1f} GB KV'.replace('.0 GB',' GB'),
+            ha='center', va='bottom', fontsize=10.5, color='#c0392b', fontweight='bold', clip_on=False)
+    # context label + total, below the bar
+    ax.text(x+bar_w/2, -40, label, ha='center', fontsize=10, fontweight='bold')
+    ax.text(x+bar_w/2, -70, f'= {total:.0f} GB used', ha='center', fontsize=9, color='#555')
 
 ax.axhline(640, color='#a93226', lw=2.2, ls='--')
-ax.text(0.15, 656, '640 GB pool = 8×H100 HBM', fontsize=9.5, color='#a93226',
-        fontweight='bold')
+ax.text(0.15, 662, '640 GB pool = 8×H100 HBM', fontsize=9.5, color='#a93226', fontweight='bold')
 
-# legend below the axes (vertical, compact so the figure isn't a wide sliver)
 leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, label='KV cache (grows w/ context)'),
        mpatches.Patch(color=cols['weights'], label='weights 140 GB'),
        mpatches.Patch(color=cols['runtime'], label='runtime / NCCL ~64 GB')]
-ax.legend(handles=leg, loc='upper center', bbox_to_anchor=(0.5, -0.13),
-          fontsize=9, frameon=False, ncol=1)
+ax.legend(handles=leg, loc='upper center', bbox_to_anchor=(0.5, -0.16), fontsize=9, frameon=False, ncol=1)
 
-ax.text(0.2, -96, 'baseline (weights + runtime) is context-independent; the KV cache is the lever that grows\nwith context.  FP16 ~2.5 MB/token [2° DERIVED].',
+ax.text(0.2, -150, 'baseline (weights + runtime) is context-independent; the KV cache is the lever that grows\nwith context.  FP16 ~2.5 MB/token [2° DERIVED].',
         fontsize=8.5, color='#444')
 
 plt.tight_layout()
