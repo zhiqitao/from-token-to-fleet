@@ -67,3 +67,33 @@ assem_md = os.path.join(OUTDIR, "_book_reflowable.md")
 open(assem_md, "w", encoding="utf-8").write(assembled)
 
 print("assembled %d chapters -> %s (%d chars)" % (len(chapters), assem_md, len(assembled)))
+
+# ---- render the approved cover to a raster for the EPUB ---- 
+import base64
+cover_svg = os.path.join(REPO, "render", "cover", "cover_clean_front.svg")
+cover_png = os.path.join(REPO, "render", "cover", "cover_clean_front.png")
+if not os.path.exists(cover_png) or os.path.getmtime(cover_svg) > os.path.getmtime(cover_png):
+    subprocess.run(["inkscape", cover_svg, "-o", cover_png, "-w", "850", "-h", "1100"],
+                   check=False, capture_output=True)
+
+# ---- resolve figure paths to repo-root-relative (pandoc resource-path) ----
+# Rewrite 'figures/fig-N*.png' refs to 'design/manuscript/chapter-NN/figures/...'
+content = open(assem_md, encoding="utf-8").read()
+def fix_fig(m):
+    return "(" + os.path.join("design", "manuscript", m.group(1), "figures", m.group(2)) + ")"
+content = re.sub(r'\(figures/(chapter-?\d+)/figures/(fig-[^)]+\.png)\)', fix_fig, content)
+content = re.sub(r'\(figures/(fig-[^)]+\.png)\)', lambda m: 
+    os.path.join("design", "manuscript", "appendix", "figures", m.group(1)), content)
+assem_md2 = os.path.join(OUTDIR, "_book_reflowable.md")
+open(assem_md2, "w", encoding="utf-8").write(content)
+
+out_epub = os.path.join(OUTDIR, "from-token-to-fleet-" + VERSION + ".epub")
+subprocess.run(["pandoc", assem_md2,
+                "-o", out_epub, "--to=epub3", "--toc", "--toc-depth=2",
+                "--epub-cover-image=" + cover_png,
+                "--metadata", "title=" + TITLE,
+                "--metadata", "author=" + AUTHOR,
+                "--metadata", "lang=en",
+                "--resource-path=" + REPO], check=False, capture_output=True)
+print("epub written: %s" % out_epub)
+
