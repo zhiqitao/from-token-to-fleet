@@ -134,11 +134,11 @@ Introducing an agentic layer reshapes the system architecture in four ways:
 
 ![Fig 19.2 — Input/output tokens and KV cache per request across agent turns (I₀ + T·δ + T·γ; 9,200 + 800 + 65 per turn), FP16 KV rising from 23.8 GB single-shot to 32.4 GB at 4 turns [DERIVED: Ch19 §3 arithmetic]](figures/fig-19-1902.png)
 
-*Fig 19.2 — Why agentic depth is a fleet-sizing problem. Both the token count and the FP16 KV cache grow linearly with turns; four turns take a request from ~23.8 GB to ~32.4 GB of KV — a 36% jump on an already-large footprint, which is exactly why a fleet (Ch17), prefix caching, or FP8 KV pay for themselves on agentic workloads.*
+*Why agentic depth is a fleet-sizing problem. Both the token count and the FP16 KV cache grow linearly with turns; four turns take a request from ~23.8 GB to ~32.4 GB of KV — a 36% jump on an already-large footprint, which is exactly why a fleet (Ch17), prefix caching, or FP8 KV pay for themselves on agentic workloads.*
 
 ![Fig 19.3 — The agentic context block grows every turn: initial prompt (9.2K tok) plus tool output + reasoning appended each turn, KV footprint rising 23.8 → 32.4 GB [2° DERIVED: Ch19 §3 arithmetic]](figures/fig-19-1903.png)
 
-*Fig 19.3 — Agentic context accumulation as a memory sequence. Each turn appends retrieved context (δ ≈ 800 tokens) plus generated reasoning (γ ≈ 65 tokens) to a context that persists across every later turn; the FP16 KV block therefore grows from ~23.8 GB (single-shot) to ~32.4 GB (four turns) — a 36% footprint rise driven purely by cumulative context, not by extra requests. This is the mechanism behind the fleet-sizing argument in Fig 19.2.*
+*Agentic context accumulation as a memory sequence. Each turn appends retrieved context (δ ≈ 800 tokens) plus generated reasoning (γ ≈ 65 tokens) to a context that persists across every later turn; the FP16 KV block therefore grows from ~23.8 GB (single-shot) to ~32.4 GB (four turns) — a 36% footprint rise driven purely by cumulative context, not by extra requests. This is the mechanism behind the fleet-sizing argument in Fig 19.2.*
 
 **Task economics.** The deepest shift an agentic workload imposes is a change in *what the architect optimizes*. For conventional inference, the unit of cost is the token: the architect optimizes token economics — cost per token, latency per token, KV per token. For an agentic system, the unit of value is the *task*: the architect optimizes task economics, because a task consumes a variable, data-dependent number of model calls, tool calls, and tokens, and may fail. The right denominator is therefore **cost per successful task**, not cost per token:
 

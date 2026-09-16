@@ -164,7 +164,7 @@ The key enabler was the router's feature gate: queries mentioning "multilingual"
 
 ![Fig 18.1 — Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the five specialized families as leaves [ILLUSTRATIVE conceptual]](figures/fig-18-1801.png)
 
-*Fig 18.1 — The routing decision chain. A request first passes a capability filter (is there a specialized model that can serve it?), then a cost/latency gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialized family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
+*The routing decision chain. A request first passes a capability filter (is there a specialized model that can serve it?), then a cost/latency gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialized family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
 
 ---
 *Evidence labels: [1P] price observations from public cloud provider pricing pages (Q4 2026); [2°] derived per-token cost arithmetic; (to be verified) latency measurements from local GGUF benchmarks on reference hardware.*

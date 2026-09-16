@@ -76,7 +76,7 @@ The benchmark is not a one-time event; it is the recurring production validation
 
 ![Fig 14.1 — Capability screen then deployment benchmark [ILLUSTRATIVE conceptual]](figures/fig-14-1401.png)
 
-*Fig 14.1 — Two-stage benchmarking: capability screen (which models qualify) → deployment benchmark (which system meets our SLO), feeding selection and TCO.*
+*Two-stage benchmarking: capability screen (which models qualify) → deployment benchmark (which system meets our SLO), feeding selection and TCO.*
 
 <!-- Figure spec: mechanism-first flowchart; left box = candidate models → capability screen (MMLU/GSM8K/retrieval-QA) → surviving models → deployment benchmark against canonical workload (TTFT/goodput/KV) → selection + TCO; annotate the SLO gate. -->
 

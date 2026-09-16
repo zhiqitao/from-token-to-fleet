@@ -26,7 +26,7 @@ These are not alternatives; production systems **compose** them (e.g. DP across 
 
 ![Fig 10.1 — Composing the dimensions: each PP stage holds a DP replica, TP-sharded across GPUs; and EP's per-token all-to-all routes each token to the GPU holding its experts (illustrative)](figures/fig-10-1002.png)
 
-*Fig 10.1 — The strategies are not either/or. Left: a DP × TP × PP stack — the layer stack is cut into PP stages (green), each stage is DP-replicated (orange) across nodes, and within a stage TP shards the weights across 4 GPUs (blue). Right: expert parallel is a per-token all-to-all — each token may leave its home GPU to reach the GPU holding its top-k experts. Which dimension binds determines which you split first.*
+The strategies are not either/or. Left: a DP × TP × PP stack — the layer stack is cut into PP stages (green), each stage is DP-replicated (orange) across nodes, and within a stage TP shards the weights across 4 GPUs (blue). Right: expert parallel is a per-token all-to-all — each token may leave its home GPU to reach the GPU holding its top-k experts. Which dimension binds determines which you split first.
 
 ## 2. Mental Model
 
@@ -136,7 +136,7 @@ The parallelism strategy is forced by the binding constraint, and that constrain
 
 ![Fig 10.2 — The five parallelization strategies and what each splits [ILLUSTRATIVE conceptual]](figures/fig-10-1001.png)
 
-*Fig 10.2 — Tensor / pipeline / data / expert / sequence parallelism, each drawn as its own object — weight matrix, layer stack, replicated model, MoE experts, context window — splitting into GPU shards beneath it.*
+*Tensor / pipeline / data / expert / sequence parallelism, each drawn as its own object — weight matrix, layer stack, replicated model, MoE experts, context window — splitting into GPU shards beneath it.*
 
 <!-- Figure spec: mechanism-first diagram; model shown as weight-matrix + layer-stack + batch; arrows show TP slicing weights, PP stacking stages, DP replicating with all-reduce, EP sharding experts, CP splitting sequence; annotate comm cost + use-case per strategy. -->
 

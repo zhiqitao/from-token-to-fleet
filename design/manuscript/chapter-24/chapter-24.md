@@ -157,7 +157,7 @@ Each consequence is tracked as a **change request** in the fleet’s operational
 
 ![Fig 24.1 - Red Team / Green Team cycle [ILLUSTRATIVE conceptual]](figures/fig-24-2401.png)
 
-*Fig 24.1 — Red Team / Green Team cycle. Probes sweep three domains (model behavior, tool use, retrieval/RAG); findings flow through exposure, guardrails and metrics; failed metrics spawn change-request backlog items that harden the system, and the loop repeats each evaluation cycle. [ILLUSTRATIVE conceptual]*
+*Red Team / Green Team cycle. Probes sweep three domains (model behavior, tool use, retrieval/RAG); findings flow through exposure, guardrails and metrics; failed metrics spawn change-request backlog items that harden the system, and the loop repeats each evaluation cycle. [ILLUSTRATIVE conceptual]*
 
 *Table 24-1 — Red Team / Green Team metric table*
 

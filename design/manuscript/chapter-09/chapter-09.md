@@ -46,7 +46,7 @@ where $\alpha$ is the per-step latency (message setup, synchronization), $\beta$
 
 ![Fig 9.1 — All-reduce time vs data volume, by interconnect tier [2° DERIVED]](figures/fig-09-0901.png)
 
-*Fig 9.1 — All-reduce completion time as a function of data volume (x-axis, log GB) and interconnect effective bandwidth. The four lines — NVSwitch 1.8 TB/s, NVLink 0.9 TB/s, InfiniBand 0.4 TB/s, Ethernet 0.1 TB/s — are peak-bandwidth lower bounds (α/β caveat in §9.3); the dashed marker sits at the 140 GB weight footprint of a 70B model (≈ 70 GB of weights in BF16 across 8 participants). [2° DERIVED]*
+*All-reduce completion time as a function of data volume (x-axis, log GB) and interconnect effective bandwidth. The four lines — NVSwitch 1.8 TB/s, NVLink 0.9 TB/s, InfiniBand 0.4 TB/s, Ethernet 0.1 TB/s — are peak-bandwidth lower bounds (α/β caveat in §9.3); the dashed marker sits at the 140 GB weight footprint of a 70B model (≈ 70 GB of weights in BF16 across 8 participants). [2° DERIVED]*
 <!-- Figure spec: mechanism-first — illustrate how all-reduce data flows through the interconnect hierarchy (PCIe → NVLink → NVSwitch → InfiniBand → Ethernet), with bandwidth numbers from the text annotated on each link. Used to explain the arithmetic in §9. Concept. -->
 
 ## 3. Worked Example

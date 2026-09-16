@@ -147,7 +147,7 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 * * *
 ![Fig 3.1 — Dense vs MoE parameter allocation and KV-cache behavior [2° DERIVED]](figures/fig-03-0301.png)
 
-*Fig 3.1 — Parameter-activation contrast. A dense 70B activates all 70B parameters per token (residency ≈ 140 GB, KV grows linearly with context). An 8-expert MoE still stores its full expert set as resident weights (not shown to scale), but only the top-2 (~14B) are active per token (active compute footprint ≈ 28 GB). KV-cache growth with context is identical to dense — attention still processes every token.*
+*Parameter-activation contrast. A dense 70B activates all 70B parameters per token (residency ≈ 140 GB, KV grows linearly with context). An 8-expert MoE still stores its full expert set as resident weights (not shown to scale), but only the top-2 (~14B) are active per token (active compute footprint ≈ 28 GB). KV-cache growth with context is identical to dense — attention still processes every token.*
 
 ### Table 3-1 — Parameter and KV-cache arithmetic for the canonical workload
 

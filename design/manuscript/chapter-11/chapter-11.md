@@ -49,7 +49,7 @@ Imagine naive **discrete (static) batching**: the server accumulates requests un
 
 ![Fig 11.1 — Discrete vs continuous batching (Orca-style slot diagram). Discrete batching runs each batch to completion, leaving GPU slots idle as sequences finish early; continuous batching admits and evicts requests at every decode step, backfilling freed slots (illustrative, after Orca, OSDI 2022)](figures/fig-11-1102.png)
 
-*Fig 11.1 — The heart of the chapter's serving story made visual. Discrete (static) batching lets slots sit idle whenever a sequence finishes early inside the batch; continuous (iteration-level) batching backfills a freed slot immediately, so the GPU — not the scheduler — is the steady bottleneck. This is the difference between spiky, latency-wasting batches and a continuously-fed decode pipeline.*
+The heart of the chapter's serving story made visual. Discrete (static) batching lets slots sit idle whenever a sequence finishes early inside the batch; continuous (iteration-level) batching backfills a freed slot immediately, so the GPU — not the scheduler — is the steady bottleneck. This is the difference between spiky, latency-wasting batches and a continuously-fed decode pipeline.
 
 ### PagedAttention: Killing the Fragmentation Tax
 
@@ -109,13 +109,13 @@ The serving stack dictates the deployment choices:
 
 ![Fig 11.2 — The serving stack: batching, KV management, prefix caching, P/D split [ILLUSTRATIVE conceptual]](figures/fig-11-1101.png)
 
-*Fig 11.2 — From request arrival to token output: continuous batching, PagedAttention KV, prefix caching, and optional P/D disaggregation.*
+*From request arrival to token output: continuous batching, PagedAttention KV, prefix caching, and optional P/D disaggregation.*
 
 <!-- Figure spec: mechanism-first serving-flow diagram; request stream → scheduler → KV page table (+ prefix cache) → optional prefill pool / decode pool split → output; annotate the resource each stage trades. -->
 
 ![Fig 11.3 — P/D disaggregation topology: prefill pool (compute-bound) and decode pool (bandwidth-bound) bridged by KV transfer [2° DERIVED]](figures/fig-11-1103.png)
 
-*Fig 11.3 — P/D disaggregation topology. Left: prefill pool, compute-bound (FLOPs), handles the massive prompt at once. Right: decode pool, bandwidth-bound (HBM), reads steady token generation. A fabric bridge moves the per-token KV cache from prefill to decode. The split exists because the pools want opposite resources — prefill is FLOP-starved (~1.19 PFLOPS required vs 0.989 peak), decode is bandwidth-starved (5.6 TB/s demand vs 3.35 TB/s) [2° DERIVED].*
+*P/D disaggregation topology. Left: prefill pool, compute-bound (FLOPs), handles the massive prompt at once. Right: decode pool, bandwidth-bound (HBM), reads steady token generation. A fabric bridge moves the per-token KV cache from prefill to decode. The split exists because the pools want opposite resources — prefill is FLOP-starved (~1.19 PFLOPS required vs 0.989 peak), decode is bandwidth-starved (5.6 TB/s demand vs 3.35 TB/s) [2° DERIVED].*
 
 ## 7. What We Still Don't Know
 

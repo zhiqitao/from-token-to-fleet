@@ -48,7 +48,7 @@ $$
 
 ![Fig 1.1 — The KV cache: every decoded token adds one K+V per layer per head [ILLUSTRATIVE conceptual]](figures/fig-01-kv-cache.png)
 
-*Fig 1.1 — The KV cache: attention keeps every past token's key and value, so cache memory grows linearly with sequence length (concept; the verified arithmetic is Ch. 7's).*
+*The KV cache: attention keeps every past token's key and value, so cache memory grows linearly with sequence length (concept; the verified arithmetic is Ch. 7's).*
 
 ## 2. Mental Model
 
@@ -58,7 +58,7 @@ A useful image for the full pipeline:
 
 ![Fig 1.2 — How a token travels: text → tokenizer → IDs → embedding → attention → KV cache [ILLUSTRATIVE conceptual]](figures/fig-01-token-travel.png)
 
-*Fig 1.2 — How a token travels. The token is the interface between a human's request and the machine's arithmetic: carved by the tokenizer, embedded into a vector, attended against past context, and remembered in the KV cache. (Concept; mechanism inventory in Ch. 3, arithmetic in Ch. 7.)*
+*How a token travels. The token is the interface between a human's request and the machine's arithmetic: carved by the tokenizer, embedded into a vector, attended against past context, and remembered in the KV cache. (Concept; mechanism inventory in Ch. 3, arithmetic in Ch. 7.)*
 
 > Text → **tokenizer** → discrete IDs → **embedding** → vectors → **attention** recomputes each token → **KV cache** remembers the prefix → generate one token at a time.
 

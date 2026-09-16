@@ -20,7 +20,7 @@ The discipline this chapter works toward: **never jump from a workload metric st
 
 ![Fig 6.1 — The metric hierarchy as a diagnostic chain [ILLUSTRATIVE conceptual]](figures/fig-06-0601.png)
 
-*Fig 6.1 — The three metric layers and the top-down diagnostic path from a p95 TTFT breach to its root cause. Causation runs bottom-up (resource → serving → workload); diagnosis runs top-down.*
+*The three metric layers and the top-down diagnostic path from a p95 TTFT breach to its root cause. Causation runs bottom-up (resource → serving → workload); diagnosis runs top-down.*
 
 ### Why the Wrong Metric Persists
 
@@ -52,7 +52,7 @@ $$
 
 ![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean. The mean (~0.84 s) hides the 1% stragglers at ~5 s; it is the p99 budget (not p95) they breach (illustrative)](figures/fig-06-0602.png)
 
-*Fig 6.2 — Why the mean is not a signal. The same request stream of 99% @ 0.8 s + 1% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s), yet p99 paints a very different picture under a 2 s SLO. Log the distribution; SLO against the percentile.*
+Why the mean is not a signal. The same request stream of 99% @ 0.8 s + 1% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s), yet p99 paints a very different picture under a 2 s SLO. Log the distribution; SLO against the percentile.
 
 Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s) with a p95 ≤ 2 s. Suppose a flash crowd (the ~40 rps peak) causes prefill requests to queue. If on average the batch is well-behaved, p50 TTFT might sit at ~1.0 s. But the jobs that arrive behind 3 same-time prefill requests each pay the full 1.08 s prefill of the job ahead of them, so p95 TTFT drifts to ~2.5 s. The *average* says "fine"; the *p95* says "we just violated our SLO." We hence log p50, p90, p95, and p99 independently and run the SLO against the percentile, never the mean. [2°] SLO-derived from the §14 canonical latency budget; the arithmetic is the point, not a citation.
 

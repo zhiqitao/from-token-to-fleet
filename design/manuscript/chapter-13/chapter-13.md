@@ -91,7 +91,7 @@ The archetype sets the entire downstream design vocabulary. On the **server** ti
 
 ![Fig 13.1 — The reference-architecture ladder and its escalation triggers [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
 
-*Fig 13.1 — The reference-architecture ladder: single GPU → single host → multi-host → cluster/fleet, with escalation triggers (red: model/KV/throughput outgrows a tier) and de-escalation (green: privacy, data sovereignty, cost) moving a workload between tiers.*
+*The reference-architecture ladder: single GPU → single host → multi-host → cluster/fleet, with escalation triggers (red: model/KV/throughput outgrows a tier) and de-escalation (green: privacy, data sovereignty, cost) moving a workload between tiers.*
 
 <!-- Figure spec: mechanism-first diagram; two axes (model residency on one, throughput demand on the other); four tier regions; arrow annotations for the three escalation triggers. Canonical workload dot in the server tier. -->
 

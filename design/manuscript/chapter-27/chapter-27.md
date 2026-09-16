@@ -8,7 +8,7 @@ Four independent labs converged on a **second-order architectural pattern** in 2
 
 ![Fig A.1 — 2026 frontier MoE extreme sparsity: four open models, total vs activated parameters, and active fraction in single digits [1P]](figures/fig-27-2701.png)
 
-*Fig A.1 — Frontier MoE sparsity in 2026. Kimi K3 is the extreme case: 2.8 T total / 104 B active (~3.7% active); DeepSeek-V4-Flash 284 B/13 B (~4.6%); GLM-5.3-Flash 320 B/18 B (~5.6%); Qwen3.8-Flash-Next 125 B/6 B (~4.8%). Active-parameter fraction in every frontier model is now single digits — the anchor for the Ch10 expert-parallelism serving calculus. [1P: arXiv 2606.19348; arXiv 2607.24653; HF Qwen/Qwen3.8-Flash-Next; HF zai-org/GLM-5.3-Flash]*
+*Frontier MoE sparsity in 2026. Kimi K3 is the extreme case: 2.8 T total / 104 B active (~3.7% active); DeepSeek-V4-Flash 284 B/13 B (~4.6%); GLM-5.3-Flash 320 B/18 B (~5.6%); Qwen3.8-Flash-Next 125 B/6 B (~4.8%). Active-parameter fraction in every frontier model is now single digits — the anchor for the Ch10 expert-parallelism serving calculus. [1P: arXiv 2606.19348; arXiv 2607.24653; HF Qwen/Qwen3.8-Flash-Next; HF zai-org/GLM-5.3-Flash]*
 
 Three **efficiency levers** every 2026 frontier family pulled:
 
@@ -56,7 +56,7 @@ When we write "Four independent labs converged" or "MoE is arguably a larger arc
 
 ![Fig A.2 — The KV constant and FLOP/token are a moving target: hybrid attention cuts both at the mechanism. Canonical 70B dense full-MHA = 100%; DeepSeek-V4-Flash ≈ 7% KV / 10% FLOP, V4-Pro ≈ 10% / 27%, GLM-5.3-Flash ≈ 23% KV / ~33% attention-compute [DERIVED from 1P claims: arXiv 2606.19348; HF zai-org]](figures/fig-27-2704.png)
 
-*Fig A.2 — Same message as Fig 7.1's GQA line, taken to the frontier: the per-token KV and FLOP "constants" of Chapter 7/8 are not universal — they are LLaMA-style floors that hybrid attention re-architects down at the mechanism. Percentages are each model's gain over its own predecessor (e.g. V3.2→V4, GLM-5.x steps), shown against the canonical 70B dense full-MHA reference so the floors stay comparable. An architect who re-derives them per candidate model avoids both over- (sizing a 7% KV model as if it were 100%) and under-provisioning. Values are vendor-published [1P], not yet independently reprofiled on a serving stack (see §5).*
+*Same message as Fig 7.1's GQA line, taken to the frontier: the per-token KV and FLOP "constants" of Chapter 7/8 are not universal — they are LLaMA-style floors that hybrid attention re-architects down at the mechanism. Percentages are each model's gain over its own predecessor (e.g. V3.2→V4, GLM-5.x steps), shown against the canonical 70B dense full-MHA reference so the floors stay comparable. An architect who re-derives them per candidate model avoids both over- (sizing a 7% KV model as if it were 100%) and under-provisioning. Values are vendor-published [1P], not yet independently reprofiled on a serving stack (see §5).*
 
 The book's canonical scenario is a 70B dense FP16, ~9.2K-token RAG workload on 8×H100. The 2026 frontier does not invalidate it — it *refines* the interpretation an architect should carry:
 
@@ -97,7 +97,7 @@ This is why architecture alone never tells an architect how good a frontier mode
 
 ![Fig A.3 — The layered evolution of frontier systems, color-coded by efficiency-led (amber) vs capability-led (blue) stages, from a single Transformer to the whole fleet (Appendix §6)](figures/fig-27-2703.png)
 
-*Fig A.3 — From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are largely *efficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. This chain is the spine of the handbook: tokens (Ch1–9), parallelism (Ch10), serving (Ch11–16), fleet & agents (Ch17–26). [INTERPRETATION — synthesis of the chapters' arithmetic, not a single measurement]*
+From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are largelyefficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. This chain is the spine of the handbook: tokens (Ch1–9), parallelism (Ch10), serving (Ch11–16), fleet & agents (Ch17–26). [INTERPRETATION — synthesis of the chapters' arithmetic, not a single measurement]*
 
 This chain is the spine of this handbook — from a single model's tokens (Ch1–9) to parallelism (Ch10), serving (Ch11–16), and finally the fleet of specialized models and agents (Ch17–26). It also explains why two models with broadly similar base architectures can have very different practical intelligence (post-training/reasoning), and why an agent runtime can lift real-world performance without changing model weights at all: **model intelligence ≠ system intelligence anymore.**
 
@@ -107,7 +107,7 @@ The most useful lens for an AI Solution Architect in 2026 is not "which attentio
 
 ![Fig A.4 — Where should intelligence live? Eight host layers, from inside the weights up to across a fleet of specialized models, each mapped to the chapters of this handbook that give the tooling to evaluate it (Appendix §7)](figures/fig-27-2702.png)
 
-*Fig A.4 — The placement ladder. Every host layer that can carry intelligence is a place the architect may choose to push capability or cost; this book gives the arithmetic and decision framework for each (Ch3/7/8 weights & attention, Ch10 MoE routing, Ch19/21 post-training, Ch8/20 test-time, Ch19/24 tools, Ch17–20 runtime, Ch18/20 fleet). [INTERPRETATION/ILLUSTRATIVE per Appendix A's three-layer rule]*
+The placement ladder. Every host layer that can carry intelligence is a place the architect may choose to push capability or cost; this book gives the arithmetic and decision framework for each (Ch3/7/8 weights & attention, Ch10 MoE routing, Ch19/21 post-training, Ch8/20 test-time, Ch19/24 tools, Ch17–20 runtime, Ch18/20 fleet). [INTERPRETATION/ILLUSTRATIVE per Appendix A's three-layer rule]
 
 Every host layer maps to chapters in this book:
 

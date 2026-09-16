@@ -63,7 +63,7 @@ $$
 
 ![Fig 7.1 — Grouped-Query Attention: 64 query heads share 8 KV heads, cutting per-token KV 8× from 2.5 MB to ~0.33 MB (illustrative, after LLaMA-2 70B head layout)](figures/fig-07-0703.png)
 
-*Fig 7.1 — The visual proof of the 8× saving. Full MHA caches a K,V per query head (64/token → 2.5 MB/token); GQA shares one K,V across a group of 8 query heads, so only 8 K/V per token → ~0.33 MB/token. Head count is the real dial: substitute the model's KV-head count into `2 × layers × KV_heads × head_dim × bytes`.*
+The visual proof of the 8× saving. Full MHA caches a K,V per query head (64/token → 2.5 MB/token); GQA shares one K,V across a group of 8 query heads, so only 8 K/V per token → ~0.33 MB/token. Head count is the real dial: substitute the model's KV-head count into `2 × layers × KV_heads × head_dim × bytes`.
 
 **Table 7-2** — Inference residency vs. fine-tuning residency contrast for a 70B model.
 
@@ -137,21 +137,21 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 ![Fig 7.2 — KV-cache size vs context length for a 70B model [2° DERIVED]](figures/fig-07-0701.png)
 
-*Fig 7.2 — KV-cache growth with context length (FP16 ~2.5 MB/token, FP8 ~1.4, 8-bit ~1.3); at 128K the FP16 KV footprint climbs to ~320 GB, approaching the ~436 GB KV budget only well beyond 128K, and already reaches ~165 GB inference residency at 9.2K.*
+*KV-cache growth with context length (FP16 ~2.5 MB/token, FP8 ~1.4, 8-bit ~1.3); at 128K the FP16 KV footprint climbs to ~320 GB, approaching the ~436 GB KV budget only well beyond 128K, and already reaches ~165 GB inference residency at 9.2K.*
 
 <!-- Figure spec: X = context tokens (1K,4K,9.2K,32K,128K), Y = KV-cache GB (log scale); three lines FP16/FP8/8-bit; horizontal 640 GB 8×H100 ceiling; callouts at 9.2K (~24 GB FP16) and 32K (~80 GB). -->
 
 ![Fig 7.3 — Inference vs fine-tuning memory floor [2° DERIVED]](figures/fig-07-0702.png)
 
-*Fig 7.3 — The same 70B model serves in ~165 GB (weights + KV) but needs ~1,260 GB for full Adam fine-tuning; QLoRA fits ~50–70 GB on a single GPU.*
+*The same 70B model serves in ~165 GB (weights + KV) but needs ~1,260 GB for full Adam fine-tuning; QLoRA fits ~50–70 GB on a single GPU.*
 
 ![Fig 7.4 — The concurrency budget: where a 70B host's 640 GB pool goes [2° DERIVED]](figures/fig-07-0704.png)
 
-*Fig 7.4 — Where a serving host's 640 GB pool goes. 140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget; at 23.8 GB/request (FP16) that is C ≈ 18 concurrent requests, and FP8 (~12.4 GB/request) roughly doubles it to ~35. This is the arithmetic behind the single-host capacity in Ch17.*
+*Where a serving host's 640 GB pool goes. 140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget; at 23.8 GB/request (FP16) that is C ≈ 18 concurrent requests, and FP8 (~12.4 GB/request) roughly doubles it to ~35. This is the arithmetic behind the single-host capacity in Ch17.*
 
 ![Fig 7.5 — Memory Tetris: how the 8×H100 host's 640 GB pool fills at three contexts (9.2K / 32K / 128K). Runtime ~64 GB + weights 140 GB + KV cache 23.8 / 80 / 320 GB [2° DERIVED]](figures/fig-07-0705.png)
 
-*Fig 7.5 — The Memory Tetris: why context length is the ultimate memory lever. The 640 GB pool stacks ~64 GB runtime/NCCL + 140 GB weights, leaving ~436 GB of headroom. The FP16 KV cache (orange) is the only block that grows with context — 23.8 GB at 9.2K, 80 GB at 32K, ~320 GB at 128K. Because the KV budget is fixed (~436 GB), longer context consumes it outright: at 9.2K it supports ~18 concurrent, but 128K leaves room for only ~1–2. This is what makes the KV constant (Ch7 §3) the single most capacity-relevant number in a serving design. [2° DERIVED]*
+*The Memory Tetris: why context length is the ultimate memory lever. The 640 GB pool stacks ~64 GB runtime/NCCL + 140 GB weights, leaving ~436 GB of headroom. The FP16 KV cache (orange) is the only block that grows with context — 23.8 GB at 9.2K, 80 GB at 32K, ~320 GB at 128K. Because the KV budget is fixed (~436 GB), longer context consumes it outright: at 9.2K it supports ~18 concurrent, but 128K leaves room for only ~1–2. This is what makes the KV constant (Ch7 §3) the single most capacity-relevant number in a serving design. [2° DERIVED]*
 
 <!-- Figure spec: one horizontal stacked bar (140 weights + 64 runtime + 436 KV = 640 GB pool); tick KV region in 23.8 GB slots -> C~18; faint FP8 overlay ~35 slots. Locks Ch7 <-> Ch17 handoff. -->
 

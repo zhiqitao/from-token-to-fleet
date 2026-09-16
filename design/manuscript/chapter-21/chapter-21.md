@@ -75,7 +75,7 @@ The AI Factory is the operational backbone that makes the book's whole loop dura
 
 ![Fig 21.1 — The AI Factory promotion pipeline [ILLUSTRATIVE conceptual]](figures/fig-21-2101.png)
 
-*Fig 21.1 — The model lifecycle: data → evaluate gate → canary → promote/rollback, with an observation feedback loop.*
+*The model lifecycle: data → evaluate gate → canary → promote/rollback, with an observation feedback loop.*
 
 <!-- Figure spec: mechanism-first flowchart; stages data/train/evaluate-canary-observe-promote-rollback-serve; a decision diamond at the gate; a dashed feedback arrow from production back to data/evaluation. -->
 
