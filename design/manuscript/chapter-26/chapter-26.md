@@ -102,7 +102,7 @@ These open questions define the next research cycle. Each is framed as a HYPOTHE
 
 | Component | Configuration | FACT Target | DERIVED Observed |
 |---|---|---|---|
-| GPU Shard | 4 × A100 40 GB | GPU util < 80% | 68% |
+| GPU Shard | 4 ×A100 40 GB | GPU util < 80% | 68% |
 | Embedding Cache | LRU, TTL 5 min | hit ratio > 30% | 38% |
 | Circuit Breaker | trip after 5 timeouts, 2s grace | fallback rate < 10% | 7% |
 | Cost | $ per query | < $0.015 | $0.009 |

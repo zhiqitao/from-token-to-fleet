@@ -185,7 +185,7 @@ These open questions are not blockers; they are signals for when the practice ma
 - **Context:** User queries have grown 35% YoY; a single 70B model cannot sustain p99 latency < 5 seconds under peak load. MoE allows routing 2× more effective parameters within the same memory budget.
 - **Decision:** Migrate to two 34B FP16 experts with top-1 routing, accepting a 5% increase in inference latency per request due to routing overhead.
 - **Consequences:** 
-  - Positive: Effective parameter count rises from 70B to ~68B (2 × 34B × routing fraction), improving answer quality on factual Q&A. GPU memory per expert fits within A100 80 GB, enabling 2× concurrent instances.
+  - Positive: Effective parameter count rises from 70B to ~68B (2 ×34B × routing fraction), improving answer quality on factual Q&A. GPU memory per expert fits within A100 80 GB, enabling 2× concurrent instances.
   - Negative: Routing logic adds ~50 ms latency; requires new monitoring for route distribution skew.
 - **Alternatives considered:** 
   1. Increase batch size — rejected, increases memory pressure and worsens tail latency.

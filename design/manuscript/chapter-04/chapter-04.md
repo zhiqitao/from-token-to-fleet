@@ -97,7 +97,7 @@ The canonical workload's token profile is input‑heavy, which has direct conseq
 - **Per‑request input**: 1,200 tokens (enterprise query, possibly reformulated) + 8,000 tokens (retrieved context from vector DB) ≈ 9,200 tokens. The [1P] provenance traces to the §14 canonical scenario.
 - **Per‑request output**: ~300 tokens (the generated answer, possibly with citations).
 - **Input‑to‑output ratio**: 9,200 ÷ 300 ≈ 30× more input tokens than output tokens. This ratio is [2° DERIVED] from the canonical numbers and is the single biggest factor in why this workload is memory‑bound (KV cache) rather than decode‑bound.
-- **At 10 rps**: input tokens/s = 9,200 × 10 = 92,000 tokens/s; output tokens/s = 300 × 10 = 3,000 tokens/s. At peak 40 rps, input spikes to ~368,000 tokens/s and output to ~12,000 tokens/s. These [2° DERIVED] numbers appear in Table 4-2.
+- **At 10 rps**: input tokens/s = 9,200 ×10 = 92,000 tokens/s; output tokens/s = 300 ×10 = 3,000 tokens/s. At peak 40 rps, input spikes to ~368,000 tokens/s and output to ~12,000 tokens/s. These [2° DERIVED] numbers appear in Table 4-2.
 
 The input‑heavy profile means that *prefill* (processing the prompt) dominates the latency and cost budget. A model that processes 8K tokens of context in under 1 s of prefill is essential; otherwise the TTFT budget of 1.2 s cannot be met. This is why the token profile is the primary architectural driver for this workload.
 
@@ -114,10 +114,10 @@ These budgets are [2° DERIVED] from typical enterprise Q&A user expectations (s
 
 The economic dimension translates the token profile and traffic into a cost structure:
 
-- **Infrastructure**: A single host with 8 × H100 GPUs (640 GB total GPU memory, 140 GB model FP16 weights fit with room for KV cache). Capital cost ≈ $3.50/hour on-demand, or ~$2,500/month reserved.
+- **Infrastructure**: A single host with 8 ×H100 GPUs (640 GB total GPU memory, 140 GB model FP16 weights fit with room for KV cache). Capital cost ≈ $3.50/hour on-demand, or ~$2,500/month reserved.
 - **Token pricing**: ~$1.20 per million input tokens, ~$2.00 per million output tokens on the same H100 instance (derived from cloud provider pricing as of 2026).
 - **Throughput per dollar**: At 10 rps average, the system processes ~92,000 input tokens/s + ~3,000 output tokens/s. Dividing by the $3.50/hour infrastructure cost (≈ $0.00097 per second) yields ~95,000 input tokens/s per dollar and ~3,100 output tokens/s per dollar. These (derived — verify the input) numbers are the economics framing the canonical scenario. (Chapter 5 expresses the same economics on a GPU list-price basis as **tokens per dollar-hour**; see its unit-reconciliation note before cross-chapter comparison.)
-- **Cost per request**: At 10 rps, each request carries ~9,500 tokens (9,200 input + 300 output). At the per‑million rates, cost per request ≈ ($1.20 × 9.2 + $2.00 × 0.3) / 1,000 ≈ $0.015 per request per inference cycle. At 40 rps peak, cost scales linearly.
+- **Cost per request**: At 10 rps, each request carries ~9,500 tokens (9,200 input + 300 output). At the per‑million rates, cost per request ≈ ($1.20 ×9.2 + $2.00 ×0.3) / 1,000 ≈ $0.015 per request per inference cycle. At 40 rps peak, cost scales linearly.
 
 The economic constraint is what makes the workload real: a 70B FP16 model on one host can serve the canonical workload at the target SLO, but scaling to higher traffic or longer contexts would require additional hosts, and the cost line must be re‑evaluated.
 
@@ -152,9 +152,9 @@ The six‑dimension characterization directly dictates the architectural path fo
 
 <!-- Figure spec: mechanism-first diagram; one labeled axis per dimension, each arrow ending at its architectural consequence. -->
 
-- **Model selection**: A 70B FP16 dense model (140 GB weights) fits on a single host with 8 × H100 (640 GB GPU memory). The model is large enough to answer factual enterprise questions without fine‑tuning, but the 140 GB footprint means KV cache for 9.2 K context adds ~20–30 GB of GPU memory per request at peak, leaving headroom but not abundance.
+- **Model selection**: A 70B FP16 dense model (140 GB weights) fits on a single host with 8 ×H100 (640 GB GPU memory). The model is large enough to answer factual enterprise questions without fine‑tuning, but the 140 GB footprint means KV cache for 9.2 K context adds ~20–30 GB of GPU memory per request at peak, leaving headroom but not abundance.
 - **Serving configuration**: One host is the baseline. Continuous batching (e.g. vLLM) is nearly mandatory to achieve the 1.2 s TTFT budget under 10 rps input‑heavy traffic; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s. The input‑heavy token profile (30× more input than output) makes continuous batching especially effective, as many requests share the same prefix from retrieved context.
-- **Memory planning**: KV cache for 9.2 K context on the 70B FP16 canonical model is 2 × layers × hidden × bytes ≈ 2.5 MB/token (Chapter 7), giving ≈9,200 × 2.5 MB ≈ 23 GB per request. At 10 concurrent full-context requests that is ~230 GB of KV on top of the 140 GB weights — pressing against the 640 GB pool well before concurrency reaches 100. The architecture must therefore limit concurrency, quantize KV (FP8 → ~1.3 MB/token, ~12 GB/request halves it), or reduce context. This is the same KV-residency discipline developed fully in Chapters 7 and 17.
+- **Memory planning**: KV cache for 9.2 K context on the 70B FP16 canonical model is 2 × layers × hidden × bytes ≈ 2.5 MB/token (Chapter 7), giving ≈9,200 ×2.5 MB ≈ 23 GB per request. At 10 concurrent full-context requests that is ~230 GB of KV on top of the 140 GB weights — pressing against the 640 GB pool well before concurrency reaches 100. The architecture must therefore limit concurrency, quantize KV (FP8 → ~1.3 MB/token, ~12 GB/request halves it), or reduce context. This is the same KV-residency discipline developed fully in Chapters 7 and 17.
 - **Economic feasibility**: At ~$3.50/hour per host and ~$0.015 per request, the TCO is driven by the 9.2 K input tokens per request. If the input token count could be reduced to 2 K (e.g. via better retrieval or query expansion), cost per request drops to ~$0.004, and the same traffic fits within a much lower budget. This is the lever the architect pulls when TCO is the binding constraint.
 - **Operational topology**: Multi‑region deployment (active‑active) provides availability but doubles the infrastructure cost. If the 99.9% availability SLA is non‑negotiable, the architecture must absorb the 2× cost. If it is negotiable, a single-region with graceful-degrading fallback may suffice. The operational constraint thus directly sets the economic floor.
 

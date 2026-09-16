@@ -131,7 +131,7 @@ Instrumentation: add a middleware shim that logs `model_id, token_count, latency
 A mixed-model fleet changes the architecture in three ways:
 
 1. **Router shim** (HTTP middleware or gRPC interceptor) sits between the user API and the model execution layer. It evaluates feature requirements, reads current capacity, and selects model_id.
-2. **Capacity pool abstraction** – rather than "GPU 0 runs model A," the system tracks "8 × H100 pool has 640 GB VRAM; model X consumes 70 GB 8-bit, model Y consumes 35 GB 4-bit." The pool manager auto‑balances placements.
+2. **Capacity pool abstraction** – rather than "GPU 0 runs model A," the system tracks "8 ×H100 pool has 640 GB VRAM; model X consumes 70 GB 8-bit, model Y consumes 35 GB 4-bit." The pool manager auto‑balances placements.
 3. **Billing/telemetry pipeline** – each request's cost and latency are tagged with model_id, enabling downstream dashboards and alerting (e.g., "cost per token rising above $0.0025 for 3 consecutive hours").
 
 The fleet operator becomes a *cost‑latency steward* rather than a single-model optimizer.
@@ -162,9 +162,9 @@ If we had used a single 70B FP16 model: 5,000 tokens/hr × $0.003 = $15/hr → $
 
 The key enabler was the router's feature gate: queries mentioning "multilingual" or "technical specification" were auto‑escalated to Tier 3; the rest flowed to Tier 1 or Tier 2 automatically.
 
-![Fig 18.1 — Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the five specialised families as leaves [ILLUSTRATIVE conceptual]](figures/fig-18-1801.png)
+![Fig 18.1 — Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the five specialized families as leaves [ILLUSTRATIVE conceptual]](figures/fig-18-1801.png)
 
-*Fig 18.1 — The routing decision chain. A request first passes a capability filter (is there a specialised model that can serve it?), then a cost/latency gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialised family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
+*Fig 18.1 — The routing decision chain. A request first passes a capability filter (is there a specialized model that can serve it?), then a cost/latency gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialized family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
 
 ---
 *Evidence labels: [1P] price observations from public cloud provider pricing pages (Q4 2026); [2°] derived per-token cost arithmetic; (to be verified) latency measurements from local GGUF benchmarks on reference hardware.*

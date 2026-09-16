@@ -329,10 +329,11 @@ def convert(mapping):
         if lines and lines[0].startswith("# "):
             lines.pop(0)
         txt = "\n".join(lines)
-        # Strip hardcoded 'N. ' ordinal prefixes from headings (e.g. '## 1. Concept')
-        # so header numbering is owned by the renderer (LaTeX \section auto-numbers
-        # to '7.2 Concept' instead of producing '7.2 1. Concept').
-        txt = re.sub(r"^(#{2,3})\s+\d{1,2}\.\s+", r"\1 ", txt, flags=re.M)
+        # Strip hardcoded 'N. ' / 'N.N. ' ordinal prefixes from headings (e.g.
+        # '## 1. Concept', '### 3.1 Hardware capacity mapping') so header
+        # numbering is owned by the renderer (LaTeX \section auto-numbers to
+        # '7.2 Concept' / '18.4.1 Hardware…' instead of duplicating it).
+        txt = re.sub(r"^(#{2,3})\s+\d{1,2}(?:\.\d{1,2})?\.?\s+", r"\1 ", txt, flags=re.M)
         # rewrite image paths to flat figures dir
         def rep(m):
             alt = m.group(1)

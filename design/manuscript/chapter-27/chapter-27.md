@@ -48,7 +48,7 @@ When we write "Four independent labs converged" or "MoE is arguably a larger arc
 
 ## 4. GLM-5.3-Flash — First Natively Multimodal GLM, Efficiency-Branded
 
-**Decisive fact [1P: HF zai-org/GLM-5.3-Flash; arXiv 2602.15763]:** 320 B total / 18 B activated, 1M native context, 131 K output. First natively multimodal model in the GLM-5 series (text/image/video). Hybrid **sparse+linear attention** (first in the series) with ~3× attention-compute and ~4.4× KV-cache reductions; Manifold-Constrained Hyper-Connections (mHC); W8A8 quantization with mixed-cache (INT8/FP8/BF16); Encode-Prefill-Decode serving. MIT weights. Z.ai positions it as approaching Claude Opus 4.8 on coding/agentic at ~1/10 the price.
+**Decisive fact [1P: HF zai-org/GLM-5.3-Flash; arXiv 2602.15763]:** 320 B total / 18 B activated, 1M native context, 131 K output. First natively multimodal model in the GLM-5 series (text/image/video). Hybrid **sparse+linear attention** (first in the series) with ~3× attention-compute and ~4.4×KV-cache reductions; Manifold-Constrained Hyper-Connections (mHC); W8A8 quantization with mixed-cache (INT8/FP8/BF16); Encode-Prefill-Decode serving. MIT weights. Z.ai positions it as approaching Claude Opus 4.8 on coding/agentic at ~1/10 the price.
 
 **What this means for the architect (ties to Ch7 Memory, Ch8 Compute, Ch19 Agentic).** GLM's coupling of hybrid attention with *native multimodality* shows the model border is remaking: "LLM" and "vision/audio model" are converging in a single weight set, which changes workload characterization (Ch4) — a multimodal prompt has a different token/KV profile than text-only. And mHC + attention-mixing being reported as *scaling-efficiency* results reinforces Ch8's point that compute arithmetic is architecture-specific, not universal.
 
@@ -95,17 +95,17 @@ A recurring error — easy to fall into after reading four new model cards — i
 
 This is why architecture alone never tells an architect how good a frontier model is, and why the decision can no longer stop at "which model" — the marginal capability may live in the post-training and the runtime that wraps it.
 
-![Fig A.3 — The layered evolution of frontier systems, colour-coded by efficiency-led (amber) vs capability-led (blue) stages, from a single Transformer to the whole fleet (Appendix §6)](figures/fig-27-2703.png)
+![Fig A.3 — The layered evolution of frontier systems, color-coded by efficiency-led (amber) vs capability-led (blue) stages, from a single Transformer to the whole fleet (Appendix §6)](figures/fig-27-2703.png)
 
 *Fig A.3 — From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are largely *efficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. This chain is the spine of the handbook: tokens (Ch1–9), parallelism (Ch10), serving (Ch11–16), fleet & agents (Ch17–26). [INTERPRETATION — synthesis of the chapters' arithmetic, not a single measurement]*
 
-This chain is the spine of this handbook — from a single model's tokens (Ch1–9) to parallelism (Ch10), serving (Ch11–16), and finally the fleet of specialised models and agents (Ch17–26). It also explains why two models with broadly similar base architectures can have very different practical intelligence (post-training/reasoning), and why an agent runtime can lift real-world performance without changing model weights at all: **model intelligence ≠ system intelligence anymore.**
+This chain is the spine of this handbook — from a single model's tokens (Ch1–9) to parallelism (Ch10), serving (Ch11–16), and finally the fleet of specialized models and agents (Ch17–26). It also explains why two models with broadly similar base architectures can have very different practical intelligence (post-training/reasoning), and why an agent runtime can lift real-world performance without changing model weights at all: **model intelligence ≠ system intelligence anymore.**
 
 ## 7. The Frontier Question: Where Should Intelligence Live?
 
 The most useful lens for an AI Solution Architect in 2026 is not "which attention mechanism does the model card list?" but *where the intelligence and the compute budget should be placed*:
 
-![Fig A.4 — Where should intelligence live? Eight host layers, from inside the weights up to across a fleet of specialised models, each mapped to the chapters of this handbook that give the tooling to evaluate it (Appendix §7)](figures/fig-27-2702.png)
+![Fig A.4 — Where should intelligence live? Eight host layers, from inside the weights up to across a fleet of specialized models, each mapped to the chapters of this handbook that give the tooling to evaluate it (Appendix §7)](figures/fig-27-2702.png)
 
 *Fig A.4 — The placement ladder. Every host layer that can carry intelligence is a place the architect may choose to push capability or cost; this book gives the arithmetic and decision framework for each (Ch3/7/8 weights & attention, Ch10 MoE routing, Ch19/21 post-training, Ch8/20 test-time, Ch19/24 tools, Ch17–20 runtime, Ch18/20 fleet). [INTERPRETATION/ILLUSTRATIVE per Appendix A's three-layer rule]*
 
@@ -118,9 +118,9 @@ Every host layer maps to chapters in this book:
 - **Inside test-time search** (adaptive inference, more compute on hard tasks) — Ch8 Compute, Ch20 Fleet-Level Optimization
 - **Inside tools** (compute allocated via a harness) — Ch19 Agentic, Ch24 Red/Green Team
 - **Inside the agent runtime** (persistent state, runbooks, execution control) — Ch17–20, Ch24
-- **Across a fleet of specialised models** — Ch18 Operating Multiple Models, Ch20 Fleet-Level Optimization
+- **Across a fleet of specialized models** — Ch18 Operating Multiple Models, Ch20 Fleet-Level Optimization
 
-Deciding where intelligence lives — rather than which attention variant a model card lists — is the actual job of an AI Solution Architect. The frontier of 2026 makes that explicit: DeepSeek-V4-Flash vs Qwen3.8-Flash vs a fleet of specialised agents on a 2×DGX cluster are no longer merely *model* choices; they are *placement-of-intelligence* choices whose economics this handbook's chapters give the tools to evaluate.
+Deciding where intelligence lives — rather than which attention variant a model card lists — is the actual job of an AI Solution Architect. The frontier of 2026 makes that explicit: DeepSeek-V4-Flash vs Qwen3.8-Flash vs a fleet of specialized agents on a 2×DGX cluster are no longer merely *model* choices; they are *placement-of-intelligence* choices whose economics this handbook's chapters give the tools to evaluate.
 
 ## 8. First-hand Sources (all [1P])
 

@@ -44,7 +44,7 @@ The canonical enterprise-Q&A RAG workload sits firmly on the **server** tier. We
 
 So a single 8×H100 server is the right archetype — which is exactly what earlier chapters assumed. [2° DERIVED]
 
-### Escalating: When 10× Traffic Forces the Cluster Tier
+### Escalating: When 10×Traffic Forces the Cluster Tier
 
 Now suppose the workload's demand grows to ~100 rps average (a 10×). Recompute the ceiling:
 

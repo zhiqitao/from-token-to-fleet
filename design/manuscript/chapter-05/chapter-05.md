@@ -28,7 +28,7 @@ The arrow from workload to selection surfaces is the one the architect must keep
 
 ## 3. Worked Example — Embedding‑Model vs Generation‑Model Selection for the Canonical RAG Workload
 
-The canonical scenario (§14 of book-architecture.md) is an enterprise Q&A over internal documents (RAG): ~2,000 registered users, ~10 requests/s average, ~40 rps peak; average prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output; 70B-class dense model, FP16 (~140 GB), 1 host with 8 × H100-class GPUs (80 GB each). TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. SLO: p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
+The canonical scenario (§14 of book-architecture.md) is an enterprise Q&A over internal documents (RAG): ~2,000 registered users, ~10 requests/s average, ~40 rps peak; average prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output; 70B-class dense model, FP16 (~140 GB), 1 host with 8 ×H100-class GPUs (80 GB each). TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. SLO: p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
 
 We walk the two‑model selection for this workload.
 
@@ -49,9 +49,9 @@ Three realistic options, each with documented properties:
 
 [2°] DERIVED: for a 1 M‑chunk corpus, the index storage for a $D$‑dim float32 vector corpus is $\text{bytes} = n_\text{chunks} \times D \times 4$. For 768‑dim: $1{\times}10^6 \times 768 \times 4 \approx 4$ GB; for 384‑dim, ~1 GB. This is a one‑time ingestion cost amortized over the fleet lifetime; even at 10× the corpus size the storage differential remains < 2 GB, which is negligible relative to a 140 GB base model.
 
-(to be verified) HYPOTHESIS: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2× FLOP cost — a workload‑specific tradeoff, not a universal rule.
+(to be verified) HYPOTHESIS: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2×FLOP cost — a workload‑specific tradeoff, not a universal rule.
 
-**Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the 4× FLOP cost over all‑mpnet‑base‑v2.
+**Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the 4×FLOP cost over all‑mpnet‑base‑v2.
 
 **Table 5-1** — Model-selection decision: embedding vs generation model
 | metric | value | derivation |
@@ -67,9 +67,9 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 #### Real‑derived arithmetic for the 70B candidate
 
-[1P] FACT: a 70B‑parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (model-card specification, vendor‑published). [1P] FACT: 8 × H100 GPUs provide 8 × 80 GB = 640 GB aggregate HBM memory.
+[1P] FACT: a 70B‑parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (model-card specification, vendor‑published). [1P] FACT: 8 ×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory.
 
-[DERIVED] KV‑cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 × 2 × 8192 × 2 = 2,621,440 bytes ≈ 2.5 MB/token (FP16) (key + value across all layers). For the canonical 9.2K input: 9,200 × 2.5 MB ≈ 23.4 GB of KV cache.
+[DERIVED] KV‑cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.5 MB/token (FP16) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.5 MB ≈ 23.4 GB of KV cache.
 
 [DERIVED] per‑request memory budget: 640 GB total HBM − 140 GB weights = 500 GB headroom. The 23.4 GB KV cache for 9.2K input consumes 4.7% of headroom, leaving ~476.6 GB for activations, intermediate buffers, and OS overhead. This is comfortably within a single 8×H100 node's capacity.
 

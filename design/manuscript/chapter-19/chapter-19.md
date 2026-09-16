@@ -4,7 +4,7 @@
 
 In large-scale RQA (retrieval-augmented QA) pipelines serving thousands of concurrent users, the transition from static LLM calls to agentic orchestration raises fundamental trade-offs: increased capability versus increased latency, higher per-request token consumption versus better answers, and richer multi-step reasoning versus harder-to-debug execution paths. This chapter addresses the architect's central question: how to design agentic layers that amplify intelligence without unsustainably inflating cost and latency.
 
-We begin from a concrete deployment scenario: ~2,000 users with ~5% concurrent access, driving ~10 requests/second average and ~40 requests/second peak. Each request carries ~9,200 input tokens and produces ~300 output tokens. The base model is a 70B dense FP16 engine running on 8× H100 GPUs (640 GB total memory). The agentic layer sits above this foundation, introducing tool use, retrieval, and multi-step reasoning. The question we answer is how much additional overhead this layer introduces, whether the quality gain justifies the cost, and how to size the infrastructure accordingly.
+We begin from a concrete deployment scenario: ~2,000 users with ~5% concurrent access, driving ~10 requests/second average and ~40 requests/second peak. Each request carries ~9,200 input tokens and produces ~300 output tokens. The base model is a 70B dense FP16 engine running on 8×H100 GPUs (640 GB total memory). The agentic layer sits above this foundation, introducing tool use, retrieval, and multi-step reasoning. The question we answer is how much additional overhead this layer introduces, whether the quality gain justifies the cost, and how to size the infrastructure accordingly.
 
 ## 1. Concept
 
@@ -60,9 +60,7 @@ Consider a user query routed to an agentic RQA pipeline. The pipeline’s defaul
 **Token accounting**:
 - Base single-shot: 9,200 input + 300 output = 9,500 tokens
 - Agentic: 10,350 input + 300 output = 10,650 tokens
-- Amplification factor: 10,650 / 9,500 ≈ 1.12×
-
-Now consider a harder query that exhausts all 4 turns. Each additional tool call adds ~800 tokens of retrieved context and ~100 tokens of model-generated reasoning. The token trajectory grows approximately linearly: after *k* turns, total input tokens ≈ 9,200 + 800*k*, and total output ≈ 300 (final answer) + sum of intermediate model outputs (typically 50–80 tokens per turn). After 4 turns, input ≈ 9,200 + 4×800 + 4×65 = 12,660 tokens, output ≈ 300 tokens, giving a total of ~12,960 tokens. The amplification factor vs. single-shot is 12,960 / 9,500 ≈ 1.36×.
+- Amplification factor: 10,650 / 9,500 ≈ 1.12×Now consider a harder query that exhausts all 4 turns. Each additional tool call adds ~800 tokens of retrieved context and ~100 tokens of model-generated reasoning. The token trajectory grows approximately linearly: after *k* turns, total input tokens ≈ 9,200 + 800*k*, and total output ≈ 300 (final answer) + sum of intermediate model outputs (typically 50–80 tokens per turn). After 4 turns, input ≈ 9,200 + 4×800 + 4×65 = 12,660 tokens, output ≈ 300 tokens, giving a total of ~12,960 tokens. The amplification factor vs. single-shot is 12,960 / 9,500 ≈ 1.36×.
 
 This worked example demonstrates that the cost increase is moderate for short reasoning paths but compounds as the agent loops deeper. The architect must weigh the probability of deep loops against the budget per request.
 
@@ -96,13 +94,13 @@ For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, 
 
 ### Tool-call latency budget
 
-Each tool call incurs two components: (1) the LLM's internal reasoning time to decide and format the call, and (2) the external backend latency. On 8× H100, the per-turn LLM inference time averages 120 ms for a 10,000-token context. Tool backends (search, SQL) add 50–150 ms depending on data volume. The total per-turn latency budget *L* is:
+Each tool call incurs two components: (1) the LLM's internal reasoning time to decide and format the call, and (2) the external backend latency. On 8×H100, the per-turn LLM inference time averages 120 ms for a 10,000-token context. Tool backends (search, SQL) add 50–150 ms depending on data volume. The total per-turn latency budget *L* is:
 
 $$
 L = \lambda_\text{inference} + \lambda_\text{tool}
 $$
 
-where $\lambda_\text{inference} \approx 120$ ms and $\lambda_\text{tool} \approx 100$ ms (median). For *T* turns, the cumulative latency is $T\cdot L$. With the median *T* = 2, the median end-to-end latency is ~2 × 220 ms ≈ 440 ms. The 95th-percentile *T* = 4 yields ~880 ms. These numbers are well within interactive thresholds (<1 s) but must be monitored when scaling to higher concurrency.
+where $\lambda_\text{inference} \approx 120$ ms and $\lambda_\text{tool} \approx 100$ ms (median). For *T* turns, the cumulative latency is $T\cdot L$. With the median *T* = 2, the median end-to-end latency is ~2 ×220 ms ≈ 440 ms. The 95th-percentile *T* = 4 yields ~880 ms. These numbers are well within interactive thresholds (<1 s) but must be monitored when scaling to higher concurrency.
 
 ### Multi-step reasoning cost
 
@@ -112,7 +110,7 @@ $$
 \beta(T) = \frac{T \cdot (\lambda_\text{inference} + \lambda_\text{tool})}{L_0}
 $$
 
-With *T* = 3: β(3) = (3 × 220) / 120 ≈ 5.5× slower than single-shot. With *T* = 1: β(1) ≈ 1.8×. The trade-off is that the agentic system may deliver correct answers where single-shot fails, but the price is a 2–6× latency multiplier depending on turn count.
+With *T* = 3: β(3) = (3 ×220) / 120 ≈ 5.5× slower than single-shot. With *T* = 1: β(1) ≈ 1.8×. The trade-off is that the agentic system may deliver correct answers where single-shot fails, but the price is a 2–6× latency multiplier depending on turn count.
 
 These derived quantities give the architect concrete numbers to set policies: cap *T* at 3 unless the quality gain is statistically significant, and allocate ~220 ms per turn in the latency budget.
 
@@ -132,7 +130,7 @@ These derived quantities give the architect concrete numbers to set policies: ca
 
 Introducing an agentic layer reshapes the system architecture in four ways:
 
-**Inference scaling.** The base model (70B FP16, 8× H100) must now serve variable-length contexts, and — critically — the KV-residency conclusion is far more severe than a per-latency convenience because the canonical per-token KV is ~2.5 MB/token (Chapter 7). A request that triggers 4 agent turns carries ~12,960 tokens vs. 9,500 for single-shot (Table 19-1) — that is not a "35% GPU memory" tweak but a move from ~23.8 GB KV per request (9,500 tokens × 2.5 MB) to ~32.4 GB (12,960 × 2.5 MB) — roughly a 36% growth, on top of an already-large KV footprint. At 100 concurrent users with the median 2-turn profile (~28.1 GB/request at 11,230 tokens), the aggregate KV alone is ~2.7 TB — far beyond one host's ~436 GB KV budget, so **agents do not just stress memory, they force a fleet** (Chapter 17). The architect must therefore treat context growth as a first-order capacity driver: cap *T*, cache prefixes, or quantize KV (FP8), as these levers repeatedly outprice adding hosts. Note we must be precise: the per-request KV is set by the model's canonical per-token KV, not by the small per-layer figures an earlier draft used; the honest number is tens of GB per request, which is exactly why agentic depth is a fleet-sizing problem.
+**Inference scaling.** The base model (70B FP16, 8×H100) must now serve variable-length contexts, and — critically — the KV-residency conclusion is far more severe than a per-latency convenience because the canonical per-token KV is ~2.5 MB/token (Chapter 7). A request that triggers 4 agent turns carries ~12,960 tokens vs. 9,500 for single-shot (Table 19-1) — that is not a "35% GPU memory" tweak but a move from ~23.8 GB KV per request (9,500 tokens × 2.5 MB) to ~32.4 GB (12,960 ×2.5 MB) — roughly a 36% growth, on top of an already-large KV footprint. At 100 concurrent users with the median 2-turn profile (~28.1 GB/request at 11,230 tokens), the aggregate KV alone is ~2.7 TB — far beyond one host's ~436 GB KV budget, so **agents do not just stress memory, they force a fleet** (Chapter 17). The architect must therefore treat context growth as a first-order capacity driver: cap *T*, cache prefixes, or quantize KV (FP8), as these levers repeatedly outprice adding hosts. Note we must be precise: the per-request KV is set by the model's canonical per-token KV, not by the small per-layer figures an earlier draft used; the honest number is tens of GB per request, which is exactly why agentic depth is a fleet-sizing problem.
 
 ![Fig 19.2 — Input/output tokens and KV cache per request across agent turns (I₀ + T·δ + T·γ; 9,200 + 800 + 65 per turn), FP16 KV rising from 23.8 GB single-shot to 32.4 GB at 4 turns [DERIVED: Ch19 §3 arithmetic]](figures/fig-19-1902.png)
 
@@ -172,7 +170,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 
 ## 8. End-of-Chapter Mini-Case
 
-**Scenario.** A enterprise RQA system serves 2,000 knowledge workers. The baseline single-shot configuration uses a 70B FP16 model on 8× H100, with 9,200 input tokens and 300 output tokens, handling 10 rps average / 40 rps peak. The team introduces an agentic layer with a maximum of 3 turns, each turn adding a search tool (800 tokens) and an SQL query tool (350 tokens). The guardrail budget caps total input at 13,000 tokens.
+**Scenario.** An enterprise RQA system serves 2,000 knowledge workers. The baseline single-shot configuration uses a 70B FP16 model on 8×H100, with 9,200 input tokens and 300 output tokens, handling 10 rps average / 40 rps peak. The team introduces an agentic layer with a maximum of 3 turns, each turn adding a search tool (800 tokens) and an SQL query tool (350 tokens). The guardrail budget caps total input at 13,000 tokens.
 
 **Measurement results.** Telemetry over 30 days shows:
 - 68% of requests terminate in 1 turn
@@ -183,7 +181,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 **Token and latency impact.**
 - Average total input tokens: 9,200 + (0.68×800) + (0.25×(800+350)) + (0.05×(800+350+800)) ≈ 9,200 + 544 + 287.5 + 97.5 ≈ 10,129 tokens
 - Amplification *α*: 10,129 / 9,500 ≈ 1.07×
-- Average per-turn latency: 220 ms → median end-to-end latency: 2 × 220 ms ≈ 440 ms (vs. ~120 ms single-shot)
+- Average per-turn latency: 220 ms → median end-to-end latency: 2 ×220 ms ≈ 440 ms (vs. ~120 ms single-shot)
 - 95th-percentile latency (T ≈ 4 with fallback): ~880 ms
 
 **Architectural actions.** The team sets the turn limit to 3, instruments each turn's token and latency, and adds a context cache for the search tool. With the cache hit rate of 30% on recurring queries, the effective *δ* drops to ~560 tokens, reducing average amplification to ~1.04× and median latency to ~350 ms. The system now meets the SLA of <1 s 95th-percentile latency while delivering higher-quality answers on complex queries.

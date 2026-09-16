@@ -8,11 +8,11 @@ After chapters on tokens, workloads, and memory, the architect naturally asks: *
 
 Compute in a language model is priced in floating-point operations, or FLOPs. Every matrix multiplication, every attention weight update, every activation function evaluation contributes to the total. The architect's first principle is that FLOPs scale linearly with parameter count and context length, but the *efficiency* with which those FLOPs are executed depends on the hardware ridge point and the arithmetic intensity of the kernel.
 
-For a dense transformer layer, the dominant cost is the matrix multiplication — query-key, value-aggregation, and MLP projections. In FP16, a single multiply-add counts as two FLOPs. The per-token cost is therefore approximately 2 × N FLOPs where N is the number of active parameters. This is the arithmetic baseline: every token processed costs roughly two floating-point operations per parameter.
+For a dense transformer layer, the dominant cost is the matrix multiplication — query-key, value-aggregation, and MLP projections. In FP16, a single multiply-add counts as two FLOPs. The per-token cost is therefore approximately 2 ×N FLOPs where N is the number of active parameters. This is the arithmetic baseline: every token processed costs roughly two floating-point operations per parameter.
 
 But FLOPs alone do not tell the full story. The hardware can only execute FLOPs if data is available — weights, activations, and KV cache all compete for the same HBM bandwidth. The arithmetic intensity (FLOP/byte) determines whether a kernel is compute-bound (intensity above the ridge point) or memory-bound (intensity below). This roofline model is the central diagnostic tool of this chapter: it tells us, for any given layer and precision, whether increasing FLOPs will actually reduce latency or whether we are already starved for bytes.
 
-The chapter unfolds in four parts. First, the core arithmetic: FLOPs per token, prefill PFLOP counts, and H100 sustained utilization. Second, the roofline: why early layers are compute-bound while later layers and decode are memory-bound. Third, the canonical scenario arithmetic: 70B on 8 × H100, TTFT 1.2 s, TPOT ~25 ms. Fourth, the mini-case: a continuous deployment scenario that threads the prefill/decode divide.
+The chapter unfolds in four parts. First, the core arithmetic: FLOPs per token, prefill PFLOP counts, and H100 sustained utilization. Second, the roofline: why early layers are compute-bound while later layers and decode are memory-bound. Third, the canonical scenario arithmetic: 70B on 8 ×H100, TTFT 1.2 s, TPOT ~25 ms. Fourth, the mini-case: a continuous deployment scenario that threads the prefill/decode divide.
 
 ## 2. Mental Model
 
@@ -20,7 +20,7 @@ Think of FLOPs as the distance a car can travel on a gallon of fuel: it tells us
 
 ## 3. Worked Example: Canonical Scenario Arithmetic
 
-The canonical scenario (§14, book-architecture.md) is an enterprise Q&A system: 70B-class dense model, FP16 weights (~140 GB), 1 host with 8 × H100-class GPUs (80 GB each), ~10 requests/s average, peaks ~40 rps, average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
+The canonical scenario (§14, book-architecture.md) is an enterprise Q&A system: 70B-class dense model, FP16 weights (~140 GB), 1 host with 8 ×H100-class GPUs (80 GB each), ~10 requests/s average, peaks ~40 rps, average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
 
 ### FLOPs per token
 
@@ -30,7 +30,7 @@ $$
 \text{FLOP/}_{\text{token}} \approx 2 \times N = 2 \times 70 \times 10^9 \approx 140 \text{ GFLOP/token}
 $$
 
-[DERIVED: 2 FLOPs/parameter × 70 × 10⁹ params; standard dense-forward arithmetic, consistent with the 175B ≈ 0.35 TFLOP/token correction from moe-vs-dense E5]
+[DERIVED: 2 FLOPs/parameter × 70 ×10⁹ params; standard dense-forward arithmetic, consistent with the 175B ≈ 0.35 TFLOP/token correction from moe-vs-dense E5]
 
 This applies to both prefill and decode: each token that enters the forward pass costs ~140 GFLOP. The distinction between prefill and decode is not in the per-token FLOP count but in the data movement pattern — preflight reads the full context once, while decode re-reads weights per token.
 
@@ -42,9 +42,9 @@ $$
 \text{prefill FLOPs} \approx 2 \times N \times L = 2 \times 70 \times 10^9 \times 9.2 \times 10^3 \approx 1.29 \text{ PFLOP}
 $$
 
-[DERIVED: 2 × N × L where N=70B, L=9,200; reconciles with Ch.2 scaling law if the full 14.8T-token pre-train budget is distributed across active parameters; the figure is large because the full context is attended to, but it is a one-time cost per request, not a sustained rate]
+[DERIVED: 2 ×N × L where N=70B, L=9,200; reconciles with Ch.2 scaling law if the full 14.8T-token pre-train budget is distributed across active parameters; the figure is large because the full context is attended to, but it is a one-time cost per request, not a sustained rate]
 
-*Accuracy of the 2 × N × L approximation.* This linear prefill count omits the quadratic attention term, $\approx 4 \times n_\text{layers} \times L^2 \times d$. At the canonical 9.2K context that correction is small — roughly **+17%** of the 1.29 PFLOP — so the 2NL roofline is a sound teaching baseline there. But the omission grows with context: at 32K the attention term is ~**+60%** and at 128K it *dominates* (~2.4× the linear term). An architect sizing long-context prefill must add the quadratic term or measure it; the Unknowns section returns to this.
+*Accuracy of the 2 ×N × L approximation.* This linear prefill count omits the quadratic attention term, $\approx 4 \times n_\text{layers} \times L^2 \times d$. At the canonical 9.2K context that correction is small — roughly **+17%** of the 1.29 PFLOP — so the 2NL roofline is a sound teaching baseline there. But the omission grows with context: at 32K the attention term is ~**+60%** and at 128K it *dominates* (~2.4× the linear term). An architect sizing long-context prefill must add the quadratic term or measure it; the Unknowns section returns to this.
 
 At 10 requests/s, the sustained prefill throughput demand is:
 
@@ -58,15 +58,15 @@ $$
 
 | metric | value | derivation |
 |---|---|---|
-| per-token FLOPs (forward) | ~140 GFLOP/token | 2 × 70B params [DERIVED; consistent with moe-vs-dense E5 correction: 175B ≈ 0.35 TFLOP/token] |
-| prefill FLOPs for 9.2K input | ~1.29 PFLOP | 2 × 70 × 10⁹ × 9.2 × 10³ [DERIVED] |
+| per-token FLOPs (forward) | ~140 GFLOP/token | 2 ×70B params [DERIVED; consistent with moe-vs-dense E5 correction: 175B ≈ 0.35 TFLOP/token] |
+| prefill FLOPs for 9.2K input | ~1.29 PFLOP | 2 ×70 ×10⁹ × 9.2 ×10³ [DERIVED] |
 | sustained prefill demand @ 10 rps | ~12.9 PFLOP/s | 1.29 PFLOP × 10 [DERIVED] |
 | H100 peak FP16 TFLOPS | ~989 TFLOPS [1P: facts/training.md T5] | NVIDIA H100 SXM5 datasheet, without sparsity |
 | H100 sustained MFU (typical) | 30–40% [2°: industry benchmarks] | ~346 TFLOPS sustained at 35% MFU |
 | H100 ridge point (dense FP16) | ~295 FLOP/byte | 989 ÷ 3.35 [DERIVED: peak TFLOPS ÷ HBM bandwidth] |
 
 *All figures trace to the canonical scenario (§14) and validated old-repo sources; none are measurement claims.*
-This is the prefill compute demand. An 8 × H100 node can sustain some fraction of this at MFU (mixed-precision FLOP utilization), which we estimate next.
+This is the prefill compute demand. An 8 ×H100 node can sustain some fraction of this at MFU (mixed-precision FLOP utilization), which we estimate next.
 
 ### Sustained vs. peak: H100 MFU
 
@@ -104,7 +104,7 @@ This rough sizing illustrates that prefill is FLOP-bound at this scale — the c
 
 <!-- Figure spec: mechanism-first roofline diagram; arithmetic intensity on x-axis, achievable FLOP/s on y-axis, ridge line where FLOP-bound meets byte-bound; label the prefill and decode operating points. -->
 
-For decode, the per-token FLOP cost is the same ~140 GFLOP, but the arithmetic intensity drops sharply. Each decoded token re-reads all 70B weights from HBM. A 70B FP16 weight matrix is 70 × 10⁹ × 2 B = 140 GB — one full pass reads **140 GB**, not 280 GB. (The naïve “2 × 70 × 10⁹ × 2 B ≈ 280 GB” double-counts the FP16 footprint: the leading “2” is already inside the 2-bytes-per-element, so writing 2 × 70 × 10⁹ × 2 B counts the weight bytes twice. Any KV/output-projection reads are a separate, smaller term on top, not a second full weight footprint.) The effective arithmetic intensity is therefore:
+For decode, the per-token FLOP cost is the same ~140 GFLOP, but the arithmetic intensity drops sharply. Each decoded token re-reads all 70B weights from HBM. A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB — one full pass reads **140 GB**, not 280 GB. (The naïve “2 ×70 ×10⁹ × 2 B ≈ 280 GB” double-counts the FP16 footprint: the leading “2” is already inside the 2-bytes-per-element, so writing 2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any KV/output-projection reads are a separate, smaller term on top, not a second full weight footprint.) The effective arithmetic intensity is therefore:
 
 $$
 \text{arithmetic intensity}_{\text{decode}} \approx \frac{140 \text{ GFLOP}}{140 \text{ GB}} \approx 1.0 \text{ FLOP/byte}
@@ -156,15 +156,15 @@ In practice, the architect measures arithmetic intensity for the target workload
 
 - **Arithmetic intensity of emerging attention mechanisms.** Linear attention (DeltaNet, MLA), compressed attention (CSA, HCA), and hybrid sparse patterns have different FLOP profiles and data movement. Their roofline position is not yet established in primary sources.
 
-- **Frontier 2026 has begun to answer this.** DeepSeek-V4's hybrid CSA+HCA attention reports that, at 1M-token context, single-token inference drops to ~27% of the FLOPs (Pro) / ~10% (Flash) and KV cache to ~10% / ~7% of DeepSeek-V3.2 [1P: arXiv 2606.19348]. GLM-5.3-Flash's sparse+linear hybrid reports a ~3× attention-compute and ~4.4× KV-cache reduction [1P: HF zai-org/GLM-5.3-Flash]. These are [1P] first-party vendor figures, not yet independently reprofiled on our own hardware — which is exactly the arithmetic-intensity measurement an architect should still do before trusting a vendor's roofline claim for their own workload.
+- **Frontier 2026 has begun to answer this.** DeepSeek-V4's hybrid CSA+HCA attention reports that, at 1M-token context, single-token inference drops to ~27% of the FLOPs (Pro) / ~10% (Flash) and KV cache to ~10% / ~7% of DeepSeek-V3.2 [1P: arXiv 2606.19348]. GLM-5.3-Flash's sparse+linear hybrid reports a ~3× attention-compute and ~4.4×KV-cache reduction [1P: HF zai-org/GLM-5.3-Flash]. These are [1P] first-party vendor figures, not yet independently reprofiled on our own hardware — which is exactly the arithmetic-intensity measurement an architect should still do before trusting a vendor's roofline claim for their own workload.
 
 - **How quantization shifts the ridge.** Moving from FP16 to FP8/int8 changes peak TFLOP/s and bytes-per-operand, shifting the ridge point. The net effect depends on the quantization scheme (element-wise vs. per-tensor, dynamic vs. static) and whether the kernel is re-tuned for the lower precision.
 
 ## 8. End-of-Chapter Mini-Case: Continuous Deployment Scenario
 
-An architect is brought into an ongoing deployment of a 70B-class Q&A system on 8 × H100 GPUs. The system is serving ~10 requests/s average with ~9.2K input + 300 output tokens per request, and the TTFT budget is being missed: p95 TTFT is 2.8 s, exceeding the SLO of 2 s. The TPOT of 28 ms/token is within spec, but the prefill delay is the bottleneck.
+An architect is brought into an ongoing deployment of a 70B-class Q&A system on 8 ×H100 GPUs. The system is serving ~10 requests/s average with ~9.2K input + 300 output tokens per request, and the TTFT budget is being missed: p95 TTFT is 2.8 s, exceeding the SLO of 2 s. The TPOT of 28 ms/token is within spec, but the prefill delay is the bottleneck.
 
-The architect first profiles the arithmetic intensity of the prefill kernel. The per-token FLOP count is ~140 GFLOP (2 × 70B), and the effective bandwidth per token is ~140 GB (re-reading the 70B weight matrix from HBM for each of the 9.2K input tokens). This gives an effective FLOP/byte of roughly 140 GFLOP ÷ 140 GB ≈ 1 FLOP/byte — well below the H100 dense-FP16 ridge of ~295 FLOP/byte. The kernel is strongly memory-bound during prefill.
+The architect first profiles the arithmetic intensity of the prefill kernel. The per-token FLOP count is ~140 GFLOP (2 ×70B), and the effective bandwidth per token is ~140 GB (re-reading the 70B weight matrix from HBM for each of the 9.2K input tokens). This gives an effective FLOP/byte of roughly 140 GFLOP ÷ 140 GB ≈ 1 FLOP/byte — well below the H100 dense-FP16 ridge of ~295 FLOP/byte. The kernel is strongly memory-bound during prefill.
 
 The immediate question: why is prefill memory-bound when the H100 has 3.35 TB/s HBM3 bandwidth? The answer is that a 9.2K input context means each prefill pass reads the full weight matrix once, but the activation keys/values for 9.2K tokens also flow through the pipeline. The total bytes per token are higher than the weight-read alone, and the effective intensity drops further.
 
@@ -178,4 +178,4 @@ The architect's recommendation: enable continuous batching with a target batch s
 
 *Reading the roofline (summary of Fig 8.1): the dense-FP16 ridge at ~295 FLOP/byte (H100: 989 TFLOPS ÷ 3.35 TB/s) separates the compute-bound region (right) from the memory-bound region (left). Prefill kernels typically operate in the 1–3 FLOP/byte range for long contexts, decode kernels near 1.0 FLOP/byte at batch=1; batching and quantization shift kernels rightward toward the ridge.*
 
-*Prefill PFLOP also grows with context: 2 × 70B × L tokens, from 2K to 32K. This is the one-time compute cost of loading a long context; sustained throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point it is ~1.29 PFLOP (Table 8-1).*
+*Prefill PFLOP also grows with context: 2 ×70B × L tokens, from 2K to 32K. This is the one-time compute cost of loading a long context; sustained throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point it is ~1.29 PFLOP (Table 8-1).*

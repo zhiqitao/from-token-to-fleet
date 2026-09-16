@@ -16,7 +16,7 @@ Think of the KV cache as **per-request state that survives for the duration of a
 
 ## 3. Worked Example
 
-We anchor all arithmetic in the canonical scenario (§14 of book-architecture.md): a 70B-class dense model, FP16 weights (2 bytes per parameter), 8 × GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV-cache size per token, total KV for the canonical context, and contrast with long-context variants.
+We anchor all arithmetic in the canonical scenario (§14 of book-architecture.md): a 70B-class dense model, FP16 weights (2 bytes per parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV-cache size per token, total KV for the canonical context, and contrast with long-context variants.
 
 **Table 7-1** — KV-cache size per token and per-context arithmetic for a 70B-class dense model at FP16. *(All per-context KV totals, residency figures, and fit/non-fit verdicts below are [2° DERIVED] from the per-token formula 2 × layers × hidden_dim × bytes; model-card architecture constants are [1P: model card].)*
 
@@ -26,19 +26,19 @@ We anchor all arithmetic in the canonical scenario (§14 of book-architecture.md
 | hidden_dim | 8192 | canonical 70B full-MHA teaching model [1P: canonical-workload.yaml] |
 | bytes per parameter (FP16) | 2 | FP16 = 2 bytes/param [1P: facts/quantization.md Q3] |
 | KV cache per token per layer | 2 × hidden_dim × bytes | one key + one value per layer |
-| KV cache per token (FP16) | 2 × 80 × 8192 × 2 B ≈ 2.5 MB | = 2,560 KB; rounded |
-| KV cache per token (8-bit) | 2 × 80 × 8192 × 1 B ≈ 1.3 MB | = 1,280 KB; reconciles with Ch.1 |
-| 9.2K input KV cache | 9,200 × 2.5 MB ≈ 23.9 GB | 9,200 × 2,560 KB |
-| 300 output KV cache | 300 × 2.5 MB ≈ 0.75 GB | 300 × 2,560 KB |
+| KV cache per token (FP16) | 2 ×80 ×8192 ×2 B ≈ 2.5 MB | = 2,560 KB; rounded |
+| KV cache per token (8-bit) | 2 ×80 ×8192 ×1 B ≈ 1.3 MB | = 1,280 KB; reconciles with Ch.1 |
+| 9.2K input KV cache | 9,200 ×2.5 MB ≈ 23.9 GB | 9,200 ×2,560 KB |
+| 300 output KV cache | 300 ×2.5 MB ≈ 0.75 GB | 300 ×2,560 KB |
 | total inference KV (9.2K + 300) | ≈ 24.7 GB | weights 140 GB + KV 24.7 GB ≈ 164.7 GB |
-| 32K input KV cache | 32,000 × 2.5 MB ≈ 80.0 GB | long-context variant |
-| 128K input KV cache | 128,000 × 2.5 MB ≈ 320.0 GB | aggressive long-context variant |
+| 32K input KV cache | 32,000 ×2.5 MB ≈ 80.0 GB | long-context variant |
+| 128K input KV cache | 128,000 ×2.5 MB ≈ 320.0 GB | aggressive long-context variant |
 | 70B FP16 weights | 70B × 2 B = 140 GB | [1P: DERIVED from 70B × 2 bytes] |
 | inference residency (weights + KV, 9.2K input) | ≈ 164.7 GB | 140 + 24.7 GB |
 | inference residency (weights + KV, 32K input) | ≈ 220.0 GB | 140 + 80.0 GB |
 | inference residency (weights + KV, 128K input) | ≈ 460.0 GB | 140 + 320.0 GB |
-| 2×H100 total VRAM | 2 × 80 GB = 160 GB | [1P: facts/serving.md S8] |
-| 8×H100 total VRAM | 8 × 80 GB = 640 GB | [1P: facts/serving.md S8] |
+| 2×H100 total VRAM | 2 ×80 GB = 160 GB | [1P: facts/serving.md S8] |
+| 8×H100 total VRAM | 8 ×80 GB = 640 GB | [1P: facts/serving.md S8] |
 | fits 2×H100 at 9.2K? | no, 164.7 GB > 160 GB | requires ≥2×H100 with small overflow |
 | fits 8×H100 at 9.2K? | yes | 164.7 GB < 640 GB |
 | fits 8×H100 at 32K? | yes | 220.0 GB < 640 GB |
@@ -105,7 +105,7 @@ $$
 
 - **Treating quantization as a uniform 2×–4× reducer.** KV-cache quantization (FP8 ≈54% of BF16) gives a ~46% reduction, not 2× or 4×. Weight quantization gives the larger reductions; do not apply the same expectation to the KV cache.
 
-- **Overlooking the fine-tuning residency floor.** Full fine-tuning of 70B requires ~1.26 TB with Adam optimizer states — roughly 2× 8×H100. This is not a temporary overhead; it is the permanent memory floor for the training duration.
+- **Overlooking the fine-tuning residency floor.** Full fine-tuning of 70B requires ~1.26 TB with Adam optimizer states — roughly 2×8×H100. This is not a temporary overhead; it is the permanent memory floor for the training duration.
 
 ## 6. Architecture Consequence
 
@@ -127,9 +127,9 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 - Quality loss from aggressive KV quantization (2-bit KIVI, or sub-4-bit schemes) at very long context lengths (128K+, MoE experts). The primary sources anchor FP8 KV ≈54% of BF16 at near-zero quality loss, but 2-bit asymmetric patterns and their interaction with RoPE and sliding-window layers are not fully mapped.
 
-- Whether per-request KV caching can be partially offloaded to CPU DRAM during decode without TTFT impact, beyond the vLLM KV Offloading Connector's 2–22× TTFT reduction range which is highly prompt-size-dependent. The community is converging on tiered KV storage (GPU resident hot set + CPU/DRAM cold set), but the latency trade-offs at concurrency > 1 are not yet primary-anchored.
+- Whether per-request KV caching can be partially offloaded to CPU DRAM during decode without TTFT impact, beyond the vLLM KV Offloading Connector's 2–22×TTFT reduction range which is highly prompt-size-dependent. The community is converging on tiered KV storage (GPU resident hot set + CPU/DRAM cold set), but the latency trade-offs at concurrency > 1 are not yet primary-anchored.
 
-- **Frontier 2026 has begun re-engineering the KV constant factor, not just quantizing it.** All four 2026-class open architectures attack KV-cache size at the attention layer itself, on top of the per-token footprint this chapter derives: DeepSeek-V4's hybrid CSA+HCA reports KV cache at only ~10% (Pro) / ~7% (Flash) of DeepSeek-V3.2 at 1M-token context [1P: arXiv 2606.19348]; GLM-5.3-Flash's sparse+linear hybrid reports ~4.4× KV reduction [1P: HF zai-org/GLM-5.3-Flash]; Kimi K3's Kimi Delta Attention + Attention Residuals targets information flow across long sequences [1P: arXiv 2607.24653]; Qwen3.8-Flash-Next combines Gated DeltaNet (compress history) with Qwen Sparse Attention (micro-block indexing) for long-context cost [1P: HF Qwen/Qwen3.8-Flash-Next]. For the architect this is a decisive shift: the KV arithmetic in this chapter (per-token × context) is *not* a fixed constant across model generations — a 2026 hybrid-attention model can hold dramatically more context per byte of KV than the canonical 70B/8×H100 framing assumed. Size the host against the *specific* model's KV scheme, not a universal constant.
+- **Frontier 2026 has begun re-engineering the KV constant factor, not just quantizing it.** All four 2026-class open architectures attack KV-cache size at the attention layer itself, on top of the per-token footprint this chapter derives: DeepSeek-V4's hybrid CSA+HCA reports KV cache at only ~10% (Pro) / ~7% (Flash) of DeepSeek-V3.2 at 1M-token context [1P: arXiv 2606.19348]; GLM-5.3-Flash's sparse+linear hybrid reports ~4.4×KV reduction [1P: HF zai-org/GLM-5.3-Flash]; Kimi K3's Kimi Delta Attention + Attention Residuals targets information flow across long sequences [1P: arXiv 2607.24653]; Qwen3.8-Flash-Next combines Gated DeltaNet (compress history) with Qwen Sparse Attention (micro-block indexing) for long-context cost [1P: HF Qwen/Qwen3.8-Flash-Next]. For the architect this is a decisive shift: the KV arithmetic in this chapter (per-token × context) is *not* a fixed constant across model generations — a 2026 hybrid-attention model can hold dramatically more context per byte of KV than the canonical 70B/8×H100 framing assumed. Size the host against the *specific* model's KV scheme, not a universal constant.
 
 - The impact of MoE routing on KV cache: does each token really emit a full key/value per layer across all experts, or does routing activate only a subset? The MoE-vs-dense facts (E1, E5) confirm that attention layers process every token densely and emit key/value per token, so MoE sparsity does not reduce KV — but the constant factor for MoE models (e.g., number of experts per layer) needs per-model validation.
 
@@ -163,4 +163,4 @@ From the token layer alone (which we worked through in this chapter), the archit
 
 Running the KV arithmetic: if each request uses ~9.2K retrieved context tokens (the canonical ~1,200 prompt + 8K retrieved) plus ~300 output tokens, the KV cache per request at 70B FP16 is ~24.7 GB. The weight footprint is 140 GB. Total inference residency ≈ 165 GB, which fits in 2×H100 (160 GB) with a small margin, or comfortably in 8×H100 (640 GB). If the context is extended to 32K (e.g., wider document retrieval), the KV cache rises to ~80 GB, pushing total residency to ~220 GB — still fitting in 8×H100 but requiring a multi-GPU node.
 
-The architect can now speak the system's currency: tokens, KV bytes, and the residency floor. The next step — turning "5,000 employees" into ~2,000 concurrent users, ~10 requests/s, and a specific model-and-hardware choice — is Chapter 4's job (workload anatomy). Here the point is narrower and sharper: we can now say, with quantified memory numbers, whether the system fits on the available hardware, and we can compare inference vs. fine-tuning residency floors before committing to a architecture decision. This is the chapter's payoff: the vague request has been translated into concrete constraint numbers, and the architect can defend a recommendation based on whether the workload fits, not on intuition alone.
+The architect can now speak the system's currency: tokens, KV bytes, and the residency floor. The next step — turning "5,000 employees" into ~2,000 concurrent users, ~10 requests/s, and a specific model-and-hardware choice — is Chapter 4's job (workload anatomy). Here the point is narrower and sharper: we can now say, with quantified memory numbers, whether the system fits on the available hardware, and we can compare inference vs. fine-tuning residency floors before committing to an architecture decision. This is the chapter's payoff: the vague request has been translated into concrete constraint numbers, and the architect can defend a recommendation based on whether the workload fits, not on intuition alone.

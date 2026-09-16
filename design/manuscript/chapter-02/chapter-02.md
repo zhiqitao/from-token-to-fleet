@@ -26,7 +26,7 @@ When we ask "is this workload compute-bound or bandwidth-bound?" the answer depe
 
 ## 3. Worked Example
 
-To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from §14: a 70B-class dense model in FP16, 1 host with 8 × H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims.
+To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from §14: a 70B-class dense model in FP16, 1 host with 8 ×H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims.
 
 ### Table 2-1 — Decode bandwidth and prefill FLOPs (worked example, not reference)
 
@@ -39,7 +39,7 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 | H100 HBM3 peak bandwidth | 3.35 TB/s | NVIDIA H100 specs [2° FACT] |
 || Decode: bandwidth verdict | bandwidth-bound | 5.6 > 3.35 → single H100 cannot meet the demand [2° DERIVED] |
 | Prefill: input tokens | 9,200 | 1,200 prompt + 8K context [1P DERIVED] |
-| Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 × 70e9 × 9.2e3 ≈ 1.29 × 10^15 [DERIVED] |
+| Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 ×70e9 ×9.2e3 ≈ 1.29 ×10^15 [DERIVED] |
 | H100 BF16 dense compute | 989 TFLOPS | NVIDIA H100 BF16 tensor-core peak [2° FACT] |
 | Prefill: compute verdict | compute-bound | 1.29 PFLOP / ~1.08 s ≈ 1.19 PFLOPS > 0.989 PFLOPS peak → single H100 insufficient for real-time prefill [DERIVED] |
 

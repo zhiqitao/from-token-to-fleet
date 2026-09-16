@@ -71,7 +71,7 @@ The canonical scenario (defined in the Architecture doc, §14 — one set of num
 *Worked example, not reference.* If average request is ~9.2K input + ~300 output ≈ **9.5K tokens** per request, and traffic is ~10 req/s, then the system ingests:
 
 - **Input tokens/s**: 9,200 tokens/req × 10 req/s = **92,000 tokens/s** (peaks higher at ~40 req/s → ~368k).
-- **Output tokens/s**: 300 × 10 = **3,000 tokens/s** output.
+- **Output tokens/s**: 300 ×10 = **3,000 tokens/s** output.
 - Roughly **30× more input tokens than output tokens** in this workload (9.2K ÷ 300).
 
 **Table 1-1** — Token throughput of the canonical workload (worked example, not reference).
@@ -81,9 +81,9 @@ The canonical scenario (defined in the Architecture doc, §14 — one set of num
 | input tokens / request | ~9,200 | §14 canonical (1,200 prompt + 8K context) |
 | output tokens / request | ~300 | §14 canonical |
 | input / output ratio | ~30× | 9,200 ÷ 300 [2° DERIVED] |
-| input tokens/s @ 10 rps | ~92,000 | 9,200 × 10 [2° DERIVED] |
-| input tokens/s @ peak 40 rps | ~368k | 9,200 × 40 [2° DERIVED] |
-| output tokens/s @ 10 rps | ~3,000 | 300 × 10 [2° DERIVED] |
+| input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [2° DERIVED] |
+| input tokens/s @ peak 40 rps | ~368k | 9,200 ×40 [2° DERIVED] |
+| output tokens/s @ 10 rps | ~3,000 | 300 ×10 [2° DERIVED] |
 
 *(All figures trace to the §14 canonical scenario; none are measurement claims.)*
 

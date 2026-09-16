@@ -73,7 +73,7 @@ def make_titlepage():
     lines.append(r"\vspace{1.5cm}")
     lines.append(r"{\Large\itshape An AI Solution Architect's Handbook\par}")
     lines.append(r"\vspace{0.8cm}")
-    lines.append(r"{\normalsize Version %s\par}" % VERSION)
+    lines.append(r"{\normalsize First edition, 2026\par}")
     lines.append(r"\vfill")
     lines.append(r"{\large Zhiqi Tao\par}")
     lines.append(r"\vspace{0.8cm}")

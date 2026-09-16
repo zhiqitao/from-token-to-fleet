@@ -6,7 +6,7 @@ Before any model is selected, any GPU is counted, any latency budget is allocate
 
 ## 1. Concept
 
-The unit we price, size, and optimise is the **token**. We established what a token is in Chapter 1 — not a word, character, or byte, but whatever the model's tokenizer carves text into via learned byte-pair merging; that token counts are never proportional to character counts; and that “one token ≈ 4 characters” is a rough rule for general-English prose, to be confirmed against the *actual* tokenizer before pricing anything [Ch. 1 §1]. We do not restate that here; this chapter builds on it.
+The unit we price, size, and optimize is the **token**. We established what a token is in Chapter 1 — not a word, character, or byte, but whatever the model's tokenizer carves text into via learned byte-pair merging; that token counts are never proportional to character counts; and that “one token ≈ 4 characters” is a rough rule for general-English prose, to be confirmed against the *actual* tokenizer before pricing anything [Ch. 1 §1]. We do not restate that here; this chapter builds on it.
 
 What Chapter 22 adds is not a re-derivation of the token but a **re-framing of it as the input to a decision loop**. The architect treats a token as a metered unit of thought — the way a kilowatt-hour meters electricity — not because one token is meaningful by itself, but because every downstream cost and capacity number is denominated in it. The durable mental model, unchanged from Chapter 1's: *tokens are the interface between a human's request and a machine's arithmetic, and anything we are asked to size or price reduces to “how many tokens, in what context, with what precision.”* The loop below turns that unit into concrete bounds.
 
@@ -56,11 +56,11 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 | input tokens / request | ~9,200 | 1,200 prompt + 8K RAG context [1P DERIVED] |
 | output tokens / request | ~300 | generated answer length [1P DERIVED] |
 | input / output ratio | ~30× | 9,200 ÷ 300 [2° DERIVED] |
-| input tokens/s @ 10 rps | ~92,000 | 9,200 × 10 [2° DERIVED] |
-| input tokens/s @ peak 40 rps | ~368,000 | 9,200 × 40 [2° DERIVED] |
-| output tokens/s @ 10 rps | ~3,000 | 300 × 10 [2° DERIVED] |
-| output tokens/s @ peak 40 rps | ~12,000 | 300 × 40 [2° DERIVED] |
-| prefill FLOPs per request | ~1.29 PFLOP | 2 × 70B × 9.2K ≈ 1.29 × 10¹⁵ [DERIVED] |
+| input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [2° DERIVED] |
+| input tokens/s @ peak 40 rps | ~368,000 | 9,200 ×40 [2° DERIVED] |
+| output tokens/s @ 10 rps | ~3,000 | 300 ×10 [2° DERIVED] |
+| output tokens/s @ peak 40 rps | ~12,000 | 300 ×40 [2° DERIVED] |
+| prefill FLOPs per request | ~1.29 PFLOP | 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ [DERIVED] |
 | decode bandwidth per token | ~5.6 TB/s | 140 GB weights / 25 ms TPOT [DERIVED] |
 | KV-cache memory per request | ~12 GB (70B, 8-bit KV) | 1.3 MB/token × 9,200 tokens [1P DERIVED] |
 
@@ -100,7 +100,7 @@ The canonical loop's derived quantities have immediate and concrete architecture
 
 These opposite bottlenecks lead to a central architectural decision: **can we disaggregate prefill and decode?** If prefill needs FLOPS and decode needs bandwidth, a single homogeneous GPU pool is suboptimal. A two-pool architecture — a prefill cluster optimized for compute (more GPUs, higher FLOPS, model parallelism) and a decode cluster optimized for bandwidth (faster HBM, PagedAttention, continuous batching) — can achieve the same serving SLO with fewer total GPUs than a homogeneous design. This is the central theme of Chapter 11 (Serving) and Pattern 4 (Prefill/decode disaggregation). The architect who runs the canonical loop and records the derived quantities in Table 22-1 is already positioned to make this decision with numbers, not intuition.
 
-Importantly, the loop does not end at a serving topology; it ends at a *decision about where the intelligence lives*. A 70B dense pool on the fleet is one placement; an 8-bit or MoE variant, a retrieval-first design that buys capability with context rather than parameters, a test-time-search loop that spends compute on hard queries, or an agent runtime that orchestrates several specialised models are all alternative placements of the same capability. The canonical loop's derived quantities — token throughput, KV footprint, prefill FLOPs, TCO — are precisely the numbers an architect uses to compare those placements. So the full hierarchy the loop supports is:
+Importantly, the loop does not end at a serving topology; it ends at a *decision about where the intelligence lives*. A 70B dense pool on the fleet is one placement; an 8-bit or MoE variant, a retrieval-first design that buys capability with context rather than parameters, a test-time-search loop that spends compute on hard queries, or an agent runtime that orchestrates several specialized models are all alternative placements of the same capability. The canonical loop's derived quantities — token throughput, KV footprint, prefill FLOPs, TCO — are precisely the numbers an architect uses to compare those placements. So the full hierarchy the loop supports is:
 
 > Requirement → Workload → Intelligence (where the capability comes from) → System → Architecture → Fleet → **Decision**.
 

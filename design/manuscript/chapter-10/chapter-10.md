@@ -50,7 +50,7 @@ The useful mental model is a **resource triangle**: we have weights (memory), ac
 
 ### Why the Canonical 70B Doesn't Fit One H100
 
-The canonical model is 70B FP16 dense = 140 GB of weights [1P] (reality check: 70 × 10⁹ params × 2 bytes). A single H100 has 80 GB of HBM [2° FACT]. The arithmetic is immediate:
+The canonical model is 70B FP16 dense = 140 GB of weights [1P] (reality check: 70 ×10⁹ params × 2 bytes). A single H100 has 80 GB of HBM [2° FACT]. The arithmetic is immediate:
 
 - The weights alone don't fit on one H100:
 
@@ -150,4 +150,4 @@ The parallelism strategy is forced by the binding constraint, and that constrain
 
 ## 8. End-of-Chapter Mini-Case
 
-An architect inherits a deployment where the internal Q&A model (from Ch1's mini-case) has been fine-tuned and grown to a 400B-parameter MoE. The team reports "parallelism is killing us — everything is slow." The architect applies this chapter's lens. First, weight residency: a 400B model needs ~`400e9 × 2 bytes = 800 GB` even before KV — it spans ~11×H100 at minimum, far beyond one node. It does not fit a node, so pure TP can't span it; PP across nodes is required. Within each node, the MoE active weights are small, so the team uses EP to shard experts + TP inside the node. The architect measures the interconnect: the cross-node PP boundary runs over the cluster fabric (not NVLink), so they minimize the number of PP stages to shrink the bubble, and they verify the DP gradient-sync (if fine-tuning) stays under ~20% of step time. The result: a composed PP × EP × TP configuration whose binding constraints (memory across nodes + expert routing) are each addressed by the strategy that trades the right bandwidth. The team's "parallelism is slow" becomes a precise, diagnosed, and fixed split.
+An architect inherits a deployment where the internal Q&A model (from Ch1's mini-case) has been fine-tuned and grown to a 400B-parameter MoE. The team reports "parallelism is killing us — everything is slow." The architect applies this chapter's lens. First, weight residency: a 400B model needs ~`400e9 ×2 bytes = 800 GB` even before KV — it spans ~11×H100 at minimum, far beyond one node. It does not fit a node, so pure TP can't span it; PP across nodes is required. Within each node, the MoE active weights are small, so the team uses EP to shard experts + TP inside the node. The architect measures the interconnect: the cross-node PP boundary runs over the cluster fabric (not NVLink), so they minimize the number of PP stages to shrink the bubble, and they verify the DP gradient-sync (if fine-tuning) stays under ~20% of step time. The result: a composed PP × EP × TP configuration whose binding constraints (memory across nodes + expert routing) are each addressed by the strategy that trades the right bandwidth. The team's "parallelism is slow" becomes a precise, diagnosed, and fixed split.

@@ -1,7 +1,7 @@
 \section{The Architect's Question}\label{the-architects-question}
 
 Having established the single-host serving model --- a 70B FP16 model on
-8× H100 serving \textasciitilde2,000 registered users at
+8×H100 serving \textasciitilde2,000 registered users at
 \textasciitilde10 rps average / \textasciitilde40 rps peak --- the
 natural next question is: when does one host cease to suffice, and how
 do we scale to a fleet? This chapter answers the architect's question:
@@ -88,15 +88,14 @@ weights − runtime/workspace reserve).
 
 \textbf{Single-host concurrency capacity (KV-bound).} The per-token KV
 footprint for the canonical 70B model is 2 × layers × hidden × bytes = 2
-× 80 × 8,192 × 2 ≈ 2.5 MB/token (\hyperref[chap:7]{Chapter 7} canonical). Subtract the 140
-GB FP16 weights and \textasciitilde64 GB runtime/activations/workspace
-from the 640 GB pool, leaving ≈436 GB available for KV. Each request at
-9,200 input + 300 output reserves 9,500 × 2.5 MB ≈ 23.8 GB of KV. A
-single host therefore holds C = 436 GB ÷ 23.8 GB ≈ \textbf{18 concurrent
-requests} --- three orders of magnitude below the \textasciitilde440 the
-earlier 128-byte/token variant implied. (That variant conflated
-aggregate HBM with KV headroom and used a κ \textasciitilde20,000× too
-small.)
+×80 ×8,192 ×2 ≈ 2.5 MB/token (\hyperref[chap:7]{Chapter 7} canonical). Subtract the 140 GB
+FP16 weights and \textasciitilde64 GB runtime/activations/workspace from
+the 640 GB pool, leaving ≈436 GB available for KV. Each request at 9,200
+input + 300 output reserves 9,500 ×2.5 MB ≈ 23.8 GB of KV. A single host
+therefore holds C = 436 GB ÷ 23.8 GB ≈ \textbf{18 concurrent requests}
+--- three orders of magnitude below the \textasciitilde440 the earlier
+128-byte/token variant implied. (That variant conflated aggregate HBM
+with KV headroom and used a κ \textasciitilde20,000× too small.)
 
 \textbf{Viability at peak.} Peak traffic is 40 rps; with a target
 latency of \textasciitilde1 s that is 40 concurrent requests in flight,
@@ -212,13 +211,13 @@ trips unit analysis):
 \begin{itemize}
 \tightlist
 \item
-  For T = 0 (baseline, I = 9,500): C = 436 GB / (9,500 × 2.5 MB) ≈
+  For T = 0 (baseline, I = 9,500): C = 436 GB / (9,500 ×2.5 MB) ≈
   436/23.8 ≈ \textbf{18 concurrent requests per host}.
 \item
-  For T = 2 (median): C = 436 GB / (10,630 × 2.5 MB) ≈ 436/26.6 ≈
+  For T = 2 (median): C = 436 GB / (10,630 ×2.5 MB) ≈ 436/26.6 ≈
   \textbf{16 concurrent requests per host}.
 \item
-  For T = 4 (95th percentile): C = 436 GB / (12,740 × 2.5 MB) ≈ 436/31.9
+  For T = 4 (95th percentile): C = 436 GB / (12,740 ×2.5 MB) ≈ 436/31.9
   ≈ \textbf{14 concurrent requests per host}.
 \end{itemize}
 
@@ -397,7 +396,7 @@ stateless → software LB with consistent hashing.
 cross‑host communication (distributed retrieval, multi‑model
 orchestration, state sync), a dedicated backend network must be
 provisioned. The minimum bandwidth is B\_min = φ · N · D / λ\_net, and
-the fabric should provide at least 2× B\_min for headroom. In the
+the fabric should provide at least 2×B\_min for headroom. In the
 canonical scenario with φ = 0.1, N = 4, D = 5\,MB, λ\_net = 20\,ms,
 B\_min ≈ 0.5\,Gbps, so a 10\,Gbps intra‑rack network is ample. But the
 architect should instrument φ and D from production telemetry and
@@ -472,21 +471,21 @@ size.
 
 \textbf{Initial sizing analysis.} At T = 3 (worst‑case assumed for
 sizing), I(3) = 9,200 + 3·800 + 3·65 + 300 = 12,095 tokens. With FP16 KV
-(κ = 2.5 MB/token), the per‑request KV is 12,095 × 2.5 MB ≈ 30.2 GB, so
+(κ = 2.5 MB/token), the per‑request KV is 12,095 ×2.5 MB ≈ 30.2 GB, so
 KV‑residency capacity per host is C = M\_kv ÷ 30.2 GB. With M\_kv ≈ 436
 GB (640 − 140 weights − \textasciitilde64 runtime), C ≈ 14 concurrent
 requests per host. With peak latency L = 2\,s (inference + 3 agent
-turns), peak concurrency = λ\_peak × L = 100 × 2 = 200. The fleet must
+turns), peak concurrency = λ\_peak × L = 100 ×2 = 200. The fleet must
 therefore satisfy 200 concurrent in flight against \textasciitilde14 per
-host: even at 70\% utilization target, H = ⌈200/(14 × 0.7)⌉ ≈ 21 hosts
-on FP16 KV --- a much larger fleet than a naive rps-based estimate would
+host: even at 70\% utilization target, H = ⌈200/(14 ×0.7)⌉ ≈ 21 hosts on
+FP16 KV --- a much larger fleet than a naive rps-based estimate would
 suggest. This is exactly why the KV‑residency model matters: it turns a
 plausible-looking ``1--5 hosts'' into an honest ``10--20+ hosts''.
 
 \textbf{KV compression changes the answer.} Switching the KV cache to
-FP8 (κ ≈ 1.3 MB/token) cuts per‑request KV at T=3 to 12,095 × 1.3 MB ≈
+FP8 (κ ≈ 1.3 MB/token) cuts per‑request KV at T=3 to 12,095 ×1.3 MB ≈
 15.7 GB and roughly doubles C to ≈28 per host. The fleet then needs H =
-⌈200/(28 × 0.7)⌉ ≈ 11 hosts. Combined with prompt/prefix caching (which
+⌈200/(28 ×0.7)⌉ ≈ 11 hosts. Combined with prompt/prefix caching (which
 can eliminate the repeated 9,200‑token base prompt from the KV per
 turn), the practical fleet lands in the 6--12 host range rather than 21.
 KV precision and prefix caching are the primary levers that make agentic
