@@ -7,24 +7,24 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 # The correct policy is a SEQUENTIAL cascade with early exit, not a parallel
 # fan-out:  Request -> capability filter -> (yes: specialist model) / (no) ->
 # cost+SLO gate -> (yes: general model) / (no) -> fallthrough general model.
-fig, ax = plt.subplots(figsize=(7.4, 7.2))
+fig, ax = plt.subplots(figsize=(6.0, 6.0))
 ax.set_xlim(0, 20); ax.set_ylim(0, 17); ax.axis('off')
 
 ax.set_title('Routing every request to the right specialised model (sequential cascade)',
              fontsize=11.5, fontweight='bold', ha='center', color='#1a1a1a')
 
-def box(x, y, w, h, label, fc, ec, fs=9, tc='white'):
+def box(x, y, w, h, label, fc, ec, fs=10, tc='white'):
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.04', fc=fc, ec=ec, lw=1.2))
     ax.text(x+w/2, y+h/2, label, ha='center', va='center', fontsize=fs, color=tc, fontweight='bold')
 
 # Root
 box(7.5, 15.0, 5.0, 1.2, 'Request', '#27408b', '#1a3a6b')
 # Gate 1: capability
-box(2.0, 12.0, 6.5, 1.3, 'Capability filter\n(specialised needed?)', '#e67e22', '#b35900', 8)
+box(2.0, 12.0, 6.5, 1.3, 'Capability filter\n(specialised needed?)', '#e67e22', '#b35900', 9)
 # Gate 2: cost/SLO
-box(2.0, 9.0, 6.5, 1.3, 'Cost / SLO gate\n(route = f(cost, latency))', '#e67e22', '#b35900', 8)
+box(2.0, 9.0, 6.5, 1.3, 'Cost / SLO gate\n(route = f(cost, latency))', '#e67e22', '#b35900', 9)
 # Fallthrough
-box(2.0, 6.0, 6.5, 1.3, 'Fallthrough\n(general model)', '#e67e22', '#b35900', 8)
+box(2.0, 6.0, 6.5, 1.3, 'Fallthrough\n(general model)', '#e67e22', '#b35900', 9)
 
 # Specialist models (fed by gate1 'yes' on the right)
 box(0.5, 3.0, 4.2, 1.1, 'Embedding', '#3a6ea5', '#1a3a6b')
@@ -39,7 +39,7 @@ box(14.6, 6.0, 4.2, 1.1, 'Large frontier', '#c0392b', '#8a2a20')
 def arrow(x1,y1,x2,y2,color='#555',lab=None,lx=None,ly=None,lc=None):
     ax.annotate('', xy=(x2,y2), xytext=(x1,y1), arrowprops=dict(arrowstyle='-|>', lw=1.6, color=color))
     if lab:
-        ax.text(lx if lx else (x1+x2)/2, ly if ly else ((y1+y2)/2)+0.2, lab, fontsize=7.5,
+        ax.text(lx if lx else (x1+x2)/2, ly if ly else ((y1+y2)/2)+0.2, lab, fontsize=9,
                 color=lc if lc else color, ha='center', fontweight='bold')
 
 # Request -> gate1
