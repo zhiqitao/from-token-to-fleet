@@ -252,7 +252,12 @@ def _scale_figure_fonts(fig, num):
 
 
 def _duo_savefig(fname, *args, **kwargs):
-    """Write the original output (PNG), then a sibling vector PDF."""
+    """Write the original output (PNG), then a sibling vector PDF.
+
+    Always save with bbox_inches='tight' so no figure clips its own title,
+    tick labels, or edge annotations at the print column (~6.1in).  This fixes
+    the class of defects where wide figures overflowed the trim and truncated
+    their titles / axis labels (publication review 2026-09-16)."""
     text_art_save = False
     try:
         for num in plt.get_fignums():
@@ -262,20 +267,17 @@ def _duo_savefig(fname, *args, **kwargs):
                 text_art_save = True
     except Exception as e:
         print("  (font-scale skipped:", e, ")")
-    # Charts may use tight/constrained layout, which is already applied.
 
     kw = dict(kwargs)
-    if text_art_save:
-        kw.setdefault("bbox_inches", "tight")
-        kw.setdefault("pad_inches", 0.1)
+    kw.setdefault("bbox_inches", "tight")
+    kw.setdefault("pad_inches", 0.08)
     _orig_savefig(fname, *args, **kw)
     if isinstance(fname, str) and fname.lower().endswith(".png"):
         pdf_path = fname[:-4] + ".pdf"
         kwo = dict(kwargs)
         kwo.pop("dpi", None)
-        if text_art_save:
-            kwo.setdefault("bbox_inches", "tight")
-            kwo.setdefault("pad_inches", 0.1)
+        kwo.setdefault("bbox_inches", "tight")
+        kwo.setdefault("pad_inches", 0.08)
         # Embed fonts as TrueType (Type 42) instead of Type 3 so the PDF is
         # accessible / searchable and Type-3 warnings are gone.
         with matplotlib.rc_context({
