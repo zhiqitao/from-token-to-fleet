@@ -314,6 +314,7 @@ def copy_figures():
     return mapping
 
 
+
 def convert(mapping):
     """Run pandoc per chapter -> chapters/chNN.tex with \chapter\label."""
     parts, chapters = read_yaml_chapters()

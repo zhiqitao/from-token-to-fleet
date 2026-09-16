@@ -139,21 +139,16 @@ def emit_book():
     lines.append("")
     lines.append(r"\frontmatter")
     lines.append("")
-    # Preface comes right after the title page, before the table of contents
-    # (the reader meets the author's why before the map).
-    lines.append(r"\chapter{Preface}")
-    lines.append(r"\input{preface}")
-    lines.append("")
-    # The table of contents must start on a fresh page, not share the last
-    # page of the preface (LaTeX's \tableofcontents does not force a break).
-    lines.append(r"\clearpage")
+    # KDP standard front-matter order: TOC (and list of figures) before the
+    # preface.  Each on its own fresh page.
     lines.append(r"\tableofcontents")
     lines.append("")
-    # List of Figures: the figures use proper LaTeX figure environments with
-    # captions, so \listoffigures collects them automatically and acts as a
-    # quick-reference index for the architect (Qwen visual review checklist #4).
     lines.append(r"\clearpage")
     lines.append(r"\listoffigures")
+    lines.append("")
+    lines.append(r"\clearpage")
+    lines.append(r"\chapter{Preface}")
+    lines.append(r"\input{preface}")
     lines.append("")
     lines.append(r"\mainmatter")
     lines.append("")
