@@ -147,11 +147,13 @@ technical corpora.
 {[}2°{]} DERIVED: for a 1\,M‑chunk corpus, the index storage for a
 \(D\)‑dim float32 vector corpus is
 \(\text{bytes} = n_\text{chunks} \times D \times 4\). For 768‑dim:
-\(1{\times}10^6 \times 768 \times 4 \approx 4\) GB; for 384‑dim,
-\textasciitilde1 GB. This is a one‑time ingestion cost amortized over
-the fleet lifetime; even at 10× the corpus size the storage differential
-remains \textless{} 2 GB, which is negligible relative to a 140 GB base
-model.
+\(1{\times}10^6 \times 768 \times 4 = 3.07\) GB; for 384‑dim:
+\(1{\times}10^6 \times 384 \times 4 = 1.54\) GB; a difference of
+\textasciitilde1.5 GB. At 10× the corpus (10 M chunks), that difference
+grows to \textasciitilde15 GB. Small relative to a 140 GB base model,
+but not negligible at large corpus scale: storage is a persistent
+footprint that scales with corpus size, not a one‑time cost that
+vanishes.
 
 (to be verified) HYPOTHESIS: for the canonical 2,000‑user workload with
 \textasciitilde10 rps average, the incremental per‑request compute cost
@@ -213,11 +215,10 @@ single 8×H100 node's capacity.
 {[}2°{]} DERIVED: vLLM continuous batching on 8×H100 with a 70B FP16
 model and 9.2K context yields \textasciitilde50 tokens/s aggregate
 throughput for 300‑token outputs. The prefill phase (9.2K tokens)
-dominates TTFT: measured \textasciitilde1.12 s on this hardware, leaving
-\textasciitilde0.08 s headroom against the 1.2 s TTFT budget (retrieval
-\textasciitilde120 ms + prefill \textasciitilde1.12 s =
-\textasciitilde1.24 s total; the 0.02 s overage is absorbed by the
-retrieval variance and the SLO's p95 framing).
+dominates TTFT: at \textasciitilde1.08 s it leaves \textasciitilde0.12 s
+under the 1.2 s TTFT budget (retrieval \textasciitilde120 ms + prefill
+\textasciitilde1.08 s = \textasciitilde1.20 s, at the SLO), with the p95
+≤ 2 s target giving the real margin.
 
 {[}2°{]} DERIVED: tokens/s per dollar for generation. On‑demand H100
 list price \textasciitilde\$2.50/hour per GPU → 8×H100 = \$20/hour. At
@@ -227,18 +228,14 @@ tokens/s per dollar-hour. In tokens‑per‑dollar terms: 50 tok/s × 3600
 s/hr ÷ \$20/hr = 9,000 tokens per dollar per hour of runtime.
 
 \begin{quote}
-\textbf{Economics unit note (reconciliation with Ch. 4).} This chapter's
-tokens/dollar figures use the GPU \emph{list-price} basis
-(\textasciitilde\$2.50/hr per H100 → \textasciitilde\$20/hr per 8×H100
-host) and are expressed in \textbf{tokens per dollar-hour} (token-rate ×
-3600 s ÷ hourly cost). \hyperref[chap:4]{Chapter 4}'s economics use an \emph{on-demand
-cloud instance} cost basis (\textasciitilde\$3.50/hr per 8×H100 host)
-expressed as \textbf{tokens per second per dollar} (token-rate ÷
-per-second cost). The two are different pricing scenarios and different
-unit conventions; both trace to the same §14 canonical workload. A
+\textbf{Economics unit note (reconciliation with Ch. 4).} Both chapters
+use the same on-demand price basis: \textasciitilde\$2.50/hr per H100 →
+\textasciitilde\$20/hr per 8×H100 host. They differ only in \emph{unit
+convention}: this chapter expresses \textbf{tokens per dollar-hour}
+(token-rate × 3600 s ÷ hourly cost), while \hyperref[chap:4]{Chapter 4} expresses
+\textbf{tokens per second per dollar} (token-rate ÷ per-second cost). A
 reader comparing across Part II should convert units (÷3600 to go
-tokens/dollar-hour → tokens/s/dollar) and re-base the cost before
-cross-chapter comparison. {[}2° DERIVED{]}
+tokens/dollar-hour → tokens/s/dollar). {[}2° DERIVED{]}
 \end{quote}
 
 {[}2°{]} DERIVED: tokens/s per dollar with prefill included. The same
@@ -441,15 +438,16 @@ the architect can immediately check the consequences:
 \tightlist
 \item
   \textbf{768‑dim embeddings} give adequate retrieval quality at
-  \textasciitilde1 GFLOPs per embedding, with \textasciitilde4 GB index
-  storage for the corpus --- a one‑time cost that sits comfortably
+  \textasciitilde1 GFLOPs per embedding, with \textasciitilde3.1 GB
+  index storage for a 1 M‑chunk corpus (vs \textasciitilde1.5 GB at
+  384‑dim) --- a persistent footprint that scales with corpus size,
   alongside the 70B base model.
 \item
   \textbf{9.2K input} at 2.5 MB/KV‑token costs \textasciitilde23.4 GB of
   cache on the 70B generation model, well within the 8×H100 node's 640
-  GB HBM. The prefill TTFT of \textasciitilde1.12 s leaves
-  \textasciitilde0.08 s headroom when retrieval (\textasciitilde120 ms)
-  is added.
+  GB HBM. The prefill TTFT of \textasciitilde1.08 s plus retrieval
+  (\textasciitilde120 ms) sits at the 1.2 s TTFT budget, with the p95 ≤
+  2 s SLO giving the real margin.
 \item
   The \textbf{30× input‑vs‑output ratio} means this system is
   prefill‑dominated; model selection must weigh KV‑cache cost and
