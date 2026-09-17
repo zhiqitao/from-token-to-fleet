@@ -113,30 +113,35 @@ MB/token (2,560 KB; canonical value from \hyperref[chap:7]{Chapter 7}) --- not t
 that a single-layer calculation would suggest. For a 9,500-token
 context, one user's KV-cache is therefore ≈9,500 ×2.5 MB ≈ 23.8 GB, not
 \textasciitilde304 MB. Across 100 concurrent users, total KV-cache
-≈2,380 GB --- which \textbf{does not} fit in the 640 GB GPU pool; only
-≈21--22 concurrent 9,500-token users fit on-host for KV alone (≈512 GB ÷
-23.8 GB), before even counting the 140 GB of weights. This is a
-decisive, order-of-magnitude correction to the intuitive picture:
-long-context KV is a first-order memory constraint, and the architect
-sizes concurrency by KV capacity, not by the small per-layer number.
-Doubling context to 19,000 tokens pushes per-user KV to
-\textasciitilde47 GB and halves on-host concurrency to \textasciitilde11
---- the context-length policy is thus a memory lever as much as (or more
-than) a compute choice. The canonical Unity-check rule
+≈2,380 GB --- which \textbf{does not} fit in the 640 GB GPU pool; using
+the canonical practical KV budget (640 GB − 140 GB weights −
+\textasciitilde64 GB runtime/workspace ≈ 436 GB), only ≈18 concurrent
+9,500-token users fit on-host for KV (436 GB ÷ 23.8 GB), before also
+reserving weight residency. This is a decisive, order-of-magnitude
+correction to the intuitive picture: long-context KV is a first-order
+memory constraint, and the architect sizes concurrency by KV capacity,
+not by the small per-layer number. Doubling context to 19,000 tokens
+pushes per-user KV to \textasciitilde47 GB and halves on-host
+concurrency to \textasciitilde9. The canonical unit-check rule
 (quantity/unit/formula/substitution/result/sanity) catches this class of
 error: if 9,500 tokens × \textasciitilde2.5 MB/token ≈ 24 GB does not
 reconcile with the intended \textasciitilde304 MB, the unit layer-count
 has been dropped.
 
 \emph{Attention FLOP comparison:} Scaled‑dot‑product attention (SDPA)
-for 9,200‑token prompts requires approximately 2 ×L² × d heads FLOPs per
-layer, where L=9,200 and d=8,192/num\_heads. With 64 heads, SDPA FLOPs
-per layer ≈ 2 ×9,200² × 128 ≈ 2.17 ×10\^{}10. FlashAttention fuses the
-read‑write‑compute pattern and reduces HBM traffic by ∼3--5×, achieving
-effective speed‑ups of 2--3× for long contexts despite similar
-arithmetic intensity. This comparison cements the mental model: for
-long‑context serving, kernel choice often matters more than batch‑size
-tuning.
+for 9,200‑token prompts. Attention is two matmuls per token per head ---
+Q·Kᵀ then ·V --- so across all heads the per‑layer cost is ≈ 2 × L² ×
+d\_model, where L=9,200 and d\_model=8,192. That is 2 × 9,200² × 8,192 ≈
+1.4 × 10¹² FLOPs per layer (the full 64 heads; the per‑head figure 2 ×
+9,200² × 128 ≈ 2.2 × 10¹⁰ must be multiplied by the number of heads, not
+quoted alone). Across 80 layers that is ≈ 1.1 × 10¹⁴ FLOPs --- the
+quadratic attention term that grows dominant at long context, as \hyperref[chap:8]{Chapter 8}'s \hyperref[tab:8.1]{Table 8-1} notes. FlashAttention fuses the read‑write‑compute pattern
+and reduces HBM traffic by ∼3--5×, which \emph{raises} the effective
+arithmetic intensity (same FLOP count, less memory movement) and yields
+roughly 2--3× speed‑ups for long contexts --- not because attention gets
+cheaper in FLOPs, but because it stops being starved by memory traffic.
+This comparison cements the mental model: for long‑context serving,
+kernel choice often matters more than batch‑size tuning.
 
 \section{Measurement}\label{measurement}
 
@@ -146,19 +151,20 @@ request type, (b) GPU utilization (SM active, memory bandwidth via
 Nsight), and (c) KV-cache size over time. A minimal benchmark runs 40
 rps with warm‑up, records the p95 token latency, and measures the GPU
 memory fraction consumed by KV-cache. Repeating with different batch
-sizes (1, 4, 16, 32) reveals the throughput‑latency knee: beyond batch‑4
-the p95 latency rises sharply because kernel launch overhead is
-amortized but inter‑request token interleaving increases cache
-thrashing. We also measure the HBM bandwidth consumed per token:
-FlashAttention‑2 shows \textasciitilde150\,GB/s sustained for
-9,500‑token contexts, compared to \textasciitilde400\,GB/s for
-scaled‑dot‑product attention, confirming the memory‑bound nature of
-long‑context inference. Additionally, we profile the KV-cache warm‑up
-cost: a cold start for a 70B model with 9,500‑token context takes
-∼2.1\,s on 8×H100, dominated by HBM writes for the key/value matrices;
-warm starts (reusing cached weights) reduce this to ∼0.3\,s,
-highlighting that cache residency is a first‑order latency factor
-independent of compute throughput.
+sizes (1, 4, 16, 32) reveals the throughput‑latency knee. The
+\emph{illustrative} numbers below are scenario values to be measured on
+the target stack, not vendor or published figures: beyond batch‑4 the
+p95 latency typically rises (implying a knee near batch 4) because
+kernel launch overhead is amortized but inter‑request token interleaving
+increases cache thrashing; FlashAttention‑2 shows roughly 150\,GB/s
+sustained for 9,500‑token contexts vs \textasciitilde400\,GB/s for SDPA
+(an HBM-traffic reduction, not a measured FLOP change), pointing to the
+memory‑bound nature of long‑context inference; and a 70B cold‑start KV
+warm‑up on 8×H100 is on the order of \textasciitilde2 s, with warm
+starts (reusing cached weights) an order of magnitude faster
+(\textasciitilde0.3\,s), showing cache residency is a first‑order
+latency factor independent of compute throughput. {[}ILLUSTRATIVE ---
+set these from the target host's profiler before quoting them as fact{]}
 
 \section{Common Mistakes}\label{common-mistakes}
 
@@ -166,13 +172,15 @@ independent of compute throughput.
 batch size improves TFLOPS utilization but degrades p99 latency because
 tail requests wait for larger chunks to fill. The designer must balance
 batch‑size‑driven arithmetic gain against tail‑latency penalty. A
-practical rule of thumb: choose the smallest batch size that keeps MFU
-above 25\,\% while keeping p95 latency under the SLA target.
-\emph{Ignoring KV-cache growth:} A 70B model with 9,500‑token contexts
-consumes ≈23.8\,GB of KV per user (≈2.5 MB/token × 9,500). Without cache
-eviction, compression, or a concurrency cap, even \textasciitilde22
-concurrent users would exhaust the host's usable KV budget
-(\textasciitilde512 GB) --- so 100 concurrent full-context users require
+practical illustrative rule of thumb: choose the smallest batch size
+that keeps MFU above \textasciitilde25\,\% while keeping p95 latency
+under the SLA target (the 25\,\% threshold and the knee are scenario
+values --- measure them on the target workload). \emph{Ignoring KV-cache
+growth:} A 70B model with 9,500‑token contexts consumes ≈23.8 GB of KV
+per user (≈2.5 MB/token × 9,500). Without cache eviction, compression,
+or a concurrency cap, even \textasciitilde18 concurrent users would
+exhaust the host's canonical practical KV budget (\textasciitilde436 GB
+after weights + runtime), so 100 concurrent full-context users require
 either multiple hosts, much shorter contexts, or KV compression
 (FP8/8-bit). Designers should implement length‑based eviction (drop the
 oldest/least‑recently‑used contexts) and KV quantization to cut the
@@ -180,15 +188,16 @@ footprint (FP8 ≈2.5→1.3 MB/token). \emph{Using scaled‑dot‑product
 attention without FlashAttention:} For long contexts (9,200+ tokens) the
 quadratic memory cost of SDPA (O(L²)) dwarfs the FLOP cost.
 FlashAttention fuses read‑write‑compute and reduces HBM traffic by
-3--5×, raising effective MFU. A corollary mistake is assuming that
-FlashAttention benefits only long contexts; even for moderate lengths
-(2,000--4,000 tokens) the HBM bandwidth reduction translates to
-1.3--1.8× throughput gain on H100. \emph{Neglecting kernel launch
-overhead:} In dynamic‑batching setups, each new token generation can
-trigger a kernel launch. Without continuous batching or token‑level
-fusion, the overhead of launching 380,000 kernels/s (at 40 rps × 9,500
-tokens) can consume 10--20\,\% of GPU time, artificially depressing
-measured MFU.
+\textasciitilde3--5×, raising effective arithmetic intensity. A
+corollary mistake is assuming that FlashAttention benefits only long
+contexts; for moderate lengths (2,000--4,000 tokens) the HBM bandwidth
+reduction typically translates to a \textasciitilde1.3--1.8× throughput
+gain on H100 (illustrative --- bench the specific kernel on the target
+hardware). \emph{Neglecting kernel launch overhead:} In dynamic‑batching
+setups, each new token generation can trigger a kernel launch. Without
+continuous batching or token‑level fusion, the kernel-launch overhead
+(illustratively \textasciitilde10--20\,\% of GPU time on H100-class
+parts at this traffic) can artificially depress measured MFU.
 
 \section{Architecture Consequence}\label{architecture-consequence}
 

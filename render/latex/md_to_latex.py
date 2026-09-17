@@ -208,8 +208,14 @@ def fix_captions(tex_path):
         # Remove editorial bracket markers: {[}ILLUSTRATIVE textual{]},
         # [ILLUSTRATIVE…], [VERIFY…], [HYPOTHESIS…], [DERIVED…], [1P], [2°…],
         # and the pandoc-escaped braces around them.
-        t = _re.sub(r"\{\[\}\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\{\]\}", "", t)
+        t = _re.sub(r"\{\[\]\}\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\{\]\}", "", t)
         t = _re.sub(r"\[\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\]", "", t)
+        # Drop a stray leading backslash that can remain from a stripped
+        # '\hyperref[...]{Fig X.Y} --- ' prefix (an undefined-control-sequence
+        # whose first char silently drops the caption's leading word).  Only
+        # remove a backslash immediately followed by a capital letter that was
+        # not itself a real LaTeX command.
+        t = _re.sub(r"^\s*\\\s*(?=[A-Z])", "", t)
         t = _re.sub(r"\s+", " ", t).strip()
         return t
 
@@ -271,18 +277,29 @@ def fix_crossrefs(tex_path, chnum):
         # (e.g. the ADR template in Ch25) does NOT get "Chapter 22" turned into
         # \\hyperref[chap:22]{Chapter 22} — that would leak LaTeX markup into a
         # block meant to be copied as plain Markdown.
-        blocks = _re.split(r"(\\\\begin\\{(?:verbatim|Verbatim)\\}.*?\\\\end\\{(?:verbatim|Verbatim)\\})", s, flags=_re.S)
+        blocks = _re.split(r"(\\begin\{(?:verbatim|Verbatim)\}.*?\\end\{(?:verbatim|Verbatim)\})", s, flags=_re.S)
         out = []
         for part in blocks:
-            if _re.match(r"^\\\\begin\\{(?:verbatim|Verbatim)\\}", part):
+            if _re.match(r"^\\begin\{(?:verbatim|Verbatim)\}", part):
                 out.append(part)
                 continue
+            # Stash heading-title bodies so a cross-reference inside a heading
+            # ("Table 4-1", "Fig X.Y") is NOT hyperref-wrapped — a \\hyperref in
+            # a moving heading argument triggers "There's no line here to end".
+            stash = {}
+            def stub2(m):
+                k = f"XZH{len(stash)}XZ"
+                stash[k] = m.group(2)
+                return m.group(1) + k + "}"
+            part = _re.sub(r"(\\(?:chapter|section|subsection|subsubsection|paragraph)\s*\*?\s*\{)(.*?)\}(?=(?:\\label|\\index|\n|$))", stub2, part, flags=_re.S)
             part = _re.sub(r"\bFig(?:ure)?\s+(\d+)\.(\d+)",
-                           lambda mm: f"\\\\hyperref[fig:{mm.group(1)}.{mm.group(2)}]{{Fig {mm.group(1)}.{mm.group(2)}}}", part)
+                           lambda mm: f"\\hyperref[fig:{mm.group(1)}.{mm.group(2)}]{{Fig {mm.group(1)}.{mm.group(2)}}}", part)
             part = _re.sub(r"\bTable\s+(\d+)-(\d+)",
-                           lambda mm: f"\\\\hyperref[tab:{mm.group(1)}.{mm.group(2)}]{{Table {mm.group(1)}-{mm.group(2)}}}", part)
+                           lambda mm: f"\\hyperref[tab:{mm.group(1)}.{mm.group(2)}]{{Table {mm.group(1)}-{mm.group(2)}}}", part)
             part = _re.sub(r"\bChapter\s+(\d+)",
-                           lambda mm: f"\\\\hyperref[chap:{mm.group(1)}]{{Chapter {mm.group(1)}}}", part)
+                           lambda mm: f"\\hyperref[chap:{mm.group(1)}]{{Chapter {mm.group(1)}}}", part)
+            for k, v in stash.items():
+                part = part.replace(k, v)
             out.append(part)
         return "".join(out)
     tex2 = linkrefs(tex2)
