@@ -267,13 +267,24 @@ def fix_crossrefs(tex_path, chnum):
     tex2 = _re.sub(r"alt=\{[^{}]*\}", stash, tex2)
 
     def linkrefs(s):
-        s = _re.sub(r"\bFig(?:ure)?\s+(\d+)\.(\d+)",
-                    lambda mm: f"\\hyperref[fig:{mm.group(1)}.{mm.group(2)}]{{Fig {mm.group(1)}.{mm.group(2)}}}", s)
-        s = _re.sub(r"\bTable\s+(\d+)-(\d+)",
-                    lambda mm: f"\\hyperref[tab:{mm.group(1)}.{mm.group(2)}]{{Table {mm.group(1)}-{mm.group(2)}}}", s)
-        s = _re.sub(r"\bChapter\s+(\d+)",
-                    lambda mm: f"\\hyperref[chap:{mm.group(1)}]{{Chapter {mm.group(1)}}}", s)
-        return s
+        # Skip verbatim/Verbatim code blocks first so a copy-ready template
+        # (e.g. the ADR template in Ch25) does NOT get "Chapter 22" turned into
+        # \\hyperref[chap:22]{Chapter 22} — that would leak LaTeX markup into a
+        # block meant to be copied as plain Markdown.
+        blocks = _re.split(r"(\\\\begin\\{(?:verbatim|Verbatim)\\}.*?\\\\end\\{(?:verbatim|Verbatim)\\})", s, flags=_re.S)
+        out = []
+        for part in blocks:
+            if _re.match(r"^\\\\begin\\{(?:verbatim|Verbatim)\\}", part):
+                out.append(part)
+                continue
+            part = _re.sub(r"\bFig(?:ure)?\s+(\d+)\.(\d+)",
+                           lambda mm: f"\\\\hyperref[fig:{mm.group(1)}.{mm.group(2)}]{{Fig {mm.group(1)}.{mm.group(2)}}}", part)
+            part = _re.sub(r"\bTable\s+(\d+)-(\d+)",
+                           lambda mm: f"\\\\hyperref[tab:{mm.group(1)}.{mm.group(2)}]{{Table {mm.group(1)}-{mm.group(2)}}}", part)
+            part = _re.sub(r"\bChapter\s+(\d+)",
+                           lambda mm: f"\\\\hyperref[chap:{mm.group(1)}]{{Chapter {mm.group(1)}}}", part)
+            out.append(part)
+        return "".join(out)
     tex2 = linkrefs(tex2)
     for key, val in protected.items():
         tex2 = tex2.replace(key, val)

@@ -94,7 +94,7 @@ These open questions define the next research cycle. Each is framed as a HYPOTHE
 
 **Step 2 — Pattern Apply.** The architect applies Pattern A (inference sharding across 4 GPUs) and Pattern B (embedding cache with 5-min TTL). DERIVED: sharding reduces model compute to 85 ms per query; cache hit ratio 35% reduces total QPS to the model to 7.8 QPS. New p99 latency: 210 ms.
 
-**Step 3 — Validate.** HYPOTHESIS: "sharding + caching will keep latency < 300 ms at 3× user growth." FACTs from a staged 3,000-user load test: p99 = 285 ms, cost per query down 55%. Hypothesis accepted.
+**Step 3 — Validate.** HYPOTHESIS: "sharding + caching will keep latency < 300 ms at 3× user growth." Suppose a staged load test at 3,000 users reports p99 = 285 ms and cost per query down 55% — in this scenario these are illustrative values to show how a hypothesis is tested, not a real experiment the book ran. The hypothesis is accepted only on a genuine load test's numbers.
 
 **Step 4 — Document.** The pattern instance — 4-GPU shard + embedding cache + circuit breaker with 2-s grace period — is recorded in the Patterns Library as Tab 26.1, ready for the next fleet expansion.
 
