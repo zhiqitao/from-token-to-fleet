@@ -177,22 +177,22 @@ These open questions are not blockers; they are signals for when the practice ma
 
 ## 8. End-of-Chapter Mini-Case
 
-**Scenario:** The fleet decides to migrate from a single 70B FP16 model to a two-model mixture-of-experts (MoE) architecture, each expert 34B parameters, FP16, running on the same 8×H100 host.
+**Scenario:** The fleet serves the canonical RAG Q&A workload on an 8×H100 host. At peak the KV cache is the binding constraint: within the canonical ~436 GB practical KV budget, a full-precision FP16 KV at ~2.5 MB/token lets a single host hold ~18 concurrent 9,500-token requests. The concurrency ceiling is now limiting throughput below the target request rate.
 
 **The ADR (draft):**
 
-- **Title:** ADR 0017 — MoE Model Deployment
+- **Title:** ADR 0017 — KV Cache Precision: FP16 vs FP8
 - **Status:** Proposed
-- **Context:** User queries have grown 35% YoY; a single 70B model cannot sustain p99 latency < 5 seconds under peak load. MoE allows routing 2× more effective parameters within the same memory budget.
-- **Decision:** Migrate to two 34B FP16 experts with top-1 routing, accepting a 5% increase in inference latency per request due to routing overhead.
-- **Consequences:** 
-  - Positive: Effective parameter count rises from 70B to ~68B (2 ×34B × routing fraction), improving answer quality on factual Q&A. GPU memory per expert fits within A100 80 GB, enabling 2× concurrent instances.
-  - Negative: Routing logic adds ~50 ms latency; requires new monitoring for route distribution skew.
-- **Alternatives considered:** 
-  1. Increase batch size — rejected, increases memory pressure and worsens tail latency.
-  2. Move to GGUF 4-bit — rejected, quality regression above the SLA threshold.
-  3. Model sharding across GPU nodes — rejected, operations overhead for inter-node communication.
-- **Evidence:** FACT: H100 FP16 expert 34B footprint ≈ 68 GB parameters + 15 GB activations. DERIVED: Top-1 routing reduces effective parameters by ~50% compared to uniform mixing.
+- **Context:** The canonical 70B RAG workload is KV-memory-bound at decode (Ch. 15). At the ~436 GB practical KV budget, full FP16 KV caps concurrency at ~18 requests/host, and Ch. 17 shows that ~40 rps at ~1 s per request implies ~40 in-flight requests — more than one host can hold. To reach the target request rate we need either more host capacity or more KV residency per host.
+- **Decision:** Render the KV cache in FP8 for the long-context decode path, keeping prefill and the retrieval/prompt phase in FP16. FP8 KV cuts KV residency to ~54% of the FP16 figure (vLLM's measured FP8-KV ratio), so the same ~436 GB budget holds ~33 concurrent 9,500-token requests instead of ~18 — roughly doubling per-host concurrency without adding a host.
+- **Consequences:**
+  - Positive: KV residency per request falls from ~23.8 GB (FP16) to ~12.9 GB (FP8) at 9,500 tokens, so the canonical budget supports ~33 concurrent rather than ~18. This is a memory lever, not a compute lever: it does not change decode speed per token, it raises the concurrency the host can hold under the same KV budget.
+  - Negative: FP8 KV has lower precision in the cached K/V tensors, which can add small retrieval-fidelity error on long contexts. The trade-off is memory capacity vs long-context reconstruction fidelity; it must be validated on the held-out Q&A set, not assumed.
+- **Alternatives considered:**
+  1. **Add a second 8×H100 host** — rejected as the first move: it doubles cost (~$5.8K/mo additional at 40% duty) to relieve a memory ceiling that FP8 KV can relax without new hardware.
+  2. **GQA (grouped-query attention) reduction** — already in place; a further reduction changes model architecture and retraining, outside a serving-only change.
+  3. **Prefix/context caching** — complementary, not a substitute: it reduces prefill work and recomputation, but does not shrink the KV resident per active long-context request; retained alongside FP8 KV.
+- **Evidence Tags:** FACT: at ~2.5 MB/token a 9,500-token request needs ~23.8 GB FP16 KV (Ch. 15, Ch. 17). FACT: vLLM measures FP8 KV at ~54% of BF16 KV residency [S6][1P]. DERIVED: at 54% of the FP16 figure, a 9,500-token FP8 KV ≈ 12.9 GB/request; 436 GB ÷ 12.9 GB ≈ 33 concurrent. [HYPOTHESIS]: the FP8 precision shift has a small, measurable effect on long-context retrieval fidelity that must be measured on the held-out set before promoting.
 
 This mini-case illustrates how the ADR format captures not just the "what" but the "how much" — derived quantities, trade-offs, and explicit alternatives. The team can now evaluate the proposal against the fleet's latency and quality SLAs, with all reasoning preserved for future review.
 

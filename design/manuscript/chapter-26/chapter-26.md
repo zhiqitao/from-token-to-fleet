@@ -42,15 +42,15 @@ The §4 six-axis characterization rendered as a fingerprint. The three workload 
 
 ## 3. Worked Example — Capstone Scenario
 
-Consider the canonical deployment: ~2,000 concurrent users, RAG Q&A over a 70B dense FP16 model. The architect faces three interlocked questions: how to scale inference, how to cache embeddings, and how to keep latency budgets under 800 ms p99.
+Consider the canonical deployment: ~2,000 registered users with ~5% concurrent at peak, so ~100 concurrent requests, RAG Q&A over a 70B dense FP16 model. The architect faces three interlocked questions: how to scale inference, how to cache retrieved context, and how to keep latency budgets under 800 ms p99.
 
-**Pattern A — Inference Sharding (FACT: model FLOPs / GPU memory per token).** The 70B model at FP16 requires ~140 GB of weights. A single GPU (24 GB) can hold ~17% of the model. Sharding across 6 GPUs per node yields 2 nodes per serving replica. DERIVED: with 6 GPUs, per-token latency drops from 120 ms (single-GPU) to 28 ms (sharded), because matrix multiplications parallelize across devices. HYPOTHESIS: adding a 7th GPU yields diminishing returns < 5% latency improvement due to All-Reduce overhead.
+**Pattern A — Inference Sharding (FACT: model FLOPs / GPU memory per token).** The 70B model at FP16 requires ~140 GB of weights. Following the canonical setup, one serving host is an 8×H100 80 GB node, which dedicates ~140 GB to weights and leaves the rest of the 640 GB pool for KV cache and runtime. With tensor parallelism across the 8 H100s, a single host serves the model and can hold ~18 concurrent 9,500-token requests within the canonical ~436 GB KV budget from Chapter 15. DERIVED: with the 8-way tensor parity across the node, decode latency is bandwidth-bound, so per-token throughput scales with the node's aggregate memory bandwidth rather than 8× the single-GPU rate. HYPOTHESIS: adding a second host and load-balancing requests across two replicas yields < 5% additional per-request latency improvement because the bottleneck is concurrency/KV residency, not per-host throughput.
 
-**Pattern B — Embedding Cache (FACT: 40% of queries repeat within 5-min windows).** A content-addressable cache keyed by question hash stores pre-computed embeddings. DERIVED: cache hit ratio of 40% reduces total QPS to the LLM engine by 40%, directly lowering operational cost. HYPOTHESIS: expanding the cache TTL from 5 to 15 minutes increases hit ratio to ~55% with negligible staleness risk, because user questions in a support session repeat within the same session.
+**Pattern B — Semantic Response Cache (FACT: 40% of queries repeat within 5-min windows).** A content-addressable cache keyed by question hash stores the completed answer (the retrieved context and the generated response). DERIVED: cache hit ratio of 40% reduces the number of requests that reach the LLM engine by 40%, directly lowering generation compute and operational cost; the embedding/retrieval step is also skipped for cache hits. HYPOTHESIS: expanding the cache TTL from 5 to 15 minutes increases hit ratio to ~55% with negligible staleness risk, because user questions in a support session repeat within the same session.
 
-**Pattern C — Circuit Breaker (FACT: downstream model latency p99 = 28 ms sharded; upstream network jitter p99 = 120 ms).** When the model service becomes saturated, a circuit breaker trips after 5 consecutive timeouts, falling back to a lightweight intent classifier. DERIVED: circuit breaker activation reduces tail latency for remaining requests by 35% because the system sheds load before the model queue fills. HYPOTHESIS: a grace-period of 2 seconds before auto-recovery prevents thrashing when load spikes are transient.
+**Pattern C — Circuit Breaker (FACT: model-service latency p99 degrades past the 800 ms SLO under concurrent load; downstream network jitter p99 = 120 ms).** When the model service becomes saturated, a circuit breaker trips after 5 consecutive timeouts, falling back to a lightweight intent classifier. DERIVED: circuit breaker activation reduces tail latency for remaining requests by 35% because the system sheds load before the model queue fills. HYPOTHESIS: a grace-period of 2 seconds before auto-recovery prevents thrashing when load spikes are transient.
 
-**Capstone Execution.** The architect instruments all three FACTs, observes the DERIVED quantities in real time, and validates each HYPOTHESIS. The result: 2-node sharded serving + 40% embedding cache + circuit breaker yields 680 ms p99 latency at 40% lower cost versus a monolithic deployment. The Pattern-Measurement-Feedback Loop confirms the hypothesis that sharding + caching is net positive, and the architect documents the configuration as a reusable pattern instance.
+**Capstone Execution.** The architect instruments all three FACTs, observes the DERIVED quantities in real time, and validates each HYPOTHESIS. The result: one 8×H100 serving host + 40% semantic response cache + circuit breaker yields 680 ms p99 latency at 40% lower generation cost versus an uncached, unshedded baseline. The Pattern-Measurement-Feedback Loop confirms the hypothesis that caching + load shedding is net positive, and the architect documents the configuration as a reusable pattern instance.
 
 ## 4. Measurement
 
@@ -61,7 +61,7 @@ Quantitative verification is non-negotiable. For each pattern, define the minima
 | Pattern | FACT 1 | FACT 2 | FACT 3 |
 |---|---|---|---|
 | Inference Sharding | GPU utilization % | per-GPU token latency p99 | All-Reduce time |
-| Embedding Cache | hit ratio @ TTL=T | stale read rate | cache memory pressure |
+| Semantic Response Cache | hit ratio @ TTL=T | stale read rate | cache memory pressure |
 | Circuit Breaker | timeout count / 30s | fallback activation rate | recovery grace-period latency |
 
 Measurement must be continuous, not ad-hoc. Dashboards surface FACT trends; alerts fire when DERIVED quantities cross safety boundaries. The architect never promotes a pattern from HYPOTHESIS to ACCEPTED unless all FACTs stabilize within expected ranges across at least two load cycles.
@@ -75,7 +75,7 @@ Measurement must be continuous, not ad-hoc. Dashboards surface FACT trends; aler
 
 ## 6. Architecture Consequence
 
-The toolkit's patterns do not exist in isolation. Inference sharding changes the resource profile, which affects cost DERIVED; embedding cache changes the query pattern seen by the model, which alters the HYPOTHESIS for circuit breaker thresholds; circuit breaker grace-periods interact with cache TTLs to shape tail latency. The architect must trace consequences across patterns using the FACT/DERIVED/HYPOTHESIS axis before commit. A change that looks beneficial in isolation may degrade fleet-wide metrics when patterns interact.
+The toolkit's patterns do not exist in isolation. Inference sharding changes the resource profile, which affects cost DERIVED; semantic response caching changes the query pattern seen by the model, which alters the HYPOTHESIS for circuit breaker thresholds; circuit breaker grace-periods interact with cache TTLs to shape tail latency. The architect must trace consequences across patterns using the FACT/DERIVED/HYPOTHESIS axis before commit. A change that looks beneficial in isolation may degrade fleet-wide metrics when patterns interact.
 
 ## 7. What We Still Don't Know
 
@@ -88,22 +88,22 @@ These open questions define the next research cycle. Each is framed as a HYPOTHE
 
 ## 8. End-of-Chapter Mini-Case
 
-**Scenario.** A growing AI startup moves from a single-GPU prototype to a fleet serving ~3,000 users. The initial deployment is a monolithic 70B FP16 model on one GPU, serving 12 QPS with 450 ms p99 latency.
+**Scenario.** A growing AI startup moves from a single-node prototype to a fleet serving ~3,000 users. The initial deployment is a 70B FP16 model on a single 8×H100 node (the canonical host), serving 12 QPS with 450 ms p99 latency.
 
 **Step 1 — Instrument.** FACTs collected: request rate 12 QPS, GPU utilization 45%, per-query latency breakdown: model compute 320 ms, I/O 80 ms, cache miss 50 ms.
 
-**Step 2 — Pattern Apply.** The architect applies Pattern A (inference sharding across 4 GPUs) and Pattern B (embedding cache with 5-min TTL). DERIVED: sharding reduces model compute to 85 ms per query; cache hit ratio 35% reduces total QPS to the model to 7.8 QPS. New p99 latency: 210 ms.
+**Step 2 — Pattern Apply.** The architect applies Pattern A (inference sharding across an 8×H100 node) and Pattern B (semantic response cache with 5-min TTL). DERIVED: sharding distributes the model across the node so decode is bandwidth-bound; cache hit ratio 35% reduces the number of requests that reach the model engine from 12 QPS to 7.8 QPS. New p99 latency: 210 ms.
 
 **Step 3 — Validate.** HYPOTHESIS: "sharding + caching will keep latency < 300 ms at 3× user growth." Suppose a staged load test at 3,000 users reports p99 = 285 ms and cost per query down 55% — in this scenario these are illustrative values to show how a hypothesis is tested, not a real experiment the book ran. The hypothesis is accepted only on a genuine load test's numbers.
 
-**Step 4 — Document.** The pattern instance — 4-GPU shard + embedding cache + circuit breaker with 2-s grace period — is recorded in the Patterns Library as Tab 26.1, ready for the next fleet expansion.
+**Step 4 — Document.** The pattern instance — 8×H100 shard + semantic response cache + circuit breaker with 2-s grace period — is recorded in the Patterns Library as Tab 26.1, ready for the next fleet expansion.
 
 **Table 26-1** — Pattern Instance: Sharded RAG Serving
 
 | Component | Configuration | FACT Target | DERIVED Observed |
 |---|---|---|---|
-| GPU Shard | 4 ×A100 40 GB | GPU util < 80% | 68% |
-| Embedding Cache | LRU, TTL 5 min | hit ratio > 30% | 38% |
+| GPU Shard | 8 ×H100 80 GB | GPU util < 80% | 68% |
+| Semantic Response Cache | LRU, TTL 5 min | hit ratio > 30% | 38% |
 | Circuit Breaker | trip after 5 timeouts, 2s grace | fallback rate < 10% | 7% |
 | Cost | $ per query | < $0.015 | $0.009 |
 
