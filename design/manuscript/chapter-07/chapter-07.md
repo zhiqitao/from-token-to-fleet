@@ -72,7 +72,7 @@ The visual proof of the 8× saving. Full MHA caches a K,V per query head (64/tok
 | inference (weights + KV, 9.2K input) | weights + KV cache | FP16: 2 B; KV adds ~2.5 MB/token | ~165 GB (9.2K) | yes |
 | fine-tuning (weights + gradients + optimizer) | weights + gradients + optimizer states | Adam: ~16 B/param (m + v + ΔW) | ~1,260 GB | no |
 | fine-tuning (weights + gradients, FP16) | weights + gradients FP16 | 4 B/param (weights FP16 2 B + gradients FP16 2 B) | ~280 GB | yes |
-| fine-tuning (QLoRA, 4-bit base + LoRA) | quantized base + LoRA adapters | NF4: 4 B base; LoRA ~5 M params | ~50–70 GB | yes |
+| fine-tuning (QLoRA, 4-bit base + LoRA) | quantized base + LoRA adapters | NF4: nominal 4-bit (~0.5 B/param) + quantization metadata; adds adapters/gradients/optimizer/activations | ~50–70 GB | yes |
 | inference with FP8 KV | weights FP16 + KV FP8 | KV: ~54% of BF16 | ~12.9 GB KV @ 9.2K | yes, comfortably |
 
 *Inference residency = weights + KV cache; the KV footprint scales with context length. Fine-tuning residency adds optimizer states (Adam m, v, and updates), which for 70B at ~16 bytes/param exceeds 1 TB — roughly 2× the 640 GB of 8×H100. This contrast is the architect's central takeaway: inference is memory-limited by weights + KV, while fine-tuning is memory-limited by weights + gradients + optimizer, a substantially higher floor.*

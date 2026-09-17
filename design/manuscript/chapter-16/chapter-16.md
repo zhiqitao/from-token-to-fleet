@@ -37,9 +37,9 @@ We price the canonical 70B enterprise-Q&A workload at the canonical traffic (~10
 **Mode 1 — self-hosted on owned cards (8×H100).**
 
 - Capex: assume ~$350K for a fully built 8×H100 server (cards, host, NVSwitch, networking, rack, cooling), amortized over 5 years → ~$70K/year, ~$5,800/month. [2° FACT, illustrative]
-- Opex: power + cooling for 8×H100 at ~50 kW, ~$0.15/kWh, always on → ~$65K/year; staff/engineering alloc ~$120K/year; total opex ~$185K/year. [2° DERIVED, illustrative]
-- Monthly total ≈ $5,800 (capex) + $15,400 (opex) ≈ **$21,200/month**.
-- Per request at ~10 rps average = ~864,000 requests/day ≈ 26M/month. **Cost ≈ $21,200 / 26M ≈ $0.00082/request ≈ $0.82 per 1,000 requests.** [2° DERIVED] *(worked example, not reference)*
+- Opex (power + staff): power decomposed — 8 H100 GPUs at ~700 W TDP ≈ 5.6 kW of GPU IT load, plus ~2.2 kW for the host/network/other IT load → ~7.8 kW total IT; at a facility PUE (power-usage-effectiveness) of ~1.3 that is ~10.1 kW at the wall. At ~$0.15/kWh, always on, that is ~$1.1K/month. Staff/engineering alloc ~$10K/month. Total opex ≈ ~$11.1K/month. [2° DERIVED, illustrative]
+- Monthly total ≈ $5.8K (capex) + $11.1K (opex) ≈ **$16.9K/month**.
+- Per request at ~10 rps average = ~864,000 requests/day ≈ 26M/month. **Cost ≈ $16.9K / 26M ≈ $0.00065/request ≈ $0.65 per 1,000 requests.** [2° DERIVED] *(worked example, not reference)*
 
 **Mode 2 — cloud GPU instances (rent, shut down when idle).**
 
@@ -61,7 +61,7 @@ $$
 [2° FACT, illustrative]
 - At the canonical 25.9M requests/month: ~$539,000/month — an order of magnitude above self-host. [2° DERIVED]
 
-**Reading the result.** Self-hosted (~$0.82/1K reqs) beats the API (~$20.8/1K reqs) by ~25× on pure token cost at this volume — but only because we assume steady near-canonical utilization plus in-house staff we are not separately billing. Cloud-on-demand (~$0.22/1K) now broadly ties or slightly exceeds self-host per request at this duty; it only wins if duty cycle is much lower (~20%) or we ignore staff/integration. The honest TCO answer for a business-critical, always-on service at canonical volume is **self-hosted cards**, with the caveat that the staff term is the real swing factor. [2° DERIVED]
+**Reading the result.** Self-hosted (~$0.65/1K reqs) beats the API (~$20.8/1K reqs) by ~32× on pure token cost at this volume — but only because we assume steady near-canonical utilization plus in-house staff we are not separately billing. Cloud-on-demand (~$0.22/1K) is roughly a third of self-host per request at this duty — but only if the duty cycle is ~40% and we ignore staff/integration. The honest TCO answer for a business-critical, always-on service at canonical volume is **self-hosted cards**, with the caveat that the staff term is the real swing factor. [2° DERIVED]
 
 **Parametric sensitivity is the durable form.** All the fixed inputs above — GPU price, electricity, staffing, capacity, API price — are [ILLUSTRATIVE] scenario values; the *structure* of the model is what generalizes. The architect can see the decision flip with utilization and volume: if effective utilization is low (~20%, e.g. a demo or dev workload), self-hosted cards sit idle while depreciating, and managed on-demand wins; near the crossover (~50–60% utilization at canonical volume) the two are close and the decision hinges on the staff/risk terms; only at sustained high utilization (~80%+) does self-hosted clearly win on cost-per-request. Rather than memorize one answer, the durable tool is a small parametric model — exact same arithmetic with GPU $/hr, $/kWh, staffing, and API price as inputs — which the architect re-runs with the customer's real numbers (Chapter 23). This is what makes TCO a decision *framework*, not a single verdict. A runnable, parameterised version of exactly this model ships with the book as `render/tco_calc.py` (defaults reproduce these numbers; override GPU $/hr, $/kWh, staffing, and API price as flags).
 
@@ -69,7 +69,7 @@ $$
 
 | Mode | Capex | Opex/month | Cost/1K req | $/month @26M req | When it wins |
 |---|---|---|---|---|---|
-| Self-hosted 8×H100 | ~$350K | ~$21.2K | ~$0.82 | ~$21K | steady high utilization, staff available |
+| Self-hosted 8×H100 | ~$350K | ~$16.9K | ~$0.65 | ~$16.9K | steady high utilization, staff available |
 | Cloud on-demand | $0 | ~$5.8K (40% duty) | ~$0.22 | ~$5.8K+staff | low duty cycle, bursty, no staff for ops |
 | Managed API | $0 | usage | ~$21 | ~$546K | tiny volume, fastest time-to-value |
 

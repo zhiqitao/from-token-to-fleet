@@ -2,9 +2,7 @@
 
 > **Why this appendix exists.** The body of this handbook works through durable mechanisms — tokens, memory floors, rooflines, parallelism, KV arithmetic — that do not change. But the industry moves, and the whole point of an architecture handbook is to stay current. In 2026 the four frontier open-weight MoE families — DeepSeek-V4, Kimi K3, Qwen3.8-Flash-Next, and GLM-5.3-Flash — all shipped within a short window. Reading them together is not a product tour; it is a single, coherent signal about where the mechanisms in this book are heading. Every mechanism below maps back to a chapter and an architectural decision.
 
-> **Snapshot date: 2026-08-30.** This appendix is a snapshot of the frontier as of that date, compiled from the first-party technical reports and model cards listed in §8. The models, their parameter counts, constants, and claims are vendor-reported and move quickly. It illustrates how to apply the framework to a changing frontier; it is **not** a current model leaderboard. An architect should re-check the primary sources before betting capacity on any specific number quoted here.
-
-> **Public-release verification.** The first-party sources in §8 — model cards, technical reports, and parameter counts — must be reopened against the current versions and this appendix stamped **Verified: 2026-MM-DD** on the day of release. Save this for the final proof, after all other edits are frozen; it is the one check that cannot be done early.
+> **Snapshot date: 2026-08-30.** This appendix is a snapshot of the frontier as of that date, compiled from the first-party technical reports and model cards listed in §8. The models, their parameter counts, constants, and claims are vendor-reported and move quickly. It illustrates how to apply the framework to a changing frontier; it is **not** a current model leaderboard. The sources in §8 should be re-opened against the current versions before any specific number is relied on for a real deployment.
 
 ## The Signal in One Paragraph
 
@@ -60,11 +58,11 @@ When we write "Four independent labs converged" or "MoE is arguably a larger arc
 
 ![Fig A.2 — The KV constant and FLOP/token are a moving target: hybrid attention cuts both at the mechanism. Canonical 70B dense full-MHA = 100%; DeepSeek-V4-Flash ≈ 7% KV / 10% FLOP, V4-Pro ≈ 10% / 27%, GLM-5.3-Flash ≈ 23% KV / ~33% attention-compute [DERIVED from 1P claims: arXiv 2606.19348; HF zai-org]](figures/fig-27-2704.png)
 
-*Same message as Fig 7.1's GQA line, taken to the frontier: the per-token KV and FLOP "constants" of Chapter 7/8 are not universal — they are LLaMA-style floors that hybrid attention re-architects down at the mechanism. Percentages are each model's gain over its own predecessor (e.g. V3.2→V4, GLM-5.x steps), shown against the canonical 70B dense full-MHA reference so the floors stay comparable. An architect who re-derives them per candidate model avoids both over- (sizing a 7% KV model as if it were 100%) and under-provisioning. Values are vendor-published [1P], not yet independently reprofiled on a serving stack (see §5).*
+*Same message as Fig 7.1's GQA line, taken to the frontier: the per-token KV and FLOP "constants" of Chapter 7/8 are not universal — they are the canonical full-MHA conservative upper-bound teaching model, which hybrid attention re-architects down at the mechanism. Percentages are each model's gain over its own predecessor (e.g. V3.2→V4, GLM-5.x steps), shown against the canonical 70B dense full-MHA reference so the floors stay comparable. An architect who re-derives them per candidate model avoids both over- (sizing a 7% KV model as if it were 100%) and under-provisioning. Values are vendor-published [1P], not yet independently reprofiled on a serving stack (see §5).*
 
 The book's canonical scenario is a 70B dense FP16, ~9.2K-token RAG workload on 8×H100. The 2026 frontier does not invalidate it — it *refines* the interpretation an architect should carry:
 
-- The **KV constant** (Ch7: ~2.5 MB/token FP16, ~1.3 MB 8-bit) is a LLaMA-style floor. Hybrid-attention models cut it 4–10× at the mechanism, so "context fits on N GPUs" must be re-derived per model, not looked up once. [1P]
+- The **KV constant** (Ch7: ~2.5 MB/token FP16, ~1.3 MB 8-bit) is the canonical full-MHA conservative upper-bound teaching model. Hybrid-attention models cut it 4–10× at the mechanism, so "context fits on N GPUs" must be re-derived per model, not looked up once. [1P]
 - The **roofline** (Ch8) still holds; what changed is where a frontier model's prefill/decode ride it. Vendor-reported FLOP/KV reductions are [1P] but not yet independently reprofiled — an architect should re-run Ch8's measurement on the candidate model before betting capacity. [1P] → (to be re-verified for this candidate)
 - The **MoE memory decision** (Ch10) is now dominated by active parameters + KV + expert-fabric comm, not total size. [1P]
 
@@ -72,7 +70,7 @@ None of this changes the book's *mechanisms*; it changes the *constants* an arch
 
 ## 6. Where 2026 Capability Actually Comes From (beyond Architecture)
 
-A recurring error — easy to fall into after reading four new model cards — is to attribute frontier gains to the attention mechanism splashed across the front page. The industry is converging not just on *architectures* (MoE + efficient attention + very long context) but on a *multi-layered recipe* in which architecture is one ingredient, and arguably not the dominant one. A qualitative decomposition (a qualitative decomposition):
+A recurring error — easy to fall into after reading four new model cards — is to attribute frontier gains to the attention mechanism splashed across the front page. The industry is converging not just on *architectures* (MoE + efficient attention + very long context) but on a *multi-layered recipe* in which architecture is one ingredient, and arguably not the dominant one. A qualitative decomposition of the recipe:
 
 | Lever | Primary effect |
 |---|---|
@@ -101,7 +99,7 @@ This is why architecture alone never tells an architect how good a frontier mode
 
 ![Fig A.3 — The layered evolution of frontier systems](figures/fig-27-2703.png)
 
-From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are largelyefficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. This chain is the spine of the handbook: tokens (Ch1–9), parallelism (Ch10), serving (Ch11–16), fleet & agents (Ch17–26). [INTERPRETATION — synthesis of the chapters' arithmetic, not a single measurement]*
+From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are *efficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. [INTERPRETATION — synthesis of the chapters' arithmetic, not a single measurement]*
 
 This chain is the spine of this handbook — from a single model's tokens (Ch1–9) to parallelism (Ch10), serving (Ch11–16), and finally the fleet of specialized models and agents (Ch17–26). It also explains why two models with broadly similar base architectures can have very different practical intelligence (post-training/reasoning), and why an agent runtime can lift real-world performance without changing model weights at all: **model intelligence ≠ system intelligence anymore.**
 

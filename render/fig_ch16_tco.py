@@ -8,12 +8,12 @@ import numpy as np
 # cloud on-demand: low fixed (per-use, flat at a duty-cycle assumption)
 # managed API: linear per-request
 req = np.logspace(4, 8, 300)
-self_host = np.full_like(req, 21200.0)        # ~$21.2k/mo flat (reserved capacity)
+self_host = np.full_like(req, 16900.0)        # ~$16.9k/mo flat (reserved capacity)
 cloud_od  = np.full_like(req, 5800.0)          # ~$5.8k/mo flat (on-demand @ 40% duty, $20/hr node)
 managed   = 0.0208 * req                       # $20.80/1K -> linear
 
 fig, ax = plt.subplots(figsize=(9, 6))
-ax.loglog(req, self_host, '-', color='#27408b', lw=2.4, label='self-hosted (reserved capacity, ~$21.2k/mo flat)')
+ax.loglog(req, self_host, '-', color='#27408b', lw=2.4, label='self-hosted (reserved capacity, ~$16.9k/mo flat)')
 ax.loglog(req, cloud_od, '--', color='#6f9e5f', lw=2.2, label='cloud on-demand (~$5.8k/mo flat @ 40% duty)')
 ax.loglog(req, managed, '-', color='#c0392b', lw=2.4, label='managed API ($20.80/1K, linear)')
 

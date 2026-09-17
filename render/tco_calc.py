@@ -34,10 +34,16 @@ def main():
     # Mode 1 (self-hosted)
     ap.add_argument("--capex", type=float, default=350000, help="fully built 8\u00d7H100 server")
     ap.add_argument("--dep-years", type=float, default=5)
-    ap.add_argument("--power-kw", type=float, default=50)
     ap.add_argument("--usd-per-kwh", type=float, default=0.15)
     ap.add_argument("--staff-per-year", type=float, default=120000)
     ap.add_argument("--util", type=float, default=1.0, help="self-host on-time duty (1.0 = always on)")
+    # Auditable facility-power decomposition: GPU IT load + host/network, times PUE.
+    ap.add_argument("--gpu-count", type=int, default=8)
+    ap.add_argument("--gpu-watt", type=float, default=700, help="per-GPU TDP (W) -> GPU IT load")
+    ap.add_argument("--host-other-kw", type=float, default=2.2, help="host/network/other IT load (kW)")
+    ap.add_argument("--pue", type=float, default=1.3, help="facility power-usage-effectiveness multiplier")
+    ap.add_argument("--power-kw", type=float, default=None,
+                    help="explicit facility power (kW); if unset, derived as (GPU IT + host-other) x PUE")
 
     # Mode 2 (cloud on-demand)
     ap.add_argument("--cloud-usd-per-hr", type=float, default=20.0, help="8\u00d7H100 instance ($2.50/GPU-hr \u00d7 8)")
@@ -54,6 +60,12 @@ def main():
     # Mode 1
     capex_mon = a.capex / (a.dep_years * 12)
     hours_mon = 24 * a.days * a.util
+    if a.power_kw is None:
+        gpu_it_kw = (a.gpu_count * a.gpu_watt) / 1000.0
+        a.power_kw = (gpu_it_kw + a.host_other_kw) * a.pue
+        power_note = "GPU IT {:.1f} kW + host {:.1f} kW, x PUE {:.2f}".format(gpu_it_kw, a.host_other_kw, a.pue)
+    else:
+        power_note = "explicit"
     power_mon = a.power_kw * a.usd_per_kwh * hours_mon
     staff_mon = a.staff_per_year / 12
     mode1_total_mon = capex_mon + power_mon + staff_mon
@@ -74,7 +86,7 @@ def main():
     print()
     print("Mode 1 self-hosted (8\u00d7H100, util={:.0%})".format(a.util))
     print(f"  capex/mo   : {fmt_usd(capex_mon)}")
-    print(f"  power/mo   : {fmt_usd(power_mon)}  ({a.power_kw} kW @ ${a.usd_per_kwh}/kWh, {hours_mon:.0f} h)")
+    print(f"  power/mo   : {fmt_usd(power_mon)}  ({a.power_kw:.1f} kW facility @ ${a.usd_per_kwh}/kWh, {hours_mon:.0f} h; {power_note})")
     print(f"  staff/mo   : {fmt_usd(staff_mon)}")
     print(f"  total/mo   : {fmt_usd(mode1_total_mon)}")
     print(f"  cost/1K req: {fmt_usd(mode1_cost_1k)}")
