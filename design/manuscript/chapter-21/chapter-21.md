@@ -50,7 +50,7 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 | Ungated | ~216K in a bad release | high (all traffic) | post-hoc | slow | tiny/experimental |
 | Gated (5% canary) | ~3.6K | low (confined) | automated | fast | business-critical serving |
 
-*(Worked-example numbers for a 2-hour canary at 5% traffic; [2° DERIVED] illustrative, to be verified per deployment.)*
+*(ILLUSTRATIVE worked example: the canary arithmetic is DERIVED from the stated workload inputs — 5% traffic, 2-hour window, ~864,000 requests/day — and is illustrative, not a reference measurement. The workload inputs are sourced from the canonical §14 workload; the 2-hour/5% choices are held-out example assumptions, to be re-set per deployment.)*
 
 ## 4. Measurement
 

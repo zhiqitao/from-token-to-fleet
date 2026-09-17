@@ -124,7 +124,7 @@ The three blocks most often skipped are the **Architecture Decision Context**, t
 ADRs are only as good as the evidence they embed. This chapter recommends that each ADR include at least two derived quantities — quantities computed from raw data, not merely observed. In the model-shape ADR above, the derived quantities are:
 
 1. **70B FP16 model footprint** — $W = N \times \text{bytes-per-param} = 70 \times 10^9 \times 2 \text{ B} = 140$ GB parameters, plus ~30 GB activations (typical profiling-derived overhead) ≈ $170$ GB total. Derived from the model parameter count and a typical activation overhead factor estimated from profiling runs.
-2. **BF16 migration would reduce memory by ~40% with <0.5% quality impact** — the parameter footprint scales ~linearly with byte-width: FP16 ($2 \text{ B/param}$) vs BF16-to-FP32 mixes, giving roughly a $2\times$ byte-width ratio that translates to a ~40% memory reduction for the same model; validated by a small-scale accuracy benchmark on 1% of the validation set.
+2. **Weight-quantization residency lever** — quantizing the FP16/BF16 weights to INT8 reduces the nominal parameter-weight footprint from ~140 GB to ~70 GB for a 70B model (2 B/param → 1 B/param), before runtime overheads. Whether the resulting quantized model satisfies the quality SLO must be established by benchmark, not assumed. (An FP16↔BF16 change alone is *not* a memory lever: both are 16-bit, 2 B/param, ~140 GB.)
 
 Additional measurable quantities that should be tracked (even if not all included in the ADR itself) include:
 
