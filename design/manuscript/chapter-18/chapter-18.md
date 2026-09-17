@@ -112,7 +112,7 @@ To operate a mixed fleet we measure four cross-cutting metrics:
 | **Weighted average cost/token** | Σ(tokens_i × cost_i) / Σ(tokens_i) across all models | Directly tracks fleet economics; target < $0.002/token for competitive SaaS. |
 | **Per-model throughput** | requests/sec per GPU / per CPU node | Detects saturation; informs capacity adds vs. routing tweaks. |
 | **Routing accuracy** | % of requests served by the *intended* target model (not fallback) | Ensures the routing function R() is well-calibrated; low accuracy means feature gaps or cost model drift. |
-| **Latency p95 per model** | p95 of token-level latency per model | Guarante SLA per tier; p95 across the fleet = weighted p95 using routing probabilities. |
+| **Latency p95 per model** | p95 of token-level latency per model | Guarantee SLA per tier; fleet p95 must be computed from the combined routed-request latency distribution — per-model p95 values cannot in general be averaged (percentiles are not linearly composable). |
 
 Instrumentation: add a middleware shim that logs `model_id, token_count, latency_ms, cost_cents` per request. Export to Prometheus + Grafana for real-time dashboards.
 

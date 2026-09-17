@@ -22,13 +22,13 @@ A critical detail is the **session-affinity** decision. If user sessions must ma
 
 We continue from the canonical scenario: ~2,000 registered users, ~5% concurrent (~100 users), ~10 rps average / ~40 rps peak, prompt ~9,200 input tokens + ~300 output, 70B-class dense FP16 model, 8×H100 host with 640 GB GPU memory. A single 8×H100 host's capacity is set by the *binding constraint* among GPU compute, HBM bandwidth, and KV-cache memory. Let us verify with arithmetic, keeping the two quantities distinct: **aggregate HBM** (640 GB) is not the same as **KV-available memory** (640 − 140 GB weights − runtime/workspace reserve).
 
-**Single-host concurrency capacity (KV-bound).** The per-token KV footprint for the canonical 70B model is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 ≈ 2.5 MB/token (Chapter 7 canonical). Subtract the 140 GB FP16 weights and ~64 GB runtime/activations/workspace from the 640 GB pool, leaving ≈436 GB available for KV. Each request at 9,200 input + 300 output reserves 9,500 ×2.5 MB ≈ 23.8 GB of KV. A single host therefore holds C = 436 GB ÷ 23.8 GB ≈ **18 concurrent requests** — three orders of magnitude below the ~440 the earlier 128-byte/token variant implied. (That variant conflated aggregate HBM with KV headroom and used a κ ~20,000× too small.)
+**Single-host concurrency capacity (KV-bound).** The per-token KV footprint for the canonical 70B model is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 ≈ 2.5 MB/token (Chapter 7 canonical). Subtract the 140 GB FP16 weights and ~64 GB runtime/activations/workspace from the 640 GB pool, leaving ≈436 GB available for KV. Each request at 9,200 input + 300 output reserves 9,500 ×2.5 MB ≈ 23.8 GB of KV. A single host therefore holds C = 436 GB ÷ 23.8 GB ≈ **18 concurrent requests** — using the canonical layer-complete κ. Computing κ from a single layer instead of all 80 would overstate the concurrency figure by two orders of magnitude.
 
 **Viability at peak.** Peak traffic is 40 rps; with a target latency of ~1 s that is 40 concurrent requests in flight, against a KV capacity of ~18. **A single host is not viable at peak even for the non-agentic canonical workload** — it would need ~3 hosts at 40 rps, and ~2 more for growth to 100 rps. This flips the original conclusion: the fleet is not a distant luxury but a necessity at the canonical peak, and it is driven primarily by KV residency.
 
 **KV compression is the first lever.** Switching KV to FP8 (≈1.3 MB/token, Chapter 7) cuts per-request KV to ≈12.4 GB and raises C to ≈35 concurrent per host, roughly doubling headroom before buying hardware. This is why the architect treats KV precision as a first-class capacity dial, not a cosmetic detail.
 
-**Threshold for fleet expansion.** Suppose the agentic layer from Chapter 16 is added, with a median of 2 turns and a 95th‑percentile of 4 turns. Each turn adds ~800 tokens of retrieved context and ~65 tokens of model-generated reasoning, so the effective per‑request token count is
+**Threshold for fleet expansion.** Suppose the agentic layer from Chapter 19 is added, with a median of 2 turns and a 95th‑percentile of 4 turns. Each turn adds ~800 tokens of retrieved context and ~65 tokens of model-generated reasoning, so the effective per‑request token count is
 
 $$
 I(T) = I_0 + T(\delta + \gamma) + O_\text{final} = 9{,}200 + T \times 865 + 300
@@ -66,7 +66,7 @@ $$
 C = \frac{M_{kv}}{I(T) \cdot \kappa}
 $$
 
-where M_kv is the KV‑available memory — the portion of on‑host HBM left for KV after weights and runtime — and $\kappa = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes} \approx 2.5$ MB/token is the per‑token KV footprint (Chapter 7 canonical; NOT the ~128 B of an earlier draft, which omitted the layer count). For the canonical host, M_kv = 640 GB − 140 GB (FP16 weights) − ~64 GB (runtime/activations/workspace/NCCL) ≈ 436 GB. Dividing memory by bytes (not the byte‑divided‑by‑bytes collapse that trips unit analysis):
+where M_kv is the KV‑available memory — the portion of on‑host HBM left for KV after weights and runtime — and $\kappa = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes} \approx 2.5$ MB/token is the per‑token KV footprint (Chapter 7 canonical; κ includes all layers — omitting the layer factor understates KV memory by orders of magnitude). For the canonical host, M_kv = 640 GB − 140 GB (FP16 weights) − ~64 GB (runtime/activations/workspace/NCCL) ≈ 436 GB. Dividing memory by bytes (not the byte‑divided‑by‑bytes collapse that trips unit analysis):
 
 - For T = 0 (baseline, I = 9,500): C = 436 GB / (9,500 ×2.5 MB) ≈ 436/23.8 ≈ **18 concurrent requests per host**.
 - For T = 2 (median): C = 436 GB / (10,630 ×2.5 MB) ≈ 436/26.6 ≈ **16 concurrent requests per host**.
