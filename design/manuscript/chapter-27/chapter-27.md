@@ -10,7 +10,7 @@ Four independent labs converged on a **second-order architectural pattern** in 2
 
 ![Fig A.1 — 2026 frontier MoE extreme sparsity: four open models, total vs activated parameters, and active fraction in single digits [1P]](figures/fig-27-2701.png)
 
-*Frontier MoE sparsity in 2026. Kimi K3 is the extreme case: 2.8 T total / 104 B active (~3.7% active); DeepSeek-V4-Flash 284 B/13 B (~4.6%); GLM-5.3-Flash 320 B/18 B (~5.6%); Qwen3.8-Flash-Next 125 B/6 B (~4.8%). Active-parameter fraction in every frontier model is now single digits — the anchor for the Ch10 expert-parallelism serving calculus. [1P: arXiv 2606.19348; arXiv 2607.24653; HF Qwen/Qwen3.8-Flash-Next; HF zai-org/GLM-5.3-Flash]*
+*Frontier MoE sparsity in 2026. Kimi K3 is the extreme case: 2.8 T total / 104 B active (~3.7% active); DeepSeek-V4-Flash 284 B/13 B (~4.6%); GLM-5.3-Flash 320 B/18 B (~5.6%); Qwen3.8-Flash-Next 125 B/6 B (~4.8%). Active-parameter fraction in each of these four frontier MoE families is in the single digits — the anchor for the Ch10 expert-parallelism serving calculus. [1P: arXiv 2606.19348; arXiv 2607.24653; HF Qwen/Qwen3.8-Flash-Next; HF zai-org/GLM-5.3-Flash]*
 
 Three **efficiency levers** every 2026 frontier family pulled:
 
@@ -56,15 +56,15 @@ When we write "Four independent labs converged" or "MoE is arguably a larger arc
 
 ## 5. What This Means for the Handbook's Canonical Arithmetic
 
-![Fig A.2 — The KV constant and FLOP/token are a moving target: hybrid attention cuts both at the mechanism. Canonical 70B dense full-MHA = 100%; DeepSeek-V4-Flash ≈ 7% KV / 10% FLOP, V4-Pro ≈ 10% / 27%, GLM-5.3-Flash ≈ 23% KV / ~33% attention-compute [DERIVED from 1P claims: arXiv 2606.19348; HF zai-org]](figures/fig-27-2704.png)
+![Fig A.2 — The KV constant and FLOP/token are a moving target: hybrid attention cuts both at the mechanism. A canonical 70B dense full-MHA is shown at 100% for scale; the frontier percentages are each model's vendor-reported reduction versus its own stated reference (e.g. DeepSeek V4 vs V3.2), not a cross-model percentage of the canonical 70B [DERIVED from 1P claims: arXiv 2606.19348; HF zai-org]](figures/fig-27-2704.png)
 
-*Same message as Fig 7.1's GQA line, taken to the frontier: the per-token KV and FLOP "constants" of Chapter 7/8 are not universal — they are the canonical full-MHA conservative upper-bound teaching model, which hybrid attention re-architects down at the mechanism. Percentages are each model's gain over its own predecessor (e.g. V3.2→V4, GLM-5.x steps), shown against the canonical 70B dense full-MHA reference so the floors stay comparable. An architect who re-derives them per candidate model avoids both over- (sizing a 7% KV model as if it were 100%) and under-provisioning. Values are vendor-published [1P], not yet independently reprofiled on a serving stack (see §5).*
+*Same message as Fig 7.1's GQA line, taken to the frontier: the per-token KV and FLOP "constants" of Chapter 7/8 are not universal — they are the canonical full-MHA conservative upper-bound teaching model, which hybrid attention re-architects down at the mechanism. The frontier percentages are each model's vendor-reported ratio of its own stated reference (e.g. DeepSeek V4 vs V3.2), NOT a cross-model percentage of the canonical 70B — the canonical 100% bar is shown only as the book's teaching floor for scale. An architect who re-derives them per candidate model avoids both over- (sizing a 7% KV model as if it were 100%) and under-provisioning. Values are vendor-published [1P], not yet independently reprofiled on a serving stack (see §5).*
 
 The book's canonical scenario is a 70B dense FP16, ~9.2K-token RAG workload on 8×H100. The 2026 frontier does not invalidate it — it *refines* the interpretation an architect should carry:
 
 - The **KV constant** (Ch7: ~2.5 MB/token FP16, ~1.3 MB 8-bit) is the canonical full-MHA conservative upper-bound teaching model. Hybrid-attention models cut it 4–10× at the mechanism, so "context fits on N GPUs" must be re-derived per model, not looked up once. [1P]
 - The **roofline** (Ch8) still holds; what changed is where a frontier model's prefill/decode ride it. Vendor-reported FLOP/KV reductions are [1P] but not yet independently reprofiled — an architect should re-run Ch8's measurement on the candidate model before betting capacity. [1P] → (to be re-verified for this candidate)
-- The **MoE memory decision** (Ch10) is now dominated by active parameters + KV + expert-fabric comm, not total size. [1P]
+- The **MoE memory decision** (Ch10) is jointly dominated by total-weight residency/sharding, active-parameter compute, KV footprint, and expert-fabric communication. Extreme sparsity reduces per-token compute; it does not eliminate total-weight residency, which still scales with the full parameter count unless experts are explicitly offloaded or sharded. [1P]
 
 None of this changes the book's *mechanisms*; it changes the *constants* an architect plugs into them. This is exactly why we wrote the arithmetic as verifiable, first-principles reasoning rather than as a fixed catalog of numbers.
 
