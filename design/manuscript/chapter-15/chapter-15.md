@@ -1,4 +1,4 @@
-# Chapter 15 — Performance Engineering: From "It Works" to "It Meets the SLO"
+# Chapter 15 — Performance Engineering: From “It Works” to “It Meets the SLO”
 
 ## The Architect's Question
 
@@ -64,6 +64,6 @@ A new deployment adds 500 registered users with the same traffic profile (5 % 
 
 ### Goodput vs. Batch Size: the Cache Lever
 
-![Fig 15.1 — Decode goodput vs batch size, with and without prefix caching: caching relaxes the **prefill** bottleneck, not decode (illustrative, canonical decode ~25 ms/token)](figures/fig-15-1501.png)
+![Fig 15.1 — Decode goodput vs batch size, with and without prefix caching](figures/fig-15-1501.png)
 
 The capacity response to batch size under peak load. Raising batch size raises decode goodput until bandwidth saturates; prefix caching (blue) buys its headroom on the prefill side, so a cacheable fleet sustains higher goodput at every batch size.

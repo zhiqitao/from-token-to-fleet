@@ -57,10 +57,10 @@ The three candidates carry forward into the evaluation chapters (Chs. 14–16) w
 As of 2026-08, several questions remain open and are flagged (to be verified):
 - **KV-quantization quality impact at 4-bit for enterprise Q&A.** The quality loss from 4-bit KV quantization has not been systematically characterized across the diversity of enterprise prompts in the canonical workload. (a hypothesis awaiting verification)
 - **Prefix-caching effectiveness under realistic traffic overlap.** The assumed 30–50% prefill amortization rests on the premise that many requests share document-level prefixes. Empirical measurement of prefix overlap across a production enterprise traffic trace is needed to confirm these numbers. (a hypothesis awaiting verification)
-- **P/D-disaggregation communication overhead in multi-host settings.** The boundary between parameterparallel and data-parallel placement is relatively unexplored at the 70B scale; the actual communication volume and its latency impact depend on the routing library and network topology. (a hypothesis awaiting verification)
+- **P/D-disaggregation communication overhead in multi-host settings.** The boundary between parameter-parallel and data-parallel placement is relatively unexplored at the 70B scale; the actual communication volume and its latency impact depend on the routing library and network topology. (a hypothesis awaiting verification)
 - **Whether 8-bit KV caching is sufficient for 9.2K context at FP16-equivalent quality.** The arithmetic in §3 assumes 8-bit KV reduces memory by 2× with minimal quality loss, but the interaction between 8-bit quantization and the retrieval-augmented generation pipeline has not been verified. (a hypothesis awaiting verification)
 
-These flags exist because home-lab measurements are not reference per the evidence taxonomy; they will be resolved (promoted, dropped, or demoted) before publication.
+These flags exist because home-lab measurements are not reference per the evidence taxonomy; each is an open empirical question a team should validate against its own target workload, not a claim the handbook has settled.
 
 ## 8. End-of-Chapter Mini-Case
 An architect is brought into a design conversation for a company-wide internal Q&A system. The stakeholder states: "We need an AI system that can answer employee questions over our internal documentation, with acceptable quality and within budget." Before any architecture can be defended, the architect applies the constraint-driven method from this chapter.

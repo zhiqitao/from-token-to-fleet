@@ -50,7 +50,7 @@ $$
 
 — looks fine. But the distribution actually has a long tail: p50 = 0.80 s, p90 = 0.94 s, p95 = 0.99 s, and p99 = 1.33 s. The mean hides the tail; percentiles expose it. With a p99 TTFT SLO of ≤ 2 s, the 1% stragglers pushing to 5 s are the ones that breach the budget. (A p95 throat would not be breached here — p95 stays near 1 s — because a p95 budget fails only when more than ~5% of observations cross it; this is a common misconception, so we show the p99 case explicitly.)
 
-![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean. The mean (~0.84 s) hides the 1% stragglers at ~5 s; it is the p99 budget (not p95) they breach (illustrative)](figures/fig-06-0602.png)
+![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean](figures/fig-06-0602.png)
 
 Why the mean is not a signal. The same request stream of 99% @ 0.8 s + 1% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s), yet p99 paints a very different picture under a 2 s SLO. Log the distribution; SLO against the percentile.
 

@@ -143,7 +143,7 @@ This consequence feeds directly into Pattern 12 (Fine‑tuning for specific work
 
 (to be verified) HYPOTHESIS: guardrail latency (PII redaction, refusal checking) on generated 300‑token outputs adds 2–8 ms per request on CPU, but the figure depends on the guardrail implementation (regex‑based vs. model‑based) and the hardware. This has not been measured on the canonical 8×H100 configuration.
 
-Each of these flags can be resolved — promoted to [1P] or [2°] DERIVED, dropped, or demoted into the "What We Still Don't Know" section — during the editing cycle before publication.
+Each of these flags is an open empirical question a team should resolve against its own target workload — promoted to [1P] or [2°] DERIVED, dropped, or demoted into the "What We Still Don't Know" section — rather than left as an untested assumption.
 
 ## 8. End-of-Chapter Mini-Case
 

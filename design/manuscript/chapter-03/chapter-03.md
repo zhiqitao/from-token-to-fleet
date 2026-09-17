@@ -136,7 +136,7 @@ As of 2026-08, several questions remain open and are flagged (to be verified):
 - **Whether router latency offsets MoE compute savings.** The cost of computing routing scores and dispatching to experts is not always included in published FLOP counts. On some hardware the routing overhead can be significant enough to narrow the compute gap between MoE and dense. (a hypothesis awaiting verification)
 - **KV-cache behavior under MoE with expert swapping.** When experts do not fit on a single GPU and must be swapped (offloaded), does the KV cache interact with the swapping mechanism in ways that change its effective size or access pattern? This has not been systematically characterized. (a hypothesis awaiting verification)
 
-These flags exist because home-lab measurements are not reference per the evidence taxonomy; they will be resolved (promoted, dropped, or demoted) before publication.
+These flags exist because home-lab measurements are not reference per the evidence taxonomy; each is an open empirical question a team should validate against its own target workload, not a claim the handbook has settled.
 
 ## 8. End-of-Chapter Mini-Case
 

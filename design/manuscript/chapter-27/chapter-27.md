@@ -1,6 +1,8 @@
 # Appendix A — 2026 Frontier Architectures: What the Latest Open Models Tell Us
 
-> **Why this appendix exists.** The body of this handbook works through durable mechanisms — tokens, memory floors, rooflines, parallelism, KV arithmetic — that do not change. But the industry moves, and the whole point of an architecture handbook is to stay current. In 2026 the four frontier open-weight MoE families — DeepSeek-V4, Kimi K3, Qwen3.8-Flash-Next, and GLM-5.3-Flash — all shipped within a short window. Reading them together is not a product tour; it is a single, coherent signal about where the mechanisms in this book are heading. Every mechanism below maps back to a chapter and an architectural decision. Where a vendor number appears, it is tagged [1P] (first-party) and, per this book's discipline, flagged as a vendor-reported figure an architect should verify on their own hardware before trusting it for their workload.
+> **Why this appendix exists.** The body of this handbook works through durable mechanisms — tokens, memory floors, rooflines, parallelism, KV arithmetic — that do not change. But the industry moves, and the whole point of an architecture handbook is to stay current. In 2026 the four frontier open-weight MoE families — DeepSeek-V4, Kimi K3, Qwen3.8-Flash-Next, and GLM-5.3-Flash — all shipped within a short window. Reading them together is not a product tour; it is a single, coherent signal about where the mechanisms in this book are heading. Every mechanism below maps back to a chapter and an architectural decision.
+
+> **⚠ Snapshot date: 2026-08-30.** This appendix is a snapshot of the frontier as of that date, compiled from the first-party technical reports and model cards listed in §8. The models, their parameter counts, constants, and claims are vendor-reported and move quickly. It illustrates how to apply the framework to a changing frontier; it is **not** a current model leaderboard. An architect should re-check the primary sources before betting capacity on any specific number quoted here.
 
 ## The Signal in One Paragraph
 
@@ -95,7 +97,7 @@ A recurring error — easy to fall into after reading four new model cards — i
 
 This is why architecture alone never tells an architect how good a frontier model is, and why the decision can no longer stop at "which model" — the marginal capability may live in the post-training and the runtime that wraps it.
 
-![Fig A.3 — The layered evolution of frontier systems, color-coded by efficiency-led (amber) vs capability-led (blue) stages, from a single Transformer to the whole fleet (Appendix §6)](figures/fig-27-2703.png)
+![Fig A.3 — The layered evolution of frontier systems](figures/fig-27-2703.png)
 
 From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are largelyefficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. This chain is the spine of the handbook: tokens (Ch1–9), parallelism (Ch10), serving (Ch11–16), fleet & agents (Ch17–26). [INTERPRETATION — synthesis of the chapters' arithmetic, not a single measurement]*
 
@@ -105,7 +107,7 @@ This chain is the spine of this handbook — from a single model's tokens (Ch1�
 
 The most useful lens for an AI Solution Architect in 2026 is not "which attention mechanism does the model card list?" but *where the intelligence and the compute budget should be placed*:
 
-![Fig A.4 — Where should intelligence live? Eight host layers, from inside the weights up to across a fleet of specialized models, each mapped to the chapters of this handbook that give the tooling to evaluate it (Appendix §7)](figures/fig-27-2702.png)
+![Fig A.4 — Where should intelligence live?](figures/fig-27-2702.png)
 
 The placement ladder. Every host layer that can carry intelligence is a place the architect may choose to push capability or cost; this book gives the arithmetic and decision framework for each (Ch3/7/8 weights & attention, Ch10 MoE routing, Ch19/21 post-training, Ch8/20 test-time, Ch19/24 tools, Ch17–20 runtime, Ch18/20 fleet). [INTERPRETATION/ILLUSTRATIVE per Appendix A's three-layer rule]
 

@@ -60,6 +60,29 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 
 *(All figures trace to the §14 canonical scenario; none are independent measurement claims. Table 4-2 consolidates the six‑dimension characterization for quick reference.)*
 
+> **Canonical Workload — the single reference set.** This box is the one authoritative set of numbers every chapter disciplines on. When a chapter states a workload parameter, it comes from here and nowhere else. The derived values (requests/s, tokens/s) are this box's arithmetic, recomputed in the chapter that needs them.
+>
+> | Field | Value |
+> |---|---|
+> | Employees / registered users | ~2,000 |
+> | Active users at peak concurrency | ~100 (5% of 2,000) |
+> | Average request rate | 10 rps |
+> | Peak request rate | 40 rps |
+> | Prompt / query | 1,200 tokens |
+> | Retrieved context | 8,000 tokens |
+> | Total input | 9,200 tokens |
+> | Output | 300 tokens |
+> | Model baseline | Dense 70B |
+> | Weight precision | FP16 (2 B/param → ~140 GB) |
+> | KV precision | FP16 (25 MB/token → ~23.5 GB @ 9.2K) |
+> | TTFT SLO | 1.2 s (retrieval ~120 ms + prefill ~1.08 s); p95 ≤ 2 s |
+> | TPOT SLO | 25 ms/token; p95 ≤ 35 ms |
+> | Hardware | 8 × H100 (80 GB each, 640 GB) |
+> | Availability | 99.9% |
+> | Monthly budget | ~$15,000 (illustrative ceiling) |
+>
+> *The two derived rates most chapters cite: at 10 rps the input demand is ~92,000 tokens/s (9,200 × 10) and output ~3,000 tokens/s (300 × 10); at 40 rps peak the input demand is ~368,000 tokens/s (9,200 × 40). These come from this box, not from a chapter re-deriving the mix differently.*
+
 #### Arithmetic Walk‑Through: From Users to Requests per Second
 
 The step from "~2,000 registered users" to "~10 rps average" is the key connective tissue that makes the continuous scenario concrete. Here is the full derivation, traceable line by line:

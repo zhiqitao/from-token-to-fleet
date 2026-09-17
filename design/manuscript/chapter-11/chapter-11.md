@@ -47,7 +47,9 @@ Imagine naive **discrete (static) batching**: the server accumulates requests un
 
 **Continuous batching (Orca [S1][1P])** eliminates the batch boundary: at every decode step the scheduler accepts any new prefill-ready request and evicts any finished one, so decode slots never sit idle. In the canonical stream, a 300-token decode at ~25 ms/token occupies a slot for ~7.5 s; while a long decode runs, the freed FLOPs are continuously refilled by new short requests. The utilization gain is the difference between spiky discrete batches and a continuously-fed pipeline. Rather than stipulate a single percent, the mechanism makes the GPU the steady bottleneck instead of the scheduler. [2° DERIVED]
 
-![Fig 11.1 — Discrete vs continuous batching (Orca-style slot diagram). Discrete batching runs each batch to completion, leaving GPU slots idle as sequences finish early; continuous batching admits and evicts requests at every decode step, backfilling freed slots (illustrative, after Orca, OSDI 2022)](figures/fig-11-1102.png)
+![Fig 11.1 — Discrete vs continuous batching (Orca-style slot diagram)](figures/fig-11-1102.png)
+
+*Discrete batching runs each batch to completion, leaving GPU slots idle as sequences finish early; continuous batching admits and evicts requests at every decode step, backfilling freed slots. (Illustrative, after Orca, OSDI 2022.)*
 
 The heart of the chapter's serving story made visual. Discrete (static) batching lets slots sit idle whenever a sequence finishes early inside the batch; continuous (iteration-level) batching backfills a freed slot immediately, so the GPU — not the scheduler — is the steady bottleneck. This is the difference between spiky, latency-wasting batches and a continuously-fed decode pipeline.
 
