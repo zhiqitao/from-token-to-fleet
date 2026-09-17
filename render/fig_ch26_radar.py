@@ -39,6 +39,9 @@ ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.06), fontsize=9.5,
           ncol=3, frameon=False)
 ax.grid(alpha=0.35)
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=150)
+# RETIRED: the radar was superseded by the grouped-bar fingerprint (fig_ch26_fingerprint.py)
+# because a radar chart's enclosed-area reading is invalid (axis-order + normalisation
+# dependent) per the chapter's own reasoning. Do not write fig-26-2602 from here.
+# plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=150)
 plt.close()
-print('wrote fig-26-2602')
+print('RETIRED radar (fig_ch26_radar.py); grouped-bar fingerprint writes fig-26-2602')

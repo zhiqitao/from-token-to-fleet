@@ -14,7 +14,7 @@ Red Team / Green Team is a structured adversarial evaluation pattern borrowed fr
 
 The Green Team responds by hardening defenses, refining detection, and quantifying coverage. The cycle repeats until the attack-surface budget is demonstrably bounded.
 
-This chapter assumes a canonical deployment: ~2,000 concurrent users, a 70B dense FP16 base model, and a RAG pipeline with vector search over a curated corpus. The Red Team / Green Team process is not a one-time audit; it is an ongoing practice embedded in the deployment lifecycle.
+This chapter assumes a canonical deployment: ~2,000 registered users (~100 concurrent at peak), a 70B dense FP16 base model, and a RAG pipeline with vector search over a curated corpus. The Red Team / Green Team process is not a one-time audit; it is an ongoing practice embedded in the deployment lifecycle.
 
 ## 2. Mental Model
 

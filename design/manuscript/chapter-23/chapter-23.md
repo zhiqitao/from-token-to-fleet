@@ -31,8 +31,8 @@ Think of the customer conversation as **buying information, not delivering answe
 **[Worked example dialogue — illustrative, not reference.]** An internal-platform lead says: "We want an AI assistant for our sales teams — it should answer questions from our product docs and CRM data, and it should be fast." [2°]
 
 **Architect:** "~How many people will use it, and how often?"
-**Lead:** "~2,000 on the platform; maybe 10% are in it at once at peaks."
-**Architect:** "So ~200 concurrent at peak, and realistically a fraction of that firing requests. Roughly how many questions per second at the busiest minute?"
+**Lead:** "~2,000 on the platform; maybe 5% are in it at once at peaks."
+**Architect:** "So ~100 concurrent at peak, and realistically a fraction of that firing requests. Roughly how many questions per second at the busiest minute?"
 **Lead:** "If everyone on the sales floor asked at once, maybe 40 a second."
 **→ Bound 1: ~2,000 users, ~10 rps average, ~40 rps peak.** [1P §14]
 
