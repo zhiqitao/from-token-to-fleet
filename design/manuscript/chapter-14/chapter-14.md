@@ -62,7 +62,7 @@ Four habits make benchmarks trustworthy:
 - **Benchmarking a single request.** Real SLOs break under concurrency; a single-request benchmark hides the tail.
 - **Mean-only latency reporting.** A 0.84 s mean hides a 5 s tail that breaches the p95 SLO (Ch6).
 - **Using the wrong tokenizer estimate.** Under-counting context via the 4-char heuristic mis-sizes KV cache and prefill.
-- **Optimizing raw throughput past the SLO window.** Bigger datch sizes raise tokens/s but push TTFT over the deadline, zeroing goodput (Ch6, Ch11).
+- **Optimizing raw throughput past the SLO window.** Bigger batch sizes raise tokens/s but push TTFT over the deadline, zeroing goodput (Ch6, Ch11).
 
 ## 6. Architecture Consequence
 
