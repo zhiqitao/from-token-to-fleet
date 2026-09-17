@@ -40,7 +40,7 @@ def main():
     ap.add_argument("--util", type=float, default=1.0, help="self-host on-time duty (1.0 = always on)")
 
     # Mode 2 (cloud on-demand)
-    ap.add_argument("--cloud-usd-per-hr", type=float, default=3.50, help="8\u00d7H100 instance")
+    ap.add_argument("--cloud-usd-per-hr", type=float, default=20.0, help="8\u00d7H100 instance ($2.50/GPU-hr \u00d7 8)")
     ap.add_argument("--cloud-duty", type=float, default=0.40)
 
     # Mode 3 (managed API)

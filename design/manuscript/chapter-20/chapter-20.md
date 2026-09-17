@@ -38,7 +38,7 @@ At the canonical peak of 40 rps, a fleet sized by KV residency (Chapter 17, ~4�
 
 **Scheduling overhead.** A lightweight round-robin scheduler adds ~0.5 ms of dispatch latency per request — negligible next to a real 7.5 s decode, but it must stay under ~5% of the *measured* per-request time.
 
-**Autoscaling economics.** Each H100 host costs ~$3/hour (cloud) or ~$1.50/hour amortized (owned) — [ILLUSTRATIVE]. The marginal cost per additional QPS is $3 ÷ (QPS gained per host); the economic lesson (diminishing cost of a marginal host once fixed costs dominate) is sound, but the exact per-QPS figure is only meaningful after the real per-host throughput is benchmarked.
+**Autoscaling economics.** Each 8×H100 host costs ~$20/hour (cloud, $2.50/GPU-hr canonical) or ~$8/hour amortized (owned) — [ILLUSTRATIVE]. The marginal cost per additional QPS is $20 ÷ (QPS gained per host); the economic lesson (diminishing cost of a marginal host once fixed costs dominate) is sound, but the exact per-QPS figure is only meaningful after the real per-host throughput is benchmarked.
 
 ## 4. Measurement
 
@@ -100,7 +100,7 @@ Several open questions remain at the fleet level:
 
 - **Real per-host throughput (Ch. 15/17 basis):** a host sustaining ~35,000 tokens/s (achieved, Chapter 15) against a ~9,500-token request moves ~3.7 requests/s at steady state. This is the number to use for capacity and cost: it is grounded in the decode-rate and KV-residency analysis, not an assumed QPS.
 - Fleet aggregate (8 hosts): 8 ×3.7 ≈ **30 req/s**, i.e. comfortably above the canonical 40 rps peak only when concurrency is also held — the binding constraint is KV residency (Chapter 17), which sets *concurrent* requests, not the QPS arithmetic above.
-- **Marginal cost (real basis):** adding one host at ~$3/hr (cloud, [ILLUSTRATIVE]) buys ~3.7 req/s, so marginal cost ≈ $3 ÷ 3.7 ≈ **$0.81 per req/s per hour.** (The earlier illustrative $0.012 figure assumed 250 req/s per host — a 68× understatement that comes entirely from the impossible latency; with a real multi-second decode per request the per-host rate is ~3.7, not 250.)
+- **Marginal cost (real basis):** adding one host at ~$20/hr (cloud, [ILLUSTRATIVE]) buys ~3.7 req/s, so marginal cost ≈ $20 ÷ 3.7 ≈ **$5.4 per req/s per hour.** (The earlier illustrative $0.012 figure assumed 250 req/s per host — a 68× understatement that comes entirely from the impossible latency; with a real multi-second decode per request the per-host rate is ~3.7, not 250.)
 - **Algebra practice (kept [ILLUSTRATIVE]):** the per-host 250 QPS / fleet 2,000 QPS / $0.012 per QPS arithmetic from the original exercise is retained only to show the *structure* of the fleet math (marginal host cost ÷ marginal capacity). It deliberately uses a hypothetical per-host QPS that is not achievable for this 9.2K-in/300-out workload; the architect must substitute the measured throughput from Chapter 14, or the ~3.7 req/s bound derived here.
 - Scheduling overhead must stay below ~5% of per-query time; against a real decode of seconds this is loose, but measured latency is the true anchor (.5 ms dispatch is negligible next to any realistic per-request time).
 

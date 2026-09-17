@@ -43,8 +43,8 @@ We price the canonical 70B enterprise-Q&A workload at the canonical traffic (~10
 
 **Mode 2 — cloud GPU instances (rent, shut down when idle).**
 
-- An 8×H100 on-demand instance ~$3.50/hr (Ch4 reconciled), paid only while running, say ~40% duty cycle to cover peaks → ~$1.40/hr average effective → ~$1,000/month. [2° DERIVED]
-- Per request: at 10 rps the same ~26M requests/month. **Cost ≈ $1,000 / 26M ≈ $0.000038/request ≈ $0.04 per 1,000 requests.** [2° DERIVED] *(cloud beats self-host per request ONLY at low duty cycle; the $/hr must cover staff & integration too.)*
+- An 8×H100 on-demand instance ~$20/hr (canonical: $2.50/GPU-hr × 8), paid only while running, say ~40% duty cycle to cover peaks → ~$8/hr average effective → ~$5,760/month. [2° DERIVED]
+- Per request: at 10 rps the same ~26M requests/month. **Cost ≈ $5,760 / 26M ≈ $0.00022/request ≈ $0.22 per 1,000 requests.** [2° DERIVED] *(cloud now roughly ties or exceeds self-host per request at this volume/duty; the $/hr-per-node basis and the duty-cycle assumption are the two levers. Staff & integration add on top.)*
 
 **Mode 3 — managed inference API.**
 
@@ -61,7 +61,7 @@ $$
 [2° FACT, illustrative]
 - At the canonical 25.9M requests/month: ~$539,000/month — an order of magnitude above self-host. [2° DERIVED]
 
-**Reading the result.** Self-hosted (~$0.82/1K reqs) beats the API (~$20.8/1K reqs) by ~25× on pure token cost at this volume — but only because we assume steady near-canonical utilization plus in-house staff we are not separately billing. Cloud-on-demand ($0.04/1K) looks cheapest only if duty cycle is low AND we ignore staff/integration. The honest TCO answer for a business-critical, always-on service at canonical volume is **self-hosted cards**, with the caveat that the staff term is the real swing factor. [2° DERIVED]
+**Reading the result.** Self-hosted (~$0.82/1K reqs) beats the API (~$20.8/1K reqs) by ~25× on pure token cost at this volume — but only because we assume steady near-canonical utilization plus in-house staff we are not separately billing. Cloud-on-demand (~$0.22/1K) now broadly ties or slightly exceeds self-host per request at this duty; it only wins if duty cycle is much lower (~20%) or we ignore staff/integration. The honest TCO answer for a business-critical, always-on service at canonical volume is **self-hosted cards**, with the caveat that the staff term is the real swing factor. [2° DERIVED]
 
 **Parametric sensitivity is the durable form.** All the fixed inputs above — GPU price, electricity, staffing, capacity, API price — are [ILLUSTRATIVE] scenario values; the *structure* of the model is what generalizes. The architect can see the decision flip with utilization and volume: if effective utilization is low (~20%, e.g. a demo or dev workload), self-hosted cards sit idle while depreciating, and managed on-demand wins; near the crossover (~50–60% utilization at canonical volume) the two are close and the decision hinges on the staff/risk terms; only at sustained high utilization (~80%+) does self-hosted clearly win on cost-per-request. Rather than memorize one answer, the durable tool is a small parametric model — exact same arithmetic with GPU $/hr, $/kWh, staffing, and API price as inputs — which the architect re-runs with the customer's real numbers (Chapter 23). This is what makes TCO a decision *framework*, not a single verdict. A runnable, parameterised version of exactly this model ships with the book as `render/tco_calc.py` (defaults reproduce these numbers; override GPU $/hr, $/kWh, staffing, and API price as flags).
 
@@ -70,7 +70,7 @@ $$
 | Mode | Capex | Opex/month | Cost/1K req | $/month @26M req | When it wins |
 |---|---|---|---|---|---|
 | Self-hosted 8×H100 | ~$350K | ~$21.2K | ~$0.82 | ~$21K | steady high utilization, staff available |
-| Cloud on-demand | $0 | ~$1K (40% duty) | ~$0.04 | ~$1K+staff | low duty cycle, bursty, no staff for ops |
+| Cloud on-demand | $0 | ~$5.8K (40% duty) | ~$0.22 | ~$5.8K+staff | low duty cycle, bursty, no staff for ops |
 | Managed API | $0 | usage | ~$21 | ~$546K | tiny volume, fastest time-to-value |
 
 *(Figures are worked-example estimates as of Q4 2026, not vendor quotes; treat as [2° DERIVED] illustrative, to be re-priced before budgeting.)*
