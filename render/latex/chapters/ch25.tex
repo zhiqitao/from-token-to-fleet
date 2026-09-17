@@ -85,62 +85,65 @@ optimal.
 \section{Worked Example: Model-Shape
 ADR}\label{worked-example-model-shape-adr}
 
-\textbf{Title:} ADR 0016 --- Model Quantization: FP16 vs BF16 for 70B
+\textbf{Title:} ADR 0016 --- Model Precision: FP16 vs BF16 for 70B
 Inference
 
 \textbf{Status:} Accepted
 
 \textbf{Context:} The fleet runs a 70-billion-parameter dense model for
-RAG Q\&A serving. Two quantization formats are under consideration: FP16
-(standard floating-point16) and BF16 (brain floating-point16). The
-system currently deploys FP16 on NVIDIA A100 GPUs with 80 GB HBM2e
-memory. The team is evaluating whether to migrate to BF16 to reduce
-memory pressure at the cost of reduced dynamic range.
+RAG Q\&A serving on an 8×H100 host (640 GB). The team is choosing the
+deployment weight precision: FP16 (float16) or BF16 (bfloat16). A common
+assumption --- that migrating to BF16 halves the model's memory and buys
+headroom --- is wrong, and this record exists partly to correct it. FP16
+and BF16 are both 16-bit formats, 2 bytes per parameter, so a 70B model
+occupies \textasciitilde140 GB in either. This ADR is therefore not a
+memory decision; it is a numerical-range and operational-consistency
+decision.
 
-\textbf{Decision:} Continue with FP16 quantization for the 70B model.
-BF16 migration is deferred to a future hardware refresh.
+\textbf{Decision:} Render the serving model in BF16.
 
-\textbf{Rationale:} - FP16 provides sufficient precision for Q\&A use
-cases; empirical evaluation on the retrieval and generation pipelines
-shows no measurable drop in exact-match scores. - A100 GPUs natively
-support FP16 tensor operations with no performance penalty; BF16 would
-require explicit casting, adding kernel launch overhead. - The earlier
-A100 sizing discussion flags that a single 80 GB HBM2e A100 cannot hold
-a full 70B FP16 model by itself --- 140 GB of weights alone exceeds 80
-GB, so a deployment must use model parallelism (e.g., 2×80 GB A100 for
-the \textasciitilde140 GB weights with KV in a portion of the pool) or
-quantization (FP8/8-bit) to fit a single card. The ADR therefore records
-the real constraint: FP16 residency is \textasciitilde164 GB with 9.2K
-KV on the canonical 70B (\hyperref[chap:7]{Chapter 7}), requiring multiple GPUs or
-compression. BF16 would change bytes-per-parameter but not this fit
-logic; the burden is the migration cost, not a free 40 GB win on an
-already-too-small card. - The fleet's next GPU refresh (expected Q3
-2027) will likely include BF16/TF32 support, making a deferred migration
-natural.
+\textbf{Rationale:} - FP16 and BF16 both store 2 bytes/parameter, so
+weight residency is identical (\textasciitilde140 GB for 70B). Stating
+this up front prevents anyone from later treating the choice as a memory
+lever. - The real difference is range vs precision. BF16 keeps the same
+8-bit exponent as FP32, so it does not overflow or underflow in
+activations the way FP16's 5-bit exponent can. FP16 carries more
+mantissa bits (10 vs 7) and is more precise when values already sit in
+range. - For this workload both precisions clear the quality bar on the
+held-out Q\&A set (no measurable exact-match change), so the deciding
+factors are range robustness and consistency --- not capacity. - A100
+(and the 8×H100 host) natively supports BF16 and TF32 on its Tensor
+Cores. There is no ``next GPU generation'' required and no
+explicit-casting penalty; the premise that these formats wait for future
+hardware is itself the kind of error an ADR should catch. - Operational
+consistency: the training run that produced the weights used BF16 mixed
+precision. Keeping inference in BF16 avoids a training-to-serving cast
+and keeps behavior predictable.
 
-\textbf{Consequences:} - \textbf{Positive:} No code change required;
-zero risk of introducing inference bugs; existing monitoring and
-alerting remain valid. - \textbf{Negative:} \textasciitilde40 GB more
-memory per model instance compared to BF16; if GPU prices or
-availability shift, the fleet may need to carry fewer concurrent models.
-- \textbf{Monitoring:} Track per-request latency, GPU memory
-utilization, and model output quality on a held-out Q\&A set. If quality
-degrades, reassess quantization choices.
+\textbf{Consequences:} - \textbf{Positive:} range robustness in
+attention/softmax and long-context accumulation; no change in weight
+residency (both precisions are \textasciitilde140 GB). -
+\textbf{Negative:} lower mantissa precision than FP16 in the weights; a
+small (\textless0.5\%) measured quality shift on a few retrieval-heavy
+prompts. There is no free memory --- and none should be expected. -
+\textbf{Monitoring:} track per-request latency, GPU memory utilization,
+and held-out Q\&A quality. If the BF16 output drifts, fall back to FP16
+and compare both on the same set (they differ in precision, not
+footprint).
 
-\textbf{Alternatives Considered:} 1. \textbf{Pure FP32:} Rejected ---
-280 GB per model instance, exceeding A100 memory by 200+ GB. Not viable
-without model parallelism. 2. \textbf{8-bit Int8 quantization:} Rejected
---- while memory reduces to \textasciitilde70 GB, accuracy drops on
-multi-step reasoning tasks; not acceptable for the Q\&A SLA. 3.
-\textbf{Model parallelism (pipeline parallel):} Rejected --- introduces
-cross-GPU communication latency; degrades user-perceived response time
-for short queries.
+\textbf{Alternatives Considered:} 1. \textbf{FP16:} Rejected here --- no
+memory advantage over BF16, and a narrower exponent range. Retained as
+the fallback if BF16 shows precision drift. 2. \textbf{FP8 weights:} The
+genuine memory lever (halves residency to \textasciitilde70 GB) but
+needs per-tensor calibration and a validation gate; deferred as the next
+step, paired with the FP8 KV discussion in \hyperref[chap:7]{Chapter 7}. 3. \textbf{FP32:}
+Rejected --- 280 GB residency with no quality benefit for this workload.
 
-\textbf{Evidence Tags:} FACT: A100 FP16 tensor core throughput = 312
-TFLOPS. DERIVED: 70B FP16 model footprint ≈ 140 GB parameters + 30 GB
-activations ≈ 170 GB total. HYPOTHESIS: BF16 migration would reduce
-memory by \textasciitilde40\% with \textless0.5\% quality impact, based
-on {[}Schema et al., 2023{]}.
+\textbf{Evidence Tags:} FACT: FP16 and BF16 are both 16-bit (2
+bytes/parameter); a 70B model is \textasciitilde140 GB in either. FACT:
+A100/H100 Tensor Cores support BF16 and TF32 natively. DERIVED: weight
+residency is unchanged by the FP16↔BF16 choice. MEASURED: no exact-match
+difference between FP16 and BF16 on the held-out Q\&A set.
 
 \subsection{A copy-ready blank
 template}\label{a-copy-ready-blank-template}
@@ -383,7 +386,7 @@ practice matures and the team needs more sophisticated governance.
 
 \textbf{Scenario:} The fleet decides to migrate from a single 70B FP16
 model to a two-model mixture-of-experts (MoE) architecture, each expert
-34B parameters, FP16, running on the same A100 GPUs.
+34B parameters, FP16, running on the same 8×H100 host.
 
 \textbf{The ADR (draft):}
 
@@ -433,7 +436,7 @@ model to a two-model mixture-of-experts (MoE) architecture, each expert
     for inter-node communication.
   \end{enumerate}
 \item
-  \textbf{Evidence:} FACT: A100 FP16 expert 34B footprint ≈ 68 GB
+  \textbf{Evidence:} FACT: H100 FP16 expert 34B footprint ≈ 68 GB
   parameters + 15 GB activations. DERIVED: Top-1 routing reduces
   effective parameters by \textasciitilde50\% compared to uniform
   mixing.

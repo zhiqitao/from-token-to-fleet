@@ -220,6 +220,19 @@ memory), but the KV-cache budget must be provisioned as if the model
 were dense. Do not assume MoE reduces KV-cache memory.
 \end{quote}
 
+\begin{quote}
+\textbf{Boxed rule --- two distinct accounting lines.} Keep two numbers
+separate and never blur them: 1. \textbf{total parameters → weight
+residency.} The resident weights (all experts, for MoE) are what the
+GPUs must hold. For a 70B dense model this is \textasciitilde140 GB
+FP16; for a \textasciitilde47B MoE this is \textasciitilde94 GB (full
+expert set) unless experts are explicitly offloaded. 2. \textbf{active
+parameters/token → approximate compute per token.} The routed top-k
+fraction (e.g.~\textasciitilde14B active) sets the FLOPs per token
+(\textasciitilde28 GB of active weights read per token). This is not a
+memory-freeing lever unless offloading is in play.
+\end{quote}
+
 \section{Measurement}\label{measurement}
 
 How do we determine the total-versus-active split for a model we haven't
@@ -295,13 +308,16 @@ decisions:
 \def\labelenumi{\arabic{enumi}.}
 \item
   \textbf{Weight residency budget.} For a dense 70B model, provision 140
-  GB of FP16 weight memory per host. For a MoE model with
-  \textasciitilde47B total and \textasciitilde14B active, provision
-  \textasciitilde28 GB for the active weights + a smaller overhead for
-  the unused experts (they may be swapped or kept on device depending on
-  the deployment framework). MoE allows a larger total parameter budget
-  within the same weight-memory ceiling, but the active-fraction budget
-  is what matters for ``weights on device.''
+  GB of FP16 weight memory per host. For an MoE model with
+  \textasciitilde47B total and \textasciitilde14B active, distinguish
+  two numbers: the \textbf{resident} budget (the full expert set,
+  \textasciitilde47B × 2 bytes ≈ 94 GB, unless experts are
+  offloaded/swapped) and the \textbf{active per-token} footprint
+  (\textasciitilde14B × 2 bytes ≈ 28 GB read per token). The active
+  number governs compute; the resident number governs whether the
+  weights stay on device. MoE therefore does not automatically lower the
+  weight-residency floor --- it only gives the \emph{option} to offload
+  inactives at the cost of bandwidth.
 \item
   \textbf{KV-cache provisioning.} Provision the KV cache as for a dense
   model of the same context length and hidden dimension. Do not apply a
@@ -464,8 +480,9 @@ verified):
 \end{itemize}
 
 These flags exist because home-lab measurements are not reference per
-the evidence taxonomy; they will be resolved (promoted, dropped, or
-demoted) before publication.
+the evidence taxonomy; each is an open empirical question a team should
+validate against its own target workload, not a claim the handbook has
+settled.
 
 \section{End-of-Chapter Mini-Case}\label{end-of-chapter-mini-case}
 
@@ -474,20 +491,27 @@ from the enterprise Q\&A thread.)}
 
 An architect is fleshing out the design of the internal Q\&A tool
 described in \hyperref[chap:1]{Chapter 1}'s mini-case. The team is torn between a dense 70B
-model and a MoE model with 8 experts (adisedly total \textasciitilde47B
-params, \textasciitilde14B active per token). They ask: ``If we go MoE,
-can we cut our GPU memory budget?''
+model and a MoE model with 8 experts (roughly 47B total params,
+\textasciitilde14B active per token). They ask: ``If we go MoE, can we
+cut our GPU memory budget?''
 
 From the model-understanding chapter, the architect can answer:
-\emph{Weight residency yes --- active parameters take \textasciitilde28
-GB vs.~140 GB for a dense 70B, we could fit the model on fewer GPUs or a
-smaller host. But KV-cache memory no --- the attention layers still
-process every token densely, so the cache budget for a 9.2K-context
-input is the same regardless of whether the model is dense or MoE. We
-still need to provision for \textasciitilde12 GB of KV cache (at 8-bit)
-or \textasciitilde24 GB (at the precision pattern discussed in Ch. 7)
-per request, and we'll also need expert-routing infrastructure on top of
-that.}
+\emph{Active-compute memory yes --- only \textasciitilde14B of the
+\textasciitilde47B total is active per token, so \textasciitilde28 GB of
+}active* weight footprint is read per token vs.~140 GB for a dense 70B.
+But \emph{resident} memory is a different question. An MoE model
+normally keeps its \textbf{full expert set resident} --- the non-active
+experts still occupy HBM unless we explicitly use expert
+offload/swapping (Ch. 3 §6, Ch. 18), which itself costs bandwidth. So
+MoE reduces compute per token, and it gives us the \emph{option} to
+offload some experts to shrink residency, but it does \textbf{not}
+automatically reduce the weight-residency floor. And KV-cache memory no
+--- the attention layers still process every token densely, so the cache
+budget for a 9.2K-context input is the same regardless of whether the
+model is dense or MoE. We still need to provision for \textasciitilde12
+GB of KV cache (at 8-bit) or \textasciitilde24 GB (at the precision
+pattern discussed in Ch. 7) per request, and we'll also need
+expert-routing infrastructure on top of that.*
 
 The architect's decision therefore hinges on whether the compute savings
 from MoE (fewer FLOPs per token, potentially lower \$/token) outweigh

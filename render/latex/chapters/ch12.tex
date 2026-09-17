@@ -228,7 +228,7 @@ requests share document-level prefixes. Empirical measurement of prefix
 overlap across a production enterprise traffic trace is needed to
 confirm these numbers. (a hypothesis awaiting verification) -
 \textbf{P/D-disaggregation communication overhead in multi-host
-settings.} The boundary between parameterparallel and data-parallel
+settings.} The boundary between parameter-parallel and data-parallel
 placement is relatively unexplored at the 70B scale; the actual
 communication volume and its latency impact depend on the routing
 library and network topology. (a hypothesis awaiting verification) -
@@ -239,8 +239,9 @@ memory by 2× with minimal quality loss, but the interaction between
 not been verified. (a hypothesis awaiting verification)
 
 These flags exist because home-lab measurements are not reference per
-the evidence taxonomy; they will be resolved (promoted, dropped, or
-demoted) before publication.
+the evidence taxonomy; each is an open empirical question a team should
+validate against its own target workload, not a claim the handbook has
+settled.
 
 \section{End-of-Chapter Mini-Case}\label{end-of-chapter-mini-case}
 
@@ -254,40 +255,39 @@ chapter.
 First, the workload is characterized across the six dimensions. Quality
 requirements fix the model class: the system must achieve
 \textasciitilde70B-model answer quality on enterprise prompts. The
-traffic profile is estimated at \textasciitilde500 employees active
-during business hours, generating \textasciitilde20 questions/hour peak,
-\textasciitilde2 rps average. The token profile is 1,000-token prompts
-plus 8K retrieved context plus 300-token answers, roughly 9.3K tokens
-per request. The latency budget is 5 seconds end-to-end. The economic
-ceiling is \$15,000 monthly operating budget. The operational constraint
-is that the system must run on existing on-premise GPU infrastructure
-(no cloud add-ons).
+traffic profile is the canonical one (Ch. 4/5, §14):
+\textasciitilde2,000 registered users, \textasciitilde5\% concurrent
+(\textasciitilde100), \textasciitilde10 rps average / \textasciitilde40
+rps peak. The token profile is the canonical 1,200-token prompt plus 8K
+retrieved context (\textasciitilde9.2K input) plus 300-token answers,
+with TTFT ≤ 1.2 s (p95 ≤ 2 s) and TPOT \textasciitilde25 ms/token. The
+economic ceiling is \$15,000 monthly operating budget. The operational
+constraint is that the system must run on existing on-premise GPU
+infrastructure (no cloud add-ons).
 
-From the token profile, the architect computes: 9.3K input tokens + 300
-output tokens ≈ 9.6K tokens per request. At 2 rps average and 20 rps
-peak, the system must sustain \textasciitilde19.2K input tokens/s
-average and \textasciitilde384K input tokens/s peak. The hard
-constraints are then extracted: weight memory must fit the on-premise
-GPU inventory; KV cache + weights must fit within that inventory; total
-tokens-per-second across the installed devices must exceed the peak
-traffic demand.
+From the token profile, the architect computes: 9.2K input tokens + 300
+output tokens ≈ 9.5K tokens per request. At 10 rps average and 40 rps
+peak, the system must sustain \textasciitilde92K input tokens/s average
+and \textasciitilde368K input tokens/s peak. The hard constraints are
+then extracted: weight memory must fit the on-premise GPU inventory; KV
+cache + weights must fit within that inventory; total tokens-per-second
+across the installed devices must exceed the peak traffic demand.
 
 The architect generates three candidates using the method from §3.
 Candidate (a): a single 8×H100 host with 70B FP16 weights + 24 GB KV
 cache and prefix caching, which fits the memory budget (164 GB
 \textless{} 640 GB aggregate ({[}1P §14{]})) --- but as \hyperref[chap:8]{Chapter 8} shows,
 one node sustains only \textasciitilde2,471 prefill-tokens/s, far short
-of the \textasciitilde19.2K input tokens/s the mini-case's
-\textasciitilde2 rps average demands, so the memory gate passes while
-the throughput gate already fails. Candidate (b): a P/D-disaggregated
-two-pool keeping the full 70B in each pool (prefill and decode pools,
-each \textasciitilde164 GB residency on its own 8×H100 host), which buys
-phase-splitting at the cost of a second host plus the KV-transfer
-fabric. Candidate (c): a KV-quantized 7B model on a single H100, which
-fits the memory budget (20 GB total residency) but fails the quality
-constraint --- the 7B model cannot reach the required answer quality
-regardless of KV quantization --- and fails the throughput demand at
-peak, making it economically non-viable.
+of the \textasciitilde92K input tokens/s the 10 rps average demands, so
+the memory gate passes while the throughput gate already fails.
+Candidate (b): a P/D-disaggregated two-pool keeping the full 70B in each
+pool (prefill and decode pools, each \textasciitilde164 GB residency on
+its own 8×H100 host), which buys phase-splitting at the cost of a second
+host plus the KV-transfer fabric. Candidate (c): a KV-quantized 7B model
+on a single H100, which fits the memory budget (20 GB total residency)
+but fails the quality constraint --- the 7B model cannot reach the
+required answer quality regardless of KV quantization --- and fails the
+throughput demand at peak, making it economically non-viable.
 
 The architect discards Candidate (c) immediately: it satisfies the hard
 memory constraint but violates the quality and economic constraints.

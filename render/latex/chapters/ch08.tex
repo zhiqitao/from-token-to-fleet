@@ -406,55 +406,76 @@ per request, and the TTFT budget is being missed: p95 TTFT is 2.8 s,
 exceeding the SLO of 2 s. The TPOT of 28 ms/token is within spec, but
 the prefill delay is the bottleneck.
 
-The architect first profiles the arithmetic intensity of the prefill
-kernel. The per-token FLOP count is \textasciitilde140 GFLOP (2 ×70B),
-and the effective bandwidth per token is \textasciitilde140 GB
-(re-reading the 70B weight matrix from HBM for each of the 9.2K input
-tokens). This gives an effective FLOP/byte of roughly 140 GFLOP ÷ 140 GB
-≈ 1 FLOP/byte --- well below the H100 dense-FP16 ridge of
-\textasciitilde295 FLOP/byte. The kernel is strongly memory-bound during
-prefill.
+The temptation is to reach for a roofline and ``prove'' prefill is
+memory-bound. That reasoning is wrong here, and the error is worth
+naming: it is spread by treating prefill like token-by-token decode. In
+decode, each new token re-reads the weight matrix from HBM, so the
+arithmetic intensity is \textasciitilde1 FLOP/byte --- genuinely
+memory-bound. In prefill, the weight matrix is read \emph{once} and
+reused across the whole sequence; the sequence dimension supplies the
+matrix-matrix reuse. Prefill's effective intensity is
+\texttt{(2\ ×\ N\ ×\ L)\ /\ (N\ ×\ 2\ B)} =
+\texttt{L\ /\ 1\ byte\ per\ parameter} ≈ \textbf{9,200 FLOP/byte} at the
+canonical 9.2K context --- two orders of magnitude above the
+\textasciitilde295 FLOP/byte dense-FP16 ridge. Prefill is compute-bound,
+exactly as the rest of this chapter teaches.
 
-The immediate question: why is prefill memory-bound when the H100 has
-3.35 TB/s HBM3 bandwidth? The answer is that a 9.2K input context means
-each prefill pass reads the full weight matrix once, but the activation
-keys/values for 9.2K tokens also flow through the pipeline. The total
-bytes per token are higher than the weight-read alone, and the effective
-intensity drops further.
+So a high TTFT is \emph{not} evidence of a bandwidth problem. The
+architect does the correct thing: profile the prefill kernel and
+determine which of several distinct causes is actually limiting it,
+rather than assuming memory. The profile separates four candidates:
 
-The architect's first fix is to increase the prefill batch size.
-Continuous batching (vLLM Orca-style) accumulates incoming requests into
-larger batches, which raises the effective arithmetic intensity because
-the weight matrix read is amortized across more tokens. At batch=32, the
-effective intensity rises to \textasciitilde2--3 FLOP/byte, still below
-the ridge but much closer. At batch=128, the intensity approaches the
-ridge and TFLOP/s utilization climbs from \textasciitilde15\% to
-\textasciitilde45\%.
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Compute-bound} --- the GEMMs are saturated at high MFU; more
+  FLOPs/ops per token would not help, but better kernel efficiency
+  (flash-attention, fused MLP) would.
+\item
+  \textbf{Communication-bound} --- tensor/pipeline parallelism crosses
+  the NVLink/Host fabric; data movement, not math, is the ceiling. The
+  fix is a different parallelization or a smaller cross-GPU footprint.
+\item
+  \textbf{Launch / occupancy-limited} --- the kernel is too small or the
+  grid under-fills the SMs; increasing batch or improving occupancy
+  raises utilization without adding hardware.
+\item
+  \textbf{Attention / memory constrained (within prefill)} --- the
+  quadratic attention term, not the linear weights, grows with context;
+  at 32K+ contexts this term dominates prefill cost (\hyperref[tab:8.1]{Table 8-1}), so the
+  fix is to reduce the attention term (flash-attention, sparse/linear
+  attention), not to batch harder.
+\end{itemize}
 
-The second fix is to profile the actual MFU achieved. If the system is
-running at 12\% MFU on prefill, there is headroom to absorb more batch
-without adding hardware. If MFU is already near 40\%, the bottleneck is
-elsewhere (communication, kernel inefficiency, or KV cache residency),
-and simply batching harder yields diminishing returns.
+The architect measures MFU to choose among these. If the prefill kernel
+is running at 12\% MFU, the problem is occupancy or launch --- grow the
+batch or fuse kernels. If MFU is already near \textasciitilde40\% and
+the kernel is compute-saturated, then prefill \emph{is} compute-bound
+and more batch just queues more work without reducing per-request TTFT;
+the lever instead is kernel efficiency, attention-term control, or P/D
+disaggregation so prefill's FLOP profile is served by compute-optimized
+GPUs while decode's bandwidth profile runs on wide-memory GPUs.
 
-The architect's recommendation: enable continuous batching with a target
-batch size of 64--128, profile the resulting MFU and TTFT, and if TTFT
-remains above SLO, consider P/D disaggregation --- offload decode to a
-separate pool of GPUs with wide HBM bandwidth, freeing the prefill GPUs
-to run larger batches at higher FLOP utilization. The key insight is
-that the workload's position on the roofline chart (memory-bound
-prefill) dictates the fix: batching to raise intensity, or hardware that
-raises the ridge point (H200, GB200), or disaggregation that separates
-the two bottleneck profiles.
+The recommendation is therefore: profile first (MEASURE, do not assume),
+and only then pick the intervention. Batching helps when prefill is
+occupancy-limited; kernel fusion helps when GEMMs are under-saturated;
+attention-term control and disaggregation help when the bottleneck is
+the quadratic attention term or the compute/bandwidth mismatch between
+phases. The workload's true roofline position, not an assumed
+``memory-bound prefill,'' dictates the fix.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
 \emph{Reading the roofline (summary of \hyperref[fig:8.1]{Fig 8.1}): the dense-FP16 ridge at
 \textasciitilde295 FLOP/byte (H100: 989 TFLOPS ÷ 3.35 TB/s) separates
 the compute-bound region (right) from the memory-bound region (left).
-Prefill kernels typically operate in the 1--3 FLOP/byte range for long
-contexts, decode kernels near 1.0 FLOP/byte at batch=1; batching and
-quantization shift kernels rightward toward the ridge.}
+Prefill sits far above the ridge --- its arithmetic intensity is set by
+the sequence length (weights read once, reused across all tokens), so it
+is compute-bound; decode at batch=1 sits just below the ridge
+(\textasciitilde1 FLOP/byte) and is memory-bound. Batching and
+quantization shift kernels rightward toward the ridge; the distinction
+between the two phases is the single most important reading of this
+chart.}
 
 \emph{Prefill PFLOP also grows with context: 2 ×70B × L tokens, from 2K
 to 32K. This is the one-time compute cost of loading a long context;

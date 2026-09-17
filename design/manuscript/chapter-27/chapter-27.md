@@ -2,7 +2,7 @@
 
 > **Why this appendix exists.** The body of this handbook works through durable mechanisms — tokens, memory floors, rooflines, parallelism, KV arithmetic — that do not change. But the industry moves, and the whole point of an architecture handbook is to stay current. In 2026 the four frontier open-weight MoE families — DeepSeek-V4, Kimi K3, Qwen3.8-Flash-Next, and GLM-5.3-Flash — all shipped within a short window. Reading them together is not a product tour; it is a single, coherent signal about where the mechanisms in this book are heading. Every mechanism below maps back to a chapter and an architectural decision.
 
-> **⚠ Snapshot date: 2026-08-30.** This appendix is a snapshot of the frontier as of that date, compiled from the first-party technical reports and model cards listed in §8. The models, their parameter counts, constants, and claims are vendor-reported and move quickly. It illustrates how to apply the framework to a changing frontier; it is **not** a current model leaderboard. An architect should re-check the primary sources before betting capacity on any specific number quoted here.
+> **NOTE: Snapshot date: 2026-08-30.** This appendix is a snapshot of the frontier as of that date, compiled from the first-party technical reports and model cards listed in §8. The models, their parameter counts, constants, and claims are vendor-reported and move quickly. It illustrates how to apply the framework to a changing frontier; it is **not** a current model leaderboard. An architect should re-check the primary sources before betting capacity on any specific number quoted here.
 
 ## The Signal in One Paragraph
 
