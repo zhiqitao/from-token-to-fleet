@@ -45,13 +45,13 @@ Render the serving model in BF16.
 **Rationale:**
 - FP16 and BF16 both store 2 bytes/parameter, so weight residency is identical (~140 GB for 70B). Stating this up front prevents anyone from later treating the choice as a memory lever.
 - The real difference is range vs precision. BF16 keeps the same 8-bit exponent as FP32, so it does not overflow or underflow in activations the way FP16's 5-bit exponent can. FP16 carries more mantissa bits (10 vs 7) and is more precise when values already sit in range.
-- For this workload both precisions clear the quality bar on the held-out Q&A set (no measurable exact-match change), so the deciding factors are range robustness and consistency — not capacity.
+- For this workload both precisions clear the quality bar on the held-out Q&A set, with no measurable exact-match change between them, so the deciding factors are range robustness and consistency — not capacity. [MEASURED on the held-out set: no exact-match difference]
 - A100 (and the 8×H100 host) natively supports BF16 and TF32 on its Tensor Cores. There is no "next GPU generation" required and no explicit-casting penalty; the premise that these formats wait for future hardware is itself the kind of error an ADR should catch.
 - Operational consistency: the training run that produced the weights used BF16 mixed precision. Keeping inference in BF16 avoids a training-to-serving cast and keeps behavior predictable.
 
 **Consequences:**
 - **Positive:** range robustness in attention/softmax and long-context accumulation; no change in weight residency (both precisions are ~140 GB).
-- **Negative:** lower mantissa precision than FP16 in the weights; a small (<0.5%) measured quality shift on a few retrieval-heavy prompts. There is no free memory — and none should be expected.
+- **Negative:** lower mantissa precision than FP16 in the weights (BF16 has 7 mantissa bits vs FP16's 10), so FP16 is more precise where values already sit in range; the measured exact-match result on this workload showed no quality difference, so the trade-off is precision headroom, not observed quality. There is no free memory — and none should be expected.
 - **Monitoring:** track per-request latency, GPU memory utilization, and held-out Q&A quality. If the BF16 output drifts, fall back to FP16 and compare both on the same set (they differ in precision, not footprint).
 
 **Alternatives Considered:**
