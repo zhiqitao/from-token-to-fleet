@@ -151,7 +151,7 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 ![Fig 7.5 — Memory Tetris: how the 8×H100 host's 640 GB pool fills at three contexts (9.2K / 32K / 128K). Runtime ~64 GB + weights 140 GB + KV cache 23.8 / 80 / 320 GB [2° DERIVED]](figures/fig-07-0705.png)
 
-*The Memory Tetris: why context length is the ultimate memory lever. The 640 GB pool stacks ~64 GB runtime/NCCL + 140 GB weights, leaving ~436 GB of headroom. The FP16 KV cache (orange) is the only block that grows with context — 23.8 GB at 9.2K, 80 GB at 32K, ~320 GB at 128K. Because the KV budget is fixed (~436 GB), longer context consumes it outright: at 9.2K it supports ~18 concurrent, but 128K leaves room for only ~1–2. This is what makes the KV constant (Ch7 §3) the single most capacity-relevant number in a serving design. [2° DERIVED]*
+*The Memory Tetris: why context length is the dominant memory lever. The 640 GB pool stacks ~64 GB runtime/NCCL + 140 GB weights, leaving ~436 GB of headroom. The FP16 KV cache (orange) is the only block that grows with context — 23.8 GB at 9.2K, 80 GB at 32K, ~320 GB at 128K. Because the KV budget is fixed (~436 GB), longer context consumes it outright: at 9.2K it supports ~18 concurrent, but 128K leaves room for only ~1–2. This is what makes the KV constant (Ch7 §3) the single most capacity-relevant number in a serving design. [2° DERIVED]*
 
 <!-- Figure spec: one horizontal stacked bar (140 weights + 64 runtime + 436 KV = 640 GB pool); tick KV region in 23.8 GB slots -> C~18; faint FP8 overlay ~35 slots. Locks Ch7 <-> Ch17 handoff. -->
 
