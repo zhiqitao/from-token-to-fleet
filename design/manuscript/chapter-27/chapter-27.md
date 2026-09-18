@@ -6,7 +6,7 @@
 
 ## The Signal in One Paragraph
 
-Four independent labs converged on a **second-order architectural pattern** in 2026 — but we should be precise about *what kind* of gain each lever delivers. The common error is to read architecture innovation as raw capability. It is mostly **efficiency** (more context, less cost per token) that comes out of the attention and MoE changes below, not intelligence. The capability story — reasoning, post-training, test-time compute — lives elsewhere (§6), and carries at least as much of the frontier's real progress. We separate the two explicitly.
+Four independent labs converged on a **second-order architectural pattern** in 2026 — but we should be precise about *what kind* of gain each lever delivers. The common error is to read architecture innovation as raw capability. In our interpretation, it is mostly **efficiency** (more context, less cost per token) that comes out of the attention and MoE changes below, not intelligence. The capability story — reasoning, post-training, test-time compute — lives elsewhere (§6), and carries at least as much of the frontier's real progress. We separate the two explicitly.
 
 ![Fig A.1 — 2026 frontier MoE extreme sparsity: four open models, total vs activated parameters, and active fraction in single digits [1P]](figures/fig-27-2701.png)
 
@@ -42,7 +42,7 @@ When we write "Four independent labs converged" or "MoE is arguably a larger arc
 
 **What this means for the architect (ties to Ch3 Model, Ch10 Parallelism).** A model whose *total* size is 2.8 T but whose *activated* footprint is 104 B is a clear illustration of Ch3's total-vs-activated distinction and Ch10's expert-parallelism doctrine. Serving it is not "2.8 T is too big to fit" — it is "fit and feed 104 B active, plus the KV for our context, while sharding and scheduling the expert fabric." The decision surface is expert-parallel communication and fused cross-expert kernels, not raw capacity.
 
-## 3. Qwen3.8-Flash-Next — The Qwen4 Architecture Preview, Prioritizing Cost-Performance
+## 3. Qwen3.8-Flash-Next — A Vendor-Framed Qwen4 Architecture Preview, Prioritizing Cost-Performance
 
 **Decisive fact [1P: HF Qwen/Qwen3.8-Flash-Next; GitHub QwenLM/Qwen3.8-Flash-Next]:** 125 B total / 6 B activated, plus a separate 51 B of **N-gram embedding** parameters (offloadable to host memory). Native 262 K context (YaRN to 1M). **Hybrid attention: Gated DeltaNet (GDN) + Qwen Sparse Attention (QSA)**, where QSA operates at the *micro-block* level; **Gated Residual** widens the residual stream; 512 MoE experts (10 routed + 1 shared per token); Muon + AdamW. Reported training cost ~1/9 of Qwen3.7-Plus.
 
