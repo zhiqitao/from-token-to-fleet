@@ -55,7 +55,7 @@ The heart of the chapter's serving story made visual. Discrete (static) batching
 
 ### PagedAttention: Killing the Fragmentation Tax
 
-In re-packaged (naive) serving, each request's KV cache for 9.2K input is ~24 GB (FP16, ~2.5 MB/token × 9,200) [2° DERIVED]. If served contiguously, variable-length completions leave fragmented, unusable holes — exactly like a fragmented heap. **PagedAttention/vLLM [S2][1P]** allocates KV in fixed blocks shared and evicted like page frames, so the ~24 GB per request is packed densely and more concurrent requests fit in the same 640 GB node [2° DERIVED]. The win is *more concurrency under the same SLO*, not faster single-request math.
+In re-packaged (naive) serving, each request's KV cache for 9.2K input is ~24.1 GB (FP16, ~2.62 MB/token × 9,200, initial KV) [2° DERIVED]. If served contiguously, variable-length completions leave fragmented, unusable holes — exactly like a fragmented heap. **PagedAttention/vLLM [S2][1P]** allocates KV in fixed blocks shared and evicted like page frames, so the ~24.1 GB per request is packed densely and more concurrent requests fit in the same 640 GB node [2° DERIVED]. The win is *more concurrency under the same SLO*, not faster single-request math.
 
 ### Prefix Caching: Don't Re-Prefill the Same Documents
 
@@ -103,7 +103,7 @@ Good serving telemetry answers "are we meeting the SLO while keeping the GPU bus
 
 The serving stack dictates the deployment choices:
 
-- **Baseline (canonical single-host):** continuous batching (vLLM/Orca) is near-mandatory to hold TTFT under 10 rps input-heavy load; PagedAttention ensures the 24 GB-per-request KV pack fits; prefix caching is the highest-leverage optimization because the workload is repeated-context RAG. This matches the memory and compute conclusions of Ch4/Ch7 for the ~10 rps *average* baseline; at the ~40 rps peak the KV budget forces replication, which Chapter 17 sizes. [S1][S2][S3][1P]
+- **Baseline (canonical single-host):** continuous batching (vLLM/Orca) is near-mandatory to hold TTFT under 10 rps input-heavy load; PagedAttention ensures the ~24.1 GB-per-request KV pack fits; prefix caching is the highest-leverage optimization because the workload is repeated-context RAG. This matches the memory and compute conclusions of Ch4/Ch7 for the ~10 rps *average* baseline; at the ~40 rps peak the KV budget forces replication, which Chapter 17 sizes. [S1][S2][S3][1P]
 
 - **Scaling up:** those three carry the workload far before disaggregation is justified. FP8 KV (~54% of BF16 [S6][1P]) and KV offloading are memory levers available without restructuring.
 
@@ -127,4 +127,4 @@ The serving stack dictates the deployment choices:
 
 ## 8. End-of-Chapter Mini-Case
 
-An architect runs the canonical internal Q&A service on a single 8×H100 host and sees p95 TTFT creep toward 2.2 s against a 2 s SLO as traffic peaks at 40 rps. Applying this chapter: the architect first confirms continuous batching is on (vLLM) and that PagedAttention is active — otherwise the 24 GB-per-request KV for 9.2K inputs fragments and concurrency collapses. The biggest lever: prefix caching. The RAG traffic reuses the same retrieved documents, so the architect enables automatic prefix caching and watches TTFT drop as the 8K-context prefill is replaced by cached KV lookups. The architect does **not** reach for P/D disaggregation or speculative decoding — the single host is resource-sufficient once the wasted re-prefill is eliminated. The result: p95 TTFT back under 1.8 s at 40 rps, goodput restored, with only configuration changes — because the architecture followed the serving mechanism that matched the workload's repeated-context shape.
+An architect runs the canonical internal Q&A service on a single 8×H100 host and sees p95 TTFT creep toward 2.2 s against a 2 s SLO as traffic peaks at 40 rps. Applying this chapter: the architect first confirms continuous batching is on (vLLM) and that PagedAttention is active — otherwise the ~24.1 GB-per-request KV for 9.2K inputs fragments and concurrency collapses. The biggest lever: prefix caching. The RAG traffic reuses the same retrieved documents, so the architect enables automatic prefix caching and watches TTFT drop as the 8K-context prefill is replaced by cached KV lookups. The architect does **not** reach for P/D disaggregation or speculative decoding — the single host is resource-sufficient once the wasted re-prefill is eliminated. The result: p95 TTFT back under 1.8 s at 40 rps, goodput restored, with only configuration changes — because the architecture followed the serving mechanism that matched the workload's repeated-context shape.

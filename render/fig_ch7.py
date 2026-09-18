@@ -13,7 +13,7 @@ kv_gqa  = 0.33 * ctx  # GB  (real GQA 70B-class)
 kv_gqa8 = 0.165 * ctx # GB  GQA + 8-bit KV (~half of GQA FP16)
 
 fig, ax = plt.subplots(figsize=(7, 5.2))
-ax.plot(ctx, kv_fp16, '-o', color='#c0392b', label='full-MHA FP16 (bound, ~2.5 MB/tok)')
+ax.plot(ctx, kv_fp16, '-o', color='#c0392b', label='full-MHA FP16 (bound, ~2.62 MB/tok)')
 ax.plot(ctx, kv_fp8, '-s', color='#e67e22', label='full-MHA FP8 (~1.3 MB/tok)')
 ax.plot(ctx, kv_gqa, '-^', color='#27408b', label='GQA FP16 (~0.33 MB/tok)')
 ax.plot(ctx, kv_gqa8, '-v', color='#6f9e5f', label='GQA FP8 (~0.17 MB/tok)')

@@ -26,7 +26,12 @@ A critical assumption in this model is that the workload follows a known arrival
 
 Consider a fleet of N hosts, each with 8×H100 running a single 70B FP16 model instance. Two capacities must be reconciled — **throughput** (tokens/s) and **KV residency** (concurrent requests) — and neither can be reduced to a single "QPS" constant, because QPS is workload-specific (per-request input/output tokens, context length, batch). 
 
-**Latency floor first.** A 300-output-token request at a ~25 ms/token decode rate (Chapter 8) takes ~7.5 s of generation alone, before prefill and tool calls. So a per-query "16 ms median latency" is not a real served-request number — it would only describe a trivially short completion. The honest framing is *throughput capacity*, not countless instant requests: a host that sustains an illustrative ~35,000 tokens/s [ILLUSTRATIVE achievable range, Chapter 15] with ~16 concurrent full-context requests (KV ceiling, Chapter 17) serves roughly 3.7 requests/s at steady state — not 250. The "250 QPS, 16 ms" figures in this chapter are an [ILLUSTRATIVE] exercise in fleet arithmetic, not a measurable property of this workload; the architect must replace them with the throughput and KV numbers measured on the actual model+context.
+**Latency floor first, then reconcile the two capacity bounds.** A 300-output-token request at a ~25 ms/token decode rate (Chapter 8) takes ~7.5 s of generation alone, plus ~1.1 s prefill, so the service time is ~8.6 s per request (before tool calls). Two separate ceilings bound how many requests a host can *serve per second*, and they must be reconciled — they are not interchangeable:
+
+- **Throughput bound (tokens/s).** A host sustains an illustrative ~35,000 tokens/s [ILLUSTRATIVE achievable range, Chapter 15]. Dividing by the ~9,500 tokens/request gives ~3.7 requests/s — **but this is not achievable here**, because it would require ~3.7 × 8.6 ≈ 32 concurrent requests in flight, roughly double the host's KV-residency ceiling (C ≈ 18, Chapter 17). The token-throughput figure is thus a non-binding upper edge for this canonical workload.
+- **KV-residency / latency bound (Little's law).** The real ceiling is set by concurrency and service time together: a host holds ~18 concurrent full-context requests (KV ceiling, Chapter 17) each for ~8.6 s, so it serves C/W ≈ 18 / 8.6 ≈ **2.1 requests/s** at steady state.
+
+The binding per-host rate is the *minimum* of the two — here the KV/latency bound. This is exactly why a token-throughput number must not be divided by tokens-per-request to manufacture a "QPS": a token and a request are different units, and prefill (compute-bound) versus decode (bandwidth-bound) tokens are not fungible in that division. The per-host request rate is a *concurrency × service-time* quantity, not a tokens ÷ tokens conversion.
 
 **Fleet aggregate throughput (illustrative form).** Keeping the illustrative per-host QPS = Q for the algebra, aggregate throughput is
 
@@ -34,7 +39,7 @@ $$
 \Lambda_\text{fleet} = N \times Q
 $$
 
-At the canonical peak of 40 rps, a fleet sized by KV residency (Chapter 17, ~4–5 hosts for 40 concurrent at T=0) already holds the peak; the earlier "2,000 QPS at 2% utilization" framing is misleading because it inflates per-host capacity with an impossible latency. The correct statement is: the fleet must satisfy both RPS and KV-residency, whichever binds first.
+At the canonical peak of 40 rps, fleet size must satisfy **both** the KV-residency and the throughput/latency bounds *and whichever binds first*. With the per-host rate at ~2.1 req/s (the binding Little bound above), a fleet for 40 rps starts at ~20 hosts on throughput alone; the KV-residency bound (Chapter 17, ~4–5 hosts for 40 concurrent) is satisfied at far fewer. The correct statement is: the fleet must satisfy both, and the *larger* requirement wins.
 
 **Scheduling overhead.** A lightweight round-robin scheduler adds ~0.5 ms of dispatch latency per request — negligible next to a real 7.5 s decode, but it must stay under ~5% of the *measured* per-request time.
 
@@ -47,10 +52,12 @@ To validate fleet-level optimization claims, three core metrics should be measur
 | Metric | Definition | Target |
 |---|---|---|
 | **Aggregate QPS** | Total queries processed per second across all hosts | ≥ 2× peak rps for comfort margin |
-| **Median latency** | 50th-percentile end-to-end query latency | < 30 ms |
-| **99th-percentile latency** | Tail latency across the fleet | < 100 ms |
+| **Scheduler-added p99 latency** | 99th-percentile time a request waits in the fleet dispatcher (NOT end-to-end — model execution is multi-second here) | < 100 ms |
+| **Scheduler-added median latency** | 50th-percentile dispatch latency, scheduler overhead only | < 30 ms |
 | **Scheduling overhead** | Fraction of per-query time spent in dispatcher, not compute | < 5% |
 | **Utilization variance** | Standard deviation of per-host query rate as a fraction of mean | < 0.2 |
+
+*Note: end-to-end median/p99 latency is deliberately **not** a fleet-level target for this canonical 9.5K-token workload — a request takes ~8.6 s in service (~1.1 s prefill + ~7.5 s decode), so an *end-to-end* <100 ms p99 is infeasible (see the mini-case). The table therefore qualifies these as scheduler-added (dispatch) latency targets only.*
 
 Measurement methodology: use a distributed load generator (e.g., Locust or a custom gRPC-driven pump) that sends queries at the target rps while instrumenting each host's internal metrics—GPU occupancy, kernel launch time, scheduler dispatch timestamp, and queue depth. Aggregate these via a time-series database (InfluxDB or Prometheus) and compute the above metrics over sliding 1-minute windows.
 
@@ -96,12 +103,12 @@ Several open questions remain at the fleet level:
 
 **Question**: What is the fleet's aggregate QPS capacity at batch size 4, and what is the marginal cost per QPS when scaling from 8 to 16 hosts? Is an end-to-end 99th-percentile latency under 100 ms even feasible for this workload — and if not, what can the scheduler bound?
 
-**Solution** (illustrative algebra — the per-host figure below is an [ILLUSTRATIVE] hypothetical for showing the fleet math; the real per-host QPS must come from a deployment benchmark, Chapter 14, and is bounded by KV residency per Chapter 17):
+**Solution** (illustrative algebra — the per-host figure below is an [ILLUSTRATIVE] estimate for showing the fleet math; the real per-host QPS must come from a deployment benchmark, Chapter 14, and is bounded by KV residency per Chapter 17):
 
-- **Real per-host throughput (Ch. 15/17 basis):** a host sustaining an illustrative ~35,000 tokens/s [ILLUSTRATIVE achievable range, Chapter 15] against a ~9,500-token request moves ~3.7 requests/s at steady state. This is the number to use for capacity and cost: it is grounded in the decode-rate and KV-residency analysis, not an assumed QPS.
-- Fleet aggregate (8 hosts): 8 ×3.7 ≈ **30 req/s**, which is **below** the canonical 40-rps peak. On throughput alone, the idealized minimum is ⌈40 / 3.7⌉ = **11 hosts**; allowing ~10% scheduling loss raises this simplified capacity floor to 40 / (3.7 × 0.9) ≈ 12.0 → **13 hosts**. KV residency and SLO headroom may increase the required fleet further. (The KV-residency floor, Chapter 17, is a *concurrent*-request constraint and is what actually binds at this context length; the throughput floor here is a separate lower bound that must also be met.)
-- **Marginal cost (real basis):** adding one host at ~$20/hr (cloud, [ILLUSTRATIVE]) buys ~3.7 req/s, so marginal cost ≈ $20 ÷ 3.7 ≈ **$5.4 per req/s per hour.** (The earlier illustrative $0.012 figure assumed 250 req/s per host — a 68× understatement that comes entirely from the impossible latency; with a real multi-second decode per request the per-host rate is ~3.7, not 250.)
-- **Algebra practice (kept [ILLUSTRATIVE]):** the per-host 250 QPS / fleet 2,000 QPS / $0.012 per QPS arithmetic from the original exercise is retained only to show the *structure* of the fleet math (marginal host cost ÷ marginal capacity). It deliberately uses a hypothetical per-host QPS that is not achievable for this 9.2K-in/300-out workload; the architect must substitute the measured throughput from Chapter 14, or the ~3.7 req/s bound derived here.
+- **Per-host request rate — the KV/latency bound (Ch. 17 basis).** A host holds ~18 concurrent full-context requests (the KV-residency ceiling, Chapter 17) and each request is in service ~8.6 s (~1.1 s prefill + ~7.5 s decode of 300 output tokens at ~25 ms/token, Chapter 8). So a host serves C/W ≈ 18 / 8.6 ≈ **2.1 requests/s** at steady state. This is the defensible capacity number: it is derived from concurrency × service time (Little's law), not from dividing a token throughput by tokens per request. (Do NOT divide ~35,000 tokens/s by ~9,500 tokens/request to get ~3.7 req/s — that would require ~32 concurrent requests, which the 18-request KV ceiling cannot hold.)
+- **Fleet aggregate (8 hosts):** 8 × 2.1 ≈ **17 req/s**, which is **below** the canonical 40-rps peak. On this binding bound the idealized minimum is ⌈40 / 2.1⌉ = **20 hosts**; allowing ~10% scheduling loss raises this floor to 40 / (2.1 × 0.9) ≈ 21.2 → **22 hosts**. (The KV-residency bound, Chapter 17, is satisfied at far fewer hosts — ~4–5 for 40 concurrent — but the throughput/latency bound binds here, so the larger requirement governs.)
+- **Marginal cost (real basis):** adding one host at ~$20/hr (cloud, [ILLUSTRATIVE]) buys ~2.1 req/s, so marginal cost ≈ $20 ÷ 2.1 ≈ **$9.5 per req/s per hour.** (The earlier illustrative $0.012 figure assumed 250 req/s per host — a ~120× understatement that comes entirely from the impossible latency; with a real multi-second service time per request the per-host rate is ~2.1, not 250.)
+- **Algebra practice (kept [ILLUSTRATIVE]):** the per-host 250 QPS / fleet 2,000 QPS / $0.012 per QPS arithmetic from the original exercise is retained only to show the *structure* of the fleet math (marginal host cost ÷ marginal capacity). It deliberately uses a hypothetical per-host QPS that is not achievable for this 9.2K-in/300-out workload; the architect must substitute the measured per-host rate from a Chapter 14 deployment benchmark, or the ~2.1 req/s bound derived here.
 - **The 100-ms end-to-end p99 is infeasible under the stated workload, and that is the honest answer.** A request here takes ~7.5 s of decode alone (300 output tokens × ~25 ms/token, Chapter 8), so no scheduler-overhead percentage can bring end-to-end p99 under 100 ms — the model execution already exceeds the budget by two orders of magnitude. What the scheduler *can* bound is the overhead it adds *on top of* model execution: a lightweight round-robin dispatcher adds ~0.5 ms per request, which is negligible against a multi-second decode, and a <=5% scheduler-added p99 is comfortably achievable. The architect's job here is to reject the impossible SLO and state what is actually controllable, rather than tune arithmetic until a 100-ms figure appears reachable.
 
 **Table 20-1** — Fleet QPS and latency vs. host count, batch size, and scheduling overhead.

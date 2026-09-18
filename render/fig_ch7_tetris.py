@@ -5,7 +5,7 @@ import matplotlib.patches as mpatches
 
 # ---- fig-07-0705: Memory Tetris — how the 8xH100 host's 640 GB fills at three contexts ----
 # Canonical (Ch 7): weights 140 GB, runtime/NCCL ~64 GB, KV FP16 ~2.5 MB/token
-# 9.2K -> ~23.8 GB KV ; 32K -> ~80 GB ; 128K -> ~320 GB
+# 9.5K max -> ~24.9 GB KV ; 32K -> ~84 GB ; 128K -> ~335 GB
 fig, ax = plt.subplots(figsize=(7.2, 5.6))
 ax.set_xlim(0, 8.0); ax.set_ylim(0, 760)
 ax.axis('off')   # schematic; regen tight-crops to content
@@ -13,7 +13,7 @@ ax.set_title('Memory Tetris: how the 8×H100 host (640 GB) fills with context',
              fontsize=12.5, fontweight='bold', pad=14)
 
 bar_w = 2.1
-ctxs = [('9.2K context', 23.8), ('32K context', 80), ('128K context', 320)]
+ctxs = [('9.5K max', 24.9), ('32K context', 84), ('128K context', 335)]
 xs = [1.6, 4.0, 6.4]
 cols = {'runtime': '#95a5a6', 'weights': '#27408b', 'kv': '#e67e22'}
 

@@ -101,18 +101,18 @@ print('Ch18 done')
 # The four-state (Plan→Execute→Observe→Decide) lifecycle figure is produced by
 # the Archify pipeline and checked in as fig-19-1901.{png,pdf}.
 
-# ---- Ch20: fleet QPS + p99 latency vs host count (honest 3.7 req/s/host; ILLUSTRATIVE) ----
+# ---- Ch20: fleet QPS + p99 latency vs host count (Little-bound ~2.1 req/s/host; ILLUSTRATIVE) ----
 fig, axs = plt.subplots(1, 2, figsize=(11, 5))
 hosts = np.array([1, 2, 4, 8, 16, 30, 60])
-# honest: ch20 canonical ~3.7 req/s sustained per 8xH100 host; fleet = n * per-host
-per_host = 3.7
+# honest: ch20 canonical ~2.1 req/s per 8xH100 host = KV/latency bound (18 concurrent / ~8.6 s)
+per_host = 2.1
 qps = hosts * per_host
 ax = axs[0]
-ax.plot(hosts, qps, '-o', color='#3a6ea5', label='ideal linear (3.7 req/s/host)')
+ax.plot(hosts, qps, '-o', color='#3a6ea5', label='ideal linear (2.1 req/s/host)')
 ax.plot(hosts, qps*0.9, '--s', color='#c0392b', label='with scheduling overhead (~90%)')
 ax.set_xlabel('Host count')
 ax.set_ylabel('Fleet throughput (req/s)')
-ax.set_title('Throughput vs host count\n(honest 3.7 req/s/host)', fontsize=10.5)
+ax.set_title('Throughput vs host count\n(KV/latency bound 2.1 req/s/host)', fontsize=10.5)
 ax.legend(fontsize=8)
 ax.grid(alpha=0.3)
 # p99 in seconds (decode-dominated ~7.5 s); SLO-aware routing adds a queueing term

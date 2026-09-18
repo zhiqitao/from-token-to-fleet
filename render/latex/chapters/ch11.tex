@@ -155,14 +155,15 @@ batches and a continuously-fed decode pipeline.
 Tax}\label{pagedattention-killing-the-fragmentation-tax}
 
 In re-packaged (naive) serving, each request's KV cache for 9.2K input
-is \textasciitilde24 GB (FP16, \textasciitilde2.5 MB/token × 9,200)
-{[}2° DERIVED{]}. If served contiguously, variable-length completions
-leave fragmented, unusable holes --- exactly like a fragmented heap.
-\textbf{PagedAttention/vLLM {[}S2{]}{[}1P{]}} allocates KV in fixed
-blocks shared and evicted like page frames, so the \textasciitilde24 GB
-per request is packed densely and more concurrent requests fit in the
-same 640 GB node {[}2° DERIVED{]}. The win is \emph{more concurrency
-under the same SLO}, not faster single-request math.
+is \textasciitilde24.1 GB (FP16, \textasciitilde2.62 MB/token × 9,200,
+initial KV) {[}2° DERIVED{]}. If served contiguously, variable-length
+completions leave fragmented, unusable holes --- exactly like a
+fragmented heap. \textbf{PagedAttention/vLLM {[}S2{]}{[}1P{]}} allocates
+KV in fixed blocks shared and evicted like page frames, so the
+\textasciitilde24.1 GB per request is packed densely and more concurrent
+requests fit in the same 640 GB node {[}2° DERIVED{]}. The win is
+\emph{more concurrency under the same SLO}, not faster single-request
+math.
 
 \subsection{Prefix Caching: Don't Re-Prefill the Same
 Documents}\label{prefix-caching-dont-re-prefill-the-same-documents}
@@ -290,12 +291,13 @@ The serving stack dictates the deployment choices:
 \item
   \textbf{Baseline (canonical single-host):} continuous batching
   (vLLM/Orca) is near-mandatory to hold TTFT under 10 rps input-heavy
-  load; PagedAttention ensures the 24 GB-per-request KV pack fits;
-  prefix caching is the highest-leverage optimization because the
-  workload is repeated-context RAG. This matches the memory and compute
-  conclusions of Ch4/Ch7 for the \textasciitilde10 rps \emph{average}
-  baseline; at the \textasciitilde40 rps peak the KV budget forces
-  replication, which \hyperref[chap:17]{Chapter 17} sizes. {[}S1{]}{[}S2{]}{[}S3{]}{[}1P{]}
+  load; PagedAttention ensures the \textasciitilde24.1 GB-per-request KV
+  pack fits; prefix caching is the highest-leverage optimization because
+  the workload is repeated-context RAG. This matches the memory and
+  compute conclusions of Ch4/Ch7 for the \textasciitilde10 rps
+  \emph{average} baseline; at the \textasciitilde40 rps peak the KV
+  budget forces replication, which \hyperref[chap:17]{Chapter 17} sizes.
+  {[}S1{]}{[}S2{]}{[}S3{]}{[}1P{]}
 \item
   \textbf{Scaling up:} those three carry the workload far before
   disaggregation is justified. FP8 KV (\textasciitilde54\% of BF16
@@ -358,13 +360,14 @@ An architect runs the canonical internal Q\&A service on a single 8×H100
 host and sees p95 TTFT creep toward 2.2 s against a 2 s SLO as traffic
 peaks at 40 rps. Applying this chapter: the architect first confirms
 continuous batching is on (vLLM) and that PagedAttention is active ---
-otherwise the 24 GB-per-request KV for 9.2K inputs fragments and
-concurrency collapses. The biggest lever: prefix caching. The RAG
-traffic reuses the same retrieved documents, so the architect enables
-automatic prefix caching and watches TTFT drop as the 8K-context prefill
-is replaced by cached KV lookups. The architect does \textbf{not} reach
-for P/D disaggregation or speculative decoding --- the single host is
-resource-sufficient once the wasted re-prefill is eliminated. The
-result: p95 TTFT back under 1.8 s at 40 rps, goodput restored, with only
-configuration changes --- because the architecture followed the serving
-mechanism that matched the workload's repeated-context shape.
+otherwise the \textasciitilde24.1 GB-per-request KV for 9.2K inputs
+fragments and concurrency collapses. The biggest lever: prefix caching.
+The RAG traffic reuses the same retrieved documents, so the architect
+enables automatic prefix caching and watches TTFT drop as the 8K-context
+prefill is replaced by cached KV lookups. The architect does
+\textbf{not} reach for P/D disaggregation or speculative decoding ---
+the single host is resource-sufficient once the wasted re-prefill is
+eliminated. The result: p95 TTFT back under 1.8 s at 40 rps, goodput
+restored, with only configuration changes --- because the architecture
+followed the serving mechanism that matched the workload's
+repeated-context shape.

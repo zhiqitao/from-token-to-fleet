@@ -5,15 +5,15 @@ from matplotlib.patches import FancyBboxPatch, Patch
 
 # ---- fig-19-1903: Agentic Context Accumulation sequence ----
 # Canonical (Ch 19): I0=9200, delta=800 retrieved, gamma=65 generated per turn.
-# KV @ 2.5 MB/token: 23.8..32.4 GB.
+# KV @ 2.62 MB/token: 24.9..34.0 GB.
 I0, d, g = 9200, 800, 65
 # clear-named column data: label, delta, gamma, kv_gb
 cols = [
-    ('Single-shot', 0,   0,   23.8),
+    ('Single-shot', 0,   0,   24.9),
     ('Turn 1',     d,   g,   25.9),
     ('Turn 2',     2*d, 2*g, 28.1),
     ('Turn 3',     3*d, 3*g, 30.2),
-    ('Turn 4',     4*d, 4*g, 32.4),
+    ('Turn 4',     4*d, 4*g, 34.0),
 ]
 xs = [0.4, 3.0, 5.6, 8.2, 10.8]
 cwd = 2.4
@@ -60,9 +60,9 @@ ax.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in legen
           loc='lower center', bbox_to_anchor=(0.5, 0.02), fontsize=9, frameon=False, ncol=3)
 
 # short conclusion below (not in the title region)
-ax.text(7.1, 1.2, 'agentic depth is a fleet-sizing problem: KV grows ~36% (23.8 \u2192 32.4 GB)',
+ax.text(7.1, 1.2, 'agentic depth is a fleet-sizing problem: KV grows ~36% (24.9 \u2192 34.0 GB)',
         fontsize=8.5, ha='center', color='#c0392b', fontweight='bold')
-ax.text(7.1, 0.55, 'canonical example @ 2.5 MB/token; total = I0 + T\u00b7\u03b4 + T\u00b7\u03b3. [2\u00b0 DERIVED]',
+ax.text(7.1, 0.55, 'canonical example @ 2.62 MB/token; total = I0 + T\u00b7\u03b4 + T\u00b7\u03b3. [2\u00b0 DERIVED]',
         fontsize=9, ha='center', color='#444')
 
 plt.tight_layout()

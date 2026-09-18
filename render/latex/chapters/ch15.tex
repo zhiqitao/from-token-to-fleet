@@ -111,15 +111,15 @@ impossible ``MFU \textgreater{} 1.''
 cached context and layers; it must never be computed per-layer and then
 treated as the whole-model total. For the canonical 70B model (80
 layers, hidden dimension 8,192, full-MHA), the per-token footprint
-across ALL layers is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 ≈ 2.5
-MB/token (2,560 KB; canonical value from \hyperref[chap:7]{Chapter 7}) --- not the 32 KB
-that a single-layer calculation would suggest. For a 9,500-token
-context, one user's KV-cache is therefore ≈9,500 ×2.5 MB ≈ 23.8 GB, not
-\textasciitilde304 MB. Across 100 concurrent users, total KV-cache
-≈2,380 GB --- which \textbf{does not} fit in the 640 GB GPU pool; using
-the canonical practical KV budget (640 GB − 140 GB weights −
+across ALL layers is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 =
+2,621,440 B ≈ 2.62 MB/token (2.5 MiB; canonical value from \hyperref[chap:7]{Chapter 7})
+--- not the 32 KB that a single-layer calculation would suggest. For a
+9,500-token context, one user's KV-cache is therefore ≈9,500 ×2.62 MB ≈
+24.9 GB, not \textasciitilde304 MB. Across 100 concurrent users, total
+KV-cache ≈2,490 GB --- which \textbf{does not} fit in the 640 GB GPU
+pool; using the canonical practical KV budget (640 GB − 140 GB weights −
 \textasciitilde64 GB runtime/workspace ≈ 436 GB), only ≈18 concurrent
-9,500-token users fit on-host for KV (436 GB ÷ 23.8 GB), before also
+9,500-token users fit on-host for KV (436 GB ÷ 24.9 GB), before also
 reserving weight residency. This is a decisive, order-of-magnitude
 correction to the intuitive picture: long-context KV is a first-order
 memory constraint, and the architect sizes concurrency by KV capacity,
@@ -200,20 +200,20 @@ practical illustrative rule of thumb: choose the smallest batch size
 that keeps MFU above \textasciitilde25\,\% while keeping p95 latency
 under the SLA target (the 25\,\% threshold and the knee are scenario
 values --- measure them on the target workload). \emph{Ignoring KV-cache
-growth:} A 70B model with 9,500‑token contexts consumes ≈23.8 GB of KV
-per user (≈2.5 MB/token × 9,500). Without cache eviction, compression,
-or a concurrency cap, even \textasciitilde18 concurrent users would
-exhaust the host's canonical practical KV budget (\textasciitilde436 GB
-after weights + runtime), so 100 concurrent full-context users require
-either multiple hosts, much shorter contexts, or KV compression
-(FP8/8-bit). Designers should implement length‑based eviction (drop the
-oldest/least‑recently‑used contexts) and KV quantization to cut the
-footprint (FP8 ≈2.5→1.3 MB/token). \emph{Using scaled‑dot‑product
-attention without FlashAttention:} For long contexts (9,200+ tokens) the
-quadratic memory cost of SDPA (O(L²)) dwarfs the FLOP cost.
-FlashAttention fuses read‑write‑compute and reduces HBM traffic by
-\textasciitilde3--5×, raising effective arithmetic intensity. A
-corollary mistake is assuming that FlashAttention benefits only long
+growth:} A 70B model with 9,500‑token contexts consumes ≈24.9 GB of KV
+per user (≈2.62 MB/token × 9,500, max end-of-generation). Without cache
+eviction, compression, or a concurrency cap, even \textasciitilde18
+concurrent users would exhaust the host's canonical practical KV budget
+(\textasciitilde436 GB after weights + runtime), so 100 concurrent
+full-context users require either multiple hosts, much shorter contexts,
+or KV compression (FP8/8-bit). Designers should implement length‑based
+eviction (drop the oldest/least‑recently‑used contexts) and KV
+quantization to cut the footprint (FP8 ≈2.5→1.3 MB/token). \emph{Using
+scaled‑dot‑product attention without FlashAttention:} For long contexts
+(9,200+ tokens) the quadratic memory cost of SDPA (O(L²)) dwarfs the
+FLOP cost. FlashAttention fuses read‑write‑compute and reduces HBM
+traffic by \textasciitilde3--5×, raising effective arithmetic intensity.
+A corollary mistake is assuming that FlashAttention benefits only long
 contexts; for moderate lengths (2,000--4,000 tokens) the HBM bandwidth
 reduction typically translates to a \textasciitilde1.3--1.8× throughput
 gain on H100 (illustrative --- bench the specific kernel on the target
@@ -280,9 +280,9 @@ are {[}ILLUSTRATIVE SCENARIO RESULT{]} values --- an illustrative
 benchmark outcome, not a home-lab measurement; the exact figures must
 come from a deployment benchmark on the target hardware/stack (\hyperref[chap:14]{Chapter 14}). The remaining question is whether the cross‑host request routing
 layer can maintain affinity KV-cache residency, avoiding cache warm‑up
-penalties on re‑requests. If affinity is preserved, the effective
-throughput for repeated users increases by ∼20\,\%; if not, the warm‑up
-cost of ∼2.1\,s per cold start erodes the gains from added hosts.
+penalties on re‑requests. The ∼20 \% affinity throughput gain and the
+∼2.1 s cold-start warm-up cost are themselves {[}ILLUSTRATIVE SCENARIO
+RESULT{]} values, not measured results.
 
 \textbf{\hyperref[tab:15.1]{Table 15-1}} --- Performance Regime Summary
 
@@ -314,16 +314,16 @@ Dominant Bottleneck
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Light & 10 & \textasciitilde2 & 9,500 & \textasciitilde23.8 & 12 &
+Light & 10 & \textasciitilde2 & 9,500 & \textasciitilde24.9 & 12 &
 Compute (SDPA) \\
-Typical & 100 & 40 & 9,500 & \textasciitilde23.8 & 38 & Memory /
+Typical & 100 & 40 & 9,500 & \textasciitilde24.9 & 38 & Memory /
 KV‑cache \\
-Peak & 200 & 80 & 9,500 & \textasciitilde23.8 & 52 & KV + Inter‑GPU
+Peak & 200 & 80 & 9,500 & \textasciitilde24.9 & 52 & KV + Inter‑GPU
 bandwidth \\
 
 \label{tab:15.1}\end{longtable}
 
-\emph{KV-Cache/User uses the canonical 2.5 MB/token × 9,500 ≈ 23.8 GB.
-Concurrency, rps, and MFU are {[}ILLUSTRATIVE{]} regime labels for
-teaching shape; the bottleneck column reflects the roofline logic of
-\hyperref[chap:8]{Chapter 8}.}
+\emph{KV-Cache/User uses the canonical \textasciitilde2.62 MB/token ×
+9,500 ≈ 24.9 GB. Concurrency, rps, and MFU are {[}ILLUSTRATIVE{]} regime
+labels for teaching shape; the bottleneck column reflects the roofline
+logic of \hyperref[chap:8]{Chapter 8}.}

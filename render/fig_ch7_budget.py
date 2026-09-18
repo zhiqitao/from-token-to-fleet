@@ -1,8 +1,8 @@
 """Fig 7.4 - The concurrency budget: where a 70B host's 640 GB HBM pool goes.
 
    weights 140 GB + runtime/NCCL ~64 GB + KV budget ~436 GB = 640 GB pool
-   C(FP16) = 436 / 23.8 per-request KV ~ 18 concurrent requests
-   C(FP8)  = 436 / 12.4            ~ 35 concurrent requests
+   C(FP16) = 436 / 24.9 per-request KV (9.5K max) ~ 18 concurrent requests
+   C(FP8)  = 436 / 13.4            ~ 33 concurrent requests
 """
 
 import matplotlib
@@ -12,8 +12,8 @@ from matplotlib.patches import Patch
 
 weights, runtime, kv = 140, 64, 436
 total = weights + runtime + kv  # 640
-kv_fp16_req = 23.8
-kv_fp8_req = 12.4
+kv_fp16_req = 24.9
+kv_fp8_req = 13.4
 C_fp16 = kv / kv_fp16_req
 C_fp8 = kv / kv_fp8_req
 
@@ -49,13 +49,13 @@ ax.text(weights + runtime / 2, y, f'~{runtime} GB\nruntime', ha='center', va='ce
 ax.text(kv_start + kv / 2, y, f'KV budget\n~{kv} GB', ha='center', va='center', color='white', fontsize=9.5, fontweight='bold')
 
 # ---- Totals & derivation above/below the bars (single baseline each) ----
-ax.text(kv_start + kv / 2, y + 0.95, f'~{kv} GB KV @ FP16 (2.5 MB/token)', ha='center', va='bottom', color='#27408b', fontsize=9)
+ax.text(kv_start + kv / 2, y + 0.95, f'~{kv} GB KV @ FP16 (2.62 MB/token, 9.5K max)', ha='center', va='bottom', color='#27408b', fontsize=9)
 
 # FP8 note below
 ax.text(kv_start + kv / 2, y8 - 0.55, f'FP8 KV: ~{C_fp8:.0f} slots (436 ÷ {kv_fp8_req:.1f} GB/request)', ha='center', va='top', color='#6f9e5f', fontsize=9.5, style='italic')
 
 # Concurrency derivation callout to the right
-ax.annotate(f'C ≈ {C_fp16:.0f} concurrent\nrequests @ FP16\n(436 ÷ 23.8 GB/request)',
+ax.annotate(f'C ≈ {C_fp16:.0f} concurrent\nrequests @ FP16\n(436 ÷ {kv_fp16_req:.1f} GB/request)',
             xy=(total, y), xytext=(total + 18, y + 0.1), fontsize=9.5, color='#27408b',
             ha='left', va='center', arrowprops=dict(arrowstyle='->', color='#27408b', lw=1.1))
 ax.text(total + 18, y - 0.75, '8×H100 pool = 640 GB', fontsize=9, color='#666', ha='left', va='center')

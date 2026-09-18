@@ -5,7 +5,7 @@ import numpy as np
 
 # ---- fig-17-1702: host-count contours H = lambda*L / (C*util) over (lambda_peak x L) ----
 # FP16 KV baseline C_16 = 18 ; FP8 KV C_8 = 35 ; util_target = 0.85
-C16, C8, util = 18, 35, 0.85
+C16, C8, util = 18, 33, 0.85
 
 lam = np.linspace(10, 120, 400)     # peak rps
 Lat = np.linspace(0.2, 4.0, 400)    # avg latency s

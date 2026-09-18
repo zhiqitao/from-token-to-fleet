@@ -30,14 +30,14 @@ ax1.tick_params(labelsize=7)
 ax2.bar(x, kv_gb, 0.5, color='#c0392b', hatch='..', edgecolor='white', linewidth=0.6, label='KV / request (FP16)')
 for i, v in enumerate(kv_gb):
     ax2.annotate(f'{v:.1f}', xy=(x[i], v), xytext=(x[i], v+0.5), ha='center', fontsize=7.5, color='#c0392b', fontweight='bold')
-ax2.axhline(23.8, color='#888', ls=':', lw=1)
+ax2.axhline(24.9, color='#888', ls=':', lw=1)
 ax2.set_ylabel('KV / request (GB, FP16)', fontsize=8.5)
-ax2.set_title('(b) KV grows 23.8 → 32.4 GB', fontsize=9)
+ax2.set_title('(b) KV grows 24.9 → 34.0 GB', fontsize=9)
 ax2.grid(alpha=0.3, axis='y')
 ax2.legend(fontsize=6.5, loc='upper left')
 ax2.tick_params(labelsize=7)
 # single-shot reference annotation in a clear spot (upper-left, not over a bar)
-ax2.text(0.02, 0.94, 'single-shot 23.8', transform=ax2.transAxes, fontsize=6.5, color='#555', va='top')
+ax2.text(0.02, 0.94, 'single-shot 24.9', transform=ax2.transAxes, fontsize=6.5, color='#555', va='top')
 
 for ax in (ax1, ax2):
     ax.set_xlabel('Agent turns', fontsize=8.5)

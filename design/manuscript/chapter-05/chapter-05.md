@@ -33,7 +33,7 @@ The canonical scenario (§14 of book-architecture.md) is an enterprise Q&A over 
 We walk the two‑model selection for this workload.
 
 ### (a) Embedding‑model selection for the retrieval leg
-KV-cache per-token figures are at FP16 (~2.5 MB/token) unless an 8-bit (~1.3 MB/token) variant is explicitly stated.
+KV-cache per-token figures are at FP16 (~2.62 MB/token) unless an 8-bit (~1.3 MB/token) variant is explicitly stated.
 
 The retrieval leg maps chunks of internal documents to dense vectors so that a user query can be matched to the most relevant context. The architect must choose an embedding model — specifically, its embedding dimension and parameter count — against the retrieval quality the workload demands.
 
@@ -58,7 +58,7 @@ Three realistic options, each with documented properties:
 |---|---|---|
 | Embedding dimension (recommended) | 768 | all‑mpnet‑base‑v2 [2° DERIVED] |
 | Embedding model size | ~110M parameters | all‑mpnet‑base‑v2 [2° DERIVED] |
-| Per-request context/KV cost at 9.2K input | ~23.4 GB (FP16 KV cache) | 70B FP16, 80 layers, 9.2K context [1P DERIVED] |
+| Per-request context/KV cost at 9.2K input | ~24.1 GB (FP16 KV cache, initial) | 70B FP16, 80 layers, 9.2K context [1P DERIVED] |
 | Tokens/s per dollar (generation, runtime) | 9,000 tokens per dollar‑hour | 50 tok/s × 3600 s/hr ÷ $20/hr [2° DERIVED] |
 | Verdict | Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16 on 8×H100 | Selection surfaces (§4 §5)
 ### (b) Generation‑model selection for the answer leg
@@ -69,9 +69,9 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 [1P] FACT: a 70B‑parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (model-card specification, vendor‑published). [1P] FACT: 8 ×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory.
 
-[DERIVED] KV‑cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.5 MB/token (FP16) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.5 MB ≈ 23.4 GB of KV cache.
+[DERIVED] KV‑cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.62 MB/token (FP16; = 2.5 MiB) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.62 MB ≈ 24.1 GB of KV cache (initial residency).
 
-[DERIVED] per‑request memory budget: 640 GB total HBM − 140 GB weights = 500 GB headroom. The 23.4 GB KV cache for 9.2K input consumes 4.7% of headroom, leaving ~476.6 GB for activations, intermediate buffers, and OS overhead. This is comfortably within a single 8×H100 node's capacity.
+[DERIVED] per‑request memory budget: 640 GB total HBM − 140 GB weights = 500 GB headroom. The 24.1 GB KV cache for 9.2K input consumes 4.7% of headroom, leaving ~476.6 GB for activations, intermediate buffers, and OS overhead. This is comfortably within a single 8×H100 node's capacity.
 
 [2°] DERIVED: vLLM continuous batching on 8×H100 with a 70B FP16 model and 9.2K context yields ~50 tokens/s aggregate throughput for 300‑token outputs. The prefill phase (9.2K tokens) dominates TTFT: at ~1.08 s it leaves ~0.12 s under the 1.2 s TTFT budget (retrieval ~120 ms + prefill ~1.08 s = ~1.20 s, at the SLO), with the p95 ≤ 2 s target giving the real margin.
 
@@ -117,7 +117,7 @@ This measurement habit is the token-layer answer to the book's recurring questio
 
 - **Starting with "which model is best?"** Instead of characterizing the workload first. The workload's token profile, latency budget, and economic constraints are what narrow the model space; starting with a model short‑circuits the reasoning chain and leads to post hoc justification.
 
-- **Ignoring the KV‑cache cost of long contexts.** A 9.2K input on a 70B model costs ~23.4 GB of KV cache. An architect who does not account for this will either over‑provision infrastructure or hit SLO violations when the cache spills to host memory or SSD.
+- **Ignoring the KV‑cache cost of long contexts.** A 9.2K input on a 70B model costs ~24.1 GB of KV cache (initial). An architect who does not account for this will either over‑provision infrastructure or hit SLO violations when the cache spills to host memory or SSD.
 
 - **Quoting context window as free capacity.** The 128K or 1M token window is an upper bound, not a recommendation. Using even 9.2K of a 128K window still costs for the length actually used. The cost is proportional to the *used* length, not the *available* length.
 
@@ -154,7 +154,7 @@ An architect is assembled for a design review of the enterprise Q&A tool describ
 From the token‑layer perspective (as we worked through in Chapter 5), the architect can immediately check the consequences:
 
 - **768‑dim embeddings** give adequate retrieval quality at ~1 GFLOPs per embedding, with ~3.1 GB index storage for a 1 M‑chunk corpus (vs ~1.5 GB at 384‑dim) — a persistent footprint that scales with corpus size, alongside the 70B base model.
-- **9.2K input** at 2.5 MB/KV‑token costs ~23.4 GB of cache on the 70B generation model, well within the 8×H100 node's 640 GB HBM. The prefill TTFT of ~1.08 s plus retrieval (~120 ms) sits at the 1.2 s TTFT budget, with the p95 ≤ 2 s SLO giving the real margin.
+- **9.2K input** at ~2.62 MB/KV‑token costs ~24.1 GB of cache (initial) on the 70B generation model, well within the 8×H100 node's 640 GB HBM. The prefill TTFT of ~1.08 s plus retrieval (~120 ms) sits at the 1.2 s TTFT budget, with the p95 ≤ 2 s SLO giving the real margin.
 - The **30× input‑vs‑output ratio** means this system is prefill‑dominated; model selection must weigh KV‑cache cost and prefill throughput more heavily than decode throughput.
 - The **base‑model + RAG + guardrails** paradigm is the economically preferred path at this volume: approximately the answer quality of a fine‑tuned model at roughly ~1/10th the TCO, with an illustrative break‑even of ~500 Q‑A pairs/month (scenario estimates, not reference measurements) — the workload does not sustain the training amortization threshold.
 

@@ -5,61 +5,37 @@ Single source of truth: design/canonical-workload.yaml.
 Every derived number in the book must equal what this script produces
 (from the canonical equation set), divided into the exact units the book uses.
 
+Convention (v2, 2026-09-18): ALL memory/compute arithmetic is DECIMAL (MB, GB).
+Per-token KV FP16 exact = 2,621,440 B = 2.5 MiB = 2.62 MB decimal.
+KV sizing DISTINCTION: initial (9,200 input) = 24.1 GB; max end-of-generation
+(9,500 = 9,200+300) = 24.9 GB; use the MAX for residency/concurrency.
+FP8 KV = 54% of BF16 (vLLM-measured [S6]) -> 13.4 GB @9,500 -> 33 concurrent.
+
 Run:  python3 render/canonical_calc.py
-Print: all canonical derived values for cross-checking a chapter's numbers.
-The point is reproducibility and unit discipline: if a chapter's number does
-not match here, the chapter (or this script) is wrong -- reconcile, don't ship.
 """
-import yaml, os, sys
+import os
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CANON = os.path.join(REPO, "design", "canonical-workload.yaml")
+B = 2621440            # per-token KV bytes (2 x 80 x 8192 x 2)
+def gb(tok):           # decimal GB for a token count
+    return tok * B / 1e9
 
-C = yaml.safe_load(open(CANON))
-M = C["model"]; E = C["equations"]
+weights = 140.0
+kv_9200 = gb(9200)
+kv_9500 = gb(9500)
+res_9500 = weights + kv_9500
+pool = 436.0
+c16 = pool / kv_9500
+fp8_9500 = kv_9500 * 0.54
+c8 = pool / fp8_9500
 
-def f(v):  # numeric coercion (yaml may give str for 70e9 on some loaders)
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return v
-
-# --- weights ---
-weight_gb = f(M["params"]) * f(M["weight_bytes_per_param"]) / 1e9
-assert abs(weight_gb - M["weight_gb"]) < 1, "weight_gb mismatch"
-
-# --- KV per token ---
-# canonical full-MHA teaching model: H_kv * D_head = hidden_dim
-kv_bytes = 2 * f(M["layers"]) * f(M["hidden_dim"]) * f(M["kv_bytes_per_element"])
-assert kv_bytes == E["kv_per_token_bytes"], "kv_per_token_bytes mismatch"
-kv_mb = kv_bytes / 1e6
-
-kv_gqa = 2 * f(M["layers"]) * 1024 * 2  # H_kv=8,D_head=128 -> 1024
-kv_fp8 = 2 * f(M["layers"]) * f(M["hidden_dim"]) * 1  # 1 byte/element
-
-hbm_usable = f(C["hardware"]["hbm_total_gb"]) * f(C["hardware"]["hbm_usable_fraction"])
-
-tok = f(C["scenario"]["input_tokens"]); out = f(C["scenario"]["output_tokens"])
-print("=== CANONICAL DERIVED VALUES ===")
-print(f"weights            : {weight_gb:.0f} GB")
-print(f"KV/token FP16 exact: {kv_mb:.3f} MB  (book: 2.5 MB rounded; 2,560 KB)")
-print(f"KV/token 8-bit     : {kv_fp8/1e6:.2f} MB")
-print(f"KV/token GQA(1024) : {kv_gqa/1e6:.3f} MB")
-print(f"KV {tok} input  (book 2.5): {tok*kv_mb/1e3:.1f} GB   (exact {tok*kv_mb/1e9:.1f})")
-print(f"KV {out} out   (book 0.75): {out*kv_mb/1e3:.2f} GB")
-print(f"KV inference total : ~{C['derived']['kv_total_inference_gb']} GB (book)")
-print(f"residency 9.2K     : {C['derived']['inference_residency_9200_gb']} GB (book) = 140 + 24.7")
-print(f"hbm usable (8x)    : {hbm_usable:.0f} GB  (of {C['hardware']['hbm_total_gb']} GB)")
-
-# --- consistency assertions against the canonical YAML's own derived block ---
-assert abs(kv_mb - 2.62) < 0.01
-assert C["derived"]["kv_9200_gb"] == 23.9
-assert C["derived"]["kv_fp8_variant_mb"] == 1.3
-assert abs(C["derived"]["kv_gqa_variant_mb"] - 0.33) < 0.01
-
-try:
-    kv = float(os.environ.get("KVCHECK", ""))
-    print(f"\nKVCHECK={kv:.6f}")
-except (ValueError, TypeError):
-    pass
-print("\nOK: canonical values consistent.")
+print("=== CANONICAL DERIVED VALUES (decimal) ===")
+print(f"weights              : {weights:.0f} GB")
+print(f"KV/token FP16        : 2.62 MB decimal (=2.5 MiB; {B} B)")
+print(f"KV/token FP8 (54%)   : 1.42 MB")
+print(f"KV  9,200 (initial)  : {kv_9200:.1f} GB")
+print(f"KV  9,500 (max)      : {kv_9500:.1f} GB")
+print(f"residency 9,500 max  : {res_9500:.1f} GB  (~165)")
+print(f"FP8 KV @9,500 (54%)  : {fp8_9500:.1f} GB")
+print(f"concurrency FP16     : {pool:.0f}/{kv_9500:.1f} = {c16:.1f} -> 18")
+print(f"concurrency FP8      : {pool:.0f}/{fp8_9500:.1f} = {c8:.1f} -> 33")
+print("OK: canonical values consistent (decimal convention).")

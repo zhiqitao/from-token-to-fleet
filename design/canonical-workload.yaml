@@ -1,7 +1,19 @@
 # Canonical Scenario & Equation Set — single source of truth
 # Every chapter's quantitative claims derive from here (book-architecture.md §14).
 # Freeze this file; chapters cite it instead of re-inventing numbers.
-# Version: v1  (2026-08-30 numerical-audit baseline; aligns Ch5/Ch7 canonical values)
+# Version: v2  (2026-09-18 numerical-consistency baseline; ONE decimal convention)
+#
+# CONVENTION (locked): ALL memory/compute arithmetic uses DECIMAL units (MB, GB, TFLOPS),
+# because weight residency = 70e9 x 2 B / 1e9 = 140 GB is decimal. The KV per-token exact
+# value is 2,621,440 B = 2.5 MiB = 2.62 MB (decimal); the book quotes "~2.5 MB/token" as a
+# rounded shorthand, but every derived GB below follows the exact DECIMAL value.
+#
+# KV SIZING DISTINCTION (critical, must be stated everywhere):
+#   - initial KV residency  = input tokens only (9,200)  -> 24.1 GB
+#   - max end-of-generation= input + output (9,500)     -> 24.9 GB  <-- use for residency/concurrency
+#
+# FP8 KV: use the vLLM-measured ~54% of BF16 ratio [1P S6], NOT naive byte-halving.
+#   FP8 @9.5K = 0.54 x 24.9 = 13.4 GB  -> 436/13.4 = ~33 concurrent.
 
 scenario:
   name: "Enterprise Q&A over internal documents (RAG)"
@@ -30,20 +42,25 @@ hardware:
   gpus: 8
   hbm_per_gpu_gb: 80
   hbm_total_gb: 640
-  hbm_usable_fraction: 0.8            # after runtime/workspace reserve
-  hbm_usable_gb: 512
+  runtime_reserve_gb: 64              # runtime/NCCL/activations on the 8xH100 host
+  weights_gb: 140
+  kv_budget_gb: 436                   # 640 - 140 - 64
   peak_tflops_fp16_per_gpu: 1000
   peak_flops_system: 8e15             # 8 x 1000 TFLOPS
   hbm_bandwidth_per_gpu_tbps: 3.35
 
 equations:
-  kv_per_token_bytes: 2621440         # 2 * layers * hidden_dim * kv_bytes = 2*80*8192*2
-  kv_per_token_mb: 2.5                # rounded; 2,560 KB (book convention); exact 2.62 MB
+  # 2 * layers * hidden_dim * kv_bytes = 2*80*8192*2 = 2,621,440 B
+  kv_per_token_bytes: 2621440
+  kv_per_token_mb_decimal: 2.62       # 2,621,440 / 1e6  (exact decimal)
+  kv_per_token_mib: 2.5               # 2,621,440 / 2^20  (2.5 MiB; book shorthand)
 
-derived:                              # computed by render/canonical_calc.py
-  kv_9200_gb: 23.9                    # 9200 x 2.5 MB (book rounded); exact 24.1
-  kv_300_gb: 0.75                     # 300 x 2.5 MB
-  kv_total_inference_gb: 24.7         # 23.9 + 0.75
-  inference_residency_9200_gb: 164.7  # weights 140 + KV 24.7
-  kv_gqa_variant_mb: 0.33             # e.g. H_kv=8, D_head=128 -> 1024: 2*80*1024*2/1e6
-  kv_fp8_variant_mb: 1.3              # 1 byte/element -> 2*80*8192*1/1e6 = 1.31
+derived:                              # computed by render/canonical_calc.py (DECIMAL GB)
+  kv_9200_initial_gb: 24.1            # 9200 x 2.62 MB  (initial KV residency)
+  kv_9500_max_gb: 24.9                # 9500 x 2.62 MB  (max end-of-generation KV)
+  kv_300_output_gb: 0.8               # 300 x 2.62 MB
+  kv_fp8_9500_gb: 13.4                # 0.54 x 24.9  (vLLM FP8 ~54% of BF16)
+  inference_residency_9500_gb: 165    # 140 + 24.9  (=164.9 ~ 165; anchors)
+  concurrency_fp16_9500: 18           # 436 / 24.9 = 17.5 -> ~18
+  concurrency_fp8_9500: 33            # 436 / 13.4 = 32.5 -> ~33
+  kv_gqa_variant_mb: 0.33             # H_kv=8, D_head=128 -> 1024: 2*80*1024*2/1e6

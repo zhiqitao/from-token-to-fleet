@@ -58,7 +58,7 @@ $$
 140 \text{ GB weights} > 80 \text{ GB HBM}
 $$
 
-We need at least $140 / 80 \approx 1.75$ → **≥ 2 GPUs just to hold the weights** (and that's before KV cache, which adds ~2.5 MB/token at FP16 — the 9.2K-token canonical prompt needs ~24 GB more). [2° DERIVED]
+We need at least $140 / 80 \approx 1.75$ → **≥ 2 GPUs just to hold the weights** (and that's before KV cache, which adds ~2.5 MB/token at FP16 — the 9.2K-token canonical prompt needs ~24.1 GB more (initial KV)). [2° DERIVED]
 
 The canonical 8×H100 host (640 GB total) fits the weights + KV comfortably, which is why the single-host baseline in earlier chapters works. But if the model grows (say to 400B) or owns more, the split becomes mandatory:
 

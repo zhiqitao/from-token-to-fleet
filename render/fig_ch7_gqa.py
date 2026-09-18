@@ -53,7 +53,7 @@ for g in range(8):
 # Bottom banner: the byte accounting (narrower to fit)
 bx0, by0, bw, bh = 0.25, 0.25, 9.7, 0.95
 ax.add_patch(Rectangle((bx0, by0), bw, bh, fc='#fbf2ec', ec='#c0392b', lw=1.3, zorder=5))
-ax.text(bx0+0.3, by0+0.62, 'MHA (full): 64 K/V per token → 2.5 MB/token', fontsize=6.6, color='#333', zorder=6)
+ax.text(bx0+0.3, by0+0.62, 'MHA (full): 64 K/V per token → 2.62 MB/token', fontsize=6.6, color='#333', zorder=6)
 ax.text(bx0+0.3, by0+0.18, 'GQA: 8 K/V per token → ~0.33 MB/token — 8× smaller cache', fontsize=6.6, color='#c0392b', fontweight='bold', zorder=6)
 
 plt.tight_layout()
