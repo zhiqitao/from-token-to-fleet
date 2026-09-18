@@ -38,10 +38,10 @@ ax.text(0.15, 662, '640 GB pool = 8×H100 HBM', fontsize=9.5, color='#a93226', f
 leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, label='KV cache (grows w/ context)'),
        mpatches.Patch(color=cols['weights'], label='weights 140 GB'),
        mpatches.Patch(color=cols['runtime'], label='runtime / NCCL ~64 GB')]
-ax.legend(handles=leg, loc='upper center', bbox_to_anchor=(0.5, -0.16), fontsize=9, frameon=False, ncol=1)
+ax.legend(handles=leg, loc='upper center', bbox_to_anchor=(0.5, -0.16), fontsize=10.5, frameon=False, ncol=1)
 
 ax.text(0.2, -150, 'baseline (weights + runtime) is context-independent; the KV cache is the lever that grows\nwith context.  FP16 ~2.5 MB/token [2° DERIVED].',
-        fontsize=8.5, color='#444')
+        fontsize=10, color='#444')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0705.png', dpi=150)

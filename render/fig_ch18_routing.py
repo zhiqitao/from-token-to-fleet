@@ -57,7 +57,7 @@ arrow(5.2, 6.0, 16.0, 4.1, color='#555', lab='fallthrough', lx=11.8, ly=5.6)
 ax.text(10.0, 1.5, 'only ONE model is selected per request (early exit on a match)',
         fontsize=8.5, ha='center', color='#666')
 ax.text(10.0, 0.7, 'policy: capability first, then cost/SLO, then general fallback. [2° DERIVED]',
-        fontsize=8, ha='center', color='#666')
+        fontsize=9.5, ha='center', color='#666')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-18/figures/fig-18-1801.png', dpi=150)

@@ -34,7 +34,12 @@ TEXTW_IN = 6.1
 # Desired minimum final print font size (points) for figure labels.
 TARGET_SIZE_PT = 8.5
 # Absolute cap so we never balloon a figure's type into absurdity.
-MAX_SCALE = 3.2
+# Wide text-art diagrams (decision loop, memory allocation, parallelism, etc.)
+# are placed at downscale > 1 (figure wider than the 6.1in column), which used
+# to clamp their scale factor below the on-page 8.5pt target (base fonts ended
+# up ~7.2-7.34pt on page).  Raise the cap so those wide diagrams can reach the
+# legibility target instead of being under-scaled.
+MAX_SCALE = 6.0
 
 _scaled_fignums = set()   # object-ids of figures already scaled (per script)
 
