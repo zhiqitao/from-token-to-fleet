@@ -22,11 +22,11 @@ decode = 2 * N * np.ones_like(L)          # per-token decode FLOPs, context-inde
 
 fig, ax = plt.subplots(figsize=(8.5, 5.4))
 ax.semilogy(L / 1e3, lin / 1e15, color='#c0392b', lw=2.6, marker='o', ms=4,
-            label='prefill PFLOP (linear 2NL)')
+            label='prefill FLOPs per request (linear 2NL)')
 ax.semilogy(L / 1e3, quad / 1e15, color='#e67e22', lw=2.0, ls='--', marker='s', ms=4,
-            label='prefill incl. quadratic attention')
+            label='prefill incl. quadratic attention (per request)')
 ax.semilogy(L / 1e3, decode / 1e15, color='#27408b', lw=2.4, marker='^', ms=4,
-            label='decode per token (fixed 2N)')
+            label='decode FLOPs per generated token (fixed 2N)')
 ax.fill_between(L / 1e3, lin / 1e15, quad / 1e15, color='#e67e22', alpha=0.10)
 
 for Lk, lab in [(9.2, '9.2K canonical'), (32, '+~46% @32K'), (128, '~2.4× @128K')]:
@@ -38,8 +38,8 @@ for Lk, lab in [(9.2, '9.2K canonical'), (32, '+~46% @32K'), (128, '~2.4× @128K
 
 ax.set_xscale('log')
 ax.set_xlabel('Context length (K tokens)')
-ax.set_ylabel('FLOPs per request (PFLOP, log)')
-ax.set_title('Ch22 — prefill compute grows super-linearly; decode stays flat')
+ax.set_ylabel('Compute (PFLOP; see series definition)')
+ax.set_title('Prefill compute grows super-linearly with context; decode stays flat')
 ax.set_ylim(3e-5, 1e2)
 ax.grid(alpha=0.3, which='both')
 ax.legend(fontsize=8, loc='upper left')

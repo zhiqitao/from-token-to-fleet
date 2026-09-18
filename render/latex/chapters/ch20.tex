@@ -76,13 +76,13 @@ context length, batch).
 So a per-query ``16 ms median latency'' is not a real served-request
 number --- it would only describe a trivially short completion. The
 honest framing is \emph{throughput capacity}, not countless instant
-requests: a host that sustains \textasciitilde35,000 tokens/s (achieved,
-\hyperref[chap:15]{Chapter 15}) with \textasciitilde16 concurrent full-context requests (KV
-ceiling, \hyperref[chap:17]{Chapter 17}) serves roughly 3.7 requests/s at steady state ---
-not 250. The ``250 QPS, 16 ms'' figures in this chapter are an
-{[}ILLUSTRATIVE{]} exercise in fleet arithmetic, not a measurable
-property of this workload; the architect must replace them with the
-throughput and KV numbers measured on the actual model+context.
+requests: a host that sustains an illustrative \textasciitilde35,000
+tokens/s {[}ILLUSTRATIVE achievable range, \hyperref[chap:15]{Chapter 15}{]} with
+\textasciitilde16 concurrent full-context requests (KV ceiling, \hyperref[chap:17]{Chapter 17}) serves roughly 3.7 requests/s at steady state --- not 250. The ``250
+QPS, 16 ms'' figures in this chapter are an {[}ILLUSTRATIVE{]} exercise
+in fleet arithmetic, not a measurable property of this workload; the
+architect must replace them with the throughput and KV numbers measured
+on the actual model+context.
 
 \textbf{Fleet aggregate throughput (illustrative form).} Keeping the
 illustrative per-host QPS = Q for the algebra, aggregate throughput is
@@ -275,8 +275,8 @@ query, 70B dense FP16 model, 8x H100 per host, 8 hosts total.
 
 \textbf{Question}: What is the fleet's aggregate QPS capacity at batch
 size 4, and what is the marginal cost per QPS when scaling from 8 to 16
-hosts? What scheduling overhead must be kept below to ensure the
-99th-percentile latency stays under 100 ms?
+hosts? Is an end-to-end 99th-percentile latency under 100 ms even
+feasible for this workload --- and if not, what can the scheduler bound?
 
 \textbf{Solution} (illustrative algebra --- the per-host figure below is
 an {[}ILLUSTRATIVE{]} hypothetical for showing the fleet math; the real
@@ -287,16 +287,22 @@ bounded by KV residency per \hyperref[chap:17]{Chapter 17}):
 \tightlist
 \item
   \textbf{Real per-host throughput (Ch. 15/17 basis):} a host sustaining
-  \textasciitilde35,000 tokens/s (achieved, \hyperref[chap:15]{Chapter 15}) against a
-  \textasciitilde9,500-token request moves \textasciitilde3.7 requests/s
-  at steady state. This is the number to use for capacity and cost: it
-  is grounded in the decode-rate and KV-residency analysis, not an
-  assumed QPS.
+  an illustrative \textasciitilde35,000 tokens/s {[}ILLUSTRATIVE
+  achievable range, \hyperref[chap:15]{Chapter 15}{]} against a \textasciitilde9,500-token
+  request moves \textasciitilde3.7 requests/s at steady state. This is
+  the number to use for capacity and cost: it is grounded in the
+  decode-rate and KV-residency analysis, not an assumed QPS.
 \item
-  Fleet aggregate (8 hosts): 8 ×3.7 ≈ \textbf{30 req/s},
-  i.e.~comfortably above the canonical 40 rps peak only when concurrency
-  is also held --- the binding constraint is KV residency (\hyperref[chap:17]{Chapter 17}),
-  which sets \emph{concurrent} requests, not the QPS arithmetic above.
+  Fleet aggregate (8 hosts): 8 ×3.7 ≈ \textbf{30 req/s}, which is
+  \textbf{below} the canonical 40-rps peak. On throughput alone, the
+  idealized minimum is ⌈40 / 3.7⌉ = \textbf{11 hosts}; allowing
+  \textasciitilde10\% scheduling loss raises this simplified capacity
+  floor to 40 / (3.7 × 0.9) ≈ 12.0 → \textbf{13 hosts}. KV residency and
+  SLO headroom may increase the required fleet further. (The
+  KV-residency floor, \hyperref[chap:17]{Chapter 17}, is a \emph{concurrent}-request
+  constraint and is what actually binds at this context length; the
+  throughput floor here is a separate lower bound that must also be
+  met.)
 \item
   \textbf{Marginal cost (real basis):} adding one host at
   \textasciitilde\$20/hr (cloud, {[}ILLUSTRATIVE{]}) buys
@@ -315,10 +321,19 @@ bounded by KV residency per \hyperref[chap:17]{Chapter 17}):
   throughput from \hyperref[chap:14]{Chapter 14}, or the \textasciitilde3.7 req/s bound
   derived here.
 \item
-  Scheduling overhead must stay below \textasciitilde5\% of per-query
-  time; against a real decode of seconds this is loose, but measured
-  latency is the true anchor (.5 ms dispatch is negligible next to any
-  realistic per-request time).
+  \textbf{The 100-ms end-to-end p99 is infeasible under the stated
+  workload, and that is the honest answer.} A request here takes
+  \textasciitilde7.5 s of decode alone (300 output tokens ×
+  \textasciitilde25 ms/token, \hyperref[chap:8]{Chapter 8}), so no scheduler-overhead
+  percentage can bring end-to-end p99 under 100 ms --- the model
+  execution already exceeds the budget by two orders of magnitude. What
+  the scheduler \emph{can} bound is the overhead it adds \emph{on top
+  of} model execution: a lightweight round-robin dispatcher adds
+  \textasciitilde0.5 ms per request, which is negligible against a
+  multi-second decode, and a \textless=5\% scheduler-added p99 is
+  comfortably achievable. The architect's job here is to reject the
+  impossible SLO and state what is actually controllable, rather than
+  tune arithmetic until a 100-ms figure appears reachable.
 \end{itemize}
 
 \textbf{\hyperref[tab:20.1]{Table 20-1}} --- Fleet QPS and latency vs.~host count, batch

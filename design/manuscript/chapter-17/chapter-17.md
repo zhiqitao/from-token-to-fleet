@@ -82,9 +82,9 @@ $$
 
 where $u$ is the utilization target.
 
-![Fig 17.2 — Host-count contours H = λ·L/(C·util) over peak rate λ × average latency L, with the FP16-KV family (C ≈ 18, filled) and the FP8-KV family (C ≈ 35, dashed) [DERIVED: Ch17 §3 + Ch7 KV constants]](figures/fig-17-1702.png)
+![Fig 17.2 — Hosts required by request rate and average latency, with the FP16-KV family (C ≈ 18, filled) and the FP8-KV family (C ≈ 35, dashed). Each contour is a fixed integer host count, H = ceil(lambda-peak * L / (C * util)) [DERIVED: Ch17 §3 + Ch7 KV constants]](figures/fig-17-1702.png)
 
-*The fleet-sizing formula H = ⌈λ·L/(C·util)⌉ rendered as one glanceable surface. Each contour is a fixed host count; moving to the upper-right (higher peak rate or higher latency) costs hosts. The dashed FP8-KV family sits to the right of the FP16 family at every contour — a reminder that halving the KV byte width is the cheapest way to shrink the fleet before buying hardware. The black dots mark the canonical operating points (Section 3).*
+*The fleet-sizing formula $H = \lceil \lambda \cdot L / (C \cdot u) \rceil$ rendered as one glanceable surface. Each contour is a fixed host count; moving to the upper-right (higher peak rate or higher latency) costs hosts.*
 
 - At T=4 with L=1 s: concurrency = 40, C ≈ 14 → H_min = ⌈40/14⌉ ≈ 3 hosts (≈5 at the 70% utilization ceiling).
 - At the same T=4 with L=2 s: concurrency = 80, H_min = ⌈80/14⌉ ≈ 6 hosts.

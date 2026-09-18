@@ -24,7 +24,7 @@ ax.clabel(cs8, inline=1, fontsize=8, fmt='%d')
 
 ax.set_xlabel('Average latency L (s)')
 ax.set_ylabel('Peak request rate λ (rps)')
-ax.set_title('Ch17 — host count H = ⌈λ·L/(C·util)⌉')
+ax.set_title('Hosts Required by Request Rate and Average Latency')
 
 # mark the canonical operating points as (lambda, latency) -> plot (x=L, y=lambda)
 canon = [(40,1.0),(100,1.0),(100,2.0),(40,0.5)]

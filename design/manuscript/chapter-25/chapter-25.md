@@ -51,7 +51,7 @@ Render the serving model in BF16.
 
 **Consequences:**
 - **Positive:** range robustness in attention/softmax and long-context accumulation; no change in weight residency (both precisions are ~140 GB).
-- **Negative:** lower mantissa precision than FP16 in the weights (BF16 has 7 mantissa bits vs FP16's 10), so FP16 is more precise where values already sit in range; the measured exact-match result on this workload showed no quality difference, so the trade-off is precision headroom, not observed quality. There is no free memory — and none should be expected.
+- **Negative:** lower mantissa precision than FP16 in the weights (BF16 has 7 mantissa bits vs FP16's 10), so FP16 is more precise where values already sit in range; in the illustrative evaluation on this workload the exact-match result showed no quality difference [ILLUSTRATIVE — to be confirmed by the deployment quality gate], so the trade-off is precision headroom, not observed quality. There is no free memory — and none should be expected.
 - **Monitoring:** track per-request latency, GPU memory utilization, and held-out Q&A quality. If the BF16 output drifts, fall back to FP16 and compare both on the same set (they differ in precision, not footprint).
 
 **Alternatives Considered:**

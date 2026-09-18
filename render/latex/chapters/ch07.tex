@@ -45,16 +45,44 @@ plus the context-dependent KV state --- resides on-GPU. If it does not,
 every subsequent decision (offload, recompute, page) is a degradation,
 not a cost-optimization.
 
-The residency floor has two distinct regimes. Inference, the floor is
-weights + KV: the model's static parameters plus the context-dependent
-key/value tensors that grow with every token added to the prompt. In
-fine-tuning, the floor rises further to weights + gradients + optimizer
-states, because every parameter update requires its own momentum and
-velocity vectors (Adam) or per-parameter scaling (LAMB/RMSProp). The
-contrast between these two floors --- inference typically 160--200 GB
-for a 70B model at FP16 with 9.2K context {[}2° DERIVED{]}, fine-tuning
-exceeding 1 TB {[}2° DERIVED{]} --- is the architect's central
-memory-takeaway.
+The residency floor has two distinct regimes. For inference, the floor
+is weights + KV: the model's static parameters plus the
+context-dependent key/value tensors that grow with every token added to
+the prompt. In fine-tuning, the floor rises further to weights +
+gradients + optimizer states, because every parameter update requires
+its own momentum and velocity vectors (Adam) or per-parameter scaling
+(LAMB/RMSProp). The contrast between these two floors --- inference
+\textasciitilde165 GB for a 70B model at FP16 with 9.2K context {[}2°
+DERIVED{]}, fine-tuning exceeding 1 TB {[}2° DERIVED{]} --- is the
+architect's central memory-takeaway.
+
+We keep two terms rigidly distinct in this chapter, and the distinction
+is the antidote to ``does it fit?'' mistakes:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Residency floor} = weights + KV. This is the minimum memory
+  the model's parameters and active KV tensors must \emph{occupy} for a
+  single request. It is what the numbers in this chapter quote
+  (\textasciitilde140 GB weights + \textasciitilde24.7 GB KV ≈ 165 GB at
+  9.2K).
+\item
+  \textbf{Practical host requirement} = weights + KV + runtime/workspace
+  + safety margin. Deploying a model on a GPU requires additional VRAM
+  for CUDA kernels, activation buffers, NCCL communication, a
+  warmup/KV-allocation safety pool, and (on a multi-GPU host) tensor- or
+  pipeline-parallel copies. On the canonical 8×H100 host this
+  runtime/workspace term is \textasciitilde64 GB, turning the
+  \textasciitilde165 GB residency floor into a larger \emph{deployment}
+  footprint.
+\end{itemize}
+
+When the text says a workload ``fits'' or ``does not fit,'' we are
+always talking about the residency floor first; the practical host
+requirement is a superset that must be checked before committing
+hardware. Conflating the two is exactly what produces a ``165 GB fits in
+160 GB'' error.
 
 \section{Mental Model}\label{mental-model}
 
@@ -131,8 +159,8 @@ inference residency (weights + KV, 128K input) & ≈ 460.0 GB & 140 +
 320.0 GB \\
 2×H100 total VRAM & 2 ×80 GB = 160 GB & {[}1P: facts/serving.md S8{]} \\
 8×H100 total VRAM & 8 ×80 GB = 640 GB & {[}1P: facts/serving.md S8{]} \\
-fits 2×H100 at 9.2K? & no, 164.7 GB \textgreater{} 160 GB & requires
-≥2×H100 with small overflow \\
+fits 2×H100 at 9.2K? & no, 164.7 GB \textgreater{} 160 GB & does not
+fit; needs ≥2×H100 (or lower precision / more GPUs) \\
 fits 8×H100 at 9.2K? & yes & 164.7 GB \textless{} 640 GB \\
 fits 8×H100 at 32K? & yes & 220.0 GB \textless{} 640 GB \\
 fits 8×H100 at 128K? & yes, barely & 460.0 GB \textless{} 640 GB \\
@@ -299,8 +327,8 @@ MB/token.
   (weights 140 GB + KV 12.9 GB). State both the BF16 and FP8 residency
   numbers, because the choice of KV dtype changes the hardware
   requirement decisively. For comparison, 8-bit KV would bring the 9.2K
-  total to \textasciitilde138 GB (weights 140 GB truncated by KV
-  reduction), still fitting in 2×H100 but with less margin.
+  total to \textasciitilde152 GB (weights 140 GB + KV \textasciitilde12
+  GB) --- still above a single H100, but now within 2×H100 (160 GB).
 \end{enumerate}
 
 \section{Common Mistakes}\label{common-mistakes}
@@ -346,7 +374,7 @@ enterprise-Q\&A workload:
   \textbf{Model residency decides host count.} A 70B FP16 model (140 GB
   weights) at 9.2K context needs \textasciitilde24.7 GB of KV cache
   (FP16), so inference residency ≈ 165 GB --- it does \emph{not} fit on
-  a single 80 GB H100, and is marginal even on 2×H100 (160 GB
+  a single 80 GB H100, nor within the 160 GB aggregate of 2×H100 (160 GB
   \textless{} 165 GB). The canonical single host of 8×H100 (640 GB) is
   chosen precisely to clear this floor with headroom. {[}2° DERIVED{]}
 \item
@@ -507,15 +535,17 @@ decision (which model fits, how much memory, what latency is possible)
 is priced against it.
 
 Running the KV arithmetic: if each request uses \textasciitilde9.2K
-retrieved context tokens (the canonical \textasciitilde1,200 prompt + 8K
+total input tokens (the canonical \textasciitilde1,200 prompt + 8K
 retrieved) plus \textasciitilde300 output tokens, the KV cache per
 request at 70B FP16 is \textasciitilde24.7 GB. The weight footprint is
-140 GB. Total inference residency ≈ 165 GB, which fits in 2×H100 (160
-GB) with a small margin, or comfortably in 8×H100 (640 GB). If the
-context is extended to 32K (e.g., wider document retrieval), the KV
-cache rises to \textasciitilde80 GB, pushing total residency to
-\textasciitilde220 GB --- still fitting in 8×H100 but requiring a
-multi-GPU node.
+140 GB. Total inference residency is ≈165 GB, which does \textbf{not}
+fit within the nominal 160 GB aggregate HBM of 2×80 GB H100s; practical
+deployment therefore requires additional capacity, lower precision, or a
+larger GPU configuration. It fits comfortably within the 640 GB
+aggregate HBM of an 8×H100 host. If the context is extended to 32K
+(e.g., wider document retrieval), the KV cache rises to
+\textasciitilde80 GB, pushing total residency to \textasciitilde220 GB
+--- still fitting in 8×H100 but requiring a multi-GPU node.
 
 The architect can now speak the system's currency: tokens, KV bytes, and
 the residency floor. The next step --- turning ``5,000 employees'' into

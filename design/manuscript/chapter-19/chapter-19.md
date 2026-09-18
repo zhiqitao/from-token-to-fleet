@@ -90,7 +90,7 @@ $$
 \alpha(3) = \frac{9{,}200 + 3\cdot800 + 3\cdot65 + 300}{9{,}200 + 300} = \frac{9{,}200 + 2{,}400 + 195 + 300}{9{,}500} = \frac{12{,}095}{9{,}500} \approx 1.27\times
 $$
 
-For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, the distribution of *T* depends on query complexity; we observe a median of 2 turns and a 90th-percentile of 4 turns across our user base.
+For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, the distribution of *T* depends on query complexity; in this illustrative scenario we take a median of 2 turns and a 90th-percentile of 4 turns [ILLUSTRATIVE assumption, not a measured distribution].
 
 ### Tool-call latency budget
 
@@ -163,7 +163,7 @@ where tokens/call is itself inflated by the agentic amplification *α* from Sect
 Despite the quantified arithmetic above, several questions remain open and would benefit from targeted research:
 
 - **Turn-count distribution shift with model scale.** Do larger-context models (e.g., 405B FP16) exhibit different *T* distributions? Does the ability to "see more" reduce the need for multi-step loops, or does the model reason more deeply and actually increase *T*?
-- **Token amplification vs. answer quality curve.** We have measured *α(T)*, but we have not firmly established the marginal quality gain per additional turn. Is the 1.27× → 1.36× move from *T* = 3 to *T* = 4 worth the 7% token increase? A/B tests across query categories would help.
+- **Token amplification vs. answer quality curve.** We can compute *α(T)* from the illustrative token counts, but we have not firmly established the marginal quality gain per additional turn. Is the 1.27× → 1.36× move from *T* = 3 to *T* = 4 worth the 7% token increase? A/B tests across query categories would help.
 - **Latency tail under spike load.** Our 95th-percentile latency of ~880 ms assumes GPU inference time is constant. Under traffic spikes, GPU saturation can increase inference latency non-linearly. Empirical measurement under controlled load is needed to validate the linear *T·L* model.
 - **Optimal tool design for minimal turn count.** Some tools could return more comprehensive results in a single call, reducing the need for multiple rounds. The design space of "rich vs. narrow" tools and its impact on *T* is underexplored.
 - **Cross-user context caching.** If many users ask related questions (e.g., "What does the policy say about X?"), can we cache intermediate retrieval results and avoid redundant tool calls? The savings could be substantial but require careful invalidation logic.
@@ -186,7 +186,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 
 **Architectural actions.** The team sets the turn limit to 3, instruments each turn's token and latency, and adds a context cache for the search tool. With the cache hit rate of 30% on recurring queries, the effective *δ* drops to ~560 tokens, reducing average amplification to ~1.04× and median latency to ~350 ms. The system now meets the SLA of <1 s 95th-percentile latency while delivering higher-quality answers on complex queries.
 
-**Lesson.** The agentic layer added ~7% token overhead and ~320 ms latency on median, but improved answer correctness on multi-step reasoning queries by an estimated 22% (measured by human eval). The trade-off was acceptable, and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
+**Lesson.** The agentic layer added ~7% token overhead and ~320 ms latency on median, but improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement]. The trade-off was acceptable, and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
 
 ---
 
