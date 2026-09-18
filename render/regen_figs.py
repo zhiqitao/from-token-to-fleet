@@ -267,9 +267,23 @@ def _duo_savefig(fname, *args, **kwargs):
     try:
         for num in plt.get_fignums():
             fig = plt.figure(num)
-            _scale_figure_fonts(fig, num)
-            if _is_text_art(fig):
-                text_art_save = True
+            # Some figures are authored at their final on-page size with boxes
+            # auto-sized to their labels (fig_ch18_routing).  Re-boosting their
+            # fonts into those fixed boxes clips the text, so skip any figure
+            # whose title marks it as print-size-authored.
+            title = ""
+            try:
+                for a in fig.axes:
+                    if a.get_title():
+                        title += a.get_title()
+            except Exception:
+                pass
+            if "sequential cascade" in title and "specialised model" in title:
+                text_art_save = _is_text_art(fig)
+            else:
+                _scale_figure_fonts(fig, num)
+                if _is_text_art(fig):
+                    text_art_save = True
     except Exception as e:
         print("  (font-scale skipped:", e, ")")
 
