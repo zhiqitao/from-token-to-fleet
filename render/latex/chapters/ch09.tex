@@ -55,7 +55,7 @@ PCIe Gen5 x16 \textasciitilde64 GB/s, \textasciitilde1 µs latency, low
 cost (integrated); NVLink H100 900 GB/s bisection, \textasciitilde0.5--1
 µs latency, high cost (GPU-attached); Ethernet RoCE2 200/400 Gb/s ≈
 25/50 GB/s, \textasciitilde10--25 µs latency, moderate cost (standard
-NICs); InfiniBand HDR 400 Gb/s / NDR 800 Gb/s ≈ 50/100 GB/s,
+NICs); InfiniBand HDR 200 Gb/s / NDR 400 Gb/s ≈ 25/50 GB/s,
 \textasciitilde2--5 µs latency, high cost (switches, optics). Cost per
 GB is inversely proportional to bandwidth for fixed-form optics, but
 system cost includes cables, switches, and rack density trade-offs.
@@ -97,8 +97,8 @@ GPU-to-CPU / NIC & PCIe Gen5 & \textasciitilde64 GB/s per x16 direction
 & \textasciitilde us & low & {[}2° FACT{]} \\
 Node-to-node (rack) & RoCE / Ethernet 400Gb/s & \textasciitilde50 GB/s
 per port & \textasciitilde us & medium & {[}2° FACT{]} \\
-Rack/cluster & InfiniBand HDR/NDR & 400/800 Gb/s ≈ 50/100 GB/s per port
-& \textasciitilde us & high capex & {[}2° FACT{]} \\
+Rack/cluster & InfiniBand HDR/NDR & 200/400 Gb/s ≈ 25/50 GB/s per port &
+\textasciitilde us & high capex & {[}2° FACT{]} \\
 
 \label{tab:9.1}\end{longtable}
 
@@ -114,7 +114,7 @@ at the center, reachable fastest via PCIe. One ring out is the node:
 GPUs on the same server are joined by NVLink and NVSwitch, forming a
 high-radix, low-latency mesh. The next ring out is the rack: 10--20 GbE
 or 100/200/400 GbE RoCE connects nodes. The outermost ring is the
-cluster or data center: InfiniBand HDR (400 Gb/s) or NDR (800 Gb/s)
+cluster or data center: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s)
 stitches racks into a single logical network. A well-designed deployment
 keeps the heavy collectives (all-reduce, reduce-scatter) on the inner
 rings and reserves the outer rings for less volume or latency-tolerant
@@ -141,9 +141,9 @@ and topology routing are included. So treat the
 \texttt{bytes\ ÷\ bandwidth} form as a \emph{sizing lower bound}, and
 reserve measured \texttt{nccl-tests} numbers (Section 4) for capacity
 decisions. The relative ranking between interconnects is what matters
-most here: if those same 140 GB travel over a 400 Gb/s InfiniBand link
-(≈ 50 GB/s effective unidirectional) it is ≈ 2.8 s --- 18× longer; over
-25 Gb/s Ethernet (≈ 3 GB/s unidirectional) ≈ 47 s. The interconnect
+most here: if those same 140 GB travel over a 200 Gb/s HDR InfiniBand
+link (≈ 25 GB/s effective unidirectional) it is ≈ 2.8 s --- 18× longer;
+over 25 Gb/s Ethernet (≈ 3 GB/s unidirectional) ≈ 47 s. The interconnect
 choice is a first-order determinant of wall-clock time in all cases.
 
 \begin{figure}
@@ -162,10 +162,16 @@ GB of weights in BF16 across 8 participants). {[}2° DERIVED{]}}
 
 \section{Worked Example}\label{worked-example}
 
-Consider the canonical scenario: one host eight × H100, each GPU holding
-140 GB of model weights in FP16. We will run data-parallel training with
-full model replicas, so every all-reduce moves the full gradient tensor
-of 140 GB. Let us compute the communication time under three
+Consider the canonical scenario: a 70B dense model in FP16, whose weight
+tensor is 140 GB. In data-parallel training the gradient tensor has the
+same size, so every all-reduce moves a gradient tensor of \(M = 140\) GB
+per rank. We underline that this example is best read as a
+\emph{cross-node} data-parallel setting (options B and C): a single
+8×H100 host holds only \textasciitilde640 GB, so it cannot fit eight
+full 140 GB replicas at once. For any \(N\) ranks, a ring all-reduce
+sends \(2\frac{N-1}{N}M\) through each rank --- for \(N=8\), that is
+\(1.75 \times 140 \approx 245\) GB --- which is what the ring-adjusted
+times below reflect. Let us compute the communication time under three
 interconnect options.
 
 \textbf{Option A --- NVLink on a single host.} H100 GPUs provide 900
@@ -173,39 +179,47 @@ GB/s bidirectional NVLink bandwidth per GPU, and NVSwitch aggregates
 bisection bandwidth. For an all-reduce of 140 GB across 8 GPUs on one
 host, the effective bandwidth is close to the per-link peak because
 NVSwitch can forward multiple concurrent channels without severe
-contention. The time is approximately:
+contention. A lower bound on the pure-bytes time is
 
 \[
-T = \frac{\text{bytes}}{B_\text{eff}} = \frac{140 \text{ GB}}{900 \text{ GB/s}} \approx 0.16 \text{ s}
+T = \frac{M}{B_\text{eff}} = \frac{140 \text{ GB}}{900 \text{ GB/s}} \approx 0.16 \text{ s}
 \]
 
-\textbf{Option B --- InfiniBand HDR across 8 nodes, one GPU per node.}
-HDR InfiniBand delivers 400 Gb/s per link ≈ 50 GB/s unidirectional after
-8b/10b encoding and protocol headers. A ring-all-reduce or
-tree-all-reduce across 8 nodes will see lower effective bandwidth due to
-multi-hop forwarding and congestion. A realistic effective bandwidth is
-roughly 40 GB/s. The time is:
+That is not the whole story: a ring all-reduce moves \(2\frac{N-1}{N}M\)
+per rank (for \(N=8\), \(1.75 \times 140 \approx 245\) GB), so the
+ring-adjusted estimate is
+\(T_\text{ring} \approx 2\frac{N-1}{N}\frac{M}{B_\text{eff}} = 1.75 \times 0.16 \approx 0.27\)
+s, before any per-step latency term or staging overhead.
+
+\textbf{Option B --- InfiniBand across 8 nodes, one GPU per node.} HDR
+InfiniBand delivers \textbf{200 Gb/s per link} (≈ 25 GB/s before link
+coding; NDR doubles this to 400 Gb/s). InfiniBand uses a 64b/66b line
+code, so the useful payload sits a bit below the line rate. A
+ring-all-reduce or tree-all-reduce across 8 nodes will see lower
+effective bandwidth due to multi-hop forwarding and congestion. A
+realistic \emph{effective} throughput is roughly 40 GB/s. Using the ring
+model:
 
 \[
-T = \frac{140 \text{ GB}}{40 \text{ GB/s}} \approx 3.5 \text{ s}
+T_\text{ring} \approx 2\frac{N-1}{N}\frac{M}{B_\text{eff}} = 2\frac{7}{8}\frac{140 \text{ GB}}{40 \text{ GB/s}} \approx 6.1 \text{ s}
 \]
 
 \textbf{Option C --- 25 Gb/s Ethernet (RoCE2) across 8 nodes.} 25 Gb/s ≈
 3.125 GB/s unidirectional. With protocol overhead and multi-node tree
-contention, a practical effective bandwidth might be 2.5 GB/s. The time
-is:
+contention, a practical effective bandwidth might be 2.5 GB/s. Ring
+model:
 
 \[
-T = \frac{140 \text{ GB}}{2.5 \text{ GB/s}} \approx 56 \text{ s}
+T_\text{ring} \approx 2\frac{7}{8}\frac{140 \text{ GB}}{2.5 \text{ GB/s}} \approx 98 \text{ s}
 \]
 
 These numbers illustrate the scale: moving from NVLink to InfiniBand
 adds \textasciitilde22× latency, and forcing the same all-reduce over
 Ethernet adds \textasciitilde350× latency. In a training job where 100
 all-reduce steps run per iteration, the NVLink path adds
-\textasciitilde16 s of communication per iteration, the InfiniBand path
-adds \textasciitilde350 s, and the Ethernet path adds
-\textasciitilde5,600 s. The latter two would effectively serialize the
+\textasciitilde27 s of communication per iteration, the InfiniBand path
+adds \textasciitilde610 s, and the Ethernet path adds
+\textasciitilde9,800 s. The latter two would effectively serialize the
 training, turning a minutes-long job into an hours- or days-long one.
 
 The worked example also highlights why model parallelism and pipeline
@@ -276,18 +290,18 @@ to a crowded cluster.
   pattern, not an isolated micro‑benchmark.
 \item
   \textbf{Using InfiniBand as a default without checking the
-  cost--performance ratio.} InfiniBand HDR 400 Gb/s gives
-  \textasciitilde50 GB/s unidirectional, which is sufficient for many
+  cost--performance ratio.} InfiniBand HDR 200 Gb/s gives
+  \textasciitilde25 GB/s unidirectional, which is sufficient for many
   workloads, but the price per GB of optics and cables is 5--10× that of
   Ethernet. If the communication time is acceptable on RoCE2, the
   cheaper fabric may be the better architectural choice.
 \item
   \textbf{Overlooking protocol overhead.} RoCE and InfiniBand use
-  different encoding (8b/10b vs.~128b/130b) and header sizes. A 400 Gb/s
-  InfiniBand link delivers \textasciitilde380 Gb/s useful payload; a 200
-  Gb/s RoCE link delivers \textasciitilde180 Gb/s. The difference
-  matters when we are computing per-second throughput for a fixed data
-  volume.
+  different line coding (64b/66b for modern Ethernet and InfiniBand) and
+  header sizes. An NDR 400 Gb/s InfiniBand link delivers a
+  \textasciitilde380 Gb/s class useful payload; a 200 Gb/s RoCE2 link
+  delivers \textasciitilde180 Gb/s. The difference matters when we are
+  computing per-second throughput for a fixed data volume.
 \end{itemize}
 
 \section{Architecture Consequence}\label{architecture-consequence}
