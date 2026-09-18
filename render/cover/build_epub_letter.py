@@ -88,12 +88,18 @@ assem_md2 = os.path.join(OUTDIR, "_book_reflowable.md")
 open(assem_md2, "w", encoding="utf-8").write(content)
 
 out_epub = os.path.join(OUTDIR, "from-token-to-fleet-" + VERSION + ".epub")
-subprocess.run(["pandoc", assem_md2,
+_p = subprocess.run(["pandoc", assem_md2,
+                "-f", "markdown-yaml_metadata_block",
                 "-o", out_epub, "--to=epub3", "--toc", "--toc-depth=2",
+                "--mathml",
                 "--epub-cover-image=" + cover_png,
                 "--metadata", "title=" + TITLE,
                 "--metadata", "author=" + AUTHOR,
                 "--metadata", "lang=en",
                 "--resource-path=" + REPO], check=False, capture_output=True)
+if _p.returncode != 0:
+    raise SystemExit("EPUB build FAILED (pandoc rc=%s):\n%s" % (_p.returncode, _p.stderr.decode("utf-8", "ignore")))
+if not os.path.exists(out_epub):
+    raise SystemExit("EPUB build FAILED: no output file %s" % out_epub)
 print("epub written: %s" % out_epub)
 
