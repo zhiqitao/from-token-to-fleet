@@ -28,11 +28,15 @@ the context length.
 
 \textbf{Decode} is the per-token generation that follows. After prefill,
 each new token only attends to the cached keys and values from the
-prefix plus all previously generated tokens. The per-step cost is
-constant in context length --- we only attend to the new token against
-the cache --- but it requires reading the entire model weight matrix
-from HBM every step, because the auto-regressive pass reuses the same
-parameters over and over.
+prefix plus all previously generated tokens. In the
+\emph{batch-1-equivalent} weight-streaming model we use for this
+first-pass arithmetic, the per-step cost is constant in context length
+--- we only attend to the new token against the cache --- and it
+requires reading the entire model weight matrix from HBM every step,
+because the auto-regressive pass reuses the same parameters over and
+over. (In a real serving stack, batching and weight-read amortization
+change this per-request picture substantially; that is the subject of
+later chapters.)
 
 The critical architectural insight: prefill is dominated by FLOPs
 (matrix-multiply arithmetic), while decode is dominated by HBM memory
@@ -95,19 +99,24 @@ derivation
 Model params & 70B & §14 canonical \\
 Model weight bytes (FP16) & 140 GB & 2 bytes × 70B params {[}1P
 DERIVED{]} \\
-Decode: weight-read per token & 140 GB & Auto-regressive: one read of
-all weights per generated token {[}1P DERIVED{]} \\
+Decode: weight-read per token & 140 GB & Auto-regressive,
+batch-1-equivalent: one read of all weights per generated token before
+batching/amortization {[}1P DERIVED{]} \\
 Decode: required bandwidth (TPOT \textasciitilde25 ms) & 5.6 TB/s & 140
-GB / 0.025 s {[}DERIVED{]} \\
-H100 HBM3 peak bandwidth & 3.35 TB/s & NVIDIA H100 specs {[}2°
+GB / 0.025 s (batch-1-equivalent weight-streaming model, before
+amortization) {[}DERIVED{]} \\
+H100 HBM3 peak bandwidth & 3.35 TB/s & NVIDIA H100 specs {[}1P
 FACT{]} \\
-& Decode: bandwidth verdict & bandwidth-bound \\
+Decode: bandwidth verdict & bandwidth-bound & 5.6 \textgreater{} 3.35 →
+under the batch-1-equivalent model, a single H100 cannot meet the
+demand; batching/amortization change this (see later chapters) {[}2°
+DERIVED{]} \\
 Prefill: input tokens & 9,200 & 1,200 prompt + 8K context {[}1P
 DERIVED{]} \\
 Prefill: FLOPs (2 × params × tokens) & 1.29 PFLOP & 2 ×70e9 ×9.2e3 ≈
 1.29 ×10\^{}15 {[}DERIVED{]} \\
 H100 BF16 dense compute & 989 TFLOPS & NVIDIA H100 BF16 tensor-core peak
-{[}2° FACT{]} \\
+{[}1P FACT{]} \\
 Prefill: compute verdict & compute-bound & 1.29 PFLOP /
 \textasciitilde1.08 s ≈ 1.19 PFLOPS \textgreater{} 0.989 PFLOPS peak →
 single H100 insufficient for real-time prefill {[}DERIVED{]} \\
@@ -143,11 +152,16 @@ B_\text{req} = \frac{W}{\tau} = \frac{140 \text{ GB}}{0.025 \text{ s}} = 5{,}600
 \]
 
 {[}2° DERIVED{]}. A single NVIDIA H100 HBM3 delivers \textasciitilde3.35
-TB/s peak bandwidth {[}2° FACT{]}. Since \(5.6 > 3.35\), one H100 cannot
-supply the required weight-read rate --- the decode phase is
-HBM-bandwidth-bound {[}2° DERIVED{]}, and serving 70B-class output
-requires multi-GPU scaling or bandwidth-increasing topologies (e.g.
-NVLink-connected nodes).
+TB/s peak bandwidth {[}1P FACT{]}. Since \(5.6 > 3.35\), under this
+batch-1-equivalent weight-streaming model one H100 cannot supply the
+required weight-read rate --- the decode phase is HBM-bandwidth-bound
+{[}2° DERIVED{]}. This is a statement about the \emph{specified}
+single-request, \textasciitilde25 ms/token model, not about all possible
+70B serving: batching, weight-read amortization, and precision changes
+(later chapters) fundamentally alter the per-request bandwidth demand.
+Within the model, meeting that latency target calls for multi-GPU
+scaling or bandwidth-increasing topologies (e.g.~NVLink-connected
+nodes).
 
 \begin{itemize}
 \tightlist
@@ -164,7 +178,7 @@ NVLink-connected nodes).
 \]
 
 {[}2° DERIVED{]}. An NVIDIA H100 delivers \textasciitilde989 TFLOPS
-(BF16 dense tensor-core peak) {[}2° FACT{]}, which is 0.989 PFLOPS. The
+(BF16 dense tensor-core peak) {[}1P FACT{]}, which is 0.989 PFLOPS. The
 required rate against the \textasciitilde1.08 s prefill budget is
 
 \[
@@ -258,9 +272,14 @@ architectural consequences:
   \textbf{Prefill is compute-bound → optimization levers:} kernel fusion
   (flash-attention, scaled-dot-product attention with fewer reads),
   model parallelism (splitting the 70B parameters across GPUs), more
-  GPUs in parallel, quantization (FP8/BF16 reduces FLOP count and memory
-  traffic), or prefill-specific servers that dedicate hardware to the
-  bursty preload phase.
+  GPUs in parallel, or prefill-specific servers that dedicate hardware
+  to the bursty preload phase. Quantization (FP8/BF16) does \emph{not}
+  reduce the underlying algorithmic operation count (the usual 2 ×
+  params × tokens FLOPs are approximately unchanged --- the matmuls
+  still multiply the same matrices); rather it reduces the precision,
+  lowers the bytes transferred/stored, and can raise the
+  \emph{effective} accelerator throughput (8-bit tensor cores run at
+  higher peak rate).
 \item
   \textbf{Decode is bandwidth-bound → optimization levers:} continuous
   batching (vLLM, PagedAttention) to amortize weight reads across many
@@ -290,12 +309,18 @@ disaggregation).
   depending on kernel fusion, graph optimization, and batch size. --- a
   hypothesis to be measured on real hardware before it is cited.
 \item
-  \textbf{Prefill FLOP cost per token under continuous batching.} The 2
-  × params × tokens approximation ignores that continuous batching
-  reuses activations across requests, potentially reducing the effective
-  FLOP count per request. The magnitude of this effect at fleet scale is
-  not yet pinned down. --- to be benchmarked with realistic concurrency
-  patterns.
+  \textbf{Effect of continuous batching on the 2 × params × tokens
+  approximation.} Continuous batching amortizes weight reads and
+  improves hardware utilization, scheduling efficiency, and aggregate
+  goodput --- but it does \textbf{not} reuse one request's transformer
+  activations to avoid the forward-pass work of another unrelated
+  request, so it does not reduce the mathematical FLOP count per
+  request. Compute that \emph{is} re-used across requests sharing a
+  common prefix is a different mechanism: \textbf{prefix caching} (or KV
+  reuse), which skips the re-prefill of a shared prefix and thereby does
+  cut real forward-pass work for that portion. The magnitude of the
+  prefix-cache hit rate at fleet scale is not yet pinned down. --- to be
+  benchmarked with realistic concurrency patterns.
 \item
   \textbf{Cross-technology bandwidth numbers.} HBM3e (next-generation)
   promises \textasciitilde6+ TB/s per GPU, and AMD MI300X promises
@@ -307,12 +332,15 @@ disaggregation).
 \item
   \textbf{Effect of quantization on decode bandwidth vs prefill FLOPs.}
   Int4 or FP8 quantization reduces the weight bytes (e.g., 70B at FP8 =
-  70 GB instead of 140 GB) and may change the FLOP arithmetic (8-bit
-  matmuls may use tensor cores at different utilization). The direction
-  of the shift is clear (both bottlenecks improve), but the precise
-  trade-off point where decode becomes compute-bound rather than
-  bandwidth-bound depends on the quantization scheme and hardware
-  support. --- workload-dependent.
+  70 GB instead of 140 GB), which directly lowers the HBM read demand in
+  decode; it does \emph{not} reduce the algorithmic operation count of
+  the matmuls (the 2 × params × tokens FLOPs are approximately
+  unchanged), though lower precision can raise the \emph{effective}
+  throughput of the tensor cores at which those ops run. The direction
+  of the shift is clear (decode bandwidth improves; prefill ceiling
+  rises in effective rate), but the precise trade-off point where decode
+  becomes compute-bound rather than bandwidth-bound depends on the
+  quantization scheme and hardware support. --- workload-dependent.
 \end{itemize}
 
 \section{End-of-Chapter Mini-Case}\label{end-of-chapter-mini-case}

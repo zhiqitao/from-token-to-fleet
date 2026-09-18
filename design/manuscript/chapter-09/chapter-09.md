@@ -16,25 +16,25 @@ The collective operations that dominate multi-node training and inference are:
 
 The bandwidth each collective consumes depends on three factors: the data volume (bytes), the number of participating nodes (N), and the interconnect's effective bandwidth in the presence of contention. A 70B FP16 model is 140 GB. An all-reduce of that model across 8 GPUs on a single node moves 140 GB over NVLink; across 8 nodes connected by InfiniBand moves 140 GB (or more, depending on the algorithm) over the fabric. The same 140 GB over a 25 GB/s Ethernet link takes more than 5× the time of the same operation over a 900 GB/s NVLink.
 
-**Table 9-1** — Interconnect hierarchy with bandwidth (bidirectional where applicable), latency, and approximate cost per GB. PCIe Gen5 x16 ~64 GB/s, ~1 µs latency, low cost (integrated); NVLink H100 900 GB/s bisection, ~0.5–1 µs latency, high cost (GPU-attached); Ethernet RoCE2 200/400 Gb/s ≈ 25/50 GB/s, ~10–25 µs latency, moderate cost (standard NICs); InfiniBand HDR 400 Gb/s / NDR 800 Gb/s ≈ 50/100 GB/s, ~2–5 µs latency, high cost (switches, optics). Cost per GB is inversely proportional to bandwidth for fixed-form optics, but system cost includes cables, switches, and rack density trade-offs.
+**Table 9-1** — Interconnect hierarchy with bandwidth (bidirectional where applicable), latency, and approximate cost per GB. PCIe Gen5 x16 ~64 GB/s, ~1 µs latency, low cost (integrated); NVLink H100 900 GB/s bisection, ~0.5–1 µs latency, high cost (GPU-attached); Ethernet RoCE2 200/400 Gb/s ≈ 25/50 GB/s, ~10–25 µs latency, moderate cost (standard NICs); InfiniBand HDR 200 Gb/s / NDR 400 Gb/s ≈ 25/50 GB/s, ~2–5 µs latency, high cost (switches, optics). Cost per GB is inversely proportional to bandwidth for fixed-form optics, but system cost includes cables, switches, and rack density trade-offs.
 
 
 #### Table 9-1 — The interconnect hierarchy
 
 | Layer | Example | Bandwidth (one direction / aggregate) | Latency | Cost | [source] |
 |---|---|---|---|---|---|
-| Chip-to-memory | HBM3 (H100) | 3.35 TB/s | ~ns | — | [2° FACT] |
-| GPU-to-GPU (in-node) | NVLink (H100) | 900 GB/s per GPU, bidirectional aggregate | ~us | high capex | [2° FACT] |
+| Chip-to-memory | HBM3 (H100) | 3.35 TB/s | ~ns | — | [1P FACT] |
+| GPU-to-GPU (in-node) | NVLink (H100) | 900 GB/s per GPU, bidirectional aggregate | ~us | high capex | [1P FACT] (NVIDIA NVLink) |
 | GPU-to-CPU / NIC | PCIe Gen5 | ~64 GB/s per x16 direction | ~us | low | [2° FACT] |
 | Node-to-node (rack) | RoCE / Ethernet 400Gb/s | ~50 GB/s per port | ~us | medium | [2° FACT] |
-| Rack/cluster | InfiniBand HDR/NDR | 400/800 Gb/s ≈ 50/100 GB/s per port | ~us | high capex | [2° FACT] |
+| Rack/cluster | InfiniBand HDR/NDR | 200/400 Gb/s ≈ 25/50 GB/s per port | ~us | high capex | [2° FACT] |
 
 *(Hierarchy: bandwidth drops ~2–3 orders of magnitude from HBM to the cluster fabric — the reason the interconnect, not the GPU, often binds at scale. Figures are established hardware specs [2° FACT].)*
 
 
 ## 2. Mental Model
 
-Think of the interconnect as a series of concentric rings. The GPU sits at the center, reachable fastest via PCIe. One ring out is the node: GPUs on the same server are joined by NVLink and NVSwitch, forming a high-radix, low-latency mesh. The next ring out is the rack: 10–20 GbE or 100/200/400 GbE RoCE connects nodes. The outermost ring is the cluster or data center: InfiniBand HDR (400 Gb/s) or NDR (800 Gb/s) stitches racks into a single logical network. A well-designed deployment keeps the heavy collectives (all-reduce, reduce-scatter) on the inner rings and reserves the outer rings for less volume or latency-tolerant traffic.
+Think of the interconnect as a series of concentric rings. The GPU sits at the center, reachable fastest via PCIe. One ring out is the node: GPUs on the same server are joined by NVLink and NVSwitch, forming a high-radix, low-latency mesh. The next ring out is the rack: 10–20 GbE or 100/200/400 GbE RoCE connects nodes. The outermost ring is the cluster or data center: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s) stitches racks into a single logical network. A well-designed deployment keeps the heavy collectives (all-reduce, reduce-scatter) on the inner rings and reserves the outer rings for less volume or latency-tolerant traffic.
 
 The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink bisection provides 900 GB/s per direction, **a lower bound** on time is 140 GB ÷ 900 GB/s ≈ **0.16 s [2° DERIVED]** — note the word *lower bound*. The actual completion time of a real collective is higher because a collective is not one flat transfer but a sequence of message-passing and reduction steps across the topology:
 
@@ -42,7 +42,7 @@ $$
 T_{\text{collective}} \approx \alpha \times n_\text{steps} + \frac{\text{bytes}}{\beta}
 $$
 
-where $\alpha$ is the per-step latency (message setup, synchronization), $\beta$ is the achieved (not peak) bandwidth, and $n_\text{steps}$ is the number of message-passing/reduction hops. (For a flat transfer $n_\text{steps}=1$.) The 0.16 s figure uses only the $\text{bytes}/\beta$ term at peak bandwidth; real NCCL all-reduce on NVLink lands tens of % above it once per-step overhead, ring stages, and topology routing are included. So treat the `bytes ÷ bandwidth` form as a *sizing lower bound*, and reserve measured `nccl-tests` numbers (Section 4) for capacity decisions. The relative ranking between interconnects is what matters most here: if those same 140 GB travel over a 400 Gb/s InfiniBand link (≈ 50 GB/s effective unidirectional) it is ≈ 2.8 s — 18× longer; over 25 Gb/s Ethernet (≈ 3 GB/s unidirectional) ≈ 47 s. The interconnect choice is a first-order determinant of wall-clock time in all cases.
+where $\alpha$ is the per-step latency (message setup, synchronization), $\beta$ is the achieved (not peak) bandwidth, and $n_\text{steps}$ is the number of message-passing/reduction hops. (For a flat transfer $n_\text{steps}=1$.) The 0.16 s figure uses only the $\text{bytes}/\beta$ term at peak bandwidth; real NCCL all-reduce on NVLink lands tens of % above it once per-step overhead, ring stages, and topology routing are included. So treat the `bytes ÷ bandwidth` form as a *sizing lower bound*, and reserve measured `nccl-tests` numbers (Section 4) for capacity decisions. The relative ranking between interconnects is what matters most here: if those same 140 GB travel over a 200 Gb/s HDR InfiniBand link (≈ 25 GB/s effective unidirectional) it is ≈ 2.8 s — 18× longer; over 25 Gb/s Ethernet (≈ 3 GB/s unidirectional) ≈ 47 s. The interconnect choice is a first-order determinant of wall-clock time in all cases.
 
 ![Fig 9.1 — All-reduce time vs data volume, by interconnect tier [2° DERIVED]](figures/fig-09-0901.png)
 
@@ -53,25 +53,27 @@ where $\alpha$ is the per-step latency (message setup, synchronization), $\beta$
 
 Consider the canonical scenario: one host eight × H100, each GPU holding 140 GB of model weights in FP16. We will run data-parallel training with full model replicas, so every all-reduce moves the full gradient tensor of 140 GB. Let us compute the communication time under three interconnect options.
 
-**Option A — NVLink on a single host.** H100 GPUs provide 900 GB/s bidirectional NVLink bandwidth per GPU, and NVSwitch aggregates bisection bandwidth. For an all-reduce of 140 GB across 8 GPUs on one host, the effective bandwidth is close to the per-link peak because NVSwitch can forward multiple concurrent channels without severe contention. The time is approximately:
+**Option A — NVLink on a single host.** H100 GPUs provide 900 GB/s bidirectional NVLink bandwidth per GPU, and NVSwitch aggregates bisection bandwidth. For an all-reduce of 140 GB across 8 GPUs on one host, the effective bandwidth is close to the per-link peak because NVSwitch can forward multiple concurrent channels without severe contention. A lower bound on the pure-bytes time is
 
 $$
-T = \frac{\text{bytes}}{B_\text{eff}} = \frac{140 \text{ GB}}{900 \text{ GB/s}} \approx 0.16 \text{ s}
+T = \frac{M}{B_\text{eff}} = \frac{140 \text{ GB}}{900 \text{ GB/s}} \approx 0.16 \text{ s}
 $$
 
-**Option B — InfiniBand HDR across 8 nodes, one GPU per node.** HDR InfiniBand delivers 400 Gb/s per link ≈ 50 GB/s unidirectional after 8b/10b encoding and protocol headers. A ring-all-reduce or tree-all-reduce across 8 nodes will see lower effective bandwidth due to multi-hop forwarding and congestion. A realistic effective bandwidth is roughly 40 GB/s. The time is:
+That is not the whole story: a ring all-reduce moves $2\frac{N-1}{N}M$ per rank (for $N=8$, $1.75 \times 140 \approx 245$ GB), so the ring-adjusted estimate is $T_\text{ring} \approx 2\frac{N-1}{N}\frac{M}{B_\text{eff}} = 1.75 \times 0.16 \approx 0.27$ s, before any per-step latency term or staging overhead.
+
+**Option B — InfiniBand across 8 nodes, one GPU per node.** HDR InfiniBand delivers **200 Gb/s per link** (≈ 25 GB/s before link coding; NDR doubles this to 400 Gb/s). InfiniBand uses a 64b/66b line code, so the useful payload sits a bit below the line rate. A ring-all-reduce or tree-all-reduce across 8 nodes will see lower effective bandwidth due to multi-hop forwarding and congestion. A realistic *effective* throughput is roughly 40 GB/s. Using the ring model:
 
 $$
-T = \frac{140 \text{ GB}}{40 \text{ GB/s}} \approx 3.5 \text{ s}
+T_\text{ring} \approx 2\frac{N-1}{N}\frac{M}{B_\text{eff}} = 2\frac{7}{8}\frac{140 \text{ GB}}{40 \text{ GB/s}} \approx 6.1 \text{ s}
 $$
 
-**Option C — 25 Gb/s Ethernet (RoCE2) across 8 nodes.** 25 Gb/s ≈ 3.125 GB/s unidirectional. With protocol overhead and multi-node tree contention, a practical effective bandwidth might be 2.5 GB/s. The time is:
+**Option C — 25 Gb/s Ethernet (RoCE2) across 8 nodes.** 25 Gb/s ≈ 3.125 GB/s unidirectional. With protocol overhead and multi-node tree contention, a practical effective bandwidth might be 2.5 GB/s. Ring model:
 
 $$
-T = \frac{140 \text{ GB}}{2.5 \text{ GB/s}} \approx 56 \text{ s}
+T_\text{ring} \approx 2\frac{7}{8}\frac{140 \text{ GB}}{2.5 \text{ GB/s}} \approx 98 \text{ s}
 $$
 
-These numbers illustrate the scale: moving from NVLink to InfiniBand adds ~22× latency, and forcing the same all-reduce over Ethernet adds ~350× latency. In a training job where 100 all-reduce steps run per iteration, the NVLink path adds ~16 s of communication per iteration, the InfiniBand path adds ~350 s, and the Ethernet path adds ~5,600 s. The latter two would effectively serialize the training, turning a minutes-long job into an hours- or days-long one.
+These numbers illustrate the scale: moving from NVLink to InfiniBand adds ~22× latency, and forcing the same all-reduce over Ethernet adds ~350× latency. In a training job where 100 all-reduce steps run per iteration, the NVLink path adds ~27 s of communication per iteration, the InfiniBand path adds ~610 s, and the Ethernet path adds ~9,800 s. The latter two would effectively serialize the training, turning a minutes-long job into an hours- or days-long one.
 
 The worked example also highlights why model parallelism and pipeline parallelism exist: when a single GPU cannot hold the model, splitting it across nodes moves the communication from the inner rings to the outer rings, and the architect must budget the extra seconds per collective against the savings from fitting a larger model.
 
@@ -95,9 +97,9 @@ The key invariant: always measure on the same hardware and software stack that t
 
 - **Ignoring contention from other traffic.** NVSwitch can carry many concurrent channels, but if other collectives (e.g., all-gather for optimizer state) are running simultaneously, the bisection bandwidth is shared. Measure with the full production workload pattern, not an isolated micro‑benchmark.
 
-- **Using InfiniBand as a default without checking the cost–performance ratio.** InfiniBand HDR 400 Gb/s gives ~50 GB/s unidirectional, which is sufficient for many workloads, but the price per GB of optics and cables is 5–10× that of Ethernet. If the communication time is acceptable on RoCE2, the cheaper fabric may be the better architectural choice.
+- **Using InfiniBand as a default without checking the cost–performance ratio.** InfiniBand HDR 200 Gb/s gives ~25 GB/s unidirectional, which is sufficient for many workloads, but the price per GB of optics and cables is 5–10× that of Ethernet. If the communication time is acceptable on RoCE2, the cheaper fabric may be the better architectural choice.
 
-- **Overlooking protocol overhead.** RoCE and InfiniBand use different encoding (8b/10b vs. 128b/130b) and header sizes. A 400 Gb/s InfiniBand link delivers ~380 Gb/s useful payload; a 200 Gb/s RoCE link delivers ~180 Gb/s. The difference matters when we are computing per-second throughput for a fixed data volume.
+- **Overlooking protocol overhead.** RoCE and InfiniBand use different line coding (64b/66b for modern Ethernet and InfiniBand) and header sizes. An NDR 400 Gb/s InfiniBand link delivers a ~380 Gb/s class useful payload; a 200 Gb/s RoCE2 link delivers ~180 Gb/s. The difference matters when we are computing per-second throughput for a fixed data volume.
 
 ## 6. Architecture Consequence
 
