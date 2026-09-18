@@ -39,7 +39,7 @@ ax.text(6.6, 4.6, 'top-2 active → ~14B', fontsize=9, fontweight='bold', color=
 ax.text(5, 10.6, 'MoE (8 experts)', fontsize=13, fontweight='bold', ha='center')
 ax.text(5, 1.9, 'resident weights ≈ full expert set', fontsize=9, color='#555', ha='center')
 ax.text(5, 1.2, 'active per token ≈ 28 GB', fontsize=9, color='#555', ha='center')
-ax.text(5, 0.5, 'KV grows identically to dense', fontsize=9, color='#555', ha='center')
+ax.text(5, 0.5, 'MoE routing alone does not reduce KV-cache growth;\nKV footprint is set by the attention architecture', fontsize=9, color='#555', ha='center')
 
 # ---- KV bars: identical under both columns (the whole residual point) ----
 for axx in axes:

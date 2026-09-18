@@ -16,11 +16,11 @@ Not all numbers are equal. We organize serving telemetry into three layers, each
 
 3. **Resource metrics** — *why* performance is what it is. HBM bandwidth utilization, FLOP utilization / model FLOPs utilization (MFU), KV-cache occupancy, memory pressure, and queue depth. These reveal the binding constraint.
 
-The discipline this chapter works toward: **never jump from a workload metric straight to a resource metric.** The causal chain is *workload → serving → resource*. A slow response (serving) is diagnosed by asking whether the kernel is bandwidth- or compute-bound (resource), which is only meaningful given the token profile (workload). Skipping a layer produces superstition — "it's slow, let's buy GPUs" — instead of a mechanism.
+The discipline this chapter works toward: **never jump from a workload metric straight to a serving metric, or a serving metric straight to a hardware conclusion.** The causal direction is *workload → resource demand → serving behavior* (the workload's token profile drives the resource demand; the resource supply shapes how the model behaves). Diagnosis runs the other way: a slow response (serving) is diagnosed by asking whether the kernel is bandwidth- or compute-bound (resource), which is only meaningful given the token profile (workload). Skipping a layer produces superstition — "it's slow, let's buy GPUs" — instead of a mechanism.
 
 ![Fig 6.1 — The metric hierarchy as a diagnostic chain [ILLUSTRATIVE conceptual]](figures/fig-06-0601.png)
 
-*The three metric layers and the top-down diagnostic path from a p95 TTFT breach to its root cause. Causation runs bottom-up (resource → serving → workload); diagnosis runs top-down.*
+*The three metric layers and the top-down diagnostic path from a p95 TTFT breach to its root cause. Causation runs downward (workload → resource demand → serving behavior); diagnosis runs upward (serving symptom → resource evidence → workload/context).*
 
 ### Why the Wrong Metric Persists
 
@@ -34,7 +34,7 @@ Think of the three metric layers as a **diagnostic chain**, like the layers of t
 - **Serving** is the *service* — how well we did it.
 - **Resource** is the *engine* — how hard the machine is working, and on what.
 
-When something breaks, we read top-down: a p95 TTFT breach (serving) forces us to look at the token profile (workload: did context length grow?) and then the resource layer (resource: is prefill queuing because we're FLOP-bound?). When the numbers are healthy, the chain confirms our architecture was right.
+When something breaks, we read upward: a p95 TTFT breach (serving) forces us to look at the token profile (workload: did context length grow?) and then the resource layer (resource: is prefill queuing because we're FLOP-bound?). The causal direction follows the system, not the diagnosis: the workload generates resource demand, and the resource supply shapes serving behavior — so when numbers are healthy, the chain confirms our architecture was right.
 
 The mental model also inculcates **one number naming many different things**. "Throughput" without a qualifier is meaningless: is it requests per second, tokens per second, or *goodput* — tokens per second that arrived before the SLO deadline? We commit to always qualifying.
 

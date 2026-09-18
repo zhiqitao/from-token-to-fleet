@@ -19,7 +19,7 @@ When the text says a workload "fits" or "does not fit," we are always talking ab
 
 ## 2. Mental Model
 
-Think of the KV cache as **per-request state that survives for the duration of a single forward pass** — unlike weights, which are loaded once and reused across requests, the KV cache is allocated per request and grows with every token added to the context. A 9.2K prompt on a 70B model at FP16 carries ~24 GB of KV state that must be on-GPU for the entire prefill + decode sequence. If it does not fit, the serving stack must page, offload, or recompute — each option degrades latency or throughput. The durable mental model is: *every token we add to the context exacts a fixed memory toll, and that toll is paid in HBM every time the GPU re-reads the cache during decode.* This is why context length is the single most powerful lever on inference memory pressure, and why "does it fit?" is the architect's primary gate.
+Think of the KV cache as **per-request state that persists across autoregressive decode steps for the lifetime of the active sequence** — unlike weights, which are loaded once and reused across requests, the KV cache is allocated per request and grows with every token added to the context. A 9.2K prompt on a 70B model at FP16 carries ~24 GB of KV state that must remain on-GPU for the entire prefill + decode sequence. If it does not fit, the serving stack must page, offload, or recompute — each option degrades latency or throughput. The durable mental model is: *every token we add to the context exacts a fixed memory toll, and that toll is paid in HBM every time the GPU re-reads the cache during decode.* This is why context length is the single most powerful lever on inference memory pressure, and why "does it fit?" is the architect's primary gate.
 
 ## 3. Worked Example
 
@@ -46,11 +46,13 @@ We anchor all arithmetic in the canonical scenario (§14 of book-architecture.md
 | inference residency (weights + KV, 128K) | ≈ 475 GB | 140 + 335.4 GB |
 | 2×H100 total VRAM | 2 ×80 GB = 160 GB | [1P: facts/serving.md S8] |
 | 8×H100 total VRAM | 8 ×80 GB = 640 GB | [1P: facts/serving.md S8] |
-| fits 2×H100 at 9.2K? | no, 164.9 GB > 160 GB | does not fit; needs ≥2×H100 (or lower precision / more GPUs) |
+| 3×H100 total VRAM | 3 ×80 GB = 240 GB | [DERIVED] 165 GB < 240 GB |
+| fits 2×H100 at 9.2K? | no, 164.9 GB > 160 GB | does not fit in 2×H100; needs ≥3×H100 by aggregate capacity (or lower precision / more GPUs) |
 | fits 8×H100 at 9.2K? | yes | 164.9 GB < 640 GB |
+| fits 3×H100 at 9.2K? | yes | 164.9 GB < 240 GB |
 | fits 8×H100 at 32K? | yes | 224.0 GB < 640 GB |
 | fits 8×H100 at 128K? | yes, barely | 475.0 GB < 640 GB |
-| fits 1×H100 at 9.2K? | no | 164.9 GB > 80 GB; needs ≥2×H100 |
+| fits 1×H100 at 9.2K? | no | 164.9 GB > 80 GB; needs ≥3×H100 by aggregate capacity |
 
 *Note on “does it fit?”: this residency check answers a single-request question — does ONE request’s weights + KV fit in the pool? It says nothing yet about how many such requests fit concurrently. For that, an architect must subtract the runtime/activation/workspace floor (~64 GB on the 8×H100 host) from the 640 GB pool before sizing KV. We compute that concurrent capacity — the ~436 GB KV budget and ~18 requests/host — in Chapter 17. Keep the two numbers separate: the ~500 GB headroom (Ch. 4/7, single-request) and the ~436 GB KV budget (Ch. 17, concurrency) answer different questions.*
 
@@ -70,7 +72,7 @@ $$
 
 ![Fig 7.1 — Grouped-Query Attention cuts per-token KV](figures/fig-07-0703.png)
 
-The visual proof of the 8× saving. Full MHA caches a K,V per query head (2.62 MB/token);; GQA shares one K,V across a group of 8 query heads, so only 8 K/V per token → ~0.33 MB/token. Head count is the real dial: substitute the model's KV-head count into `2 × layers × KV_heads × head_dim × bytes`.
+The visual proof of the 8× saving. Full MHA caches a K,V per query head (2.62 MB/token); GQA shares one K,V across a group of 8 query heads, so only 8 K/V per token → ~0.33 MB/token. Head count is the real dial: substitute the model's KV-head count into `2 × layers × KV_heads × head_dim × bytes`.
 
 **Table 7-2** — Inference residency vs. fine-tuning residency contrast for a 70B model.
 
@@ -118,7 +120,7 @@ $$
 
 The memory floor is the first constraint every architecture decision respects, because unlike compute or bandwidth it cannot be moved by better kernels — it is fixed by weights + KV + (for training) optimizer state. Several concrete consequences follow for the canonical enterprise-Q&A workload:
 
-- **Model residency decides host count.** A 70B FP16 model (140 GB weights) at the 9.5K max context (9.2K in + 300 out) needs ~24.9 GB of KV cache (FP16), so the max end-of-generation residency ≈ 165 GB — it does *not* fit on a single 80 GB H100, nor within the 160 GB aggregate of 2×H100 (160 GB < 165 GB). The canonical single host of 8×H100 (640 GB) is chosen precisely to clear this floor with headroom. [2° DERIVED]
+- **Model residency decides host count.** A 70B FP16 model (140 GB weights) at the 9.5K max context (9.2K in + 300 out) needs ~24.9 GB of KV cache (FP16), so the max end-of-generation residency ≈ 165 GB — it does *not* fit on a single 80 GB H100, nor within the 160 GB aggregate of 2×H100 (160 GB < 165 GB). By *aggregate memory capacity* it needs **≥3×80 GB** (240 GB). The canonical single host of 8×H100 (640 GB) is not justified by basic capacity alone — three 80 GB GPUs already clear the 165 GB residency floor; the 8×H100 host is chosen for compute, bandwidth, topology, concurrency, implementation constraints, and headroom. [2° DERIVED]
 
 - **KV-cache quantization buys back memory, not compute.** FP8 KV ≈ 54% of BF16 (a ~46% reduction) [2°], dropping the 9.5K max residency from ~165 GB toward ~153 GB. This is a *memory* lever, orthogonal to bandwidth/compute fixes — the architect pulls it when the KV floor, not decode bandwidth, binds.
 

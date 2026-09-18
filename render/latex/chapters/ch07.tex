@@ -86,18 +86,19 @@ hardware. Conflating the two is exactly what produces a ``165 GB fits in
 
 \section{Mental Model}\label{mental-model}
 
-Think of the KV cache as \textbf{per-request state that survives for the
-duration of a single forward pass} --- unlike weights, which are loaded
-once and reused across requests, the KV cache is allocated per request
-and grows with every token added to the context. A 9.2K prompt on a 70B
-model at FP16 carries \textasciitilde24 GB of KV state that must be
-on-GPU for the entire prefill + decode sequence. If it does not fit, the
-serving stack must page, offload, or recompute --- each option degrades
-latency or throughput. The durable mental model is: \emph{every token we
-add to the context exacts a fixed memory toll, and that toll is paid in
-HBM every time the GPU re-reads the cache during decode.} This is why
-context length is the single most powerful lever on inference memory
-pressure, and why ``does it fit?'' is the architect's primary gate.
+Think of the KV cache as \textbf{per-request state that persists across
+autoregressive decode steps for the lifetime of the active sequence} ---
+unlike weights, which are loaded once and reused across requests, the KV
+cache is allocated per request and grows with every token added to the
+context. A 9.2K prompt on a 70B model at FP16 carries \textasciitilde24
+GB of KV state that must remain on-GPU for the entire prefill + decode
+sequence. If it does not fit, the serving stack must page, offload, or
+recompute --- each option degrades latency or throughput. The durable
+mental model is: \emph{every token we add to the context exacts a fixed
+memory toll, and that toll is paid in HBM every time the GPU re-reads
+the cache during decode.} This is why context length is the single most
+powerful lever on inference memory pressure, and why ``does it fit?'' is
+the architect's primary gate.
 
 \section{Worked Example}\label{worked-example}
 
@@ -158,13 +159,17 @@ inference residency (weights + KV, 32K) & ≈ 224 GB & 140 + 83.8 GB \\
 inference residency (weights + KV, 128K) & ≈ 475 GB & 140 + 335.4 GB \\
 2×H100 total VRAM & 2 ×80 GB = 160 GB & {[}1P: facts/serving.md S8{]} \\
 8×H100 total VRAM & 8 ×80 GB = 640 GB & {[}1P: facts/serving.md S8{]} \\
-fits 2×H100 at 9.2K? & no, 164.9 GB \textgreater{} 160 GB & does not
-fit; needs ≥2×H100 (or lower precision / more GPUs) \\
+3×H100 total VRAM & 3 ×80 GB = 240 GB & {[}DERIVED{]} 165 GB \textless{}
+240 GB \\
+fits 2×H100 at 9.2K? & no, 164.9 GB \textgreater{} 160 GB & does not fit
+in 2×H100; needs ≥3×H100 by aggregate capacity (or lower precision /
+more GPUs) \\
 fits 8×H100 at 9.2K? & yes & 164.9 GB \textless{} 640 GB \\
+fits 3×H100 at 9.2K? & yes & 164.9 GB \textless{} 240 GB \\
 fits 8×H100 at 32K? & yes & 224.0 GB \textless{} 640 GB \\
 fits 8×H100 at 128K? & yes, barely & 475.0 GB \textless{} 640 GB \\
-fits 1×H100 at 9.2K? & no & 164.9 GB \textgreater{} 80 GB; needs
-≥2×H100 \\
+fits 1×H100 at 9.2K? & no & 164.9 GB \textgreater{} 80 GB; needs ≥3×H100
+by aggregate capacity \\
 
 \label{tab:7.1}\end{longtable}
 
@@ -214,7 +219,7 @@ changes. (\texttt{kv\_gqa\_variant\_mb} is recorded in
 \label{fig:7.1}\end{figure}
 
 The visual proof of the 8× saving. Full MHA caches a K,V per query head
-(2.62 MB/token);; GQA shares one K,V across a group of 8 query heads, so
+(2.62 MB/token); GQA shares one K,V across a group of 8 query heads, so
 only 8 K/V per token → \textasciitilde0.33 MB/token. Head count is the
 real dial: substitute the model's KV-head count into
 \texttt{2\ ×\ layers\ ×\ KV\_heads\ ×\ head\_dim\ ×\ bytes}.
@@ -379,8 +384,12 @@ enterprise-Q\&A workload:
   \textasciitilde24.9 GB of KV cache (FP16), so the max
   end-of-generation residency ≈ 165 GB --- it does \emph{not} fit on a
   single 80 GB H100, nor within the 160 GB aggregate of 2×H100 (160 GB
-  \textless{} 165 GB). The canonical single host of 8×H100 (640 GB) is
-  chosen precisely to clear this floor with headroom. {[}2° DERIVED{]}
+  \textless{} 165 GB). By \emph{aggregate memory capacity} it needs
+  \textbf{≥3×80 GB} (240 GB). The canonical single host of 8×H100 (640
+  GB) is not justified by basic capacity alone --- three 80 GB GPUs
+  already clear the 165 GB residency floor; the 8×H100 host is chosen
+  for compute, bandwidth, topology, concurrency, implementation
+  constraints, and headroom. {[}2° DERIVED{]}
 \item
   \textbf{KV-cache quantization buys back memory, not compute.} FP8 KV ≈
   54\% of BF16 (a \textasciitilde46\% reduction) {[}2°{]}, dropping the

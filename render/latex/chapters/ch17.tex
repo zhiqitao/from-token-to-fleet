@@ -98,14 +98,16 @@ available for KV. Each request at 9,200 input + 300 output reserves a
 layer-complete κ. Computing κ from a single layer instead of all 80
 would overstate the concurrency figure by two orders of magnitude.
 
-\textbf{Viability at peak.} Peak traffic is 40 rps; with a target
-latency of \textasciitilde1 s that is 40 concurrent requests in flight,
-against a KV capacity of \textasciitilde18. \textbf{A single host is not
-viable at peak even for the non-agentic canonical workload} --- it would
-need \textasciitilde3 hosts at 40 rps, and \textasciitilde2 more for
-growth to 100 rps. This flips the original conclusion: the fleet is not
-a distant luxury but a necessity at the canonical peak, and it is driven
-primarily by KV residency.
+\textbf{Viability at peak.} Peak traffic is 40 rps; with the canonical
+\textasciitilde8.6 s per-request service time (1.1 s prefill + 7.5 s
+decode), Little's Law puts ≈ 40 × 8.6 ≈ \textbf{344 requests in flight},
+against a KV capacity of \textasciitilde18 per host. \textbf{A single
+host is not viable at peak even for the non-agentic canonical workload}
+--- the fleet needs roughly ⌈344/18⌉ ≈ \textbf{20 hosts} at 40 rps (≈28
+at the 70\% utilization target), and more for growth to 100 rps. This
+flips the original conclusion: the fleet is not a distant luxury but a
+necessity at the canonical peak, driven by the product of service time
+(8.6 s) and arrival rate.
 
 \textbf{KV compression is the first lever.} Switching KV to FP8 (≈54\%
 of BF16, vLLM-measured {[}S6{]}) cuts the 9.5K max per-request KV to
@@ -155,18 +157,21 @@ Even the \emph{median} agentic request already drops a single host below
 the 40-concurrent peak demand, so the fleet is required under almost any
 agentic assumption.
 
-\textbf{Scaling forecast.} To hold the canonical 40 rps at
-\textasciitilde1 s latency with FP16 KV (baseline C≈18), the fleet needs
-⌈40/18⌉ ≈ 3 hosts (≈4 at the 70\% utilization target the table applies);
-at the agentic T=4 (C≈14), peak demand of 40 concurrent needs ⌈40/14⌉ ≈
-3 hosts with thin margin (≈5 at the 70\% margin), and growth to 100 rps
-(100 concurrent) needs ⌈100/14⌉ ≈ 8 hosts (FP16 KV) --- or
-\textasciitilde4--5 hosts if KV is FP8 (C≈24 at T=4). The load balancer
-distributes λ/N rps per host and λ·L/N concurrent per host, and each
-host's per-host KV usage must stay comfortably under its C. This is the
-fleet point: hosts are added because \emph{concurrency demand ×
-KV-per-request} exceeds a single host's residency, at the cost of
-multiplied capital expenditure and load‑balancer overhead.
+\textbf{Scaling forecast (service-time-aware).} Because the canonical
+workload's service time is \textasciitilde8.6 s --- not a
+\textasciitilde1 s latency --- the in-flight concurrency at the 40 rps
+peak is λ\_peak × W ≈ 40 × 8.6 ≈ \textbf{344 requests}, not 40. With
+FP16 KV (baseline C≈18), the fleet needs ⌈344/18⌉ ≈ \textbf{20 hosts} at
+full utilization (≈28 at the 70\% utilization target). Agentic turns
+make this strictly worse: each additional turn adds \textasciitilde800
+tokens of context (lowering C) and more generated tokens (raising W), so
+the agentic T=4 case needs a larger fleet still (C≈13 and a longer W).
+The load balancer distributes λ/N rps per host and λ·W/N concurrent per
+host, and each host's per-host KV usage must stay comfortably under its
+C. This is the fleet point: hosts are added because \emph{concurrency in
+flight × KV-per-request} exceeds a single host's residency --- and
+concurrency in flight must be computed from the full service time, not a
+target latency.
 
 \textbf{Cross-host communication.} In the canonical scenario, requests
 are independent --- no user session spans multiple hosts. If an agentic
@@ -227,58 +232,72 @@ These numbers are the KV-residency ceiling; measured concurrency may be
 lower if GPU throughput or bandwidth binds first, so the architect takes
 the min of the KV, compute, and bandwidth capacities.
 
-If the peak traffic λ\_peak = 40 rps at an average latency L, the
-concurrency in flight is ≈ λ\_peak × L, and the minimum number of hosts
-is
+If the peak traffic λ\_peak = 40 rps, Little's Law gives the number of
+requests \emph{in flight} as λ\_peak × L, where \textbf{L must be the
+full per-request service time} --- for this canonical workload that is
+\textasciitilde8.6 s (\textasciitilde1.1 s prefill + \textasciitilde7.5
+s decode of 300 output tokens at \textasciitilde25 ms/token, \hyperref[chap:8]{Chapter 8}),
+NOT a sub-second TTFT-type latency. Using a \textasciitilde1 s
+``latency'' here is the classic fleet-sizing error: it undercounts
+in-flight concurrency by roughly the ratio of service time to target
+latency (here \textasciitilde8.6×). The minimum number of hosts is
 
 \[
-H_\text{min} = \left\lceil \frac{\lambda_\text{peak} \cdot L}{C} \cdot \frac{1}{u} \right\rceil
+H_\text{min} = \left\lceil \frac{\lambda_\text{peak} \cdot W}{C} \cdot \frac{1}{u} \right\rceil
 \]
 
-where \(u\) is the utilization target.
-
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Hosts required by request rate and average latency, with the FP16-KV family (C ≈ 18, filled) and the FP8-KV family (C ≈ 33, dashed). Each contour is a fixed integer host count, H = ceil(lambda-peak * L / (C * util)) {[}DERIVED: Ch17 §3 + Ch7 KV constants{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-17-1702.pdf}}
-\caption{Hosts required by request rate and average latency, with the FP16-KV family (C ≈ 18, filled) and the FP8-KV family (C ≈ 33, dashed). Each contour is a fixed integer host count, H = ceil(lambda-peak * L / (C * util)) {[}DERIVED: Ch17 §3 + Ch7 KV constants{]}}
-
-\label{fig:17.2}\end{figure}
-
-\emph{The fleet-sizing formula
-\(H = \lceil \lambda \cdot L / (C \cdot u) \rceil\) rendered as one
-glanceable surface. Each contour is a fixed host count; moving to the
-upper-right (higher peak rate or higher latency) costs hosts.}
+where \(u\) is the utilization target and \(W\) is the \textbf{full
+service time} (end-to-end: prefill + decode + any tool/orchestration
+overhead). At the canonical peak:
 
 \begin{itemize}
 \tightlist
 \item
-  At T=4 with L=1\,s: concurrency = 40, C ≈ 14 → H\_min = ⌈40/14⌉ ≈ 3
-  hosts (≈5 at the 70\% utilization ceiling).
+  \textbf{KV-residency ceiling (C) is a per-host concurrency limit, not
+  a fleet-size answer by itself.} A host holds C ≈ 18 concurrent
+  full-context requests (computed above). The fleet size is governed by
+  how many requests are \emph{in flight at the peak}, which is λ\_peak ×
+  W.
 \item
-  At the same T=4 with L=2\,s: concurrency = 80, H\_min = ⌈80/14⌉ ≈ 6
-  hosts.
+  At λ\_peak = 40 rps and W ≈ 8.6 s, in-flight concurrency ≈ 40 × 8.6 ≈
+  \textbf{344 requests}. With C ≈ 18 per host (FP16 KV) at full
+  utilization, H\_min ≈ 344/18 ≈ 19 → \textbf{\textasciitilde20 hosts}
+  (≈28 at the 70\% utilization target). This is the honest fleet size
+  and matches the throughput/latency analysis in \hyperref[chap:20]{Chapter 20}.
+\item
+  Switching to FP8 KV (κ ≈ 1.42 MB/token, 54\% of BF16, C ≈ 33 at T=0)
+  raises per-host concurrency to \textasciitilde33, cutting the fleet to
+  H\_min ≈ 344/33 ≈ 10.4 → \textbf{\textasciitilde11 hosts} (≈15 at 70\%
+  util).
 \end{itemize}
 
-If traffic grows to λ\_peak = 100 rps:
+\textbf{Separate the two questions explicitly} --- they are not
+interchangeable, and mixing them is the source of the under-sizing
+error:
 
-\begin{itemize}
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  At T=4, L=1\,s: concurrency ≈ 100, C ≈ 14 → H\_min = ⌈100/14⌉ ≈ 8
-  hosts (FP16 KV).
+  \textbf{KV-only concurrency sizing} (does one host's KV budget hold
+  the in-flight requests?):
+  \(H_{KV} = \lceil \lambda W / (C \cdot u) \rceil\). This uses C
+  (KV-residency ceiling) and the full service time W.
 \item
-  Switching to FP8 KV (κ ≈ 1.42 MB/token, 54\% of BF16, C ≈ 24 at T=4)
-  roughly halves the host count --- the KV-precision dial again proving
-  more cost-effective than buying hardware.
-\end{itemize}
+  \textbf{Full service-capacity sizing} (does the fleet's aggregate
+  request rate clear the peak?): the same quantity when C/W is the
+  per-host service rate ---
+  i.e.~\(H = \lceil \lambda / (\rho \cdot (C/W)) \rceil\). Because
+  Little's Law ties concurrency, service time and arrival rate, these
+  two views coincide: \(\lambda W / C = \lambda / (C/W)\).
+\end{enumerate}
 
-This formulation keeps the two load drivers separate:
-\textbf{latency-scaled concurrency} (λ·L) on the demand side and
-\textbf{KV residency capacity} (C) on the supply side. Raw rps alone
-under-sizes fleets when latency climbs.
-
-\subsection{Load‑balancer overhead
-factor}\label{loadbalancer-overhead-factor}
+KV residency provides one capacity ceiling, but it is not a fleet-size
+answer by itself. When the canonical 300-token decode duration is
+included, Little's Law raises in-flight concurrency from the misleading
+``40 requests at 1 second'' approximation to roughly \textbf{344
+requests at 40 rps}, and the fleet must be sized to that. \#\#\#
+Load‑balancer overhead factor
 
 Let ρ be the effective throughput fraction after load‑balancer effects.
 Empirically, a well‑configured software LB (NGINX) achieves ρ ≈ 0.95,
@@ -370,18 +389,20 @@ Transitioning from one host to a fleet reshapes every layer of the
 system.
 
 \textbf{GPU fleet sizing.} The number of hosts N must satisfy the
-latency‑augmented capacity formula H = ⌈ λ\_peak · L / (C ·
-util\_target) ⌉, where C itself depends on the agentic turn
-distribution. If the team expects T ≤ 3 for 90\% of requests and λ\_peak
-= 100 rps with L ≈ 2\,s (inference + agentic overhead), the concurrency
-in flight is 200. With FP16 KV at T=3, C ≈ 14, so H = ⌈200/14⌉ ≈ 15
-hosts --- a large fleet. Switching to FP8 KV (κ ≈ 1.42 MB/token → C ≈ 25
-at T=3) roughly halves this to \textasciitilde8 hosts. Either way, the
-KV‑residency capacity --- not raw rps --- is the binding term, and the
-honest answer is a multi‑host fleet, not a near‑single‑host illusion.
-The key takeaway: size the fleet for the 95th‑percentile latency and
-token scenario, not the median, and treat KV precision as the cheapest
-way to shrink the fleet before adding hardware.
+service‑time‑augmented capacity formula H = ⌈ λ\_peak · W / (C ·
+util\_target) ⌉, where C depends on the agentic turn distribution and W
+is the full per‑request service time (which rises with turns --- each
+turn adds retrieval latency and generated tokens). Two effects compound
+as turns grow: C falls (more tokens → more KV per request) and W rises
+(more per‑turn latency), so in‑flight concurrency λ·W grows on both
+sides. For the canonical customer‑facing peak (40 rps, W≈8.6 s),
+in‑flight ≈ 344 and H ≈ ⌈344/18⌉ ≈ 20 hosts at full utilization (≈28 at
+70\% util) with FP16 KV; FP8 KV cuts that to \textasciitilde11 (≈15 at
+70\%). The lesson is honest: the binding term is λ·W/C, and W must be
+the real service time, not a sub‑second target latency. Size for the
+95th‑percentile latency and token scenario, not the median, and treat KV
+precision as the cheapest way to shrink the fleet before adding
+hardware.
 
 \textbf{Load‑balancer selection and configuration.} The choice between
 hardware (F5, Cloud LB) and software (NGINX, HAProxy) affects ρ and the
@@ -468,54 +489,61 @@ introduces the agentic layer from Chapter\,16 with a maximum of 3 turns
 (median T = 2, 95th‑percentile T = 4). The team must decide on fleet
 size.
 
-\textbf{Initial sizing analysis.} At T = 3 (worst‑case assumed for
-sizing), I(3) = 9,200 + 3·800 + 3·65 + 300 = 12,095 tokens. With FP16 KV
-(κ = 2.62 MB/token), the per‑request KV is 12,095 ×2.62 MB ≈ 31.7 GB, so
-KV‑residency capacity per host is C = M\_kv ÷ 31.7 GB. With M\_kv ≈ 436
-GB (640 − 140 weights − \textasciitilde64 runtime), C ≈ 14 concurrent
-requests per host. With peak latency L = 2\,s (inference + 3 agent
-turns), peak concurrency = λ\_peak × L = 100 ×2 = 200. The fleet must
-therefore satisfy 200 concurrent in flight against \textasciitilde14 per
-host: even at 70\% utilization target, H = ⌈200/(14 ×0.7)⌉ ≈ 21 hosts on
-FP16 KV --- a much larger fleet than a naive rps-based estimate would
-suggest. This is exactly why the KV‑residency model matters: it turns a
-plausible-looking ``1--5 hosts'' into an honest ``10--20+ hosts''.
+\textbf{Initial sizing analysis (service-time-aware).} At T = 3
+(worst‑case for sizing), I(3) = 9,200 + 3·800 + 3·65 + 300 = 12,095
+tokens. With FP16 KV (κ = 2.62 MB/token), per‑request KV ≈ 31.7 GB, so
+KV‑residency capacity C = 436 GB ÷ 31.7 GB ≈ 14 concurrent requests per
+host. But concurrency \emph{in flight} is λ × W, where W is the full
+service time, which here grows with the agentic turns:
+\textasciitilde1.1 s prefill of the 12,095-token context +
+(\textasciitilde495 generated tokens × \textasciitilde25 ms/token =
+\textasciitilde12.4 s decode) + \textasciitilde0.4 s of per-turn
+tool/retrieval latency ≈ \textbf{\textasciitilde13.8 s}. So at the
+100-rps peak, in‑flight concurrency ≈ 100 × 13.8 ≈ 1,380 requests, not
+200. Against C ≈ 14 per host, H = ⌈1,380/(14 ×0.7)⌉ ≈ \textbf{141 hosts}
+on FP16 KV (≈99 at full utilization). This is the honest arithmetic the
+service-time model produces --- the naive ``1--5 hosts'' rps estimate is
+off by two orders of magnitude because it ignores both the decode
+duration and the added turn latency.
 
 \textbf{KV compression changes the answer.} Switching the KV cache to
 FP8 (κ ≈ 1.42 MB/token, 54\% of BF16) cuts per‑request KV at T=3 to
-12,095 ×1.42 MB ≈ 17.1 GB and raises C to ≈25 per host. The fleet then
-needs H = ⌈200/(25 ×0.7)⌉ ≈ 12 hosts. Combined with prompt/prefix
-caching (which can eliminate the repeated 9,200‑token base prompt from
-the KV per turn), the practical fleet lands in the 6--12 host range
-rather than 21. KV precision and prefix caching are the primary levers
-that make agentic fleets affordable.
+\textasciitilde17.1 GB and raises C to ≈25 per host, giving H ≈
+⌈1,380/(25 ×0.7)⌉ ≈ \textbf{79 hosts} (≈55 at full utilization).
+Combined with prompt/prefix caching (which can eliminate the repeated
+9,200‑token base prompt from the KV per turn), the practical fleet lands
+well below the FP16 number. KV precision and prefix caching are the
+primary levers that make agentic fleets affordable, but even with both,
+an agentic 70B workload at 100 rps is a \emph{multi‑dozen‑host} fleet,
+not a handful.
 
-\textbf{Decision.} The team procures \textasciitilde12 hosts (an 8--16
-host range covering the FP8+prefix-cache sizing), runs NGINX as a
-software load balancer with consistent hashing for session affinity, and
-instruments each host with OpenTelemetry tracing. Cross‑host
-communication is minimal (φ ≈ 0.05 because most queries are standalone),
-so the existing 10\,Gbps intra‑rack network suffices. Monthly
-GPU‑utilization metrics should run in the 55--70\% band against the
-KV‑residency ceiling, and the SLA of \textless1\,s 95th‑percentile
-latency must be validated by a deployment benchmark (\hyperref[chap:14]{Chapter 14}) ---
-end‑to‑end latency including agentic overhead is an ILLUSTRATIVE target
-until measured.
+\textbf{Decision.} After the honest sizing, the team provisions on the
+order of \textasciitilde55--80 hosts (the FP8+prefix-cache range, to be
+validated by a \hyperref[chap:14]{Chapter 14} benchmark before committing hardware), runs
+NGINX as a software load balancer with consistent hashing for session
+affinity, and instruments each host with OpenTelemetry tracing.
+Cross‑host communication is minimal (φ ≈ 0.05), so the existing 10 Gbps
+intra‑rack network suffices. Monthly GPU‑utilization metrics should run
+in the 55--70\% band against the KV‑residency ceiling, and the SLA must
+be validated by a deployment benchmark (\hyperref[chap:14]{Chapter 14}) --- end‑to‑end
+latency including agentic overhead is an ILLUSTRATIVE target until
+measured.
 
-\textbf{Lesson.} The fleet decision is driven by KV‑residency capacity
-vs.~latency‑scaled concurrency --- not by raw rps, and not by a
-per‑layer KV constant. The architect's checklist: (1) compute I(T) for
-the expected turn distribution, (2) derive per‑host concurrent capacity
-C from the \emph{canonical} per‑token KV (2 × layers × hidden × bytes),
-(3) convert peak rps into concurrency via λ·L, (4) compute H =
-⌈λ·L/(C·util\_target)⌉, (5) apply the cheapest capacity levers first ---
-KV precision (FP8), prefix caching, attention architecture (GQA/MQA) ---
-before buying hosts, and (6) validate throughput and latency with a
-benchmark, not an assumption. A 12‑host FP8 fleet costs meaningful GPU
-capital, but avoids both wasteful over‑provisioning and a costly
-re‑platform when traffic doubles.
-
-\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+\section{\texorpdfstring{\textbf{Lesson.} The fleet decision is driven
+by KV‑residency capacity vs.~\textbf{service‑time‑scaled concurrency}
+(λ·W) --- not by raw rps, and not by a per‑layer KV constant. The
+architect's checklist: (1) compute I(T) for the expected turn
+distribution, (2) derive per‑host concurrent capacity C from the
+\emph{canonical} per‑token KV (2 × layers × hidden × bytes), (3) convert
+peak rps into concurrency via λ·W using the \textbf{full service time}
+(prefill + decode of all generated tokens + per‑turn tool latency), (4)
+compute H = ⌈λ·W/(C·util\_target)⌉, (5) apply the cheapest capacity
+levers first --- KV precision (FP8), prefix caching, attention
+architecture (GQA/MQA) --- before buying hosts, and (6) validate
+throughput and latency with a benchmark, not an assumption. A
+multi‑dozen‑host FP8 fleet costs meaningful GPU capital, but avoids both
+wasteful over‑provisioning and a costly re‑platform when traffic
+doubles.}{Lesson. The fleet decision is driven by KV‑residency capacity vs.~service‑time‑scaled concurrency (λ·W) --- not by raw rps, and not by a per‑layer KV constant. The architect's checklist: (1) compute I(T) for the expected turn distribution, (2) derive per‑host concurrent capacity C from the canonical per‑token KV (2 × layers × hidden × bytes), (3) convert peak rps into concurrency via λ·W using the full service time (prefill + decode of all generated tokens + per‑turn tool latency), (4) compute H = ⌈λ·W/(C·util\_target)⌉, (5) apply the cheapest capacity levers first --- KV precision (FP8), prefix caching, attention architecture (GQA/MQA) --- before buying hosts, and (6) validate throughput and latency with a benchmark, not an assumption. A multi‑dozen‑host FP8 fleet costs meaningful GPU capital, but avoids both wasteful over‑provisioning and a costly re‑platform when traffic doubles.}}\label{lesson.-the-fleet-decision-is-driven-by-kvresidency-capacity-vs.-servicetimescaled-concurrency-ux3bbw-not-by-raw-rps-and-not-by-a-perlayer-kv-constant.-the-architects-checklist-1-compute-it-for-the-expected-turn-distribution-2-derive-perhost-concurrent-capacity-c-from-the-canonical-pertoken-kv-2-layers-hidden-bytes-3-convert-peak-rps-into-concurrency-via-ux3bbw-using-the-full-service-time-prefill-decode-of-all-generated-tokens-perturn-tool-latency-4-compute-h-ux3bbwcutil_target-5-apply-the-cheapest-capacity-levers-first-kv-precision-fp8-prefix-caching-attention-architecture-gqamqa-before-buying-hosts-and-6-validate-throughput-and-latency-with-a-benchmark-not-an-assumption.-a-multidozenhost-fp8-fleet-costs-meaningful-gpu-capital-but-avoids-both-wasteful-overprovisioning-and-a-costly-replatform-when-traffic-doubles.}
 
 \textbf{\hyperref[tab:17.1]{Table 17-1}: Fleet sizing matrix --- KV-residency ceiling and
 minimum hosts (canonical FP16 KV).}

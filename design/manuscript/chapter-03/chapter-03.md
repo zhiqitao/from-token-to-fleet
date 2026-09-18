@@ -35,7 +35,7 @@ We now carry concrete arithmetic using the canonical enterprise Q&A scenario (§
 | Total parameters | 70B | §14 canonical scenario [1P] |
 | FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [1P DERIVED] |
 | Active parameters per token | 70B | All parameters active for every token [1P FACT] |
-| FLOPs per forward pass (approx.) | ~2.8T | 70B × 4 FLOP/param typical for transformer [2° DERIVED] |
+| FLOPs per forward pass (approx.) | ~0.28T | 70B × 4 FLOP/param typical for transformer [2° DERIVED] |
 
 *Table 3.1 — Dense 70B model parameter arithmetic (worked example, not reference).*
 
@@ -46,22 +46,23 @@ We contrast with a representative MoE model in the Mixtral lineage. The exact pa
 | Metric | Value | Derivation |
 |---|---|---|
 | Total parameters (across 8 experts) | ~47B | ~6B per expert × 8 + embeddings [2° DERIVED] |
-| Active parameters per token (top-2 routing) | ~14B | Top-2 from 8 experts, ~3–5% active/total ratio (frontier MoE [2° DERIVED]); actual activation ~25% for top-2-from-8 configuration shown |
+| Active parameters per token (top-2 routing) | ~14B | Top-2 from 8 experts ≈ 2/8 = 25% of expert mass [2° DERIVED] |
+| Active/total fraction | ~30% | 14B ÷ 47B ≈ 29.8% (≈25–30% for top-2-from-8) [2° DERIVED] |
 | FP16 active residency per token | ~28 GB | 14B × 2 bytes = 28 GB (derived — verify the input) |
-| FLOPs per forward pass (approx.) | ~0.56T | 14B active × 4 FLOP/param (derived — verify the input) |
-| Compute ratio (active/total) | ~3–5% (frontier) | 14B ÷ 47B [2° DERIVED] |
+| FLOPs per forward pass (approx.) | ~0.056T | 14B active × 4 FLOP/param = 56B (derived — verify the input) |
+| Compute ratio vs dense 70B | ~0.20× (~5× less) | (14B × 4) ÷ (70B × 4) = 56B ÷ 280B [2° DERIVED] |
 
-*Table 3.2 — MoE model parameter arithmetic (worked example, not reference).*
+*Table 3.2 — MoE model parameter arithmetic (worked example, not reference). The active fraction for top-2-of-8 routing is ~25–30% of total, not single-digit. Note the contrast with the 2026 frontier models in §7, where active fractions do fall to a few percent (Qwen 6B/125B, Kimi 104B/2.8T) because those use extreme expert sparsity plus shared/offloadable parameters.*
 
 ### Why MoE saves compute but not KV-cache memory
 
-The compute savings are straightforward: if only $n_a = 14$B of $n_t = 47$B total parameters are active per token, the FLOP count drops by the active fraction. Since per-token FLOPs scale with the number of parameters touched,
+The compute savings are straightforward: if only $n_a = 14$B of $n_t = 47$B total parameters are active per token, the FLOP count drops by the active fraction relative to a *same-size dense* model. But note the active fraction for top-2-of-8 routing is ~$\frac{14}{47}\approx 30\%$, not single-digit — so the relative saving is about 5× versus the canonical 70B *dense* comparison, not 20× or 30×. Concretely,
 
 $$
-\text{FLOP}_{\text{MoE/token}} = \frac{n_a}{n_t} \times \text{FLOP}_{\text{dense/token}} = \frac{14}{47} \times 2.8 \text{ T} \approx 0.56\text{ T}
+\text{FLOP}_{\text{MoE/token}} = n_a \times 4 \text{ FLOP/param} = 14\text{ B} \times 4 \approx 0.056\text{ T}
 $$
 
-— roughly a 5× reduction in compute per token. This is why MoE models can be "larger" (more total parameters for the same training FLOP budget) while keeping per-token cost comparable to a smaller dense model.
+which is $\frac{0.056}{0.28} \approx 0.20\times$ of the dense 70B figure — roughly a **5× reduction** in compute per token. (It is also $\frac{14}{47}\approx 30\%$ of a hypothetical dense model of the *same* 47B total; the 5× figure uses the book's canonical 70B dense as the comparison, so always state which baseline the ratio is against.)
 
 The KV-cache story is the surprising part. Recall from Chapter 1 (§KV cache as a concept, Chapter 1) that the KV cache stores one key and one value tensor per token, per layer. The cache size per token scales with the canonical Chapter 1 formula, $KV_{\text{per-token}} = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes-per-value}$. Critically, **the attention mechanism processes every token in the context densely** — each token's query attends to all previous tokens' keys and values, regardless of whether the model is dense or MoE. MoE sparsity operates in the feed-forward sub-layer; it does not change the attention sub-layer's behavior.
 
@@ -158,12 +159,13 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 | metric | dense 70B | MoE (8×7B class) | derivation |
 |---|---|---|---|
 | total parameters | 70B | ~47B | [2°] expert split |
-| active params per token | 70B | ~14B | top-2 from 8 [~3–5% frontier MoE [2° DERIVED]; Mistral top-2-from-8 ~25% for reference]
+| active params per token | 70B | ~14B | top-2 from 8 ≈ 2/8 = 25% of expert mass [2° DERIVED] |
+| active/total fraction | 100% | ~30% | 14B ÷ 47B ≈ 29.8% [2° DERIVED] |
 | FP16 residency (total) | 140 GB | ~94 GB | 70B × 2 / 47B × 2 |
 | FP16 residency (active) | 140 GB | ~28 GB | 70B × 2 / 14B × 2 |
 | KV cache per request (9.2K ctx, 8-bit) | ~12 GB | ~12 GB | identical — attention dense |
-| FLOPs per forward pass | ~2.8T | ~0.56T | 70B × 4 / 14B × 4 |
-| compute speedup (active/total) | 1× | ~5× | 14B ÷ 70B [~3–5% frontier; Mistral top-2-from-8 ~25% for reference]
+| FLOPs per forward pass | ~0.28T | ~0.056T | 70B × 4 / 14B × 4 |
+| compute ratio vs dense 70B | 1× | ~0.20× (~5× less) | (14B × 4) ÷ (70B × 4) = 56B ÷ 280B [2° DERIVED] |
 
 *All figures trace to the §14 canonical scenario; MoE column is a [2°] worked variant, not a measurement claim.*
 

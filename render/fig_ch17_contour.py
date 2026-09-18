@@ -22,7 +22,7 @@ ax.contour(Lg, Lam, H16, levels=levels, colors='#b03a2e', linewidths=1.2)
 cs8 = ax.contour(Lg, Lam, H8, levels=levels, colors='#27408b', linestyles='--', linewidths=1.4)
 ax.clabel(cs8, inline=1, fontsize=8, fmt='%d')
 
-ax.set_xlabel('Average latency L (s)')
+ax.set_xlabel('Full service time W (s)')
 ax.set_ylabel('Peak request rate λ (rps)')
 ax.set_title('Hosts Required by Request Rate and Average Latency')
 

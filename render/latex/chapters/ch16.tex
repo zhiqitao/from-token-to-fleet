@@ -72,60 +72,108 @@ is what we compute.
 
 \section{Worked Example}\label{worked-example}
 
-\subsection{Pricing the Canonical Workload Across Three
-Modes}\label{pricing-the-canonical-workload-across-three-modes}
+\subsection{Size the fleet first, then price
+it}\label{size-the-fleet-first-then-price-it}
 
-We price the canonical 70B enterprise-Q\&A workload at the canonical
-traffic (\textasciitilde10 rps average, \textasciitilde40 rps peak,
-\textasciitilde9,200 input + \textasciitilde300 output tokens per
-request). {[}1P §14{]}
+TCO is meaningless until we know \textbf{how many hosts the workload
+actually requires}. The reviewer's sharpest point stands: a single
+8×H100 host can only sustain \textasciitilde2.1 req/s under the
+KV/latency bound (\hyperref[chap:17]{Chapter 17}/20), so it cannot serve even the canonical
+10 rps average, let alone the 40 rps peak. We therefore size the fleet
+first (Ch 17) and price it second.
 
-\textbf{Mode 1 --- self-hosted on owned cards (8×H100).}
+\textbf{Step 1 --- fleet size.} The canonical workload requires N\_hosts
+= max(N\_throughput, N\_KV, N\_SLO). With the \textasciitilde8.6 s
+service time and C≈18 KV-resident requests/host (Ch 17):
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Sizing bound
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Average (10 rps)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Peak (40 rps)
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Throughput (per-host \textasciitilde2.1 req/s) & ⌈10/2.1⌉ = 5 hosts &
+⌈40/2.1⌉ = 20 hosts \\
+KV (in-flight λ·W / C) & ⌈10×8.6/18⌉ = 5 hosts & ⌈40×8.6/18⌉ = 20
+hosts \\
+\textbf{N\_hosts (max)} & \textbf{\textasciitilde5 hosts} &
+\textbf{\textasciitilde20 hosts} \\
+
+\label{tab:16.1}\end{longtable}
+
+So the canonical workload's \emph{peak} requires roughly \textbf{20
+hosts} (FP16 KV, full utilization; \textasciitilde28 at the 70\%
+utilization target), and even the \emph{average} needs \textasciitilde5
+--- a fleet, not one box. (FP8 KV roughly halves this to
+\textasciitilde11 hosts at peak.) \textbf{Every TCO figure below is
+scaled to this fleet requirement --- the earlier drafts priced a single
+host, which understated the cost by roughly 4--20×.}
+
+\textbf{Step 2 --- price each mode on N\_hosts ≈ 20 (FP16, provisioned
+for the 40 rps peak).}
+
+\textbf{Mode 1 --- self-hosted on owned cards (20 × 8×H100).}
 
 \begin{itemize}
 \tightlist
 \item
-  Capex: assume \textasciitilde\$350K for a fully built 8×H100 server
-  (cards, host, NVSwitch, networking, rack, cooling), amortized over 5
-  years → \textasciitilde\$70K/year, \textasciitilde\$5,800/month. {[}2°
-  FACT{]}, a scenario value {[}ILLUSTRATIVE{]}
+  Capex: \textasciitilde\$350K per fully built 8×H100 server, amortized
+  over 5 years → \textasciitilde\$5.8K/month/host →
+  \textasciitilde\$116K/month for \textasciitilde20 hosts. {[}2°
+  FACT{]}, scenario value {[}ILLUSTRATIVE{]}
 \item
-  Opex (power + staff): power decomposed --- 8 H100 GPUs at
-  \textasciitilde700 W TDP ≈ 5.6 kW of GPU IT load, plus
-  \textasciitilde2.2 kW for the host/network/other IT load →
-  \textasciitilde7.8 kW total IT; at a facility PUE
-  (power-usage-effectiveness) of \textasciitilde1.3 that is
-  \textasciitilde10.1 kW at the wall. At \textasciitilde\$0.15/kWh,
-  always on, that is \textasciitilde\$1.1K/month. Staff/engineering
-  alloc \textasciitilde\$10K/month. Total opex ≈
-  \textasciitilde\$11.1K/month. {[}2° DERIVED{]}, a scenario value
+  Opex (power + staff): per host, 8 H100 GPUs at \textasciitilde700 W ≈
+  5.6 kW GPU IT + \textasciitilde2.2 kW host/network ≈ 7.8 kW IT, × PUE
+  \textasciitilde1.3 ≈ \textasciitilde10.1 kW at the wall; at
+  \textasciitilde\$0.15/kWh always-on that is
+  \textasciitilde\$1.1K/month/host → \textasciitilde\$22K/month for
+  \textasciitilde20 hosts. Staff/engineering alloc
+  \textasciitilde\$10K/month. {[}2° DERIVED{]}, scenario value
   {[}ILLUSTRATIVE{]}
 \item
-  Monthly total ≈ \$5.8K (capex) + \$11.1K (opex) ≈
-  \textbf{\$16.9K/month}.
+  Monthly total ≈ \$116K + \$22K + \$10K ≈
+  \textbf{\textasciitilde\$148K/month} for \textasciitilde20 hosts.
 \item
-  Per request at \textasciitilde10 rps average = \textasciitilde864,000
-  requests/day ≈ 26M/month. \textbf{Cost ≈ \$16.9K / 26M ≈
-  \$0.00065/request ≈ \$0.65 per 1,000 requests.} {[}2° DERIVED{]}
+  Per request at \textasciitilde10 rps average =
+  \textasciitilde26M/month. \textbf{Cost ≈ \$148K / 26M ≈
+  \$0.0057/request ≈ \$5.7 per 1,000 requests.} {[}2° DERIVED{]}
   \emph{(worked example, not reference)}
 \end{itemize}
 
-\textbf{Mode 2 --- cloud GPU instances (rent, shut down when idle).}
+\textbf{Mode 2 --- cloud GPU instances (rent, scale to load).}
 
 \begin{itemize}
 \tightlist
 \item
-  An 8×H100 on-demand instance \textasciitilde\$20/hr (canonical:
-  \$2.50/GPU-hr × 8), paid only while running, say \textasciitilde40\%
-  duty cycle to cover peaks → \textasciitilde\$8/hr average effective →
-  \textasciitilde\$5,760/month. {[}2° DERIVED{]}
+  An 8×H100 on-demand instance \textasciitilde\$20/hr (canonical
+  \$2.50/GPU-hr × 8). Because the workload's \emph{peak} is 40 rps, the
+  fleet must be able to burst to \textasciitilde20 instances, but the
+  \emph{average} load is \textasciitilde5 hosts' worth --- so the honest
+  cloud bill is the instance-hours actually required. At
+  \textasciitilde5 instances running (the sustained average, bursting to
+  \textasciitilde20 at peak), that is ≈ 5 × \$20/hr × 720 hr ≈
+  \textasciitilde\$72K/month (scaling the fleet with load;
+  always-on-at-peak would be \textasciitilde\$288K/month). {[}2°
+  DERIVED{]}
 \item
-  Per request: at 10 rps the same \textasciitilde26M requests/month.
-  \textbf{Cost ≈ \$5,760 / 26M ≈ \$0.00022/request ≈ \$0.22 per 1,000
-  requests.} {[}2° DERIVED{]} \emph{(cloud now roughly ties or exceeds
-  self-host per request at this volume/duty; the \$/hr-per-node basis
-  and the duty-cycle assumption are the two levers. Staff \& integration
-  add on top.)}
+  Per request: \textasciitilde26M/month. \textbf{Cost ≈ \$72K / 26M ≈
+  \$0.0028/request ≈ \$2.8 per 1,000 requests.} {[}2° DERIVED{]}
+  \emph{(The ``duty cycle'' here is \textbf{fleet capacity utilization}
+  --- how many of the provisioned hosts are busy on average --- NOT the
+  literal fraction of wall-clock time an instance is powered on. A
+  continuously-arriving 10-rps workload cannot be served by shutting the
+  only instance off 60\% of the time; it needs a fleet that is always
+  available and scales with load. Staff \& integration add on top.)}
 \end{itemize}
 
 \textbf{Mode 3 --- managed inference API.}
@@ -147,102 +195,24 @@ request). {[}1P §14{]}
 \]
 
 {[}2° FACT{]}, a scenario value {[}ILLUSTRATIVE{]} - At the canonical
-25.9M requests/month: \textasciitilde\$539,000/month --- an order of
-magnitude above self-host. {[}2° DERIVED{]}
+\textasciitilde26M requests/month: \textasciitilde\$539,000/month.
 
-\textbf{Reading the result.} Self-hosted (\textasciitilde\$0.65/1K reqs)
-beats the API (\textasciitilde\$20.8/1K reqs) by \textasciitilde32× on
-pure token cost at this volume --- but only because we assume steady
-near-canonical utilization plus in-house staff we are not separately
-billing. Cloud-on-demand (\textasciitilde\$0.22/1K) is roughly a third
-of self-host per request at this duty --- but only if the duty cycle is
-\textasciitilde40\% and we ignore staff/integration. \textbf{The honest
-TCO answer depends on the duty cycle and on whether the staff term is a
-sunk cost.} Because self-host is a \emph{fixed} cost (capex amortized +
-always-on power + staff); cloud on-demand is a \emph{variable} cost (you
-pay only while the instance runs). \hyperref[tab:16.1]{Table 16-1}b prices cloud across duty
-cycles against self-host on two bases --- fully-loaded (staff billed)
-and staff-in-house (staff already on payroll, so sunk):
-
-\textbf{\hyperref[tab:16.1]{Table 16-1}b} --- Cloud on-demand cost vs duty cycle
-(illustrative worked example; \$/1K at canonical \textasciitilde26M
-req/mo)
-
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.1760\linewidth}
-  >{\raggedright\arraybackslash}p{0.1760\linewidth}
-  >{\raggedright\arraybackslash}p{0.1760\linewidth}
-  >{\raggedright\arraybackslash}p{0.1760\linewidth}
-  >{\raggedright\arraybackslash}p{0.1760\linewidth}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Duty cycle
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Cloud/mo
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Cloud \$/1K
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-vs self-host \$0.65/1K (staff billed)
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-vs self-host \$0.27/1K (staff sunk)
-\end{minipage} \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-20\% & \textasciitilde\$2.9K & \textasciitilde\$0.11 & cloud wins &
-cloud wins \\
-40\% & \textasciitilde\$5.8K & \textasciitilde\$0.22 & cloud wins &
-cloud wins \\
-60\% & \textasciitilde\$8.6K & \textasciitilde\$0.33 & cloud wins & near
-crossover \\
-80\% & \textasciitilde\$11.5K & \textasciitilde\$0.44 & cloud wins &
-self-host wins \\
-100\% & \textasciitilde\$14.4K & \textasciitilde\$0.55 & cloud still
-cheaper & self-host wins \\
-
-\label{tab:16.1}\end{longtable}
-
-\emph{(Self-host with staff sunk ≈ \$6.9K/mo → \textasciitilde\$0.27/1K:
-capex \textasciitilde\$5.8K + power \textasciitilde\$1.1K, no
-incremental staff.)}
-
-The crossover emerges from the arithmetic, and it is \textbf{not} where
-one might expect. On a fully-loaded basis (staff billed at \$10K/mo),
-\textbf{cloud is cheaper at every duty cycle} at this canonical volume,
-because an always-staffed self-host costs \$16.9K/mo while the whole
-cloud bill tops out at \textasciitilde\$14.4K/mo even at 100\% duty.
-Self-host only becomes clearly cheaper when the staff is \emph{already
-in-house} (a sunk cost) \emph{and} utilization is high --- then the
-crossover lands around \textasciitilde50--60\% duty. This is the real
-lesson: at the scale of an internal Q\&A tool, the decision is dominated
-by the \textbf{staff/ops term}, not the GPU rental rate. \textbf{The
-statement ``self-host wins'' is only true under the explicitly stated
-assumption that the team already exists and is not charged
-incrementally; under a fully-loaded cost basis, cloud wins at any duty
-cycle at this volume.} {[}2° DERIVED{]}
-
-\textbf{Parametric sensitivity is the durable form.} All the fixed
-inputs above --- GPU price, electricity, staffing, capacity, API price
---- are {[}ILLUSTRATIVE{]} scenario values; the \emph{structure} of the
-model is what generalizes. The architect can see the decision flip with
-utilization and volume: at low effective utilization
-(\textasciitilde20\%, e.g.~a demo or dev workload), the always-staffed
-self-host sits idle while depreciating, so managed on-demand decisively
-wins; and even at high utilization, on a fully-loaded basis, cloud
-remains cheaper at this volume because the self-host staff term
-dominates. Self-host only clearly wins when the staff is \emph{already
-in-house} (a sunk cost, not billed incrementally) \emph{and} sustained
-utilization is high (\textasciitilde80\%+). Rather than memorize one
-answer, the durable tool is a small parametric model --- exact same
-arithmetic with GPU \$/hr, \$/kWh, staffing, and API price as inputs ---
-which the architect re-runs with the customer's real numbers (\hyperref[chap:23]{Chapter 23}). This is what makes TCO a decision \emph{framework}, not a single
-verdict. A runnable, parameterised version of exactly this model ships
-with the book as \texttt{render/tco\_calc.py} (defaults reproduce these
-numbers; override GPU \$/hr, \$/kWh, staffing, and API price as flags).
+\textbf{Reading the result.} Once the fleet is sized correctly
+(\textasciitilde20 hosts), the comparison flips entirely versus the
+single-host framing. Self-hosted (\textasciitilde\$5.7/1K reqs) is now
+\textbf{more than twice the API per request} on a fully-loaded basis
+(\$148K/mo vs \textasciitilde\$72K/mo cloud-scaled) because the
+canonical workload genuinely needs a multi-host fleet, and self-hosting
+a 20-host fleet carries \textasciitilde\$116K/mo of capex amortization.
+Cloud-scaled (\textasciitilde\$2.8/1K) is the cheapest at this volume
+because you only pay for the \textasciitilde5 hosts the \emph{average}
+load needs, bursting to \textasciitilde20 at the peak. The decisive
+caveat remains the \textbf{staff/ops term and whether it is sunk}, and
+now also the \textbf{fleet requirement} --- a single-host TCO
+understates the real cost by 4--20×.
 
 \textbf{\hyperref[tab:16.1]{Table 16-1}} --- TCO comparison across delivery modes
-(illustrative worked example)
+(illustrative worked example; N\_hosts ≈ 20 at the canonical peak)
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.1467\linewidth}
@@ -255,7 +225,7 @@ numbers; override GPU \$/hr, \$/kWh, staffing, and API price as flags).
 \begin{minipage}[b]{\linewidth}\raggedright
 Mode
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Capex
+Capacity
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Opex/month
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -269,20 +239,32 @@ When it wins
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Self-hosted 8×H100 & \textasciitilde\$350K & \textasciitilde\$16.9K &
-\textasciitilde\$0.65 & \textasciitilde\$16.9K & staff already in-house
-(sunk) \emph{and} sustained high utilization \\
-Cloud on-demand & \$0 & \textasciitilde\$5.8K (40\% duty) &
-\textasciitilde\$0.22 & \textasciitilde\$5.8K+staff & low duty cycle,
-bursty, no staff for ops \\
-Managed API & \$0 & usage & \textasciitilde\$21 & \textasciitilde\$546K
+Self-hosted (20×8×H100) & \textasciitilde20 hosts &
+\textasciitilde\$148K & \textasciitilde\$5.7 & \textasciitilde\$148K &
+staff already in-house (sunk) and sustained near-peak utilization; no
+burst variability \\
+Cloud on-demand (scaled) & bursts to \textasciitilde20, runs
+\textasciitilde5 avg & \textasciitilde\$72K & \textasciitilde\$2.8 &
+\textasciitilde\$72K & variable load, no idle capex, staff shared \\
+Managed API & --- & usage & \textasciitilde\$21 & \textasciitilde\$539K
 & tiny volume, fastest time-to-value \\
 
 \label{tab:16.2}\end{longtable}
 
 \emph{(Figures are worked-example estimates as of Q4 2026, not vendor
 quotes; treat as {[}2° DERIVED{]} illustrative, to be re-priced before
-budgeting.)}
+budgeting. The fleet requirement \textasciitilde20 hosts (peak) /
+\textasciitilde5 hosts (avg) is from the canonical Ch17 sizing; FP8 KV
+cuts the peak fleet to \textasciitilde11.)}
+
+\textbf{Parametric sensitivity is the durable form.} All the fixed
+inputs above --- GPU price, electricity, staffing, capacity, API price,
+and the fleet size itself --- are {[}ILLUSTRATIVE{]} scenario values;
+the \emph{structure} of the model is what generalizes. The architect
+computes N\_hosts from the workload first (Ch 17/20), then re-runs this
+TCO with the customer's real numbers (\hyperref[chap:23]{Chapter 23}). A runnable,
+parameterised version ships with the book as
+\texttt{render/tco\_calc.py}.
 
 \section{Measurement}\label{measurement}
 

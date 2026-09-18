@@ -196,44 +196,79 @@ distribution{]}.
 
 \subsection{Tool-call latency budget}\label{tool-call-latency-budget}
 
-Each tool call incurs two components: (1) the LLM's internal reasoning
-time to decide and format the call, and (2) the external backend
-latency. On 8×H100, the per-turn LLM inference time averages 120 ms for
-a 10,000-token context. Tool backends (search, SQL) add 50--150 ms
-depending on data volume. The total per-turn latency budget \emph{L} is:
+Crucially, the agentic layer adds latency \textbf{on top of} the base
+answer generation, not instead of it. We keep two terms rigidly
+separate:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Base inference latency \emph{L}base} --- the time to generate
+  the final answer itself. Under the canonical model this is
+  \textasciitilde8.6 s: \textasciitilde1.1 s prefill (Ch 8) +
+  \textasciitilde7.5 s decode of the 300-token answer at
+  \textasciitilde25 ms/token (Ch 8). Every agentic request pays this at
+  least once, and usually again for the intermediate reasoning the loop
+  generates (the T·γ tokens).
+\item
+  \textbf{Agent orchestration / tool-call overhead \emph{L}agent} ---
+  the per-turn cost of the loop \emph{around} the model: the LLM's short
+  decision step to formulate the tool call, plus the tool backend
+  round-trip. On 8×H100 the per-turn agent step averages
+  \textasciitilde120 ms for a 10,000-token context; tool backends
+  (search, SQL) add 50--150 ms depending on data volume. So per-turn
+  orchestration overhead \emph{L}agent ≈ \textasciitilde220 ms (median).
+\end{itemize}
 
 \[
-L = \lambda_\text{inference} + \lambda_\text{tool}
+L_\text{agent} = \lambda_\text{step} + \lambda_\text{tool}
 \]
 
-where \(\lambda_\text{inference} \approx 120\) ms and
-\(\lambda_\text{tool} \approx 100\) ms (median). For \emph{T} turns, the
-cumulative latency is \(T\cdot L\). With the median \emph{T} = 2, the
-median end-to-end latency is \textasciitilde2 ×220 ms ≈ 440 ms. The
-95th-percentile \emph{T} = 4 yields \textasciitilde880 ms. These numbers
-are well within interactive thresholds (\textless1 s) but must be
-monitored when scaling to higher concurrency.
+where \(\lambda_\text{step} \approx 120\) ms (the model's tool-call
+decision step) and \(\lambda_\text{tool} \approx 100\) ms (median, tool
+backend). For \emph{T} turns the \textbf{added} orchestration overhead
+is \(T\cdot L_\text{agent}\) ≈ 2 × 220 ms ≈ 440 ms at the median
+\emph{T} = 2, and ≈ 880 ms at the 95th-percentile \emph{T} = 4. These
+are the \textbf{incremental agent-orchestration} numbers, not the full
+request latency --- see the next section.
 
 \subsection{Multi-step reasoning cost}\label{multi-step-reasoning-cost}
 
 The ``cost'' of multi-step reasoning has two facets: token amplification
-(already quantified as \emph{α}) and latency amplification (\emph{β}).
-If single-shot latency is \emph{L₀} ≈ 120 ms (inference only, no tool
-calls), then the agentic latency for \emph{T} turns is:
+(already quantified as \emph{α}) and latency. The \textbf{total
+end-to-end latency} is the base generation plus the added orchestration
+overhead:
 
 \[
-\beta(T) = \frac{T \cdot (\lambda_\text{inference} + \lambda_\text{tool})}{L_0}
+L_\text{E2E}(T) = L_\text{base} + T \cdot L_\text{agent}
 \]
 
-With \emph{T} = 3: β(3) = (3 ×220) / 120 ≈ 5.5× slower than single-shot.
-With \emph{T} = 1: β(1) ≈ 1.8×. The trade-off is that the agentic system
-may deliver correct answers where single-shot fails, but the price is a
-2--6× latency multiplier depending on turn count.
+where \(L_\text{base} \approx 8.6\) s is the canonical full answer
+generation (1.1 s prefill + 7.5 s decode of 300 output tokens) and
+\(T \cdot L_\text{agent}\) is the added agent-orchestration overhead (≈
+220 ms per turn). So the agentic layer does \emph{not} replace the
+\textasciitilde8.6 s generation with \textasciitilde440 ms --- it
+\emph{adds} a few hundred milliseconds of orchestration/tool overhead on
+top of a request that already takes \textasciitilde8.6 s to generate its
+answer. The latency amplification is better expressed as overhead, not a
+multiple of a sub-second single-shot number:
+
+\[
+\beta(T) = \frac{L_\text{base} + T\cdot L_\text{agent}}{L_\text{base}} \approx 1 + \frac{T \cdot 220\text{ ms}}{8.6\text{ s}}
+\]
+
+At \emph{T} = 3, this is 1 + 660 ms / 8.6 s ≈ \textbf{1.08×} of the base
+generation --- i.e.~the agentic loop adds roughly 8\% end-to-end
+latency, not ``2--6× slower''. The bound that actually matters for the
+architect is that the \emph{added} orchestration overhead per turn is
+\textasciitilde220 ms (and must be budgeted), while the \emph{total}
+request time is dominated by the \textasciitilde8.6 s generation that
+the canonical model already establishes.
 
 These derived quantities give the architect concrete numbers to set
 policies: cap \emph{T} at 3 unless the quality gain is statistically
-significant, and allocate \textasciitilde220\,ms per turn in the latency
-budget.
+significant, and allocate \textasciitilde220 ms \emph{per turn} in the
+orchestration-latency budget.
 
 \section{Common Mistakes}\label{common-mistakes}
 
@@ -430,32 +465,44 @@ SQL query tool (350 tokens). The guardrail budget caps total input at
 requests terminate in 1 turn - 25\% terminate in 2 turns - 5\% terminate
 in 3 turns - 2\% exceed the turn limit and fall back to single-shot
 
-\textbf{Token and latency impact.} - Average total input tokens: 9,200 +
-(0.68×800) + (0.25×(800+350)) + (0.05×(800+350+800)) ≈ 9,200 + 544 +
-287.5 + 97.5 ≈ 10,129 tokens - Amplification \emph{α}: 10,129 / 9,500 ≈
-1.07× - Average per-turn latency: 220\,ms → median end-to-end latency: 2
-×220\,ms ≈ 440\,ms (vs.~\textasciitilde120\,ms single-shot) -
-95th-percentile latency (T ≈ 4 with fallback): \textasciitilde880\,ms
+\textbf{Token and latency impact (added orchestration overhead).} -
+Average total input tokens: 9,200 + (0.68×800) + (0.25×(800+350)) +
+(0.05×(800+350+800)) ≈ 9,200 + 544 + 287.5 + 97.5 ≈ 10,129 tokens -
+Amplification \emph{α}: 10,129 / 9,500 ≈ 1.07× - Added
+agent-orchestration overhead (per-turn step + tool): 220 ms/turn →
+median (T=2) adds \textasciitilde440 ms, 95th-percentile (T≈4) adds
+\textasciitilde880 ms, \textbf{on top of} the \textasciitilde8.6 s base
+answer generation: L\_E2E ≈ 8.6 s + 0.44 s ≈ \textasciitilde9.0 s
+median. - Total end-to-end: the request is dominated by the
+\textasciitilde8.6 s base generation (Ch 8), not the added
+orchestration; the \textasciitilde440--880 ms figures are the
+\emph{added} agent/tool overhead, not the complete request latency.
 
 \textbf{Architectural actions.} The team sets the turn limit to 3,
-instruments each turn's token and latency, and adds a context cache for
-the search tool. With the cache hit rate of 30\% on recurring queries,
-the effective \emph{δ} drops to \textasciitilde560 tokens, reducing
-average amplification to \textasciitilde1.04× and median latency to
-\textasciitilde350\,ms. The system now meets the SLA of \textless1\,s
-95th-percentile latency while delivering higher-quality answers on
-complex queries.
+instruments each turn's token and orchestration latency, and adds a
+context cache for the search tool. With the cache hit rate of 30\% on
+recurring queries, the effective \emph{δ} drops to \textasciitilde560
+tokens, reducing average amplification to \textasciitilde1.04× and the
+added orchestration overhead to \textasciitilde350 ms on median. The
+claim ``meets an SLA of \textless1 s'' must be scoped carefully: the
+\emph{added agent-orchestration} latency is comfortably under 1 s, but
+the \textbf{end-to-end} request is \textasciitilde9 s because of the
+base generation. The architect therefore scopes the \textless1 s SLA to
+orchestration overhead \emph{excluding} final generation, and treats
+end-to-end as bounded by the \textasciitilde8.6 s base.
 
-\textbf{Lesson.} The agentic layer added \textasciitilde7\% token
-overhead and \textasciitilde320\,ms latency on median, but improved
-answer correctness on multi-step reasoning queries by an estimated 22\%
-in an illustrative human-eval reading {[}ILLUSTRATIVE SCENARIO RESULT,
-not a reported production measurement{]}. The trade-off was acceptable,
-and the token overhead was mitigated by context caching. The architect's
-key decisions were: (a) capping turns at 3, (b) adding a search cache,
-and (c) providing a single-shot fallback when the limit is hit.
-
-\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
+\section{\texorpdfstring{\textbf{Lesson.} The agentic layer added
+\textasciitilde7\% token overhead and \textasciitilde350 ms of
+orchestration latency on median (on top of an \textasciitilde8.6 s base
+generation), but improved answer correctness on multi-step reasoning
+queries by an estimated 22\% in an illustrative human-eval reading
+{[}ILLUSTRATIVE SCENARIO RESULT, not a reported production
+measurement{]}. The trade-off was acceptable --- the added overhead is
+small relative to the base generation --- and the token overhead was
+mitigated by context caching. The architect's key decisions were: (a)
+capping turns at 3, (b) adding a search cache, and (c) providing a
+single-shot fallback when the limit is
+hit.}{Lesson. The agentic layer added \textasciitilde7\% token overhead and \textasciitilde350 ms of orchestration latency on median (on top of an \textasciitilde8.6 s base generation), but improved answer correctness on multi-step reasoning queries by an estimated 22\% in an illustrative human-eval reading {[}ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement{]}. The trade-off was acceptable --- the added overhead is small relative to the base generation --- and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.}}\label{lesson.-the-agentic-layer-added-7-token-overhead-and-350-ms-of-orchestration-latency-on-median-on-top-of-an-8.6-s-base-generation-but-improved-answer-correctness-on-multi-step-reasoning-queries-by-an-estimated-22-in-an-illustrative-human-eval-reading-illustrative-scenario-result-not-a-reported-production-measurement.-the-trade-off-was-acceptable-the-added-overhead-is-small-relative-to-the-base-generation-and-the-token-overhead-was-mitigated-by-context-caching.-the-architects-key-decisions-were-a-capping-turns-at-3-b-adding-a-search-cache-and-c-providing-a-single-shot-fallback-when-the-limit-is-hit.}
 
 \textbf{\hyperref[tab:19.1]{Table 19-1}} --- Token amplification and latency trade-offs for
 agentic RQA pipelines
@@ -490,23 +537,29 @@ Input tokens (9,200 + T·800 + T·65) & 10,065 & 10,930 & 11,795 & 12,660
 Total tokens (incl.~300 output) & 10,365 & 11,230 & 12,095 & 12,960 &
 9,500 \\
 Token amplification \emph{α} & 1.09× & 1.18× & 1.27× & 1.36× & 1.00× \\
-Per-turn LLM inference, 10K ctx & \textasciitilde120 ms &
+Per-turn agent step, 10K ctx & \textasciitilde120 ms &
 \textasciitilde120 ms & \textasciitilde120 ms & \textasciitilde120 ms &
-\textasciitilde120 ms \\
+--- \\
 Tool latency (median) & \textasciitilde100 ms & \textasciitilde100 ms &
 \textasciitilde100 ms & \textasciitilde100 ms & --- \\
-Cumulative end-to-end latency & \textasciitilde220 ms &
+Added orchestration overhead (T × 220 ms) & \textasciitilde220 ms &
 \textasciitilde440 ms & \textasciitilde660 ms & \textasciitilde880 ms &
-\textasciitilde120 ms \\
-Latency amplification \emph{β} = T·220/120 & \textasciitilde1.8× &
-\textasciitilde3.7× & \textasciitilde5.5× & \textasciitilde7.3× &
-1.00× \\
+0 ms \\
+Base answer generation \emph{L}base & \textasciitilde8.6 s &
+\textasciitilde8.6 s & \textasciitilde8.6 s & \textasciitilde8.6 s &
+\textasciitilde8.6 s \\
+Total end-to-end (Lbase + overhead) & \textasciitilde8.8 s &
+\textasciitilde9.0 s & \textasciitilde9.3 s & \textasciitilde9.5 s &
+\textasciitilde8.6 s \\
 KV cache @ 2.62 MB/token & \textasciitilde27.2 GB & \textasciitilde29.4
 GB & \textasciitilde31.7 GB & \textasciitilde34.0 GB &
 \textasciitilde24.9 GB \\
 
 \label{tab:19.1}\end{longtable}
 
-\emph{All token counts use δ=800, γ=65, O=300; latency uses λ\_inf≈120
-ms, λ\_tool≈100 ms. These are canonical-model {[}DERIVED{]} values, not
-measured production figures.}
+\emph{All token counts use δ=800, γ=65, O=300; orchestration overhead
+uses λ\_step≈120 ms + λ\_tool≈100 ms per turn; base generation uses the
+canonical \textasciitilde8.6 s (1.1 s prefill + 7.5 s decode of 300
+output tokens). Total end-to-end is dominated by the base generation,
+NOT the agent overhead. These are canonical-model {[}DERIVED{]} values,
+not measured production figures.}

@@ -94,25 +94,34 @@ For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, 
 
 ### Tool-call latency budget
 
-Each tool call incurs two components: (1) the LLM's internal reasoning time to decide and format the call, and (2) the external backend latency. On 8×H100, the per-turn LLM inference time averages 120 ms for a 10,000-token context. Tool backends (search, SQL) add 50–150 ms depending on data volume. The total per-turn latency budget *L* is:
+Crucially, the agentic layer adds latency **on top of** the base answer generation, not instead of it. We keep two terms rigidly separate:
+
+- **Base inference latency *L*base** — the time to generate the final answer itself. Under the canonical model this is ~8.6 s: ~1.1 s prefill (Ch 8) + ~7.5 s decode of the 300-token answer at ~25 ms/token (Ch 8). Every agentic request pays this at least once, and usually again for the intermediate reasoning the loop generates (the T·γ tokens).
+- **Agent orchestration / tool-call overhead *L*agent** — the per-turn cost of the loop *around* the model: the LLM's short decision step to formulate the tool call, plus the tool backend round-trip. On 8×H100 the per-turn agent step averages ~120 ms for a 10,000-token context; tool backends (search, SQL) add 50–150 ms depending on data volume. So per-turn orchestration overhead *L*agent ≈ ~220 ms (median).
 
 $$
-L = \lambda_\text{inference} + \lambda_\text{tool}
+L_\text{agent} = \lambda_\text{step} + \lambda_\text{tool}
 $$
 
-where $\lambda_\text{inference} \approx 120$ ms and $\lambda_\text{tool} \approx 100$ ms (median). For *T* turns, the cumulative latency is $T\cdot L$. With the median *T* = 2, the median end-to-end latency is ~2 ×220 ms ≈ 440 ms. The 95th-percentile *T* = 4 yields ~880 ms. These numbers are well within interactive thresholds (<1 s) but must be monitored when scaling to higher concurrency.
+where $\lambda_\text{step} \approx 120$ ms (the model's tool-call decision step) and $\lambda_\text{tool} \approx 100$ ms (median, tool backend). For *T* turns the **added** orchestration overhead is $T\cdot L_\text{agent}$ ≈ 2 × 220 ms ≈ 440 ms at the median *T* = 2, and ≈ 880 ms at the 95th-percentile *T* = 4. These are the **incremental agent-orchestration** numbers, not the full request latency — see the next section.
 
 ### Multi-step reasoning cost
 
-The "cost" of multi-step reasoning has two facets: token amplification (already quantified as *α*) and latency amplification (*β*). If single-shot latency is *L₀* ≈ 120 ms (inference only, no tool calls), then the agentic latency for *T* turns is:
+The "cost" of multi-step reasoning has two facets: token amplification (already quantified as *α*) and latency. The **total end-to-end latency** is the base generation plus the added orchestration overhead:
 
 $$
-\beta(T) = \frac{T \cdot (\lambda_\text{inference} + \lambda_\text{tool})}{L_0}
+L_\text{E2E}(T) = L_\text{base} + T \cdot L_\text{agent}
 $$
 
-With *T* = 3: β(3) = (3 ×220) / 120 ≈ 5.5× slower than single-shot. With *T* = 1: β(1) ≈ 1.8×. The trade-off is that the agentic system may deliver correct answers where single-shot fails, but the price is a 2–6× latency multiplier depending on turn count.
+where $L_\text{base} \approx 8.6$ s is the canonical full answer generation (1.1 s prefill + 7.5 s decode of 300 output tokens) and $T \cdot L_\text{agent}$ is the added agent-orchestration overhead (≈ 220 ms per turn). So the agentic layer does *not* replace the ~8.6 s generation with ~440 ms — it *adds* a few hundred milliseconds of orchestration/tool overhead on top of a request that already takes ~8.6 s to generate its answer. The latency amplification is better expressed as overhead, not a multiple of a sub-second single-shot number:
 
-These derived quantities give the architect concrete numbers to set policies: cap *T* at 3 unless the quality gain is statistically significant, and allocate ~220 ms per turn in the latency budget.
+$$
+\beta(T) = \frac{L_\text{base} + T\cdot L_\text{agent}}{L_\text{base}} \approx 1 + \frac{T \cdot 220\text{ ms}}{8.6\text{ s}}
+$$
+
+At *T* = 3, this is 1 + 660 ms / 8.6 s ≈ **1.08×** of the base generation — i.e. the agentic loop adds roughly 8% end-to-end latency, not "2–6× slower". The bound that actually matters for the architect is that the *added* orchestration overhead per turn is ~220 ms (and must be budgeted), while the *total* request time is dominated by the ~8.6 s generation that the canonical model already establishes.
+
+These derived quantities give the architect concrete numbers to set policies: cap *T* at 3 unless the quality gain is statistically significant, and allocate ~220 ms *per turn* in the orchestration-latency budget.
 
 ## 5. Common Mistakes
 
@@ -178,16 +187,15 @@ Despite the quantified arithmetic above, several questions remain open and would
 - 5% terminate in 3 turns
 - 2% exceed the turn limit and fall back to single-shot
 
-**Token and latency impact.**
+**Token and latency impact (added orchestration overhead).**
 - Average total input tokens: 9,200 + (0.68×800) + (0.25×(800+350)) + (0.05×(800+350+800)) ≈ 9,200 + 544 + 287.5 + 97.5 ≈ 10,129 tokens
 - Amplification *α*: 10,129 / 9,500 ≈ 1.07×
-- Average per-turn latency: 220 ms → median end-to-end latency: 2 ×220 ms ≈ 440 ms (vs. ~120 ms single-shot)
-- 95th-percentile latency (T ≈ 4 with fallback): ~880 ms
+- Added agent-orchestration overhead (per-turn step + tool): 220 ms/turn → median (T=2) adds ~440 ms, 95th-percentile (T≈4) adds ~880 ms, **on top of** the ~8.6 s base answer generation: L_E2E ≈ 8.6 s + 0.44 s ≈ ~9.0 s median.
+- Total end-to-end: the request is dominated by the ~8.6 s base generation (Ch 8), not the added orchestration; the ~440–880 ms figures are the *added* agent/tool overhead, not the complete request latency.
 
-**Architectural actions.** The team sets the turn limit to 3, instruments each turn's token and latency, and adds a context cache for the search tool. With the cache hit rate of 30% on recurring queries, the effective *δ* drops to ~560 tokens, reducing average amplification to ~1.04× and median latency to ~350 ms. The system now meets the SLA of <1 s 95th-percentile latency while delivering higher-quality answers on complex queries.
+**Architectural actions.** The team sets the turn limit to 3, instruments each turn's token and orchestration latency, and adds a context cache for the search tool. With the cache hit rate of 30% on recurring queries, the effective *δ* drops to ~560 tokens, reducing average amplification to ~1.04× and the added orchestration overhead to ~350 ms on median. The claim "meets an SLA of <1 s" must be scoped carefully: the *added agent-orchestration* latency is comfortably under 1 s, but the **end-to-end** request is ~9 s because of the base generation. The architect therefore scopes the <1 s SLA to orchestration overhead *excluding* final generation, and treats end-to-end as bounded by the ~8.6 s base.
 
-**Lesson.** The agentic layer added ~7% token overhead and ~320 ms latency on median, but improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement]. The trade-off was acceptable, and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
-
+**Lesson.** The agentic layer added ~7% token overhead and ~350 ms of orchestration latency on median (on top of an ~8.6 s base generation), but improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement]. The trade-off was acceptable — the added overhead is small relative to the base generation — and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
 ---
 
 **Table 19-1** — Token amplification and latency trade-offs for agentic RQA pipelines
@@ -197,10 +205,11 @@ Despite the quantified arithmetic above, several questions remain open and would
 | Input tokens (9,200 + T·800 + T·65) | 10,065 | 10,930 | 11,795 | 12,660 | 9,200 |
 | Total tokens (incl. 300 output) | 10,365 | 11,230 | 12,095 | 12,960 | 9,500 |
 | Token amplification *α* | 1.09× | 1.18× | 1.27× | 1.36× | 1.00× |
-| Per-turn LLM inference, 10K ctx | ~120 ms | ~120 ms | ~120 ms | ~120 ms | ~120 ms |
+| Per-turn agent step, 10K ctx | ~120 ms | ~120 ms | ~120 ms | ~120 ms | — |
 | Tool latency (median) | ~100 ms | ~100 ms | ~100 ms | ~100 ms | — |
-| Cumulative end-to-end latency | ~220 ms | ~440 ms | ~660 ms | ~880 ms | ~120 ms |
-| Latency amplification *β* = T·220/120 | ~1.8× | ~3.7× | ~5.5× | ~7.3× | 1.00× |
+| Added orchestration overhead (T × 220 ms) | ~220 ms | ~440 ms | ~660 ms | ~880 ms | 0 ms |
+| Base answer generation *L*base | ~8.6 s | ~8.6 s | ~8.6 s | ~8.6 s | ~8.6 s |
+| Total end-to-end (Lbase + overhead) | ~8.8 s | ~9.0 s | ~9.3 s | ~9.5 s | ~8.6 s |
 | KV cache @ 2.62 MB/token | ~27.2 GB | ~29.4 GB | ~31.7 GB | ~34.0 GB | ~24.9 GB |
 
-*All token counts use δ=800, γ=65, O=300; latency uses λ_inf≈120 ms, λ_tool≈100 ms. These are canonical-model [DERIVED] values, not measured production figures.*
+*All token counts use δ=800, γ=65, O=300; orchestration overhead uses λ_step≈120 ms + λ_tool≈100 ms per turn; base generation uses the canonical ~8.6 s (1.1 s prefill + 7.5 s decode of 300 output tokens). Total end-to-end is dominated by the base generation, NOT the agent overhead. These are canonical-model [DERIVED] values, not measured production figures.*

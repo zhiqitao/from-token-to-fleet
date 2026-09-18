@@ -268,29 +268,46 @@ retrieval step (or with a much shorter context, since the model has
 ``memorized'' much of the corpus). - Additional costs: training compute,
 storage of fine‑tuned weights, and reduced flexibility for new topics.
 
-{[}2°{]} DERIVED (illustrative, from a small set of case studies --- not
-a reference measurement): for the canonical workload, a well‑designed
-RAG + guardrails pipeline \emph{approximately} matches the answer
-quality of a fine‑tuned model on in‑domain queries, at roughly
-\textasciitilde1/10th the total TCO when training cost is amortized over
-2 years. An illustrative break‑even is \textasciitilde500 Q‑A pairs per
-month of sustained usage --- below this, RAG + guardrails is
-economically dominant; above it, fine‑tuning may begin to recover its
-upfront cost through quality gain. {[}These are scenario estimates; the
-exact quality ratio and break‑even are workload‑ and domain‑specific and
-should be measured, not assumed.{]}
+{[}2°{]} DERIVED (illustrative --- not a reference measurement): for the
+canonical workload, a well‑designed RAG + guardrails pipeline
+\emph{approximately} matches a fine‑tuned model's answer quality on
+in‑domain queries. The economic comparison should be framed
+\textbf{parametrically}, not with a single number, because the
+break‑even depends on the quality uplift (domain‑specific) and the query
+volume (workload‑specific). The decision variable is the break‑even
+query volume \(Q^*\) where the annualized cost of fine‑tuning, divided
+by its quality advantage, crosses the RAG baseline:
 
-(to be verified) HYPOTHESIS: fine‑tuning a 70B model on 10K domain
-examples reduces TTFT by \textasciitilde5 ms (smaller effective model
-after pruning) but increases per‑request storage by \textasciitilde140
-GB (the full model weight set). The latency improvement is marginal
-relative to the RAG prefill cost (\textasciitilde1.08 s), and the TCO
-penalty is significant: illustratively, amortized training + storage
-adds \textasciitilde\$1.2M over 2 years at cloud GPU prices, versus
-\textasciitilde\$120k for the RAG‑only pipeline (retrieval CPU +
-generation GPU only). These are scenario estimates --- the exact numbers
-need benchmark validation against a target workload, not acceptance as
-fact.
+\[
+Q^*\; \propto\; \frac{C_\text{train} + C_\text{weights-extra}}{\Delta Q \cdot \text{value per corrected query}}
+\]
+
+where \(C_\text{train}\) is the one‑time training compute,
+\(C_\text{weights-extra}\) is the incremental storage/carry cost, and
+\(\Delta Q\) is the (domain‑specific, must‑be‑measured) quality uplift
+in corrected answers per query. Below \(Q^*\), RAG + guardrails is
+economically dominant because the fine‑tuning cost is spread over too
+few queries to be repaid; above it, fine‑tuning may recover its upfront
+cost through quality gain. {[}Scenario structure, not a single claimed
+break‑even volume; the exact \(C_\text{train}\),
+\(C_\text{weights-extra}\), and \(\Delta Q\) are workload‑ and
+domain‑specific and should be measured, not assumed.{]}
+
+{[}HYPOTHESIS, to be verified{]} Fine‑tuning does \textbf{not} make the
+model smaller --- pruning is a separate operation. A full fine‑tune
+keeps the \textasciitilde140 GB 70B weight set (and adds a checkpoint),
+while a LoRA adapter is tiny but does not change the live weight
+footprint. Consequently the latency effect of fine‑tuning is not
+``smaller effective model'' and cannot be assumed to cut TTFT; any TTFT
+change must be measured. The real cost changes are: (a) one‑time
+training compute, and (b) incremental storage, both against the RAG
+pipeline's prefill cost (\textasciitilde1.08 s, which dominates any
+plausible TTFT delta). Parametrically, fine‑tuning becomes worth it only
+when its annualized cost over \(Q\) queries is repaid by
+\(\Delta Q \cdot \text{value}\) --- this is exactly the \(Q^*\) above.
+The illustrative cloud‑GPU training cost is presented as a scenario
+range, not a fact, and must be benchmark‑validated against a target
+workload.
 
 \textbf{Takeaway:} For the canonical enterprise Q\&A RAG workload, the
 base‑model + RAG + guardrails paradigm is the economically preferred
@@ -406,12 +423,13 @@ dim is a sweet spot, but the quality drop‑off from 768 to 1024 dim
 varies by corpus genre (legal vs.~engineering vs.~creative), and no
 public study quantifies this domain‑dependence.
 
-(to be verified) HYPOTHESIS: the break‑even point between RAG +
+{[}HYPOTHESIS, to be verified{]} the break‑even point between RAG +
 guardrails and fine‑tuned models as a function of query volume and
-domain specialization is model‑dependent. The \textasciitilde500 Q‑A
-pairs per month rule of thumb is derived from a small set of case
-studies; more data points are needed before it can be stated as a
-general principle.
+domain specialization is \textbf{model‑ and domain‑dependent}: it is set
+by the \(Q^*\) equation above (training + storage cost over the quality
+uplift), not by a universal rule of thumb. Any quoted break‑even volume
+is a derived scenario value; more data points and a measured
+\(\Delta Q\) are needed before it can be stated as a general principle.
 
 (to be verified) HYPOTHESIS: guardrail latency (PII redaction, refusal
 checking) on generated 300‑token outputs adds 2--8 ms per request on
@@ -461,9 +479,8 @@ the architect can immediately check the consequences:
 \item
   The \textbf{base‑model + RAG + guardrails} paradigm is the
   economically preferred path at this volume: approximately the answer
-  quality of a fine‑tuned model at roughly \textasciitilde1/10th the
-  TCO, with an illustrative break‑even of \textasciitilde500 Q‑A
-  pairs/month (scenario estimates, not reference measurements) --- the
+  quality of a fine‑tuned model at about one‑tenth the TCO
+  (illustrative; see the parametric \(Q^*\) break‑even above), so the
   workload does not sustain the training amortization threshold.
 \end{itemize}
 
