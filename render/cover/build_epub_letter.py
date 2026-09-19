@@ -77,13 +77,40 @@ if not os.path.exists(cover_png) or os.path.getmtime(cover_svg) > os.path.getmti
                    check=False, capture_output=True)
 
 # ---- resolve figure paths to repo-root-relative (pandoc resource-path) ----
-# Rewrite 'figures/fig-N*.png' refs to 'design/manuscript/chapter-NN/figures/...'
+# Chapter MD references figures as 'figures/fig-NN-XXXX.png' relative to the
+# chapter file. Resolve to the real on-disk path so pandoc can embed them.
 content = open(assem_md, encoding="utf-8").read()
-def fix_fig(m):
-    return "(" + os.path.join("design", "manuscript", m.group(1), "figures", m.group(2)) + ")"
-content = re.sub(r'\(figures/(chapter-?\d+)/figures/(fig-[^)]+\.png)\)', fix_fig, content)
-content = re.sub(r'\(figures/(fig-[^)]+\.png)\)', lambda m: 
-    os.path.join("design", "manuscript", "appendix", "figures", m.group(1)), content)
+# Map each chapter's figure refs to its own chapter-NN/figures dir by tracking
+# the chapter we are currently inside.
+lines = content.split("\n")
+cur_dir = None
+out_lines = []
+for ln in lines:
+    # A chapter H1 like '# Chapter 19 — ...' or appendix
+    if ln.startswith("# "):
+        h = ln[2:]
+        # try to recover the chapter number
+        m = re.search(r"chapter[- ]?(\d+)", h.lower()) or re.search(r"^\s*(\d+)", h)
+        if m:
+            num = int(m.group(1))
+            if num == 27 or "appendix" in h.lower():
+                cur_dir = "appendix"
+            else:
+                cur_dir = "chapter-%02d" % num
+        else:
+            cur_dir = None
+    # rewrite bare 'figures/fig-...' refs to the chapter's real dir
+    if cur_dir:
+        ln = re.sub(r"\((figures/(fig-[^)]+\.png))\)",
+                    lambda m: "(" + os.path.join("design", "manuscript", cur_dir,
+                                                 "figures", m.group(2)) + ")",
+                    ln)
+    out_lines.append(ln)
+content = "\n".join(out_lines)
+# Fallback: any remaining bare figures/ refs (front-matter) -> appendix dir
+content = re.sub(r"\(figures/(fig-[^)]+\.png)\)",
+                 lambda m: os.path.join("design", "manuscript", "appendix", "figures", m.group(1)),
+                 content)
 assem_md2 = os.path.join(OUTDIR, "_book_reflowable.md")
 open(assem_md2, "w", encoding="utf-8").write(content)
 
