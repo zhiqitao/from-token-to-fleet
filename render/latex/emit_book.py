@@ -125,7 +125,12 @@ def emit_book():
     lines.append(r"}")
     lines.append(r"\documentclass[letterpaper,11pt,openany]{book}")
     lines.append(r"\usepackage{book}")
+    lines.append(r"\usepackage{pdfpages}")
     lines.append(r"\begin{document}")
+    lines.append("")
+    # Cover as full-bleed page 0: include the approved clean vector cover PDF
+    # first, so the deliverable opens on the cover and stays a single tagged build.
+    lines.append(r"\includepdf[pages=1,fitpaper=false,noautoscale=false]{../cover/cover_clean_front.pdf}")
     lines.append("")
     # title (custom typeset inline; \title/\subtitle/\maketitle are NOT used
     # because the custom \subtitle macro would typeset content immediately)
