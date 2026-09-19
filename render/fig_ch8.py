@@ -18,7 +18,7 @@ r200 = ridge(peak, bw200)   # ~206
 
 ais = np.logspace(-1, 3, 400)
 
-fig, ax = plt.subplots(figsize=(8, 5.6))
+fig, ax = plt.subplots(figsize=(6.5, 4.7))
 # H100 ridge (solid) and the compute plateau common to both
 ach100 = np.minimum(peak, ais * bw100)
 ach200 = np.minimum(peak, ais * bw200)
@@ -29,11 +29,13 @@ ax.axvline(r200, color='#c0392b', ls=':', lw=1.3)
 ax.text(r100, 260, f'ridge ≈ {r100:.0f}', fontsize=8, color='#27408b', ha='center')
 ax.text(r200*0.98, 5.5, f'ridge ≈ {r200:.0f}', fontsize=8, color='#c0392b', ha='center')
 
-# operating points: decode below ridge; prefill 9.2K batch=1 memory-bound, 32K/128K on plateau
+# operating points: decode below ridge (memory-bound, on the slope); prefill on the plateau (compute-bound).
+# Prefill intensity is set by sequence length (weights read once, reused across all tokens), so it is
+# well to the RIGHT of the ridge and sits on the compute-bound plateau -- never above the roofline.
 pts = [
-    ('prefill 9.2K (batch=1)', 1.5, 300, 'prefill'),
-    ('prefill 32K', 10, 989, 'prefill'),
-    ('prefill 128K', 45, 989, 'prefill'),
+    ('prefill 9.2K (batch=1)', 320, 989, 'prefill'),
+    ('prefill 32K', 480, 989, 'prefill'),
+    ('prefill 128K', 720, 989, 'prefill'),
     ('decode batch=1', 0.5, 1.7, 'decode'),
     ('decode batch=32', 8, 27, 'decode'),
 ]
@@ -45,25 +47,25 @@ for name, a, t, tag in pts:
 ax.annotate('', xy=(8, 27), xytext=(0.55, 1.75),
             arrowprops=dict(arrowstyle='->', lw=2.2, color='#27408b',
                             connectionstyle='arc3,rad=0.15'))
-ax.text(1.9, 4.2, 'Continuous Batching', fontsize=8.5, color='#27408b', fontweight='bold')
-ax.text(1.9, 3.0, 'decode batch=1 → batch=32\nraises arithmetic intensity, climbs the slope', fontsize=7.5, color='#27408b')
+ax.text(2.2, 0.62, 'Continuous Batching', fontsize=8.5, color='#27408b', fontweight='bold')
+ax.text(2.2, 0.48, 'raises arithmetic intensity,\nclimbs the slope', fontsize=7.5, color='#27408b')
 
-# annotations placed away from each other (labels below/left of points; drift text at bottom)
+# annotations placed away from the markers (offset the labels so they do not sit on the dots)
 ann = {
-    'prefill 9.2K (batch=1)': (0.16, 0.5),
-    'prefill 32K': (0.55, 0.42),
-    'prefill 128K': (1.7, 0.82),
-    'decode batch=1': (0.5, 0.9),
-    'decode batch=32': (2.6, 0.75),
+    'prefill 9.2K (batch=1)': (0.62, 0.80),
+    'prefill 32K': (0.62, 0.92),
+    'prefill 128K': (0.62, 1.02),
+    'decode batch=1': (0.48, 0.92),
+    'decode batch=32': (2.4, 0.78),
 }
 for name, a, t, tag in pts:
-    ax.text(a*ann[name][0], min(t, peak)*ann[name][1], name, fontsize=8.5, color=colors[tag])
+    ax.text(a*ann[name][0], min(t, peak)*ann[name][1], name, fontsize=8.5, color=colors[tag], ha='center')
 
 # drift arrow between the two on-plateau points (32K -> 128K), visible above the plateau
-ax.annotate('', xy=(45, 989*0.92), xytext=(9.5, 989*0.92),
+ax.annotate('', xy=(720, 989*0.90), xytext=(480, 989*0.90),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#6f9e5f', ls='--'))
-# drift explanation parked in the empty bottom-left (memory-bound), well clear of points
-ax.text(0.12, 0.12, 'longer context → prefill climbs the plateau\n(+60% @32K, ~2.4× @128K, Ch.8)',
+# point note parked in a clear area (upper-left, above the memory-bound slope, left of the plateau labels)
+ax.text(0.30, 0.05, 'prefill is compute-bound: it sits on the\nplateau (right of the ridge) and climbs it\nas context grows (+60% @32K, ~2.4× @128K)',
         fontsize=8, color='#6f9e5f')
 
 ax.set_xlabel('Arithmetic intensity (FLOP/byte)')

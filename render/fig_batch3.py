@@ -102,7 +102,9 @@ print('Ch18 done')
 # the Archify pipeline and checked in as fig-19-1901.{png,pdf}.
 
 # ---- Ch20: fleet QPS + p99 latency vs host count (Little-bound ~2.1 req/s/host; ILLUSTRATIVE) ----
-fig, axs = plt.subplots(1, 2, figsize=(11, 5))
+# Vertical 2-panel at column width so fonts print near-native (a horizontal 11in 2-panel
+# downscales to 6.5in, which would shrink fontsize 8-10.5 to ~4-5pt on the page).
+fig, axs = plt.subplots(2, 1, figsize=(6.5, 7.6))
 hosts = np.array([1, 2, 4, 8, 16, 30, 60])
 # honest: ch20 canonical ~2.1 req/s per 8xH100 host = KV/latency bound (18 concurrent / ~8.6 s)
 per_host = 2.1
@@ -110,23 +112,23 @@ qps = hosts * per_host
 ax = axs[0]
 ax.plot(hosts, qps, '-o', color='#3a6ea5', label='ideal linear (2.1 req/s/host)')
 ax.plot(hosts, qps*0.9, '--s', color='#c0392b', label='with scheduling overhead (~90%)')
-ax.set_xlabel('Host count')
-ax.set_ylabel('Fleet throughput (req/s)')
-ax.set_title('Throughput vs host count\n(KV/latency bound 2.1 req/s/host)', fontsize=10.5)
-ax.legend(fontsize=8)
+ax.set_xlabel('Host count', fontsize=10)
+ax.set_ylabel('Fleet throughput (req/s)', fontsize=10)
+ax.set_title('Throughput vs host count (KV/latency bound 2.1 req/s/host)', fontsize=10.5)
+ax.legend(fontsize=9)
 ax.grid(alpha=0.3)
+ax.tick_params(labelsize=9)
 # p99 in seconds (decode-dominated ~7.5 s); SLO-aware routing adds a queueing term
 ax = axs[1]
 lat = 7.5 + 0.4*hosts    # seconds-scale p99, grows mildly with queueing under load
 ax.plot(hosts, lat, '-o', color='#e67e22')
-ax.set_xlabel('Host count')
-ax.set_ylabel('P99 latency (s)')
-ax.set_title('P99 latency vs host count\n(decode-dominated)', fontsize=10.5)
+ax.set_xlabel('Host count', fontsize=10)
+ax.set_ylabel('P99 latency (s)', fontsize=10)
+ax.set_title('P99 latency vs host count (decode-dominated)', fontsize=10.5)
 ax.grid(alpha=0.3)
+ax.tick_params(labelsize=9)
 ax.axhline(7.5, color='#888', ls=':', lw=1)
-ax.text(1, 7.7, 'decode floor ~7.5 s (ILLUSTRATIVE)', fontsize=8, color='#555')
-ax.text(5.5, 9.6, 'p99 = model-execution floor + heuristic queueing term (0.4 s/host);\nnot a measured relationship — host count alone does not set p99\nwithout arrival process, scheduling, batching & queueing assumptions.',
-        fontsize=7.5, color='#555')
+ax.text(1, 7.75, 'decode floor ~7.5 s (ILLUSTRATIVE)', fontsize=8.5, color='#555')
 plt.tight_layout()
 plt.savefig(base % (20, 20, 20), dpi=150); plt.close()
 print('Ch20 done')
