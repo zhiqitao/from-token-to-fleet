@@ -3,7 +3,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-# ---- fig-07-0701: KV-cache size vs context length (70B-class) ----
+# ---- fig-07-0701: KV cache size vs context length (70B-class) ----
 ctx = np.array([1, 4, 9.2, 32, 128])  # K tokens
 # canonical (Ch. 7, Table 7-1): full-MHA teaching bound 2.62 MB/token ~2.5 MB/token
 # real LLaMA-2-70B-class GQA (8 KV heads): 2*80*8*128*2 B = 0.33 MB/token (8x smaller)
@@ -19,8 +19,8 @@ ax.plot(ctx, kv_gqa, '-^', color='#27408b', label='GQA FP16 (~0.33 MB/tok)')
 ax.plot(ctx, kv_gqa8, '-v', color='#6f9e5f', label='GQA FP8 (~0.17 MB/tok)')
 ax.set_xscale('log'); ax.set_yscale('log')
 ax.set_xlabel('Context length (K tokens)')
-ax.set_ylabel('KV-cache size (GB)')
-ax.set_title('KV-cache size vs context — 70B-class model')
+ax.set_ylabel('KV cache size (GB)')
+ax.set_title('KV cache size vs context — 70B-class model')
 # KV budget ceiling: 640 total - 140 weights - ~64 runtime/NCCL = ~436 GB usable KV
 ax.axhline(640, color='#7f8c8d', ls=':', lw=1, label='8×H100 raw (640 GB)')
 ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB (640 − 140 w − 64 rt)')

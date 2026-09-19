@@ -8,7 +8,7 @@ Before we can size a model, a context window, or a serving budget, we have to kn
 
 A **token** is the atomic unit of text that a language model reads and writes. It is not a word, not a character, and not a byte — it is whatever the model's *tokenizer* decided to carve the text into. A single token can be a whole word (`handbook`), a common subword (`hand`), a single character, a short punctuation+space pair, or in worst cases a fragment of a character.
 
-The disconnection from human units is the first thing an architect has to internalize: **cost and capacity in an LLM are measured in tokens, not words or characters**, because every model operation — embedding lookup, attention arithmetic, KV-cache memory, decode time — prices by token. This chapter exists to make that switch automatic.
+The disconnection from human units is the first thing an architect has to internalize: **cost and capacity in an LLM are measured in tokens, not words or characters**, because every model operation — embedding lookup, attention arithmetic, KV cache memory, decode time — prices by token. This chapter exists to make that switch automatic.
 
 ### Tokenization
 
@@ -30,7 +30,7 @@ Attention is the mechanism by which each token's representation is recomputed as
 
 The architect-relevant fact: attention's cost scales **quadratically with context length** in the full-attention regime — the number of input×output position pairs grows as `L²`. That quadratic term is the single biggest reason context windows feel expensive, and it is the pivot for every optimization downstream (sparse/linear attention, KV caching, retrieval to keep context short).
 
-One precision matters before the mental model hardens: the `L²` term is a **prefill** cost — it describes computing attention across all position pairs in one pass over the full input. During **decode**, each generated token attends once to the growing prefix, so the per-token step is a *linear* cost in context length, and the length shows up as a *growing KV-cache memory footprint* (per-token key/values) rather than as per-step compute. The practical read is therefore *"long context is quadratic in prefill compute, and linear-but-memory-growing in decode"* — a distinction as important as the quadratic fact itself, and one we return to in Chapter 2 (compute gears), Chapter 7 (memory arithmetic) and Chapter 8 (roofline). Keeping prefill and decode separate is what prevents the over-simple "long context = quadratic inference" once we optimize context in later chapters.
+One precision matters before the mental model hardens: the `L²` term is a **prefill** cost — it describes computing attention across all position pairs in one pass over the full input. During **decode**, each generated token attends once to the growing prefix, so the per-token step is a *linear* cost in context length, and the length shows up as a *growing KV cache memory footprint* (per-token key/values) rather than as per-step compute. The practical read is therefore *"long context is quadratic in prefill compute, and linear-but-memory-growing in decode"* — a distinction as important as the quadratic fact itself, and one we return to in Chapter 2 (compute gears), Chapter 7 (memory arithmetic) and Chapter 8 (roofline). Keeping prefill and decode separate is what prevents the over-simple "long context = quadratic inference" once we optimize context in later chapters.
 
 One architectural consequence to hold now: *which layers emit a per-token cache is a property of the attention architecture*, not the context length alone — dense attention emits a key/value per token on every layer, while hybrid/linear-attention layers (Mamba-style state, compressed latent attention) hold a state that does not grow with length. This is why "the KV problem" and its fixes are really a *model-architecture* question (Ch. 3) that lands as a *memory* question (Ch. 7) — and why the token layer is the right place to have met it. We only need the concept here; the mechanism inventory is Chapter 3's, the arithmetic Chapter 7's.
 
@@ -95,7 +95,7 @@ For this concept chapter, measurement is about **counting tokens correctly**, be
 
 1. **Actual token count, not the rule of thumb.** Run the model's *own tokenizer* on representative prompts. The "4 chars ≈ 1 token" heuristic is for estimation only; real counts differ by language, formatting, code, and tokenizer version.
 2. **Input vs output split.** Measure both legs of the request (prompt tokens and generated tokens), because they land on different bottlenecks — input on memory/prefill, output on decode — and on different cost line items.
-3. **Peak vs average context.** Log the distribution of context lengths, not just the mean. A workload that averages 9.2K input tokens but peaks far higher (illustrative variant, say 32K) has a very different KV-cache and latency profile.
+3. **Peak vs average context.** Log the distribution of context lengths, not just the mean. A workload that averages 9.2K input tokens but peaks far higher (illustrative variant, say 32K) has a very different KV cache and latency profile.
 
 This measurement habit is the token-layer answer to the book's recurring question, "what would I actually measure here?" — we measure token counts and their distribution, at the edge, before any architecture decision is made.
 

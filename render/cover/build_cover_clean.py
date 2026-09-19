@@ -93,7 +93,7 @@ TPL = """<!DOCTYPE html>
   <div class="panel back">
     <div class="bcontent">
       <div class="btitle">FROM TOKEN<br>TO <span class="spark">FLEET</span></div>
-      <div class="bsub">The AI Solution Architect's Handbook</div>
+      <div class="bsub">An AI Solution Architect's Handbook</div>
       <div class="blurb">From a single token's cost to a fleet of specialised models,
       this book traces how to reason about, build, and operate production AI systems.
       It moves from the economics of one token through parallelism, memory, and

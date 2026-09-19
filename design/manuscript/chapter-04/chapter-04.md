@@ -77,7 +77,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | KV precision | FP16 (2.62 MB/token → ~24.1 GB @ 9.2K) |
 > | TTFT SLO | 1.2 s (retrieval ~120 ms + prefill ~1.08 s); p95 ≤ 2 s |
 > | TPOT SLO | 25 ms/token; p95 ≤ 35 ms |
-> | Hardware | 8 × H100 (80 GB each, 640 GB) |
+> | Hardware | 8×H100 (80 GB each, 640 GB) |
 > | Compute price | $2.50/GPU-hr (illustrative 2026 input) → ~$20/hr per 8×H100 host |
 > | Availability | 99.9% |
 > | Monthly budget | ~$15,000 (illustrative ceiling) |
@@ -87,6 +87,8 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 #### Table 4-3 — Canonical-scenario provenance (the single reference set)
 
 Every quantity below is either an assumed workload input, a vendor fact, a modeled result, or a dated price snapshot. This is the authority for which is which; chapters refer back to it rather than restating provenance each time.
+
+> **CANONICAL TEACHING MODEL — deliberately conservative full-MHA baseline.** The 70B dense **full-MHA** model (every query attends to every key) is a *teaching/reference* model, not a representative 2026 production 70B architecture. Modern production serving candidates use GQA/MQA and sparse attention, which shrink the KV constant several-fold (Ch 7); the ~2.62 MB/token figure is an upper bound for pedagogical clarity, and the frontier appendix (Appendix A) is the deliberate relaxation — not a correction — of this deliberately pessimistic baseline. Treating it as a property of *70B models in general* understates 2026 production KV efficiency.
 
 | Quantity | Value | Status |
 |:--|:--|:--|
@@ -100,11 +102,11 @@ Every quantity below is either an assumed workload input, a vendor fact, a model
 | KV per token (FP16, MHA) | 2.62 MB | [2°][DERIVED] from the general KV formula, MHA case |
 | KV per token (FP8, vLLM ~54%) | 1.42 MB | [1P][FACT] vLLM-measured |
 | H100 HBM per GPU | 80 GB | [1P][FACT] vendor |
-| H100 BF16 peak | ~0.989 PFLOPS | [1P][FACT] vendor |
+| H100 BF16 peak (dense, no sparsity) | ~0.989 PFLOPS | [1P][FACT] vendor |
 | Retrieval latency | 120 ms | [ILLUSTRATIVE][ASSUMPTION] |
 | Prefill latency (TTFT) | 1.08 s | [2°][DERIVED]/benchmark assumption |
 | Decode (TPOT) | 25 ms/token | [2°][DERIVED]/benchmark assumption |
-| Host price (8xH100, on-demand) | ~$20/hr | [ILLUSTRATIVE] dated price snapshot |
+| Host price (8×H100, on-demand) | ~$20/hr | [ILLUSTRATIVE] dated price snapshot |
 
 #### Arithmetic Walk‑Through: From Users to Requests per Second
 
@@ -134,7 +136,12 @@ This matches the canonical peak of ~40 rps.
 
 The derivation is explicit: the "~5% concurrently active" and "~10 rps average" are not independently asserted; they are linked by the 10 s average request duration. Change any one number and the others shift accordingly. This is the purpose of the exercise — not to produce a fixed set of gospel numbers, but to establish *how* the numbers connect, so the architect can recompute them when the requirement changes.
 
-Before moving on, it is worth naming the four distinct quantities so they are not collapsed: **registered users** are the population; **concurrent users** are the activity state (those in flight at a moment); **arrival rate** (λ) is requests per unit time; and **service time** (W) is the end-to-end duration of a request. They are related by Little's Law, C = λW, but the architect must *estimate or measure* concurrency, arrival rate, and service time — none is a fixed property of the workload. The "5% active" and "10 s duration" are deliberately simple scenario assumptions ([ILLUSTRATIVE]), not externally verified facts; in a real engagement the architect replaces them with observed concurrency, measured latency, and a burst profile from telemetry. Getting this separation right is what turns traffic modeling from a guess into a reproducible arithmetic.
+Before moving on, it is worth naming the four distinct quantities so they are not collapsed: **registered users** are the population; **concurrent users** are the activity state (those in flight at a moment); **arrival rate** (λ) is requests per unit time; and **service time** (W) is the end-to-end duration of a request. They are related by Little's Law, C = λW, but the architect must *estimate or measure* concurrency, arrival rate, and service time — none is a fixed property of the workload. Two further separations matter for KV planning and are easy to collapse, so we hold them apart here too:
+
+- **Concurrent *users* ≠ concurrent *requests*.** A user who opens two tabs or fires a fresh retrieval before the last completes issues more than one request; conversely a burst of users does not each hold a request simultaneously. "100 concurrent users" is a statement about the *population's activity*, not about how many requests are in flight at the scheduler at any instant. The two coincide only under a single-request-per-active-user assumption, and that assumption should be stated, not inherited.
+- **Requests *in flight* ≠ KV-resident sequences.** A request in the queue, or one whose prefill is not yet admitted, is "in flight" from the user's perspective but does not yet hold a KV slot. In-flight concurrency upper-bounds the KV-concurrency the system must serve, but the KV budget is sized by the number of *resident active sequences* — which is what the concurrency ceilings in Ch 17 count. Little's Law gives the in-flight number; the KV budget is a separate, residency-side quantity obtained by multiplying the resident sequence count by per-token KV. Keeping these three apart (in flight vs resident vs per-token KV) is what prevents the "100 users → 100 KV slots" leap.
+
+The "5% active" and "10 s duration" are deliberately simple scenario assumptions ([ILLUSTRATIVE]), not externally verified facts; in a real engagement the architect replaces them with observed concurrency, measured latency, and a burst profile from telemetry. Getting this separation right is what turns traffic modeling from a guess into a reproducible arithmetic.
 
 #### Token Profile in Detail
 
@@ -160,7 +167,7 @@ These budgets are [ILLUSTRATIVE][DERIVED] from typical enterprise Q&A user expec
 
 The economic dimension translates the token profile and traffic into a cost structure:
 
-- **Infrastructure**: A single host with 8 ×H100 GPUs (640 GB total GPU memory, 140 GB model FP16 weights fit with room for KV cache). Capital cost ≈ $20/hour on-demand ($2.50/GPU-hr), or ~$2,500/month reserved (illustrative) — the canonical box uses the on-demand basis.
+- **Infrastructure**: A single host with 8×H100 GPUs (640 GB total GPU memory, 140 GB model FP16 weights fit with room for KV cache). Capital cost ≈ $20/hour on-demand ($2.50/GPU-hr), or ~$2,500/month reserved (illustrative) — the canonical box uses the on-demand basis.
 - **Token pricing**: ~$1.20 per million input tokens, ~$2.00 per million output tokens on the same H100 instance (derived from cloud provider pricing as of 2026).
 - **Throughput per dollar**: At 10 rps average, the system processes ~92,000 input tokens/s + ~3,000 output tokens/s. Dividing by the $20/hour infrastructure cost (≈ $0.0056 per second) yields ~16,500 input tokens/s per dollar and ~540 output tokens/s per dollar. These (derived — verify the input) numbers are the economics framing the canonical scenario. (Chapter 5 expresses the same economics on a GPU list-price basis as **tokens per dollar-hour**; see its unit-reconciliation note before cross-chapter comparison.)
 - **Cost per request**: At 10 rps, each request carries ~9,500 tokens (9,200 input + 300 output). At the per‑million rates, cost per request ≈ ($1.20 ×9.2 + $2.00 ×0.3) / 1,000 ≈ $0.015 per request per inference cycle. At 40 rps peak, cost scales linearly.
@@ -198,7 +205,7 @@ The six‑dimension characterization directly dictates the architectural path fo
 
 <!-- Figure spec: mechanism-first diagram; one labeled axis per dimension, each arrow ending at its architectural consequence. -->
 
-- **Model selection**: A 70B FP16 dense model (140 GB weights) fits on a single host with 8 ×H100 (640 GB GPU memory). The model is large enough to answer factual enterprise questions without fine‑tuning, but the 140 GB footprint means KV cache for 9.2 K context adds ~20–30 GB of GPU memory per request at peak, leaving headroom but not abundance.
+- **Model selection**: A 70B FP16 dense model (140 GB weights) fits on a single host with 8×H100 (640 GB GPU memory). The model is large enough to answer factual enterprise questions without fine‑tuning, but the 140 GB footprint means KV cache for 9.2 K context adds ~20–30 GB of GPU memory per request at peak, leaving headroom but not abundance.
 - **Serving configuration**: One host is the baseline. Continuous batching (e.g. vLLM) is nearly mandatory to achieve the 1.2 s TTFT budget under 10 rps input‑heavy traffic; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s. The input‑heavy token profile (30× more input than output) makes continuous batching especially effective, as many requests share the same prefix from retrieved context.
 - **Memory planning**: KV cache for 9.2 K context on the canonical model — a 70B **full-MHA reference model** (every query head has its own K,V, so K/V width = hidden_dim = 8192) — is 2 × layers × hidden × bytes = 2,621,440 B ≈ 2.62 MB/token (Chapter 7), giving ≈9,200 ×2.62 MB ≈ 24.1 GB of initial KV per request. This is the MHA upper-bound baseline; a GQA model (8 KV heads, d_head=128) would carry only ~0.33 MB/token, ~8× less (Ch 7). At 10 concurrent full-context requests the MHA figure is ~241 GB of KV on top of the 140 GB weights — pressing against the 640 GB pool well before concurrency reaches 100. The architecture must therefore limit concurrency, quantize KV (FP8 → ~1.42 MB/token, ~13.4 GB/request at the 9.5K max), or use a GQA architecture. This is the same KV-residency discipline developed fully in Chapters 7 and 17.
 - **Economic feasibility**: At ~$3.50/hour per host and ~$0.015 per request, the TCO is driven by the 9.2 K input tokens per request. If the input token count could be reduced to 2 K (e.g. via better retrieval or query expansion), cost per request drops to ~$0.004, and the same traffic fits within a much lower budget. This is the lever the architect pulls when TCO is the binding constraint.

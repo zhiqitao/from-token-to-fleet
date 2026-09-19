@@ -10,7 +10,7 @@ Benchmarking fails most often because the wrong benchmark is used for the wrong 
 
 1. **Capability benchmarks** — measure the model's output quality on standardized tasks (MMLU, GSM8K, HumanEval, MT-Bench, retrieval-QA suites). They answer: *is this model good enough at the skill our workload needs?* They do NOT tell us how fast, how cheap, or how it behaves under our traffic — model capability is the goal (Ch4's Quality dimension), never the bottleneck.
 
-2. **Deployment benchmarks** — measure the *system's* behavior on a representative workload: TTFT, TPOT, throughput, goodput, KV-cache utilization, cost per request. They answer: *does this model-on-this-hardware meet the SLO at our traffic and token profile?* These are the numbers that actually pick the architecture.
+2. **Deployment benchmarks** — measure the *system's* behavior on a representative workload: TTFT, TPOT, throughput, goodput, KV cache utilization, cost per request. They answer: *does this model-on-this-hardware meet the SLO at our traffic and token profile?* These are the numbers that actually pick the architecture.
 
 The core insight: **a capability leaderboard is a poor proxy for serving performance.** Two models with identical MMLU can differ wildly in TTFT under the same batching, because serving depends on tokenizer, context length, KV layout, and scheduler — none of which a leaderboard scores. Benchmarks select models only after capability filters and deployment measurement both pass.
 
@@ -36,7 +36,7 @@ We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (c
 - **TTFT** p50/p95/p99 (must be ≤ 1.2 s median, ≤ 2 s p95).
 - **TPOT** p50/p95 (≤ ~25 ms median).
 - **Goodput** — tokens/s that meet the SLO (Ch6), not raw throughput.
-- **KV-cache utilization** and prefix-cache hit ratio (to validate the serving choices of Ch11).
+- **KV cache utilization** and prefix-cache hit ratio (to validate the serving choices of Ch11).
 
 **Step 3 — read the result.** Suppose candidate A (a 70B dense on 8×H100) shows p95 TTFT 1.9 s and goodput 9,800 tok/s at 40 rps concurrency — **meets** the canonical SLO. Candidate B (a smaller 7B) shows 0.6 s TTFT — much faster — but scores lower on the capability screen for the retrieval-QA quality threshold. We therefore *select* A for deployment (capability + deployment both pass), not B (capability fails despite speed). The benchmark did not score one number; it reproduced the decision. [ILLUSTRATIVE][DERIVED]
 

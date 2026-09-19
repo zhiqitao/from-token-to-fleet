@@ -20,7 +20,7 @@ The mental model for fleet optimization replaces the single-host query pipeline 
 
 The scheduler's decisions have direct impact on the tail of the latency distribution. Poor placement can cause some hosts to saturate while others remain underutilized, inflating the 99th-percentile latency even when aggregate throughput is ample. Conversely, intelligent scheduling—such as consistent hashing for session affinity or predictive placement based on historical patterns—keeps utilization flat across the fleet and minimizes tail latency.
 
-A critical assumption in this model is that the workload follows a known arrival process. For the canonical scenario described here: ~2,000 users, ~5% concurrent, generating ~10 rps average and ~40 rps peak. With ~9,200 in-tokens and ~300 out-tokens per query, and a 70B dense FP16 model running on 8x H100 (640 GB total HBM3), the fleet must sustain roughly 40 concurrent queries at peak, each requiring a full forward pass through the model.
+A critical assumption in this model is that the workload follows a known arrival process. For the canonical scenario described here: ~2,000 users, ~5% concurrent, generating ~10 rps average and ~40 rps peak. With ~9,200 in-tokens and ~300 out-tokens per query, and a 70B dense FP16 model running on 8×H100 (640 GB total HBM3), the fleet must sustain roughly 40 concurrent queries at peak, each requiring a full forward pass through the model.
 
 ## 3. Worked Example
 
@@ -99,7 +99,7 @@ Several open questions remain at the fleet level:
 
 ## 8. End-of-Chapter Mini-Case
 
-**Scenario**: A RAG Q&A fleet serves 2,000 users with the canonical parameters: 5% concurrent, 10 rps average / 40 rps peak, ~9,200 in-tokens + ~300 out-tokens per query, 70B dense FP16 model, 8x H100 per host, 8 hosts total.
+**Scenario**: A RAG Q&A fleet serves 2,000 users with the canonical parameters: 5% concurrent, 10 rps average / 40 rps peak, ~9,200 in-tokens + ~300 out-tokens per query, 70B dense FP16 model, 8×H100 per host, 8 hosts total.
 
 **Question**: What is the fleet's aggregate QPS capacity at batch size 4, and what is the marginal cost per QPS when scaling from 8 to 16 hosts? Is an end-to-end 99th-percentile latency under 100 ms even feasible for this workload — and if not, what can the scheduler bound?
 

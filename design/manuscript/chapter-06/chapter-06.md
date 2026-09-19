@@ -14,7 +14,7 @@ Not all numbers are equal. We organize serving telemetry into three layers, each
 
 2. **Serving metrics** — how *well* the system performs under that workload. Time-to-first-token (TTFT), time-per-output-token (TPOT), inter-token latency, and **goodput** (tokens produced that actually meet the SLO). These are the dependent variables; they are what the SLO is written against.
 
-3. **Resource metrics** — *why* performance is what it is. HBM bandwidth utilization, FLOP utilization / model FLOPs utilization (MFU), KV-cache occupancy, memory pressure, and queue depth. These reveal the binding constraint.
+3. **Resource metrics** — *why* performance is what it is. HBM bandwidth utilization, FLOP utilization / model FLOPs utilization (MFU), KV cache occupancy, memory pressure, and queue depth. These reveal the binding constraint.
 
 The discipline this chapter works toward: **never jump from a workload metric straight to a serving metric, or a serving metric straight to a hardware conclusion.** The causal direction is *workload → resource demand → serving behavior* (the workload's token profile drives the resource demand; the resource supply shapes how the model behaves). Diagnosis runs the other way: a slow response (serving) is diagnosed by asking whether the kernel is bandwidth- or compute-bound (resource), which is only meaningful given the token profile (workload). Skipping a layer produces superstition — "it's slow, let's buy GPUs" — instead of a mechanism.
 
@@ -81,13 +81,13 @@ At the resource layer, the tell is utilization: a decode kernel pinned at ~95% o
 
 ### Reading Telemetry Into a Decision
 
-A concrete dashboard-read → decision trace. We see: p95 TTFT climbing (serving), KV-cache hit ratio low (resource: memory), and prefill queue depth growing (serving). Workload is unchanged. Reading up the chain: low prefix-cache hit means many independent 9.2K prefixes are being prefill-processed from scratch on the ~40 rps peak — each ~1.29 PFLOP saturating FLOPs. The decision: enable prefix / RadixAttention-style caching (SGLang) or Automatic Prefix Caching (vLLM) so shared retrieved-context prefixes are reused instead of re-prefilled, cutting effective prefill FLOPs and TTFT. [S3][1P] Prefix caching is a compute-saving move, not a latency tuning — and the telemetry told us that.
+A concrete dashboard-read → decision trace. We see: p95 TTFT climbing (serving), KV cache hit ratio low (resource: memory), and prefill queue depth growing (serving). Workload is unchanged. Reading up the chain: low prefix-cache hit means many independent 9.2K prefixes are being prefill-processed from scratch on the ~40 rps peak — each ~1.29 PFLOP saturating FLOPs. The decision: enable prefix / RadixAttention-style caching (SGLang) or Automatic Prefix Caching (vLLM) so shared retrieved-context prefixes are reused instead of re-prefilled, cutting effective prefill FLOPs and TTFT. [S3][1P] Prefix caching is a compute-saving move, not a latency tuning — and the telemetry told us that.
 
 ## 4. Measurement
 
 Three practical habits anchor the architect:
 
-1. **Instrument the hierarchy, not just the app.** Deploy counters at all three layers from day one — rps and token profile (workload); TTFT/TPOT/goodput percentiles (serving); HBM bandwidth, FLOP/MFU, KV-cache occupancy, queue depth (resource). A system that only logs serving metrics cannot tell *why*; one that only logs resource metrics cannot tell *what it was asked*.
+1. **Instrument the hierarchy, not just the app.** Deploy counters at all three layers from day one — rps and token profile (workload); TTFT/TPOT/goodput percentiles (serving); HBM bandwidth, FLOP/MFU, KV cache occupancy, queue depth (resource). A system that only logs serving metrics cannot tell *why*; one that only logs resource metrics cannot tell *what it was asked*.
 
 2. **Always qualify "throughput."** rps ≠ tokens/s ≠ goodput. The same number, three stories. State the SLO window (p95 ≤ 2 s TTFT) before quoting any rate, or the rate is meaningless.
 
@@ -109,7 +109,7 @@ The metric hierarchy directly dictates architecture. For the canonical workload:
 
 - **Bandwidth-bound decode + compute-bound prefill ⇒ consider P/D disaggregation** (Splitwise/DistServe/Mooncake) at scale, because squeezing both regimes from one resource pool fights itself. [S4][1P]
 - **Repeat-prefix RAG ⇒ enable prefix caching** (RadixAttention/APC), which turns repeated 9.2K prefills into cached lookups and defends the p95 TTFT against the 40 rps peaks. [S3][1P]
-- **KV-cache pressure ⇒ quantize or offload KV.** FP8 KV is ≈54% of BF16 [S6][1P], and vLLM KV-offloading cuts TTFT by 2–22× [S6][1P] — both are memory-layer fixes the telemetry would call for when KV occupancy nears capacity.
+- **KV cache pressure ⇒ quantize or offload KV.** FP8 KV is ≈54% of BF16 [S6][1P], and vLLM KV-offloading cuts TTFT by 2–22× [S6][1P] — both are memory-layer fixes the telemetry would call for when KV occupancy nears capacity.
 - **Speculative decoding where decode bandwidth is the wall** — DFlash *reports* over 6× lossless acceleration, up to 2.5× over EAGLE-3, in its paper's evaluated configurations [S5][1P] — because it reduces weight reads per accepted token. These are paper-reported results, not portable serving-speed figures: treat them as performance claims to re-measure on the target workload, not as a guaranteed speedup.
 
 <!-- Figure spec: mechanism-first diagram; three stacked layers labeled Workload/Serving/Resource, arrows showing read-order on diagnostics. -->
@@ -122,4 +122,4 @@ The metric hierarchy directly dictates architecture. For the canonical workload:
 
 ## 8. End-of-Chapter Mini-Case
 
-An on-call architect is paged: "the internal Q&A tool got slow after lunch." The dashboard shows rps at the ~40 rps peak (workload, up from the 10 rps baseline), p95 TTFT at 2.4 s against a 2 s SLO (serving, breached), and KV-cache occupancy at 85% with low prefix-hit ratio (resource, memory/FLOP pressure). Following the chain rather than guessing, the architect reads: a concurrency spike (workload) with repeated full 9.2K prefills (low prefix hit) is saturating prefill FLOPs (compute-bound). The architecture is memory- and compute-sane at the 10 rps design point but was never sized for the lunch peak. The fix is not "buy GPUs immediately" — it is to enable prefix caching to collapse the repeated prefills, which the telemetry shows will address the actual mechanism. The architect re-checks the dashboard an hour later: p95 TTFT back under 2 s, goodput restored — because they measured the right thing at the right layer.
+An on-call architect is paged: "the internal Q&A tool got slow after lunch." The dashboard shows rps at the ~40 rps peak (workload, up from the 10 rps baseline), p95 TTFT at 2.4 s against a 2 s SLO (serving, breached), and KV cache occupancy at 85% with low prefix-hit ratio (resource, memory/FLOP pressure). Following the chain rather than guessing, the architect reads: a concurrency spike (workload) with repeated full 9.2K prefills (low prefix hit) is saturating prefill FLOPs (compute-bound). The architecture is memory- and compute-sane at the 10 rps design point but was never sized for the lunch peak. The fix is not "buy GPUs immediately" — it is to enable prefix caching to collapse the repeated prefills, which the telemetry shows will address the actual mechanism. The architect re-checks the dashboard an hour later: p95 TTFT back under 2 s, goodput restored — because they measured the right thing at the right layer.

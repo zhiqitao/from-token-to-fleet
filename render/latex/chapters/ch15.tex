@@ -5,7 +5,7 @@ absorb the day-to-day traffic of a growing user base while delivering
 acceptable latency. The core question: how do we configure an 8×H100
 host to serve a 70B parameter model at 40 requests-per-second peak while
 keeping per-request latency within a target budget, and what
-architectural knobs---batch size, KV-cache design, kernel choice---most
+architectural knobs---batch size, KV cache design, kernel choice---most
 affect that outcome? This chapter walks through the
 performance-engineering lifecycle: from concept, to mental model, to
 worked arithmetic, to measurement, to common pitfalls, to architectural
@@ -19,7 +19,7 @@ compute, memory, and I/O throughput to the stochastic workload of token
 generation and prompt processing. Unlike traditional web serving, where
 request‑cycle overhead dominates the tail, the dominant cost in LLM
 inference is the arithmetic intensity of transformer matrix
-multiplications and the memory bandwidth consumed by KV-cache reads and
+multiplications and the memory bandwidth consumed by KV cache reads and
 writes on every token step. The serving system must therefore optimize
 three inter‑dependent quantities: token throughput (tokens/s), per-token
 latency, and GPU memory utilization. These are governed by the model
@@ -38,14 +38,14 @@ shapes every later architectural decision.
 \section{Mental Model}\label{mental-model}
 
 We model the serving pipeline as a sequence of stages: (1) prompt
-encoding, (2) autoregressive generation, (3) KV-cache management, and
+encoding, (2) autoregressive generation, (3) KV cache management, and
 (4) output decoding. Each stage has a resource ceiling: compute‑bound
 stages are limited by TFLOPS, memory‑bound stages by GB/s of GPU HBM
 bandwidth. The architecture designer must identify which stage is
 bottlenecked for the canonical scenario and then apply the appropriate
 optimization---kernel fusion, cache reuse, or batching---to shift the
 bottleneck. The mental model also emphasizes the role of token reuse:
-when many users share similar prompt prefixes, the KV-cache can be
+when many users share similar prompt prefixes, the KV cache can be
 partially shared, reducing memory traffic. This reuse effect is
 difficult to quantify without workload profiling, but it is a
 first‑order consideration in multi‑tenant serving. The model also
@@ -78,7 +78,7 @@ heavily compute-bound while decode is bandwidth-bound (\hyperref[chap:8]{Chapter
 FP16 transformer needs ≈2 ×70×10⁹ FLOPs per generated token. The
 instantaneous prefill compute demand is 368,000 ×2 × 70×10⁹ ≈ 5.15 ×10¹⁶
 FLOPs/s, against a theoretical FP16-dense peak of 8 ×989 TFLOPS = 7.91
-×10¹⁵ FLOPs/s for the 8 ×H100 host (989 TFLOPS per GPU, \hyperref[chap:8]{Chapter 8}
+×10¹⁵ FLOPs/s for the 8×H100 host (989 TFLOPS per GPU, \hyperref[chap:8]{Chapter 8}
 canonical). Taken naively this ratio is \textasciitilde6.5× --- a demand
 that \emph{exceeds} a single host's peak. That is a legitimate and
 important architectural signal: a single 8×H100 host cannot prefill the
@@ -107,16 +107,16 @@ constrained, and maximum concurrency is constrained by KV residency,
 each from arithmetic intensity and the roofline (\hyperref[chap:8]{Chapter 8}), not from an
 impossible ``MFU \textgreater{} 1.''
 
-\emph{KV-cache memory footprint:} The KV cache grows linearly with
+\emph{KV cache memory footprint:} The KV cache grows linearly with
 cached context and layers; it must never be computed per-layer and then
 treated as the whole-model total. For the canonical 70B model (80
 layers, hidden dimension 8,192, full-MHA), the per-token footprint
 across ALL layers is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 =
 2,621,440 B ≈ 2.62 MB/token (2.5 MiB; canonical value from \hyperref[chap:7]{Chapter 7})
 --- not the 32 KB that a single-layer calculation would suggest. For a
-9,500-token context, one user's KV-cache is therefore ≈9,500 ×2.62 MB ≈
+9,500-token context, one user's KV cache is therefore ≈9,500 ×2.62 MB ≈
 24.9 GB, not \textasciitilde304 MB. Across 100 concurrent users, total
-KV-cache ≈2,490 GB --- which \textbf{does not} fit in the 640 GB GPU
+KV cache ≈2,490 GB --- which \textbf{does not} fit in the 640 GB GPU
 pool; using the canonical practical KV budget (640 GB − 140 GB weights −
 \textasciitilde64 GB runtime/workspace ≈ 436 GB), only ≈18 concurrent
 9,500-token users fit on-host for KV (436 GB ÷ 24.9 GB), before also
@@ -156,9 +156,9 @@ than batch‑size tuning.
 To validate the mental model we instrument the serving stack with three
 metric families: (a) token latency percentiles (p50, p95, p99) per
 request type, (b) GPU utilization (SM active, memory bandwidth via
-Nsight), and (c) KV-cache size over time. A minimal benchmark runs 40
+Nsight), and (c) KV cache size over time. A minimal benchmark runs 40
 rps with warm‑up, records the p95 token latency, and measures the GPU
-memory fraction consumed by KV-cache. Repeating with different batch
+memory fraction consumed by KV cache. Repeating with different batch
 sizes (1, 4, 16, 32) reveals the throughput‑latency knee. The
 \emph{illustrative} numbers below are scenario values to be measured on
 the target stack, not vendor or published figures: beyond batch‑4 the
@@ -199,7 +199,7 @@ batch‑size‑driven arithmetic gain against tail‑latency penalty. A
 practical illustrative rule of thumb: choose the smallest batch size
 that keeps MFU above \textasciitilde25\,\% while keeping p95 latency
 under the SLA target (the 25\,\% threshold and the knee are scenario
-values --- measure them on the target workload). \emph{Ignoring KV-cache
+values --- measure them on the target workload). \emph{Ignoring KV cache
 growth:} A 70B model with 9,500‑token contexts consumes ≈24.9 GB of KV
 per user (≈2.62 MB/token × 9,500, max end-of-generation). Without cache
 eviction, compression, or a concurrency cap, even \textasciitilde18
@@ -210,18 +210,21 @@ or KV compression (FP8/8-bit). Designers should implement length‑based
 eviction (drop the oldest/least‑recently‑used contexts) and KV
 quantization to cut the footprint (FP8 ≈2.5→1.3 MB/token). \emph{Using
 scaled‑dot‑product attention without FlashAttention:} For long contexts
-(9,200+ tokens) the quadratic memory cost of SDPA (O(L²)) dwarfs the
+(9,200+ tokens) the quadratic memory cost of SDPA (O(L²)) dominates the
 FLOP cost. FlashAttention fuses read‑write‑compute and reduces HBM
 traffic by \textasciitilde3--5×, raising effective arithmetic intensity.
-A corollary mistake is assuming that FlashAttention benefits only long
-contexts; for moderate lengths (2,000--4,000 tokens) the HBM bandwidth
-reduction typically translates to a \textasciitilde1.3--1.8× throughput
-gain on H100 (illustrative --- bench the specific kernel on the target
-hardware). \emph{Neglecting kernel launch overhead:} In dynamic‑batching
-setups, each new token generation can trigger a kernel launch. Without
-continuous batching or token‑level fusion, the kernel-launch overhead
-(illustratively \textasciitilde10--20\,\% of GPU time on H100-class
-parts at this traffic) can artificially depress measured MFU.
+This is one of the highest-impact \emph{kernel-level} choices (it sits
+among prefix caching, KV-precision, batching, and P/D disaggregation as
+a major lever, not the single deciding one), and it pays off
+specifically when memory-bound; for moderate lengths (2,000--4,000
+tokens) the HBM bandwidth reduction typically translates to a
+\textasciitilde1.3--1.8× throughput gain on H100 (illustrative --- bench
+the specific kernel on the target hardware). \emph{Neglecting kernel
+launch overhead:} In dynamic‑batching setups, each new token generation
+can trigger a kernel launch. Without continuous batching or token‑level
+fusion, the kernel-launch overhead (illustratively
+\textasciitilde10--20\,\% of GPU time on H100-class parts at this
+traffic) can artificially depress measured MFU.
 
 \section{Architecture Consequence}\label{architecture-consequence}
 
@@ -232,7 +235,7 @@ transactions; (2) continuous batching, with the maximum chunk size
 chosen empirically from the measured goodput/latency knee (a chunk size
 of 8 tokens is an {[}ILLUSTRATIVE{]} configuration, not the
 recommendation --- the knee must be measured on the target stack); (3)
-KV‑cache management via FP8 KV quantization (≈2.62 → \textasciitilde1.42
+KV cache management via FP8 KV quantization (≈2.62 → \textasciitilde1.42
 MB/token, at 54\% of BF16 {[}S6{]}, cutting a 9,500‑token per‑user KV to
 \textasciitilde13.4 GB) plus length‑based eviction, so that under the
 same \textasciitilde436 GB practical KV budget on‑host concurrency rises
@@ -243,7 +246,7 @@ illustrative \textasciitilde35,000--70,000 tokens/s {[}ILLUSTRATIVE
 achievable range{]} (with flash, continuous batch) --- the exact figure
 must come from the target benchmark --- while keeping the host's 640\,GB
 for weights plus KV. A fourth decision, borne out of the mini‑case in
-Section~8, is to design the request‑routing layer for KV‑cache affinity:
+Section~8, is to design the request‑routing layer for KV cache affinity:
 when a user re‑submits a request, routing to the same GPU avoids cache
 warm‑up penalties and keeps p99 latency under the target SLO.
 
@@ -258,7 +261,7 @@ continuous‑batch chunk size as a function of request arrival
 distribution (Poisson vs.~bursty) and tail‑latency targets?} Analytical
 models assume Poisson arrivals, but real user traffic exhibits bursts
 (e.g.~social‑media events) that may require larger chunks or alternative
-back‑pressure mechanisms. \emph{Can in‑flight KV-cache compression
+back‑pressure mechanisms. \emph{Can in‑flight KV cache compression
 (e.g.~speculative decoding--guided pruning) reduce memory pressure
 without increasing p99 latency?} Pruning less‑important key/value pairs
 based on attention weight magnitudes is promising, but the
@@ -266,7 +269,7 @@ accuracy‑latency trade‑off needs empirical validation across model
 families. \emph{How does multi‑tenant isolation---guarding one user's
 cache from another's---translate to multi‑GPU scaling when the model
 exceeds a single GPU's 80\,GB?} Model parallelism (pipeline or tensor)
-adds communication overhead; the performance cost of moving KV-cache
+adds communication overhead; the performance cost of moving KV cache
 between GPUs during tenant rotation is an open question.
 
 \section{End-of-Chapter Mini-Case}\label{end-of-chapter-mini-case}
@@ -280,7 +283,7 @@ rises from 8,000 to 70,000 tokens/s. The MFU stabilizes at 38\,\%. These
 are {[}ILLUSTRATIVE SCENARIO RESULT{]} values --- an illustrative
 benchmark outcome, not a home-lab measurement; the exact figures must
 come from a deployment benchmark on the target hardware/stack (\hyperref[chap:14]{Chapter 14}). The remaining question is whether the cross‑host request routing
-layer can maintain affinity KV-cache residency, avoiding cache warm‑up
+layer can maintain affinity KV cache residency, avoiding cache warm‑up
 penalties on re‑requests. The ∼20 \% affinity throughput gain and the
 ∼2.1 s cold-start warm-up cost are themselves {[}ILLUSTRATIVE SCENARIO
 RESULT{]} values, not measured results.
@@ -317,8 +320,8 @@ Dominant Bottleneck
 \endlastfoot
 Light & 10 & \textasciitilde2 & 9,500 & \textasciitilde24.9 & 12 &
 Compute (SDPA) \\
-Typical & 100 & 40 & 9,500 & \textasciitilde24.9 & 38 & Memory /
-KV‑cache \\
+Typical & 100 & 40 & 9,500 & \textasciitilde24.9 & 38 & Memory / KV
+cache \\
 Peak & 200 & 80 & 9,500 & \textasciitilde24.9 & 52 & KV + Inter‑GPU
 bandwidth \\
 

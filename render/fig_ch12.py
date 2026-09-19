@@ -27,7 +27,7 @@ fig, axes = plt.subplots(3, 1, figsize=(7, 9.5))
 # Panel 1: memory SLO satisfaction (weight+KV stacked, ceiling lines)
 ax = axes[0]
 ax.bar(range(3), weight, label='weights', color='#3a6ea5')
-ax.bar(range(3), kv, bottom=weight, label='KV-cache', color='#e67e22')
+ax.bar(range(3), kv, bottom=weight, label='KV cache', color='#e67e22')
 for i, t in enumerate(total):
     ax.text(i, t+8, f'{t} GB', ha='center', fontsize=10, fontweight='bold')
 ax.axhline(640, color='#27408b', ls='--', lw=1.5, label='8×H100 ceiling')

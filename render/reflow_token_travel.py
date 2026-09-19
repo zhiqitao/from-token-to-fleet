@@ -2,8 +2,8 @@
 """Reflow fig-1-2-token-travel (5-lane single row) into 2 rows (3 + 2).
 
 Row 1: Text(100) Tokenizer(315) Embedding(530)
-Row 2: Attention(100) KV-cache(315)
-Flow reads: Text -> Tokenizer -> Embedding -> (down) -> Attention -> KV-cache.
+Row 2: Attention(100) KV cache(315)
+Flow reads: Text -> Tokenizer -> Embedding -> (down) -> Attention -> KV cache.
 
 We move lane3 (Attention) & lane4 (KV) elements down by DY and snap their x to
 the row-1 column positions, then rewrite the two connectors that involve them:

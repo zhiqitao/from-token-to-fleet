@@ -239,7 +239,7 @@ KV precision & FP16 (2.62 MB/token → \textasciitilde24.1 GB @ 9.2K) \\
 TTFT SLO & 1.2 s (retrieval \textasciitilde120 ms + prefill
 \textasciitilde1.08 s); p95 ≤ 2 s \\
 TPOT SLO & 25 ms/token; p95 ≤ 35 ms \\
-Hardware & 8 × H100 (80 GB each, 640 GB) \\
+Hardware & 8×H100 (80 GB each, 640 GB) \\
 Compute price & \$2.50/GPU-hr (illustrative 2026 input) →
 \textasciitilde\$20/hr per 8×H100 host \\
 Availability & 99.9\% \\
@@ -262,6 +262,19 @@ Every quantity below is either an assumed workload input, a vendor fact,
 a modeled result, or a dated price snapshot. This is the authority for
 which is which; chapters refer back to it rather than restating
 provenance each time.
+
+\begin{quote}
+\textbf{CANONICAL TEACHING MODEL --- deliberately conservative full-MHA
+baseline.} The 70B dense \textbf{full-MHA} model (every query attends to
+every key) is a \emph{teaching/reference} model, not a representative
+2026 production 70B architecture. Modern production serving candidates
+use GQA/MQA and sparse attention, which shrink the KV constant
+several-fold (Ch 7); the \textasciitilde2.62 MB/token figure is an upper
+bound for pedagogical clarity, and the frontier appendix (Appendix A) is
+the deliberate relaxation --- not a correction --- of this deliberately
+pessimistic baseline. Treating it as a property of \emph{70B models in
+general} understates 2026 production KV efficiency.
+\end{quote}
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2933\linewidth}
@@ -298,14 +311,14 @@ general KV formula, MHA case \\
 KV per token (FP8, vLLM \textasciitilde54\%) & 1.42 MB &
 {[}1P{]}{[}FACT{]} vLLM-measured \\
 H100 HBM per GPU & 80 GB & {[}1P{]}{[}FACT{]} vendor \\
-H100 BF16 peak & \textasciitilde0.989 PFLOPS & {[}1P{]}{[}FACT{]}
-vendor \\
+H100 BF16 peak (dense, no sparsity) & \textasciitilde0.989 PFLOPS &
+{[}1P{]}{[}FACT{]} vendor \\
 Retrieval latency & 120 ms & {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
 Prefill latency (TTFT) & 1.08 s & {[}2°{]}{[}DERIVED{]}/benchmark
 assumption \\
 Decode (TPOT) & 25 ms/token & {[}2°{]}{[}DERIVED{]}/benchmark
 assumption \\
-Host price (8xH100, on-demand) & \textasciitilde\$20/hr &
+Host price (8×H100, on-demand) & \textasciitilde\$20/hr &
 {[}ILLUSTRATIVE{]} dated price snapshot \\
 
 \label{tab:4.4}\end{longtable}
@@ -383,13 +396,41 @@ moment); \textbf{arrival rate} (λ) is requests per unit time; and
 \textbf{service time} (W) is the end-to-end duration of a request. They
 are related by Little's Law, C = λW, but the architect must
 \emph{estimate or measure} concurrency, arrival rate, and service time
---- none is a fixed property of the workload. The ``5\% active'' and
-``10 s duration'' are deliberately simple scenario assumptions
-({[}ILLUSTRATIVE{]}), not externally verified facts; in a real
-engagement the architect replaces them with observed concurrency,
-measured latency, and a burst profile from telemetry. Getting this
-separation right is what turns traffic modeling from a guess into a
-reproducible arithmetic.
+--- none is a fixed property of the workload. Two further separations
+matter for KV planning and are easy to collapse, so we hold them apart
+here too:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Concurrent \emph{users} ≠ concurrent \emph{requests}.} A user
+  who opens two tabs or fires a fresh retrieval before the last
+  completes issues more than one request; conversely a burst of users
+  does not each hold a request simultaneously. ``100 concurrent users''
+  is a statement about the \emph{population's activity}, not about how
+  many requests are in flight at the scheduler at any instant. The two
+  coincide only under a single-request-per-active-user assumption, and
+  that assumption should be stated, not inherited.
+\item
+  \textbf{Requests \emph{in flight} ≠ KV-resident sequences.} A request
+  in the queue, or one whose prefill is not yet admitted, is ``in
+  flight'' from the user's perspective but does not yet hold a KV slot.
+  In-flight concurrency upper-bounds the KV-concurrency the system must
+  serve, but the KV budget is sized by the number of \emph{resident
+  active sequences} --- which is what the concurrency ceilings in Ch 17
+  count. Little's Law gives the in-flight number; the KV budget is a
+  separate, residency-side quantity obtained by multiplying the resident
+  sequence count by per-token KV. Keeping these three apart (in flight
+  vs resident vs per-token KV) is what prevents the ``100 users → 100 KV
+  slots'' leap.
+\end{itemize}
+
+The ``5\% active'' and ``10 s duration'' are deliberately simple
+scenario assumptions ({[}ILLUSTRATIVE{]}), not externally verified
+facts; in a real engagement the architect replaces them with observed
+concurrency, measured latency, and a burst profile from telemetry.
+Getting this separation right is what turns traffic modeling from a
+guess into a reproducible arithmetic.
 
 \subsubsection{Token Profile in Detail}\label{token-profile-in-detail}
 
@@ -459,7 +500,7 @@ cost structure:
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Infrastructure}: A single host with 8 ×H100 GPUs (640 GB total
+  \textbf{Infrastructure}: A single host with 8×H100 GPUs (640 GB total
   GPU memory, 140 GB model FP16 weights fit with room for KV cache).
   Capital cost ≈ \$20/hour on-demand (\$2.50/GPU-hr), or
   \textasciitilde\$2,500/month reserved (illustrative) --- the canonical
@@ -583,7 +624,7 @@ ceiling; Operational → multi-region vs.~single-region deployment.}
 \tightlist
 \item
   \textbf{Model selection}: A 70B FP16 dense model (140 GB weights) fits
-  on a single host with 8 ×H100 (640 GB GPU memory). The model is large
+  on a single host with 8×H100 (640 GB GPU memory). The model is large
   enough to answer factual enterprise questions without fine‑tuning, but
   the 140 GB footprint means KV cache for 9.2 K context adds
   \textasciitilde20--30 GB of GPU memory per request at peak, leaving

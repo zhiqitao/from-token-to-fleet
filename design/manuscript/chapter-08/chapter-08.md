@@ -2,7 +2,7 @@
 
 ## The Architect's Question
 
-After chapters on tokens, workloads, and memory, the architect naturally asks: *how much compute does this actually require, and at what point does the hardware cease to be the limiting factor?* This chapter gives us the FLOP-scale arithmetic, the arithmetic-intensity roofline, and the utilization framework that lets us answer that question without guessing. We will move from per-token FLOPs to prefill PFLOP counts to sustained MFU on real hardware, and then to the roofline that tells us whether a given layer is compute-bound or memory-bound — the difference that decides whether we should reach for batching, quantization, or a different hardware generation. Throughout, the arithmetic anchors to the canonical enterprise-Q&A RAG scenario (canonical scenario (Ch 4, Table 4-3)): ~10 rps average / ~40 rps peak traffic (2,000 registered users × 5% concurrency → 100 concurrent → ~10 rps via Little's Law; peaks at 20% concurrency → ~40 rps), with 70B FP16 weights and an 8×H100 host. KV-cache per-token figures are referenced at FP16 (~2.5 MB/token) unless an 8-bit (~1.3 MB/token) variant is explicitly stated.
+After chapters on tokens, workloads, and memory, the architect naturally asks: *how much compute does this actually require, and at what point does the hardware cease to be the limiting factor?* This chapter gives us the FLOP-scale arithmetic, the arithmetic-intensity roofline, and the utilization framework that lets us answer that question without guessing. We will move from per-token FLOPs to prefill PFLOP counts to sustained MFU on real hardware, and then to the roofline that tells us whether a given layer is compute-bound or memory-bound — the difference that decides whether we should reach for batching, quantization, or a different hardware generation. Throughout, the arithmetic anchors to the canonical enterprise-Q&A RAG scenario (canonical scenario (Ch 4, Table 4-3)): ~10 rps average / ~40 rps peak traffic (2,000 registered users × 5% concurrency → 100 concurrent → ~10 rps via Little's Law; peaks at 20% concurrency → ~40 rps), with 70B FP16 weights and an 8×H100 host. KV cache per-token figures are referenced at FP16 (~2.5 MB/token) unless an 8-bit (~1.3 MB/token) variant is explicitly stated.
 
 ## 1. Concept
 
@@ -12,7 +12,7 @@ For a dense transformer layer, the dominant cost is the matrix multiplication �
 
 But FLOPs alone do not tell the full story. The hardware can only execute FLOPs if data is available — weights, activations, and KV cache all compete for the same HBM bandwidth. The arithmetic intensity (FLOP/byte) determines whether a kernel is compute-bound (intensity above the ridge point) or memory-bound (intensity below). This roofline model is the central diagnostic tool of this chapter: it tells us, for any given layer and precision, whether increasing FLOPs will actually reduce latency or whether we are already starved for bytes.
 
-The chapter unfolds in four parts. First, the core arithmetic: FLOPs per token, prefill PFLOP counts, and H100 sustained utilization. Second, the roofline: why early layers are compute-bound while later layers and decode are memory-bound. Third, the canonical scenario arithmetic: 70B on 8 ×H100, TTFT 1.2 s, TPOT ~25 ms. Fourth, the mini-case: a continuous deployment scenario that threads the prefill/decode divide.
+The chapter unfolds in four parts. First, the core arithmetic: FLOPs per token, prefill PFLOP counts, and H100 sustained utilization. Second, the roofline: why early layers are compute-bound while later layers and decode are memory-bound. Third, the canonical scenario arithmetic: 70B on 8×H100, TTFT 1.2 s, TPOT ~25 ms. Fourth, the mini-case: a continuous deployment scenario that threads the prefill/decode divide.
 
 ## 2. Mental Model
 
@@ -20,7 +20,7 @@ Think of FLOPs as the distance a car can travel on a gallon of fuel: it tells us
 
 ## 3. Worked Example: Canonical Scenario Arithmetic
 
-The canonical scenario (Ch 4, Table 4-3) is an enterprise Q&A system: 70B-class dense model, FP16 weights (~140 GB), 1 host with 8 ×H100-class GPUs (80 GB each), ~10 requests/s average, peaks ~40 rps, average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
+The canonical scenario (Ch 4, Table 4-3) is an enterprise Q&A system: 70B-class dense model, FP16 weights (~140 GB), 1 host with 8×H100-class GPUs (80 GB each), ~10 requests/s average, peaks ~40 rps, average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
 
 ### FLOPs per token
 
@@ -66,7 +66,7 @@ $$
 | H100 ridge point (dense FP16) | ~295 FLOP/byte | 989 ÷ 3.35 [DERIVED: peak TFLOPS ÷ HBM bandwidth] |
 
 *All figures trace to the canonical scenario (Ch 4, Table 4-3) and validated sources; none are measurement claims.*
-This is the prefill compute demand. An 8 ×H100 node can sustain some fraction of this at MFU (mixed-precision FLOP utilization), which we estimate next.
+This is the prefill compute demand. An 8×H100 node can sustain some fraction of this at MFU (mixed-precision FLOP utilization), which we estimate next.
 
 ### Sustained vs. peak: H100 MFU
 
@@ -98,7 +98,7 @@ This rough sizing illustrates that prefill is FLOP-bound at this scale — the c
 
 ### Decode: bandwidth-bound at low batch
 
-![Fig 8.1 — Prefill above the ridge (compute-bound), decode below it (memory-bound). H100 (solid) vs H200 (dashed) ridge points from vendor datasheets (989 TFLOPS, 3.35 / 4.8 TB/s); Continuous-Batching arrow shows decode climbing the slope as batch grows [1P][DERIVED] [1P: vendor datasheet]](figures/fig-08-0801.png)
+![Fig 8.1 — Prefill above the ridge (compute-bound), decode below it (memory-bound). H100 (solid) vs H200 (dashed) ridge points from vendor datasheets (989 TFLOPS dense, 3.35 / 4.8 TB/s); Continuous-Batching arrow shows decode climbing the slope as batch grows [DERIVED from 1P: vendor datasheet]](figures/fig-08-0801.png)
 
 *The roofline: prefill is compute-bound, low-batch decode is memory-bound.*
 
@@ -156,13 +156,13 @@ In practice, the architect measures arithmetic intensity for the target workload
 
 - **Arithmetic intensity of emerging attention mechanisms.** Linear attention (DeltaNet, MLA), compressed attention (CSA, HCA), and hybrid sparse patterns have different FLOP profiles and data movement. Their roofline position is not yet established in primary sources.
 
-- **Frontier 2026 has begun to answer this.** DeepSeek-V4's hybrid CSA+HCA attention reports that, at 1M-token context, single-token inference drops to ~27% of the FLOPs (Pro) / ~10% (Flash) and KV cache to ~10% / ~7% of DeepSeek-V3.2 [1P: arXiv 2606.19348]. GLM-5.3-Flash's sparse+linear hybrid reports a ~3× attention-compute and ~4.4×KV-cache reduction [1P: HF zai-org/GLM-5.3-Flash]. These are [1P] first-party vendor figures, not yet independently reprofiled on our own hardware — which is exactly the arithmetic-intensity measurement an architect should still do before trusting a vendor's roofline claim for their own workload.
+- **Frontier 2026 has begun to answer this.** DeepSeek-V4's hybrid CSA+HCA attention reports that, at 1M-token context, single-token inference drops to ~27% of the FLOPs (Pro) / ~10% (Flash) and KV cache to ~10% / ~7% of DeepSeek-V3.2 [1P: arXiv 2606.19348]. GLM-5.3-Flash's sparse+linear hybrid reports a ~3× attention-compute and ~4.4×KV cache reduction [1P: HF zai-org/GLM-5.3-Flash]. These are [1P] first-party vendor figures, not yet independently reprofiled on our own hardware — which is exactly the arithmetic-intensity measurement an architect should still do before trusting a vendor's roofline claim for their own workload.
 
 - **How quantization shifts the ridge.** Moving from FP16 to FP8/int8 changes peak TFLOP/s and bytes-per-operand, shifting the ridge point. The net effect depends on the quantization scheme (element-wise vs. per-tensor, dynamic vs. static) and whether the kernel is re-tuned for the lower precision.
 
 ## 8. End-of-Chapter Mini-Case: Continuous Deployment Scenario
 
-An architect is brought into an ongoing deployment of a 70B-class Q&A system on 8 ×H100 GPUs. The system is serving ~10 requests/s average with ~9.2K input + 300 output tokens per request, and the TTFT budget is being missed: p95 TTFT is 2.8 s, exceeding the SLO of 2 s. The TPOT of 28 ms/token is within spec, but the prefill delay is the bottleneck.
+An architect is brought into an ongoing deployment of a 70B-class Q&A system on 8×H100 GPUs. The system is serving ~10 requests/s average with ~9.2K input + 300 output tokens per request, and the TTFT budget is being missed: p95 TTFT is 2.8 s, exceeding the SLO of 2 s. The TPOT of 28 ms/token is within spec, but the prefill delay is the bottleneck.
 
 The temptation is to reach for a roofline and "prove" prefill is memory-bound. That reasoning is wrong here, and the error is worth naming: it is spread by treating prefill like token-by-token decode. In decode, each new token re-reads the weight matrix from HBM, so the arithmetic intensity is ~1 FLOP/byte — genuinely memory-bound. In prefill, the weight matrix is read *once* and reused across the whole sequence; the sequence dimension supplies the matrix-matrix reuse. Prefill's effective intensity is `(2 × N × L) / (N × 2 B)` = `L / 1 byte per parameter` ≈ **9,200 FLOP/byte** at the canonical 9.2K context — two orders of magnitude above the ~295 FLOP/byte dense-FP16 ridge. Prefill is compute-bound, exactly as the rest of this chapter teaches.
 

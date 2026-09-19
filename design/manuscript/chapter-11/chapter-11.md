@@ -2,7 +2,7 @@
 
 ## The Architect's Question
 
-After this chapter we should be able to answer the operational half of deployment: *the model is in memory and the requests are arriving at ~10 per second — how do we actually serve them without violating our latency SLO?* We will develop the serving stack that turns a static model into a live, multi-request system: how requests are batched, how KV-cache memory is managed, how repeated prefixes are reused, and when to split prefill from decode onto separate pools. After this chapter, serving is not a black box — it is a sequence of explicit architectural choices, each with a measurable consequence.
+After this chapter we should be able to answer the operational half of deployment: *the model is in memory and the requests are arriving at ~10 per second — how do we actually serve them without violating our latency SLO?* We will develop the serving stack that turns a static model into a live, multi-request system: how requests are batched, how KV cache memory is managed, how repeated prefixes are reused, and when to split prefill from decode onto separate pools. After this chapter, serving is not a black box — it is a sequence of explicit architectural choices, each with a measurable consequence.
 
 ## 1. Concept
 
@@ -93,7 +93,7 @@ Good serving telemetry answers "are we meeting the SLO while keeping the GPU bus
 
 - **Serving KV contiguous and watching fragmentation.** PagedAttention removes the fragmentation tax; skipping it wastes memory under concurrency.
 
-- **Re-prefilling shared context.** Without prefix caching, repeated RAG documents are recomputed per request — the single most wasteful failure for this workload.
+*Re-prefilling shared context.* Without prefix caching, repeated RAG documents are recomputed per request — one of the most wasteful failures for this workload.
 
 - **Choosing P/D disaggregation too early.** Splitting pools adds fabric + orchestration; for a single host it is overhead without the resource conflict that motivates it.
 

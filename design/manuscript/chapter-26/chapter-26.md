@@ -42,7 +42,7 @@ The §4 six-axis characterization rendered as a fingerprint. The three workload 
 
 ## 3. Worked Example — Capstone Scenario
 
-Consider the canonical deployment: ~2,000 registered users with ~5% concurrent at peak, so ~100 concurrent requests, RAG Q&A over a 70B dense FP16 model. The architect faces three interlocked questions: how to scale inference, how to cache retrieved context, and how to keep latency budgets under 800 ms p99.
+Consider the canonical deployment: ~2,000 registered users with ~5% concurrent at peak, so ~100 concurrent requests, RAG Q&A over a 70B dense FP16 model. The architect faces three interlocked questions: how to scale inference, how to cache retrieved context, and how to keep latency budgets under 800 ms p99. (All the numbers below are the canonical values established in Parts I–V — Ch 4's workload, Ch 7/15's KV and memory figures, Ch 17's fleet sizing — recalled here rather than re-derived, and this capstone shows how the toolkit's patterns compose them.)
 
 **Pattern A — Inference Sharding (FACT: model FLOPs / GPU memory per token).** The 70B model at FP16 requires ~140 GB of weights. Following the canonical setup, one serving host is an 8×H100 80 GB node, which dedicates ~140 GB to weights and leaves the rest of the 640 GB pool for KV cache and runtime. With tensor parallelism across the 8 H100s, a single host serves the model and can hold ~18 concurrent 9,500-token requests within the canonical ~436 GB KV budget from Chapter 15. DERIVED: with the 8-way tensor parity across the node, decode latency is bandwidth-bound, so per-token throughput scales with the node's aggregate memory bandwidth rather than 8× the single-GPU rate. HYPOTHESIS: adding a second host and load-balancing requests across two replicas yields < 5% additional per-request latency improvement because the bottleneck is concurrency/KV residency, not per-host throughput.
 
@@ -102,7 +102,7 @@ These open questions define the next research cycle. Each is framed as a HYPOTHE
 
 | Component | Configuration | FACT Target | DERIVED Observed |
 |---|---|---|---|
-| GPU Shard | 8 ×H100 80 GB | GPU util < 80% | 68% |
+| GPU Shard | 8×H100 80 GB | GPU util < 80% | 68% |
 | Semantic Response Cache | LRU, TTL 5 min | hit ratio > 30% | 38% |
 | Circuit Breaker | trip after 5 timeouts, 2s grace | fallback rate < 10% | 7% |
 | Cost | $ per query | < $0.015 | $0.009 |

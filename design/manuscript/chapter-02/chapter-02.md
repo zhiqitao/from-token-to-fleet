@@ -26,7 +26,7 @@ When we ask "is this workload compute-bound or bandwidth-bound?" the answer depe
 
 ## 3. Worked Example
 
-To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from canonical scenario (Ch 4, Table 4-3): a 70B-class dense model in FP16, 1 host with 8 ×H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims. Where the book writes *Analytical bound — not a benchmark*, it marks a first-order model check under a stated bounding assumption, not a measurement of actual serving throughput.
+To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from canonical scenario (Ch 4, Table 4-3): a 70B-class dense model in FP16, 1 host with 8×H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims. Where the book writes *Analytical bound — not a benchmark*, it marks a first-order model check under a stated bounding assumption, not a measurement of actual serving throughput.
 
 ### Table 2-1 — Decode bandwidth and prefill FLOPs (worked example, not reference)
 
@@ -63,7 +63,7 @@ $$
 \text{prefill FLOPs} = 2 \times N \times L = 2 \times 70 \times 10^9 \times 9.2 \times 10^3 \approx 1.288 \times 10^{15} \approx 1.29 \text{ PFLOP}
 $$
 
-[ILLUSTRATIVE][DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-core peak) [1P FACT], which is 0.989 PFLOPS. The required rate against the ~1.08 s prefill budget is
+[ILLUSTRATIVE][DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-core peak, without sparsity) [1P FACT], which is 0.989 PFLOPS. (Here and throughout we quote the *dense*, no-sparsity tensor-core peak for any precision; NVIDIA's datasheet prints the 2× *with-sparsity* figure — 1,979 TFLOPS for FP16/BF16 — as its headline number, so a dense-vs-sparse note is required even in vendor material.) The required rate against the ~1.08 s prefill budget is
 
 $$
 \text{rate} = \frac{1.29 \text{ PFLOP}}{1.08 \text{ s}} \approx 1.19 \text{ PFLOPS}
@@ -77,7 +77,7 @@ How do we know whether a given workload is prefill-bound or decode-bound in prac
 
 1. **Divide the TTFT into retrieval + prefill.** Measure the retrieval latency (vector search, document fetch) separately from the prefill latency (prompt processing). In the canonical scenario, retrieval takes ~120 ms, leaving ~1.08 s for prefill on a 9.2K-token prompt. If prefill exceeds this budget, the bottleneck is compute or memory, not retrieval.
 
-2. **Log TPOT against current sequence length, at controlled batch/concurrency.** Track the time-per-token as the generated sequence grows. This is a *scaling curve*, not a binary verdict. An **increasing** TPOT as the sequence lengthens reveals growing KV-attention cost — each new token attends over a longer KV sequence, and decode attention work and KV-cache traffic generally grow with sequence length even though cached K/V projections are not recomputed. A relatively **flat** TPOT suggests weight streaming (a fixed per-step cost — reading the full 140 GB weight matrix each step) remains dominant. TPOT does not *have* to stay constant; batching, kernel choice, occupancy, and scheduling can make the observed curve complicated, so measure it rather than asserting a trend.
+2. **Log TPOT against current sequence length, at controlled batch/concurrency.** Track the time-per-token as the generated sequence grows. This is a *scaling curve*, not a binary verdict. An **increasing** TPOT as the sequence lengthens reveals growing KV-attention cost — each new token attends over a longer KV sequence, and decode attention work and KV cache traffic generally grow with sequence length even though cached K/V projections are not recomputed. A relatively **flat** TPOT suggests weight streaming (a fixed per-step cost — reading the full 140 GB weight matrix each step) remains dominant. TPOT does not *have* to stay constant; batching, kernel choice, occupancy, and scheduling can make the observed curve complicated, so measure it rather than asserting a trend.
 
 3. **Measure actual HBM utilization vs FLOP utilization.** Using GPU profilers (NVIDIA Nsight, vLLM stats), watch the fraction of peak HBM bandwidth consumed versus the fraction of peak FLOPS consumed. If HBM utilization is near 100% while FLOPS utilization is low, the kernel is bandwidth-bound (typical of decode). If FLOPS utilization is near 100% while HBM utilization is low, the kernel is compute-bound (typical of prefill).
 

@@ -28,12 +28,12 @@ The arrow from workload to selection surfaces is the one the architect must keep
 
 ## 3. Worked Example — Embedding‑Model vs Generation‑Model Selection for the Canonical RAG Workload
 
-The canonical scenario (the enterprise Q&A over internal documents, RAG — see Ch 4 Table 4-3) is: ~2,000 registered users, ~10 requests/s average, ~40 rps peak; average prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output; 70B-class dense model, FP16 (~140 GB), 1 host with 8 ×H100-class GPUs (80 GB each). TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. SLO: p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
+The canonical scenario (the enterprise Q&A over internal documents, RAG — see Ch 4 Table 4-3) is: ~2,000 registered users, ~10 requests/s average, ~40 rps peak; average prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output; 70B-class dense model, FP16 (~140 GB), 1 host with 8×H100-class GPUs (80 GB each). TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. SLO: p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
 
 We walk the two‑model selection for this workload.
 
 ### (a) Embedding‑model selection for the retrieval leg
-KV-cache per-token figures are at FP16 (~2.62 MB/token) unless an 8-bit (~1.3 MB/token) variant is explicitly stated.
+KV cache per-token figures are at FP16 (~2.62 MB/token) unless an 8-bit (~1.3 MB/token) variant is explicitly stated.
 
 The retrieval leg maps chunks of internal documents to dense vectors so that a user query can be matched to the most relevant context. The architect must choose an embedding model — specifically, its embedding dimension and parameter count — against the retrieval quality the workload demands.
 
@@ -67,9 +67,9 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 #### Real‑derived arithmetic for the 70B candidate
 
-[1P] FACT: a 70B‑parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (model-card specification, vendor‑published). [1P] FACT: 8 ×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory.
+[1P] FACT: a 70B‑parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (model-card specification, vendor‑published). [1P] FACT: 8×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory.
 
-[DERIVED] KV‑cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.62 MB/token (FP16; = 2.5 MiB) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.62 MB ≈ 24.1 GB of KV cache (initial residency).
+[DERIVED] KV cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.62 MB/token (FP16; = 2.5 MiB) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.62 MB ≈ 24.1 GB of KV cache (initial residency).
 
 [DERIVED] per‑request memory budget: 640 GB total HBM − 140 GB weights = 500 GB headroom. The 24.1 GB KV cache for 9.2K input consumes 4.7% of headroom, leaving ~476.6 GB for activations, intermediate buffers, and OS overhead. This is comfortably within a single 8×H100 node's capacity.
 
@@ -79,7 +79,7 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 > **Economics unit note (reconciliation with Ch. 4).** Both chapters use the same on-demand price basis: ~$2.50/hr per H100 → ~$20/hr per 8×H100 host. They differ only in *unit convention*: this chapter expresses **tokens per dollar-hour** (token-rate × 3600 s ÷ hourly cost), while Chapter 4 expresses **tokens per second per dollar** (token-rate ÷ per-second cost). A reader comparing across Part II should convert units (÷3600 to go tokens/dollar-hour → tokens/s/dollar). [ILLUSTRATIVE][DERIVED]
 
-[2°] DERIVED: tokens/s per dollar with prefill included. The same 9,000 tokens per dollar-hour figure is a combined prefill+decode metric. Because this workload is input‑heavy (9.2K vs 300 tokens), the prefill leg consumes ~70% of the total tokens per request but only ~40% of the total compute time (prefill is compute‑intensive but batchable; decode is sequentially limited). The per‑dollar economics therefore favor models that reduce prefill cost (smaller context, lower KV‑cache per token) more than models that optimize decode throughput.
+[2°] DERIVED: tokens/s per dollar with prefill included. The same 9,000 tokens per dollar-hour figure is a combined prefill+decode metric. Because this workload is input‑heavy (9.2K vs 300 tokens), the prefill leg consumes ~70% of the total tokens per request but only ~40% of the total compute time (prefill is compute‑intensive but batchable; decode is sequentially limited). The per‑dollar economics therefore favor models that reduce prefill cost (smaller context, lower KV cache per token) more than models that optimize decode throughput.
 
 ### (c) Base‑model + RAG + guardrails vs fine‑tuned model
 
@@ -115,7 +115,7 @@ How does an architect measure the workload dimensions that drive model selection
 
 2. **Input vs output split.** Measure both legs of the request (prompt tokens and generated tokens), because they land on different bottlenecks — input on memory/prefill, output on decode — and on different cost line items. The canonical ratio of ~30× more input than output is the single biggest driver of this system's cost structure.
 
-3. **Peak vs average context.** Log the distribution of context lengths, not just the mean. A workload that averages 9.2K input tokens but peaks at 32K (a variant flagged in Ch. 4) has a very different KV-cache and latency profile. The architect must know the 95th‑percentile context length to size the KV budget correctly.
+3. **Peak vs average context.** Log the distribution of context lengths, not just the mean. A workload that averages 9.2K input tokens but peaks at 32K (a variant flagged in Ch. 4) has a very different KV cache and latency profile. The architect must know the 95th‑percentile context length to size the KV budget correctly.
 
 This measurement habit is the token-layer answer to the book's recurring question, "what would I actually measure here?" — we measure token counts and their distribution, at the edge, before any architecture decision is made.
 
@@ -123,7 +123,7 @@ This measurement habit is the token-layer answer to the book's recurring questio
 
 - **Starting with "which model is best?"** Instead of characterizing the workload first. The workload's token profile, latency budget, and economic constraints are what narrow the model space; starting with a model short‑circuits the reasoning chain and leads to post hoc justification.
 
-- **Ignoring the KV‑cache cost of long contexts.** A 9.2K input on a 70B model costs ~24.1 GB of KV cache (initial). An architect who does not account for this will either over‑provision infrastructure or hit SLO violations when the cache spills to host memory or SSD.
+- **Ignoring the KV cache cost of long contexts.** A 9.2K input on a 70B model costs ~24.1 GB of KV cache (initial). An architect who does not account for this will either over‑provision infrastructure or hit SLO violations when the cache spills to host memory or SSD.
 
 - **Quoting context window as free capacity.** The 128K or 1M token window is an upper bound, not a recommendation. Using even 9.2K of a 128K window still costs for the length actually used. The cost is proportional to the *used* length, not the *available* length.
 
@@ -161,7 +161,7 @@ From the token‑layer perspective (as we worked through in Chapter 5), the arch
 
 - **768‑dim embeddings** give adequate retrieval quality at ~1 GFLOPs per embedding, with ~3.1 GB index storage for a 1 M‑chunk corpus (vs ~1.5 GB at 384‑dim) — a persistent footprint that scales with corpus size, alongside the 70B base model.
 - **9.2K input** at ~2.62 MB/KV‑token costs ~24.1 GB of cache (initial) on the 70B generation model, well within the 8×H100 node's 640 GB HBM. The prefill TTFT of ~1.08 s plus retrieval (~120 ms) sits at the 1.2 s TTFT budget, with the p95 ≤ 2 s SLO giving the real margin.
-- The **30× input‑vs‑output ratio** means this system is prefill‑dominated; model selection must weigh KV‑cache cost and prefill throughput more heavily than decode throughput.
+- The **30× input‑vs‑output ratio** means this system is prefill‑dominated; model selection must weigh KV cache cost and prefill throughput more heavily than decode throughput.
 - The **base‑model + RAG + guardrails** paradigm produces the lower **modeled** TCO under the illustrative cost and quality assumptions used in this worked example (see the parametric $Q^*$ break‑even above). This is not a general 10× cost relationship — the actual ratio depends on the domain‑specific quality uplift and the query volume, and must be measured rather than assumed.
 
 The architect now has a concrete model shortlist: 768‑dim all‑mpnet‑base‑v2 for the retrieval leg, and the 70B FP16 base model for the generation leg, served on 8×H100 with vLLM continuous batching. No fine‑tuning is needed at this scale. The architecture decision record (to be written in Chapter 25) will reference this characterization and the selection surfaces that drove it.

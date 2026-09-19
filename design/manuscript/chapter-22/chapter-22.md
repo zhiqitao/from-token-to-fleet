@@ -2,7 +2,7 @@
 
 ## The Architect's Question
 
-Before any model is selected, any GPU is counted, any latency budget is allocated, the architect must answer one question: *what is the actual token-scale cost of delivering the stakeholder's request?* This chapter exists to make that question automatic. We do not reach for vendor marketing numbers or rule-of-thumb heuristics. Instead we trace a vague stakeholder ask — "we need a Q&A system over our internal documents" — through a canonical loop that turns it into concrete architectural bounds. The output is a set of derived quantities (token throughput, KV-cache memory, prefill FLOPs, decode bandwidth) that are verifiable, derived from first principles, and grounded in the canonical ~2,000 user, ~10 rps / ~40 rps peak, RAG Q&A, 70B dense FP16 scenario that every other chapter in this handbook cites. The reasoning is traced by the architect and the system investigating together.
+Before any model is selected, any GPU is counted, any latency budget is allocated, the architect must answer one question: *what is the actual token-scale cost of delivering the stakeholder's request?* This chapter exists to make that question automatic. We do not reach for vendor marketing numbers or rule-of-thumb heuristics. Instead we trace a vague stakeholder ask — "we need a Q&A system over our internal documents" — through a canonical loop that turns it into concrete architectural bounds. The output is a set of derived quantities (token throughput, KV cache memory, prefill FLOPs, decode bandwidth) that are verifiable, derived from first principles, and grounded in the canonical ~2,000 user, ~10 rps / ~40 rps peak, RAG Q&A, 70B dense FP16 scenario that every other chapter in this handbook cites. The reasoning is traced by the architect and the system investigating together.
 
 ## 1. Concept
 
@@ -42,7 +42,7 @@ $$
 
 (At the ~40 req/s peak these rise to ~368,000 and ~12,000 tokens/s respectively.) [ILLUSTRATIVE][DERIVED]
 
-**Step 4 — Derive architecture-relevant quantities.** The 30× input/output ratio is one of the most important derived quantity here. It means this workload is input-heavy: the great majority of latency, memory, and energy is spent in prefill (processing the 9.2K prompt), not decode (generating the 300 answer tokens). This ratio alone dictates that KV-cache memory and prefill compute dominate the design — not decode bandwidth. Every downstream chapter (memory, compute, cost) will price against these derived numbers.
+**Step 4 — Derive architecture-relevant quantities.** The 30× input/output ratio is one of the most important derived quantity here. It means this workload is input-heavy: the great majority of latency, memory, and energy is spent in prefill (processing the 9.2K prompt), not decode (generating the 300 answer tokens). This ratio alone dictates that KV cache memory and prefill compute dominate the design — not decode bandwidth. Every downstream chapter (memory, compute, cost) will price against these derived numbers.
 
 **Step 5 — Record in Table 22-1.** The full table of derived quantities appears below.
 
@@ -62,7 +62,7 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 | output tokens/s @ peak 40 rps | ~12,000 | 300 ×40 [ILLUSTRATIVE][DERIVED] |
 | prefill FLOPs per request | ~1.29 PFLOP | 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ [DERIVED] |
 | decode bandwidth per token | ~5.6 TB/s | 140 GB weights / 25 ms TPOT [DERIVED] |
-| KV-cache memory per request | ~12 GB (70B, 8-bit KV) | 1.3 MB/token × 9,200 tokens [1P DERIVED] |
+| KV cache memory per request | ~12 GB (70B, 8-bit KV) | 1.3 MB/token × 9,200 tokens [1P DERIVED] |
 
 :::
 
@@ -78,7 +78,7 @@ For this chapter, measurement reduces to **counting tokens correctly**, because 
 
 2. **Input vs output split.** Measure both legs of the request (prompt tokens and generated tokens), because they land on different bottlenecks — input on memory/prefill, output on decode — and on different cost line items. A request that is 90% input and 10% output has a very different cost profile than one that is 50/50, even at the same total token count.
 
-3. **Peak vs average context.** Log the distribution of context lengths, not just the mean. A workload that averages 9.2K input tokens but peaks at 32K (illustrative variant) has a very different KV-cache and latency profile. The 90th-percentile context length is often the number the architect must design for.
+3. **Peak vs average context.** Log the distribution of context lengths, not just the mean. A workload that averages 9.2K input tokens but peaks at 32K (illustrative variant) has a very different KV cache and latency profile. The 90th-percentile context length is often the number the architect must design for.
 
 This measurement habit is the token-layer answer to the book's recurring question, "what would I actually measure here?" We measure token counts and their distribution, at the edge, before any architecture decision is made.
 
@@ -96,7 +96,7 @@ This measurement habit is the token-layer answer to the book's recurring questio
 
 ## 6. Architecture Consequence
 
-The canonical loop's derived quantities have immediate and concrete architecture consequences. The 30× input/output ratio means this workload's prefill phase dominates: ~1.29 PFLOP of compute per request, and a KV-cache that grows with 9.2K input tokens. The decode phase, while smaller in total tokens, requires ~5.6 TB/s of HBM bandwidth per generated token — a bandwidth-bound design.
+The canonical loop's derived quantities have immediate and concrete architecture consequences. The 30× input/output ratio means this workload's prefill phase dominates: ~1.29 PFLOP of compute per request, and a KV cache that grows with 9.2K input tokens. The decode phase, while smaller in total tokens, requires ~5.6 TB/s of HBM bandwidth per generated token — a bandwidth-bound design.
 
 These opposite bottlenecks lead to a central architectural decision: **can we disaggregate prefill and decode?** If prefill needs FLOPS and decode needs bandwidth, a single homogeneous GPU pool is suboptimal. A two-pool architecture — a prefill cluster optimized for compute (more GPUs, higher FLOPS, model parallelism) and a decode cluster optimized for bandwidth (faster HBM, PagedAttention, continuous batching) — can achieve the same serving SLO with fewer total GPUs than a homogeneous design. This is the central theme of Chapter 11 (Serving) and Pattern 4 (Prefill/decode disaggregation). The architect who runs the canonical loop and records the derived quantities in Table 22-1 is already positioned to make this decision with numbers, not intuition.
 
