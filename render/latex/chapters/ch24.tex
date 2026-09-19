@@ -91,7 +91,12 @@ Surface}\label{promptinjection-exposure-surface}
 
 We define the \emph{prompt-injection exposure surface} (PIES) as the
 total number of distinct prompt patterns an adversary can successfully
-submit through all user‑facing entry points.
+submit through all user‑facing entry points. \textbf{PIES is a local
+evaluation metric defined in this handbook} for our red/‑green‑team
+loop; it is \emph{not} a standardized security metric, and a PIES value
+from one deployment is not comparable to a PIES value from another (the
+entry points, probe generator, and deduplication threshold are all
+author-defined). We report it with that caveat attached.
 
 \textbf{Worked arithmetic:}
 
@@ -128,13 +133,22 @@ submit through all user‑facing entry points.
   segments = 768 patterns.
 \item
   However, many combinations are semantically redundant. After
-  deduplication by normalized edit distance, the unique exposure surface
-  is \textbf{PIES = 217}.
+  deduplication by normalized edit distance at a fixed threshold (we use
+  normalized Levenshtein distance ≤ 0.25 as the equivalence criterion),
+  the unique exposure surface is \textbf{PIES = 217}.
 \end{itemize}
 
 This derived quantity --- 217 distinct, non‑redundant prompt‑injection
 patterns --- becomes the baseline by which we measure guardrail
-effectiveness.
+effectiveness. Note that normalized edit distance captures
+\emph{textual} similarity, not \emph{semantic attack equivalence}: two
+syntactically different attacks may be behaviorally equivalent, and two
+lexically similar attacks may exploit materially different pathways, so
+PIES is a reproducible operational proxy --- not a measure of true
+semantic attack diversity. That is exactly why it is labeled
+author-defined here rather than presented as an objective property of
+the deployment. {[}ILLUSTRATIVE{]}{[}DERIVED --- author-defined metric
+and dedup threshold{]}
 
 \subsection{RAG Corpus Poisoning
 Exposure}\label{rag-corpus-poisoning-exposure}
@@ -166,7 +180,20 @@ total poisoned hits is \(\mathbb{E}[\text{total}] = Q \cdot k \cdot p\):
 \]
 
 This derived quantity --- 52 expected poisoned retrievals per cycle ---
-quantifies the RAG corruption risk.
+quantifies the RAG corruption risk under a deliberately simple model.
+\textbf{This is a null-model baseline assuming uniform random
+retrieval}, not a realistic poisoning-risk estimate. In practice vector
+retrieval is emphatically \emph{not} uniform sampling: a successful
+poisoning attack is usually constructed precisely to raise semantic
+similarity to targeted queries, so adversarial chunks can appear far
+more often in the top-k than their corpus share. Real poisoning exposure
+therefore has to be measured from ranked retrieval (report hit rates
+conditioned on the actual similarity ordering), because adversarial
+chunks are intentionally designed to alter retrieval probability. We
+present the uniform baseline first because it is the one computable by
+hand, and flag it as the \emph{minimum} exposure, not an estimate of the
+true value. {[}ILLUSTRATIVE{]}{[}DERIVED --- null-model
+uniform-retrieval baseline{]}
 
 \subsection{The Architecture That Fails: Red Team Overturns a
 ``Winner''}\label{the-architecture-that-fails-red-team-overturns-a-winner}
@@ -211,21 +238,38 @@ prompts. Three canonical checks overturn the recommendation:
   \textbf{Peak prefill compute.} This is an input-heavy workload: each
   request pre-fills \textasciitilde9,200 tokens at 2 ×70B FLOPs/token ≈
   1.29 PFLOP. At the 40 rps peak, prefill demand is 40 ×1.29 PFLOP ≈
-  \textbf{51.5 PFLOP/s}, while one 8×H100 host sustains ≈ 7.9 PFLOP/s of
-  dense-FP16 ceiling (8 ×989 TFLOPS, \hyperref[chap:8]{Chapter 8} canonical). Peak prefill
-  therefore needs ≈ \textbf{6.5 hosts} (51.5 ÷ 7.9 ≈ 6.5×, matching the
-  \hyperref[chap:15]{Chapter 15} congestion check) --- Candidate A's 4 hosts cannot feed
-  prefill at peak, so TTFT and p99 latency climb well past the SLO under
-  any realistic burst. Candidate B's 8 hosts absorb the peak
-  (\textasciitilde6.5 of 8) with headroom.
+  \textbf{51.5 PFLOP/s}, while one 8×H100 host gives ≈ 7.9 PFLOP/s of
+  dense-FP16 theoretical peak (8 ×989 TFLOPS, \hyperref[chap:8]{Chapter 8} canonical).
+  Dividing peak demand by theoretical peak gives \textbf{6.5 hosts ---
+  and that is a \emph{theoretical compute floor}, not a production
+  sizing result.} It assumes 100\% of dense-FP16 peak, yet \hyperref[chap:8]{Chapter 8}
+  warns precisely against that: a well-tuned transformer may reach
+  roughly 30--40\% MFU. At η = 40\% sustained prefill efficiency, the
+  compute floor becomes 51.5/(7.9 × 0.40) ≈ \textbf{16.3 hosts}; the
+  floor only falls to single digits at an unrealistic η → 1. So the
+  honest read is not ``8 hosts have headroom'' --- it is that 6.5 hosts
+  is the \emph{lower bound} at perfect efficiency, and the real fleet
+  must be sized by measuring sustained prefill efficiency on the target
+  serving stack (then validated against TTFT, queueing, batching, and
+  failure-domain requirements). Candidate A's 4 hosts cannot feed
+  prefill at peak under any realistic efficiency, so TTFT and p99
+  latency climb well past the SLO under burst. Candidate B's 8 hosts are
+  only \emph{defensible at all} because they sit above the
+  \textasciitilde6.5 theoretical floor --- but note they sit
+  \emph{below} the \textasciitilde16-host 40\%-MFU estimate, so the
+  decision is not closed by this check alone: it still depends on
+  measuring actual sustained prefill efficiency (see §4).
 \item
   \textbf{Failure domain.} Candidate A runs \textasciitilde4 of the
-  \textasciitilde6.5 nodes needed at peak --- with even one host down,
-  peak prefill capacity falls to \textasciitilde46\% of requirement and
-  the fleet fails at peak. Candidate B keeps peak capacity with one node
-  down (7 of 6.5). The author of this case would add: the right mind-set
-  is not ``do we fit in aggregate HBM?'' but ``do we keep four NINES at
-  peak with a node down?''
+  \textasciitilde6.5 \emph{theoretical} nodes needed at peak --- with
+  even one host down, it is below even the idealized floor and fails at
+  peak. Candidate B (8 hosts) keeps peak capacity above the 6.5
+  theoretical floor with one node down (7 of 6.5), though it is still
+  below the \textasciitilde16-host 40\%-MFU estimate, so its headroom at
+  peak is thinner than the ``generous'' label implies --- a point that
+  feeds the §4 measurement requirement. The author of this case would
+  add: the right mind-set is not ``do we fit in aggregate HBM?'' but
+  ``do we keep four NINES at peak with a node down?''
 \item
   \textbf{Utilization is not the point.} At low load Candidate A reports
   \emph{higher} GPU utilization and Candidate B \emph{lower} --- but
@@ -275,22 +319,29 @@ Evidence
 \endlastfoot
 \textbf{PIES} & DERIVED & Unique, non‑redundant prompt‑injection
 patterns across all entry points & \textless{} 150 (after hardening) &
-{[}1P{]} \\
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
 \textbf{Poisoned‑hit rate} & DERIVED & Fraction of retrievals that
-return at least one poisoned chunk & \textless{} 0.1\% & {[}2°{]} \\
+return at least one poisoned chunk & \textless{} 0.1\% &
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
 \textbf{Guardrail‑trigger rate} & FACT & Number of guardrail
-interventions per 1,000 user queries & \textless{} 5 & (to be
-verified) \\
+interventions per 1,000 user queries & \textless{} 5 &
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
 \textbf{False‑positive rate} & FACT & Guardrail interventions that block
-legitimate user intent & \textless{} 1\% & (to be verified) \\
+legitimate user intent & \textless{} 1\% &
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
 \textbf{Tool‑use success rate} & FACT & Percentage of Red Team tool‑use
 probes that achieve an unintended action & \textless{} 0.5\% &
-{[}1P{]} \\
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
 \textbf{Red‑team win rate} & HYPOTHESIS & Proportion of evaluation
 cycles where Red Team escapes all guardrails & → 0 over time &
-{[}2°{]} \\
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
 
 \label{tab:24.2}\end{longtable}
+
+These targets are local, author-defined guardrails for this deployment,
+not externally sourced thresholds; unless a target is explicitly tied to
+a cited standard or measured baseline, treat it as an illustrative
+assumption {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]}.
 
 \subsection{Data‑collection pipeline}\label{datacollection-pipeline}
 
@@ -363,16 +414,20 @@ decisions:
 \item
   \textbf{Guardrail granularity} --- If PIES remains high after two
   cycles, the system must add a prompt‑scanning layer (e.g., an
-  LLM‑based classifier) before the main model inference. This adds
-  \textasciitilde150 ms latency per query but reduces PIES by
-  \textasciitilde60\% in our measurements.
+  LLM‑based classifier) before the main model inference. In the
+  illustrative scenario we model this as adding \textasciitilde150 ms
+  latency per query and reducing PIES by \textasciitilde60\% ---
+  \textbf{illustrative scenario numbers, not measurements from a
+  deployment in this handbook} {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]}.
 \item
   \textbf{RAG corpus policy} --- If the poisoned‑hit rate exceeds 0.1\%,
   the architecture must enforce corpus provenance checks: every chunk
   must carry a verified origin tag, and the retrieval index rejects
   untagged embeddings. This changes the vector store from a pure FAISS
-  index to a provenance‑aware store with \textasciitilde2× storage
-  overhead.
+  index to a provenance‑aware store, which we model at \textasciitilde2×
+  storage overhead in the illustrative scenario
+  {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} --- the real overhead depends on
+  the provenance encoding and must be measured on the target corpus.
 \item
   \textbf{Tool‑use sandboxing} --- If the tool‑use success rate is above
   0.5\%, the system must restrict function‑call capabilities via an

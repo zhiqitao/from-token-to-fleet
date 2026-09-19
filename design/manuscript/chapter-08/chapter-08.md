@@ -140,7 +140,7 @@ Three measurable quantities anchor compute sizing:
 
 The compute arithmetic and roofline have direct consequences for system design:
 
-- **If prefill is FLOP-bound** (as it is for 70B+ models with long contexts), the primary optimization is batching — larger prefill batches amortize the context attention cost across more requests, raising arithmetic intensity and increasing TFLOP/s utilization. System design should therefore provision for batchable prefill (continuous batching, Orca, vLLM continuous batching) as the first-order throughput lever.
+- **If prefill is FLOP-bound** (as it is for 70B+ models with long contexts), the primary optimization is batching — larger prefill batches do **not** remove the per-request attention work (each sequence still has its own attention computation); they *improve accelerator utilization* by forming larger matrix operations, amortizing weight and execution overhead across requests, and raising achieved FLOP/s. The relevant lever is the achieved efficiency (MFU) of the prefill kernel, not a change to the per-request FLOP count. System design should therefore provision for batchable prefill (continuous batching, Orca, vLLM continuous batching) as the first-order throughput lever.
 
 - **If decode is memory-bound** (single-stream, low batch), the primary optimization is batching — even modest batch sizes (8–16) raise arithmetic intensity toward the ridge, improving TFLOP/s utilization. KV cache quantization (FP8, int8) also reduces bytes per token, raising effective intensity. P/D disaggregation (prefill on GPUs, decode on a separate pool) can rebalance: prefill’s FLOP demand is served by compute-optimized GPUs, while decode’s bandwidth demand is served by wide-memory GPUs or even CPU offload.
 

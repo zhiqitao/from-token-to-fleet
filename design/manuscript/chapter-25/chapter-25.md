@@ -45,13 +45,13 @@ Render the serving model in BF16.
 **Rationale:**
 - FP16 and BF16 both store 2 bytes/parameter, so weight residency is identical (~140 GB for 70B). Stating this up front prevents anyone from later treating the choice as a memory lever.
 - The real difference is range vs precision. BF16 keeps the same 8-bit exponent as FP32, so it does not overflow or underflow in activations the way FP16's 5-bit exponent can. FP16 carries more mantissa bits (10 vs 7) and is more precise when values already sit in range.
-- For this workload both precisions clear the quality bar on the held-out Q&A set, with no measurable exact-match change between them, so the deciding factors are range robustness and consistency — not capacity. [MEASURED on the held-out set: no exact-match difference]
+- For this workload both precisions clear the quality bar on the held-out Q&A set, with no exact-match change between them, so the deciding factors are range robustness and consistency — not capacity. In this illustrative evaluation the exact-match result showed no difference [ILLUSTRATIVE][ASSUMPTION — to be confirmed by the deployment quality gate: we did not run this comparison on real hardware in this handbook; it is an assumed outcome for the worked ADR].
 - A100 (and the 8×H100 host) natively supports BF16 and TF32 on its Tensor Cores. There is no "next GPU generation" required and no explicit-casting penalty; the premise that these formats wait for future hardware is itself the kind of error an ADR should catch.
 - Operational consistency: the training run that produced the weights used BF16 mixed precision. Keeping inference in BF16 avoids a training-to-serving cast and keeps behavior predictable.
 
 **Consequences:**
 - **Positive:** range robustness in attention/softmax and long-context accumulation; no change in weight residency (both precisions are ~140 GB).
-- **Negative:** lower mantissa precision than FP16 in the weights (BF16 has 7 mantissa bits vs FP16's 10), so FP16 is more precise where values already sit in range; in the illustrative evaluation on this workload the exact-match result showed no quality difference [ILLUSTRATIVE — to be confirmed by the deployment quality gate], so the trade-off is precision headroom, not observed quality. There is no free memory — and none should be expected.
+- **Negative:** lower mantissa precision than FP16 in the weights (BF16 has 7 mantissa bits vs FP16's 10), so FP16 is more precise where values already sit in range; in the illustrative evaluation on this workload the exact-match result showed no quality difference [ILLUSTRATIVE][ASSUMPTION — to be confirmed by the deployment quality gate], so the trade-off is precision headroom, not observed quality. There is no free memory — and none should be expected.
 - **Monitoring:** track per-request latency, GPU memory utilization, and held-out Q&A quality. If the BF16 output drifts, fall back to FP16 and compare both on the same set (they differ in precision, not footprint).
 
 **Alternatives Considered:**
@@ -59,7 +59,7 @@ Render the serving model in BF16.
 2. **FP8 weights:** The genuine memory lever (halves residency to ~70 GB) but needs per-tensor calibration and a validation gate; deferred as the next step, paired with the FP8 KV discussion in Chapter 7.
 3. **FP32:** Rejected — 280 GB residency with no quality benefit for this workload.
 
-**Evidence Tags:** FACT: FP16 and BF16 are both 16-bit (2 bytes/parameter); a 70B model is ~140 GB in either. FACT: A100/H100 Tensor Cores support BF16 and TF32 natively. DERIVED: weight residency is unchanged by the FP16↔BF16 choice. MEASURED: no exact-match difference between FP16 and BF16 on the held-out Q&A set.
+**Evidence Tags:** FACT: FP16 and BF16 are both 16-bit (2 bytes/parameter); a 70B model is ~140 GB in either. FACT: A100/H100 Tensor Cores support BF16 and TF32 natively. DERIVED: weight residency is unchanged by the FP16↔BF16 choice. ILLUSTRATIVE[ASSUMPTION]: no exact-match difference between FP16 and BF16 on the held-out Q&A set — an assumed outcome for this worked ADR, to be confirmed by the deployment quality gate (not a measurement in this handbook).
 
 ### 3.1 A copy-ready blank template
 
