@@ -66,7 +66,7 @@ Every quantitative claim carries **two orthogonal labels** (per `book-architectu
 > **`[VERIFY]`** not yet anchored — a *status*, resolved before publication
 >
 > **Claim type** — *whether it was computed*:
-> **`FACT`** directly stated by the source · **`DERIVED`** calculated from documented facts · **`HYPOTHESIS`** reasoned conclusion
+> **`FACT`** directly stated by the source · **`DERIVED`** calculated from documented facts · **`ASSUMPTION`** deliberately chosen scenario input (`[ILLUSTRATIVE][ASSUMPTION]`) · **`HYPOTHESIS`** reasoned conclusion
 
 **Home-lab experiments are not reference.** Worked examples may appear, clearly
 labeled `worked example, not reference`.

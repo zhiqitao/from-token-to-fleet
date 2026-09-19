@@ -97,7 +97,7 @@ Good serving telemetry answers "are we meeting the SLO while keeping the GPU bus
 
 - **Choosing P/D disaggregation too early.** Splitting pools adds fabric + orchestration; for a single host it is overhead without the resource conflict that motivates it.
 
-- **Believing speculative decoding (DFlash >6× / up to 2.5× [S5][1P]) is a serving baseline.** It is an optimization for bandwidth-bound decode, not a requirement, and must be validated on the workload.
+- **Believing speculative decoding (DFlash reports >6× / up to 2.5× in its evaluated config [S5][1P]) is a serving baseline.** These are paper-reported results under the paper's evaluation setup, not portable serving-speed figures. Speculative decoding is an optimization for bandwidth-bound decode, not a requirement, and must be validated on the workload.
 
 ## 6. Architecture Consequence
 

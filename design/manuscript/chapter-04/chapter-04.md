@@ -74,7 +74,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | Output | 300 tokens |
 > | Model baseline | Dense 70B |
 > | Weight precision | FP16 (2 B/param → ~140 GB) |
-> | KV precision | FP16 (25 MB/token → ~23.5 GB @ 9.2K) |
+> | KV precision | FP16 (2.62 MB/token → ~24.1 GB @ 9.2K) |
 > | TTFT SLO | 1.2 s (retrieval ~120 ms + prefill ~1.08 s); p95 ≤ 2 s |
 > | TPOT SLO | 25 ms/token; p95 ≤ 35 ms |
 > | Hardware | 8 × H100 (80 GB each, 640 GB) |
@@ -83,6 +83,28 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | Monthly budget | ~$15,000 (illustrative ceiling) |
 >
 > *The two derived rates most chapters cite: at 10 rps the input demand is ~92,000 tokens/s (9,200 × 10) and output ~3,000 tokens/s (300 × 10); at 40 rps peak the input demand is ~368,000 tokens/s (9,200 × 40). These come from this box, not from a chapter re-deriving the mix differently.*
+
+#### Table 4-3 — Canonical-scenario provenance (the single reference set)
+
+Every quantity below is either an assumed workload input, a vendor fact, a modeled result, or a dated price snapshot. This is the authority for which is which; chapters refer back to it rather than restating provenance each time.
+
+| Quantity | Value | Status |
+|:--|:--|:--|
+| Registered users | 2,000 | [ILLUSTRATIVE][ASSUMPTION] workload input |
+| Active fraction | 5% (~100 concurrent) | [ILLUSTRATIVE][ASSUMPTION] |
+| Average / peak traffic | 10 rps / 40 rps | [ILLUSTRATIVE][ASSUMPTION] |
+| Input tokens | 9,200 (1,200 prompt + 8,000 retrieved) | [ILLUSTRATIVE][ASSUMPTION] |
+| Output tokens | 300 | [ILLUSTRATIVE][ASSUMPTION] |
+| Model parameters | 70B | [ILLUSTRATIVE][ASSUMPTION] reference model |
+| Attention architecture | full-MHA reference model (K/V width = hidden_dim) | [ILLUSTRATIVE][ASSUMPTION] (a real 70B may use GQA, ~8x less KV; Ch 7) |
+| KV per token (FP16, MHA) | 2.62 MB | [2°][DERIVED] from the general KV formula, MHA case |
+| KV per token (FP8, vLLM ~54%) | 1.42 MB | [1P][FACT] vLLM-measured |
+| H100 HBM per GPU | 80 GB | [1P][FACT] vendor |
+| H100 BF16 peak | ~0.989 PFLOPS | [1P][FACT] vendor |
+| Retrieval latency | 120 ms | [ILLUSTRATIVE][ASSUMPTION] |
+| Prefill latency (TTFT) | 1.08 s | [2°][DERIVED]/benchmark assumption |
+| Decode (TPOT) | 25 ms/token | [2°][DERIVED]/benchmark assumption |
+| Host price (8xH100, on-demand) | ~$20/hr | [ILLUSTRATIVE] dated price snapshot |
 
 #### Arithmetic Walk‑Through: From Users to Requests per Second
 
@@ -178,7 +200,7 @@ The six‑dimension characterization directly dictates the architectural path fo
 
 - **Model selection**: A 70B FP16 dense model (140 GB weights) fits on a single host with 8 ×H100 (640 GB GPU memory). The model is large enough to answer factual enterprise questions without fine‑tuning, but the 140 GB footprint means KV cache for 9.2 K context adds ~20–30 GB of GPU memory per request at peak, leaving headroom but not abundance.
 - **Serving configuration**: One host is the baseline. Continuous batching (e.g. vLLM) is nearly mandatory to achieve the 1.2 s TTFT budget under 10 rps input‑heavy traffic; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s. The input‑heavy token profile (30× more input than output) makes continuous batching especially effective, as many requests share the same prefix from retrieved context.
-- **Memory planning**: KV cache for 9.2 K context on the 70B FP16 canonical model is 2 × layers × hidden × bytes = 2,621,440 B ≈ 2.62 MB/token (Chapter 7), giving ≈9,200 ×2.62 MB ≈ 24.1 GB of initial KV per request. At 10 concurrent full-context requests that is ~241 GB of KV on top of the 140 GB weights — pressing against the 640 GB pool well before concurrency reaches 100. The architecture must therefore limit concurrency, quantize KV (FP8 → ~1.42 MB/token, ~13.4 GB/request at the 9.5K max), or reduce context. This is the same KV-residency discipline developed fully in Chapters 7 and 17.
+- **Memory planning**: KV cache for 9.2 K context on the canonical model — a 70B **full-MHA reference model** (every query head has its own K,V, so K/V width = hidden_dim = 8192) — is 2 × layers × hidden × bytes = 2,621,440 B ≈ 2.62 MB/token (Chapter 7), giving ≈9,200 ×2.62 MB ≈ 24.1 GB of initial KV per request. This is the MHA upper-bound baseline; a GQA model (8 KV heads, d_head=128) would carry only ~0.33 MB/token, ~8× less (Ch 7). At 10 concurrent full-context requests the MHA figure is ~241 GB of KV on top of the 140 GB weights — pressing against the 640 GB pool well before concurrency reaches 100. The architecture must therefore limit concurrency, quantize KV (FP8 → ~1.42 MB/token, ~13.4 GB/request at the 9.5K max), or use a GQA architecture. This is the same KV-residency discipline developed fully in Chapters 7 and 17.
 - **Economic feasibility**: At ~$3.50/hour per host and ~$0.015 per request, the TCO is driven by the 9.2 K input tokens per request. If the input token count could be reduced to 2 K (e.g. via better retrieval or query expansion), cost per request drops to ~$0.004, and the same traffic fits within a much lower budget. This is the lever the architect pulls when TCO is the binding constraint.
 - **Operational topology**: Multi‑region deployment (active‑active) provides availability but doubles the infrastructure cost. If the 99.9% availability SLA is non‑negotiable, the architecture must absorb the 2× cost. If it is negotiable, a single-region with graceful-degrading fallback may suffice. The operational constraint thus directly sets the economic floor.
 

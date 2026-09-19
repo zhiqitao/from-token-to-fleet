@@ -15,7 +15,8 @@ Run:  python3 render/canonical_calc.py
 """
 import os
 
-B = 2621440            # per-token KV bytes (2 x 80 x 8192 x 2)
+B = 2621440            # per-token KV bytes (2 x 80 x 8192 x 2) -- FULL-MHA reference model
+B_GQA = 2 * 80 * (8 * 128) * 2        # GQA: n_KV-heads=8, d_head=128 -> 327,680 B
 def gb(tok):           # decimal GB for a token count
     return tok * B / 1e9
 
@@ -29,13 +30,15 @@ fp8_9500 = kv_9500 * 0.54
 c8 = pool / fp8_9500
 
 print("=== CANONICAL DERIVED VALUES (decimal) ===")
-print(f"weights              : {weights:.0f} GB")
-print(f"KV/token FP16        : 2.62 MB decimal (=2.5 MiB; {B} B)")
-print(f"KV/token FP8 (54%)   : 1.42 MB")
-print(f"KV  9,200 (initial)  : {kv_9200:.1f} GB")
+print("CANONICAL MODEL = 70B FULL-MHA REFERENCE MODEL (hidden_dim=8192 wide K/V)")
+print(f"KV/token FP16 (MHA) : {B/1e6:.2f} MB decimal (=2.5 MiB; {B} B)")
+print(f"  general formula   : 2 * n_layers * n_KV-heads * d_head * bytes; MHA case n_KV-heads*d_head=d_model")
+print(f"  GQA example       : n_KV-heads=8, d_head=128 -> {B_GQA/1e6:.3f} MB/token (~8x smaller)")
+print(f"KV/token FP8 (54%)  : {B*0.54/1e6:.2f} MB   (naive byte-halving = {B/2/1e6:.2f} MB theoretical)")
+print(f"KV  9,200 (initial) : {kv_9200:.1f} GB")
 print(f"KV  9,500 (max)      : {kv_9500:.1f} GB")
 print(f"residency 9,500 max  : {res_9500:.1f} GB  (~165)")
-print(f"FP8 KV @9,500 (54%)  : {fp8_9500:.1f} GB")
+print(f"FP8 KV @9,500 (54%)  : {fp8_9500:.1f} GB  (naive halving = {9500*B/2/1e9:.2f} GB)")
 print(f"concurrency FP16     : {pool:.0f}/{kv_9500:.1f} = {c16:.1f} -> 18")
 print(f"concurrency FP8      : {pool:.0f}/{fp8_9500:.1f} = {c8:.1f} -> 33")
 print("OK: canonical values consistent (decimal convention).")

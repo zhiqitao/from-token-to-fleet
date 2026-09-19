@@ -39,7 +39,7 @@ for Lk, lab in [(9.2, '9.2K canonical'), (32, '+~46% @32K'), (128, '~2.4× @128K
 ax.set_xscale('log')
 ax.set_xlabel('Context length (K tokens)')
 ax.set_ylabel('Compute (PFLOP; see series definition)')
-ax.set_title('Prefill compute grows super-linearly with context; decode stays flat')
+ax.set_title('Full-attention prefill increasingly reflects quadratic attention cost; decode is incurred token-by-token')
 ax.set_ylim(3e-5, 1e2)
 ax.grid(alpha=0.3, which='both')
 ax.legend(fontsize=8, loc='upper left')

@@ -103,17 +103,25 @@ the architect's primary gate.
 \section{Worked Example}\label{worked-example}
 
 We anchor all arithmetic in the canonical scenario (§14 of
-book-architecture.md): a 70B-class dense model, FP16 weights (2 bytes
-per parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM),
-\textasciitilde9.2K input tokens + 300 output tokens. We compute
-KV-cache size per token, total KV for the canonical context, and
-contrast with long-context variants.
+book-architecture.md): a \textbf{70B-class dense full-MHA reference
+model} (every query head carries its own K,V, so the per-token KV width
+equals the model's hidden dimension), FP16 weights (2 bytes per
+parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM), \textasciitilde9.2K
+input tokens + 300 output tokens. We compute KV-cache size per token,
+total KV for the canonical context, and contrast with long-context
+variants. The per-token formula is general --- KV/token = 2 × layers ×
+n\_KV-heads × head\_dim × bytes --- and the full-MHA special case
+(n\_KV-heads × head\_dim = hidden\_dim) gives the \textasciitilde2.62
+MB/token conservative baseline used throughout; a GQA model would use a
+much smaller constant (see the sensitivity note, below).
 
 \textbf{\hyperref[tab:7.1]{Table 7-1}} --- KV-cache size per token and per-context
-arithmetic for a 70B-class dense model at FP16. \emph{(All per-context
-KV totals, residency figures, and fit/non-fit verdicts below are {[}2°
-DERIVED{]} from the per-token formula 2 × layers × hidden\_dim × bytes;
-model-card architecture constants are {[}1P: model card{]}.)}
+arithmetic for a 70B-class dense \textbf{full-MHA reference model} at
+FP16. \emph{(All per-context KV totals, residency figures, and
+fit/non-fit verdicts below are {[}2° DERIVED{]} from the general
+per-token formula
+\texttt{2\ ×\ layers\ ×\ n\_KV-heads\ ×\ head\_dim\ ×\ bytes} (MHA case
+here); model-card architecture constants are {[}1P: model card{]}.)}
 
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2933\linewidth}
@@ -328,15 +336,25 @@ constant factor --- a model with 64 layers and 8192 dim will have
   distribution, at the edge, before any architecture decision is made.
 \item
   \textbf{Account for KV quantization when reporting residency.} If the
-  serving stack uses FP8 KV (≈54\% of BF16, vLLM-measured {[}S6{]}), the
-  per-token KV cost drops from \textasciitilde2.62 MB to
-  \textasciitilde1.4 MB, and the 9.5K max residency falls from
+  serving stack uses FP8 KV, the per-token KV cost drops from
+  \textasciitilde2.62 MB to the vLLM-measured
+  \textbf{\textasciitilde1.42 MB} (≈54\% of BF16 {[}S6{]}, NOT a naive
+  byte-halving 50\%), and the 9.5K max residency falls from
   \textasciitilde165 GB to \textasciitilde153 GB (weights 140 GB + KV
   13.4 GB). State both the BF16 and FP8 residency numbers, because the
-  choice of KV dtype changes the hardware requirement decisively. For
-  comparison, 8-bit KV would bring the 9.5K total to \textasciitilde152
-  GB (weights 140 GB + KV \textasciitilde12 GB) --- still above a single
-  H100, but now within 2×H100 (160 GB).
+  choice of KV dtype changes the hardware requirement decisively.
+  \textbf{Distinguish FP8 from 8-bit KV:} FP8 is measured at
+  \textasciitilde1.42 MB/token (54\% of BF16 --- the vLLM serving
+  footprint including per-token metadata), whereas pure byte-halving of
+  the same MHA tensors gives 2,621,440/2 = 1,310,720 B ≈ \textbf{1.31
+  MB/token} (1.25 MiB). Naive halving and the measured 54\% are
+  \emph{different} figures; the book uses the measured
+  \textasciitilde1.42 MB (→ 13.4 GB) as the operating FP8 value
+  throughout, and quotes \textasciitilde1.31 MB only as the theoretical
+  byte-halving lower bound. For comparison, the 8-bit KV case
+  (\textasciitilde1.31 MB/token) brings the 9.5K total to
+  \textasciitilde152 GB (weights 140 GB + KV \textasciitilde12 GB) ---
+  still above a single H100, but now within 2×H100 (160 GB).
 \end{enumerate}
 
 \section{Common Mistakes}\label{common-mistakes}

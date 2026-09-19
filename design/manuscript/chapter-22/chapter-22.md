@@ -66,9 +66,9 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 
 :::
 
-![Fig 22.1 - Prefill compute grows super-linearly with context while decode stays flat [2° DERIVED]](figures/fig-22-2201.png)
+![Fig 22.1 - Full-attention prefill increasingly reflects quadratic attention cost; decode is incurred token-by-token [2° DERIVED]](figures/fig-22-2201.png)
 
-*Prefill FLOPs grow sharply with context length (linear 2NL, red) and faster still once the quadratic attention term is added (orange band, +17% at 9.2K → ~2.4× at 128K); the 9.2K canonical point is marked. Prefill is compute-bound (~1.29 PFLOP/request → ~1.19 PFLOPS required at the ~1.08 s budget vs H100 ~0.989 PFLOPS peak). Note the aggregation units are different per series: the two prefill series are FLOPs *per request* (whole-context), while the decode series (flat blue) is FLOPs *per generated token* (~140 GFLOP/token, independent of context length) — this is why the y-axis is labeled generically "Compute (PFLOP; see series definition)". The two regimes remain deliberately separate: decode is bandwidth-bound (Ch6), prefill is compute-bound (Ch8).*
+*For standard full attention, attention work scales quadratically with sequence length while the MLP/projection portion stays roughly linear, so total prefill compute becomes increasingly dominated by the quadratic attention term as context grows (the 9.2K canonical point is marked; +17% at 9.2K → ~2.4× at 128K). Prefill is compute-bound (~1.29 PFLOP/request → ~1.19 PFLOPS required at the ~1.08 s budget vs H100 ~0.989 PFLOPS peak). The decode series is FLOPs per generated token, and is not literally flat: attending over an increasingly long KV cache carries context-length-dependent work and traffic, so per-token decode cost grows with generated-token index/context (relegated to a narrow band here; see Chapter 8). Note the aggregation units differ per series: the two prefill series are FLOPs *per request* (whole-context), the decode series is FLOPs *per generated token* (~140 GFLOP/token, independent of context length at the decoding step considered) — this is why the y-axis is labeled generically "Compute (PFLOP; see series definition)". The two regimes remain deliberately separate: decode is bandwidth-bound (Ch6), prefill is compute-bound (Ch8).*
 
 ## 4. Measurement
 

@@ -196,6 +196,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 **Architectural actions.** The team sets the turn limit to 3, instruments each turn's token and orchestration latency, and adds a context cache for the search tool. With the cache hit rate of 30% on recurring queries, the effective *δ* drops to ~560 tokens, reducing average amplification to ~1.04× and the added orchestration overhead to ~350 ms on median. The claim "meets an SLA of <1 s" must be scoped carefully: the *added agent-orchestration* latency is comfortably under 1 s, but the **end-to-end** request is ~9 s because of the base generation. The architect therefore scopes the <1 s SLA to orchestration overhead *excluding* final generation, and treats end-to-end as bounded by the ~8.6 s base.
 
 **Lesson.** The agentic layer added ~7% token overhead and ~350 ms of orchestration latency on median (on top of an ~8.6 s base generation), but improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement]. The trade-off was acceptable — the added overhead is small relative to the base generation — and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
+
 ---
 
 **Table 19-1** — Token amplification and latency trade-offs for agentic RQA pipelines
