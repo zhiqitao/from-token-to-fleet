@@ -6,7 +6,7 @@
 
 ## The Signal in One Paragraph
 
-Four independent labs converged on a **second-order architectural pattern** in 2026 — but we should be precise about *what kind* of gain each lever delivers. The common error is to read architecture innovation as raw capability. In our interpretation, it is mostly **efficiency** (more context, less cost per token) that comes out of the attention and MoE changes below, not intelligence. The capability story — reasoning, post-training, test-time compute — lives elsewhere (§6), and carries at least as much of the frontier's real progress. We separate the two explicitly.
+A striking number of 2026 frontier models — four open models we surveyed — converge on a **second-order architectural pattern**, which we read as an interpretation rather than an established historical fact. We should be precise about *what kind* of gain each lever delivers. The common error is to read architecture innovation as raw capability. In our interpretation, it is mostly **efficiency** (more context, less cost per token) that comes out of the attention and MoE changes below, not intelligence. The capability story — reasoning, post-training, test-time compute — lives elsewhere (§6), and carries at least as much of the frontier's real progress. We separate the two explicitly.
 
 ![Fig A.1 — 2026 frontier MoE extreme sparsity: four open models, total vs activated parameters, and active fraction in single digits [1P]](figures/fig-27-2701.png)
 
@@ -14,8 +14,8 @@ Four independent labs converged on a **second-order architectural pattern** in 2
 
 Three **efficiency levers** every 2026 frontier family pulled:
 
-1. **Hybrid attention as the new KV lever — an efficiency lever, not (by itself) a capability lever.** Every frontier model re-engineered attention to shrink long-context cost at the mechanism level — compressed/sparse hybrids (DeepSeek CSA+HCA), delta+sparse (Qwen Gated DeltaNet + QSA), delta/residual (Kimi KDA + AttnRes), sparse+linear (GLM). KV cache is no longer a fixed per-token constant we only quantize; it is a design surface the model vendor already optimized. The benefit is *same intelligence, much cheaper/bigger-context inference* — indispensable, but it does not by itself make the model smarter. Capability gains come from the post-training/reasoning stack in §6.
-2. **MoE sparsity went extreme — the capacity-per-FLOP lever.** Active-parameter fractions fell to single digits (Kimi 104B of 2.8T; Qwen 6B of 125B). MoE is arguably a *larger* architectural innovation than attention: it lets a lab grow knowledge/capacity without proportionally growing FLOPs per token. That is why the 2026 open landscape is heavily MoE-oriented. Expert parallelism and fused cross-expert communication moved from a footnote to a serving-critical capability.
+1. **Hybrid attention as the new KV lever — an efficiency lever, not (by itself) a capability lever.** Every frontier model re-engineered attention to shrink long-context cost at the mechanism level — compressed/sparse hybrids (DeepSeek CSA+HCA), delta+sparse (Qwen Gated DeltaNet + QSA), delta/residual (Kimi KDA + AttnRes), sparse+linear (GLM). KV cache is no longer a fixed per-token constant we only quantize; it is a design surface the model vendor already optimized. The intended benefit is to preserve useful model capability while reducing long-context inference cost and/or extending practical context length — indispensable, but it does not by itself make the model smarter. Capability gains come from the post-training/reasoning stack in §6.
+2. **MoE sparsity went extreme — the capacity-per-FLOP lever.** Active-parameter fractions fell to single digits (Kimi 104B of 2.8T; Qwen 6B of 125B). In our reading, one could argue MoE is a *larger* architectural innovation than attention: it lets a lab grow knowledge/capacity without proportionally growing FLOPs per token. That is why the 2026 open landscape is heavily MoE-oriented. Expert parallelism and fused cross-expert communication moved from a footnote to a serving-critical capability.
 3. **Efficiency is a first-class result, not an afterthought.** Training-stable optimizers (Muon) and post-training RL (GRPO, async RL) are now reported as core architecture, not tooling.
 
 These three form the *cost/context* ledger of the frontier. The *capability* ledger — reasoning, post-training, test-time compute, agent harness — is where most of the qualitative improvement actually lives (§6). Distinguishing efficiency levers from capability levers is the architect's first move when reading any new model card.
@@ -28,7 +28,7 @@ This appendix surveys vendor-reported material, so we are careful to separate th
 - **Interpretation** — our read of what architectural mechanism the report demonstrates (e.g., "the KV reduction suggests the model changes how attention stores state"). This is analysis, ours, and could be wrong.
 - **Hypothesis** — a prediction about consequence we draw for serving architecture (e.g., "we expect long-context serving to become more memory-comfortable at equal context"). This is a testable (a hypothesis), not a fact.
 
-When we write "Four independent labs converged" or "MoE is arguably a larger architectural innovation," read those as **Interpretation / Hypothesis** — defensible reads of the frontier signal, not independent measurements. Vendor numbers stay tagged [1P] and flagged verify-on-own-hardware; our reads sit one register lower and should be read with the same skepticism we ask of any vendor claim. The practical rule: *if it's a percentage from a report, it's Observed [1P]; if it's a claim about what the industry trend means, it's ours — treat it as analysis, tune it against the reader's real workload.*
+When we write "a number of frontier models converge" or "one could argue MoE is a larger architectural innovation," read those as **Interpretation / Hypothesis** — defensible reads of the frontier signal, not independent measurements. Vendor numbers stay tagged [1P] and flagged verify-on-own-hardware; our reads sit one register lower and should be read with the same skepticism we ask of any vendor claim. The practical rule: *if it's a percentage from a report, it's Observed [1P]; if it's a claim about what the industry trend means, it's ours — treat it as analysis, tune it against the reader's real workload.*
 
 ## 1. DeepSeek-V4 — Making Long Context Cheap by Re-Architecting Attention
 
@@ -74,7 +74,7 @@ A recurring error — easy to fall into after reading four new model cards — i
 
 | Lever | Primary effect |
 |---|---|
-| Post-training / RL / reasoning | Capability (the largest single source today) |
+| Post-training / RL / reasoning | Capability (a major source in current frontier systems) |
 | Test-time compute | Capability on hard tasks (more compute on hard problems) |
 | Training data + optimization | General capability |
 | MoE / parameter scaling | Capacity per FLOP |
@@ -83,7 +83,7 @@ A recurring error — easy to fall into after reading four new model cards — i
 | Agent harness / tool use | Real-world task completion |
 | Multimodal architecture | New modalities |
 
-**The most underestimated layer is the one the model card almost never shows: post-training.** Two models with broadly similar architectures and pre-training can end up materially different when one went through mediocre post-training and the other excellent. The recipe — the same families every lab now runs — is what carries much of the qualitative gap:
+**A frequently underestimated layer is the one the model card almost never shows: post-training.** Two models with broadly similar architectures and pre-training can end up materially different when one went through mediocre post-training and the other excellent. The recipe — the same families every lab now runs — is what carries much of the qualitative gap:
 
 - RLVR / reinforcement learning for reasoning
 - synthetic reasoning data
@@ -97,7 +97,7 @@ A recurring error — easy to fall into after reading four new model cards — i
 
 This is why architecture alone never tells an architect how good a frontier model is, and why the decision can no longer stop at "which model" — the marginal capability may live in the post-training and the runtime that wraps it.
 
-![Fig A.3 — The layered evolution of frontier systems](figures/fig-27-2703.png)
+![Fig A.3 — A conceptual layering of frontier AI systems (dates are approximate era markers, not a rigorously established chronology)](figures/fig-27-2703.png)
 
 From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are *efficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. [INTERPRETATION — synthesis of the chapters' arithmetic, not a single measurement]*
 

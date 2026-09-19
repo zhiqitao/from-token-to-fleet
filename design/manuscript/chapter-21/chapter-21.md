@@ -6,7 +6,7 @@ After this chapter we should be able to treat AI delivery as an *industrial proc
 
 ## 1. Concept
 
-The AI Factory is the discipline of making model delivery routine. It rests on three pillars:
+The AI Factory is the discipline of making model delivery routine. We use the term as a **generic architectural concept** — the idea that model delivery can be run as an industrial, gate-driven process — not as any one vendor's marketing vocabulary. It rests on three pillars:
 
 1. **Data pipeline** — the automated intake, cleaning, versioning, and labelling of the data that trains or evaluates the model. For a RAG system this includes the retrieval corpus, its freshness, and its quality gates. [2° FACT]
 

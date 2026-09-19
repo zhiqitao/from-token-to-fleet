@@ -42,7 +42,7 @@ $$
 
 (At the ~40 req/s peak these rise to ~368,000 and ~12,000 tokens/s respectively.) [2° DERIVED]
 
-**Step 4 — Derive architecture-relevant quantities.** The 30× input/output ratio is the single most important derived quantity here. It means this workload is input-heavy: the great majority of latency, memory, and energy is spent in prefill (processing the 9.2K prompt), not decode (generating the 300 answer tokens). This ratio alone dictates that KV-cache memory and prefill compute dominate the design — not decode bandwidth. Every downstream chapter (memory, compute, cost) will price against these derived numbers.
+**Step 4 — Derive architecture-relevant quantities.** The 30× input/output ratio is one of the most important derived quantity here. It means this workload is input-heavy: the great majority of latency, memory, and energy is spent in prefill (processing the 9.2K prompt), not decode (generating the 300 answer tokens). This ratio alone dictates that KV-cache memory and prefill compute dominate the design — not decode bandwidth. Every downstream chapter (memory, compute, cost) will price against these derived numbers.
 
 **Step 5 — Record in Table 22-1.** The full table of derived quantities appears below.
 

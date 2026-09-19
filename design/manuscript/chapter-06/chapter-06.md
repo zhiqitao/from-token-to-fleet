@@ -42,7 +42,7 @@ The mental model also inculcates **one number naming many different things**. "T
 
 ### Latency Is a Distribution, Not a Mean
 
-The single most common measurement error is reporting (and SLO-ing) the *average* latency. Consider a request stream where 99% of requests complete in 0.8 s but 1% take 5 s. The mean is
+A very common measurement error is reporting (and SLO-ing) the *average* latency. Consider a request stream where 99% of requests complete in 0.8 s but 1% take 5 s. The mean is
 
 $$
 \mathbb{E}[L] = \sum_i p_i \cdot L_i = 0.99 \times 0.8 + 0.01 \times 5.0 \approx 0.84 \text{ s}

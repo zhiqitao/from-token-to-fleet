@@ -114,7 +114,7 @@ which exceeds the 10 Gbps (~1.25 GB/s) limit and would require 5× overprovisi
 
 ## 5. Common Mistakes
 
-1. **Ignoring KV cache growth from agentic loops.** The most frequent architectual error is to assume that adding an agentic layer barely changes per-request resource usage. As shown, each turn adds ~800 tokens of context, which linearly reduces concurrent‑request capacity. Forgetting this leads to under‑provisioning the fleet.
+1. **Ignoring KV cache growth from agentic loops.** A common mistake is to assume that adding an agentic layer barely changes per-request resource usage. As shown, each turn adds ~800 tokens of context, which linearly reduces concurrent‑request capacity. Forgetting this leads to under‑provisioning the fleet.
 
 2. **Over‑relying on sticky sessions without load‑balance analysis.** Sticky sessions simplify cross‑host communication but can create hot‑spot hosts if a few users generate disproportionate traffic. Always measure the session‑affinity distribution; if the Gini coefficient of per-host request counts exceeds 0.3, consider stateless routing or session sharding.
 

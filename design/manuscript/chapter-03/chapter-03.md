@@ -93,7 +93,7 @@ How do we determine the total-versus-active split for a model we haven't trained
 
 ## 5. Common Mistakes
 
-- **Assuming total parameters = active parameters per token.** This is the single most costly misread. For a MoE model, the quoted "236B" or "47B" is the total across all experts; the active count per token is a fraction. Using the total number to size KV cache or memory will overestimate compute needs (if we think we need 236B × 2 bytes we'll over-provision weight memory) or underestimate it (if we size for active but forget KV cache is dense).
+- **Assuming total parameters = active parameters per token.** This is one of the costliest misreads. For a MoE model, the quoted "236B" or "47B" is the total across all experts; the active count per token is a fraction. Using the total number to size KV cache or memory will overestimate compute needs (if we think we need 236B × 2 bytes we'll over-provision weight memory) or underestimate it (if we size for active but forget KV cache is dense).
 
 - **Confusing compute sparsity with memory sparsity.** MoE reduces FLOPs per token because fewer parameters are active. It does *not* reduce the number of keys/values written to the KV cache. An architect who assumes MoE shrinks KV cache will be blindsided by memory pressure at long context lengths.
 

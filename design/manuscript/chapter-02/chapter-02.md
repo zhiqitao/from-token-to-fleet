@@ -26,7 +26,7 @@ When we ask "is this workload compute-bound or bandwidth-bound?" the answer depe
 
 ## 3. Worked Example
 
-To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from canonical scenario (Ch 4, Table 4-3): a 70B-class dense model in FP16, 1 host with 8 ×H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims.
+To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from canonical scenario (Ch 4, Table 4-3): a 70B-class dense model in FP16, 1 host with 8 ×H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims. Where the book writes *Analytical bound — not a benchmark*, it marks a first-order model check under a stated bounding assumption, not a measurement of actual serving throughput.
 
 ### Table 2-1 — Decode bandwidth and prefill FLOPs (worked example, not reference)
 
@@ -45,7 +45,7 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 
 ![Fig 2.1 — Decode vs prefill: bandwidth vs compute [ILLUSTRATIVE conceptual]](figures/fig-02-0201.png)
 
-*Decode is HBM-bandwidth-bound (5.6 TB/s vs H100 3.35 TB/s); prefill is compute-bound (~1.19 PFLOPS required vs H100 0.989 PFLOPS peak).*
+*Decode is HBM-bandwidth-bound (5.6 TB/s vs H100 3.35 TB/s); prefill is compute-bound (~1.19 PFLOPS required vs H100 0.989 PFLOPS peak). *(Analytical bound — not a benchmark: these are first-order model checks, not a measurement of actual serving throughput.)*
 
 **Worked example arithmetic details:**
 
@@ -85,7 +85,7 @@ These measurements cost nothing but a profiler attach and a few representative r
 
 ## 5. Common Mistakes
 
-- **Treating prefill and decode as the same bottleneck.** The most dangerous mistake is assuming that what slows prefill will also slow decode, or vice versa. Prefill FLOPs scale with input length; decode bandwidth is constant per token. Confusing the two leads to over-provisioning compute for a bandwidth-bound workload, or under-provisioning compute for a compute-bound one.
+- **Treating prefill and decode as the same bottleneck.** A dangerous mistake is assuming that what slows prefill will also slow decode, or vice versa. Prefill FLOPs scale with input length; decode bandwidth is constant per token. Confusing the two leads to over-provisioning compute for a bandwidth-bound workload, or under-provisioning compute for a compute-bound one.
 
 - **Assuming one H100 suffices for 70B inference.** The arithmetic in Section 4 shows that a single H100 cannot meet the decode bandwidth demand (5.6 TB/s vs 3.35 TB/s) nor the prefill compute demand (1.29 PFLOP vs 0.989 PFLOPS). Attributing 70B serveability to a single GPU ignores the opposite bottlenecks and produces an architecture that fails latency SLOs.
 

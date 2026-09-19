@@ -3,7 +3,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, Rectangle
 
-# Fig A.3 — The layered evolution of frontier systems (Appendix section 6)
+# Fig A.3 — A conceptual layering of frontier AI systems (Appendix section 6)
 # VERTICAL timeline: one full-width row per stage (labels never clip), with a
 # separated legend and an approximate date band.  Color + border style give
 # grayscale-safe redundancy.

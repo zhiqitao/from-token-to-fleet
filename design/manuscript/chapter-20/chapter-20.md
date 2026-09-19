@@ -6,7 +6,7 @@ As a RAG Q&A workload scales from a single host to a fleet of serving nodes, the
 
 ## 1. Concept
 
-Fleet-level optimization treats the entire collection of serving hosts as a single resource pool rather than independent islands. The central insight is that aggregate system throughput is not merely the sum of individual host throughputes; it is modulated by scheduling overhead, network contention, and the cost of moving data between hosts and storage. In a well-designed fleet, the marginal cost per additional query declines as the fleet grows, because fixed costs (model loading, infrastructure) are amortized across more concurrent requests.
+Fleet-level optimization treats the entire collection of serving hosts as a single resource pool rather than independent islands. The central insight is that aggregate system throughput is not merely the sum of individual host throughputs; it is modulated by scheduling overhead, network contention, and the cost of moving data between hosts and storage. In a well-designed fleet, the marginal cost per additional query declines as the fleet grows, because fixed costs (model loading, infrastructure) are amortized across more concurrent requests.
 
 The key concepts are:
 
