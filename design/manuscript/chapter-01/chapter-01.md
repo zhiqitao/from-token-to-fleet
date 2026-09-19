@@ -102,7 +102,7 @@ This measurement habit is the token-layer answer to the book's recurring questio
 ## 5. Common Mistakes
 
 - **Assuming one token ≈ one word.** It is a useful heuristic for general English and nothing more. Code, numerics, and non-Latin scripts routinely run 2–5× the naive estimate, which misprices capacity and cost.
-- **Ignoring the input/output asymmetry.** Treating a request as "one unit" hides that input-heavy workloads are memory-bound and output-heavy ones are decode-bound — opposite bottlenecks with opposite fixes.
+- **Ignoring the input/output asymmetry.** Treating a request as "one unit" hides that input-heavy workloads tend toward high prefill compute and KV-capacity pressure, while output-heavy ones are decode-bound (run-time per generated token) — opposite bottlenecks with opposite fixes. (Note: "capacity pressure" is a memory-*capacity* constraint, not a memory-*bandwidth* bound; see Ch 4/8.)
 - **Quoting context window as free capacity.** The window is an upper bound, not a recommendation; using it fully is expensive. Keeping a 9.2K average inside a 128K window still costs for the length we actually use.
 - **Trusting a vendor's tokenizer count without checking.** Tokenizer versions change and report differently; measure on *our* traffic, not the marketing figure.
 

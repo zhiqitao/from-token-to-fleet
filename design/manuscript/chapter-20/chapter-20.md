@@ -113,4 +113,4 @@ Several open questions remain at the fleet level:
 
 **Table 20-1** — Fleet QPS and latency vs. host count, batch size, and scheduling overhead.
 
-![Fig 20.1 - Fleet QPS and latency vs. host count, batch size, and scheduling overhead [ILLUSTRATIVE][DERIVED]](figures/fig-20-2001.png)
+![Fig 20.1 - Fleet QPS and latency vs. host count, batch size, and scheduling overhead. The throughput panel is model-derived (KV/latency bound ~2.1 req/s/host, shown with a ~90% scheduling-overhead line); the p99 panel is explicitly illustrative, using a decode floor ~7.5 s plus a heuristic queueing term — host count alone does not determine p99 without arrival, scheduling, batching, and queueing assumptions [ILLUSTRATIVE][DERIVED]](figures/fig-20-2001.png)

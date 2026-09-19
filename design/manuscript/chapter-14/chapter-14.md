@@ -27,7 +27,7 @@ Just as important, we benchmark the **workload, not the model in the abstract.**
 
 ### Designing a Deployment Benchmark for the Canonical Workload
 
-We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (canonical scenario (Ch 4, Table 4-3)): ~10 rps average / 40 rps peak, ~9,200 input tokens (1,200 query + 8K retrieved) + ~300 output, TTFT budget 1.2 s, TPOT ~25 ms/token. [1P canonical scenario (Ch 4, Table 4-3)]
+We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (canonical scenario (Ch 4, Table 4-3)): ~10 rps average / 40 rps peak, ~9,200 input tokens (1,200 query + 8K retrieved) + ~300 output, TTFT budget 1.2 s, TPOT ~25 ms/token. [canonical scenario (Ch 4, Table 4-3)]
 
 **Step 1 — representative queries.** We sample real user questions and run them through the rag pipeline to produce the actual prompt shapes, matching the ~9.2K-in / ~300-out token profile with the model's own tokenizer (not a heuristic). [2°]
 

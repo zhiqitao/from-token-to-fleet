@@ -125,6 +125,8 @@ ax.set_title('P99 latency vs host count\n(decode-dominated)', fontsize=10.5)
 ax.grid(alpha=0.3)
 ax.axhline(7.5, color='#888', ls=':', lw=1)
 ax.text(1, 7.7, 'decode floor ~7.5 s (ILLUSTRATIVE)', fontsize=8, color='#555')
+ax.text(5.5, 9.6, 'p99 = model-execution floor + heuristic queueing term (0.4 s/host);\nnot a measured relationship — host count alone does not set p99\nwithout arrival process, scheduling, batching & queueing assumptions.',
+        fontsize=7.5, color='#555')
 plt.tight_layout()
 plt.savefig(base % (20, 20, 20), dpi=150); plt.close()
 print('Ch20 done')

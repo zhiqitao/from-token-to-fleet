@@ -116,12 +116,18 @@ input tokens and \(O = 300\) output tokens per request, and
 
 \textbf{Step 4 --- Derive architecture-relevant quantities.} The 30×
 input/output ratio is one of the most important derived quantity here.
-It means this workload is input-heavy: the great majority of latency,
-memory, and energy is spent in prefill (processing the 9.2K prompt), not
-decode (generating the 300 answer tokens). This ratio alone dictates
-that KV cache memory and prefill compute dominate the design --- not
-decode bandwidth. Every downstream chapter (memory, compute, cost) will
-price against these derived numbers.
+It means this workload is input-heavy: the token budget is dominated by
+prefill (processing the 9.2K prompt), not decode (generating the 300
+answer tokens). Combined with the canonical model, precision, serving,
+and SLO assumptions, this 30× ratio pushes the design toward high
+prefill compute and KV-capacity pressure. Note that the ratio alone does
+not settle which resource dominates --- that also depends on model
+architecture, attention/KV-head count, precision, batching, hardware,
+kernel efficiency, prefix caching, and output-generation speed --- but
+under the canonical assumptions the prefill-compute and KV-capacity
+terms are where the pressure lands, not decode bandwidth. Every
+downstream chapter (memory, compute, cost) will price against these
+derived numbers.
 
 \textbf{Step 5 --- Record in \hyperref[tab:22.1]{Table 22-1}.} The full table of derived
 quantities appears below.
@@ -132,7 +138,8 @@ canonical thought process an AI solution architect runs, every time,
 before a single architecture decision is made. It is how we move from
 ``we need a Q\&A system'' to ``our prefill will be compute-bound at
 \textasciitilde1.29 PFLOP per request, and our decode will be
-bandwidth-bound at \textasciitilde5.6 TB/s per token.'' The loop is the
+bandwidth-bound at a required weight-read rate of \textasciitilde5.6
+TB/s over each \textasciitilde25 ms token interval.'' The loop is the
 chapter's central contribution; the quantities that issue from it are
 the evidence {[}1P{]}/{[}2°{]}/(to be verified) that every following
 chapter trades on.
@@ -174,10 +181,16 @@ output tokens/s @ peak 40 rps & \textasciitilde12,000 & 300 ×40
 {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
 prefill FLOPs per request & \textasciitilde1.29 PFLOP & 2 ×70B × 9.2K ≈
 1.29 ×10¹⁵ {[}DERIVED{]} \\
-decode bandwidth per token & \textasciitilde5.6 TB/s & 140 GB weights /
-25 ms TPOT {[}DERIVED{]} \\
-KV cache memory per request & \textasciitilde12 GB (70B, 8-bit KV) & 1.3
-MB/token × 9,200 tokens {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
+decode weight-read per token & \textasciitilde140 GB & full-weight-read
+model (70B FP16) {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
+decode required BW rate & \textasciitilde5.6 TB/s & \textasciitilde140
+GB / 25 ms TPOT (= traffic / decode interval)
+{[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
+KV cache memory per request & \textasciitilde24.1 GB (9.2K, FP16) /
+\textasciitilde24.9 GB (9.5K max) & 2.62 MB/token × 9,200 / 9,500 tokens
+{[}ILLUSTRATIVE{]}{[}DERIVED{]}; \emph{(sensitivity: at 8-bit KV the
+same 9.2K context falls to \textasciitilde12 GB under ideal
+byte-halving)} \\
 
 \label{tab:22.1}\end{longtable}
 
@@ -252,10 +265,13 @@ decision is made.
   capacity and cost.
 \item
   \textbf{Ignoring the input/output asymmetry.} Treating a request as
-  ``one unit'' hides that input-heavy workloads are memory-bound and
-  output-heavy ones are decode-bound --- opposite bottlenecks with
-  opposite fixes. The 30× input/output ratio in the canonical loop is
-  the concrete illustration of this principle.
+  ``one unit'' hides that input-heavy workloads tend toward high prefill
+  compute and KV-capacity pressure, while output-heavy ones are
+  decode-bound (run-time per generated token) --- opposite bottlenecks
+  with opposite fixes. (Note: ``capacity pressure'' is a
+  memory-\emph{capacity} constraint, not a memory-\emph{bandwidth}
+  bound; see Ch 4/8.) The 30× input/output ratio in the canonical loop
+  is the concrete illustration of this principle.
 \item
   \textbf{Quoting context window as free capacity.} The window is an
   upper bound, not a recommendation; using it fully is expensive.
@@ -278,8 +294,13 @@ The canonical loop's derived quantities have immediate and concrete
 architecture consequences. The 30× input/output ratio means this
 workload's prefill phase dominates: \textasciitilde1.29 PFLOP of compute
 per request, and a KV cache that grows with 9.2K input tokens. The
-decode phase, while smaller in total tokens, requires \textasciitilde5.6
-TB/s of HBM bandwidth per generated token --- a bandwidth-bound design.
+decode phase, while smaller in total tokens, requires a weight-read rate
+of \textasciitilde5.6 TB/s sustained over each \textasciitilde25 ms
+decode step (the \textasciitilde140 GB weight-read interval), against
+one GPU's \textasciitilde3.35 TB/s --- a bandwidth-bound design. (Note
+the units: 5.6 TB/s is a \emph{rate}; the \emph{per-token weight
+traffic} is \textasciitilde140 GB under the full-weight-read model, and
+rate = traffic / TPOT.)
 
 These opposite bottlenecks lead to a central architectural decision:
 \textbf{can we disaggregate prefill and decode?} If prefill needs FLOPS
@@ -287,11 +308,15 @@ and decode needs bandwidth, a single homogeneous GPU pool is suboptimal.
 A two-pool architecture --- a prefill cluster optimized for compute
 (more GPUs, higher FLOPS, model parallelism) and a decode cluster
 optimized for bandwidth (faster HBM, PagedAttention, continuous
-batching) --- can achieve the same serving SLO with fewer total GPUs
-than a homogeneous design. This is the central theme of \hyperref[chap:11]{Chapter 11}
-(Serving) and Pattern 4 (Prefill/decode disaggregation). The architect
-who runs the canonical loop and records the derived quantities in \hyperref[tab:22.1]{Table 22-1} is already positioned to make this decision with numbers, not
-intuition.
+batching) --- is an architecture worth benchmarking. Whether it needs
+fewer GPUs than a homogeneous design depends on achievable utilization,
+duplicated model residency, KV-transfer cost, interconnect topology,
+workload shape, burstiness, and the hardware assigned to each pool ---
+those effects must be measured before the GPU-count conclusion is drawn.
+This is the central theme of \hyperref[chap:11]{Chapter 11} (Serving) and Pattern 4
+(Prefill/decode disaggregation). The architect who runs the canonical
+loop and records the derived quantities in \hyperref[tab:22.1]{Table 22-1} is already
+positioned to make this decision with numbers, not intuition.
 
 Importantly, the loop does not end at a serving topology; it ends at a
 \emph{decision about where the intelligence lives}. A 70B dense pool on
@@ -363,13 +388,14 @@ sustain \textasciitilde92,000 input tokens/s in prefill and
 numbers jump to \textasciitilde368,000 and \textasciitilde12,000
 respectively. The architect can also state the two opposite bottlenecks:
 prefill will be compute-bound (\textasciitilde1.29 PFLOP per request at
-9.2K input), and decode will be bandwidth-bound (\textasciitilde5.6 TB/s
-required weight-read rate per token). The team's immediate architectural
-choice is whether to build a single homogeneous GPU cluster or to
-separate prefill and decode pools --- the arithmetic from this chapter
-makes clear that a homogeneous design will be suboptimal for either
-bottleneck, and that the disaggregation option explored in \hyperref[chap:11]{Chapter 11} is
-worth evaluating early.
+9.2K input), and decode will be bandwidth-bound (a \textasciitilde140
+GB/token weight-read requiring \textasciitilde5.6 TB/s sustained over
+the \textasciitilde25 ms decode interval). The team's immediate
+architectural choice is whether to build a single homogeneous GPU
+cluster or to separate prefill and decode pools --- the arithmetic from
+this chapter makes clear that a homogeneous design will be suboptimal
+for either bottleneck, and that the disaggregation option explored in
+\hyperref[chap:11]{Chapter 11} is worth evaluating early.
 
 Before passing this workload to \hyperref[chap:23]{Chapter 23} (Memory), the architect locks
 in one more number: the tokens-per-request split. This is the currency

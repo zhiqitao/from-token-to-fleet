@@ -53,7 +53,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 |---|---|---|
 | Quality | >85% factual accuracy [ILLUSTRATIVE][DERIVED] | Enterprise Q&A benchmarks |
 | Traffic | 10 rps avg; 40 rps peak [ILLUSTRATIVE][DERIVED] | 2,000 users × 5% concurrency = 100 concurrent; 100/10s = 10 rps; peaks at 20% concurrency → 40 rps |
-| Token profile | 9,200 input tokens + 300 output tokens [1P canonical scenario (Ch 4, Table 4-3)] | 1,200 prompt + 8K context; 300‑token answer |
+| Token profile | 9,200 input tokens + 300 output tokens [canonical scenario (Ch 4, Table 4-3)] | 1,200 prompt + 8K context; 300‑token answer |
 | Latency | TTFT 1.2 s (retrieval ~120 ms + prefill); TPOT ~25 ms/token [2° SLO] | User‑experience targets |
 | Economics | $1.20/M input; $2.00/M output; ~$20/hr per 8×H100 host ($2.50/GPU-hr) | **illustrative 2026 price input** ($2.50/H100-GPU-hr, [ILLUSTRATIVE]); tokens/s per dollar derived from it |
 | Operational | Multi‑region; daily embedding refresh; 99.9% availability [ILLUSTRATIVE][DERIVED] | Enterprise IT policy |
@@ -191,7 +191,7 @@ These measurement habits are the token-layer answer to the book's recurring ques
 
 - **Treating "5% concurrency" as the throughput**. Concurrency is a snapshot of simultaneous users; throughput depends on how long each request takes. 100 concurrent users with 200 s per request yield 0.5 rps, not 10 rps. The binding connection is through request duration (Little's Law). Catch this by always asking "how long is each request in system?" before quoting a concurrency-derived throughput.
 - **Assuming "one token ≈ one word"**. Enterprise Q&A prompts with code snippets, JSON payloads, or technical terminology can run 2–5× the naive token estimate, silently inflating KV cache and cost.
-- **Ignoring the input–output asymmetry**. An input-heavy workload like RAG is memory-bound (prefill/KV cache), while an output-heavy workload is decode-bound. Optimizing decode throughput on an input-heavy workload moves the needle negligibly; the real win is prefill reduction or KV cache reuse.
+- **Ignoring the input–output asymmetry**. An input-heavy workload like RAG tends to increase *prefill compute* and *KV-capacity* pressure — it does not by itself make the system "memory-bandwidth-bound." In the canonical model, prefill is **compute-bound** under the analytical roofline, while long input raises **KV residency**, which constrains sustainable concurrency (a capacity constraint, distinct from bandwidth). An output-heavy workload is **decode-bound** (bandwidth/runtime per generated token). Optimizing decode throughput on an input-heavy workload moves the needle negligibly; the real win is prefill reduction, prefix/KV reuse, or increasing effective carrying capacity.
 - **Quoting context window as free capacity**. The 128 K token window is an upper bound; using 9.2 K of it still costs for the full 9.2 K in memory and prefill time. Keeping context shorter than necessary is not "free."
 - **Overlooking operational constraints**. Multi–region deployment adds replication cost; privacy requirements may force a more expensive on-prem embedding model. These are often the true binding constraints, not the per-token price.
 

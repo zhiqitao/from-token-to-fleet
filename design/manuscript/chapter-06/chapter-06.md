@@ -75,7 +75,7 @@ At the resource layer, the tell is utilization: a decode kernel pinned at ~95% o
 | Phase | Demand | H100 capacity | Verdict | Resource tell |
 |---|---|---|---|---|
 | Prefill (9.2K input) | ~1.29 PFLOP | ~0.989 PFLOPS BF16 | compute-bound | high FLOP / MFU util, mid bandwidth |
-| Decode (per token) | ~5.6 TB/s weight read | ~3.35 TB/s HBM | bandwidth-bound | high HBM util, low FLOP util |
+| Decode (per token) | ~140 GB weight-read → ~5.6 TB/s rate | ~3.35 TB/s HBM | bandwidth-bound | high HBM util, low FLOP util |
 
 *(All figures [1P][FACT] hardware / [ILLUSTRATIVE][DERIVED] arithmetic traced to canonical scenario (Ch 4, Table 4-3) and Chapter 2.)*
 

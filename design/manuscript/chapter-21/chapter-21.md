@@ -30,7 +30,7 @@ The factory's shape is a **pipeline with decisions**: data in → train/fine-tun
 
 ### The Economics of Promotion Gating for the Canonical Workload
 
-We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [1P canonical scenario (Ch 4, Table 4-3)]
+We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [canonical scenario (Ch 4, Table 4-3)]
 
 **Setup.** Suppose a new model candidate claims better retrieval-QA quality but no one has measured its serving behavior. Two adoption paths:
 
