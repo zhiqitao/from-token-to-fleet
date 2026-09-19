@@ -38,7 +38,7 @@ We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (c
 - **Goodput** — tokens/s that meet the SLO (Ch6), not raw throughput.
 - **KV-cache utilization** and prefix-cache hit ratio (to validate the serving choices of Ch11).
 
-**Step 3 — read the result.** Suppose candidate A (a 70B dense on 8×H100) shows p95 TTFT 1.9 s and goodput 9,800 tok/s at 40 rps concurrency — **meets** the canonical SLO. Candidate B (a smaller 7B) shows 0.6 s TTFT — much faster — but scores lower on the capability screen for the retrieval-QA quality threshold. We therefore *select* A for deployment (capability + deployment both pass), not B (capability fails despite speed). The benchmark did not score one number; it reproduced the decision. [2° DERIVED]
+**Step 3 — read the result.** Suppose candidate A (a 70B dense on 8×H100) shows p95 TTFT 1.9 s and goodput 9,800 tok/s at 40 rps concurrency — **meets** the canonical SLO. Candidate B (a smaller 7B) shows 0.6 s TTFT — much faster — but scores lower on the capability screen for the retrieval-QA quality threshold. We therefore *select* A for deployment (capability + deployment both pass), not B (capability fails despite speed). The benchmark did not score one number; it reproduced the decision. [ILLUSTRATIVE][DERIVED]
 
 #### Table 14-1 — Capability vs deployment benchmarks
 

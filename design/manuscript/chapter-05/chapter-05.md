@@ -56,10 +56,10 @@ Three realistic options, each with documented properties:
 **Table 5-1** — Model-selection decision: embedding vs generation model
 | metric | value | derivation |
 |---|---|---|
-| Embedding dimension (recommended) | 768 | all‑mpnet‑base‑v2 [2° DERIVED] |
-| Embedding model size | ~110M parameters | all‑mpnet‑base‑v2 [2° DERIVED] |
+| Embedding dimension (recommended) | 768 | all‑mpnet‑base‑v2 [ILLUSTRATIVE][DERIVED] |
+| Embedding model size | ~110M parameters | all‑mpnet‑base‑v2 [ILLUSTRATIVE][DERIVED] |
 | Per-request context/KV cost at 9.2K input | ~24.1 GB (FP16 KV cache, initial) | 70B FP16, 80 layers, 9.2K context [1P DERIVED] |
-| Tokens/s per dollar (generation, runtime) | 9,000 tokens per dollar‑hour | 50 tok/s × 3600 s/hr ÷ $20/hr [2° DERIVED] |
+| Tokens/s per dollar (generation, runtime) | 9,000 tokens per dollar‑hour | 50 tok/s × 3600 s/hr ÷ $20/hr [ILLUSTRATIVE][DERIVED] |
 | Verdict | Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16 on 8×H100 | Selection surfaces (§4 §5)
 ### (b) Generation‑model selection for the answer leg
 
@@ -77,7 +77,7 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 [2°] DERIVED: tokens/s per dollar for generation. On‑demand H100 list price ~$2.50/hour per GPU → 8×H100 = $20/hour. At ~50 tok/s aggregate throughput, the effective cost is ~0.40 $/tok/s, or equivalently ~2.5 tokens/s per dollar-hour. In tokens‑per‑dollar terms: 50 tok/s × 3600 s/hr ÷ $20/hr = 9,000 tokens per dollar per hour of runtime.
 
-> **Economics unit note (reconciliation with Ch. 4).** Both chapters use the same on-demand price basis: ~$2.50/hr per H100 → ~$20/hr per 8×H100 host. They differ only in *unit convention*: this chapter expresses **tokens per dollar-hour** (token-rate × 3600 s ÷ hourly cost), while Chapter 4 expresses **tokens per second per dollar** (token-rate ÷ per-second cost). A reader comparing across Part II should convert units (÷3600 to go tokens/dollar-hour → tokens/s/dollar). [2° DERIVED]
+> **Economics unit note (reconciliation with Ch. 4).** Both chapters use the same on-demand price basis: ~$2.50/hr per H100 → ~$20/hr per 8×H100 host. They differ only in *unit convention*: this chapter expresses **tokens per dollar-hour** (token-rate × 3600 s ÷ hourly cost), while Chapter 4 expresses **tokens per second per dollar** (token-rate ÷ per-second cost). A reader comparing across Part II should convert units (÷3600 to go tokens/dollar-hour → tokens/s/dollar). [ILLUSTRATIVE][DERIVED]
 
 [2°] DERIVED: tokens/s per dollar with prefill included. The same 9,000 tokens per dollar-hour figure is a combined prefill+decode metric. Because this workload is input‑heavy (9.2K vs 300 tokens), the prefill leg consumes ~70% of the total tokens per request but only ~40% of the total compute time (prefill is compute‑intensive but batchable; decode is sequentially limited). The per‑dollar economics therefore favor models that reduce prefill cost (smaller context, lower KV‑cache per token) more than models that optimize decode throughput.
 

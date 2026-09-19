@@ -44,7 +44,7 @@ ax.add_patch(FancyArrowPatch((xs[6]+w/2, y), (xs[0]+w/2+0.5, y-3.0),
 ax.text(12.0, 2.2, 'production feedback → data / evaluation',
         fontsize=8.5, ha='center', color='#2f6f4f', fontweight='bold')
 
-ax.text(12.0, 0.8, 'metrics gate: promote only after canary/observe pass; otherwise rollback to last-known-good. [2° DERIVED]',
+ax.text(12.0, 0.8, 'metrics gate: promote only after canary/observe pass; otherwise rollback to last-known-good. [ILLUSTRATIVE][DERIVED]',
         fontsize=8, ha='center', color='#666')
 
 plt.tight_layout()

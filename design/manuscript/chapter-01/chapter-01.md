@@ -80,10 +80,10 @@ The canonical scenario (Ch 4, Table 4-3 — the one set of numbers every chapter
 |---|---|---|
 | input tokens / request | ~9,200 | canonical scenario (Ch 4, Table 4-3) (1,200 prompt + 8K context) |
 | output tokens / request | ~300 | canonical scenario (Ch 4, Table 4-3) |
-| input / output ratio | ~30× | 9,200 ÷ 300 [2° DERIVED] |
-| input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [2° DERIVED] |
-| input tokens/s @ peak 40 rps | ~368k | 9,200 ×40 [2° DERIVED] |
-| output tokens/s @ 10 rps | ~3,000 | 300 ×10 [2° DERIVED] |
+| input / output ratio | ~30× | 9,200 ÷ 300 [ILLUSTRATIVE][DERIVED] |
+| input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [ILLUSTRATIVE][DERIVED] |
+| input tokens/s @ peak 40 rps | ~368k | 9,200 ×40 [ILLUSTRATIVE][DERIVED] |
+| output tokens/s @ 10 rps | ~3,000 | 300 ×10 [ILLUSTRATIVE][DERIVED] |
 
 *(All figures trace to the canonical scenario (Ch 4, Table 4-3); none are measurement claims.)*
 

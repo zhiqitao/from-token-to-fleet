@@ -37,7 +37,7 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 | Decode: weight-read per token | 140 GB | Auto-regressive, batch-1-equivalent: one read of all weights per generated token before batching/amortization [1P DERIVED] |
 | Decode: required bandwidth (TPOT ~25 ms) | 5.6 TB/s | 140 GB / 0.025 s (batch-1-equivalent weight-streaming model, before amortization) [DERIVED] |
 | H100 HBM3 peak bandwidth | 3.35 TB/s | NVIDIA H100 specs [1P FACT] |
-| Decode: bandwidth verdict | bandwidth-bound | 5.6 > 3.35 → under the batch-1-equivalent model, a single H100 cannot meet the demand; batching/amortization change this (see later chapters) [2° DERIVED] |
+| Decode: bandwidth verdict | bandwidth-bound | 5.6 > 3.35 → under the batch-1-equivalent model, a single H100 cannot meet the demand; batching/amortization change this (see later chapters) [ILLUSTRATIVE][DERIVED] |
 | Prefill: input tokens | 9,200 | 1,200 prompt + 8K context [1P DERIVED] |
 | Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 ×70e9 ×9.2e3 ≈ 1.29 ×10^15 [DERIVED] |
 | H100 BF16 dense compute | 989 TFLOPS | NVIDIA H100 BF16 tensor-core peak [1P FACT] |
@@ -55,7 +55,7 @@ $$
 B_\text{req} = \frac{W}{\tau} = \frac{140 \text{ GB}}{0.025 \text{ s}} = 5{,}600 \text{ GB/s} = 5.6 \text{ TB/s}
 $$
 
-[2° DERIVED]. A single NVIDIA H100 HBM3 delivers ~3.35 TB/s peak bandwidth [1P FACT]. Since $5.6 > 3.35$, under this batch-1-equivalent weight-streaming model one H100 cannot supply the required weight-read rate — the decode phase is HBM-bandwidth-bound [2° DERIVED]. This is a statement about the *specified* single-request, ~25 ms/token model, not about all possible 70B serving: batching, weight-read amortization, and precision changes (later chapters) fundamentally alter the per-request bandwidth demand. Within the model, meeting that latency target calls for multi-GPU scaling or bandwidth-increasing topologies (e.g. NVLink-connected nodes).
+[ILLUSTRATIVE][DERIVED]. A single NVIDIA H100 HBM3 delivers ~3.35 TB/s peak bandwidth [1P FACT]. Since $5.6 > 3.35$, under this batch-1-equivalent weight-streaming model one H100 cannot supply the required weight-read rate — the decode phase is HBM-bandwidth-bound [ILLUSTRATIVE][DERIVED]. This is a statement about the *specified* single-request, ~25 ms/token model, not about all possible 70B serving: batching, weight-read amortization, and precision changes (later chapters) fundamentally alter the per-request bandwidth demand. Within the model, meeting that latency target calls for multi-GPU scaling or bandwidth-increasing topologies (e.g. NVLink-connected nodes).
 
 - **Prefill FLOPs.** The prefill pass computes attention over the 9.2K input tokens and produces the first output token. The FLOP count for a dense transformer forward pass is well approximated as $2 \times \text{params} \times \text{tokens}$ (the factor of 2 accounts for multiply-add per parameter per token). Thus:
 
@@ -63,13 +63,13 @@ $$
 \text{prefill FLOPs} = 2 \times N \times L = 2 \times 70 \times 10^9 \times 9.2 \times 10^3 \approx 1.288 \times 10^{15} \approx 1.29 \text{ PFLOP}
 $$
 
-[2° DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-core peak) [1P FACT], which is 0.989 PFLOPS. The required rate against the ~1.08 s prefill budget is
+[ILLUSTRATIVE][DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-core peak) [1P FACT], which is 0.989 PFLOPS. The required rate against the ~1.08 s prefill budget is
 
 $$
 \text{rate} = \frac{1.29 \text{ PFLOP}}{1.08 \text{ s}} \approx 1.19 \text{ PFLOPS}
 $$
 
-Crossing $1.19 > 0.989$ — **even before accounting for attention overhead, kernel inefficiency, and sub-100% MFU, this first-order lower bound already exceeds the H100's theoretical peak.** Therefore one H100 cannot satisfy the stated prefill budget under these assumptions; the prefill phase is compute-bound [2° DERIVED]. Note the direction of this argument: exceeding the *theoretical peak* proves the target is impossible on a single H100 under the stated model, but it does **not** imply any rate below the peak is achievable — real kernels land well under MFU 100%. Meeting the latency SLO therefore calls for multiple GPUs (model parallelism or data parallelism) or more efficient attention implementations.
+Crossing $1.19 > 0.989$ — **even before accounting for attention overhead, kernel inefficiency, and sub-100% MFU, this first-order lower bound already exceeds the H100's theoretical peak.** Therefore one H100 cannot satisfy the stated prefill budget under these assumptions; the prefill phase is compute-bound [ILLUSTRATIVE][DERIVED]. Note the direction of this argument: exceeding the *theoretical peak* proves the target is impossible on a single H100 under the stated model, but it does **not** imply any rate below the peak is achievable — real kernels land well under MFU 100%. Meeting the latency SLO therefore calls for multiple GPUs (model parallelism or data parallelism) or more efficient attention implementations.
 
 ## 4. Measurement
 
@@ -109,7 +109,7 @@ The key architectural decision this enables: **can we disaggregate prefill and d
 
 - **Effect of continuous batching on the 2 × params × tokens approximation.** Continuous batching amortizes weight reads and improves hardware utilization, scheduling efficiency, and aggregate goodput — but it does **not** reuse one request's transformer activations to avoid the forward-pass work of another unrelated request, so it does not reduce the mathematical FLOP count per request. Compute that *is* re-used across requests sharing a common prefix is a different mechanism: **prefix caching** (or KV reuse), which skips the re-prefill of a shared prefix and thereby does cut real forward-pass work for that portion. The magnitude of the prefix-cache hit rate at fleet scale is not yet pinned down. — to be benchmarked with realistic concurrency patterns.
 
-- **Cross-technology bandwidth numbers.** HBM3e (next-generation) promises ~6+ TB/s per GPU, and AMD MI300X promises ~5.3 TB/s. How these compare to the 5.6 TB/s decode demand shifts the GPU count equation but does not change the fundamental bandwidth-bound vs compute-bound classification. [2° FACT] — vendor-published numbers, verify against the specific generation in use.
+- **Cross-technology bandwidth numbers.** HBM3e (next-generation) promises ~6+ TB/s per GPU, and AMD MI300X promises ~5.3 TB/s. How these compare to the 5.6 TB/s decode demand shifts the GPU count equation but does not change the fundamental bandwidth-bound vs compute-bound classification. [ILLUSTRATIVE][DERIVED] — vendor-published numbers, verify against the specific generation in use.
 
 - **Effect of quantization on decode bandwidth vs prefill FLOPs.** Int4 or FP8 quantization reduces the weight bytes (e.g., 70B at FP8 = 70 GB instead of 140 GB), which directly lowers the HBM read demand in decode; it does *not* reduce the algorithmic operation count of the matmuls (the 2 × params × tokens FLOPs are approximately unchanged), though lower precision can raise the *effective* throughput of the tensor cores at which those ops run. The direction of the shift is clear (decode bandwidth improves; prefill ceiling rises in effective rate), but the precise trade-off point where decode becomes compute-bound rather than bandwidth-bound depends on the quantization scheme and hardware support. — workload-dependent.
 

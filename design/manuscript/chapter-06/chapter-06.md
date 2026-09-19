@@ -64,9 +64,9 @@ Deploying a higher-throughput configuration can *reduce* goodput. Concretely: su
 
 The most decision-relevant resource question is: is this layer bandwidth-bound or compute-bound? We recall the arithmetic from Chapter 2:
 
-- **Decode is HBM-bandwidth-bound.** Generating one token needs a full forward pass over the 70B weights = 140 GB (FP16) of reads per token. Within a ~25 ms TPOT budget that demands 140 GB / 0.025 s ≈ **5.6 TB/s** of HBM bandwidth, against an H100's ~3.35 TB/s peak [1P FACT]. 5.6 > 3.35, so a single H100 *cannot* meet the budget on bandwidth alone — decode is memory-bound, and the fix is more bandwidth (H200 4.8 TB/s), fewer bytes per token (quantization), or fewer weight reads (speculative decoding / smaller active params). [2° DERIVED]
+- **Decode is HBM-bandwidth-bound.** Generating one token needs a full forward pass over the 70B weights = 140 GB (FP16) of reads per token. Within a ~25 ms TPOT budget that demands 140 GB / 0.025 s ≈ **5.6 TB/s** of HBM bandwidth, against an H100's ~3.35 TB/s peak [1P FACT]. 5.6 > 3.35, so a single H100 *cannot* meet the budget on bandwidth alone — decode is memory-bound, and the fix is more bandwidth (H200 4.8 TB/s), fewer bytes per token (quantization), or fewer weight reads (speculative decoding / smaller active params). [ILLUSTRATIVE][DERIVED]
 
-- **Prefill is compute-bound.** The prefill pass for 9,200 input tokens costs ≈ 2 ×70e9 params × 9.2e3 tokens ≈ **1.29 PFLOP**, which against the ~1.08 s prefill budget implies a required rate of ≈ 1.19 PFLOPS — above an H100's ~0.989 PFLOPS dense BF16 peak (1.19 > 0.989), so prefill is FLOP-bound: the machine caps out on compute, not memory traffic. [2° DERIVED]
+- **Prefill is compute-bound.** The prefill pass for 9,200 input tokens costs ≈ 2 ×70e9 params × 9.2e3 tokens ≈ **1.29 PFLOP**, which against the ~1.08 s prefill budget implies a required rate of ≈ 1.19 PFLOPS — above an H100's ~0.989 PFLOPS dense BF16 peak (1.19 > 0.989), so prefill is FLOP-bound: the machine caps out on compute, not memory traffic. [1P][DERIVED]
 
 At the resource layer, the tell is utilization: a decode kernel pinned at ~95% of HBM bandwidth but ~30% of FLOPs is bandwidth-bound; a prefill kernel with ~90% FLOP utilization is compute-bound. **The same hardware, the same model — the boundary flips between prefill and decode.** This is precisely why Splitwise/DistServe (and Mooncake's KV-centric disaggregation) split prefill from decode onto different pools: the bottleneck-regime difference justifies it. [S4][1P]
 
@@ -77,7 +77,7 @@ At the resource layer, the tell is utilization: a decode kernel pinned at ~95% o
 | Prefill (9.2K input) | ~1.29 PFLOP | ~0.989 PFLOPS BF16 | compute-bound | high FLOP / MFU util, mid bandwidth |
 | Decode (per token) | ~5.6 TB/s weight read | ~3.35 TB/s HBM | bandwidth-bound | high HBM util, low FLOP util |
 
-*(All figures [2° FACT] hardware / [2° DERIVED] arithmetic traced to canonical scenario (Ch 4, Table 4-3) and Chapter 2.)*
+*(All figures [1P][FACT] hardware / [ILLUSTRATIVE][DERIVED] arithmetic traced to canonical scenario (Ch 4, Table 4-3) and Chapter 2.)*
 
 ### Reading Telemetry Into a Decision
 

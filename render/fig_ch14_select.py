@@ -32,7 +32,7 @@ for x0, x1 in [(6.1, 7.2), (12.4, 13.5)]:
                 arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#444'))
 ax.text(19.0, 4.48, '\u2192 deployed', fontsize=7.5, color='#2f6f4f', fontweight='bold')
 
-ax.text(11.0, 1.1, 'filter narrows the candidates (capability first), then survivors are\nmeasured on the real workload against the SLO gate.  [2\u00b0 DERIVED]',
+ax.text(11.0, 1.1, 'filter narrows the candidates (capability first), then survivors are\nmeasured on the real workload against the SLO gate.  [ILLUSTRATIVE][DERIVED]',
         fontsize=7.5, ha='center', color='#666')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-14/figures/fig-14-1401.png',

@@ -55,7 +55,7 @@ Think of the customer conversation as **buying information, not delivering answe
 **Architect (mirror):** "So to lock it: ~2,000 sales users, ~10 rps average / 40 peak, prompts with ~9,200-token retrieval context, answers starting under 2 s, quality judged on 50 of your real questions, and fully on-prem because it's regulated. Have I captured it?"
 **Lead:** "Yes — that's exactly it."
 
-**Reading the result.** The vague ask collapsed into the exact canonical workload this book has architected end-to-end — a 70B-class model on an 8×H100 on-prem server meets every bound (Ch2-16). The conversation did not sell a model; it *exposed the numbers* that then chose the architecture with almost no further input. [2° DERIVED] *(worked example, not reference)*
+**Reading the result.** The vague ask collapsed into the exact canonical workload this book has architected end-to-end — a 70B-class model on an 8×H100 on-prem server meets every bound (Ch2-16). The conversation did not sell a model; it *exposed the numbers* that then chose the architecture with almost no further input. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
 
 **Table 23-1** — The six questions that turn any vague AI ask into architectable bounds
 

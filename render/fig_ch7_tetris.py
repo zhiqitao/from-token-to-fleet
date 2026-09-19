@@ -40,7 +40,7 @@ leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, l
        mpatches.Patch(color=cols['runtime'], label='runtime / NCCL ~64 GB')]
 ax.legend(handles=leg, loc='upper center', bbox_to_anchor=(0.5, -0.16), fontsize=10.5, frameon=False, ncol=1)
 
-ax.text(0.2, -150, 'baseline (weights + runtime) is context-independent; the KV cache is the lever that grows\nwith context.  FP16 ~2.5 MB/token [2° DERIVED].',
+ax.text(0.2, -150, 'baseline (weights + runtime) is context-independent; the KV cache is the lever that grows\nwith context.  FP16 ~2.5 MB/token [ILLUSTRATIVE][DERIVED].',
         fontsize=10, color='#444')
 
 plt.tight_layout()

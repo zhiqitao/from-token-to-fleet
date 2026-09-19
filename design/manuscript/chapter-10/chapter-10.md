@@ -58,13 +58,13 @@ $$
 140 \text{ GB weights} > 80 \text{ GB HBM}
 $$
 
-We need at least $140 / 80 \approx 1.75$ → **≥ 2 GPUs just to hold the weights** (and that's before KV cache, which adds ~2.5 MB/token at FP16 — the 9.2K-token canonical prompt needs ~24.1 GB more (initial KV)). [2° DERIVED]
+We need at least $140 / 80 \approx 1.75$ → **≥ 2 GPUs just to hold the weights** (and that's before KV cache, which adds ~2.5 MB/token at FP16 — the 9.2K-token canonical prompt needs ~24.1 GB more (initial KV)). [ILLUSTRATIVE][DERIVED]
 
 The canonical 8×H100 host (640 GB total) fits the weights + KV comfortably, which is why the single-host baseline in earlier chapters works. But if the model grows (say to 400B) or owns more, the split becomes mandatory:
 
 ### Tensor Parallelism: Splitting Weights Across GPUs
 
-With tensor parallelism, the 140 GB weight is split across GPUs. On 2×H100: $140 / 2 = 70$ GB per GPU, each now under the 80 GB ceiling. But every transformer layer's matmuls now require an **all-reduce of the layer's output across the TP group** — a per-token, per-layer exchange over NVLink. For the canonical 70B with ~80 layers, that is ~80 × tokens × output-size of communication per forward pass. The all-reduce communication cost per layer, per token is $T_\text{tp} = \text{tokens} \times n_\text{layers} \times \text{output-size} / B_\text{eff}$. TP is only viable where the interconnect is very fast: on-node NVLink (900 GB/s) keeps the sync cheap; over slow Ethernet it would drown. [1P FACT] (vendor datasheet)[2° DERIVED]
+With tensor parallelism, the 140 GB weight is split across GPUs. On 2×H100: $140 / 2 = 70$ GB per GPU, each now under the 80 GB ceiling. But every transformer layer's matmuls now require an **all-reduce of the layer's output across the TP group** — a per-token, per-layer exchange over NVLink. For the canonical 70B with ~80 layers, that is ~80 × tokens × output-size of communication per forward pass. The all-reduce communication cost per layer, per token is $T_\text{tp} = \text{tokens} \times n_\text{layers} \times \text{output-size} / B_\text{eff}$. TP is only viable where the interconnect is very fast: on-node NVLink (900 GB/s) keeps the sync cheap; over slow Ethernet it would drown. [1P FACT] (vendor datasheet)[1P][DERIVED]
 
 ### Pipeline Parallelism: Splitting Layers, Accepting Bubbles
 
@@ -86,7 +86,7 @@ $$
 \frac{32 \cdot 4}{32 + 4 - 1} = \frac{128}{35} \approx 3.66\times.
 $$
 
-The lesson: PP is communication-light (each stage only moves activation boundaries across the fabric) but always pays a bubble that grows with stage count. [2° DERIVED]
+The lesson: PP is communication-light (each stage only moves activation boundaries across the fabric) but always pays a bubble that grows with stage count. [ILLUSTRATIVE][DERIVED]
 
 ### Data Parallelism: Replicating, Then Syncing Gradients
 
@@ -96,7 +96,7 @@ $$
 \text{grad bytes} = 2 \times N \times \text{bytes/param} = 2 \times 70 \times 10^9 \times 4 \text{ B} \approx 280 \text{ GB}
 $$
 
-per step (BF16), and the sync time is $T = \text{bytes} / B_\text{eff}$. At 25 GB/s (single 200Gb/s link) that is `280 / 25 ≈ 11 s` per step — far too slow if the step takes ~1 s. At node NVLink 900 GB/s it is `280/900 ≈ 0.31 s`. The sync cost, not compute, often caps DP at small scale unless the interconnect is fast. [2° DERIVED]
+per step (BF16), and the sync time is $T = \text{bytes} / B_\text{eff}$. At 25 GB/s (single 200Gb/s link) that is `280 / 25 ≈ 11 s` per step — far too slow if the step takes ~1 s. At node NVLink 900 GB/s it is `280/900 ≈ 0.31 s`. The sync cost, not compute, often caps DP at small scale unless the interconnect is fast. [1P][DERIVED]
 
 ## 4. Measurement
 

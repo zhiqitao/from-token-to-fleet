@@ -57,7 +57,7 @@ y_bottom = y - 1.0
 ax.set_ylim(y_bottom, y_top)
 
 ax.text(5.9, y-0.35, 'From a single model to a whole system \u2014 the spine of this handbook (Appendix \u00a76).\n'
-                    'Dates are approximate era markers for chronology, not release dates. [2\u00b0 DERIVED]',
+                    'Dates are approximate era markers for chronology, not release dates. [ILLUSTRATIVE][DERIVED]',
         fontsize=8, fontstyle='italic', color='#555', ha='center')
 
 plt.tight_layout()

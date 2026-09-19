@@ -108,7 +108,7 @@ branch(fth, SP-14, gpg+8, RES+16, 'fallthrough', gpg+55, 116, '#555')
 # ---- bottom annotation ----
 ax.text(W/2, 26, 'only ONE model is selected per request (early exit on a match)',
         fontsize=FS-0.6, ha='center', color='#666')
-ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback. [2\u00b0 DERIVED]',
+ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback. [ILLUSTRATIVE][DERIVED]',
         fontsize=FS-1.0, ha='center', color='#666')
 
 plt.tight_layout()

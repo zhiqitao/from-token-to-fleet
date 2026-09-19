@@ -31,14 +31,14 @@ $$
 W = N \times \text{bytes-per-param}
 $$
 
-where $N$ is the parameter count and bytes-per-param is 2 for FP16 (replace 2 with bit-width/8 for quantization). Derived fact [2° DERIVED]: $70 \times 10^9 \times 2 \text{ B} = 140$ GB.
+where $N$ is the parameter count and bytes-per-param is 2 for FP16 (replace 2 with bit-width/8 for quantization). Derived fact [ILLUSTRATIVE][DERIVED]: $70 \times 10^9 \times 2 \text{ B} = 140$ GB.
 2. **KV-cache footprint.**
 
 $$
 KV = 2 \times n_\text{layers} \times d_\text{hidden} \times L \times \text{bytes-per-activation}
 $$
 
-where $L$ is the context length. For a 70B model with 8-bit KV caching, this is approximately 12 GB for 9.2K context; at FP16 precision it doubles to ~24 GB [2° DERIVED]. The architect should compute this for the exact context length of the workload, not assume a fixed value.
+where $L$ is the context length. For a 70B model with 8-bit KV caching, this is approximately 12 GB for 9.2K context; at FP16 precision it doubles to ~24 GB [ILLUSTRATIVE][DERIVED]. The architect should compute this for the exact context length of the workload, not assume a fixed value.
 3. **Throughput per device.** Tokens-per-second that a single device can sustain for prefill and decode, measured on the target hardware. This is the number that, multiplied by the number of devices in the candidate layout, must exceed the workload's tokens-per-second demand (92K input tokens/s average, 3K output tokens/s average, 368K input tokens/s peak, 12K output tokens/s peak). Vendors publish peak numbers; the architect should treat these as benchmarks to be verified by measuring on equivalent hardware.
 
 All three numbers must be confirmed before a candidate is carried forward ([1P] canonical (Ch 4, Table 4-3)). If any one fails, the candidate is returned to the synthesis step.
@@ -84,7 +84,7 @@ The architect discards Candidate (c) immediately: it satisfies the hard memory c
 | (b) P/D-disaggregated | 140 + 24 = **164 GB** per pool | 2 ×8×H100 | prefill pool ~2,471 · decode BW-bound | ✓ memory per host · ✓ phase-split at scale | ✗ 2 hosts + fabric |
 | (c) KV-quantized 7B | 14 + 6 = **20 GB** | 1 ×H100 | ~tens of thousands · decode > 70B | ✗ fails quality ceiling | ✗ >1 card at peak |
 
-*All figures trace to the canonical scenario (Ch 4, Table 4-3); the KV-cache and throughput numbers are [2° DERIVED] worked examples, not measurement claims.*
+*All figures trace to the canonical scenario (Ch 4, Table 4-3); the KV-cache and throughput numbers are [ILLUSTRATIVE][DERIVED] worked examples, not measurement claims.*
 
 --- 
 

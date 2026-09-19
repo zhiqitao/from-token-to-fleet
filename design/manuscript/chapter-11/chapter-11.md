@@ -41,11 +41,11 @@ Imagine naive **discrete (static) batching**: the server accumulates requests un
 
 - Requests arrive in *bursts* (recall the ~40 rps peak). Discrete batching forces early-arriving requests to **wait** for the batch to fill, inflating TTFT toward the 2 s SLO breach.
 - The batch is locked until its *slowest* member finishes (fits-all-in-one-run), so a short 100-token output tails behind the longest while the GPU finishes the whole batch — idle bubbles at the end of every batch.
-- Batch boundaries create periods where the GPU drains (no work) then floods — utilization is spiky around the mean. [2° DERIVED]
+- Batch boundaries create periods where the GPU drains (no work) then floods — utilization is spiky around the mean. [ILLUSTRATIVE][DERIVED]
 
 ### Continuous Batching Fills the Bubbles
 
-**Continuous batching (Orca [S1][1P])** eliminates the batch boundary: at every decode step the scheduler accepts any new prefill-ready request and evicts any finished one, so decode slots never sit idle. In the canonical stream, a 300-token decode at ~25 ms/token occupies a slot for ~7.5 s; while a long decode runs, the freed FLOPs are continuously refilled by new short requests. The utilization gain is the difference between spiky discrete batches and a continuously-fed pipeline. Rather than stipulate a single percent, the mechanism makes the GPU the steady bottleneck instead of the scheduler. [2° DERIVED]
+**Continuous batching (Orca [S1][1P])** eliminates the batch boundary: at every decode step the scheduler accepts any new prefill-ready request and evicts any finished one, so decode slots never sit idle. In the canonical stream, a 300-token decode at ~25 ms/token occupies a slot for ~7.5 s; while a long decode runs, the freed FLOPs are continuously refilled by new short requests. The utilization gain is the difference between spiky discrete batches and a continuously-fed pipeline. Rather than stipulate a single percent, the mechanism makes the GPU the steady bottleneck instead of the scheduler. [ILLUSTRATIVE][DERIVED]
 
 ![Fig 11.1 — Discrete vs continuous batching (Orca-style slot diagram)](figures/fig-11-1102.png)
 
@@ -55,15 +55,15 @@ The heart of the chapter's serving story made visual. Discrete (static) batching
 
 ### PagedAttention: Killing the Fragmentation Tax
 
-In re-packaged (naive) serving, each request's KV cache for 9.2K input is ~24.1 GB (FP16, ~2.62 MB/token × 9,200, initial KV) [2° DERIVED]. If served contiguously, variable-length completions leave fragmented, unusable holes — exactly like a fragmented heap. **PagedAttention/vLLM [S2][1P]** allocates KV in fixed blocks shared and evicted like page frames, so the ~24.1 GB per request is packed densely and more concurrent requests fit in the same 640 GB node [2° DERIVED]. The win is *more concurrency under the same SLO*, not faster single-request math.
+In re-packaged (naive) serving, each request's KV cache for 9.2K input is ~24.1 GB (FP16, ~2.62 MB/token × 9,200, initial KV) [ILLUSTRATIVE][DERIVED]. If served contiguously, variable-length completions leave fragmented, unusable holes — exactly like a fragmented heap. **PagedAttention/vLLM [S2][1P]** allocates KV in fixed blocks shared and evicted like page frames, so the ~24.1 GB per request is packed densely and more concurrent requests fit in the same 640 GB node [ILLUSTRATIVE][DERIVED]. The win is *more concurrency under the same SLO*, not faster single-request math.
 
 ### Prefix Caching: Don't Re-Prefill the Same Documents
 
-The RAG request's 8K retrieved-context tokens are largely shared across queries (same documents). Without caching, every request re-runs the ~1.29 PFLOP prefill for those 8K tokens [2° DERIVED]. **RadixAttention / APC [S3][1P]** caches the KV of common prefixes, so a new request reuses the shared-document KV and prefills only the unique query tail — cutting the dominant prefill FLOPs and TTFT for repeated-context traffic [2° DERIVED].
+The RAG request's 8K retrieved-context tokens are largely shared across queries (same documents). Without caching, every request re-runs the ~1.29 PFLOP prefill for those 8K tokens [ILLUSTRATIVE][DERIVED]. **RadixAttention / APC [S3][1P]** caches the KV of common prefixes, so a new request reuses the shared-document KV and prefills only the unique query tail — cutting the dominant prefill FLOPs and TTFT for repeated-context traffic [ILLUSTRATIVE][DERIVED].
 
 ### When to Disaggregate: Prefill and Decode Want Different Pools
 
-Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (5.6 TB/s demand vs 3.35 TB/s) [2° DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported >525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
+Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported >525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
 
 #### Table 11-1 — Serving techniques at a glance
 
@@ -115,9 +115,9 @@ The serving stack dictates the deployment choices:
 
 <!-- Figure spec: mechanism-first serving-flow diagram; request stream → scheduler → KV page table (+ prefix cache) → optional prefill pool / decode pool split → output; annotate the resource each stage trades. -->
 
-![Fig 11.3 — P/D disaggregation topology: prefill pool (compute-bound) and decode pool (bandwidth-bound) bridged by KV transfer [2° DERIVED]](figures/fig-11-1103.png)
+![Fig 11.3 — P/D disaggregation topology: prefill pool (compute-bound) and decode pool (bandwidth-bound) bridged by KV transfer [ILLUSTRATIVE][DERIVED]](figures/fig-11-1103.png)
 
-*P/D disaggregation topology. Left: prefill pool, compute-bound (FLOPs), handles the massive prompt at once. Right: decode pool, bandwidth-bound (HBM), reads steady token generation. A fabric bridge moves the per-token KV cache from prefill to decode. The split exists because the pools want opposite resources — prefill is FLOP-starved (~1.19 PFLOPS required vs 0.989 peak), decode is bandwidth-starved (5.6 TB/s demand vs 3.35 TB/s) [2° DERIVED].*
+*P/D disaggregation topology. Left: prefill pool, compute-bound (FLOPs), handles the massive prompt at once. Right: decode pool, bandwidth-bound (HBM), reads steady token generation. A fabric bridge moves the per-token KV cache from prefill to decode. The split exists because the pools want opposite resources — prefill is FLOP-starved (~1.19 PFLOPS required vs 0.989 peak), decode is bandwidth-starved (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED].*
 
 ## 7. What We Still Don't Know
 

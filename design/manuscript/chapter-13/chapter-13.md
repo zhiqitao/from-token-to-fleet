@@ -36,25 +36,25 @@ We do not climb for fashion; we climb when a measured number crosses a threshold
 
 The canonical enterprise-Q&A RAG workload sits firmly on the **server** tier. We verify each bound:
 
-- **Memory**: 70B FP16 weights = 140 GB; KV for the 9.5K max context at FP16 ≈ 24.9 GB; inference residency ≈ 165 GB [2° DERIVED]. An 8×H100 host (640 GB) fits this with ample headroom for concurrency (Ch11 showed ~24 GB per request × concurrent requests still fits). ✓ [2° DERIVED]
+- **Memory**: 70B FP16 weights = 140 GB; KV for the 9.5K max context at FP16 ≈ 24.9 GB; inference residency ≈ 165 GB [ILLUSTRATIVE][DERIVED]. An 8×H100 host (640 GB) fits this with ample headroom for concurrency (Ch11 showed ~24 GB per request × concurrent requests still fits). ✓ [ILLUSTRATIVE][DERIVED]
 
 - **Throughput**: ~10 rps average / 40 rps peak, input-heavy (9.2K in / 300 out). Ch11 showed continuous batching + prefix caching keeps p95 TTFT under the 2 s SLO on a single 8×H100 host. ✓
 
 - **Interconnect**: parallelism is unnecessary (one node) — the interconnect question doesn't bind. ✓
 
-So a single 8×H100 server is the right archetype — which is exactly what earlier chapters assumed. [2° DERIVED]
+So a single 8×H100 server is the right archetype — which is exactly what earlier chapters assumed. [ILLUSTRATIVE][DERIVED]
 
 ### Escalating: When 10×Traffic Forces the Cluster Tier
 
 Now suppose the workload's demand grows to ~100 rps average (a 10×). Recompute the ceiling:
 
-- **Throughput ceiling of one host**: continuous batching on 8×H100 at ~9.5K tokens/request sustained roughly tens of thousands of tokens/s; goodput against the SLO is the binding number. At ~100 rps × 9.5K tokens = ~950K tokens/s, one host's goodput is exceeded. [2° DERIVED]
+- **Throughput ceiling of one host**: continuous batching on 8×H100 at ~9.5K tokens/request sustained roughly tens of thousands of tokens/s; goodput against the SLO is the binding number. At ~100 rps × 9.5K tokens = ~950K tokens/s, one host's goodput is exceeded. [ILLUSTRATIVE][DERIVED]
 
-- **Response**: replicate the model across multiple servers (data parallelism at the serving layer — run N identical 8×H100 hosts behind a load balancer), so each host carries ~10 rps again. This is the **cluster** tier: the model still fits one node (so no weight-splitting), but the *fleet* of replicas is a small cluster. The escalation is driven by traffic, not memory. [2° DERIVED]
+- **Response**: replicate the model across multiple servers (data parallelism at the serving layer — run N identical 8×H100 hosts behind a load balancer), so each host carries ~10 rps again. This is the **cluster** tier: the model still fits one node (so no weight-splitting), but the *fleet* of replicas is a small cluster. The escalation is driven by traffic, not memory. [ILLUSTRATIVE][DERIVED]
 
 ### Dropping a Tier: When Privacy Forces Local
 
-If the workload must run fully on-site without data leaving a facility, and the model can be distilled to a 7-13B capable of the Q&A task, the **local/edge** tier applies: a single GPU runs the distilled model at reduced (but acceptable) accuracy for privacy. The tier choice traded capability for the operational constraint (privacy). [2° DERIVED]
+If the workload must run fully on-site without data leaving a facility, and the model can be distilled to a 7-13B capable of the Q&A task, the **local/edge** tier applies: a single GPU runs the distilled model at reduced (but acceptable) accuracy for privacy. The tier choice traded capability for the operational constraint (privacy). [ILLUSTRATIVE][DERIVED]
 
 #### Table 13-1 — Reference architecture archetypes
 
@@ -65,7 +65,7 @@ If the workload must run fully on-site without data leaving a facility, and the 
 | Cluster | tens-hundreds | InfiniBand/Eth | any that needs splitting | depends | model > node, or traffic > host goodput |
 | Hyperscale fleet | dedicated | high-bandwidth fabric | MoE+, specialized | extreme-scale economics | multi-tenant, largest scale |
 
-*(Bounds are [2° FACT]/[2° DERIVED] design heuristics, not vendor guarantees.)*
+*(Bounds are [ILLUSTRATIVE][DERIVED]/[ILLUSTRATIVE][DERIVED] design heuristics, not vendor guarantees.)*
 
 ## 4. Measurement
 

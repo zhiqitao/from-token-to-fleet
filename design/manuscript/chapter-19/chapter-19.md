@@ -145,7 +145,7 @@ Introducing an agentic layer reshapes the system architecture in four ways:
 
 *Why agentic depth is a fleet-sizing problem. Both the token count and the FP16 KV cache grow linearly with turns; four turns take a request from ~24.9 GB to ~34.0 GB of KV — a 36% jump on an already-large footprint, which is exactly why a fleet (Ch17), prefix caching, or FP8 KV pay for themselves on agentic workloads.*
 
-![Fig 19.3 — The agentic context block grows every turn: initial prompt (9.2K tok) plus tool output (δ) + reasoning (γ) appended each turn, FP16 KV footprint rising 24.9 → 34.0 GB (max-KV, end-of-request) [2° DERIVED: Ch19 §3 arithmetic]](figures/fig-19-1903.png)
+![Fig 19.3 — The agentic context block grows every turn: initial prompt (9.2K tok) plus tool output (δ) + reasoning (γ) appended each turn, FP16 KV footprint rising 24.9 → 34.0 GB (max-KV, end-of-request) [ILLUSTRATIVE][DERIVED: Ch19 arithmetic]](figures/fig-19-1903.png)
 
 *Agentic context accumulation as a memory sequence. Each turn appends retrieved context (δ ≈ 800 tokens) plus generated reasoning (γ ≈ 65 tokens) to a context that persists across every later turn; the FP16 KV block therefore grows from ~24.9 GB (single-shot) to ~34.0 GB (four turns) — a 36% footprint rise driven purely by cumulative context, not by extra requests. This is the mechanism behind the fleet-sizing argument in Fig 19.2.*
 
@@ -187,21 +187,21 @@ Despite the quantified arithmetic above, several questions remain open and would
 - 5% terminate in 3 turns
 - 2% exceed the turn limit and fall back to single-shot
 
-**Token and latency impact (added orchestration overhead).**
-- Average total input tokens: 9,200 + (0.68×800) + (0.25×(800+350)) + (0.05×(800+350+800)) ≈ 9,200 + 544 + 287.5 + 97.5 ≈ 10,129 tokens
-- Amplification *α*: 10,129 / 9,500 ≈ 1.07×
-- Added agent-orchestration overhead (per-turn step + tool): 220 ms/turn → median (T=2) adds ~440 ms, 95th-percentile (T≈4) adds ~880 ms, **on top of** the ~8.6 s base answer generation: L_E2E ≈ 8.6 s + 0.44 s ≈ ~9.0 s median.
-- Total end-to-end: the request is dominated by the ~8.6 s base generation (Ch 8), not the added orchestration; the ~440–880 ms figures are the *added* agent/tool overhead, not the complete request latency.
+**Token and latency impact (added orchestration overhead).** Using the chapter's per-turn convention (each turn adds δ=800 retrieved + γ=65 reasoning = 865 tokens), and treating the 2% fallback as single-shot (zero added turns), the expected input tokens across the distribution are:
+- Expected input tokens: 0.68×(9,200+865) + 0.25×(9,200+1,730) + 0.05×(9,200+2,595) + 0.02×9,200 ≈ 6,844 + 2,733 + 590 + 184 ≈ **10,350 tokens** (expected total incl. 300-token output ≈ 10,650).
+- Amplification *α*: 10,650 / 9,500 ≈ **1.12×** — about a **12%** token overhead. (The 2% fallback is explicitly included here at zero added turns: it adds no agent tokens, so its contribution to the expectation is 2% × 0 = 0, which the weighted sum above keeps.)
+- Added agent-orchestration overhead (per-turn step + tool): 220 ms/turn. Because 68% terminate in one turn, the **median turns is T=1**, so the median added overhead is **1 × 220 ms ≈ 220 ms**; the **90th-percentile** is T=2 (cumulative 93% by T≤2) → **440 ms**; and the **95th-percentile** is T=3 (cumulative 98% by T≤3) → **660 ms** — *not* T≈4, since the scenario caps turns at 3 and the 2% fallback is modelled as an immediate single-shot fallback, not a fourth attempted turn. On top of the ~8.6 s base answer generation, L_E2E ≈ 8.6 s + 0.22 s ≈ ~8.8 s at the median.
+- Total end-to-end: the request is dominated by the ~8.6 s base generation (Ch 8), not the added orchestration; the ~220–660 ms figures are the *added* agent/tool overhead, not the complete request latency.
 
-**Architectural actions.** The team sets the turn limit to 3, instruments each turn's token and orchestration latency, and adds a context cache for the search tool. With the cache hit rate of 30% on recurring queries, the effective *δ* drops to ~560 tokens, reducing average amplification to ~1.04× and the added orchestration overhead to ~350 ms on median. The claim "meets an SLA of <1 s" must be scoped carefully: the *added agent-orchestration* latency is comfortably under 1 s, but the **end-to-end** request is ~9 s because of the base generation. The architect therefore scopes the <1 s SLA to orchestration overhead *excluding* final generation, and treats end-to-end as bounded by the ~8.6 s base.
+**Architectural actions.** The team sets the turn limit to 3, instruments each turn's token and orchestration latency, and adds a context cache for the search tool. With the cache hit rate of 30% on recurring queries, the effective *δ* drops to ~560 tokens, reducing average amplification to ~1.09× (about a 9% token overhead); the median added orchestration overhead is still T=1 → ~220 ms. The claim "meets an SLA of <1 s" must be scoped carefully: the *added agent-orchestration* latency is comfortably under 1 s, but the **end-to-end** request is ~9 s because of the base generation. The architect therefore scopes the <1 s SLA to orchestration overhead *excluding* final generation, and treats end-to-end as bounded by the ~8.6 s base.
 
-**Lesson.** The agentic layer added ~7% token overhead and ~350 ms of orchestration latency on median (on top of an ~8.6 s base generation), but improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement]. The trade-off was acceptable — the added overhead is small relative to the base generation — and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
+**Lesson.** The agentic layer added ~12% token overhead and ~220 ms of orchestration latency on the median (on top of an ~8.6 s base generation), but improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement]. The trade-off was acceptable — the added overhead is small relative to the base generation — and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
 
 ---
 
 **Table 19-1** — Token amplification and latency trade-offs for agentic RQA pipelines
 
-| Metric | T=1 | T=2 (median) | T=3 | T=4 (90th pct) | Single-shot |
+| Metric | T=1 (median) | T=2 (90th pct) | T=3 (95th pct) | T=4 (beyond limit) | Single-shot |
 |--------|-----|--------------|-----|----------------|-------------|
 | Input tokens (9,200 + T·800 + T·65) | 10,065 | 10,930 | 11,795 | 12,660 | 9,200 |
 | Total tokens (incl. 300 output) | 10,365 | 11,230 | 12,095 | 12,960 | 9,500 |

@@ -51,12 +51,12 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 
 | Metric | Value | Derivation / Source |
 |---|---|---|
-| Quality | >85% factual accuracy [2° DERIVED] | Enterprise Q&A benchmarks |
-| Traffic | 10 rps avg; 40 rps peak [2° DERIVED] | 2,000 users × 5% concurrency = 100 concurrent; 100/10s = 10 rps; peaks at 20% concurrency → 40 rps |
+| Quality | >85% factual accuracy [ILLUSTRATIVE][DERIVED] | Enterprise Q&A benchmarks |
+| Traffic | 10 rps avg; 40 rps peak [ILLUSTRATIVE][DERIVED] | 2,000 users × 5% concurrency = 100 concurrent; 100/10s = 10 rps; peaks at 20% concurrency → 40 rps |
 | Token profile | 9,200 input tokens + 300 output tokens [1P canonical scenario (Ch 4, Table 4-3)] | 1,200 prompt + 8K context; 300‑token answer |
 | Latency | TTFT 1.2 s (retrieval ~120 ms + prefill); TPOT ~25 ms/token [2° SLO] | User‑experience targets |
 | Economics | $1.20/M input; $2.00/M output; ~$20/hr per 8×H100 host ($2.50/GPU-hr) | **illustrative 2026 price input** ($2.50/H100-GPU-hr, [ILLUSTRATIVE]); tokens/s per dollar derived from it |
-| Operational | Multi‑region; daily embedding refresh; 99.9% availability [2° DERIVED] | Enterprise IT policy |
+| Operational | Multi‑region; daily embedding refresh; 99.9% availability [ILLUSTRATIVE][DERIVED] | Enterprise IT policy |
 
 *(All figures trace to the canonical scenario (Ch 4, Table 4-3); none are independent measurement claims. Table 4-2 consolidates the six‑dimension characterization for quick reference.)*
 
@@ -142,8 +142,8 @@ The canonical workload's token profile is input‑heavy, which has direct conseq
 
 - **Per‑request input**: 1,200 tokens (enterprise query, possibly reformulated) + 8,000 tokens (retrieved context from vector DB) ≈ 9,200 tokens. The [1P] provenance traces to the canonical scenario (Ch 4, Table 4-3).
 - **Per‑request output**: ~300 tokens (the generated answer, possibly with citations).
-- **Input‑to‑output ratio**: 9,200 ÷ 300 ≈ 30× more input tokens than output tokens. This ratio is [2° DERIVED] from the canonical numbers and is the single biggest factor in why this workload is memory‑bound (KV cache) rather than decode‑bound.
-- **At 10 rps**: input tokens/s = 9,200 ×10 = 92,000 tokens/s; output tokens/s = 300 ×10 = 3,000 tokens/s. At peak 40 rps, input spikes to ~368,000 tokens/s and output to ~12,000 tokens/s. These [2° DERIVED] numbers appear in Table 4-2.
+- **Input‑to‑output ratio**: 9,200 ÷ 300 ≈ 30× more input tokens than output tokens. This ratio is [ILLUSTRATIVE][DERIVED] from the canonical numbers and is the single biggest factor in why this workload is memory‑bound (KV cache) rather than decode‑bound.
+- **At 10 rps**: input tokens/s = 9,200 ×10 = 92,000 tokens/s; output tokens/s = 300 ×10 = 3,000 tokens/s. At peak 40 rps, input spikes to ~368,000 tokens/s and output to ~12,000 tokens/s. These [ILLUSTRATIVE][DERIVED] numbers appear in Table 4-2.
 
 The input‑heavy profile means that *prefill* (processing the prompt) dominates the latency and cost budget. A model that processes 8K tokens of context in under 1 s of prefill is essential; otherwise the TTFT budget of 1.2 s cannot be met. This is why the token profile is the primary architectural driver for this workload.
 
@@ -154,7 +154,7 @@ The latency dimension is specified through Service Level Objectives, which trans
 - **TTFT (time-to-first-token)**: budget of 1.2 s, comprising retrieval (~120 ms for vector search and reranking on a local GPU) + prefill (~1.08 s for 9,200 tokens on an H100, assuming ~8.5K tokens/s prefill throughput). p95 TTFT must stay ≤ 2 s, allowing headroom for occasional cache misses or network jitter.
 - **TPOT (time-per-output-token)**: budget of ~25 ms/token. A 300‑token answer therefore takes ~7.5 s of total decode time. p95 TPOT ≤ 35 ms/token provides headroom for batching variability.
 
-These budgets are [2° DERIVED] from typical enterprise Q&A user expectations (sub‑2‑second feel) and from the hardware's published prefill/decode rates. They are the latency constraints that every subsequent architectural decision must respect.
+These budgets are [ILLUSTRATIVE][DERIVED] from typical enterprise Q&A user expectations (sub‑2‑second feel) and from the hardware's published prefill/decode rates. They are the latency constraints that every subsequent architectural decision must respect.
 
 #### Economic Constraints
 

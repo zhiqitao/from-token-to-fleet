@@ -25,18 +25,18 @@ The bandwidth each collective consumes depends on three factors: the data volume
 |---|---|---|---|---|---|
 | Chip-to-memory | HBM3 (H100) | 3.35 TB/s | ~ns | — | [1P FACT] |
 | GPU-to-GPU (in-node) | NVLink (H100) | 900 GB/s per GPU, bidirectional aggregate | ~us | high capex | [1P FACT] (NVIDIA NVLink) |
-| GPU-to-CPU / NIC | PCIe Gen5 | ~64 GB/s per x16 direction | ~us | low | [2° FACT] |
-| Node-to-node (rack) | RoCE / Ethernet 400Gb/s | ~50 GB/s per port | ~us | medium | [2° FACT] |
-| Rack/cluster | InfiniBand HDR/NDR | 200/400 Gb/s ≈ 25/50 GB/s per port | ~us | high capex | [2° FACT] |
+| GPU-to-CPU / NIC | PCIe Gen5 | ~64 GB/s per x16 direction | ~us | low | [1P][FACT] |
+| Node-to-node (rack) | RoCE / Ethernet 400Gb/s | ~50 GB/s per port | ~us | medium | [1P][FACT] |
+| Rack/cluster | InfiniBand HDR/NDR | 200/400 Gb/s ≈ 25/50 GB/s per port | ~us | high capex | [ILLUSTRATIVE][DERIVED] |
 
-*(Hierarchy: bandwidth drops ~2–3 orders of magnitude from HBM to the cluster fabric — the reason the interconnect, not the GPU, often binds at scale. Figures are established hardware specs [2° FACT].)*
+*(Hierarchy: bandwidth drops ~2–3 orders of magnitude from HBM to the cluster fabric — the reason the interconnect, not the GPU, often binds at scale. Figures are established hardware specs [1P][FACT].)*
 
 
 ## 2. Mental Model
 
 Think of the interconnect as a series of concentric rings. The GPU sits at the center, reachable fastest via PCIe. One ring out is the node: GPUs on the same server are joined by NVLink and NVSwitch, forming a high-radix, low-latency mesh. The next ring out is the rack: 10–20 GbE or 100/200/400 GbE RoCE connects nodes. The outermost ring is the cluster or data center: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s) stitches racks into a single logical network. A well-designed deployment keeps the heavy collectives (all-reduce, reduce-scatter) on the inner rings and reserves the outer rings for less volume or latency-tolerant traffic.
 
-The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink bisection provides 900 GB/s per direction, **a lower bound** on time is 140 GB ÷ 900 GB/s ≈ **0.16 s [2° DERIVED]** — note the word *lower bound*. The actual completion time of a real collective is higher because a collective is not one flat transfer but a sequence of message-passing and reduction steps across the topology:
+The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink bisection provides 900 GB/s per direction, **a lower bound** on time is 140 GB ÷ 900 GB/s ≈ **0.16 s [1P][DERIVED]** — note the word *lower bound*. The actual completion time of a real collective is higher because a collective is not one flat transfer but a sequence of message-passing and reduction steps across the topology:
 
 $$
 T_{\text{collective}} \approx \alpha \times n_\text{steps} + \frac{\text{bytes}}{\beta}
@@ -44,9 +44,9 @@ $$
 
 where $\alpha$ is the per-step latency (message setup, synchronization), $\beta$ is the achieved (not peak) bandwidth, and $n_\text{steps}$ is the number of message-passing/reduction hops. (For a flat transfer $n_\text{steps}=1$.) The 0.16 s figure uses only the $\text{bytes}/\beta$ term at peak bandwidth; real NCCL all-reduce on NVLink lands tens of % above it once per-step overhead, ring stages, and topology routing are included. So treat the `bytes ÷ bandwidth` form as a *sizing lower bound*, and reserve measured `nccl-tests` numbers (Section 4) for capacity decisions. The relative ranking between interconnects is what matters most here: if those same 140 GB travel over a 200 Gb/s HDR InfiniBand link (≈ 25 GB/s effective unidirectional) it is ≈ 2.8 s — 18× longer; over 25 Gb/s Ethernet (≈ 3 GB/s unidirectional) ≈ 47 s. The interconnect choice is a first-order determinant of wall-clock time in all cases.
 
-![Fig 9.1 — All-reduce time vs data volume, by interconnect tier [2° DERIVED]](figures/fig-09-0901.png)
+![Fig 9.1 — All-reduce time vs data volume, by interconnect tier [1P][DERIVED]](figures/fig-09-0901.png)
 
-*All-reduce completion time as a function of data volume (x-axis, log GB) and interconnect effective bandwidth. The four lines — NVSwitch 1.8 TB/s, NVLink 0.9 TB/s, InfiniBand 0.4 TB/s, Ethernet 0.1 TB/s — are peak-bandwidth lower bounds (α/β caveat in §9.3); the dashed marker sits at the 140 GB weight footprint of a 70B model (≈ 70 GB of weights in BF16 across 8 participants). [2° DERIVED]*
+*All-reduce completion time as a function of data volume (x-axis, log GB) and interconnect effective bandwidth. The four lines — NVSwitch 1.8 TB/s, NVLink 0.9 TB/s, InfiniBand 0.4 TB/s, Ethernet 0.1 TB/s — are peak-bandwidth lower bounds (α/β caveat in §9.3); the dashed marker sits at the 140 GB weight footprint of a 70B model (≈ 70 GB of weights in BF16 across 8 participants). [ILLUSTRATIVE][DERIVED]*
 <!-- Figure spec: mechanism-first — illustrate how all-reduce data flows through the interconnect hierarchy (PCIe → NVLink → NVSwitch → InfiniBand → Ethernet), with bandwidth numbers from the text annotated on each link. Used to explain the arithmetic in §9. Concept. -->
 
 ## 3. Worked Example

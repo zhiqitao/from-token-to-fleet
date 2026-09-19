@@ -45,7 +45,7 @@ ax.text(14.0, 0.6, '← tokens out to client', fontsize=8, ha='center', color='#
 ax.annotate('', xy=(14.0, 1.45), xytext=(14.0, 0.75), arrowprops=dict(arrowstyle='-|>', lw=1.5, color='#333'))
 
 # ---- Why: resource conflict (wrapped so it doesn't clip at the column edge) ----
-ax.text(8.5, -0.3, 'Why split?  prefill ~1.19 PFLOPS vs 0.989 peak (FLOP-starved);\ndecode 5.6 TB/s vs 3.35 TB/s (bandwidth-starved). One pool forces a compromise. [2° DERIVED]',
+ax.text(8.5, -0.3, 'Why split?  prefill ~1.19 PFLOPS vs 0.989 peak (FLOP-starved);\ndecode 5.6 TB/s vs 3.35 TB/s (bandwidth-starved). One pool forces a compromise. [ILLUSTRATIVE][DERIVED]',
         fontsize=7.5, ha='center', color='#444')
 
 plt.tight_layout()

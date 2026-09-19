@@ -32,7 +32,7 @@ $$
 
 [DERIVED: 2 FLOPs/parameter × 70 ×10⁹ params; standard dense-forward arithmetic, consistent with the 175B ≈ 0.35 TFLOP/token correction from moe-vs-dense E5]
 
-This applies to both prefill and decode: each token that enters the forward pass costs ~140 GFLOP. The distinction between prefill and decode is not in the per-token FLOP count but in the data movement pattern — preflight reads the full context once, while decode re-reads weights per token.
+This applies to both prefill and decode: each token that enters the forward pass costs ~140 GFLOP. The distinction between prefill and decode is not in the per-token FLOP count but in the data movement pattern — prefill reads the full context once, while decode re-reads weights per token.
 
 ### Prefill PFLOP for 9.2K input
 
@@ -54,7 +54,7 @@ $$
 
 [DERIVED]
 
-**Table 8-1** — Per-token FLOP cost and prefill PFLOP for the canonical 70B workload. *(Per-token FLOP and prefill PFLOP computations are [2° DERIVED] from 2 × params × tokens; hardware peaks [1P: vendor datasheet] or [2° FACT]; the 30–40% MFU range is [2°: industry benchmarks]; the ~295 FLOP/byte ridge is [2° DERIVED] = 989 TFLOPS ÷ 3.35 TB/s.)*  | metric | value | derivation |
+**Table 8-1** — Per-token FLOP cost and prefill PFLOP for the canonical 70B workload. *(Per-token FLOP and prefill PFLOP computations are [ILLUSTRATIVE][DERIVED] from 2 × params × tokens; hardware peaks [1P: vendor datasheet] or [1P][FACT]; the 30–40% MFU range is [2°: industry benchmarks]; the ~295 FLOP/byte ridge is [2°][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s.)*  | metric | value | derivation |
 
 | metric | value | derivation |
 |---|---|---|
@@ -98,7 +98,7 @@ This rough sizing illustrates that prefill is FLOP-bound at this scale — the c
 
 ### Decode: bandwidth-bound at low batch
 
-![Fig 8.1 — Prefill above the ridge (compute-bound), decode below it (memory-bound). H100 (solid) vs H200 (dashed) ridge points from vendor datasheets (989 TFLOPS, 3.35 / 4.8 TB/s); Continuous-Batching arrow shows decode climbing the slope as batch grows [2° DERIVED] [1P: vendor datasheet]](figures/fig-08-0801.png)
+![Fig 8.1 — Prefill above the ridge (compute-bound), decode below it (memory-bound). H100 (solid) vs H200 (dashed) ridge points from vendor datasheets (989 TFLOPS, 3.35 / 4.8 TB/s); Continuous-Batching arrow shows decode climbing the slope as batch grows [1P][DERIVED] [1P: vendor datasheet]](figures/fig-08-0801.png)
 
 *The roofline: prefill is compute-bound, low-batch decode is memory-bound.*
 

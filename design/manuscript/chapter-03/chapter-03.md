@@ -35,7 +35,7 @@ We now carry concrete arithmetic using the canonical enterprise Q&A scenario (ca
 | Total parameters | 70B | canonical scenario (Ch 4, Table 4-3) [1P] |
 | FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [1P DERIVED] |
 | Active parameters per token | 70B | All parameters active for every token [1P FACT] |
-| FLOPs per forward pass (approx.) | ~0.28T | 70B × 4 FLOP/param typical for transformer [2° DERIVED] |
+| FLOPs per forward pass (approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [ILLUSTRATIVE][DERIVED] |
 
 *Table 3.1 — Dense 70B model parameter arithmetic (worked example, not reference).*
 
@@ -45,21 +45,21 @@ We contrast with a representative MoE model in the Mixtral lineage. The exact pa
 
 | Metric | Value | Derivation |
 |---|---|---|
-| Total parameters (across 8 experts) | ~47B | ~6B per expert × 8 + embeddings [2° DERIVED] |
-| Active parameters per token (top-2 routing) | ~14B | Top-2 from 8 experts ≈ 2/8 = 25% of expert mass [2° DERIVED] |
-| Active/total fraction | ~30% | 14B ÷ 47B ≈ 29.8% (≈25–30% for top-2-from-8) [2° DERIVED] |
-| FP16 active residency per token | ~28 GB | 14B × 2 bytes = 28 GB (derived — verify the input) |
-| FLOPs per forward pass (approx.) | ~0.056T | 14B active × 4 FLOP/param = 56B (derived — verify the input) |
-| Compute ratio vs dense 70B | ~0.20× (~5× less) | (14B × 4) ÷ (70B × 4) = 56B ÷ 280B [2° DERIVED] |
+| Total parameters (across 8 experts) | ~47B | ~6B per expert × 8 + embeddings [ILLUSTRATIVE][DERIVED] |
+| Active parameters per token (top-2 routing) | ~14B | Top-2 from 8 experts ≈ 2/8 = 25% of expert mass [ILLUSTRATIVE][DERIVED] |
+| Active/total fraction | ~30% | 14B ÷ 47B ≈ 29.8% (≈25–30% for top-2-from-8) [ILLUSTRATIVE][DERIVED] |
+| FP16 active weight-read per token | ~28 GB | 14B × 2 bytes = 28 GB read per token (compute/bandwidth; does NOT set residency) (derived — verify the input) |
+| FLOPs per forward pass (approx.) | ~0.028T | 14B active × 2 FLOP/param = 28B (derived — verify the input) |
+| Compute ratio vs dense 70B | ~0.20× (~5× less) | (14B × 2) ÷ (70B × 2) = 28B ÷ 140B [ILLUSTRATIVE][DERIVED] |
 
-*Table 3.2 — MoE model parameter arithmetic (worked example, not reference). The active fraction for top-2-of-8 routing is ~25–30% of total, not single-digit. Note the contrast with the 2026 frontier models in §7, where active fractions do fall to a few percent (Qwen 6B/125B, Kimi 104B/2.8T) because those use extreme expert sparsity plus shared/offloadable parameters.*
+*Table 3.2 — MoE model parameter arithmetic (worked example, not reference). The active fraction for top-2-of-8 routing is ~25–30% of total, not single-digit. Note the contrast with the 2026 frontier models in Appendix A, where active fractions do fall to a few percent (Qwen 6B/125B, Kimi 104B/2.8T) because those use extreme expert sparsity plus shared/offloadable parameters.*
 
 ### Why MoE saves compute but not KV-cache memory
 
 The compute savings are straightforward: if only $n_a = 14$B of $n_t = 47$B total parameters are active per token, the FLOP count drops by the active fraction relative to a *same-size dense* model. But note the active fraction for top-2-of-8 routing is ~$\frac{14}{47}\approx 30\%$, not single-digit — so the relative saving is about 5× versus the canonical 70B *dense* comparison, not 20× or 30×. Concretely,
 
 $$
-\text{FLOP}_{\text{MoE/token}} = n_a \times 4 \text{ FLOP/param} = 14\text{ B} \times 4 \approx 0.056\text{ T}
+\text{FLOP}_{\text{MoE/token}} = n_a \times 2 \text{ FLOP/param} = 14\text{ B} \times 2 \approx 0.028\text{ T}
 $$
 
 which is $\frac{0.056}{0.28} \approx 0.20\times$ of the dense 70B figure — roughly a **5× reduction** in compute per token. (It is also $\frac{14}{47}\approx 30\%$ of a hypothetical dense model of the *same* 47B total; the 5× figure uses the book's canonical 70B dense as the comparison, so always state which baseline the ratio is against.)
@@ -113,15 +113,15 @@ Knowing whether a model is dense or MoE, and whether the quoted parameter count 
 
 ### The 2026 baseline shift: same framework, new constants
 
-**The 2026 trend signal (forward-looking).** By August 2026 the four frontier open-weight families converge on one direction, and it is not more of the same dense scaling: extreme MoE sparsity (single-digit active-parameter fractions — Qwen 6 B of 125 B, Kimi K3 104 B of 2.8 T) coupled with **hybrid attention** (compressed/sparse/linear hybrids such as Gated DeltaNet + sparse attention) has become the standard way to make long-context inference affordable. Appendix A documents these at full depth with first-party provenance; what matters here, in the model-understanding chapter, is that this is not a competing mechanism but the *same* dense-vs-MoE, total-vs-active, KV-vs-compute machinery this chapter just taught — with new constants. We hold that view explicitly as the **forward-looking direction** the architect should size toward, and flag it below as continuing future work (the frontier moves; this handbook is a living document, and Appendix A is where the moving part lives).
+**The 2026 trend signal (forward-looking; an interpretation of the sample we surveyed, not an established industry-wide convergence).** By August 2026 the four frontier open-weight families surveyed for this edition share a notable pattern, and it is not more of the same dense scaling: extreme MoE sparsity (single-digit active-parameter fractions — Qwen 6 B of 125 B, Kimi K3 104 B of 2.8 T) coupled with **hybrid attention** (compressed/sparse/linear hybrids such as Gated DeltaNet + sparse attention) has become a common way to make long-context inference affordable. Appendix A documents these at full depth with first-party provenance; what matters here, in the model-understanding chapter, is that this is not a competing mechanism but the *same* dense-vs-MoE, total-vs-active, KV-vs-compute machinery this chapter just taught — with new constants. We hold that view explicitly as the **forward-looking direction** the architect should size toward, and flag it below as continuing future work (the frontier moves; this handbook is a living document, and Appendix A is where the moving part lives).
 
-**Why the trend signal should not be read as "dense is dead".** The convergence of the four *frontier* families on extreme MoE sparsity describes the top of the market — the ~100B-and-up tier that anchor ~2.8T-parameter fleets. It is not a claim that dense models have disappeared. On the contrary, the smaller, denser tier is alive and actively shipping in 2026 for exactly the constrained-deployment reasons this chapter teaches: **Qwen3.8-27B** ([1P: HF Qwen/Qwen3.8-27B]) is a dense 27.8B model whose 4-bit weights fit on a single 24 GB consumer GPU, and **Muse Glimmer 30B** ([1P: Meta via vLLM-Recipes]) is a dense 29.6B local-agentic model that runs in ~18 GB. These exist because the dense-vs-MoE trade is itself a *deployment* decision, not a date: MoE buys active-parameter efficiency at the cost of total-parameter memory and routing complexity — worthwhile when you serve many requests from a large pool of resident weights, but hard to justify when your whole budget is one consumer GPU whose total weights already overrun. That is precisely why this book keeps its canonical on the dense tier: the canonical must serve the architect whose *whole fleet* is a handful of boxes, not only the one sizing a 2.8T datacenter model. The framework does not change between tiers — total vs active, KV per-token, and residency budgeting apply identically to a 27B dense laptop model and a 125B/6B MoE fleet model.
+**Why the trend signal should not be read as "dense is dead".** This pattern among the four frontier families we surveyed describes the top of the market — the ~100B-and-up tier that anchor ~2.8T-parameter fleets. It is not a claim that dense models have disappeared. On the contrary, the smaller, denser tier is alive and actively shipping in 2026 for exactly the constrained-deployment reasons this chapter teaches: **Qwen3.8-27B** ([1P: HF Qwen/Qwen3.8-27B]) is a dense 27.8B model whose 4-bit weights fit on a single 24 GB consumer GPU, and **Muse Glimmer 30B** ([1P: Meta via vLLM-Recipes]) is a dense 29.6B local-agentic model that runs in ~18 GB. These exist because the dense-vs-MoE trade is itself a *deployment* decision, not a date: MoE buys active-parameter efficiency at the cost of total-parameter memory and routing complexity — worthwhile when you serve many requests from a large pool of resident weights, but hard to justify when your whole budget is one consumer GPU whose total weights already overrun. That is precisely why this book keeps its canonical on the dense tier: the canonical must serve the architect whose *whole fleet* is a handful of boxes, not only the one sizing a 2.8T datacenter model. The framework does not change between tiers — total vs active, KV per-token, and residency budgeting apply identically to a 27B dense laptop model and a 125B/6B MoE fleet model.
 
 **Why the rest of this chapter's canonical stays a dense full-MHA model.** If the trend is MoE + hybrid, why does this book's canonical still size a dense 70B full-MHA workload? Because a dense model with full multi-head attention gives the cleanest single-constant KV formula (`2 × layers × hidden × bytes`) and the largest KV footprint — the conservative worst case an architect should always size against first. Teaching against that bound means the reader learns the framework on the hardest memory case and then relaxes it. It is a deliberate teaching simplification, not a claim that in 2026 an enterprise RAG fleet really runs on dense 70B.
 
 **One verified 2026 transfer: Qwen3.8-Flash-Next.** The model card [1P: HF Qwen/Qwen3.8-Flash-Next] is the Qwen4-architecture preview: **125 B total / 6 B active** (plus a separate 51 B of offloadable N-gram embedding parameters), **512 MoE experts** (10 routed + 1 shared per token), and **hybrid attention** — Gated DeltaNet (GDN) on three of every four layers plus Qwen Sparse Attention (QSA) on the fourth. This is exactly the "125B/6B active MoE + Gated DeltaNet/QSA" class of model a 2026 architect actually considers. Stepping through this book's own arithmetic:
 
-- **Weight residency** (Ch. 7's floor): active weights are ~6 B × 2 B = ~12 GB, not the canonical 140 GB — MoE sparsity collapsed the on-GPU weight floor by ~12×. But total weights dominate the memory ceiling: ~125 B × 2 B ≈ 250 GB (plus the offloadable N-gram), so the *total-vs-active* split of this chapter is not a footnote — it is the difference between fitting on one host and sharding across several.
+- **Weight residency** (Ch. 7's floor): the active-weight working set for Qwen is ~6 B × 2 B = ~12 GB read per token, not the canonical 140 GB — MoE sparsity reduced the per-token weight traffic by ~12×. But this is a *compute/bandwidth* statement, not a residency one: the total weights dominate the memory ceiling, ~125 B × 2 B ≈ 250 GB (plus the offloadable N-gram). So the *total-vs-active* split of this chapter is not a footnote — it is the difference between fitting on one host and sharding across several, and the ~250 GB total (not the ~12 GB active working set) is what must be resident unless experts are explicitly offloaded.
 - **KV cache** (Ch. 7/8): the canonical `2 × layers × hidden × bytes` KV formula is the full-MHA bound. Qwen's hybrid attention attacks the KV constant itself at the mechanism level — GDN keeps a fixed-size recurrent state (context cost no longer grows linearly per token across those layers) and QSA attends sparsely at micro-block granularity — so per-token KV no longer follows the dense formula. The framework question ("does it fit?") is unchanged; the *function* you plug in for KV is not the dense one.
 - **Compute** (Ch. 8): active-parameter FLOPs drop to ~2 ×6 B per token, but the QSA/GDN layers ride different roofline points than a dense 70B prefill/decode split, so the throttled-resource conclusion must be re-derived per model (Ch. 8's measurement discipline, not a one-time number).
 
@@ -150,7 +150,7 @@ From the model-understanding chapter, the architect can answer: *Active-compute 
 The architect's decision therefore hinges on whether the compute savings from MoE (fewer FLOPs per token, potentially lower \$/token) outweigh the added routing complexity and the fact that KV-cache memory is unchanged. The team decides on a MoE model for the compute/\$ advantage, but provisions the KV-cache budget at the dense-model rate, and adds one GPU dedicated to the routing dispatcher.
 
 * * *
-![Fig 3.1 — Dense vs MoE parameter allocation and KV-cache behavior [2° DERIVED]](figures/fig-03-0301.png)
+![Fig 3.1 — Dense vs MoE parameter allocation and KV-cache behavior [ILLUSTRATIVE][DERIVED]](figures/fig-03-0301.png)
 
 *Parameter-activation contrast. A dense 70B activates all 70B parameters per token (residency ≈ 140 GB, KV grows linearly with context). An 8-expert MoE still stores its full expert set as resident weights (not shown to scale), but only the top-2 (~14B) are active per token (active compute footprint ≈ 28 GB). KV-cache growth with context is identical to dense — attention still processes every token.*
 
@@ -159,13 +159,13 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 | metric | dense 70B | MoE (8×7B class) | derivation |
 |---|---|---|---|
 | total parameters | 70B | ~47B | [2°] expert split |
-| active params per token | 70B | ~14B | top-2 from 8 ≈ 2/8 = 25% of expert mass [2° DERIVED] |
-| active/total fraction | 100% | ~30% | 14B ÷ 47B ≈ 29.8% [2° DERIVED] |
+| active params per token | 70B | ~14B | top-2 from 8 ≈ 2/8 = 25% of expert mass [ILLUSTRATIVE][DERIVED] |
+| active/total fraction | 100% | ~30% | 14B ÷ 47B ≈ 29.8% [ILLUSTRATIVE][DERIVED] |
 | FP16 residency (total) | 140 GB | ~94 GB | 70B × 2 / 47B × 2 |
-| FP16 residency (active) | 140 GB | ~28 GB | 70B × 2 / 14B × 2 |
+| FP16 weight-read per token | 140 GB | ~28 GB | 70B × 2 / 14B × 2 (read per token, not residency) |
 | KV cache per request (9.2K ctx, 8-bit) | ~12 GB | ~12 GB | identical — attention dense |
-| FLOPs per forward pass | ~0.28T | ~0.056T | 70B × 4 / 14B × 4 |
-| compute ratio vs dense 70B | 1× | ~0.20× (~5× less) | (14B × 4) ÷ (70B × 4) = 56B ÷ 280B [2° DERIVED] |
+| FLOPs per forward pass | ~0.14T | ~0.028T | 70B × 2 / 14B × 2 |
+| compute ratio vs dense 70B | 1× | ~0.20× (~5× less) | (14B × 2) ÷ (70B × 2) = 28B ÷ 140B [ILLUSTRATIVE][DERIVED] |
 
 *All figures trace to the canonical scenario (Ch 4, Table 4-3); the MoE column is a [2°] worked variant, not a measurement claim.*
 

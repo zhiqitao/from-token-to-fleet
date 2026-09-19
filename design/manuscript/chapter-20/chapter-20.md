@@ -113,4 +113,4 @@ Several open questions remain at the fleet level:
 
 **Table 20-1** — Fleet QPS and latency vs. host count, batch size, and scheduling overhead.
 
-![Fig 20.1 - Fleet QPS and latency vs. host count, batch size, and scheduling overhead [2° DERIVED]](figures/fig-20-2001.png)
+![Fig 20.1 - Fleet QPS and latency vs. host count, batch size, and scheduling overhead [ILLUSTRATIVE][DERIVED]](figures/fig-20-2001.png)

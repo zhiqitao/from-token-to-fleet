@@ -24,7 +24,7 @@ We now demonstrate the canonical loop: turning a vague stakeholder ask into conc
 
 **Step 1 — Identify the unit.** The ask mentions "Q&A over internal documents." We do not assume "one question = one page" or "one question = 500 words." We go to the model's tokenizer and ask: how many tokens does a typical prompt contain? We extract representative prompts from the documented corpus, run them through the tokenizer, and measure. In the canonical scenario, the prompt consists of ~1,200 tokens of query text plus ~8,000 tokens of retrieved RAG context, yielding **~9,200 input tokens**. The answer generated is ~300 tokens. These numbers are not assumed; they are measured [1P].
 
-**Step 2 — Establish the traffic profile.** The ask says "about 2,000 employees" and "throughout the day." We instrument or survey to find the per-user rate. The canonical scenario settles on ~10 requests/s average, with peaks of ~40 rps. These are derived quantities [2° DERIVED], not stipulated.
+**Step 2 — Establish the traffic profile.** The ask says "about 2,000 employees" and "throughout the day." We instrument or survey to find the per-user rate. The canonical scenario settles on ~10 requests/s average, with peaks of ~40 rps. These are derived quantities [ILLUSTRATIVE][DERIVED], not stipulated.
 
 **Step 3 — Compute the token throughput.** With $I = 9{,}200$ input tokens and $O = 300$ output tokens per request, and $\lambda = 10$ req/s average:
 
@@ -40,7 +40,7 @@ $$
 \text{input/output ratio} = \frac{I}{O} = \frac{9{,}200}{300} \approx 30\times
 $$
 
-(At the ~40 req/s peak these rise to ~368,000 and ~12,000 tokens/s respectively.) [2° DERIVED]
+(At the ~40 req/s peak these rise to ~368,000 and ~12,000 tokens/s respectively.) [ILLUSTRATIVE][DERIVED]
 
 **Step 4 — Derive architecture-relevant quantities.** The 30× input/output ratio is one of the most important derived quantity here. It means this workload is input-heavy: the great majority of latency, memory, and energy is spent in prefill (processing the 9.2K prompt), not decode (generating the 300 answer tokens). This ratio alone dictates that KV-cache memory and prefill compute dominate the design — not decode bandwidth. Every downstream chapter (memory, compute, cost) will price against these derived numbers.
 
@@ -55,18 +55,18 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 |---|---|---|
 | input tokens / request | ~9,200 | 1,200 prompt + 8K RAG context [1P DERIVED] |
 | output tokens / request | ~300 | generated answer length [1P DERIVED] |
-| input / output ratio | ~30× | 9,200 ÷ 300 [2° DERIVED] |
-| input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [2° DERIVED] |
-| input tokens/s @ peak 40 rps | ~368,000 | 9,200 ×40 [2° DERIVED] |
-| output tokens/s @ 10 rps | ~3,000 | 300 ×10 [2° DERIVED] |
-| output tokens/s @ peak 40 rps | ~12,000 | 300 ×40 [2° DERIVED] |
+| input / output ratio | ~30× | 9,200 ÷ 300 [1P][DERIVED] |
+| input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [ILLUSTRATIVE][DERIVED] |
+| input tokens/s @ peak 40 rps | ~368,000 | 9,200 ×40 [ILLUSTRATIVE][DERIVED] |
+| output tokens/s @ 10 rps | ~3,000 | 300 ×10 [ILLUSTRATIVE][DERIVED] |
+| output tokens/s @ peak 40 rps | ~12,000 | 300 ×40 [ILLUSTRATIVE][DERIVED] |
 | prefill FLOPs per request | ~1.29 PFLOP | 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ [DERIVED] |
 | decode bandwidth per token | ~5.6 TB/s | 140 GB weights / 25 ms TPOT [DERIVED] |
 | KV-cache memory per request | ~12 GB (70B, 8-bit KV) | 1.3 MB/token × 9,200 tokens [1P DERIVED] |
 
 :::
 
-![Fig 22.1 - Full-attention prefill increasingly reflects quadratic attention cost; decode is incurred token-by-token [2° DERIVED]](figures/fig-22-2201.png)
+![Fig 22.1 - Full-attention prefill increasingly reflects quadratic attention cost; decode is incurred token-by-token [ILLUSTRATIVE][DERIVED]](figures/fig-22-2201.png)
 
 *For standard full attention, attention work scales quadratically with sequence length while the MLP/projection portion stays roughly linear, so total prefill compute becomes increasingly dominated by the quadratic attention term as context grows (the 9.2K canonical point is marked; +17% at 9.2K → ~2.4× at 128K). Prefill is compute-bound (~1.29 PFLOP/request → ~1.19 PFLOPS required at the ~1.08 s budget vs H100 ~0.989 PFLOPS peak). The decode series is FLOPs per generated token, and is not literally flat: attending over an increasingly long KV cache carries context-length-dependent work and traffic, so per-token decode cost grows with generated-token index/context (relegated to a narrow band here; see Chapter 8). Note the aggregation units differ per series: the two prefill series are FLOPs *per request* (whole-context), the decode series is FLOPs *per generated token* (~140 GFLOP/token, independent of context length at the decoding step considered) — this is why the y-axis is labeled generically "Compute (PFLOP; see series definition)". The two regimes remain deliberately separate: decode is bandwidth-bound (Ch6), prefill is compute-bound (Ch8).*
 
@@ -114,7 +114,7 @@ mechanism layer. Rather than restating them, we point to the fuller treatment:
 - **Sustained HBM bandwidth for weight-read kernels** — discussed in Chapter 2 §7; the 3.35 TB/s H100 figure is a theoretical peak and real serving kernels may sustain less. (a hypothesis awaiting verification)
 - **Prefill FLOP cost under continuous batching** — Chapter 2 §7; the 2 × params × tokens approximation ignores activation reuse across batched requests. (a hypothesis awaiting verification)
 - **Effect of quantization on decode vs prefill** — Chapter 2 §7; quantization shifts both bottlenecks but the precise trade-off point is workload-dependent. (a hypothesis awaiting verification)
-- **Cross-technology bandwidth numbers** — Chapter 2 §7; HBM3e and MI300X publish higher peaks, which move the GPU-count equation without changing the compute-bound vs bandwidth-bound classification. [2° FACT]
+- **Cross-technology bandwidth numbers** — Chapter 2 §7; HBM3e and MI300X publish higher peaks, which move the GPU-count equation without changing the compute-bound vs bandwidth-bound classification. [ILLUSTRATIVE][DERIVED]
 
 ## 8. End-of-Chapter Mini-Case
 

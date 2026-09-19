@@ -8,11 +8,11 @@ After this chapter we should be able to treat AI delivery as an *industrial proc
 
 The AI Factory is the discipline of making model delivery routine. We use the term as a **generic architectural concept** — the idea that model delivery can be run as an industrial, gate-driven process — not as any one vendor's marketing vocabulary. It rests on three pillars:
 
-1. **Data pipeline** — the automated intake, cleaning, versioning, and labelling of the data that trains or evaluates the model. For a RAG system this includes the retrieval corpus, its freshness, and its quality gates. [2° FACT]
+1. **Data pipeline** — the automated intake, cleaning, versioning, and labelling of the data that trains or evaluates the model. For a RAG system this includes the retrieval corpus, its freshness, and its quality gates. [ILLUSTRATIVE][DERIVED]
 
 2. **Evaluation & promotion gate** — a systematic process that scores a candidate model or configuration against defined metrics (quality, latency, cost) on a held-out benchmark before it can replace the incumbent in production. This is where Ch14's deployment benchmarking becomes a recurring gate rather than a one-time event.
 
-3. **Serve + observe + rollback** — the serving layer (Ch11) plus a feedback loop that measures real traffic, detects drift or regression, and can roll the production model back safely. [2° FACT]
+3. **Serve + observe + rollback** — the serving layer (Ch11) plus a feedback loop that measures real traffic, detects drift or regression, and can roll the production model back safely. [ILLUSTRATIVE][DERIVED]
 
 The factory converts the architect's recurring question from "should we adopt this model?" (a one-off decision) into "does this candidate pass the automated gate?" (a routine, repeatable decision with the same rigor every time).
 
@@ -37,11 +37,11 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 - **Ungated**: deploy the candidate to all production traffic immediately. If it regresses (say p95 TTFT degrades because of a slower tokenizer, or quality drops on a subset), the service suffers until rollback.
 - **Gated**: run the candidate on a 5% canary for N hours, measure TTFT/goodput/quality against the incumbent, promote only if it beats every threshold.
 
-**Cost of a bad ungated release.** The canonical service does ~864,000 requests/day. Suppose a regression raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery and rollback. That is 6/24 ×864,000 ≈ **216,000 requests** served at a broken SLO. At ~$0.82/1K requests (Ch16) the direct cost is modest (~$180), but the *business* cost — users experiencing a 47% latency regression, trust erosion, and the fire drill — is the dominant term. [2° DERIVED] *(worked example, not reference)*
+**Cost of a bad ungated release.** The canonical service does ~864,000 requests/day. Suppose a regression raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery and rollback. That is 6/24 ×864,000 ≈ **216,000 requests** served at a broken SLO. At ~$0.82/1K requests (Ch16) the direct cost is modest (~$180), but the *business* cost — users experiencing a 47% latency regression, trust erosion, and the fire drill — is the dominant term. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
 
-**Cost of a good gated release.** A canary at 5% traffic for 2 hours serves 5% × 864,000 ×2/24 ≈ **3,600 requests** through the candidate while it is measured against a full evaluation suite. If it passes, promotion is low-risk; if it fails, no users beyond canary were exposed. [2° DERIVED]
+**Cost of a good gated release.** A canary at 5% traffic for 2 hours serves 5% × 864,000 ×2/24 ≈ **3,600 requests** through the candidate while it is measured against a full evaluation suite. If it passes, promotion is low-risk; if it fails, no users beyond canary were exposed. [ILLUSTRATIVE][DERIVED]
 
-**Reading the result.** Gating turns a risky 216K-request exposure (ungated) into a controlled ~3.6K-request canary — a ~60× reduction in blast radius for the cost of a 2-hour evaluation. The factory makes this routine. [2° DERIVED]
+**Reading the result.** Gating turns a risky 216K-request exposure (ungated) into a controlled ~3.6K-request canary — a ~60× reduction in blast radius for the cost of a 2-hour evaluation. The factory makes this routine. [ILLUSTRATIVE][DERIVED]
 
 **Table 21-1** — Ungated vs gated model adoption (illustrative worked example)
 
