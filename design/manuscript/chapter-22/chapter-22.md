@@ -53,8 +53,8 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 
 | metric | value | derivation |
 |---|---|---|
-| input tokens / request | ~9,200 | 1,200 prompt + 8K RAG context [1P DERIVED] |
-| output tokens / request | ~300 | generated answer length [1P DERIVED] |
+| input tokens / request | ~9,200 | 1,200 prompt + 8K RAG context [ILLUSTRATIVE][DERIVED] |
+| output tokens / request | ~300 | generated answer length [ILLUSTRATIVE][DERIVED] |
 | input / output ratio | ~30× | 9,200 ÷ 300 [1P][DERIVED] |
 | input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [ILLUSTRATIVE][DERIVED] |
 | input tokens/s @ peak 40 rps | ~368,000 | 9,200 ×40 [ILLUSTRATIVE][DERIVED] |
@@ -62,7 +62,7 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 | output tokens/s @ peak 40 rps | ~12,000 | 300 ×40 [ILLUSTRATIVE][DERIVED] |
 | prefill FLOPs per request | ~1.29 PFLOP | 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ [DERIVED] |
 | decode bandwidth per token | ~5.6 TB/s | 140 GB weights / 25 ms TPOT [DERIVED] |
-| KV cache memory per request | ~12 GB (70B, 8-bit KV) | 1.3 MB/token × 9,200 tokens [1P DERIVED] |
+| KV cache memory per request | ~12 GB (70B, 8-bit KV) | 1.3 MB/token × 9,200 tokens [ILLUSTRATIVE][DERIVED] |
 
 :::
 

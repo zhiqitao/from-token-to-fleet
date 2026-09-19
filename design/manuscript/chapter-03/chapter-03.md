@@ -33,8 +33,8 @@ We now carry concrete arithmetic using the canonical enterprise Q&A scenario (ca
 | Metric | Value | Derivation |
 |---|---|---|
 | Total parameters | 70B | canonical scenario (Ch 4, Table 4-3) [1P] |
-| FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [1P DERIVED] |
-| Active parameters per token | 70B | All parameters active for every token [1P FACT] |
+| FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [ILLUSTRATIVE][DERIVED] |
+| Active parameters per token | 70B | All parameters active for every token [1P][FACT] |
 | FLOPs per forward pass (approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [ILLUSTRATIVE][DERIVED] |
 
 *Table 3.1 — Dense 70B model parameter arithmetic (worked example, not reference).*

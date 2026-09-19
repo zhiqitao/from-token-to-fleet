@@ -58,7 +58,7 @@ Three realistic options, each with documented properties:
 |---|---|---|
 | Embedding dimension (recommended) | 768 | all‑mpnet‑base‑v2 [ILLUSTRATIVE][DERIVED] |
 | Embedding model size | ~110M parameters | all‑mpnet‑base‑v2 [ILLUSTRATIVE][DERIVED] |
-| Per-request context/KV cost at 9.2K input | ~24.1 GB (FP16 KV cache, initial) | 70B FP16, 80 layers, 9.2K context [1P DERIVED] |
+| Per-request context/KV cost at 9.2K input | ~24.1 GB (FP16 KV cache, initial) | 70B FP16, 80 layers, 9.2K context [ILLUSTRATIVE][DERIVED] |
 | Tokens/s per dollar (generation, runtime) | 9,000 tokens per dollar‑hour | 50 tok/s × 3600 s/hr ÷ $20/hr [ILLUSTRATIVE][DERIVED] |
 | Verdict | Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16 on 8×H100 | Selection surfaces (§4 §5)
 ### (b) Generation‑model selection for the answer leg
@@ -67,7 +67,7 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 #### Real‑derived arithmetic for the 70B candidate
 
-[1P] FACT: a 70B‑parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (model-card specification, vendor‑published). [1P] FACT: 8×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory.
+[ILLUSTRATIVE][DERIVED]: a 70B‑class parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (model-card specification, vendor‑published). [1P][FACT]: 8×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory.
 
 [DERIVED] KV cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.62 MB/token (FP16; = 2.5 MiB) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.62 MB ≈ 24.1 GB of KV cache (initial residency).
 

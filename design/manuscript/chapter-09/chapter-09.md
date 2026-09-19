@@ -23,8 +23,8 @@ The bandwidth each collective consumes depends on three factors: the data volume
 
 | Layer | Example | Bandwidth (one direction / aggregate) | Latency | Cost | [source] |
 |---|---|---|---|---|---|
-| Chip-to-memory | HBM3 (H100) | 3.35 TB/s | ~ns | — | [1P FACT] |
-| GPU-to-GPU (in-node) | NVLink (H100) | 900 GB/s per GPU, bidirectional aggregate | ~us | high capex | [1P FACT] (NVIDIA NVLink) |
+| Chip-to-memory | HBM3 (H100) | 3.35 TB/s | ~ns | — | [1P][FACT] |
+| GPU-to-GPU (in-node) | NVLink (H100) | 900 GB/s per GPU, bidirectional aggregate | ~us | high capex | [1P][FACT] (NVIDIA NVLink) |
 | GPU-to-CPU / NIC | PCIe Gen5 | ~64 GB/s per x16 direction | ~us | low | [1P][FACT] |
 | Node-to-node (rack) | RoCE / Ethernet 400Gb/s | ~50 GB/s per port | ~us | medium | [1P][FACT] |
 | Rack/cluster | InfiniBand HDR/NDR | 200/400 Gb/s ≈ 25/50 GB/s per port | ~us | high capex | [ILLUSTRATIVE][DERIVED] |

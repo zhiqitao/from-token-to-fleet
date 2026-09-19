@@ -10,7 +10,7 @@ Architectures recur not because engineers lack imagination but because the *cons
 
 1. **Local / edge** — a single GPU (or a laptop-class accelerator). Serves small models (up to ~7-13B at tight context) that must run on-device for privacy, latency, or connectivity reasons. Interconnect is not the question; memory capacity is.
 
-2. **Server** — one host with 1-8 GPUs, typically H100/H200, joined by NVLink/NVSwitch. Serves dense models up to ~70B-180B with real concurrency. This is the canonical enterprise-Q&A tier and the book's 8×H100 baseline. [1P FACT] (vendor datasheet)
+2. **Server** — one host with 1-8 GPUs, typically H100/H200, joined by NVLink/NVSwitch. Serves dense models up to ~70B-180B with real concurrency. This is the canonical enterprise-Q&A tier and the book's 8×H100 baseline. [1P][FACT] (vendor datasheet)
 
 3. **Cluster** — multiple hosts (tens to hundreds of GPUs) joined by InfiniBand or high-speed Ethernet. Required when a model exceeds a node's memory (so it must be split per Ch10) or when traffic outgrows one host (so P/D disaggregation per Ch11 applies).
 

@@ -50,7 +50,7 @@ The useful mental model is a **resource triangle**: we have weights (memory), ac
 
 ### Why the Canonical 70B Doesn't Fit One H100
 
-The canonical model is 70B FP16 dense = 140 GB of weights [1P] (reality check: 70 ×10⁹ params × 2 bytes). A single H100 has 80 GB of HBM [1P FACT]. The arithmetic is immediate:
+The canonical model is 70B FP16 dense = 140 GB of weights [ILLUSTRATIVE][DERIVED] (reality check: 70 ×10⁹ params × 2 bytes). A single H100 has 80 GB of HBM [1P][FACT]. The arithmetic is immediate:
 
 - The weights alone don't fit on one H100:
 
@@ -64,7 +64,7 @@ The canonical 8×H100 host (640 GB total) fits the weights + KV comfortably, whi
 
 ### Tensor Parallelism: Splitting Weights Across GPUs
 
-With tensor parallelism, the 140 GB weight is split across GPUs. On 2×H100: $140 / 2 = 70$ GB per GPU, each now under the 80 GB ceiling. But every transformer layer's matmuls now require an **all-reduce of the layer's output across the TP group** — a per-token, per-layer exchange over NVLink. For the canonical 70B with ~80 layers, that is ~80 × tokens × output-size of communication per forward pass. The all-reduce communication cost per layer, per token is $T_\text{tp} = \text{tokens} \times n_\text{layers} \times \text{output-size} / B_\text{eff}$. TP is only viable where the interconnect is very fast: on-node NVLink (900 GB/s) keeps the sync cheap; over slow Ethernet it would drown. [1P FACT] (vendor datasheet)[1P][DERIVED]
+With tensor parallelism, the 140 GB weight is split across GPUs. On 2×H100: $140 / 2 = 70$ GB per GPU, each now under the 80 GB ceiling. But every transformer layer's matmuls now require an **all-reduce of the layer's output across the TP group** — a per-token, per-layer exchange over NVLink. For the canonical 70B with ~80 layers, that is ~80 × tokens × output-size of communication per forward pass. The all-reduce communication cost per layer, per token is $T_\text{tp} = \text{tokens} \times n_\text{layers} \times \text{output-size} / B_\text{eff}$. TP is only viable where the interconnect is very fast: on-node NVLink (900 GB/s) keeps the sync cheap; over slow Ethernet it would drown. [1P][FACT] (vendor datasheet)[1P][DERIVED]
 
 ### Pipeline Parallelism: Splitting Layers, Accepting Bubbles
 

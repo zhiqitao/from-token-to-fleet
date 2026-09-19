@@ -33,14 +33,14 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 | metric | value | derivation |
 |---|---|---|
 | Model params | 70B | canonical scenario (Ch 4, Table 4-3) |
-| Model weight bytes (FP16) | 140 GB | 2 bytes × 70B params [1P DERIVED] |
-| Decode: weight-read per token | 140 GB | Auto-regressive, batch-1-equivalent: one read of all weights per generated token before batching/amortization [1P DERIVED] |
+| Model weight bytes (FP16) | 140 GB | 2 bytes × 70B params [ILLUSTRATIVE][DERIVED] |
+| Decode: weight-read per token | 140 GB | Auto-regressive, batch-1-equivalent: one read of all weights per generated token before batching/amortization [ILLUSTRATIVE][DERIVED] |
 | Decode: required bandwidth (TPOT ~25 ms) | 5.6 TB/s | 140 GB / 0.025 s (batch-1-equivalent weight-streaming model, before amortization) [DERIVED] |
-| H100 HBM3 peak bandwidth | 3.35 TB/s | NVIDIA H100 specs [1P FACT] |
+| H100 HBM3 peak bandwidth | 3.35 TB/s | NVIDIA H100 specs [1P][FACT] |
 | Decode: bandwidth verdict | bandwidth-bound | 5.6 > 3.35 → under the batch-1-equivalent model, a single H100 cannot meet the demand; batching/amortization change this (see later chapters) [ILLUSTRATIVE][DERIVED] |
-| Prefill: input tokens | 9,200 | 1,200 prompt + 8K context [1P DERIVED] |
+| Prefill: input tokens | 9,200 | 1,200 prompt + 8K context [ILLUSTRATIVE][DERIVED] |
 | Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 ×70e9 ×9.2e3 ≈ 1.29 ×10^15 [DERIVED] |
-| H100 BF16 dense compute | 989 TFLOPS | NVIDIA H100 BF16 tensor-core peak [1P FACT] |
+| H100 BF16 dense compute | 989 TFLOPS | NVIDIA H100 BF16 tensor-core peak [1P][FACT] |
 | Prefill: compute verdict | compute-bound | 1.29 PFLOP / ~1.08 s ≈ 1.19 PFLOPS > 0.989 PFLOPS peak → single H100 insufficient for real-time prefill [DERIVED] |
 
 ![Fig 2.1 — Decode vs prefill: bandwidth vs compute [ILLUSTRATIVE conceptual]](figures/fig-02-0201.png)
@@ -49,21 +49,21 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 
 **Worked example arithmetic details:**
 
-- **Decode bandwidth.** In auto-regressive decode, generating one token requires a full forward pass of the 70B parameter matrix. At FP16 (2 bytes per parameter), the weight footprint is $W = N \times 2 = 140$ GB. With a TPOT budget of ~25 ms per token, the system must read all $W$ bytes in $\tau = 0.025$ s, so the required bandwidth is
+- **Decode bandwidth.** In auto-regressive decode, generating one token requires a full forward pass of the 70B parameter matrix. At FP16 (2 bytes per parameter), the weight footprint is $W = N \times 2 = 140$ GB. **This is the aggregate model-wide weight traffic** — but note the unit of comparison carefully. For a hypothetical single-device implementation holding the entire FP16 model, the aggregate model-weight traffic per decode step is ~140 GB; on a tensor-parallel deployment both weight residency *and* this traffic are sharded across GPUs, so the relevant comparison is per-GPU shard traffic against per-GPU HBM bandwidth, plus communication overhead. (A 140-GB FP16 model cannot reside on a single 80-GB H100 anyway, so the whole-model-on-one-GPU comparison is deliberately hypothetical.) With a TPOT budget of ~25 ms per token, the *aggregate* required bandwidth is
 
 $$
 B_\text{req} = \frac{W}{\tau} = \frac{140 \text{ GB}}{0.025 \text{ s}} = 5{,}600 \text{ GB/s} = 5.6 \text{ TB/s}
 $$
 
-[ILLUSTRATIVE][DERIVED]. A single NVIDIA H100 HBM3 delivers ~3.35 TB/s peak bandwidth [1P FACT]. Since $5.6 > 3.35$, under this batch-1-equivalent weight-streaming model one H100 cannot supply the required weight-read rate — the decode phase is HBM-bandwidth-bound [ILLUSTRATIVE][DERIVED]. This is a statement about the *specified* single-request, ~25 ms/token model, not about all possible 70B serving: batching, weight-read amortization, and precision changes (later chapters) fundamentally alter the per-request bandwidth demand. Within the model, meeting that latency target calls for multi-GPU scaling or bandwidth-increasing topologies (e.g. NVLink-connected nodes).
+[ILLUSTRATIVE][DERIVED]. A single NVIDIA H100 HBM3 delivers ~3.35 TB/s peak bandwidth [1P][FACT]. Since $5.6 > 3.35$, under this batch-1-equivalent weight-streaming model one H100 cannot supply the required *aggregate* weight-read rate — the decode phase is HBM-bandwidth-bound [ILLUSTRATIVE][DERIVED]. Read this as an *aggregate lower-bound illustration*, not as the literal bandwidth requirement of a single H100 in a realistic 8×H100 configuration (where the model and its traffic are sharded, so each GPU streams only its shard against its own 3.35 TB/s, plus communication overhead). This is a statement about the *specified* single-request, ~25 ms/token model, not about all possible 70B serving: batching, weight-read amortization, and precision changes (later chapters) fundamentally alter the per-request bandwidth demand. Within the model, meeting that latency target calls for multi-GPU scaling or bandwidth-increasing topologies (e.g. NVLink-connected nodes).
 
-- **Prefill FLOPs.** The prefill pass computes attention over the 9.2K input tokens and produces the first output token. The FLOP count for a dense transformer forward pass is well approximated as $2 \times \text{params} \times \text{tokens}$ (the factor of 2 accounts for multiply-add per parameter per token). Thus:
+- **Prefill FLOPs.** The prefill pass computes attention over the 9.2K input tokens and produces the first output token. The *parameterized-linear* FLOP floor for a dense transformer forward pass is well approximated as $2 \times \text{params} \times \text{tokens}$ (the factor of 2 accounts for multiply-add per parameter per token). Call this what it is: **the parameterized-linear FLOP floor, $2NL$, excluding explicit attention-score/value aggregation and other non-matmul overhead.** The full-attention component is *not* captured by $2NL$ — it grows ~quadratically with sequence length (Ch 22), so for a 9.2K-token prefill $2NL$ is a lower bound on total compute, not the whole story. Thus:
 
 $$
 \text{prefill FLOPs} = 2 \times N \times L = 2 \times 70 \times 10^9 \times 9.2 \times 10^3 \approx 1.288 \times 10^{15} \approx 1.29 \text{ PFLOP}
 $$
 
-[ILLUSTRATIVE][DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-core peak, without sparsity) [1P FACT], which is 0.989 PFLOPS. (Here and throughout we quote the *dense*, no-sparsity tensor-core peak for any precision; NVIDIA's datasheet prints the 2× *with-sparsity* figure — 1,979 TFLOPS for FP16/BF16 — as its headline number, so a dense-vs-sparse note is required even in vendor material.) The required rate against the ~1.08 s prefill budget is
+[ILLUSTRATIVE][DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-core peak, without sparsity) [1P][FACT], which is 0.989 PFLOPS. (Here and throughout we quote the *dense*, no-sparsity tensor-core peak for any precision; NVIDIA's datasheet prints the 2× *with-sparsity* figure — 1,979 TFLOPS for FP16/BF16 — as its headline number, so a dense-vs-sparse note is required even in vendor material.) The required rate against the ~1.08 s prefill budget is
 
 $$
 \text{rate} = \frac{1.29 \text{ PFLOP}}{1.08 \text{ s}} \approx 1.19 \text{ PFLOPS}
@@ -89,7 +89,7 @@ These measurements cost nothing but a profiler attach and a few representative r
 
 - **Assuming one H100 suffices for 70B inference.** The arithmetic in Section 4 shows that a single H100 cannot meet the decode bandwidth demand (5.6 TB/s vs 3.35 TB/s) nor the prefill compute demand (1.29 PFLOP vs 0.989 PFLOPS). Attributing 70B serveability to a single GPU ignores the opposite bottlenecks and produces an architecture that fails latency SLOs.
 
-- **Ignoring the input/output token asymmetry.** A workload with 9.2K input tokens and 300 output tokens spends the great majority of its latency and energy in prefill, not decode. Quoting only throughput per second or only per-token latency hides that the two legs of the request have different cost structures and different optimization paths.
+- **Ignoring the input/output token asymmetry.** A workload with 9.2K input tokens and 300 output tokens imposes a *substantial prefill compute burden* despite producing relatively few output tokens — do not infer serving cost or resource pressure from output-token count alone. The two legs of the request have different cost structures and different optimization paths: decode is repeated per output token and dominates *wall-clock latency* (at the canonical ~25 ms/token, 300 output tokens ≈ 7.5 s of decode vs a ~1.08 s prefill budget), while prefill is a large one-shot burst of compute and dominates the *compute* burden (the 9.2K-input attention pass). Quoting only per-token latency or only throughput/s hides this distinction.
 
 - **Using manufacturer-peak bandwidth/FLOPS without mapping to real kernels.** H100 3.35 TB/s HBM3 is the theoretical peak; actual sustained bandwidth for weight-read kernels may be 60–80% of peak. H100 989 TFLOPS BF16 dense is the tensor-core peak; actual matmul throughput depends on kernel fusion, batching, and precision. Citing raw numbers without kernel context is an anti-catalog error — the number must be matched to the actual serving kernel in use.
 
