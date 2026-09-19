@@ -6,7 +6,7 @@ After this chapter we should be able to reason about model selection as a **cons
 
 ## 1. Concept
 
-Model selection surfaces across five selection surfaces that are each derived from the workload characterization (§7 of book-architecture.md):
+Model selection surfaces across five selection surfaces that are each derived from the workload characterization (Ch 4, Table 4-3):
 
 1. **Capability / quality needed** — does the workload require multi-step reasoning, tool use, or modality handling? A workload that needs chain-of-thought reasoning needs a different model class than one that only needs fact retrieval.
 2. **Latency / compute budget** — can the system meet TTFT and TPOT SLOs with the candidate model on the target hardware? This surface determines whether we need a dense 70B, a distilled 13B, or a MoE variant.
@@ -28,7 +28,7 @@ The arrow from workload to selection surfaces is the one the architect must keep
 
 ## 3. Worked Example — Embedding‑Model vs Generation‑Model Selection for the Canonical RAG Workload
 
-The canonical scenario (§14 of book-architecture.md) is an enterprise Q&A over internal documents (RAG): ~2,000 registered users, ~10 requests/s average, ~40 rps peak; average prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output; 70B-class dense model, FP16 (~140 GB), 1 host with 8 ×H100-class GPUs (80 GB each). TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. SLO: p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
+The canonical scenario (the enterprise Q&A over internal documents, RAG — see Ch 4 Table 4-3) is: ~2,000 registered users, ~10 requests/s average, ~40 rps peak; average prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output; 70B-class dense model, FP16 (~140 GB), 1 host with 8 ×H100-class GPUs (80 GB each). TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. SLO: p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
 
 We walk the two‑model selection for this workload.
 
@@ -45,11 +45,11 @@ Three realistic options, each with documented properties:
 | all‑mpnet‑base‑v2 | 768 | ~110M | ~1 GFLOPs | General‑purpose, quality‑first |
 | bge‑large‑en | 1024 | ~335M | ~2 GFLOPs | Dense-retrieval-optimal, technical docs |
 
-(to be verified) HYPOTHESIS: *within a given embedding family or a controlled dimensionality experiment*, reducing the embedding dimension may trade retrieval quality for lower storage and compute — e.g. a 384‑dim variant of the same model family can cost roughly half the FLOPs and index storage of a 768‑dim one. **Dimension alone is not a cross‑model quality metric**: a 1024‑dim embedding model is not intrinsically better than a 768‑dim one merely because its vector has more dimensions; retrieval quality depends on model architecture, training objective/data, corpus/query distribution, normalization, and retrieval strategy. Any observed quality‑vs‑dimension relationship (reports range from a few to ~15% MAP difference) is domain‑ and corpus‑specific and must be validated on the target corpus.
+[HYPOTHESIS]: *within a given embedding family or a controlled dimensionality experiment*, reducing the embedding dimension may trade retrieval quality for lower storage and compute — e.g. a 384‑dim variant of the same model family can cost roughly half the FLOPs and index storage of a 768‑dim one. **Dimension alone is not a cross‑model quality metric**: a 1024‑dim embedding model is not intrinsically better than a 768‑dim one merely because its vector has more dimensions; retrieval quality depends on model architecture, training objective/data, corpus/query distribution, normalization, and retrieval strategy. Any observed quality‑vs‑dimension relationship (reports range from a few to ~15% MAP difference) is domain‑ and corpus‑specific and must be validated on the target corpus.
 
 [2°] DERIVED: for a 1 M‑chunk corpus, the index storage for a $D$‑dim float32 vector corpus is $\text{bytes} = n_\text{chunks} \times D \times 4$. For 768‑dim: $1{\times}10^6 \times 768 \times 4 = 3.07$ GB; for 384‑dim: $1{\times}10^6 \times 384 \times 4 = 1.54$ GB; a difference of ~1.5 GB. At 10× the corpus (10 M chunks), that difference grows to ~15 GB. Small relative to a 140 GB base model, but not negligible at large corpus scale: storage is a persistent footprint that scales with corpus size, not a one‑time cost that vanishes.
 
-(to be verified) HYPOTHESIS: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2×FLOP cost — a workload‑specific tradeoff, not a universal rule.
+[HYPOTHESIS]: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2×FLOP cost — a workload‑specific tradeoff, not a universal rule.
 
 **Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the 4×FLOP cost over all‑mpnet‑base‑v2.
 
@@ -103,7 +103,7 @@ $$
 
 where $C_\text{train}$ is the one‑time training compute, $C_\text{weights-extra}$ is the incremental storage/carry cost, and $\Delta Q$ is the (domain‑specific, must‑be‑measured) quality uplift in corrected answers per query. Below $Q^*$, RAG + guardrails is economically dominant because the fine‑tuning cost is spread over too few queries to be repaid; above it, fine‑tuning may recover its upfront cost through quality gain. [Scenario structure, not a single claimed break‑even volume; the exact $C_\text{train}$, $C_\text{weights-extra}$, and $\Delta Q$ are workload‑ and domain‑specific and should be measured, not assumed.]
 
-[HYPOTHESIS, to be verified] Fine‑tuning does **not** make the model smaller — pruning is a separate operation. A full fine‑tune keeps the ~140 GB 70B weight set (and adds a checkpoint), while a LoRA adapter is tiny but does not change the live weight footprint. Consequently the latency effect of fine‑tuning is not "smaller effective model" and cannot be assumed to cut TTFT; any TTFT change must be measured. The real cost changes are: (a) one‑time training compute, and (b) incremental storage, both against the RAG pipeline's prefill cost (~1.08 s, which dominates any plausible TTFT delta). Parametrically, fine‑tuning becomes worth it only when its annualized cost over $Q$ queries is repaid by $\Delta Q \cdot \text{value}$ — this is exactly the $Q^*$ above. The illustrative cloud‑GPU training cost is presented as a scenario range, not a fact, and must be benchmark‑validated against a target workload.
+[HYPOTHESIS] Fine‑tuning does **not** make the model smaller — pruning is a separate operation. A full fine‑tune keeps the ~140 GB 70B weight set (and adds a checkpoint), while a LoRA adapter is tiny but does not change the live weight footprint. Consequently the latency effect of fine‑tuning is not "smaller effective model" and cannot be assumed to cut TTFT; any TTFT change must be measured. The real cost changes are: (a) one‑time training compute, and (b) incremental storage, both against the RAG pipeline's prefill cost (~1.08 s, which dominates any plausible TTFT delta). Parametrically, fine‑tuning becomes worth it only when its annualized cost over $Q$ queries is repaid by $\Delta Q \cdot \text{value}$ — this is exactly the $Q^*$ above. The illustrative cloud‑GPU training cost is presented as a scenario range, not a fact, and must be benchmark‑validated against a target workload.
 
 **Takeaway:** For the canonical enterprise Q&A RAG workload, the base‑model + RAG + guardrails paradigm is the economically preferred choice. Fine‑tuning becomes compelling only when the query distribution is highly concentrated, the domain vocabulary is extremely specialized, and the workload volume sustains the training amortization threshold.
 
@@ -127,9 +127,9 @@ This measurement habit is the token-layer answer to the book's recurring questio
 
 - **Quoting context window as free capacity.** The 128K or 1M token window is an upper bound, not a recommendation. Using even 9.2K of a 128K window still costs for the length actually used. The cost is proportional to the *used* length, not the *available* length.
 
-- **Assuming embedding dimension is a free parameter.** Higher dimensional embeddings improve retrieval quality but increase FLOP cost, index storage, and per‑query latency. The architect must balance these against the workload's quality requirements, not treat dimension as a cost‑free knob.
+- **Assuming embedding dimension is a free parameter.** Increasing embedding dimensionality *within a given model family or controlled configuration* can improve retrieval fidelity, but dimensionality alone does not predict quality across different embedding models. Higher dimension also raises FLOP cost, index storage, and per‑query latency, so the architect must balance these against the workload's quality requirements rather than treat dimension as a cost‑free or universally-better knob (see the caveat in §3).
 
-- **Over‑engineering the fine‑tuning path.** Fine‑tuning a large model adds training compute, storage, and inference overhead. The break‑even analysis (§4c) shows that for most enterprise RAG workloads, the RAG + guardrails paradigm dominates on TCO. Fine‑tuning should be a deliberate choice triggered by a sustained query volume, not a default.
+- **Over‑engineering the fine‑tuning path.** Fine‑tuning adds training compute and model/checkpoint‑management cost; depending on the adaptation and serving method, it may also add inference or operational overhead (e.g. a LoRA adapter applied dynamically at serve time can introduce overhead, whereas a merged/fully‑fine‑tuned model of identical architecture need not change the inference shape). The break‑even analysis (the parametric $Q^*$ in §3) shows that for most enterprise RAG workloads, the RAG + guardrails paradigm dominates on TCO. Fine‑tuning should be a deliberate choice triggered by a sustained query volume, not a default.
 
 ## 6. Architecture Consequence
 
@@ -143,11 +143,11 @@ This consequence feeds directly into Pattern 12 (Fine‑tuning for specific work
 
 ## 7. What We Still Don't Know
 
-(to be verified) HYPOTHESIS: the interaction between embedding dimension and retrieval quality across diverse enterprise domains is not yet characterized with reproducible benchmarks. Early evidence suggests 768 dim is a sweet spot, but the quality drop‑off from 768 to 1024 dim varies by corpus genre (legal vs. engineering vs. creative), and no public study quantifies this domain‑dependence.
+[HYPOTHESIS]: the interaction between embedding dimension and retrieval quality across diverse enterprise domains is not yet characterized with reproducible benchmarks. Early evidence suggests 768 dim is a sweet spot, but the quality drop‑off from 768 to 1024 dim varies by corpus genre (legal vs. engineering vs. creative), and no public study quantifies this domain‑dependence.
 
-[HYPOTHESIS, to be verified] the break‑even point between RAG + guardrails and fine‑tuned models as a function of query volume and domain specialization is **model‑ and domain‑dependent**: it is set by the $Q^*$ equation above (training + storage cost over the quality uplift), not by a universal rule of thumb. Any quoted break‑even volume is a derived scenario value; more data points and a measured $\Delta Q$ are needed before it can be stated as a general principle.
+[HYPOTHESIS] the break‑even point between RAG + guardrails and fine‑tuned models as a function of query volume and domain specialization is **model‑ and domain‑dependent**: it is set by the $Q^*$ equation above (training + storage cost over the quality uplift), not by a universal rule of thumb. Any quoted break‑even volume is a derived scenario value; more data points and a measured $\Delta Q$ are needed before it can be stated as a general principle.
 
-(to be verified) HYPOTHESIS: guardrail latency (PII redaction, refusal checking) on generated 300‑token outputs adds 2–8 ms per request on CPU, but the figure depends on the guardrail implementation (regex‑based vs. model‑based) and the hardware. This has not been measured on the canonical 8×H100 configuration.
+[HYPOTHESIS]: guardrail latency (PII redaction, refusal checking) on generated 300‑token outputs, ~2–8 ms/request on CPU in the illustrative scenario; measure on the target stack (the figure depends on the guardrail implementation and hardware).
 
 Each of these flags is an open empirical question a team should resolve against its own target workload — promoted to [1P] or [2°] DERIVED, dropped, or demoted into the "What We Still Don't Know" section — rather than left as an untested assumption.
 

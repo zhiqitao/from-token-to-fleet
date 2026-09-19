@@ -57,12 +57,12 @@ We generate three candidate architectures for the canonical
 enterprise-Q\&A RAG workload: \textasciitilde10 requests/s average, peak
 40 rps, 70B FP16 model, 9.2K token input (1,200 prompt + 8K retrieved
 context), 300-token output. The canonical weight memory is 140 GB (70B ×
-2 bytes FP16). The KV-cache for 9.2K context at FP16 precision ({[}1P
-§14{]}) is approximately 24 GB (2 × num\_layers × hidden\_dim × 9,200 ×2
-bytes / scale factor), giving a total residency of 164 GB. A single
-8×H100 host provides 640 GB aggregate memory (8 ×80 GB), leaving ample
-headroom. Each candidate satisfies the three hard constraints
-differently.
+2 bytes FP16). The KV-cache for 9.2K context at FP16 precision ({[}1P{]}
+canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3})) is approximately 24 GB (2 × num\_layers ×
+hidden\_dim × 9,200 ×2 bytes / scale factor), giving a total residency
+of 164 GB. A single 8×H100 host provides 640 GB aggregate memory (8 ×80
+GB), leaving ample headroom. Each candidate satisfies the three hard
+constraints differently.
 
 \textbf{Candidate (a): single 8×H100 host with prefix caching (Ch.
 11).}\\
@@ -79,9 +79,10 @@ compute-bound here, and meeting it is exactly the scaling problem
 Chapters 15--17 take up. Memory fit and throughput fit are different
 gates: the memory gate passes with one host; the throughput gate does
 not. Memory fit: 140 GB weights + 24 GB KV = 164 GB \textless{} 640 GB
-aggregate ({[}1P §14{]}). Latency budget: prefill + decode stay within
-budget thanks to prefix caching and the high bandwidth of 8×H100.
-Economics: one host purchase, one software license tier.
+aggregate ({[}1P{]} canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3})). Latency budget:
+prefill + decode stay within budget thanks to prefix caching and the
+high bandwidth of 8×H100. Economics: one host purchase, one software
+license tier.
 
 \textbf{Candidate (b): P/D-disaggregated two-pool.}\\
 We keep the full 70B model in both pools and split by \emph{phase} ---
@@ -165,8 +166,8 @@ peak). Vendors publish peak numbers; the architect should treat these as
 benchmarks to be verified by measuring on equivalent hardware.
 
 All three numbers must be confirmed before a candidate is carried
-forward ({[}1P §14{]}). If any one fails, the candidate is returned to
-the synthesis step.
+forward ({[}1P{]} canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3})). If any one fails, the
+candidate is returned to the synthesis step.
 
 \section{Common Mistakes}\label{common-mistakes}
 
@@ -180,9 +181,9 @@ the synthesis step.
 \item
   \textbf{Ignoring the KV-cache residency arithmetic.} Assuming that the
   weight memory is the only memory budget item. In input-heavy workloads
-  ({[}1P §14{]}: 9.2K average context, 30× more input than output), the
-  KV cache can be 15--20\% of total residency and is often the binding
-  constraint.
+  ({[}1P{]} canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3}): 9.2K average context, 30× more
+  input than output), the KV cache can be 15--20\% of total residency
+  and is often the binding constraint.
 \item
   \textbf{Over-optimizing prefix caching.} Assuming that prefix caching
   can amortize prefill across all requests. In practice, cache
@@ -258,15 +259,15 @@ chapter.
 First, the workload is characterized across the six dimensions. Quality
 requirements fix the model class: the system must achieve
 \textasciitilde70B-model answer quality on enterprise prompts. The
-traffic profile is the canonical one (Ch. 4/5, §14):
-\textasciitilde2,000 registered users, \textasciitilde5\% concurrent
-(\textasciitilde100), \textasciitilde10 rps average / \textasciitilde40
-rps peak. The token profile is the canonical 1,200-token prompt plus 8K
-retrieved context (\textasciitilde9.2K input) plus 300-token answers,
-with TTFT ≤ 1.2 s (p95 ≤ 2 s) and TPOT \textasciitilde25 ms/token. The
-economic ceiling is \$15,000 monthly operating budget. The operational
-constraint is that the system must run on existing on-premise GPU
-infrastructure (no cloud add-ons).
+traffic profile is the canonical one (Ch. 4/5, canonical scenario (Ch 4,
+\hyperref[tab:4.3]{Table 4-3})): \textasciitilde2,000 registered users, \textasciitilde5\%
+concurrent (\textasciitilde100), \textasciitilde10 rps average /
+\textasciitilde40 rps peak. The token profile is the canonical
+1,200-token prompt plus 8K retrieved context (\textasciitilde9.2K input)
+plus 300-token answers, with TTFT ≤ 1.2 s (p95 ≤ 2 s) and TPOT
+\textasciitilde25 ms/token. The economic ceiling is \$15,000 monthly
+operating budget. The operational constraint is that the system must run
+on existing on-premise GPU infrastructure (no cloud add-ons).
 
 From the token profile, the architect computes: 9.2K input tokens + 300
 output tokens ≈ 9.5K tokens per request. At 10 rps average and 40 rps
@@ -279,18 +280,19 @@ across the installed devices must exceed the peak traffic demand.
 The architect generates three candidates using the method from §3.
 Candidate (a): a single 8×H100 host with 70B FP16 weights + 24 GB KV
 cache and prefix caching, which fits the memory budget (164 GB
-\textless{} 640 GB aggregate ({[}1P §14{]})) --- but as \hyperref[chap:8]{Chapter 8} shows,
-one node sustains only \textasciitilde2,471 prefill-tokens/s, far short
-of the \textasciitilde92K input tokens/s the 10 rps average demands, so
-the memory gate passes while the throughput gate already fails.
-Candidate (b): a P/D-disaggregated two-pool keeping the full 70B in each
-pool (prefill and decode pools, each \textasciitilde164 GB residency on
-its own 8×H100 host), which buys phase-splitting at the cost of a second
-host plus the KV-transfer fabric. Candidate (c): a KV-quantized 7B model
-on a single H100, which fits the memory budget (20 GB total residency)
-but fails the quality constraint --- the 7B model cannot reach the
-required answer quality regardless of KV quantization --- and fails the
-throughput demand at peak, making it economically non-viable.
+\textless{} 640 GB aggregate ({[}1P{]} canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3}))) ---
+but as \hyperref[chap:8]{Chapter 8} shows, one node sustains only \textasciitilde2,471
+prefill-tokens/s, far short of the \textasciitilde92K input tokens/s the
+10 rps average demands, so the memory gate passes while the throughput
+gate already fails. Candidate (b): a P/D-disaggregated two-pool keeping
+the full 70B in each pool (prefill and decode pools, each
+\textasciitilde164 GB residency on its own 8×H100 host), which buys
+phase-splitting at the cost of a second host plus the KV-transfer
+fabric. Candidate (c): a KV-quantized 7B model on a single H100, which
+fits the memory budget (20 GB total residency) but fails the quality
+constraint --- the 7B model cannot reach the required answer quality
+regardless of KV quantization --- and fails the throughput demand at
+peak, making it economically non-viable.
 
 The architect discards Candidate (c) immediately: it satisfies the hard
 memory constraint but violates the quality and economic constraints.
@@ -352,9 +354,9 @@ quality ceiling & ✗ \textgreater1 card at peak \\
 
 \label{tab:12.1}\end{longtable}
 
-\emph{All figures trace to the §14 canonical scenario; the KV-cache and
-throughput numbers are {[}2° DERIVED{]} worked examples, not measurement
-claims.}
+\emph{All figures trace to the canonical scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}); the
+KV-cache and throughput numbers are {[}2° DERIVED{]} worked examples,
+not measurement claims.}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 

@@ -26,13 +26,13 @@ When we ask "is this workload compute-bound or bandwidth-bound?" the answer depe
 
 ## 3. Worked Example
 
-To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from §14: a 70B-class dense model in FP16, 1 host with 8 ×H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims.
+To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from canonical scenario (Ch 4, Table 4-3): a 70B-class dense model in FP16, 1 host with 8 ×H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims.
 
 ### Table 2-1 — Decode bandwidth and prefill FLOPs (worked example, not reference)
 
 | metric | value | derivation |
 |---|---|---|
-| Model params | 70B | §14 canonical |
+| Model params | 70B | canonical scenario (Ch 4, Table 4-3) |
 | Model weight bytes (FP16) | 140 GB | 2 bytes × 70B params [1P DERIVED] |
 | Decode: weight-read per token | 140 GB | Auto-regressive, batch-1-equivalent: one read of all weights per generated token before batching/amortization [1P DERIVED] |
 | Decode: required bandwidth (TPOT ~25 ms) | 5.6 TB/s | 140 GB / 0.025 s (batch-1-equivalent weight-streaming model, before amortization) [DERIVED] |

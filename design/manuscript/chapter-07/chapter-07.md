@@ -2,7 +2,7 @@
 
 ## The Architect's Question
 
-After this chapter we should be able to answer the architect's fundamental constraint question: *does the model and its context fit in the memory floor before we ask whether it can compute or communicate?* We will build the arithmetic for the KV cache from first principles, reconcile it with the canonical ~1.3 MB/token figure from Chapter 1, and contrast inference residency (weights + KV) with fine-tuning residency (weights + gradients + optimizer states). The goal is to make "does it fit?" a concrete, quantified check — not a back-of-the-envelope guess. Throughout, the arithmetic anchors to the canonical enterprise-Q&A RAG scenario (§14): ~10 rps average / ~40 rps peak traffic (2,000 registered users × 5% concurrency → 100 concurrent → ~10 rps via Little's Law; peaks at 20% concurrency → ~40 rps) served by a 70B FP16 model on an 8×H100 host. KV-cache per-token figures are given at the referenced precision throughout: ~1.3 MB/token at **8-bit**, ~2.5 MB/token at **FP16**; the canonical scenario's headline ~1.3 MB/token figure is the 8-bit variant.
+After this chapter we should be able to answer the architect's fundamental constraint question: *does the model and its context fit in the memory floor before we ask whether it can compute or communicate?* We will build the arithmetic for the KV cache from first principles, reconcile it with the canonical ~1.3 MB/token figure from Chapter 1, and contrast inference residency (weights + KV) with fine-tuning residency (weights + gradients + optimizer states). The goal is to make "does it fit?" a concrete, quantified check — not a back-of-the-envelope guess. Throughout, the arithmetic anchors to the canonical enterprise-Q&A RAG scenario (canonical scenario (Ch 4, Table 4-3)): ~10 rps average / ~40 rps peak traffic (2,000 registered users × 5% concurrency → 100 concurrent → ~10 rps via Little's Law; peaks at 20% concurrency → ~40 rps) served by a 70B FP16 model on an 8×H100 host. KV-cache per-token figures are given at the referenced precision throughout: ~1.3 MB/token at **8-bit**, ~2.5 MB/token at **FP16**; the canonical scenario's headline ~1.3 MB/token figure is the 8-bit variant.
 
 ## 1. Concept
 
@@ -23,7 +23,7 @@ Think of the KV cache as **per-request state that persists across autoregressive
 
 ## 3. Worked Example
 
-We anchor all arithmetic in the canonical scenario (§14 of book-architecture.md): a **70B-class dense full-MHA reference model** (every query head carries its own K,V, so the per-token KV width equals the model's hidden dimension), FP16 weights (2 bytes per parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV-cache size per token, total KV for the canonical context, and contrast with long-context variants. The per-token formula is general — KV/token = 2 × layers × n_KV-heads × head_dim × bytes — and the full-MHA special case (n_KV-heads × head_dim = hidden_dim) gives the ~2.62 MB/token conservative baseline used throughout; a GQA model would use a much smaller constant (see the sensitivity note, below).
+We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **70B-class dense full-MHA reference model** (every query head carries its own K,V, so the per-token KV width equals the model's hidden dimension), FP16 weights (2 bytes per parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV-cache size per token, total KV for the canonical context, and contrast with long-context variants. The per-token formula is general — KV/token = 2 × layers × n_KV-heads × head_dim × bytes — and the full-MHA special case (n_KV-heads × head_dim = hidden_dim) gives the ~2.62 MB/token conservative baseline used throughout; a GQA model would use a much smaller constant (see the sensitivity note, below).
 
 **Table 7-1** — KV-cache size per token and per-context arithmetic for a 70B-class dense **full-MHA reference model** at FP16. *(All per-context KV totals, residency figures, and fit/non-fit verdicts below are [2° DERIVED] from the general per-token formula `2 × layers × n_KV-heads × head_dim × bytes` (MHA case here); model-card architecture constants are [1P: model card].)*
 
@@ -31,7 +31,7 @@ We anchor all arithmetic in the canonical scenario (§14 of book-architecture.md
 |---|---|---|
 | layers | 80 | canonical 70B full-MHA teaching model [1P: canonical-workload.yaml] |
 | hidden_dim | 8192 | canonical 70B full-MHA teaching model [1P: canonical-workload.yaml] |
-| bytes per parameter (FP16) | 2 | FP16 = 2 bytes/param [1P: facts/quantization.md Q3] |
+| bytes per parameter (FP16) | 2 | FP16 = 2 bytes/param [1P: NVIDIA H100 spec] |
 | KV cache per token per layer | 2 × hidden_dim × bytes | one key + one value per layer |
 | KV cache per token (FP16) | 2 ×80 ×8192 ×2 B ≈ 2.62 MB | = 2,560 KB = 2.5 MiB; exact decimal 2.62 MB |
 | KV cache per token (8-bit) | 2 ×80 ×8192 ×1 B ≈ 1.3 MB | = 1,310,720 B = 1.25 MiB; reconciles with Ch.1 |
@@ -44,8 +44,8 @@ We anchor all arithmetic in the canonical scenario (§14 of book-architecture.md
 | inference residency (weights + KV, 9.5K max) | ≈ 165 GB | 140 + 24.9 GB |
 | inference residency (weights + KV, 32K) | ≈ 224 GB | 140 + 83.8 GB |
 | inference residency (weights + KV, 128K) | ≈ 475 GB | 140 + 335.4 GB |
-| 2×H100 total VRAM | 2 ×80 GB = 160 GB | [1P: facts/serving.md S8] |
-| 8×H100 total VRAM | 8 ×80 GB = 640 GB | [1P: facts/serving.md S8] |
+| 2×H100 total VRAM | 2 ×80 GB = 160 GB | [1P: NVIDIA H100 spec] |
+| 8×H100 total VRAM | 8 ×80 GB = 640 GB | [1P: NVIDIA H100 spec] |
 | 3×H100 total VRAM | 3 ×80 GB = 240 GB | [DERIVED] 165 GB < 240 GB |
 | fits 2×H100 at 9.2K? | no, 164.9 GB > 160 GB | does not fit in 2×H100; needs ≥3×H100 by aggregate capacity (or lower precision / more GPUs) |
 | fits 8×H100 at 9.2K? | yes | 164.9 GB < 640 GB |

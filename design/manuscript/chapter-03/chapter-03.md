@@ -26,13 +26,13 @@ The durable mental model: **total parameters set the ceiling; active parameters 
 
 ## 3. Worked Example
 
-We now carry concrete arithmetic using the canonical enterprise Q&A scenario (§14: ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is labeled (to be verified).
+We now carry concrete arithmetic using the canonical enterprise Q&A scenario (canonical scenario (Ch 4, Table 4-3): ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is labeled (to be verified).
 
 ### Dense 70B model (canonical, [1P])
 
 | Metric | Value | Derivation |
 |---|---|---|
-| Total parameters | 70B | §14 canonical scenario [1P] |
+| Total parameters | 70B | canonical scenario (Ch 4, Table 4-3) [1P] |
 | FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [1P DERIVED] |
 | Active parameters per token | 70B | All parameters active for every token [1P FACT] |
 | FLOPs per forward pass (approx.) | ~0.28T | 70B × 4 FLOP/param typical for transformer [2° DERIVED] |
@@ -127,7 +127,7 @@ Knowing whether a model is dense or MoE, and whether the quoted parameter count 
 
 **The architect's move is unchanged.** For the canonical dense model this book sizes memory, compute, and fleet with one clean constant set. For a 2026 MoE/hybrid model the architect does the *same* decision loop — read the model card, get total vs active, get the KV scheme's per-token function, size residency and roofline, then decide parallelism (Ch. 10) and serving (Ch. 11). Only the constants differ; the framework does not. Appendix A walks the four frontier models through exactly this re-derivation and flags which vendor numbers still carry a verify-on-own-hardware caveat.
 
-> **Recorded as future work.** This forward-looking view is intentionally a *pointer*, not the full treatment — the complete, current analysis of the 2026 frontier lives in Appendix A. Because the frontier moves quickly and every vendor figure in it carries a verify-on-own-hardware caveat, we treat the trend as a living section to be updated against new model cards, rather than a set of frozen gospel numbers (per the handbook's "living document" framing, book-architecture.md §10). An architect should re-check Appendix A before any capacity decision — the constants, not the framework, are what change.
+> **Recorded as future work.** This forward-looking view is intentionally a *pointer*, not the full treatment — the complete, current analysis of the 2026 frontier lives in Appendix A. Because the frontier moves quickly and every vendor figure in it carries a verify-on-own-hardware caveat, we treat the trend as a living section to be updated against new model cards, rather than a set of frozen gospel numbers. An architect should re-check Appendix A before any capacity decision — the constants, not the framework, are what change.
 
 ## 7. What We Still Don't Know
 
@@ -167,9 +167,9 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 | FLOPs per forward pass | ~0.28T | ~0.056T | 70B × 4 / 14B × 4 |
 | compute ratio vs dense 70B | 1× | ~0.20× (~5× less) | (14B × 4) ÷ (70B × 4) = 56B ÷ 280B [2° DERIVED] |
 
-*All figures trace to the §14 canonical scenario; MoE column is a [2°] worked variant, not a measurement claim.*
+*All figures trace to the canonical scenario (Ch 4, Table 4-3); the MoE column is a [2°] worked variant, not a measurement claim.*
 
 ---
 *Next chapter: Chapter 4 — The Anatomy of an AI Workload, which characterizes the enterprise Q&A RAG workload across the six dimensions (quality, traffic, token profile, latency, economic, operational constraints) and uses the same continuous mini-case scenario.*
 
-*Canonical scenario citation: all numerical values in this chapter that trace to the §14 canonical enterprise Q&A RAG workload are drawn from the fixed source of truth defined in book-architecture.md §14. The dense 70B numbers are [1P] per the canonical scenario; MoE numbers are [2°] plausibility-checked variants.*
+*Canonical scenario citation: all numerical values in this chapter that trace to the canonical enterprise Q&A RAG workload are drawn from the fixed reference set in Ch 4 (Table 4-3). The dense 70B numbers are [1P] per the canonical scenario; MoE numbers are [2°] plausibility-checked variants.*

@@ -10,7 +10,7 @@ After this chapter we should be able to walk into a running inference system, re
 
 Not all numbers are equal. We organize serving telemetry into three layers, each answering a different question and each consumed by a different role:
 
-1. **Workload metrics** — what the system is being *asked* to do. Requests per second (rps), the token profile (input length, output length, context length), and concurrency. These are the independent variables; we do not control them, we characterize them. For the canonical enterprise-Q&A RAG workload these are fixed by §14: ~10 rps average with ~40 rps peaks, ~9,200 input + ~300 output tokens per request, TTFT 1.2 s / TPOT ~25 ms.
+1. **Workload metrics** — what the system is being *asked* to do. Requests per second (rps), the token profile (input length, output length, context length), and concurrency. These are the independent variables; we do not control them, we characterize them. For the canonical enterprise-Q&A RAG workload these are fixed by canonical scenario (Ch 4, Table 4-3): ~10 rps average with ~40 rps peaks, ~9,200 input + ~300 output tokens per request, TTFT 1.2 s / TPOT ~25 ms.
 
 2. **Serving metrics** — how *well* the system performs under that workload. Time-to-first-token (TTFT), time-per-output-token (TPOT), inter-token latency, and **goodput** (tokens produced that actually meet the SLO). These are the dependent variables; they are what the SLO is written against.
 
@@ -54,7 +54,7 @@ $$
 
 Why the mean is not a signal. The same request stream of 99% @ 0.8 s + 1% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s), yet p99 paints a very different picture under a 2 s SLO. Log the distribution; SLO against the percentile.
 
-Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s) with a p95 ≤ 2 s. Suppose a flash crowd (the ~40 rps peak) causes prefill requests to queue. If on average the batch is well-behaved, p50 TTFT might sit at ~1.0 s. But the jobs that arrive behind 3 same-time prefill requests each pay the full 1.08 s prefill of the job ahead of them, so p95 TTFT drifts to ~2.5 s. The *average* says "fine"; the *p95* says "we just violated our SLO." We hence log p50, p90, p95, and p99 independently and run the SLO against the percentile, never the mean. [2°] SLO-derived from the §14 canonical latency budget; the arithmetic is the point, not a citation.
+Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s) with a p95 ≤ 2 s. Suppose a flash crowd (the ~40 rps peak) causes prefill requests to queue. If on average the batch is well-behaved, p50 TTFT might sit at ~1.0 s. But the jobs that arrive behind 3 same-time prefill requests each pay the full 1.08 s prefill of the job ahead of them, so p95 TTFT drifts to ~2.5 s. The *average* says "fine"; the *p95* says "we just violated our SLO." We hence log p50, p90, p95, and p99 independently and run the SLO against the percentile, never the mean. [2°] SLO-derived from the canonical scenario (Ch 4, Table 4-3) latency budget; the arithmetic is the point, not a citation.
 
 ### Goodput vs Raw Throughput
 
@@ -77,7 +77,7 @@ At the resource layer, the tell is utilization: a decode kernel pinned at ~95% o
 | Prefill (9.2K input) | ~1.29 PFLOP | ~0.989 PFLOPS BF16 | compute-bound | high FLOP / MFU util, mid bandwidth |
 | Decode (per token) | ~5.6 TB/s weight read | ~3.35 TB/s HBM | bandwidth-bound | high HBM util, low FLOP util |
 
-*(All figures [2° FACT] hardware / [2° DERIVED] arithmetic traced to §14 canonical and Chapter 2.)*
+*(All figures [2° FACT] hardware / [2° DERIVED] arithmetic traced to canonical scenario (Ch 4, Table 4-3) and Chapter 2.)*
 
 ### Reading Telemetry Into a Decision
 

@@ -2,7 +2,7 @@
 
 ## The Architect's Question
 
-After chapters on tokens, workloads, and memory, the architect naturally asks: *how much compute does this actually require, and at what point does the hardware cease to be the limiting factor?* This chapter gives us the FLOP-scale arithmetic, the arithmetic-intensity roofline, and the utilization framework that lets us answer that question without guessing. We will move from per-token FLOPs to prefill PFLOP counts to sustained MFU on real hardware, and then to the roofline that tells us whether a given layer is compute-bound or memory-bound — the difference that decides whether we should reach for batching, quantization, or a different hardware generation. Throughout, the arithmetic anchors to the canonical enterprise-Q&A RAG scenario (§14): ~10 rps average / ~40 rps peak traffic (2,000 registered users × 5% concurrency → 100 concurrent → ~10 rps via Little's Law; peaks at 20% concurrency → ~40 rps), with 70B FP16 weights and an 8×H100 host. KV-cache per-token figures are referenced at FP16 (~2.5 MB/token) unless an 8-bit (~1.3 MB/token) variant is explicitly stated.
+After chapters on tokens, workloads, and memory, the architect naturally asks: *how much compute does this actually require, and at what point does the hardware cease to be the limiting factor?* This chapter gives us the FLOP-scale arithmetic, the arithmetic-intensity roofline, and the utilization framework that lets us answer that question without guessing. We will move from per-token FLOPs to prefill PFLOP counts to sustained MFU on real hardware, and then to the roofline that tells us whether a given layer is compute-bound or memory-bound — the difference that decides whether we should reach for batching, quantization, or a different hardware generation. Throughout, the arithmetic anchors to the canonical enterprise-Q&A RAG scenario (canonical scenario (Ch 4, Table 4-3)): ~10 rps average / ~40 rps peak traffic (2,000 registered users × 5% concurrency → 100 concurrent → ~10 rps via Little's Law; peaks at 20% concurrency → ~40 rps), with 70B FP16 weights and an 8×H100 host. KV-cache per-token figures are referenced at FP16 (~2.5 MB/token) unless an 8-bit (~1.3 MB/token) variant is explicitly stated.
 
 ## 1. Concept
 
@@ -20,7 +20,7 @@ Think of FLOPs as the distance a car can travel on a gallon of fuel: it tells us
 
 ## 3. Worked Example: Canonical Scenario Arithmetic
 
-The canonical scenario (§14, book-architecture.md) is an enterprise Q&A system: 70B-class dense model, FP16 weights (~140 GB), 1 host with 8 ×H100-class GPUs (80 GB each), ~10 requests/s average, peaks ~40 rps, average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
+The canonical scenario (Ch 4, Table 4-3) is an enterprise Q&A system: 70B-class dense model, FP16 weights (~140 GB), 1 host with 8 ×H100-class GPUs (80 GB each), ~10 requests/s average, peaks ~40 rps, average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
 
 ### FLOPs per token
 
@@ -61,16 +61,16 @@ $$
 | per-token FLOPs (forward) | ~140 GFLOP/token | 2 ×70B params [DERIVED; consistent with moe-vs-dense E5 correction: 175B ≈ 0.35 TFLOP/token] |
 | prefill FLOPs for 9.2K input | ~1.29 PFLOP | 2 ×70 ×10⁹ × 9.2 ×10³ [DERIVED] |
 | sustained prefill demand @ 10 rps | ~12.9 PFLOP/s | 1.29 PFLOP × 10 [DERIVED] |
-| H100 peak FP16 TFLOPS | ~989 TFLOPS [1P: facts/training.md T5] | NVIDIA H100 SXM5 datasheet, without sparsity |
+| H100 peak FP16 TFLOPS | ~989 TFLOPS [1P: NVIDIA H100 datasheet] | NVIDIA H100 SXM5 datasheet, without sparsity |
 | H100 sustained MFU (typical) | 30–40% [2°: industry benchmarks] | ~346 TFLOPS sustained at 35% MFU |
 | H100 ridge point (dense FP16) | ~295 FLOP/byte | 989 ÷ 3.35 [DERIVED: peak TFLOPS ÷ HBM bandwidth] |
 
-*All figures trace to the canonical scenario (§14) and validated old-repo sources; none are measurement claims.*
+*All figures trace to the canonical scenario (Ch 4, Table 4-3) and validated sources; none are measurement claims.*
 This is the prefill compute demand. An 8 ×H100 node can sustain some fraction of this at MFU (mixed-precision FLOP utilization), which we estimate next.
 
 ### Sustained vs. peak: H100 MFU
 
-NVIDIA H100 SXM5 lists ~1,979 TFLOPS FP16 Tensor Core peak "with sparsity" and ~989 TFLOPS FP16 peak without sparsity [1P: facts/training.md T5, NVIDIA datasheet]. In practice, sustained mixed-precision FLOP utilization (MFU) for a well-tuned transformer workload typically runs at 30–40% of peak on H100 [2°: industry benchmark reports, derived from real kernel profiles]. At 35% MFU:
+NVIDIA H100 SXM5 lists ~1,979 TFLOPS FP16 Tensor Core peak "with sparsity" and ~989 TFLOPS FP16 peak without sparsity [1P: NVIDIA H100 datasheet]. In practice, sustained mixed-precision FLOP utilization (MFU) for a well-tuned transformer workload typically runs at 30–40% of peak on H100 [2°: industry benchmark reports, derived from real kernel profiles]. At 35% MFU:
 
 $$
 \text{sustained} = \text{peak} \times \text{MFU} = 989 \text{ TFLOPS} \times 0.35 \approx 346 \text{ TFLOPS}
@@ -144,7 +144,7 @@ The compute arithmetic and roofline have direct consequences for system design:
 
 - **If decode is memory-bound** (single-stream, low batch), the primary optimization is batching — even modest batch sizes (8–16) raise arithmetic intensity toward the ridge, improving TFLOP/s utilization. KV cache quantization (FP8, int8) also reduces bytes per token, raising effective intensity. P/D disaggregation (prefill on GPUs, decode on a separate pool) can rebalance: prefill’s FLOP demand is served by compute-optimized GPUs, while decode’s bandwidth demand is served by wide-memory GPUs or even CPU offload.
 
-- **If the ridge point is exceeded** (e.g. H200 with 4.8 TB/s HBM3e and 4 PFLOPS FP8, giving a ~833 FLOP/byte ridge in FP8), the same workload may shift from memory-bound to compute-bound, changing the optimal hardware choice. This is why the H200 represents a inflection point where inference and training hardware lines begin to converge [1P: facts/training.md T5].
+- **If the ridge point is exceeded** (e.g. H200 with 4.8 TB/s HBM3e and 4 PFLOPS FP8, giving a ~833 FLOP/byte ridge in FP8), the same workload may shift from memory-bound to compute-bound, changing the optimal hardware choice. This is why the H200 represents a inflection point where inference and training hardware lines begin to converge [1P: NVIDIA H100 datasheet].
 
 In practice, the architect measures arithmetic intensity for the target workload and precision, locates the kernel on the roofline chart, and then selects hardware and batching strategy accordingly. The roofline is the diagnostic; the architecture decision follows.
 

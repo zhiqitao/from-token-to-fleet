@@ -30,7 +30,7 @@ The factory's shape is a **pipeline with decisions**: data in → train/fine-tun
 
 ### The Economics of Promotion Gating for the Canonical Workload
 
-We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [1P §14]
+We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [1P canonical scenario (Ch 4, Table 4-3)]
 
 **Setup.** Suppose a new model candidate claims better retrieval-QA quality but no one has measured its serving behavior. Two adoption paths:
 
@@ -50,7 +50,7 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 | Ungated | ~216K in a bad release | high (all traffic) | post-hoc | slow | tiny/experimental |
 | Gated (5% canary) | ~3.6K | low (confined) | automated | fast | business-critical serving |
 
-*(ILLUSTRATIVE worked example: the canary arithmetic is DERIVED from the stated workload inputs — 5% traffic, 2-hour window, ~864,000 requests/day — and is illustrative, not a reference measurement. The workload inputs are sourced from the canonical §14 workload; the 2-hour/5% choices are held-out example assumptions, to be re-set per deployment.)*
+*(ILLUSTRATIVE worked example: the canary arithmetic is DERIVED from the stated workload inputs — 5% traffic, 2-hour window, ~864,000 requests/day — and is illustrative, not a reference measurement. The workload inputs are sourced from the canonical canonical scenario (Ch 4, Table 4-3) workload; the 2-hour/5% choices are held-out example assumptions, to be re-set per deployment.)*
 
 ## 4. Measurement
 

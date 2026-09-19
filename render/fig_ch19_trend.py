@@ -7,7 +7,7 @@ import numpy as np
 # Two aligned panels. Authored NARROW (6.4in) + tight bbox so it never overflows
 # the ~6.1in print column or clips the title/labels.
 I0, d, g, Of = 9200, 800, 65, 300
-kv_mb = 2.5
+kv_mb = 2.62   # canonical decimal KB/token (max-KV convention incl. output)
 Ts = np.arange(0, 5)
 inp = I0 + Ts*d + Ts*g
 out = Of

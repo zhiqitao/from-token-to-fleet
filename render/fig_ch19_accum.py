@@ -10,9 +10,9 @@ I0, d, g = 9200, 800, 65
 # clear-named column data: label, delta, gamma, kv_gb
 cols = [
     ('Single-shot', 0,   0,   24.9),
-    ('Turn 1',     d,   g,   25.9),
-    ('Turn 2',     2*d, 2*g, 28.1),
-    ('Turn 3',     3*d, 3*g, 30.2),
+    ('Turn 1',     d,   g,   27.2),
+    ('Turn 2',     2*d, 2*g, 29.4),
+    ('Turn 3',     3*d, 3*g, 31.7),
     ('Turn 4',     4*d, 4*g, 34.0),
 ]
 xs = [0.4, 3.0, 5.6, 8.2, 10.8]

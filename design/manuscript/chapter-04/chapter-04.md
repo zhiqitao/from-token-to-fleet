@@ -34,7 +34,7 @@ The mental model is not a checklist; it is a *lens*. Looking through it, the arc
 
 ### Characterizing the Canonical Enterprise-Q&A RAG Workload
 
-We now apply the six‑dimension framework to the **canonical enterprise‑Q&A RAG workload** defined in §14 (book-architecture.md). The canonical numbers are the fixed reference set for Part II; all arithmetic in this chapter traces to them.
+We now apply the six‑dimension framework to the **canonical enterprise‑Q&A RAG workload** used throughout this handbook. The canonical numbers are the fixed reference set for Part II; all arithmetic in this chapter traces to them (see the canonical-scenario provenance, Table 4-3).
 
 #### Table 4-1 — Six-dimension workload characterization for the canonical RAG workload
 
@@ -42,9 +42,9 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 |:-------|:-----------------------------|:---------------------------------------------------------|
 | **Quality** | Factual accuracy >85% on enterprise Q&A; reasoning via retrieval; no tool use beyond search API | [2°] DERIVED from enterprise benchmark suites (e.g. HotpotQA‑style retrieval Q&A) |
 | **Traffic** | ~10 rps average; peaks ~40 rps | **Derivation**: 2,000 registered users × 5% concurrency = 100 concurrent users. By Little's Law (L = λW), with L = 100 and average request duration W ≈ 10 s, throughput λ = L/W = 100/10 ≈ 10 rps. Peaks ~40 rps arise when concurrency spikes to ~20% (400 users) with the same 10 s duration, yielding λ = 400/10 = 40 rps. |
-| **Token profile** | Input: ~1,200 prompt + ~8,000 retrieved context ≈ 9,200 tokens; Output: ~300 tokens; total ≈ 9,500 tokens/request | [1P] §14 canonical scenario; tokenizer‑verified on the target model's tokenizer |
+| **Token profile** | Input: ~1,200 prompt + ~8,000 retrieved context ≈ 9,200 tokens; Output: ~300 tokens; total ≈ 9,500 tokens/request | [1P] canonical scenario (Ch 4, Table 4-3); tokenizer‑verified on the target model's tokenizer |
 | **Latency** | TTFT budget 1.2 s (retrieval ~120 ms + prefill ~1.08 s); TPOT budget ~25 ms/token; p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms | [2°] SLO-derived from user‑experience targets; retrieval latency from vector DB on same‑region deployment |
-| **Economic constraints** | ~$1.20 per 1M input tokens, ~$2.00 per 1M output tokens on 8×H100 cloud instance; ~95,000 input tokens/s per dollar at 10 rps; infrastructure cost ≈ $20/hour for an 8×H100 host ($2.50/GPU-hr on-demand) | derived from cloud GPU pricing as of 2026 (on‑demand H100 instances, $2.50/GPU-hr → $20/hr per 8-GPU node); tokens/s per dollar = total token throughput ÷ per-second cost ($20/hr ÷ 3600) |
+| **Economic constraints** | ~$1.20 per 1M input tokens, ~$2.00 per 1M output tokens on 8×H100 cloud instance; ~95,000 input tokens/s per dollar at 10 rps; infrastructure cost ≈ $20/hour for an 8×H100 host ($2.50/GPU-hr on-demand) | **illustrative 2026 cloud-price input** ($2.50/H100-GPU-hour, [ILLUSTRATIVE], not a market fact) → $20/hr per 8-GPU node; the $/1M-token and tokens/s-per-dollar values are derived from that input and the canonical workload |
 | **Operational constraints** | Multi‑region deployment (active‑active for availability); embeddings refreshed daily from document store; privacy‑sensitive documents force on‑prem or VPC‑local retrieval; 99.9% availability SLA | [2°] DERIVED from typical enterprise IT policy and the canonical scenario's availability requirements |
 
 #### Table 4-2 — Canonical workload characterization across six dimensions
@@ -53,12 +53,12 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 |---|---|---|
 | Quality | >85% factual accuracy [2° DERIVED] | Enterprise Q&A benchmarks |
 | Traffic | 10 rps avg; 40 rps peak [2° DERIVED] | 2,000 users × 5% concurrency = 100 concurrent; 100/10s = 10 rps; peaks at 20% concurrency → 40 rps |
-| Token profile | 9,200 input tokens + 300 output tokens [1P §14] | 1,200 prompt + 8K context; 300‑token answer |
+| Token profile | 9,200 input tokens + 300 output tokens [1P canonical scenario (Ch 4, Table 4-3)] | 1,200 prompt + 8K context; 300‑token answer |
 | Latency | TTFT 1.2 s (retrieval ~120 ms + prefill); TPOT ~25 ms/token [2° SLO] | User‑experience targets |
-| Economics | $1.20/M input; $2.00/M output; ~$20/hr per 8×H100 host ($2.50/GPU-hr) | 2026 on‑demand H100 pricing; tokens/s per dollar |
+| Economics | $1.20/M input; $2.00/M output; ~$20/hr per 8×H100 host ($2.50/GPU-hr) | **illustrative 2026 price input** ($2.50/H100-GPU-hr, [ILLUSTRATIVE]); tokens/s per dollar derived from it |
 | Operational | Multi‑region; daily embedding refresh; 99.9% availability [2° DERIVED] | Enterprise IT policy |
 
-*(All figures trace to the §14 canonical scenario; none are independent measurement claims. Table 4-2 consolidates the six‑dimension characterization for quick reference.)*
+*(All figures trace to the canonical scenario (Ch 4, Table 4-3); none are independent measurement claims. Table 4-2 consolidates the six‑dimension characterization for quick reference.)*
 
 > **Canonical Workload — the single reference set.** This box is the one authoritative set of numbers every chapter disciplines on. When a chapter states a workload parameter, it comes from here and nowhere else. The derived values (requests/s, tokens/s) are this box's arithmetic, recomputed in the chapter that needs them.
 >
@@ -78,7 +78,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | TTFT SLO | 1.2 s (retrieval ~120 ms + prefill ~1.08 s); p95 ≤ 2 s |
 > | TPOT SLO | 25 ms/token; p95 ≤ 35 ms |
 > | Hardware | 8 × H100 (80 GB each, 640 GB) |
-> | Compute price | $2.50/GPU-hr → ~$20/hr per 8×H100 host (on-demand, 2026) |
+> | Compute price | $2.50/GPU-hr (illustrative 2026 input) → ~$20/hr per 8×H100 host |
 > | Availability | 99.9% |
 > | Monthly budget | ~$15,000 (illustrative ceiling) |
 >
@@ -140,7 +140,7 @@ Before moving on, it is worth naming the four distinct quantities so they are no
 
 The canonical workload's token profile is input‑heavy, which has direct consequences for system design:
 
-- **Per‑request input**: 1,200 tokens (enterprise query, possibly reformulated) + 8,000 tokens (retrieved context from vector DB) ≈ 9,200 tokens. The [1P] provenance traces to the §14 canonical scenario.
+- **Per‑request input**: 1,200 tokens (enterprise query, possibly reformulated) + 8,000 tokens (retrieved context from vector DB) ≈ 9,200 tokens. The [1P] provenance traces to the canonical scenario (Ch 4, Table 4-3).
 - **Per‑request output**: ~300 tokens (the generated answer, possibly with citations).
 - **Input‑to‑output ratio**: 9,200 ÷ 300 ≈ 30× more input tokens than output tokens. This ratio is [2° DERIVED] from the canonical numbers and is the single biggest factor in why this workload is memory‑bound (KV cache) rather than decode‑bound.
 - **At 10 rps**: input tokens/s = 9,200 ×10 = 92,000 tokens/s; output tokens/s = 300 ×10 = 3,000 tokens/s. At peak 40 rps, input spikes to ~368,000 tokens/s and output to ~12,000 tokens/s. These [2° DERIVED] numbers appear in Table 4-2.

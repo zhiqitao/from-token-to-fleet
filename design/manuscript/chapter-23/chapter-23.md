@@ -34,23 +34,23 @@ Think of the customer conversation as **buying information, not delivering answe
 **Lead:** "~2,000 on the platform; maybe 5% are in it at once at peaks."
 **Architect:** "So ~100 concurrent at peak, and realistically a fraction of that firing requests. Roughly how many questions per second at the busiest minute?"
 **Lead:** "If everyone on the sales floor asked at once, maybe 40 a second."
-**→ Bound 1: ~2,000 users, ~10 rps average, ~40 rps peak.** [1P §14]
+**→ Bound 1: ~2,000 users, ~10 rps average, ~40 rps peak.** [1P canonical scenario (Ch 4, Table 4-3)]
 
 **Architect:** "What does a question look like? Short or with long context?"
 **Lead:** "They paste product specs and contracts, so the prompt can be lengthy — a few pages."
-**→ Bound 2: long ~9,200-token inputs with retrieval, ~300-token outputs.** [1P §14]
+**→ Bound 2: long ~9,200-token inputs with retrieval, ~300-token outputs.** [1P canonical scenario (Ch 4, Table 4-3)]
 
 **Architect:** "What's 'fast'? First-word delay, or time to full answer?"
 **Lead:** "Feels slow if we wait more than two seconds to see something start."
-**→ Bound 3: TTFT ≤ 2 s (p95), ~25 ms/token thereafter.** [1P §14]
+**→ Bound 3: TTFT ≤ 2 s (p95), ~25 ms/token thereafter.** [1P canonical scenario (Ch 4, Table 4-3)]
 
 **Architect:** "What does 'good answer' mean for your team — and can we define a handful of sample questions to test against?"
 **Lead:** "It should be accurate on our docs and not make up contract terms. We can give the validation team 50 real questions."
-**→ Bound 4: a 50-question retrieval-QA quality benchmark on their actual data.** [1P §14]
+**→ Bound 4: a 50-question retrieval-QA quality benchmark on their actual data.** [1P canonical scenario (Ch 4, Table 4-3)]
 
 **Architect:** "Data sensitivity — can this touch a public cloud, and how much can it cost?"
 **Lead:** "It's internal and regulated; keep it on-prem if at all possible."
-**→ Bound 5: operational constraint forces the local/server tier (Ch13).** [1P §14]
+**→ Bound 5: operational constraint forces the local/server tier (Ch13).** [1P canonical scenario (Ch 4, Table 4-3)]
 
 **Architect (mirror):** "So to lock it: ~2,000 sales users, ~10 rps average / 40 peak, prompts with ~9,200-token retrieval context, answers starting under 2 s, quality judged on 50 of your real questions, and fully on-prem because it's regulated. Have I captured it?"
 **Lead:** "Yes — that's exactly it."
