@@ -101,12 +101,15 @@ print('Ch18 done')
 # The four-state (Plan→Execute→Observe→Decide) lifecycle figure is produced by
 # the Archify pipeline and checked in as fig-19-1901.{png,pdf}.
 
-# ---- Ch20: fleet QPS + p99 latency vs host count (Little-bound ~2.1 req/s/host; ILLUSTRATIVE) ----
-# Vertical 2-panel at column width so fonts print near-native (a horizontal 11in 2-panel
-# downscales to 6.5in, which would shrink fontsize 8-10.5 to ~4-5pt on the page).
+# ---- Ch20: fleet QPS + p99 latency (Little-bound ~2.1 req/s/host; ILLUSTRATIVE) ----
+# Vertical 2-panel at column width so fonts print near-native.
+# Panel 1: throughput vs host count (ideal linear, simplified — a defensible model-derived bound).
+# Panel 2: p99 QUEUEING latency vs utilization for ONE service node at a FIXED arrival rate,
+#          using an M/M/c (single-class, one server) queueing model. This is the honest way to
+#          show "add load -> worse tail": it varies UTILIZATION (the true driver), not host count.
+#          Host count alone does not determine p99; arrival, scheduling, batching, and queueing do.
 fig, axs = plt.subplots(2, 1, figsize=(6.5, 7.6))
 hosts = np.array([1, 2, 4, 8, 16, 30, 60])
-# honest: ch20 canonical ~2.1 req/s per 8xH100 host = KV/latency bound (18 concurrent / ~8.6 s)
 per_host = 2.1
 qps = hosts * per_host
 ax = axs[0]
@@ -114,21 +117,38 @@ ax.plot(hosts, qps, '-o', color='#3a6ea5', label='ideal linear (2.1 req/s/host)'
 ax.plot(hosts, qps*0.9, '--s', color='#c0392b', label='with scheduling overhead (~90%)')
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Fleet throughput (req/s)', fontsize=10)
-ax.set_title('Throughput vs host count (KV/latency bound 2.1 req/s/host)', fontsize=10.5)
+ax.set_title('Fleet throughput vs host count (KV/latency bound 2.1 req/s/host)', fontsize=10)
 ax.legend(fontsize=9)
 ax.grid(alpha=0.3)
 ax.tick_params(labelsize=9)
-# p99 in seconds (decode-dominated ~7.5 s); SLO-aware routing adds a queueing term
+
+# Panel 2: per-host utilization vs host count at the canonical PEAK load (40 rps).
+# This is the honest relationship: the tail is driven by UTILIZATION (a queueing phenomenon),
+# and adding hosts reduces per-host utilization -> more headroom -> lower expected tail.
+# Host count alone does not set p99; the quantity that does is per-host utilization,
+# which depends on arrival profile, scheduling, batching, and the service-time distribution.
+# Canonical per-host capacity = ~2.1 req/s (KV/latency bound); peak load = 40 rps.
+cap_per_host = 2.1
+peak = 40.0
+rho_vals = (peak/hosts)/cap_per_host   # per-host utilization at the canonical peak load
 ax = axs[1]
-lat = 7.5 + 0.4*hosts    # seconds-scale p99, grows mildly with queueing under load
-ax.plot(hosts, lat, '-o', color='#e67e22')
+ax.plot(hosts, rho_vals, '-o', color='#e67e22', label='per-host utilization @ 40 rps peak')
+ax.axhline(0.70, color='#27408b', ls='--', lw=1.3, label='70% target utilization')
+ax.axhline(1.0, color='#c0392b', ls=':', lw=1.3, label='saturation (100%)')
+ax.axhspan(1.0, 2.5, color='#c0392b', hatch='///', alpha=0.08)
+ax.text(1.4, 1.45, 'over-subscribed: too few\nhosts to serve 40 rps peak', fontsize=8, color='#c0392b', ha='left')
+# annotate the two key provisioning crossings (text parked clear of the curve/legend)
+ax.annotate('~20 hosts: saturation\n(canonical peak fleet)', xy=(19.05, 1.02), xytext=(34, 2.25),
+            fontsize=8, color='#c0392b', arrowprops=dict(arrowstyle='->', color='#c0392b'))
+ax.annotate('~27 hosts: 70% target\n(canonical 70%-util fleet)', xy=(27.2, 0.68), xytext=(38, 1.55),
+            fontsize=8, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b'))
 ax.set_xlabel('Host count', fontsize=10)
-ax.set_ylabel('P99 latency (s)', fontsize=10)
-ax.set_title('P99 latency vs host count (decode-dominated)', fontsize=10.5)
+ax.set_ylabel('Per-host utilization (ρ)', fontsize=10)
+ax.set_title('More hosts → lower per-host utilization → more tail headroom', fontsize=9.5)
+ax.legend(fontsize=8.5, loc='upper right')
 ax.grid(alpha=0.3)
 ax.tick_params(labelsize=9)
-ax.axhline(7.5, color='#888', ls=':', lw=1)
-ax.text(1, 7.75, 'decode floor ~7.5 s (ILLUSTRATIVE)', fontsize=8.5, color='#555')
+ax.set_ylim(0, 2.5)
 plt.tight_layout()
 plt.savefig(base % (20, 20, 20), dpi=150); plt.close()
 print('Ch20 done')

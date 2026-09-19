@@ -72,17 +72,21 @@ requests with the same prompt prefix, reducing effective prefill FLOPs
 by \textasciitilde30\% at 10 rps average and \textasciitilde50\% at peak
 40 rps when many requests share common document roots. The 8×H100 host
 fits the full 164 GB residency easily, but on \emph{throughput} we must
-be honest with the \hyperref[chap:8]{Chapter 8} arithmetic: a single node sustains only
-\textasciitilde2,471 prefill-tokens/s, far below the \textasciitilde92K
-input tokens/s the workload needs on average --- prefill is
-compute-bound here, and meeting it is exactly the scaling problem
-Chapters 15--17 take up. Memory fit and throughput fit are different
-gates: the memory gate passes with one host; the throughput gate does
-not. Memory fit: 140 GB weights + 24 GB KV = 164 GB \textless{} 640 GB
-aggregate ({[}1P{]} canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3})). Latency budget:
-prefill + decode stay within budget thanks to prefix caching and the
-high bandwidth of 8×H100. Economics: one host purchase, one software
-license tier.
+be honest with the \hyperref[chap:8]{Chapter 8} arithmetic: a single 8×H100 host sustains
+only \textasciitilde19,800 prefill-tokens/s at the idealized 35\%-MFU
+aggregate (8 × 2,471; see the Ch. 8 scope note) --- far below the
+\textasciitilde92K input tokens/s the workload needs on average. Even if
+prefix caching (\textasciitilde30\% at average load) lifts effective
+prefill throughput toward \textasciitilde28K tokens/s, that is still
+well below 92K, so a single host fails the throughput gate too ---
+prefill is compute-bound here, and meeting it is exactly the scaling
+problem Chapters 15--17 take up. Memory fit and throughput fit are
+different gates: the memory gate passes with one host; the throughput
+gate does not. Memory fit: 140 GB weights + 24 GB KV = 164 GB
+\textless{} 640 GB aggregate ({[}1P{]} canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3})).
+Latency budget: prefill + decode stay within budget thanks to prefix
+caching and the high bandwidth of 8×H100. Economics: one host purchase,
+one software license tier.
 
 \textbf{Candidate (b): P/D-disaggregated two-pool.}\\
 We keep the full 70B model in both pools and split by \emph{phase} ---
@@ -106,25 +110,30 @@ We downgrade to a 7B-class model (7B × 2 bytes = 14 GB weights) with KV
 cache quantized to 4-bit, yielding a KV footprint of \textasciitilde6 GB
 for 9.2K context. Total residency: 14 GB + 6 GB = 20 GB, which fits on a
 single H100 (80 GB) with 60 GB of headroom for overhead. The trade-off
-is a significant quality drop: the 7B model cannot achieve the same
-answer quality on complex enterprise Q\&A as the 70B model, even with
-retrieval augmentation --- a capability loss that no memory optimization
-can restore. The 4-bit KV cache further reduces memory pressure, but it
-is a \emph{memory} optimization, not a quality one; it does not
-compensate for the capability lost by moving from 70B to 7B, and
-aggressive KV quantization can add its own quality penalty that must be
-validated on the target workload. The model's intrinsic capacity remains
-the binding constraint. Throughput on a single H100 is far higher than
-on the 70B --- a 7B prefill costs only \textasciitilde14 GFLOP/token, so
-one card sustains tens of thousands of prefill tokens/s (vs
-\textasciitilde2,471 for the 70B node, \hyperref[chap:8]{Chapter 8}) --- yet even that
-cannot change the verdict: at peak 40 rps the workload needs
-\textasciitilde368K input tokens/s, so satisfying peak prefill still
-needs more than a handful of cards, and the 7B's quality ceiling on
-complex enterprise Q\&A remains the binding constraint regardless of
-throughput. This candidate illustrates the extreme end of the
-KV-quantization space: the memory footprint is trivially small, but
-neither quality nor throughput makes it competitive for this workload.
+is a quality question, and here we must be careful not to assert an
+architectural theorem where one does not exist. Whether a 7B-class model
+can match the 70B model's answer quality on \emph{this} workload is
+\textbf{not} derivable from parameter count --- a newer or
+task-specialized 7B can beat an older or general 70B on some tasks. It
+is an empirical question answered only by running the actual evaluation
+set. The correct architectural lesson is the \textbf{quality gate}: the
+smaller candidate must pass the capability/quality gate on the true
+evaluation set; if it fails there, no amount of infrastructure
+optimization fixes that failure. So candidate (c) is flagged for
+measurement against the quality gate, not dismissed by parameter
+counting. The 4-bit KV cache is a \emph{memory} optimization, not a
+quality one; aggressive KV quantization can add its own quality penalty
+that must also be validated on the target workload. Throughput is
+genuinely much higher on the smaller model --- a 7B prefill costs only
+\textasciitilde14 GFLOP/token, so a single card sustains tens of
+thousands of prefill tokens/s (vs \textasciitilde2,471 per \emph{GPU}
+for the 70B, \hyperref[chap:8]{Chapter 8}) --- but that throughput advantage is only useful
+if the quality gate is first satisfied. The candidate is therefore
+provisional: its fate depends on the measured quality gate, which
+Chapters 13--14 administer. This candidate illustrates the extreme end
+of the KV-quantization space: the memory footprint is trivially small,
+but neither quality nor throughput makes it competitive for this
+workload.
 
 \emph{Memory/residency arithmetic summary.} The canonical weights (140
 GB) + KV (24 GB FP16) = 164 GB fits 640 GB (8×H100). Candidate (a) uses
@@ -295,15 +304,20 @@ constraint --- the 7B model cannot reach the required answer quality
 regardless of KV quantization --- and fails the throughput demand at
 peak, making it economically non-viable.
 
-The architect discards Candidate (c) immediately: it satisfies the hard
-memory constraint but violates the quality and economic constraints.
-Between Candidates (a) and (b), the decision hinges on whether the
-doubled hardware cost of Candidate (b) is justified by its operational
-flexibility (e.g., independent scaling of prefill and decode pools,
-fault isolation). The architect presents both candidates, together with
-the honest throughput arithmetic of \hyperref[chap:8]{Chapter 8} (no canonical single host
-meets the full prefill demand alone), to the stakeholder as the decision
-foundation.
+The architect does \textbf{not} discard Candidate (c) by parameter
+counting alone: it is provisionally moved to the quality-gate evaluation
+(Chapters 13--14) to measure whether a 7B-class model actually meets the
+workload's capability/quality threshold on its evaluation set. Its
+memory and economics are trivially favorable; its fate turns on that
+measured gate. Because candidate (c) is strongly suspected to fail the
+quality gate (a hypothesis, to be verified), the near-term decision
+tends to fall between Candidates (a) and (b). Between Candidates (a) and
+(b), the decision hinges on whether the doubled hardware cost of
+Candidate (b) is justified by its operational flexibility (e.g.,
+independent scaling of prefill and decode pools, fault isolation). The
+architect presents both candidates, together with the honest throughput
+arithmetic of \hyperref[chap:8]{Chapter 8} (no canonical single host meets the full prefill
+demand alone), to the stakeholder as the decision foundation.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
@@ -344,14 +358,15 @@ economics
 \bottomrule\noalign{}
 \endlastfoot
 (a) 8×H100 + prefix caching & 140 + 24 = \textbf{164 GB} & 1 ×8×H100 &
-prefill \textasciitilde1,200 · decode \textasciitilde300 tok/s & ✓
-memory 164 \textless{} 640 GB · ✓ latency in 5 s & ✓ 1 host \\
+prefill \textasciitilde19.8K (idealized; \textasciitilde28K w/ prefix
+cache) · decode BW-bound & ✓ memory 164 \textless{} 640 GB · ✓ latency
+in 5 s & ✗ throughput: needs \textasciitilde5 hosts \\
 (b) P/D-disaggregated & 140 + 24 = \textbf{164 GB} per pool & 2 ×8×H100
-& prefill pool \textasciitilde2,471 · decode BW-bound & ✓ memory per
-host · ✓ phase-split at scale & ✗ 2 hosts + fabric \\
-(c) KV-quantized 7B & 14 + 6 = \textbf{20 GB} & 1 ×H100 &
-\textasciitilde tens of thousands · decode \textgreater{} 70B & ✗ fails
-quality ceiling & ✗ \textgreater1 card at peak \\
+& prefill pool \textasciitilde19.8K/host · decode BW-bound & ✓ memory
+per host · ✓ phase-split at scale & ✗ 2 hosts + fabric \\
+(c) KV-quantized 7B & 14 + 6 = \textbf{20 GB} & 1 ×H100 & high per-GPU
+prefill tok/s but fails quality gate & ✗ fails quality ceiling & ✗
+\textgreater1 card at peak \\
 
 \label{tab:12.1}\end{longtable}
 

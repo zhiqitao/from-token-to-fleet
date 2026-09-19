@@ -99,3 +99,36 @@ derived:                              # computed by render/canonical_calc.py (DE
   concurrency_fp16_9500: 18           # 436 / 24.9 = 17.5 -> ~18
   concurrency_fp8_9500: 33            # 436 / 13.4 = 32.5 -> ~33
   kv_gqa_variant_mb: 0.33             # H_kv=8, D_head=128 -> 1024: 2*80*1024*2/1e6
+
+
+# ---------------------------------------------------------------------------
+# SCOPE-AWARE CAPACITY LEDGER (v3, 2026-09-19 — BLOCKER 1 fix)
+# Every recurring quantity below carries an explicit SCOPE: per-GPU, per-host,
+# per-fleet. This is the authoritative register that all chapters must cite
+# (and must NOT re-derive independently). The two Ch8/Ch12 figures were
+# regenerated from the SAME per-GPU -> per-host doubling (8x), which is why
+# the corrected prefill sizing (~5 avg / ~19-20 peak) now agrees with the
+# KV-residency/Little's-law fleet sizing.
+# ---------------------------------------------------------------------------
+scope_ledger:
+  # --- H100 compute: PER-GPU ---
+  h100_dense_peak_tflops_per_gpu: 989      # [1P] dense FP16, no sparsity
+  h100_hbm_bw_tbps_per_gpu: 3.35           # [1P] SXM
+  h100_ridge_flops_per_byte: 295           # 989 / 3.35 (scope-invariant ratio)
+  h200_hbm_bw_tbps_per_gpu: 4.8
+  h200_ridge_flops_per_byte: 206
+
+  # --- prefill throughput ---
+  prefill_tokens_per_s_PER_GPU: 2471       # 989*0.35/140e9  [analytical, 35% MFU]
+  prefill_sustained_tflops_per_gpu: 346     # 989 x 0.35
+  prefill_tokens_per_s_PER_HOST: 19770     # 8 x 2471  [idealized aggregate; before TP/system]
+  prefill_sustained_pflops_per_host: 2.77  # 8 x 346
+
+  # --- fleet sizing (reconciled across BOTH constraints) ---
+  fleet_hosts_avg_prefill: 5               # ceil(92000/19770); matches Little avg
+  fleet_hosts_peak_prefill: 20             # ceil(368000/19770); matches Little peak
+  fleet_hosts_avg_kv_little: 5             # ceil(10*8.6/18)
+  fleet_hosts_peak_kv_little: 20           # ceil(40*8.6/18)
+  note: "Corrected 8x aggregate now AGREES with the KV/Little fleet sizing; formerly Ch8's
+        37-node figure disagreed by 8x (it used the per-GPU 2,471 as per-node)."
+

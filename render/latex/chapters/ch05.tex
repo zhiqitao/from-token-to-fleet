@@ -238,13 +238,23 @@ tokens/dollar-hour → tokens/s/dollar). {[}ILLUSTRATIVE{]}{[}DERIVED{]}
 
 {[}2°{]} DERIVED: tokens/s per dollar with prefill included. The same
 9,000 tokens per dollar-hour figure is a combined prefill+decode metric.
-Because this workload is input‑heavy (9.2K vs 300 tokens), the prefill
-leg consumes \textasciitilde70\% of the total tokens per request but
-only \textasciitilde40\% of the total compute time (prefill is
-compute‑intensive but batchable; decode is sequentially limited). The
-per‑dollar economics therefore favor models that reduce prefill cost
-(smaller context, lower KV cache per token) more than models that
-optimize decode throughput.
+Because this workload is input‑heavy (9.2K input vs 300 output tokens),
+the prefill leg consumes \textbf{\textasciitilde97\% of the tokens} per
+request (9,200 ÷ 9,500) --- and, because each prefill token runs the
+full \(2\times70B\) forward FLOP, it is also \textbf{\textasciitilde97\%
+of the linear forward-FLOP cost} (before the quadratic attention term).
+But it is only \textbf{\textasciitilde13\% of the wall-clock time} (1.08
+s prefill vs 7.5 s decode), because prefill is compute‑intensive yet
+batchable across concurrent requests, while decode is a
+sequentially‑limited token-by-token stream. So the honest picture is
+\emph{both}: prefill dominates the compute/FLOP budget (and hence the
+GPU-hour cost of running the pipeline), and decode dominates the
+wall-clock latency budget (and hence per‑request service time). The
+per‑dollar economics therefore favor models that reduce the
+\emph{prefill compute} burden (smaller context, larger batch, lower
+per‑token FLOP) more than models that optimize decode throughput alone
+--- but a deployment must balance both, since decode still sets the
+latency SLO.
 
 \subsection{(c) Base‑model + RAG + guardrails vs fine‑tuned
 model}\label{c-basemodel-rag-guardrails-vs-finetuned-model}
@@ -261,19 +271,34 @@ are trained on domain data; the knowledge source is the vector database.
 The base model is fine‑tuned (full or LoRA) on thousands of
 question‑answer pairs reflecting the enterprise's terminology and
 reasoning patterns. - Inference uses the fine‑tuned weights without a
-retrieval step (or with a much shorter context, since the model has
-``memorized'' much of the corpus). - Additional costs: training compute,
-storage of fine‑tuned weights, and reduced flexibility for new topics.
+retrieval step, or with a much shorter retrieved context. Fine‑tuning is
+\textbf{not} a dependable substitute for retrieval when the requirement
+is factual corpus access, freshness, attribution, or precise enterprise
+knowledge --- fine‑tuning distills \emph{behavior, style, task patterns,
+format, and tool‑use policy}, not a guarantee that arbitrary facts are
+recalled faithfully. Whether it reduces retrieval dependence for a
+\emph{particular} task is an empirical question to be measured on that
+task's evaluation set. - Additional costs: training compute, storage of
+fine‑tuned weights, and reduced flexibility for new topics.
 
-{[}2°{]} DERIVED (illustrative --- not a reference measurement): for the
-canonical workload, a well‑designed RAG + guardrails pipeline
-\emph{approximately} matches a fine‑tuned model's answer quality on
-in‑domain queries. The economic comparison should be framed
-\textbf{parametrically}, not with a single number, because the
-break‑even depends on the quality uplift (domain‑specific) and the query
-volume (workload‑specific). The decision variable is the break‑even
-query volume \(Q^*\) where the annualized cost of fine‑tuning, divided
-by its quality advantage, crosses the RAG baseline:
+(\href{for\%20the\%20canonical\%202,000‑user\%20workload\%20with\%20~10\%20rps\%20average,\%20the\%20incremental\%20per‑request\%20compute\%20cost\%20of\%20768‑dim\%20vs\%20384‑dim\%20embeddings\%20is\%20~0.8\%20ms\%20on\%20a\%20single\%20CPU\%20core,\%20well\%20within\%20the\%20~120\%20ms\%20retrieval\%20budget.\%20The\%20decision\%20hinges\%20on\%20whether\%20the\%20~15\%\%20retrieval\%20quality\%20gain\%20translates\%20into\%20sufficient\%20answer‑quality\%20improvement\%20to\%20justify\%20the\%202×FLOP\%20cost\%20—\%20a\%20workload‑specific\%20tradeoff,\%20not\%20a\%20universal\%20rule.}{HYPOTHESIS},
+{[}ILLUSTRATIVE{]} --- not a reference measurement): for the canonical
+workload, a well‑designed RAG + guardrails pipeline \emph{may} approach
+a fine‑tuned model's answer quality on in‑domain queries. This is
+\textbf{task‑, model‑, data‑, and evaluation‑dependent} --- it is not
+derivable from the architecture alone. The two mechanisms do different
+work: \textbf{RAG} supplies external, mutable knowledge (grounding,
+provenance, freshness); \textbf{fine‑tuning} shapes behavior, style,
+domain reasoning patterns, format, and tool‑use policy. Either or both
+can improve answer quality, and they can be combined. Whether
+fine‑tuning reduces retrieval dependence for this workload must be
+established by measuring answer quality on the actual evaluation set.
+The economic comparison should be framed \textbf{parametrically}, not
+with a single number, because the break‑even depends on the quality
+uplift (domain‑specific) and the query volume (workload‑specific). The
+decision variable is the break‑even query volume \(Q^*\) where the
+annualized cost of fine‑tuning, divided by its quality advantage,
+crosses the RAG baseline:
 
 \[
 Q^*\; \propto\; \frac{C_\text{train} + C_\text{weights-extra}}{\Delta Q \cdot \text{value per corrected query}}

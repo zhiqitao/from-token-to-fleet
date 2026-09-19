@@ -144,7 +144,7 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 #### Figures
 
-![Fig 7.2 — KV cache size vs context length for a 70B model [ILLUSTRATIVE][DERIVED]](figures/fig-07-0701.png)
+![Fig 7.2 — KV cache size vs context length for the canonical 80-layer reference geometry: full-MHA vs GQA (and FP8/8-bit). Note the broader lesson this title encodes: **parameter count does not determine KV size.** KV per token depends on layers × KV-head count × head dimension × precision — i.e. on the *attention shape*, not on the number of parameters. A 70B full-MHA model and a 70B GQA model have very different KV footprints; the full-MHA curve is the conservative upper-bound teaching baseline, the GQA curve the ~8× reduction. Parameter count is only a proxy for weight residency and rough dense FLOPs, never for KV footprint. [ILLUSTRATIVE][DERIVED]](figures/fig-07-0701.png)
 
 *KV cache growth with context length (FP16 ~2.62 MB/token, FP8 ~1.4, 8-bit ~1.3); at 128K the FP16 KV footprint climbs to ~335 GB, approaching the ~436 GB KV budget, and already reaches ~165 GB max inference residency at 9.5K.*
 
@@ -154,11 +154,11 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 *The same 70B model serves in ~165 GB (weights + KV, max 9.5K) but needs ~1,260 GB for full Adam fine-tuning; QLoRA fits ~50–70 GB on a single GPU.*
 
-![Fig 7.4 — The concurrency budget: where a 70B host's 640 GB pool goes [ILLUSTRATIVE][DERIVED]](figures/fig-07-0704.png)
+![Fig 7.4 — The concurrency budget: where a 70B host's 640 GB pool goes. **Aggregate-feasibility caveat:** the 640 GB figure is an *aggregate* across eight 80-GB H100s, not a single freely-allotable heap. Whether a given allocation actually fits depends on tensor-parallel sharding, KV partitioning, replication, runtime layout, per-rank fragmentation, workspace requirements, and communication topology — so "total bytes < total HBM" is a necessary but not sufficient test. Per-rank fit and sharding must also be validated (Chapters 9–10). [ILLUSTRATIVE][DERIVED]](figures/fig-07-0704.png)
 
 *Where a serving host's 640 GB pool goes. 140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget; at the 24.9 GB/request max-FP16 KV that gives C ≈ 18 concurrent requests, and FP8 (~13.4 GB/request) roughly raises it to ~33. This is the arithmetic behind the single-host capacity in Ch17.*
 
-![Fig 7.5 — Memory Tetris: how the 8×H100 host's 640 GB pool fills at three contexts (9.5K max / 32K / 128K). Runtime ~64 GB + weights 140 GB + KV cache 24.9 / 84 / 335 GB [ILLUSTRATIVE][DERIVED]](figures/fig-07-0705.png)
+![Fig 7.5 — Memory Tetris: how the 8×H100 host's 640 GB **aggregate** pool fills at three contexts (9.5K max / 32K / 128K). Runtime ~64 GB + weights 140 GB + KV cache 24.9 / 84 / 335 GB. **Aggregate-feasibility caveat:** this is an aggregate residency test on the 640 GB total, not a proof that each allocation maps cleanly onto per-rank HBM. Sharding, KV partitioning, fragmentation, and interconnect topology must be validated per rank; "total bytes < total HBM" is a first-order screen, not a fit guarantee. [ILLUSTRATIVE][DERIVED]](figures/fig-07-0705.png)
 
 *The Memory Tetris: why context length is the dominant memory lever. The 640 GB pool stacks ~64 GB runtime/NCCL + 140 GB weights, leaving ~436 GB of headroom. The FP16 KV cache (orange) is the only block that grows with context — 24.9 GB at 9.5K max, 84 GB at 32K, ~335 GB at 128K. Because the KV budget is fixed (~436 GB), longer context consumes it outright: at 9.5K max it supports ~18 concurrent, but 128K leaves room for only ~1–2. This is what makes the KV constant (Ch7 §3) the single most capacity-relevant number in a serving design. [ILLUSTRATIVE][DERIVED]*
 

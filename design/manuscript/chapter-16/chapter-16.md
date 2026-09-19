@@ -55,7 +55,16 @@ So the canonical workload's *peak* requires roughly **20 hosts** (FP16 KV, full 
 
 **Mode 2 — cloud GPU instances (rent, scale to load).**
 
-- An 8×H100 on-demand instance ~$20/hr (canonical $2.50/GPU-hr × 8). Because the workload's *peak* is 40 rps, the fleet must be able to burst to ~20 instances, but the *average* load is ~5 hosts' worth — so the honest cloud bill is the instance-hours actually required. At ~5 instances running (the sustained average, bursting to ~20 at peak), that is ≈ 5 × $20/hr × 720 hr ≈ ~$72K/month (scaling the fleet with load; always-on-at-peak would be ~$288K/month). [ILLUSTRATIVE][DERIVED]
+**Mode 2 — cloud GPU instances (rent, scale to load).** An 8×H100 on-demand instance ~$20/hr (canonical $2.50/GPU-hr × 8). Because the workload's *peak* is 40 rps, the fleet must be able to burst to ~20 instances, but the *average* load is ~5 hosts' worth — so the honest cloud bill is the instance-hours actually required. That requires a **load-duration / capacity-occupancy model**, not a single average. Parameterize the monthly cloud host-hours as the integral of required capacity over time, plus the warm-pool and capacity-reservation terms:
+
+$$
+H_\text{cloud,month} = \int_0^T N_\text{required}(t)\,dt \;\; \text{plus a warm/startup pool and any capacity-reservation guarantee}
+$$
+
+where $N_\text{required}(t)$ is the number of hosts that must be running at time $t$ (a step function that rises with the load curve at that hour of the day/week). This depends on the actual temporal load profile — the **burst duration and frequency**, the **scale-up latency** (how many seconds/minutes to attach and load a fresh instance), the **model-loading/warmup time** (loading a 140 GB model into a new host is not instant), the **minimum warm pool** to serve the base load without cold-starting, **provider capacity/availability**, and **billing granularity**. Only if the provider can attach instances faster than the load curve demands, with a warm pool already holding the model, can the cloud bill approach the pure average-load figure.
+
+Under a simplified assumption of a continuously-arriving ~5-host average load that bursts briefly to ~20 at the peak, with a steady warm pool and fast scale-up, that is ≈ 5 × $20/hr × 720 hr ≈ ~$72K/month (scaling the fleet with load; always-on-at-peak would be ~$288K/month). **[ILLUSTRATIVE][DERIVED]** — this is *explicitly* a assumed load-duration curve and fast elastically-scalable capacity, not a measured or guaranteed cost. If the burst is long-lived or scale-up is slow, the real cloud cost rises toward the always-on-at-peak figure and the "cloud is cheapest" result weakens accordingly. The durable lesson — *fleet size first, price second* — does not depend on this elasticity assumption, but the specific $2.8/1K number does.
+
 - Per request: ~26M/month. **Cost ≈ $72K / 26M ≈ $0.0028/request ≈ $2.8 per 1,000 requests.** [ILLUSTRATIVE][DERIVED] *(The "duty cycle" here is **fleet capacity utilization** — how many of the provisioned hosts are busy on average — NOT the literal fraction of wall-clock time an instance is powered on. A continuously-arriving 10-rps workload cannot be served by shutting the only instance off 60% of the time; it needs a fleet that is always available and scales with load. Staff & integration add on top.)*
 
 **Mode 3 — managed inference API.**

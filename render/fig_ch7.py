@@ -42,22 +42,21 @@ print('wrote fig-07-0701')
 # ---- fig-07-0702: Inference vs fine-tuning memory floor ----
 labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+optimizer)', 'QLoRA\n(weights+adapters)']
 vals = [165, 1260, 60]
-fig, ax = plt.subplots(figsize=(7, 5))
-bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'])
+fig, ax = plt.subplots(figsize=(6.5, 4.9))
+bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'], width=0.6)
 for b, v in zip(bars, vals):
-    ax.text(b.get_x()+b.get_width()/2, v+30, f'~{v} GB', ha='center', fontsize=11, fontweight='bold')
+    ax.text(b.get_x()+b.get_width()/2, v+30, f'~{v} GB', ha='center', fontsize=10, fontweight='bold')
 ax.set_ylabel('GPU memory floor (GB)')
 ax.set_title('Memory floor: inference vs fine-tuning (70B)')
 ax.axhline(160, color='#888', ls='--', lw=1, label='2×H100 (160 GB)')
 ax.axhline(640, color='#27408b', ls='--', lw=1, label='8×H100 (640 GB)')
 ax.axhline(80, color='#6f9e5f', ls='--', lw=1, label='1×H100 (80 GB)')
-ax.axvspan(0, 2.5, color='#6f9e5f', alpha=0.06)
-ax.set_ylim(0, 1450)
-ax.annotate('QLoRA runs on a single H100', xy=(2, 60), xytext=(0.6, 300),
+ax.set_ylim(0, 1500)
+# annotations moved OUT of the bar area into clear white space (no label crossing the bars)
+ax.text(1.0, 1420, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
+ax.annotate('QLoRA fits a single H100', xy=(2, 60), xytext=(2.05, 250),
             fontsize=8.5, color='#3d6e35', arrowprops=dict(arrowstyle='->', color='#3d6e35'))
-ax.text(1.0, 1300, 'full fine-tune > 8×H100 host: needs\nmulti-node or offload (weights ~140 +\ngrad ~140 + opt states ~840 + activations)',
-        fontsize=8, color='#c0392b', ha='center')
-ax.legend(fontsize=8)
+ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, axis='y')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0702.png', dpi=150)

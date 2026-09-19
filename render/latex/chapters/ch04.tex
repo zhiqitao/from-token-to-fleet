@@ -349,12 +349,19 @@ C = f \cdot N = 0.05 \times 2{,}000 = 100 \text{ concurrent users}
 \setcounter{enumi}{1}
 \item
   \textbf{Request completion time} (service time \(W\)): the average
-  end‑to‑end time from request submission to answer delivery is
-  \textasciitilde10 s. This comprises retrieval (\textasciitilde120 ms)
-  + prefill (\textasciitilde1.08 s for 9,200 tokens on H100) + decode of
-  300 tokens at \textasciitilde25 ms/token (\textasciitilde7.5 s). The
-  dominant term is decode, but the full pipeline sits at
-  \textasciitilde10 s.
+  end‑to‑end time from request submission to answer delivery. We
+  deliberately keep TWO named values, and the distinction matters: a
+  \textbf{planning round number of \textasciitilde10 s} (retrieval
+  \textasciitilde120 ms + prefill \textasciitilde1.08 s + decode
+  \textasciitilde7.5 s, rounded up to a comfortable planning figure)
+  versus the \textbf{derived model-execution service time of
+  \textasciitilde8.6 s} (prefill 1.08 s + decode 7.5 s, without the
+  retrieval/plumbing term) that the later fleet chapters use in
+  Little's-law sizing. The two differ by the retrieval/pipelineroom and
+  by rounding; they are not a numerical contradiction. Whichever we use,
+  we must use it consistently --- the canonical ledger pins the
+  fleet-sizing service time at \textasciitilde8.6 s (\hyperref[chap:8]{Chapter 8}), and the
+  \textasciitilde10 s figure is the coarser planning-round headline.
 \item
   \textbf{Throughput via Little's Law}: Little's Law, \(L = \lambda W\),
   relates average concurrency \(L\), average arrival rate \(\lambda\),
@@ -728,14 +735,31 @@ concurrency, \textasciitilde10 rps, \textasciitilde9.2 K input + 300
 output tokens --- the architect projects the enterprise's actual
 headcount. If the company has 5,000 employees and expects 10\%
 concurrent activity during peak Q\&A periods (after a policy rollout),
-the concurrency rises to 500 users. With the same \textasciitilde10 s
-request duration, throughput climbs to \textasciitilde50 rps, which
-would require \textasciitilde5 hosts of 8×H100 each, at a monthly
-infrastructure cost of \textasciitilde\$12,500. The architect can now
-speak the system's currency --- tokens, rps, dollars per million --- and
-can engage the rest of the team on model selection, serving
-configuration, and TCO with concrete numbers rather than vague
-assurances. The specific sizing --- turning ``thousands of employees''
-into a characterized workload across all six dimensions --- is the
-payoff of Ch. 4's framework, and it is the prerequisite for every
-architecture question that follows.
+the concurrency rises to 500 users. With the same \textasciitilde8.6 s
+request duration, throughput climbs to \textasciitilde50 rps. Using the
+canonical per-host bound from Chapters 15--20 (a single 8×H100 host
+serves \textasciitilde2.1 req/s at full modeled utilization, i.e.~C/W =
+18 KV-resident requests ÷ 8.6 s), the fleet rounds to:
+
+\[
+n_\text{hosts} = \frac{50 \text{ rps}}{2.1 \text{ req/s/host}} \approx 24 \text{ hosts} \quad (\text{full utilization})
+\]
+
+and roughly \textbf{\textasciitilde34 hosts} at a 70\% target
+utilization. A cross-check from the \hyperref[chap:8]{Chapter 8} prefill model agrees: 50
+rps × 9.2K input = 460,000 prefill tokens/s ÷ \textasciitilde19,800
+tokens/s per host ≈ \textasciitilde23 hosts. Two independent constraints
+--- KV-residency/service-time and prefill FLOP throughput --- point at
+the same order, which is reassuring; both are \emph{analytical} bounds
+that must be confirmed by benchmark goodput (\hyperref[chap:14]{Chapter 14}).
+
+At the canonical instance rate (\textasciitilde\$20/hr per 8×H100 host),
+\textasciitilde24 hosts on on-demand clouds is roughly
+\textbf{\$140K--\$350K/month} depending on purchase mode and duty cycle
+(self-host capex amortized runs lower, on-demand burst higher; \hyperref[chap:16]{Chapter 16} develops the TCO properly). The architect can now speak the system's
+currency --- tokens, rps, dollars per million --- and can engage the
+rest of the team on model selection, serving configuration, and TCO with
+concrete numbers rather than vague assurances. The specific sizing ---
+turning ``thousands of employees'' into a characterized workload across
+all six dimensions --- is the payoff of Ch. 4's framework, and it is the
+prerequisite for every architecture question that follows.

@@ -42,22 +42,22 @@ ax.set_ylim(0, 700)
 # Panel 2: throughput — only where Table 12.1 gives an authoritative digit.
 ax = axes[1]
 w = 0.38
-# (a) prefill 1200/decode 300; (b) prefill-pool 2471, decode bandwidth-bound
-bars = ax.bar([-w/2, 1-w/2], [1200, 2471], w, color='#3a6ea5', label='prefill')
-ax.bar([w/2], [300], w, color='#6f9e5f', label='decode')
-ax.text(-w/2, 1280, '1,200', ha='center', fontsize=9, fontweight='bold')
-ax.text(1-w/2, 2550, '2,471', ha='center', fontsize=9, fontweight='bold')
-ax.text(w/2, 380, '300', ha='center', fontsize=9, fontweight='bold')
+# (a) prefill ~19.8K (idealized aggregate per 8xH100 host); decode BW-bound (no digit).
+# (b) prefill pool ~19.8K per dedicated host; decode pool bandwidth-bound.
+bars = ax.bar([-w/2, 1-w/2], [19800, 19800], w, color='#3a6ea5', label='prefill')
+# decode: bandwidth-bound, no single-digit goodput -> qualitative label only
+ax.text(-w/2, 20080, '~19.8K', ha='center', fontsize=9, fontweight='bold')
+ax.text(1-w/2, 20080, '~19.8K', ha='center', fontsize=9, fontweight='bold')
 ax.set_xticks([0, 1, 2]); ax.set_xticklabels(cands, fontsize=9)
-ax.set_ylabel('Throughput (tokens/s)')
-ax.set_title('(2) Throughput')
+ax.set_ylabel('Prefill throughput (tokens/s)')
+ax.set_title('(2) Prefill throughput (idealized aggregate, 8×H100 host)')
 ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, axis='y')
-ax.set_ylim(0, 3000)
+ax.set_ylim(0, 24000)
 # qualitative labels where the table has no single digit
-ax.text(1.0, 900, 'decode pool:\nbandwidth-bound\n(no digit)', ha='center',
+ax.text(1.0, 6000, 'decode pool:\nbandwidth-bound\n(no digit)', ha='center',
         fontsize=7, color='#555')
-ax.text(2.0, 2400, '(c) excluded at\nquality gate', ha='center', fontsize=7.5,
+ax.text(2.0, 6000, '(c) excluded at\nquality gate', ha='center', fontsize=7.5,
         color='#c0392b', fontweight='bold')
 
 # Panel 3: latency / SLO verdict (assertions, no uncertainty '?')
