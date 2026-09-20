@@ -18,7 +18,7 @@ The architect's job is not to minimize capex, nor opex, nor provider bill — it
 
 ## 2. Mental Model
 
-Think of TCO as **a utilization-weighted average over the whole system, not a sticker price.** Three mental moves keep the arithmetic honest:
+TCO is **a utilization-weighted average over the whole system, not a sticker price.** Three mental moves keep the arithmetic honest:
 
 - **Amortize, don't stare at the price tag.** A $400K server is an asset consumed over ~5 years; spread it into dollars-per-month, then into dollars-per-request, before comparing to a per-token API rate. [ILLUSTRATIVE][DERIVED]
 
@@ -82,7 +82,7 @@ $$
 [ILLUSTRATIVE][DERIVED], a scenario value [ILLUSTRATIVE]
 - At the canonical ~26M requests/month: ~$539,000/month.
 
-**Reading the result.** Once the fleet is sized correctly (~20 hosts), the comparison flips entirely versus the single-host framing. Self-hosted (~$5.7/1K reqs) is now **roughly twice the cloud-scaled rate** ($2.8/1K) on a fully-loaded basis ($148K/mo vs ~$72K/mo), because the canonical workload genuinely needs a multi-host fleet, and self-hosting a 20-host fleet carries ~$116K/mo of capex amortization. It is nonetheless still **well below the managed-API rate** ($20.8/1K), so at this volume self-hosting beats the API but loses to scale-to-load cloud. Cloud-scaled (~$2.8/1K) is the cheapest at this volume because you only pay for the ~5 hosts the *average* load needs, bursting to ~20 at the peak. The decisive caveat remains the **staff/ops term and whether it is sunk**, and now also the **fleet requirement** — a single-host TCO understates the real cost by 4–20×.
+**Reading the result.** Once the fleet is sized correctly (~20 hosts), the comparison flips entirely versus the single-host framing. Self-hosted (~$5.7/1K reqs) is now **roughly twice the cloud-scaled rate** ($2.8/1K) on a fully-loaded basis ($148K/mo vs ~$72K/mo), because the canonical workload genuinely needs a multi-host fleet, and self-hosting a 20-host fleet carries ~$116K/mo of capex amortization. It is nonetheless still **well below the managed-API rate** ($20.8/1K), so at this volume self-hosting beats the API but loses to scale-to-load cloud. Cloud-scaled (~$2.8/1K) is the cheapest at this volume because only the ~5 hosts the *average* load needs are paid for the *average* load needs, bursting to ~20 at the peak. The decisive caveat remains the **staff/ops term and whether it is sunk**, and now also the **fleet requirement** — a single-host TCO understates the real cost by 4–20×.
 
 **Table 16-1** — TCO comparison across delivery modes (illustrative worked example; N_hosts ≈ 20 at the canonical peak)
 

@@ -24,7 +24,7 @@ A critical assumption in this model is that the workload follows a known arrival
 
 ## 3. Worked Example
 
-Consider a fleet of N hosts, each with 8×H100 running a single 70B FP16 model instance. Two capacities must be reconciled — **throughput** (tokens/s) and **KV residency** (concurrent requests) — and neither can be reduced to a single "QPS" constant, because QPS is workload-specific (per-request input/output tokens, context length, batch). 
+Take a fleet of N hosts, each with 8×H100 running a single 70B FP16 model instance. Two capacities must be reconciled — **throughput** (tokens/s) and **KV residency** (concurrent requests) — and neither can be reduced to a single "QPS" constant, because QPS is workload-specific (per-request input/output tokens, context length, batch). 
 
 **Latency floor first, then reconcile the two capacity bounds.** A 300-output-token request at a ~25 ms/token decode rate (Chapter 8) takes ~7.5 s of generation alone, plus 1.08 s prefill, so the service time is ~8.6 s per request (before tool calls). Two separate ceilings bound how many requests a host can *serve per second*, and they must be reconciled — they are not interchangeable:
 

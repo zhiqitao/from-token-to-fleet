@@ -20,7 +20,7 @@ These mechanisms compose: continuous batching is the baseline, PagedAttention ma
 
 ## 2. Mental Model
 
-Think of serving as **managing three precious resources against a stream of arrivals**: GPU compute (FLOPs, bound in prefill), GPU memory bandwidth (HBM, bound in decode), and GPU memory capacity (HBM bytes, bound by KV cache). Each mechanism trades one of these:
+Serving is **managing three precious resources against a stream of arrivals**: GPU compute (FLOPs, bound in prefill), GPU memory bandwidth (HBM, bound in decode), and GPU memory capacity (HBM bytes, bound by KV cache). Each mechanism trades one of these:
 
 - **Batching** improves compute and bandwidth utilization by amortizing the fixed per-step weight reads across more requests.
 - **PagedAttention** improves memory capacity by eliminating KV fragmentation.
@@ -134,7 +134,7 @@ The mechanisms above are what matter; the engines are just implementations of th
 | structured generation | constrained decoding | constrained (XGrammar) | constrained | constrained | whether output can be schema-constrained |
 | supported hardware | NVIDIA/AMD/CPU/accelerators | NVIDIA/AMD | NVIDIA-only | CPU + consumer GPUs | deployment niche |
 
-Read the columns as *knobs on a common set of mechanisms*, not as "which engine is best." An engine's real value is which mechanisms it implements *well for your workload shape* — e.g. a repeated-context RAG workload cares most about the prefix-caching row (RadixAttention in SGLang is a strong implementation), while a latency-critical single-stream deployment might care more about the scheduler and structured-generation rows. **Never conclude "X is the go-to engine"** — that is workload-independent and will be wrong. The only defensible statement is workload-specific: *for this request shape, this precision, and this hardware, engine Y implements the mechanism Z we need; benchmark it against the alternative (Ch. 14).*
+The columns read as *knobs on a common set of mechanisms*, not as "which engine is best." An engine's real value is which mechanisms it implements *well for the deployed workload's shape* — e.g. a repeated-context RAG workload cares most about the prefix-caching row (RadixAttention in SGLang is a strong implementation), while a latency-critical single-stream deployment might care more about the scheduler and structured-generation rows. **Never conclude "X is the go-to engine"** — that is workload-independent and will be wrong. The only defensible statement is workload-specific: *for this request shape, this precision, and this hardware, engine Y implements the mechanism Z we need; benchmark it against the alternative (Ch. 14).*
 
 ## 7. What We Still Don't Know
 

@@ -36,7 +36,7 @@ The critical insight for capacity planning is that each cycle incurs a fixed ove
 
 ## 3. Worked Example
 
-Consider a user query routed to an agentic RQA pipeline. The pipeline’s default policy is a maximum of 4 turns; if the model has not terminated by then, the system returns a fallback answer “I’m sorry, I couldn’t find a definitive answer within the allowed reasoning steps.”
+Take a user query routed to an agentic RQA pipeline. The pipeline’s default policy is a maximum of 4 turns; if the model has not terminated by then, the system returns a fallback answer “I’m sorry, I couldn’t find a definitive answer within the allowed reasoning steps.”
 
 **Turn 0 (initial prompt)**:
 - Input: 9,200 tokens (user query + retrieved passages)

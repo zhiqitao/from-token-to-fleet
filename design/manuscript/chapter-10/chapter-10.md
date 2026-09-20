@@ -26,7 +26,7 @@ These are not alternatives; production systems **compose** them (e.g. DP across 
 
 ![Fig 10.1 — Composing the parallel dimensions](figures/fig-10-1002.png)
 
-The strategies are not either/or. Left: a DP × TP × PP stack — the layer stack is cut into PP stages (green), each stage is DP-replicated (orange) across nodes, and within a stage TP shards the weights across 4 GPUs (blue). Right: expert parallel is a per-token all-to-all — each token may leave its home GPU to reach the GPU holding its top-k experts. Which dimension binds determines which you split first.
+The strategies are not either/or. Left: a DP × TP × PP stack — the layer stack is cut into PP stages (green), each stage is DP-replicated (orange) across nodes, and within a stage TP shards the weights across 4 GPUs (blue). Right: expert parallel is a per-token all-to-all — each token may leave its home GPU to reach the GPU holding its top-k experts. Which dimension binds determines which to split first.
 
 ## 2. Mental Model
 

@@ -51,11 +51,11 @@ The discipline the book applies everywhere: **every optimization is a hypothesis
 
 tokens determine sequence length → sequence length determines KV growth and attention work → KV growth determines memory pressure → attention and model execution determine compute and bandwidth demand → those resource demands determine latency behavior → latency and concurrency determine scheduler requirements → scheduler behavior determines serving efficiency → serving efficiency and SLOs determine host count → host count and model topology determine interconnect and fleet architecture → fleet architecture determines cost, resilience, placement, and operational complexity.
 
-Every chapter is one link of that chain, and each *deepens* the same mental model from Ch. 2 rather than restarting it. When you reach Ch. 11 (serving) or Ch. 17 (fleet), the concepts were introduced in Ch. 2 — Ch. 2 gave the shape, the later chapters give the numbers and the decisions. If a chapter ever feels like "here is another concept," it has broken the thread.
+Every chapter is one link of that chain, and each *deepens* the same mental model from Ch. 2 rather than restarting it. By the time the argument reaches Ch. 11 (serving) or Ch. 17 (fleet), the concepts were introduced in Ch. 2 — Ch. 2 gave the shape, the later chapters give the numbers and the decisions. If a chapter ever feels like "here is another concept," it has broken the thread.
 
 ## 2. Mental Model
 
-Think of inference as two fundamentally different physical processes, distinguished by what limits them.
+Inference is two fundamentally different physical processes, distinguished by what limits them.
 
 **Prefill is compute-bound.** It is like turning on a massive industrial fire hose to fill a reservoir. The burst of flow is enormous, and the time it takes is limited entirely by the raw horsepower of the pump (compute/FLOPs) pushing the water. The pipe is wide open, but the motor is working at its absolute limit.
 
