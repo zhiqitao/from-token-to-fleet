@@ -162,7 +162,7 @@ If we had used a single 70B FP16 model: 5,000 tokens/hr × $0.003 = $15/hr → $
 
 The key enabler was the router's feature gate: queries mentioning "multilingual" or "technical specification" were auto‑escalated to Tier 3; the rest flowed to Tier 1 or Tier 2 automatically.
 
-![Fig 18.1 — Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the five specialized families as leaves [ILLUSTRATIVE conceptual]](figures/fig-18-1801.png)
+![Fig 18.1 — Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the specialist, general and fallback model families as leaves [ILLUSTRATIVE conceptual]](figures/fig-18-1801.png)
 
 *The routing decision chain. A request first passes a capability filter (is there a specialized model that can serve it?), then a cost/latency gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialized family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
 

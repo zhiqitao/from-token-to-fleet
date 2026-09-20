@@ -20,7 +20,7 @@ cols_x = [0.8, 9.6, 18.4]
 rows_y = [9.0, 6.2]
 W = 7.8; H = 1.5
 
-fig, ax = plt.subplots(figsize=(7.4, 7.0))
+fig, ax = plt.subplots(figsize=(6.1, 5.77))
 ax.set_xlim(0, 27); ax.set_ylim(0, 12.6); ax.axis('off')
 
 ax.text(13.5, 11.9, 'Red Team / Green Team cycle: probe, measure, harden, loop',
@@ -46,18 +46,18 @@ for c in [0, 1]:
                 arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 
 # ---- Probe domains under step 3 (col 2, row 0) ----
-doms = [('Model behavior', 'jailbreak \u00b7 persona'),
-        ('Tool use', 'escalation \u00b7 fuzz'),
-        ('Retrieval / RAG', 'poisoning \u00b7 injection')]
+doms = [('Model behavior', 'jailbreak · persona'),
+        ('Tool use', 'escalation · fuzz'),
+        ('Retrieval', 'poisoning · injection')]
 ax.text(13.5, 5.1, 'probe domains (under step 3)', fontsize=8.5, ha='center',
         color='#e67e22', style='italic')
 dxs = [0.8, 9.6, 18.4]
-DW = 7.8; DH = 1.4; ydom = 3.2
+DW = 7.8; DH = 1.9; ydom = 3.1
 for (t1, t2), x in zip(doms, dxs):
     ax.add_patch(FancyBboxPatch((x, ydom), DW, DH, boxstyle='round,pad=0.02',
-                                fc='#fbe9e7', ec='#e67e22', lw=1.0, hatch='oo'))
+                                fc='#fdf1ee', ec='#e67e22', lw=1.0))
     ax.text(x+DW/2, ydom+DH/2, f'{t1}\n{t2}', ha='center', va='center',
-            fontsize=9, color='#333')
+            fontsize=9, color='#333', linespacing=1.5)
     ax.annotate('', xy=(x+DW/2, rows_y[1]), xytext=(x+DW/2, ydom+DH+0.15),
                 arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#e67e22'))
 

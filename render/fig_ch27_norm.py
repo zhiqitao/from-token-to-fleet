@@ -15,7 +15,7 @@ panels = [
     {"name": "GLM-5.3-Flash",     "ref": "vs stated ref", "kv": 23, "flop": 33},
 ]
 
-fig, axes = plt.subplots(1, len(panels), figsize=(6.6, 4.1))
+fig, axes = plt.subplots(1, len(panels), figsize=(6.1, 3.79))
 if len(panels) == 1:
     axes = [axes]
 w = 0.36

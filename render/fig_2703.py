@@ -23,7 +23,7 @@ border = {'eff': '--', 'effcap': '--', 'cap': '-', 'fleet': '-'}
 
 n = len(steps)
 row_h = 1.0
-fig, ax = plt.subplots(figsize=(6.6, 6.6))
+fig, ax = plt.subplots(figsize=(6.1, 6.1))
 ax.set_xlim(0, 12); ax.axis('off')
 
 # Legend (three clearly separated rows at the top)

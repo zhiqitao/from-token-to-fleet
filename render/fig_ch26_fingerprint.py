@@ -16,7 +16,7 @@ chat    = [0.35, 0.95, 0.50, 0.75, 0.90, 0.55]
 batch   = [0.55, 0.60, 0.30, 0.85, 0.35, 0.90]
 
 x = np.arange(len(dims)); wdt = 0.25
-fig, ax = plt.subplots(figsize=(6.5, 4.4))
+fig, ax = plt.subplots(figsize=(6.1, 4.13))
 b1 = ax.bar(x-wdt, longctx, wdt, label='Long-context RAG Q&A', color='#3a6ea5', hatch='//')
 b2 = ax.bar(x,     chat,    wdt, label='High-throughput chat', color='#e67e22', hatch='xx')
 b3 = ax.bar(x+wdt, batch,   wdt, label='Batch inference',      color='#6f9e5f', hatch='..')

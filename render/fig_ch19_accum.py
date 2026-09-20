@@ -19,7 +19,7 @@ xs = [0.4, 3.0, 5.6, 8.2, 10.8]
 cwd = 2.4
 def h_of(tok): return tok * 0.00035
 
-fig, ax = plt.subplots(figsize=(6.5, 6.0))
+fig, ax = plt.subplots(figsize=(6.1, 5.63))
 ax.set_xlim(0, 14.2); ax.set_ylim(0, 12.2); ax.axis('off')
 ax.text(7.1, 11.7, 'Agentic context accumulation: the KV block grows every turn',
         fontsize=10.5, fontweight='bold', ha='center', color='#1a1a1a')

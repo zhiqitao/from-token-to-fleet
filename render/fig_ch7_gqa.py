@@ -7,7 +7,7 @@ from matplotlib.lines import Line2D
 # ---- fig-07-0703: GQA head-grouping (64 query heads over 8 KV heads) ----
 # Narrower layout (figsize 7.4x6.4, tighter 8-col pitch) so the tight-crop content
 # fits the print column and the cell labels place ~8pt on-page.
-fig, ax = plt.subplots(figsize=(7.4, 6.4))
+fig, ax = plt.subplots(figsize=(6.1, 5.28))
 ax.set_xlim(0, 10.5); ax.set_ylim(0, 8.4); ax.axis('off')
 
 ax.text(5.25, 8.1, 'Grouped-Query Attention (GQA): why the cache is 8× smaller',

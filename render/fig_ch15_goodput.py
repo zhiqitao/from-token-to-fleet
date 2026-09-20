@@ -15,7 +15,7 @@ prefill_nocache = np.full_like(batch, 100.0, dtype=float)
 prefill_cache  = np.array([99, 94, 90, 84, 78, 72, 60], dtype=float)
 goodput = np.array([8, 16, 29, 49, 74, 93, 100], dtype=float)
 
-fig, (axa, axb) = plt.subplots(1, 2, figsize=(6.4, 3.3))
+fig, (axa, axb) = plt.subplots(1, 2, figsize=(6.1, 3.15))
 
 # Panel (a): prefill saving
 axa.plot(batch, prefill_nocache, '-o', color='#c0392b', lw=1.8, label='no cache')

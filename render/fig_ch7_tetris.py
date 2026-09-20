@@ -6,11 +6,15 @@ import matplotlib.patches as mpatches
 # ---- fig-07-0705: Memory Tetris — how the 8xH100 host's 640 GB fills at three contexts ----
 # Canonical (Ch 7): weights 140 GB, runtime/NCCL ~64 GB, KV FP16 ~2.5 MB/token
 # 9.5K max -> ~24.9 GB KV ; 32K -> ~84 GB ; 128K -> ~335 GB
-fig, ax = plt.subplots(figsize=(7.2, 5.6))
-ax.set_xlim(0, 8.0); ax.set_ylim(0, 760)
+# NOTE: height bumped +0.4 (4.74 -> 5.14) so the caption/legend have clear bottom
+# breathing room; labels are placed INSIDE the axes (ylim extended down) and the
+# axes rectangle is pinned toward the top, reserving a blank bottom band.
+# Title sized so it fits within the 6.1in column (12.0pt was ~6.18in -> clipped).
+fig, ax = plt.subplots(figsize=(6.1, 5.6))
+ax.set_xlim(0, 8.0); ax.set_ylim(-620, 760)
 ax.axis('off')   # schematic; regen tight-crops to content
 ax.set_title('Memory Tetris: how the 8×H100 host (640 GB) fills with context',
-             fontsize=12.5, fontweight='bold', pad=14)
+             fontsize=11.0, fontweight='bold', pad=14)
 
 bar_w = 2.1
 ctxs = [('9.5K max', 24.9), ('32K context', 84), ('128K context', 335)]
@@ -38,12 +42,12 @@ ax.text(0.15, 662, '640 GB pool = 8×H100 HBM', fontsize=9.5, color='#a93226', f
 leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, label='KV cache (grows w/ context)'),
        mpatches.Patch(color=cols['weights'], label='weights 140 GB'),
        mpatches.Patch(color=cols['runtime'], label='runtime / NCCL ~64 GB')]
-ax.legend(handles=leg, loc='upper center', bbox_to_anchor=(0.5, -0.16), fontsize=10.5, frameon=False, ncol=1)
+ax.legend(handles=leg, loc='lower center', bbox_to_anchor=(0.5, 0.01), fontsize=10.5, frameon=False, ncol=1)
 
-ax.text(0.2, -150, 'baseline (weights + runtime) is context-independent; the KV cache is the lever that grows\nwith context.  FP16 ~2.5 MB/token [ILLUSTRATIVE][DERIVED].',
-        fontsize=10, color='#444')
+ax.text(0.2, -260, 'baseline (weights + runtime) is context-independent;\nthe KV cache is the lever that grows with context.\nFP16 ~2.5 MB/token [ILLUSTRATIVE][DERIVED].',
+        fontsize=9.5, color='#444')
 
-plt.tight_layout()
+fig.subplots_adjust(top=0.90, bottom=0.06, left=0.06, right=0.96)
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0705.png', dpi=150)
 plt.close()
 print('fig-07-0705 done')

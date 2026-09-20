@@ -11,7 +11,7 @@ total_b = [284, 2800, 125, 320]       # total params (B) [1P]
 active_b = [13, 104, 6, 18]           # active params (B) [1P]
 frac = [a/t*100 for a, t in zip(active_b, total_b)]
 
-fig, ax = plt.subplots(figsize=(7.8, 3.6))
+fig, ax = plt.subplots(figsize=(6.1, 2.82))
 y = np.arange(len(names))          # model index
 h = 0.36
 
