@@ -19,7 +19,7 @@ from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 
 BOLD = FontProperties(weight='bold')
-FS = 7.9
+FS = 11.5
 W = 6.1 * 72
 Ht = 5.9 * 72
 PADX = 0.28

@@ -39,6 +39,7 @@ DEFAULTS = {
     "ch10-compose":           "design/manuscript/chapter-10/figures/fig-10-1002",
     "ch10-parallel":          "design/manuscript/chapter-10/figures/fig-10-1001",
     "spine-decision-loop":    "design/manuscript/chapter-22/figures/fig-22-2201",
+    "agent-loop-lifecycle":  "design/manuscript/chapter-19/figures/fig-19-1901",
 }
 
 

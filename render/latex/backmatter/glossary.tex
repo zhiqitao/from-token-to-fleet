@@ -9,11 +9,16 @@
 \begin{itemize}\tightlist
 \item \textbf{TTFT} — time to first token: latency from request to the first output token (prefill-dominated).
 \item \textbf{TPOT} — time per output token: steady-state decode latency per token.
-\item \textbf{ITL} — inter-token latency: the decode phase's per-token lag; the book treats TPOT (steady-state) and ITL (per-token, incl. any measured inter-token gap) as the same canonical per-token metric and writes them “TPOT/ITL.” Where a measurement distinguishes them, treat ITL as the per-token value that includes any queueing/scheduling gap between emitted tokens, i.e. a tail-sensitive complement to bounded TPOT.
+\item \textbf{ITL} — inter-token latency: the decode phase's per-token lag; the book treats TPOT (steady-state) and ITL (per-token, incl. any measured inter-token gap) as the same canonical per-token metric and writes them ``TPOT/ITL.'' Where a measurement distinguishes them, treat ITL as the per-token value that includes any queueing/scheduling gap between emitted tokens, i.e. a tail-sensitive complement to bounded TPOT.
 \item \textbf{prefill} — the compute-bound pass that processes the prompt and builds the KV cache.
 \item \textbf{decode} — the bandwidth-bound pass that emits one token at a time.
 \item \textbf{goodput} — useful throughput: throughput that meets the latency/quality bar, discounting failures.
 \item \textbf{P/D disaggregation} — running prefill (P) and decode (D) on separate pools/services.
+\item \textbf{continuous batching} — scheduling new requests into a running decode batch so the GPU is kept busy token-by-token rather than waiting for an entire batch to finish; raises throughput at some latency cost.
+\item \textbf{chunked prefill} — splitting a long prompt's prefill into sub-blocks interleaved with decode work, so a long prompt does not monopolize the GPU and stall latency-sensitive decode.
+\item \textbf{FlashAttention} — an I/O-aware attention kernel that tiles/fuses the Q·K·V computation through fast on-chip storage, reducing HBM traffic while preserving the same attention mathematics.
+\item \textbf{PagedAttention} — a memory-management strategy for the KV cache that allocates key/value blocks in non-contiguous pages, reducing fragmentation and enabling near-full memory utilization.
+\item \textbf{speculative decoding} — a draft model proposes a candidate sequence that the target model verifies in parallel, accepting matching tokens to raise effective throughput at the cost of draft + verification compute.
 \item \textbf{MFU} — model FLOPs utilization: achieved FLOPs as a fraction of hardware peak.
 \item \textbf{RPS / QPS} — requests per second / queries per second: a \emph{rate} of incoming work, the primary input to a capacity model.
 \end{itemize}
@@ -23,6 +28,9 @@
 \item \textbf{KV cache} — the keys/values of past tokens retained so attention need not recompute.
 \item \textbf{GQA} — grouped-query attention; \textbf{MQA} — multi-query attention; \textbf{MHA} — multi-head attention.
 \item \textbf{APC / RadixAttention / prefix cache} — caching of shared prompt prefixes to avoid recomputation.
+\item \textbf{HBM} — high-bandwidth memory: the large, relatively slow-capacity memory attached to a GPU (distinct from fast on-chip SRAM).
+\item \textbf{arithmetic intensity} — FLOPs moved per byte read from memory (FLOP/byte); the quantity that determines whether a kernel is compute-bound or memory-bound.
+\item \textbf{MoE} — mixture of experts: a sparse model that routes each token to a subset of expert layers, cutting compute-per-token without reducing the parameter count or (necessarily) the KV cache.
 \end{itemize}
 
 \noindent\textbf{Parallelism and flows}
@@ -43,6 +51,7 @@
 \noindent\textbf{Notation used in the arithmetic}
 \begin{itemize}\tightlist
 \item \textbf{PFLOP} — peta-FLOPs; \textbf{FLOP/param} — floating-point operations per parameter per forward pass (≈2 for a matmul).
+\item \textbf{roofline} — a capacity model that plots achievable performance (FLOP/s) against arithmetic intensity; a kernel sits on a bandwidth-bound line below the ridge point and a compute-bound plateau above it. The \emph{ridge point} is the arithmetic intensity at which a machine transitions from memory-bound to compute-bound (peak FLOP/s ÷ peak bandwidth).
 \item \textbf{GB vs GiB} — decimal vs binary units: 1\,GB = $10^9$, 1\,GiB = $2^{30}$. The book uses decimal GB unless stated.
 \item \textbf{tokens/s} — throughput in tokens per second; \textbf{token/request} — average tokens per request (a workload property).
 \end{itemize}

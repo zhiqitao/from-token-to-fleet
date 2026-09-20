@@ -266,7 +266,7 @@ KV adds \textasciitilde2.62 MB/token & \textasciitilde165 GB (9.2K) &
 yes \\
 fine-tuning (weights + gradients + optimizer) & weights + gradients +
 optimizer states & Adam: \textasciitilde16 B/param (m + v + ΔW) &
-\textasciitilde1,260 GB & no \\
+\textasciitilde1,120 GB & no \\
 fine-tuning (weights + gradients, FP16) & weights + gradients FP16 & 4
 B/param (weights FP16 2 B + gradients FP16 2 B) & \textasciitilde280 GB
 & yes \\
@@ -281,11 +281,11 @@ of BF16 & \textasciitilde13.4 GB KV @ 9.5K & yes \\
 
 \emph{Inference residency = weights + KV cache; the KV footprint scales
 with context length. Fine-tuning residency adds optimizer states (Adam
-m, v, and updates), which for 70B at \textasciitilde16 bytes/param
-exceeds 1 TB --- roughly 2× the 640 GB of 8×H100. This contrast is the
-architect's central takeaway: inference is memory-limited by weights +
-KV, while fine-tuning is memory-limited by weights + gradients +
-optimizer, a substantially higher floor.}
+m, v, and master weights), which for 70B at \textasciitilde16
+bytes/param totals \textasciitilde1,120 GB --- roughly 1.75× the 640 GB
+of 8×H100. This contrast is the architect's central takeaway: inference
+is memory-limited by weights + KV, while fine-tuning is memory-limited
+by weights + gradients + optimizer, a substantially higher floor.}
 
 \ntsection{Measurement}\label{measurement}
 
@@ -388,9 +388,9 @@ constant factor --- a model with 64 layers and 8192 dim will have
   reductions; do not apply the same expectation to the KV cache.
 \item
   \textbf{Overlooking the fine-tuning residency floor.} Full fine-tuning
-  of 70B requires \textasciitilde1.26 TB with Adam optimizer states ---
-  roughly 2×8×H100. This is not a temporary overhead; it is the
-  permanent memory floor for the training duration.
+  of 70B requires \textasciitilde1.12 TB with Adam optimizer states ---
+  roughly 1.75× the 8×H100 host. This is not a temporary overhead; it is
+  the permanent memory floor for the training duration.
 \end{itemize}
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
@@ -425,11 +425,11 @@ enterprise-Q\&A workload:
 \item
   \textbf{Fine-tuning is a different memory regime than inference.} The
   same model that serves in \textasciitilde165 GB demands
-  \textasciitilde1,260 GB under full Adam fine-tuning (weights 140 GB +
-  gradients 140 GB + optimizer states \textasciitilde1,120 GB) ---
-  roughly 2× the 8×H100 host. This is why the architect separates the
-  serving fleet from the training fleet: the memory floors differ by an
-  order of magnitude. {[}ILLUSTRATIVE{]}{[}DERIVED{]}
+  \textasciitilde1,120 GB under full Adam fine-tuning (weights 140 GB +
+  gradients 140 GB + Adam m/v/master states 840 GB) --- roughly 1.75×
+  the 8×H100 host. This is why the architect separates the serving fleet
+  from the training fleet: the memory floors differ by an order of
+  magnitude. {[}ILLUSTRATIVE{]}{[}DERIVED{]}
 \item
   \textbf{Context length is the largest controllable KV lever.} Doubling
   context from 9.2K to 18.4K doubles KV (\textasciitilde24.1 GB →
@@ -521,7 +521,7 @@ GB max inference residency at 9.5K.}
 \label{fig:7.3}\end{figure}
 
 \emph{The same 70B model serves in \textasciitilde165 GB (weights + KV,
-max 9.5K) but needs \textasciitilde1,260 GB for full Adam fine-tuning;
+max 9.5K) but needs \textasciitilde1,120 GB for full Adam fine-tuning;
 QLoRA fits \textasciitilde50--70 GB on a single GPU.}
 
 \begin{figure}

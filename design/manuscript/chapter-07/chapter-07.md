@@ -79,12 +79,12 @@ The visual proof of the 8× saving. Full MHA caches a K,V per query head (2.62 M
 | scenario | memory resident | bytes per param | total (70B) | fits 8×H100 (640 GB) |
 |---|---|---|---|---|
 | inference (weights + KV, 9.2K input) | weights + KV cache | FP16: 2 B; KV adds ~2.62 MB/token | ~165 GB (9.2K) | yes |
-| fine-tuning (weights + gradients + optimizer) | weights + gradients + optimizer states | Adam: ~16 B/param (m + v + ΔW) | ~1,260 GB | no |
+| fine-tuning (weights + gradients + optimizer) | weights + gradients + optimizer states | Adam: ~16 B/param (m + v + ΔW) | ~1,120 GB | no |
 | fine-tuning (weights + gradients, FP16) | weights + gradients FP16 | 4 B/param (weights FP16 2 B + gradients FP16 2 B) | ~280 GB | yes |
 | fine-tuning (QLoRA, 4-bit base + LoRA) | quantized base + LoRA adapters | NF4: nominal 4-bit (~0.5 B/param) + quantization metadata; adds adapters/gradients/optimizer/activations | ~50–70 GB | yes |
 | inference with FP8 KV | weights FP16 + KV FP8 | KV: ~54% of BF16 | ~13.4 GB KV @ 9.5K | yes |
 
-*Inference residency = weights + KV cache; the KV footprint scales with context length. Fine-tuning residency adds optimizer states (Adam m, v, and updates), which for 70B at ~16 bytes/param exceeds 1 TB — roughly 2× the 640 GB of 8×H100. This contrast is the architect's central takeaway: inference is memory-limited by weights + KV, while fine-tuning is memory-limited by weights + gradients + optimizer, a substantially higher floor.*
+*Inference residency = weights + KV cache; the KV footprint scales with context length. Fine-tuning residency adds optimizer states (Adam m, v, and master weights), which for 70B at ~16 bytes/param totals ~1,120 GB — roughly 1.75× the 640 GB of 8×H100. This contrast is the architect's central takeaway: inference is memory-limited by weights + KV, while fine-tuning is memory-limited by weights + gradients + optimizer, a substantially higher floor.*
 
 ## 4. Measurement
 
@@ -114,7 +114,7 @@ $$
 
 - **Treating quantization as a uniform 2×–4× reducer.** KV cache quantization (FP8 ≈54% of BF16) gives a ~46% reduction, not 2× or 4×. Weight quantization gives the larger reductions; do not apply the same expectation to the KV cache.
 
-- **Overlooking the fine-tuning residency floor.** Full fine-tuning of 70B requires ~1.26 TB with Adam optimizer states — roughly 2×8×H100. This is not a temporary overhead; it is the permanent memory floor for the training duration.
+- **Overlooking the fine-tuning residency floor.** Full fine-tuning of 70B requires ~1.12 TB with Adam optimizer states — roughly 1.75× the 8×H100 host. This is not a temporary overhead; it is the permanent memory floor for the training duration.
 
 ## 6. Architecture Consequence
 
@@ -124,7 +124,7 @@ The memory floor is the first constraint every architecture decision respects, b
 
 - **KV cache quantization buys back memory, not compute.** FP8 KV ≈ 54% of BF16 (a ~46% reduction) [2°], dropping the 9.5K max residency from ~165 GB toward ~153 GB. This is a *memory* lever, orthogonal to bandwidth/compute fixes — the architect pulls it when the KV floor, not decode bandwidth, binds.
 
-- **Fine-tuning is a different memory regime than inference.** The same model that serves in ~165 GB demands ~1,260 GB under full Adam fine-tuning (weights 140 GB + gradients 140 GB + optimizer states ~1,120 GB) — roughly 2× the 8×H100 host. This is why the architect separates the serving fleet from the training fleet: the memory floors differ by an order of magnitude. [ILLUSTRATIVE][DERIVED]
+- **Fine-tuning is a different memory regime than inference.** The same model that serves in ~165 GB demands ~1,120 GB under full Adam fine-tuning (weights 140 GB + gradients 140 GB + Adam m/v/master states 840 GB) — roughly 1.75× the 8×H100 host. This is why the architect separates the serving fleet from the training fleet: the memory floors differ by an order of magnitude. [ILLUSTRATIVE][DERIVED]
 
 - **Context length is the largest controllable KV lever.** Doubling context from 9.2K to 18.4K doubles KV (~24.1 GB → ~48 GB); 128K context drives KV to ~335 GB, which forces quantization or model parallelism. The architecture must set a context-length ceiling to keep the served model within host memory. [ILLUSTRATIVE][DERIVED]
 
@@ -152,7 +152,7 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 ![Fig 7.3 — Inference vs fine-tuning memory floor [ILLUSTRATIVE][DERIVED]](figures/fig-07-0702.png)
 
-*The same 70B model serves in ~165 GB (weights + KV, max 9.5K) but needs ~1,260 GB for full Adam fine-tuning; QLoRA fits ~50–70 GB on a single GPU.*
+*The same 70B model serves in ~165 GB (weights + KV, max 9.5K) but needs ~1,120 GB for full Adam fine-tuning; QLoRA fits ~50–70 GB on a single GPU.*
 
 ![Fig 7.4 — The concurrency budget: where a 70B host's 640 GB pool goes. **Aggregate-feasibility caveat:** the 640 GB figure is an *aggregate* across eight 80-GB H100s, not a single freely-allotable heap. Whether a given allocation actually fits depends on tensor-parallel sharding, KV partitioning, replication, runtime layout, per-rank fragmentation, workspace requirements, and communication topology — so "total bytes < total HBM" is a necessary but not sufficient test. Per-rank fit and sharding must also be validated (Chapters 9–10). [ILLUSTRATIVE][DERIVED]](figures/fig-07-0704.png)
 

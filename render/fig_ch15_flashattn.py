@@ -31,7 +31,7 @@ from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 
 BOLD = FontProperties(weight='bold')
-FS = 8.0
+FS = 12.0
 W = 6.1 * 72
 Ht = 5.4 * 72
 
@@ -92,19 +92,20 @@ def draw_panel(x0, x1, title, subtitle, flash):
           ('many HBM round-trips' if not flash else 'few HBM round-trips'),
           C_TRAFFIC if not flash else '#2f6f4f', FS-1.0, weight='bold')
     # caption of traffic reduction
-    label((x0+x1)/2, panel_top-panel_h-12,
-          ('O(L^2) HBM traffic: every query re-reads the\nfull K/V row-block; intermediate written out'
-           if not flash else
-           'O(L) streaming HBM traffic: each tile read\nonce into on-chip, softmax done online'),
-          C_TRAFFIC if not flash else '#2f6f4f', FS-1.0)
+    if not flash:
+        cap = ('O(L^2) HBM traffic:\nevery query re-reads the row-block')
+    else:
+        cap = ('O(L) HBM traffic:\neach tile read once, softmax online')
+    label((x0+x1)/2, panel_top-panel_h-12, cap,
+          C_TRAFFIC if not flash else '#2f6f4f', FS-1.4)
 
-draw_panel(p1x0, p1x1, 'BEFORE: naive / SDPA', 'intermediate attention materialized to HBM', False)
-draw_panel(p2x0, p2x1, 'AFTER: FlashAttention', 'tiled / fused, stays on-chip', True)
+draw_panel(p1x0, p1x1, 'BEFORE: naive / SDPA', 'intermediate written to HBM', False)
+draw_panel(p2x0, p2x1, 'AFTER: FlashAttention', 'tiled, stays on-chip', True)
 
 # divider + takeaway banner
 banner_y = panel_top-panel_h-58
-label(W/2, banner_y, 'same Q·Kᵀ ·V math and same result  —  the gain is fewer HBM round-trips, not cheaper attention',
-      '#2f6f4f', FS-0.2, weight='bold')
+label(W/2, banner_y, 'same Q·Kᵀ·V math and same result —\nthe gain is fewer HBM round-trips, not cheaper attention',
+      '#2f6f4f', FS-0.5, weight='bold')
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-15/figures/fig-15-1502.png', dpi=200)
