@@ -119,6 +119,23 @@ The serving stack dictates the deployment choices:
 
 *P/D disaggregation topology. Left: prefill pool, compute-bound (FLOPs), handles the massive prompt at once. Right: decode pool, bandwidth-bound (HBM), reads steady token generation. A fabric bridge moves the per-token KV cache from prefill to decode. The split exists because the pools want opposite resources — prefill is FLOP-starved (~1.19 PFLOPS required vs 0.989 peak), decode is bandwidth-starved (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED].*
 
+### The Serving Stack, Not the Product Catalog
+
+The mechanisms above are what matter; the engines are just implementations of them. This comparison is organized by *architectural capability* so it transfers across specific products and versions. **It is explicitly time-sensitive** — capabilities, supported models, and features change fast, and these rows must be re-verified against each engine's current first-party documentation before any deployment decision. Treat it as a map of *which mechanism to look for*, not a ranking.
+
+| capability | vLLM | SGLang | TensorRT-LLM | llama.cpp | typical architectural note |
+|---|---|---|---|---|---|
+| scheduler model | continuous batching | continuous + RadixAttention | batch orchestration (TRT engine) | single/multi-stream | which batching algorithm, not which vendor |
+| KV-memory management | PagedAttention | RadixAttention (page + prefix tree) | KV re-compute/offload on engine | custom KV store | how KV is allocated/fragmented |
+| prefix caching | auto prefix | Radix prefix tree | some cache | limited | how much re-prefill is avoided |
+| quantization support | broad (GPTQ/AWQ/FP8) | broad | tight NVIDIA-precision (FP8/INT8/INT4) | GGUF (K-quants) | what precision the kernels are tuned for |
+| parallelism | TP/PP/DP | TP/PP/DP | TP/PP/DP (NVIDIA-optimized) | limited / CPU+GPU | how the model is split |
+| P/D capabilities | some (separate prefill/decode) | native disaggregation | via engine orchestration | n/a | whether prefill and decode can run on separate pools |
+| structured generation | constrained decoding | constrained (XGrammar) | constrained | constrained | whether output can be schema-constrained |
+| supported hardware | NVIDIA/AMD/CPU/accelerators | NVIDIA/AMD | NVIDIA-only | CPU + consumer GPUs | deployment niche |
+
+Read the columns as *knobs on a common set of mechanisms*, not as "which engine is best." An engine's real value is which mechanisms it implements *well for your workload shape* — e.g. a repeated-context RAG workload cares most about the prefix-caching row (RadixAttention in SGLang is a strong implementation), while a latency-critical single-stream deployment might care more about the scheduler and structured-generation rows. **Never conclude "X is the go-to engine"** — that is workload-independent and will be wrong. The only defensible statement is workload-specific: *for this request shape, this precision, and this hardware, engine Y implements the mechanism Z we need; benchmark it against the alternative (Ch. 14).*
+
 ## 7. What We Still Don't Know
 
 - **Portable end-to-end goodput across real enterprise RAG** — Mooncake's 525%/75% [S4][1P] and DFlash's >6× [S5][1P] are strong anchors but are workload-specific; general rules are (a hypothesis).

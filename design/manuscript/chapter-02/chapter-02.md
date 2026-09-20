@@ -33,6 +33,26 @@ The critical architectural insight: prefill is dominated by FLOPs (matrix-multip
 
 The short version: the **KV cache** is *the state*; **PagedAttention** manages *where that state lives* on the device; **prefix caching** avoids *computing it twice* for a shared prefix; **quantization** shrinks *each element*; **offloading** moves *some of it elsewhere*. Each attacks a different constraint (capacity, fragmentation, redundant compute, byte count, residency), and each has its own trade-off — later chapters put numbers on them.
 
+**The resource model (the book's recurring framework).** Inference consumes several *fundamentally different* resources, and the single most useful habit an architect can build is to name which one a given optimization or bottleneck is about. The pipeline figure above surfaces four of them, and the metric chapter (Ch. 6) and the design chapter (Ch. 12) build on the same set. The book will use these names consistently:
+
+| resource | unit | what it limits | first surfaces in |
+|---|---|---|---|
+| **compute capacity** | FLOPs | how much arithmetic per unit time | prefill (Ch. 2, 8) |
+| **memory bandwidth** | bytes/s | how fast data can move | decode (Ch. 2, 8) |
+| **memory capacity** | bytes resident | how much state fits (weights + KV) | KV cache / concurrency (Ch. 7) |
+| **interconnect bandwidth/latency** | bytes/s, delay | cross-GPU / cross-host movement | parallelism (Ch. 9, 10) |
+| **scheduling capacity** | useful work resident | keeping hardware busy despite request raggedness | serving (Ch. 11) |
+| **latency budget** | TTFT, TPOT/ITL, end-to-end | the SLO the system must meet | workload (Ch. 4) |
+| **throughput / goodput** | useful tokens/s under SLO | completed work, not just tokens/s | metrics (Ch. 6) |
+
+The discipline the book applies everywhere: **every optimization is a hypothesis about which resource it shifts and what it trades away.** FlashAttention moves the bottleneck from *bandwidth* toward *compute* (fewer HBM round-trips); KV quantization trades *capacity* for a small precision loss; prefix caching trades *prefill compute* for *cache residency*; continuous batching trades *latency* for *utilization*; P/D disaggregation trades a *homogeneous pool's* simplicity for separate *compute- vs bandwidth-optimized* pools. When the book introduces a technique, it will name the resource it targets and the resource it costs — that is the difference between reasoning and a vendor catalog. The optimization decision map (Ch. 15) is this framework read backwards: from an observed symptom to the resource that is likely starved.
+
+**The causal chain (how the chapters hold together).** The book is one argument, not a set of topics. The thread is:
+
+tokens determine sequence length → sequence length determines KV growth and attention work → KV growth determines memory pressure → attention and model execution determine compute and bandwidth demand → those resource demands determine latency behavior → latency and concurrency determine scheduler requirements → scheduler behavior determines serving efficiency → serving efficiency and SLOs determine host count → host count and model topology determine interconnect and fleet architecture → fleet architecture determines cost, resilience, placement, and operational complexity.
+
+Every chapter is one link of that chain, and each *deepens* the same mental model from Ch. 2 rather than restarting it. When you reach Ch. 11 (serving) or Ch. 17 (fleet), the concepts were introduced in Ch. 2 — Ch. 2 gave the shape, the later chapters give the numbers and the decisions. If a chapter ever feels like "here is another concept," it has broken the thread.
+
 ## 2. Mental Model
 
 Think of inference as two fundamentally different physical processes, distinguished by what limits them.

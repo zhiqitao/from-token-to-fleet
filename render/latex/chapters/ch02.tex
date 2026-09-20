@@ -131,6 +131,84 @@ different constraint (capacity, fragmentation, redundant compute, byte
 count, residency), and each has its own trade-off --- later chapters put
 numbers on them.
 
+\textbf{The resource model (the book's recurring framework).} Inference
+consumes several \emph{fundamentally different} resources, and the
+single most useful habit an architect can build is to name which one a
+given optimization or bottleneck is about. The pipeline figure above
+surfaces four of them, and the metric chapter (Ch. 6) and the design
+chapter (Ch. 12) build on the same set. The book will use these names
+consistently:
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2200\linewidth}
+  >{\raggedright\arraybackslash}p{0.2200\linewidth}
+  >{\raggedright\arraybackslash}p{0.2200\linewidth}
+  >{\raggedright\arraybackslash}p{0.2200\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+resource
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+unit
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+what it limits
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+first surfaces in
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{compute capacity} & FLOPs & how much arithmetic per unit time &
+prefill (Ch. 2, 8) \\
+\textbf{memory bandwidth} & bytes/s & how fast data can move & decode
+(Ch. 2, 8) \\
+\textbf{memory capacity} & bytes resident & how much state fits (weights
++ KV) & KV cache / concurrency (Ch. 7) \\
+\textbf{interconnect bandwidth/latency} & bytes/s, delay & cross-GPU /
+cross-host movement & parallelism (Ch. 9, 10) \\
+\textbf{scheduling capacity} & useful work resident & keeping hardware
+busy despite request raggedness & serving (Ch. 11) \\
+\textbf{latency budget} & TTFT, TPOT/ITL, end-to-end & the SLO the
+system must meet & workload (Ch. 4) \\
+\textbf{throughput / goodput} & useful tokens/s under SLO & completed
+work, not just tokens/s & metrics (Ch. 6) \\
+
+\label{tab:2.2}\end{longtable}
+
+The discipline the book applies everywhere: \textbf{every optimization
+is a hypothesis about which resource it shifts and what it trades away.}
+FlashAttention moves the bottleneck from \emph{bandwidth} toward
+\emph{compute} (fewer HBM round-trips); KV quantization trades
+\emph{capacity} for a small precision loss; prefix caching trades
+\emph{prefill compute} for \emph{cache residency}; continuous batching
+trades \emph{latency} for \emph{utilization}; P/D disaggregation trades
+a \emph{homogeneous pool's} simplicity for separate \emph{compute- vs
+bandwidth-optimized} pools. When the book introduces a technique, it
+will name the resource it targets and the resource it costs --- that is
+the difference between reasoning and a vendor catalog. The optimization
+decision map (Ch. 15) is this framework read backwards: from an observed
+symptom to the resource that is likely starved.
+
+\textbf{The causal chain (how the chapters hold together).} The book is
+one argument, not a set of topics. The thread is:
+
+tokens determine sequence length → sequence length determines KV growth
+and attention work → KV growth determines memory pressure → attention
+and model execution determine compute and bandwidth demand → those
+resource demands determine latency behavior → latency and concurrency
+determine scheduler requirements → scheduler behavior determines serving
+efficiency → serving efficiency and SLOs determine host count → host
+count and model topology determine interconnect and fleet architecture →
+fleet architecture determines cost, resilience, placement, and
+operational complexity.
+
+Every chapter is one link of that chain, and each \emph{deepens} the
+same mental model from Ch. 2 rather than restarting it. When you reach
+Ch. 11 (serving) or Ch. 17 (fleet), the concepts were introduced in Ch.
+2 --- Ch. 2 gave the shape, the later chapters give the numbers and the
+decisions. If a chapter ever feels like ``here is another concept,'' it
+has broken the thread.
+
 \section{Mental Model}\label{mental-model}
 
 Think of inference as two fundamentally different physical processes,
@@ -211,7 +289,7 @@ Prefill: compute verdict & compute-bound & 1.29 PFLOP /
 \textasciitilde1.08 s ≈ 1.19 PFLOPS \textgreater{} 0.989 PFLOPS peak →
 single H100 insufficient for real-time prefill {[}DERIVED{]} \\
 
-\label{tab:2.2}\end{longtable}
+\label{tab:2.3}\end{longtable}
 
 \begin{figure}
 \centering
