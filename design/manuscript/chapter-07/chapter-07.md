@@ -47,12 +47,12 @@ We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **70B-cl
 | 2×H100 total VRAM | 2 ×80 GB = 160 GB | [1P: NVIDIA H100 spec] |
 | 8×H100 total VRAM | 8 ×80 GB = 640 GB | [1P: NVIDIA H100 spec] |
 | 3×H100 total VRAM | 3 ×80 GB = 240 GB | [DERIVED] 165 GB < 240 GB |
-| fits 2×H100 at 9.2K? | no, 164.9 GB > 160 GB | does not fit in 2×H100; needs ≥3×H100 by aggregate capacity (or lower precision / more GPUs) |
-| fits 8×H100 at 9.2K? | yes | 164.9 GB < 640 GB |
-| fits 3×H100 at 9.2K? | yes | 164.9 GB < 240 GB |
+| fits 2×H100 at 9.2K? | no, 164.1 GB > 160 GB | does not fit in 2×H100; needs ≥3×H100 by aggregate capacity (or lower precision / more GPUs) |
+| fits 8×H100 at 9.2K? | yes | 164.1 GB < 640 GB |
+| fits 3×H100 at 9.2K? | yes | 164.1 GB < 240 GB |
 | fits 8×H100 at 32K? | yes | 224.0 GB < 640 GB |
 | fits 8×H100 at 128K? | yes, barely | 475.0 GB < 640 GB |
-| fits 1×H100 at 9.2K? | no | 164.9 GB > 80 GB; needs ≥3×H100 by aggregate capacity |
+| fits 1×H100 at 9.2K? | no | 164.1 GB > 80 GB; needs ≥3×H100 by aggregate capacity |
 
 *Note on “does it fit?”: this residency check answers a single-request question — does ONE request’s weights + KV fit in the pool? It says nothing yet about how many such requests fit concurrently. For that, an architect must subtract the runtime/activation/workspace floor (~64 GB on the 8×H100 host) from the 640 GB pool before sizing KV. We compute that concurrent capacity — the ~436 GB KV budget and ~18 requests/host — in Chapter 17. Keep the two numbers separate: the ~500 GB headroom (Ch. 4/7, single-request) and the ~436 GB KV budget (Ch. 17, concurrency) answer different questions.*
 

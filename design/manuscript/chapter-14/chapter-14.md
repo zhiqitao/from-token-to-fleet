@@ -31,14 +31,14 @@ We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (c
 
 **Step 1 — representative queries.** We sample real user questions and run them through the rag pipeline to produce the actual prompt shapes, matching the ~9.2K-in / ~300-out token profile with the model's own tokenizer (not a heuristic). [2°]
 
-**Step 2 — measurement protocol.** We load the candidate server with the same concurrency and arrival rate as our peak (~40 rps, which at the ~8.6 s canonical service time corresponds to ~344 requests in flight per Little's law — Ch 17 — not a nominal "100") and record, across many requests:
+**Step 2 — measurement protocol.** We load the candidate server with the concurrency it can actually hold while we observe it across many requests. A single 8×H100 host has a KV-residency ceiling of C ≈ 18 concurrent full-context requests (Ch 11/13/17), i.e. ~2.1 req/s at the ~8.6 s canonical service time — so we load it at ~18 concurrent (~2.1 req/s), not at a concurrency it cannot physically hold. (The full ~40 rps peak — ~344 requests in flight per Little's law — is a *fleet* burst served by on the order of ~20 hosts, Ch 16-17; a single-host benchmark cannot and should not be loaded to that.) We record, across many requests:
 
 - **TTFT** p50/p95/p99 (must be ≤ 1.2 s median, ≤ 2 s p95).
 - **TPOT** p50/p95 (≤ ~25 ms median).
 - **Goodput** — tokens/s that meet the SLO (Ch6), not raw throughput.
 - **KV cache utilization** and prefix-cache hit ratio (to validate the serving choices of Ch11).
 
-**Step 3 — read the result.** Suppose candidate A (a 70B dense on 8×H100) shows p95 TTFT 1.9 s and goodput 9,800 tok/s at 40 rps concurrency — **meets** the canonical SLO. Candidate B (a smaller 7B) shows 0.6 s TTFT — much faster — but scores lower on the capability screen for the retrieval-QA quality threshold. We therefore *select* A for deployment (capability + deployment both pass), not B (capability fails despite speed). The benchmark did not score one number; it reproduced the decision. [ILLUSTRATIVE][DERIVED]
+**Step 3 — read the result.** Suppose candidate A (a 70B dense on 8×H100) shows p95 TTFT 1.9 s and goodput ~19,800 tok/s at the ~18-concurrent / ~2.1-req-per-second load it can hold — **meets** the per-request TTFT SLO at that concurrency (the ~19,800 tok/s is also the host's prefill ceiling from Ch 8, and it is the right order for the ~2.1 req/s × ~9.5K tokens/request ≈ ~20K tok/s demand it serves there). Candidate B (a smaller 7B) shows 0.6 s TTFT — much faster — but scores lower on the capability screen for the retrieval-QA quality threshold. We therefore *select* A for deployment (capability + deployment both pass), not B (capability fails despite speed). The benchmark did not score one number; it reproduced the decision. [ILLUSTRATIVE][DERIVED]
 
 #### Table 14-1 — Capability vs deployment benchmarks
 

@@ -96,7 +96,7 @@ $$
 \text{grad bytes} = N \times \text{bytes/param} = 70 \times 10^9 \times 4 \text{ B} \approx 280 \text{ GB}
 $$
 
-per step (BF16 gradient; the all-reduce moves the gradient once, not weights+gradients). The sync time is $T = \text{bytes} / B_\text{eff}$. At 25 GB/s (single 200Gb/s link) that is `280 / 25 ≈ 11 s` per step — far too slow if the step takes ~1 s. At node NVLink 900 GB/s it is `280/900 ≈ 0.31 s`. The sync cost, not compute, often caps DP at small scale unless the interconnect is fast. [1P][DERIVED]
+per step (FP32 gradient; the all-reduce moves the gradient once, not weights+gradients). The sync time is $T = \text{bytes} / B_\text{eff}$. At 25 GB/s (single 200Gb/s link) that is `280 / 25 ≈ 11 s` per step — far too slow if the step takes ~1 s. At node NVLink 900 GB/s it is `280/900 ≈ 0.31 s`. The sync cost, not compute, often caps DP at small scale unless the interconnect is fast. [1P][DERIVED]
 
 ## 4. Measurement
 

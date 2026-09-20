@@ -51,7 +51,7 @@ Three realistic options, each with documented properties:
 
 [HYPOTHESIS]: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2×FLOP cost — a workload‑specific tradeoff, not a universal rule.
 
-**Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the 4×FLOP cost over all‑mpnet‑base‑v2.
+**Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the ~2× FLOP cost over all‑mpnet‑base‑v2 (the ~2 GFLOPs vs the ~1 GFLOPs for the 768‑dim option in the table above).
 
 **Table 5-1** — Model-selection decision: embedding vs generation model
 | metric | value | derivation |

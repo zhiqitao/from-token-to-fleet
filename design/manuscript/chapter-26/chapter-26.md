@@ -30,7 +30,7 @@ The canonical RAG scenario is one point in a much larger design space (Chapter 1
 | Agentic task loops | Med | Med | Orchestration / variance | Task-economics model, retry + tool budgets, fallback (Ch. 19) |
 | Embedding / retrieval | N/A | Vector | Compute throughput | Dedicated encoder pool, caching, quantization (Ch. 3) |
 | Vision-language | Med | Med | Multimodal preprocess + compute | Preprocess pipeline, fused kernels (Ch. 5, 20) |
-| Fine-tuning | N/A | N/A | Memory + interconnect | Precised-optimizer (LoRA/QLoRA) before full FT; gradient checkpointing (Ch. 7) |
+| Fine-tuning | N/A | N/A | Memory + interconnect | Precision-aware optimizer (LoRA/QLoRA) before full FT; gradient checkpointing (Ch. 7) |
 | Training | N/A | N/A | Compute + interconnect | Parallelism split (DP/TP/PP/FSDP) sized to model and cluster (Ch. 10) |
 | Real-time multimodal | Med | Low-latency | Latency + pipeline sync | Chunked prefill, streaming decode, P/D (Ch. 8, 20) |
 
@@ -96,7 +96,7 @@ These open questions define the next research cycle. Each is framed as a HYPOTHE
 
 **Step 3 — Validate.** HYPOTHESIS: "sharding + caching will keep latency < 300 ms at 3× user growth." Suppose a staged load test at 3,000 users reports p99 = 285 ms and cost per query down 55% — in this scenario these are illustrative values to show how a hypothesis is tested, not a real experiment the book ran. The hypothesis is accepted only on a genuine load test's numbers.
 
-**Step 4 — Document.** The pattern instance — 8×H100 shard + semantic response cache + circuit breaker with 2-s grace period — is recorded in the Patterns Library as Tab 26.1, ready for the next fleet expansion.
+**Step 4 — Document.** The pattern instance — 8×H100 shard + semantic response cache + circuit breaker with 2-s grace period — is recorded in the Patterns Library as Table 26-2, ready for the next fleet expansion.
 
 **Table 26-2** — Pattern Instance: Sharded RAG Serving
 

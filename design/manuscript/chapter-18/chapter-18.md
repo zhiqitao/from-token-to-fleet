@@ -48,7 +48,7 @@ The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200�
 |------|-------------|--------------|--------------|-----------------|
 | 70B dense FP16 | 140 GB | N/A | N/A | 1 (weights + KV fit in the 640 GB pool; ~2 GPUs hold the weights) |
 | 70B dense 8-bit | ~70 GB | — | — | 1 (fits on 1×H100, leaves 7 for others) |
-| 70B MoE FP16 (2/16 experts) | 140 GB | N/A | N/A | 0 (same as dense) |
+| 70B MoE FP16 (2/16 experts) | 140 GB | N/A | N/A | 1 (same as dense FP16; weights + KV fit in the 640 GB pool) |
 | 70B MoE 8-bit (2 active) | ~70 GB | — | — | 1 |
 | 70B 4-bit GGUF | ~35 GB | — | — | ~2 (across 2 GPUs, can batch) |
 | 70B 8-bit GGUF | ~70 GB | — | — | 1 |
@@ -156,9 +156,9 @@ The fleet operator becomes a *cost‑latency steward* rather than a single-model
 - Tier 1 processes 4,000 tokens/hr → $0.80
 - Tier 2 processes 750 tokens/hr → $1.13
 - Tier 3 processes 250 tokens/hr → $0.75
-- **Total hourly cost: $2.68** → **$1,945 / month**.
+- **Total hourly cost: $2.68** → **$1,930 / month**.
 
-If we had used a single 70B FP16 model: 5,000 tokens/hr × $0.003 = $15/hr → $10,800 / month. **Savings: $8,855 / month** (≈82%) with latency p95 ≈ 480 ms (within the 500 ms SLA).
+If we had used a single 70B FP16 model: 5,000 tokens/hr × $0.003 = $15/hr → $10,800 / month. **Savings: $8,870 / month** (≈82%) with latency p95 ≈ 480 ms (within the 500 ms SLA).
 
 The key enabler was the router's feature gate: queries mentioning "multilingual" or "technical specification" were auto‑escalated to Tier 3; the rest flowed to Tier 1 or Tier 2 automatically.
 
