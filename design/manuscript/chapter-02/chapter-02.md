@@ -14,6 +14,25 @@ Inference is the process of turning a sequence of input tokens into a sequence o
 
 The critical architectural insight: prefill is dominated by FLOPs (matrix-multiply arithmetic), while decode is dominated by HBM memory bandwidth (reading 140 GB of weights 40 times a second). These are opposite bottlenecks, and confusing them is the most common architectural misstep.
 
+![Fig 2.1 — The canonical end-to-end inference pipeline: prompt to generated tokens, divided into PREFILL (top) and DECODE (bottom). Prefill is the one-shot parallel burst that populates the KV cache and yields the first token — it stresses compute and is measured by TTFT. Decode is the sequential autoregressive loop that reuses the cached K/V and re-reads weights every step — it stresses HBM bandwidth and capacity, and is measured by TPOT/ITL. [ILLUSTRATIVE conceptual]](figures/fig-02-0202.png)
+
+*This is the figure the rest of the book builds on.* Keep the shape in mind: every later chapter refines one part of it. **Chapter 3** (model) asks *what the blocks compute and how the KV cache is sized*; **6** (metrics) measures which phase is the bottleneck; **7** (memory) prices the KV cache precisely; **8** (compute) derives the FLOPs and roofline that make prefill compute-bound; **10** (parallelism) splits the model across the devices the pipeline traverses; **11** (serving) schedules many of these pipelines; **15** (performance) diagnoses which phase actually hurts; and the fleet chapters price the host count the loop demands. Because the two phases stress *different* resources, the armature of the whole book sits on this single split.
+
+**Where the Q/K/V and KV cache live in this picture (the bridge to Ch. 3/7).** The transformer layer computes, for each token, three learned projections — **query (Q)**, **key (K)** and **value (V)**. Attention scores are the similarity of a query to every prior key; the scores weight the values, which are blended into the token's new representation. What matters for architecture: **K and V for a token do not change once that token has been processed.** The query for a *later* token attends against them, but rewriting them would be redundant work. So decode does not recompute the prefix's K/V — it *reuses* the stored K and V from prefill. That is the KV cache: not an optimization bolted on, but the direct consequence of *which* projections are reusable and which (the query) is always new. It is also why KV memory grows with sequence length (one K and one V per token, per layer) and why attention implementation and precision (GQA/MQA, FlashAttention, KV quantization) change an architecture problem that is really a memory problem. Ch. 3 and Ch. 7 do the arithmetic; this figure is where the causal thread starts.
+
+**A vocabulary note that prevents a common conflation.** Several terms sound like the same thing but are *not* interchangeable, and the chapter will use them precisely:
+
+| term | what it is | what it is **not** |
+|---|---|---|
+| **KV cache** | the stored K and V tensors per token per layer, saved so decode does not recompute the prefix | an *optimization* over a shared prefix |
+| **PagedAttention** | a memory-*allocation* scheme for the KV cache (splits it into fixed-size pages, cuts fragmentation/waste) | a way to *reduce* the amount of KV state |
+| **prefix caching / KV reuse** | reusing *already-computed* K/V for a shared prefix, to skip re-prefilling it | the same as caching the KV of a *single* request's own decode |
+| **prompt caching** | broader system/provider term; the book uses it to mean *reusing the KV of a shared prompt prefix across requests* | a distinct mechanism from prefix caching |
+| **KV quantization** | reducing the *bytes* per K/V element (e.g. FP16→FP8) | reducing the *number* of key/value entries |
+| **KV offloading** | moving some KV state out of GPU HBM (to host DRAM/SSD), trading capacity against transfer latency | shrinking the state itself |
+
+The short version: the **KV cache** is *the state*; **PagedAttention** manages *where that state lives* on the device; **prefix caching** avoids *computing it twice* for a shared prefix; **quantization** shrinks *each element*; **offloading** moves *some of it elsewhere*. Each attacks a different constraint (capacity, fragmentation, redundant compute, byte count, residency), and each has its own trade-off — later chapters put numbers on them.
+
 ## 2. Mental Model
 
 Think of inference as two fundamentally different physical processes, distinguished by what limits them.
@@ -43,7 +62,7 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 | H100 BF16 dense compute | 989 TFLOPS | NVIDIA H100 BF16 tensor-core peak [1P][FACT] |
 | Prefill: compute verdict | compute-bound | 1.29 PFLOP / ~1.08 s ≈ 1.19 PFLOPS > 0.989 PFLOPS peak → single H100 insufficient for real-time prefill [DERIVED] |
 
-![Fig 2.1 — Decode vs prefill: bandwidth vs compute [ILLUSTRATIVE conceptual]](figures/fig-02-0201.png)
+![Fig 2.2 — Decode vs prefill: bandwidth vs compute [ILLUSTRATIVE conceptual]](figures/fig-02-0201.png)
 
 *Decode is HBM-bandwidth-bound (5.6 TB/s vs H100 3.35 TB/s); prefill is compute-bound (~1.19 PFLOPS required vs H100 0.989 PFLOPS peak). *(Analytical bound — not a benchmark: these are first-order model checks, not a measurement of actual serving throughput.)*
 

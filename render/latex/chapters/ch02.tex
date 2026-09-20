@@ -44,6 +44,93 @@ bandwidth (reading 140 GB of weights 40 times a second). These are
 opposite bottlenecks, and confusing them is the most common
 architectural misstep.
 
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={The canonical end-to-end inference pipeline: prompt to generated tokens, divided into PREFILL (top) and DECODE (bottom). Prefill is the one-shot parallel burst that populates the KV cache and yields the first token --- it stresses compute and is measured by TTFT. Decode is the sequential autoregressive loop that reuses the cached K/V and re-reads weights every step --- it stresses HBM bandwidth and capacity, and is measured by TPOT/ITL. {[}ILLUSTRATIVE conceptual{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0202.pdf}}
+\caption{The canonical end-to-end inference pipeline: prompt to generated tokens, divided into PREFILL (top) and DECODE (bottom). Prefill is the one-shot parallel burst that populates the KV cache and yields the first token --- it stresses compute and is measured by TTFT. Decode is the sequential autoregressive loop that reuses the cached K/V and re-reads weights every step --- it stresses HBM bandwidth and capacity, and is measured by TPOT/ITL. {[}ILLUSTRATIVE conceptual{]}}
+
+\label{fig:2.1}\end{figure}
+
+\emph{This is the figure the rest of the book builds on.} Keep the shape
+in mind: every later chapter refines one part of it. \textbf{\hyperref[chap:3]{Chapter 3}}
+(model) asks \emph{what the blocks compute and how the KV cache is
+sized}; \textbf{6} (metrics) measures which phase is the bottleneck;
+\textbf{7} (memory) prices the KV cache precisely; \textbf{8} (compute)
+derives the FLOPs and roofline that make prefill compute-bound;
+\textbf{10} (parallelism) splits the model across the devices the
+pipeline traverses; \textbf{11} (serving) schedules many of these
+pipelines; \textbf{15} (performance) diagnoses which phase actually
+hurts; and the fleet chapters price the host count the loop demands.
+Because the two phases stress \emph{different} resources, the armature
+of the whole book sits on this single split.
+
+\textbf{Where the Q/K/V and KV cache live in this picture (the bridge to
+Ch. 3/7).} The transformer layer computes, for each token, three learned
+projections --- \textbf{query (Q)}, \textbf{key (K)} and \textbf{value
+(V)}. Attention scores are the similarity of a query to every prior key;
+the scores weight the values, which are blended into the token's new
+representation. What matters for architecture: \textbf{K and V for a
+token do not change once that token has been processed.} The query for a
+\emph{later} token attends against them, but rewriting them would be
+redundant work. So decode does not recompute the prefix's K/V --- it
+\emph{reuses} the stored K and V from prefill. That is the KV cache: not
+an optimization bolted on, but the direct consequence of \emph{which}
+projections are reusable and which (the query) is always new. It is also
+why KV memory grows with sequence length (one K and one V per token, per
+layer) and why attention implementation and precision (GQA/MQA,
+FlashAttention, KV quantization) change an architecture problem that is
+really a memory problem. Ch. 3 and Ch. 7 do the arithmetic; this figure
+is where the causal thread starts.
+
+\textbf{A vocabulary note that prevents a common conflation.} Several
+terms sound like the same thing but are \emph{not} interchangeable, and
+the chapter will use them precisely:
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+term
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+what it is
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+what it is \textbf{not}
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{KV cache} & the stored K and V tensors per token per layer,
+saved so decode does not recompute the prefix & an \emph{optimization}
+over a shared prefix \\
+\textbf{PagedAttention} & a memory-\emph{allocation} scheme for the KV
+cache (splits it into fixed-size pages, cuts fragmentation/waste) & a
+way to \emph{reduce} the amount of KV state \\
+\textbf{prefix caching / KV reuse} & reusing \emph{already-computed} K/V
+for a shared prefix, to skip re-prefilling it & the same as caching the
+KV of a \emph{single} request's own decode \\
+\textbf{prompt caching} & broader system/provider term; the book uses it
+to mean \emph{reusing the KV of a shared prompt prefix across requests}
+& a distinct mechanism from prefix caching \\
+\textbf{KV quantization} & reducing the \emph{bytes} per K/V element
+(e.g.~FP16→FP8) & reducing the \emph{number} of key/value entries \\
+\textbf{KV offloading} & moving some KV state out of GPU HBM (to host
+DRAM/SSD), trading capacity against transfer latency & shrinking the
+state itself \\
+
+\label{tab:2.1}\end{longtable}
+
+The short version: the \textbf{KV cache} is \emph{the state};
+\textbf{PagedAttention} manages \emph{where that state lives} on the
+device; \textbf{prefix caching} avoids \emph{computing it twice} for a
+shared prefix; \textbf{quantization} shrinks \emph{each element};
+\textbf{offloading} moves \emph{some of it elsewhere}. Each attacks a
+different constraint (capacity, fragmentation, redundant compute, byte
+count, residency), and each has its own trade-off --- later chapters put
+numbers on them.
+
 \section{Mental Model}\label{mental-model}
 
 Think of inference as two fundamentally different physical processes,
@@ -124,14 +211,14 @@ Prefill: compute verdict & compute-bound & 1.29 PFLOP /
 \textasciitilde1.08 s ≈ 1.19 PFLOPS \textgreater{} 0.989 PFLOPS peak →
 single H100 insufficient for real-time prefill {[}DERIVED{]} \\
 
-\label{tab:2.1}\end{longtable}
+\label{tab:2.2}\end{longtable}
 
 \begin{figure}
 \centering
 \pandocbounded{\includegraphics[keepaspectratio,alt={Decode vs prefill: bandwidth vs compute {[}ILLUSTRATIVE conceptual{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0201.pdf}}
 \caption{Decode vs prefill: bandwidth vs compute {[}ILLUSTRATIVE conceptual{]}}
 
-\label{fig:2.1}\end{figure}
+\label{fig:2.2}\end{figure}
 
 \emph{Decode is HBM-bandwidth-bound (5.6 TB/s vs H100 3.35 TB/s);
 prefill is compute-bound (\textasciitilde1.19 PFLOPS required vs H100

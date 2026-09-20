@@ -87,6 +87,26 @@ on the vertical axis, FLOP/byte on the horizontal --- is the map that
 resolves this. Where our kernel lands on that chart decides whether we
 should profile memory bandwidth or compute throughput.
 
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel communication crosses the GPU interconnect. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- each is a different level of this ladder. {[}ILLUSTRATIVE conceptual{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.pdf}}
+\caption{Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel communication crosses the GPU interconnect. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- each is a different level of this ladder. {[}ILLUSTRATIVE conceptual{]}}
+
+\label{fig:8.1}\end{figure}
+
+\emph{Read this ladder together with the roofline:} the roofline's
+vertical axis (peak TFLOPS) and horizontal axis (FLOP/byte) are both
+determined by \emph{where} on this hierarchy the work sits. A kernel is
+compute-bound when its FLOPs run on the tensor cores and data fits in
+on-chip memory (high arithmetic intensity); it is bandwidth-bound when
+it must stream large tensors from HBM faster than the bytes can move
+(low arithmetic intensity). So the ``bound'' classification of Ch. 8 is
+not a property of the model alone --- it follows from where the model's
+weights and the KV cache happen to be resident, and how much of the
+computation a kernel can keep on-chip. Ch. 15's FlashAttention
+discussion is exactly this ladder in action: keep more of the tile
+on-chip, move fewer bytes between HBM and the compute units.
+
 \section{Worked Example: Canonical Scenario
 Arithmetic}\label{worked-example-canonical-scenario-arithmetic}
 
@@ -294,7 +314,7 @@ batch}\label{decode-bandwidth-bound-at-low-batch}
 \pandocbounded{\includegraphics[keepaspectratio,alt={Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge classification (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0801.pdf}}
 \caption{Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge \emph{classification} (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}}
 
-\label{fig:8.1}\end{figure}
+\label{fig:8.2}\end{figure}
 
 \emph{The roofline: prefill is compute-bound, low-batch decode is
 memory-bound.}
@@ -536,7 +556,7 @@ phases. The workload's true roofline position, not an assumed
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\emph{Reading the roofline (summary of \hyperref[fig:8.1]{Fig 8.1}): the dense-FP16 ridge at
+\emph{Reading the roofline (summary of \hyperref[fig:8.2]{Fig 8.2}): the dense-FP16 ridge at
 \textasciitilde295 FLOP/byte (H100: 989 TFLOPS ÷ 3.35 TB/s) separates
 the compute-bound region (right) from the memory-bound region (left).
 Prefill sits far above the ridge --- its arithmetic intensity is set by
