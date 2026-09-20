@@ -39,7 +39,7 @@ ax1.set_ylabel('Prefill compute (PFLOP / request)')
 ax1.set_title('Prefill per request:\nlinear + quadratic attention', fontsize=9.5)
 ax1.set_ylim(1e-2, 1e3)
 ax1.grid(alpha=0.3, which='both')
-ax1.legend(fontsize=7.5, loc='upper left')
+ax1.legend(fontsize=7.5, loc='upper center', bbox_to_anchor=(0.5, -0.13), frameon=False)
 
 # Right panel: decode FLOPs per token (flat, context-independent)
 ax2.loglog(L / 1e3, decode / 1e15, color='#27408b', lw=2.4)

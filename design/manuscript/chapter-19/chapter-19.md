@@ -96,7 +96,7 @@ For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, 
 
 Crucially, the agentic layer adds latency **on top of** the base answer generation, not instead of it. We keep two terms rigidly separate:
 
-- **Base inference latency *L*base** — the time to generate the final answer itself. Under the canonical model this is ~8.6 s: ~1.1 s prefill (Ch 8) + ~7.5 s decode of the 300-token answer at ~25 ms/token (Ch 8). Every agentic request pays this at least once, and usually again for the intermediate reasoning the loop generates (the T·γ tokens).
+- **Base inference latency *L*base** — the time to generate the final answer itself. Under the canonical model this is ~8.6 s: 1.08 s prefill (Ch 8) + ~7.5 s decode of the 300-token answer at ~25 ms/token (Ch 8). Every agentic request pays this at least once, and usually again for the intermediate reasoning the loop generates (the T·γ tokens).
 - **Agent orchestration / tool-call overhead *L*agent** — the per-turn cost of the loop *around* the model: the LLM's short decision step to formulate the tool call, plus the tool backend round-trip. On 8×H100 the per-turn agent step averages ~120 ms for a 10,000-token context; tool backends (search, SQL) add 50–150 ms depending on data volume. So per-turn orchestration overhead *L*agent ≈ ~220 ms (median).
 
 $$
@@ -113,7 +113,7 @@ $$
 L_\text{E2E}(T) = L_\text{base} + T \cdot L_\text{agent}
 $$
 
-where $L_\text{base} \approx 8.6$ s is the canonical full answer generation (1.1 s prefill + 7.5 s decode of 300 output tokens) and $T \cdot L_\text{agent}$ is the added agent-orchestration overhead (≈ 220 ms per turn). So the agentic layer does *not* replace the ~8.6 s generation with ~440 ms — it *adds* a few hundred milliseconds of orchestration/tool overhead on top of a request that already takes ~8.6 s to generate its answer. The latency amplification is better expressed as overhead, not a multiple of a sub-second single-shot number:
+where $L_\text{base} \approx 8.6$ s is the canonical full answer generation (1.08 s prefill + 7.5 s decode of 300 output tokens) and $T \cdot L_\text{agent}$ is the added agent-orchestration overhead (≈ 220 ms per turn). So the agentic layer does *not* replace the ~8.6 s generation with ~440 ms — it *adds* a few hundred milliseconds of orchestration/tool overhead on top of a request that already takes ~8.6 s to generate its answer. The latency amplification is better expressed as overhead, not a multiple of a sub-second single-shot number:
 
 $$
 \beta(T) = \frac{L_\text{base} + T\cdot L_\text{agent}}{L_\text{base}} \approx 1 + \frac{T \cdot 220\text{ ms}}{8.6\text{ s}}
@@ -213,4 +213,4 @@ Despite the quantified arithmetic above, several questions remain open and would
 | Total end-to-end (Lbase + overhead) | ~8.8 s | ~9.0 s | ~9.3 s | ~9.5 s | ~8.6 s |
 | KV cache @ 2.62 MB/token | ~27.2 GB | ~29.4 GB | ~31.7 GB | ~34.0 GB | ~24.9 GB |
 
-*All token counts use δ=800, γ=65, O=300; orchestration overhead uses λ_step≈120 ms + λ_tool≈100 ms per turn; base generation uses the canonical ~8.6 s (1.1 s prefill + 7.5 s decode of 300 output tokens). Total end-to-end is dominated by the base generation, NOT the agent overhead. These are canonical-model [DERIVED] values, not measured production figures.*
+*All token counts use δ=800, γ=65, O=300; orchestration overhead uses λ_step≈120 ms + λ_tool≈100 ms per turn; base generation uses the canonical ~8.6 s (1.08 s prefill + 7.5 s decode of 300 output tokens). Total end-to-end is dominated by the base generation, NOT the agent overhead. These are canonical-model [DERIVED] values, not measured production figures.*
