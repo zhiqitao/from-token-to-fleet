@@ -38,11 +38,11 @@ The canonical enterprise-Q&A RAG workload sits firmly on the **server** tier. We
 
 - **Memory**: 70B FP16 weights = 140 GB; KV for the 9.5K max context at FP16 ≈ 24.9 GB; inference residency ≈ 165 GB [ILLUSTRATIVE][DERIVED]. An 8×H100 host (640 GB) fits this with ample headroom for concurrency (Ch11 showed ~24 GB per request × concurrent requests still fits). ✓ [ILLUSTRATIVE][DERIVED]
 
-- **Throughput**: ~10 rps average / 40 rps peak, input-heavy (9.2K in / 300 out). Ch11 showed continuous batching + prefix caching keeps p95 TTFT under the 2 s SLO on a single 8×H100 host. ✓
+- **Throughput/latency**: ~10 rps average / 40 rps peak, input-heavy (9.2K in / 300 out). On the *per-request latency* axis, Ch11 showed continuous batching + prefix caching keeps p95 TTFT under the 2 s SLO on a single 8×H100 host. **But on the *capacity* axis the single host does not carry the full arrival rate**: with the canonical ~8.6 s service time, Little's Law puts ≈40 × 8.6 ≈ 344 requests in flight at the peak, against ~18 KV-resident requests per host — so a single host is a *latency-feasible* but not *capacity-sufficient* server (Ch16/17 size the fleet to ~20 hosts at the 40 rps peak). The tier choice here is about model residency and per-request latency, not about whether one host serves the entire peak arrival. [ILLUSTRATIVE][DERIVED]
 
 - **Interconnect**: parallelism is unnecessary (one node) — the interconnect question doesn't bind. ✓
 
-So a single 8×H100 server is the right archetype — which is exactly what earlier chapters assumed. [ILLUSTRATIVE][DERIVED]
+So the **server** tier is the right *model-residency* archetype for the canonical workload — the model and its KV fit a single 8×H100 node and the per-request TTFT SLO is met on one host. It does **not** mean one host serves the whole arrival rate; a single host is latency-bound and the peak capacity is a fleet-computing question (Ch17). [ILLUSTRATIVE][DERIVED]
 
 ### Escalating: When 10×Traffic Forces the Cluster Tier
 
@@ -79,7 +79,7 @@ These three numbers locate the workload on the ladder objectively.
 
 ## 5. Common Mistakes
 
-- **Choosing hyperscale before measuring goodput.** Most workloads never exceed one host's goodput; building a fleet first is expensive and unnecessary.
+- **Choosing hyperscale before measuring goodput.** Most workloads never exceed one host's *latency* budget; the mistake is building a fleet before measuring whether traffic actually outgrows one host's capacity. (Note: the book's own canonical workload *does* outgrow one host's capacity at its 40 rps peak — ~20 hosts per Ch17 — so for that workload the fleet is warranted, not premature.)
 - **Using model size as the only tier driver.** A 70B model fits a server; traffic, not size, usually forces the cluster — an architect who only watches parameters escalates too early or too late.
 - **Ignoring the operational constraint.** Privacy/geography can force a *lower* tier regardless of what compute wants; the ladder is bounded by operations, not just performance.
 - **Assuming a smaller model can't serve the tier.** Distilled small models on local GPUs can meet the goal when the capability suffices — don't over-provision the tier.
