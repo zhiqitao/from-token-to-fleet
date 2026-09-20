@@ -132,7 +132,7 @@ The mechanisms above are what matter; the engines are just implementations of th
 | parallelism | TP/PP/DP | TP/PP/DP | TP/PP/DP (NVIDIA-optimized) | limited / CPU+GPU | how the model is split |
 | P/D capabilities | some (separate prefill/decode) | native disaggregation | via engine orchestration | n/a | whether prefill and decode can run on separate pools |
 | structured generation | constrained decoding | constrained (XGrammar) | constrained | constrained | whether output can be schema-constrained |
-| supported hardware | NVIDIA/AMD/CPU/accelerators | NVIDIA/AMD | NVIDIA-only | CPU + consumer GPUs | deployment niche |
+| supported hardware | NVIDIA / AMD / CPU | NVIDIA / AMD | NVIDIA-only | CPU + consumer GPUs | deployment niche |
 
 The columns read as *knobs on a common set of mechanisms*, not as "which engine is best." An engine's real value is which mechanisms it implements *well for the deployed workload's shape* — e.g. a repeated-context RAG workload cares most about the prefix-caching row (RadixAttention in SGLang is a strong implementation), while a latency-critical single-stream deployment might care more about the scheduler and structured-generation rows. **Never conclude "X is the go-to engine"** — that is workload-independent and will be wrong. The only defensible statement is workload-specific: *for this request shape, this precision, and this hardware, engine Y implements the mechanism Z we need; benchmark it against the alternative (Ch. 14).*
 
