@@ -99,7 +99,7 @@ This is why architecture alone never tells an architect how good a frontier mode
 
 ![Fig A.3 — A conceptual layering of frontier AI systems (dates are approximate era markers, not a rigorously established chronology)](figures/fig-27-2703.png)
 
-From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are *efficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. [INTERPRETATION — synthesis of the chapters' arithmetic, not a single measurement]*
+From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are *efficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. [DERIVED]*
 
 This chain is the spine of this handbook — from a single model's tokens (Ch1–9) to parallelism (Ch10), serving (Ch11–16), and finally the fleet of specialized models and agents (Ch17–26). It also explains why two models with broadly similar base architectures can have very different practical intelligence (post-training/reasoning), and why an agent runtime can lift real-world performance without changing model weights at all: **model intelligence ≠ system intelligence anymore.**
 
@@ -109,7 +109,7 @@ The most useful lens for an AI Solution Architect in 2026 is not "which attentio
 
 ![Fig A.4 — Where should intelligence live?](figures/fig-27-2702.png)
 
-The placement ladder. Every host layer that can carry intelligence is a place the architect may choose to push capability or cost; this book gives the arithmetic and decision framework for each (Ch3/7/8 weights & attention, Ch10 MoE routing, Ch19/21 post-training, Ch8/20 test-time, Ch19/24 tools, Ch17–20 runtime, Ch18/20 fleet). [INTERPRETATION/ILLUSTRATIVE per Appendix A's three-layer rule]
+The placement ladder. Every host layer that can carry intelligence is a place the architect may choose to push capability or cost; this book gives the arithmetic and decision framework for each (Ch3/7/8 weights & attention, Ch10 MoE routing, Ch19/21 post-training, Ch8/20 test-time, Ch19/24 tools, Ch17–20 runtime, Ch18/20 fleet). [ILLUSTRATIVE][DERIVED]
 
 Every host layer maps to chapters in this book:
 
