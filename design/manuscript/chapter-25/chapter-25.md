@@ -73,6 +73,7 @@ This is the minimal template to copy into a repo, intended to be filled and to s
 
 ## Decision (the committed choice, one paragraph,
    reversible in principle)
+<the one-sentence decision, and what it commits the team to>
 
 ## Architecture Decision Context  (from Chapter 22's loop)
 - Business objective:  <what outcome this enables>
@@ -82,8 +83,6 @@ This is the minimal template to copy into a repo, intended to be filled and to s
                          measurable>
 - Constraints:         <privacy, region, ops,
                          procurement, budget>
-
-## Decision
 
 ## Alternatives considered
 1. <option> — <why rejected>

@@ -28,7 +28,7 @@ We continue from the canonical scenario: ~2,000 registered users, ~5% concurrent
 
 **KV compression is the first lever.** Switching KV to FP8 (≈54% of BF16, vLLM-measured [S6]) cuts the 9.5K max per-request KV to ≈13.4 GB and raises C to ≈33 concurrent per host (436 ÷ 13.4 ≈ 32.5), roughly doubling headroom before buying hardware. This is why the architect treats KV precision as a first-class capacity dial, not a cosmetic detail.
 
-Threshold for fleet expansion.** Suppose the agentic layer from Chapter 19 is added. Chapter 19's own telemetry puts the turn distribution at 68% terminating in T=1, 25% in T=2, 5% in T=3, and 2% exceeding the turn limit (falling back to single-shot). That makes the **median** turn count T=1 (68% of requests finish on the first turn) and the **95th percentile** T=3 (cumulative 68+25+5 = 98% by T=3). Each turn adds ~800 tokens of retrieved context (delta) and ~65 tokens of model-generated reasoning (gamma), so the effective per-request token count is
+**Threshold for fleet expansion.** Suppose the agentic layer from Chapter 19 is added. Chapter 19's own telemetry puts the turn distribution at 68% terminating in T=1, 25% in T=2, 5% in T=3, and 2% exceeding the turn limit (falling back to single-shot). That makes the **median** turn count T=1 (68% of requests finish on the first turn) and the **95th percentile** T=3 (cumulative 68+25+5 = 98% by T=3). Each turn adds ~800 tokens of retrieved context (delta) and ~65 tokens of model-generated reasoning (gamma), so the effective per-request token count is
 $$
 I(T) = I_0 + T(\delta + \gamma) + O_\text{final} = 9{,}200 + T \times 865 + 300
 $$
@@ -90,6 +90,7 @@ where $u$ is the utilization target and $W$ is the **full service time** (end-to
 2. **Full service-capacity sizing** (does the fleet's aggregate request rate clear the peak?): the same quantity when C/W is the per-host service rate — i.e. $H = \lceil \lambda / (\rho \cdot (C/W)) \rceil$. Because Little's Law ties concurrency, service time and arrival rate, these two views coincide: $\lambda W / C = \lambda / (C/W)$.
 
 KV residency provides one capacity ceiling, but it is not a fleet-size answer by itself. When the canonical 300-token decode duration is included, Little's Law raises in-flight concurrency from the misleading "40 requests at 1 second" approximation to roughly **344 requests at 40 rps**, and the fleet must be sized to that.
+
 ### Load‑balancer overhead factor
 
 Let ρ be the effective throughput fraction after load‑balancer effects. Empirically, a well‑configured software LB (NGINX) achieves ρ ≈ 0.95, meaning total system throughput = ρ · N · throughput_per_host. A hardware L7 switch may achieve ρ ≈ 0.98. The overhead comes from: health‑check traffic (~1% of requests), session‑affinity hashing skew, and LB process CPU limits. The throughput_per_host itself must come from a benchmark on the actual workload (tokens/context/batch) — it is an ILLUSTRATIVE proxy until measured. What is *derivable* is the KV‑residency ceiling C from Section 3; the LB overhead multiplies the schedulable fraction of that ceiling. In the worked example, the fleet is currently sized by KV capacity (Section 3), not by a fabricated tokens/s number: at T=4, FP16-KV C≈14/host sets the ceiling, and adding a host raises aggregate schedulable concurrency by ρ·C, i.e. ~13 concurrent at ρ=0.95.

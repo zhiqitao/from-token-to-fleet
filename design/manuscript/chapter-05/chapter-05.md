@@ -60,7 +60,8 @@ Three realistic options, each with documented properties:
 | Embedding model size | ~110M parameters | all‑mpnet‑base‑v2 [ILLUSTRATIVE][DERIVED] |
 | Per-request context/KV cost at 9.2K input | ~24.1 GB (FP16 KV cache, initial) | 70B FP16, 80 layers, 9.2K context [ILLUSTRATIVE][DERIVED] |
 | Tokens/s per dollar (generation, runtime) | 9,000 tokens per dollar‑hour | 50 tok/s × 3600 s/hr ÷ $20/hr [ILLUSTRATIVE][DERIVED] |
-| Verdict | Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16 on 8×H100 | Selection surfaces (§4 §5)
+| Verdict | Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16 on 8×H100 | Selection surfaces (§4 §5) |
+
 ### (b) Generation‑model selection for the answer leg
 
 The generation leg produces the 300-token answer given the 9.2K retrieved context. The architect must decide whether a base 70B‑class dense model, a smaller dense model, or a fine‑tuned variant best satisfies the latency, quality, and economic constraints.

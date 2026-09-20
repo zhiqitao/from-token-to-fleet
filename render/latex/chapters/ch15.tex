@@ -119,13 +119,13 @@ across ALL layers is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 =
 KV cache ≈2,490 GB --- which \textbf{does not} fit in the 640 GB GPU
 pool; using the canonical practical KV budget (640 GB − 140 GB weights −
 \textasciitilde64 GB runtime/workspace ≈ 436 GB), only ≈18 concurrent
-9,500-token users fit on-host for KV (436 GB ÷ 24.9 GB), before also
-reserving weight residency. This is a decisive, order-of-magnitude
-correction to the intuitive picture: long-context KV is a first-order
-memory constraint, and the architect sizes concurrency by KV capacity,
-not by the small per-layer number. Doubling context to 19,000 tokens
-pushes per-user KV to \textasciitilde47 GB and halves on-host
-concurrency to \textasciitilde9. The canonical unit-check rule
+\emph{requests} (9,500-token KV each) fit on-host for KV (436 GB ÷ 24.9
+GB), before also reserving weight residency. This is a decisive,
+order-of-magnitude correction to the intuitive picture: long-context KV
+is a first-order memory constraint, and the architect sizes concurrency
+by KV capacity, not by the small per-layer number. Doubling context to
+19,000 tokens pushes per-user KV to \textasciitilde47 GB and halves
+on-host concurrency to \textasciitilde9. The canonical unit-check rule
 (quantity/unit/formula/substitution/result/sanity) catches this class of
 error: if 9,500 tokens × \textasciitilde2.5 MB/token ≈ 24 GB does not
 reconcile with the intended \textasciitilde304 MB, the unit layer-count
@@ -346,28 +346,29 @@ values --- measure them on the target workload). \emph{Ignoring KV cache
 growth:} A 70B model with 9,500‑token contexts consumes ≈24.9 GB of KV
 per user (≈2.62 MB/token × 9,500, max end-of-generation). Without cache
 eviction, compression, or a concurrency cap, even \textasciitilde18
-concurrent users would exhaust the host's canonical practical KV budget
-(\textasciitilde436 GB after weights + runtime), so 100 concurrent
-full-context users require either multiple hosts, much shorter contexts,
-or KV compression (FP8/8-bit). Designers should implement length‑based
-eviction (drop the oldest/least‑recently‑used contexts) and KV
-quantization to cut the footprint (FP8 ≈2.5→1.3 MB/token). \emph{Using
-scaled‑dot‑product attention without FlashAttention:} For long contexts
-(9,200+ tokens) the quadratic memory cost of SDPA (O(L²)) dominates the
-FLOP cost. FlashAttention fuses read‑write‑compute and reduces HBM
-traffic by \textasciitilde3--5×, raising effective arithmetic intensity.
-This is one of the highest-impact \emph{kernel-level} choices (it sits
-among prefix caching, KV-precision, batching, and P/D disaggregation as
-a major lever, not the single deciding one), and it pays off
-specifically when memory-bound; for moderate lengths (2,000--4,000
-tokens) the HBM bandwidth reduction typically translates to a
-\textasciitilde1.3--1.8× throughput gain on H100 (illustrative --- bench
-the specific kernel on the target hardware). \emph{Neglecting kernel
-launch overhead:} In dynamic‑batching setups, each new token generation
-can trigger a kernel launch. Without continuous batching or token‑level
-fusion, the kernel-launch overhead (illustratively
-\textasciitilde10--20\,\% of GPU time on H100-class parts at this
-traffic) can artificially depress measured MFU.
+concurrent \emph{requests} would exhaust the host's canonical practical
+KV budget (\textasciitilde436 GB after weights + runtime), so 100
+concurrent full-context users require either multiple hosts, much
+shorter contexts, or KV compression (FP8/8-bit). Designers should
+implement length‑based eviction (drop the oldest/least‑recently‑used
+contexts) and KV quantization to cut the footprint (FP8 ≈2.5→1.3
+MB/token). \emph{Using scaled‑dot‑product attention without
+FlashAttention:} For long contexts (9,200+ tokens) the quadratic memory
+cost of SDPA (O(L²)) dominates the FLOP cost. FlashAttention fuses
+read‑write‑compute and reduces HBM traffic by \textasciitilde3--5×,
+raising effective arithmetic intensity. This is one of the
+highest-impact \emph{kernel-level} choices (it sits among prefix
+caching, KV-precision, batching, and P/D disaggregation as a major
+lever, not the single deciding one), and it pays off specifically when
+memory-bound; for moderate lengths (2,000--4,000 tokens) the HBM
+bandwidth reduction typically translates to a \textasciitilde1.3--1.8×
+throughput gain on H100 (illustrative --- bench the specific kernel on
+the target hardware). \emph{Neglecting kernel launch overhead:} In
+dynamic‑batching setups, each new token generation can trigger a kernel
+launch. Without continuous batching or token‑level fusion, the
+kernel-launch overhead (illustratively \textasciitilde10--20\,\% of GPU
+time on H100-class parts at this traffic) can artificially depress
+measured MFU.
 
 \section{Architecture Consequence}\label{architecture-consequence}
 

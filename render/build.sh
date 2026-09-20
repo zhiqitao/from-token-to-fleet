@@ -13,6 +13,8 @@ cd "$REPO"
 
 echo "== check_tables (fail loud on column-count mismatch) =="
 python3 render/check_tables.py
+echo "== check_md_leaks (fail loud on markdown leaking into PDF) =="
+python3 render/check_md_leaks.py
 
 echo "== md_to_latex =="
 python3 render/latex/md_to_latex.py
