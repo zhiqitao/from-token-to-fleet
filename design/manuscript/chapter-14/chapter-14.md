@@ -31,7 +31,7 @@ We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (c
 
 **Step 1 — representative queries.** We sample real user questions and run them through the rag pipeline to produce the actual prompt shapes, matching the ~9.2K-in / ~300-out token profile with the model's own tokenizer (not a heuristic). [2°]
 
-**Step 2 — measurement protocol.** We load the candidate server with the same concurrency as our peak (~40 rps / ~100 concurrent equivalent) and record, across many requests:
+**Step 2 — measurement protocol.** We load the candidate server with the same concurrency and arrival rate as our peak (~40 rps, which at the ~8.6 s canonical service time corresponds to ~344 requests in flight per Little's law — Ch 17 — not a nominal "100") and record, across many requests:
 
 - **TTFT** p50/p95/p99 (must be ≤ 1.2 s median, ≤ 2 s p95).
 - **TPOT** p50/p95 (≤ ~25 ms median).

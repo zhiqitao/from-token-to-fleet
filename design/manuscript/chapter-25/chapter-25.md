@@ -177,7 +177,7 @@ These open questions are not blockers; they are signals for when the practice ma
 
 ## 8. End-of-Chapter Mini-Case
 
-**Scenario:** The fleet serves the canonical RAG Q&A workload on an 8×H100 host. At peak the KV cache is the binding constraint: within the canonical ~436 GB practical KV budget, a full-precision FP16 KV at ~2.5 MB/token lets a single host hold ~18 concurrent 9,500-token requests. The concurrency ceiling is now limiting throughput below the target request rate.
+**Scenario:** The fleet serves the canonical RAG Q&A workload on an 8×H100 host. At peak the KV cache is the binding constraint: within the canonical ~436 GB practical KV budget, a full-precision FP16 KV at ~2.62 MB/token (the canonical per-token figure; ~2.5 MiB) lets a single host hold ~18 concurrent 9,500-token requests. The concurrency ceiling is now limiting throughput below the target request rate.
 
 **The ADR (draft):**
 
