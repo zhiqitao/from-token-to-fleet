@@ -90,13 +90,13 @@ The lesson: PP is communication-light (each stage only moves activation boundari
 
 ### Data Parallelism: Replicating, Then Syncing Gradients
 
-Data parallelism replicates the 140 GB model on every GPU. For the gradient all-reduce: if the model has 140 GB × 2 (weights + gradients) and we sync after each step across G GPUs, each GPU sends the full gradient tensor once per step. The gradient bytes are
+Data parallelism replicates the 140 GB model on every GPU. For the gradient all-reduce: if the model has 140 GB of weights and we sync gradients after each step across G GPUs, each GPU sends its gradient tensor once per step. The gradient bytes are
 
 $$
-\text{grad bytes} = 2 \times N \times \text{bytes/param} = 2 \times 70 \times 10^9 \times 4 \text{ B} \approx 280 \text{ GB}
+\text{grad bytes} = N \times \text{bytes/param} = 70 \times 10^9 \times 4 \text{ B} \approx 280 \text{ GB}
 $$
 
-per step (BF16), and the sync time is $T = \text{bytes} / B_\text{eff}$. At 25 GB/s (single 200Gb/s link) that is `280 / 25 ≈ 11 s` per step — far too slow if the step takes ~1 s. At node NVLink 900 GB/s it is `280/900 ≈ 0.31 s`. The sync cost, not compute, often caps DP at small scale unless the interconnect is fast. [1P][DERIVED]
+per step (BF16 gradient; the all-reduce moves the gradient once, not weights+gradients). The sync time is $T = \text{bytes} / B_\text{eff}$. At 25 GB/s (single 200Gb/s link) that is `280 / 25 ≈ 11 s` per step — far too slow if the step takes ~1 s. At node NVLink 900 GB/s it is `280/900 ≈ 0.31 s`. The sync cost, not compute, often caps DP at small scale unless the interconnect is fast. [1P][DERIVED]
 
 ## 4. Measurement
 
