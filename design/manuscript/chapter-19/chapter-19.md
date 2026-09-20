@@ -90,7 +90,7 @@ $$
 \alpha(3) = \frac{9{,}200 + 3\cdot800 + 3\cdot65 + 300}{9{,}200 + 300} = \frac{9{,}200 + 2{,}400 + 195 + 300}{9{,}500} = \frac{12{,}095}{9{,}500} \approx 1.27\times
 $$
 
-For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, the distribution of *T* depends on query complexity; in this illustrative scenario we take a median of 2 turns and a 90th-percentile of 4 turns [ILLUSTRATIVE assumption, not a measured distribution].
+For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, the distribution of *T* depends on query complexity. Consistent with the mini-case telemetry in §8 (68% T=1, 25% T=2, 5% T=3, 2% fallback), the illustrative turn distribution here has median *T* = 1, 90th percentile *T* = 2, and 95th percentile *T* = 3 [ILLUSTRATIVE assumption, derived from the §8 distribution].
 
 ### Tool-call latency budget
 

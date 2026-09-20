@@ -22,7 +22,7 @@ kv     = [24, 24, 6]      # GB
 
 total = [a+b for a, b in zip(weight, kv)]
 
-fig, axes = plt.subplots(3, 1, figsize=(7, 9.5))
+fig, axes = plt.subplots(3, 1, figsize=(6.5, 8.8))
 
 # Panel 1: memory SLO satisfaction (weight+KV stacked, ceiling lines)
 ax = axes[0]
@@ -34,8 +34,9 @@ ax.axhline(640, color='#27408b', ls='--', lw=1.5, label='8×H100 ceiling')
 ax.axhline(80, color='#888', ls=':', lw=1.2, label='1×H100 ceiling')
 ax.set_xticks(range(3)); ax.set_xticklabels(cands, fontsize=9)
 ax.set_ylabel('Resident memory (GB)')
-ax.set_title('(1) Memory footprint')
-ax.legend(fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=4, framealpha=0.9)
+ax.set_title('(1) Memory footprint', fontsize=11)
+# legend in clear space below the panel, 2x2 grid so entries are not on one squeezed line
+ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.16), ncol=2, frameon=False)
 ax.grid(alpha=0.3, axis='y')
 ax.set_ylim(0, 700)
 
@@ -50,14 +51,14 @@ ax.text(-w/2, 20080, '~19.8K', ha='center', fontsize=9, fontweight='bold')
 ax.text(1-w/2, 20080, '~19.8K', ha='center', fontsize=9, fontweight='bold')
 ax.set_xticks([0, 1, 2]); ax.set_xticklabels(cands, fontsize=9)
 ax.set_ylabel('Prefill throughput (tokens/s)')
-ax.set_title('(2) Prefill throughput (idealized aggregate, 8×H100 host)')
+ax.set_title('(2) Prefill throughput (idealized aggregate, 8×H100 host)', fontsize=11)
 ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, axis='y')
-ax.set_ylim(0, 24000)
-# qualitative labels where the table has no single digit
-ax.text(1.0, 6000, 'decode pool:\nbandwidth-bound\n(no digit)', ha='center',
-        fontsize=7, color='#555')
-ax.text(2.0, 6000, '(c) excluded at\nquality gate', ha='center', fontsize=7.5,
+ax.set_ylim(0, 26000)
+# qualitative labels where the table has no single digit (placed clear of the bars)
+ax.text(1.0, 15000, 'decode pool:\nbandwidth-bound\n(no digit)', ha='center',
+        fontsize=8, color='#555')
+ax.text(2.0, 15000, '(c) excluded at\nquality gate', ha='center', fontsize=8,
         color='#c0392b', fontweight='bold')
 
 # Panel 3: latency / SLO verdict (assertions, no uncertainty '?')

@@ -2,48 +2,60 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
-import math
 
 # ---- fig-22-2201: Prefill compute grows super-linearly with context; decode is flat ----
 # Canonical 70B (N = 70e9). Prefill FLOPs grow with context length:
 #   linear term: prefill FLOPs ~ 2*N*L
-#   quadratic band: attention term adds a super-linear component. Fit the band
-#   to the chapter's anchors -- +17% @ 9.2K, ~2.4x @ 128K (ILLUSTRATIVE; exact
-#   QK^T/AV scaling is architecture-dependent) -- as ratio = 1 + c*L^p.
-# Decode: ~2 N FLOPs/token (fixed, independent of context), shown on the same
-# log-y axis so the flat decode vs super-linear prefill divergence is visible.
+#   quadratic attention term (textbook, matches Ch8): 4*nl*L^2*d
+# Decode: ~2 N FLOPs/token (fixed, context-independent).
+# Because prefill is quoted PER REQUEST (grows with L) while decode is quoted PER TOKEN
+# (fixed 2N), these two are NOT unit-comparable on one absolute 0-* axis. We therefore
+# render TWO aligned panels — left: prefill per-request (linear vs linear+quadratic),
+# right: decode per-token (flat 2N) — so no reader is invited to compare their heights.
 N = 70e9
+nl, d = 80, 8192
 L = np.logspace(np.log10(0.8e3), np.log10(128e3), 400)
 lin = 2 * N * L
-p = math.log(1.4 / 0.17) / math.log(128 / 9.2)
-c = 0.17 / (9.2e3 ** p)
-quad = lin * (1.0 + c * (L ** p))
-decode = 2 * N * np.ones_like(L)          # per-token decode FLOPs, context-independent
+quad = 4 * nl * (L ** 2) * d          # exact quadratic attention term per request
+decode = 2 * N * np.ones_like(L)      # per-token decode FLOPs, context-independent
 
-fig, ax = plt.subplots(figsize=(8.5, 5.4))
-ax.semilogy(L / 1e3, lin / 1e15, color='#c0392b', lw=2.6, marker='o', ms=4,
-            label='prefill FLOPs per request (linear 2NL)')
-ax.semilogy(L / 1e3, quad / 1e15, color='#e67e22', lw=2.0, ls='--', marker='s', ms=4,
-            label='prefill incl. quadratic attention (per request)')
-ax.semilogy(L / 1e3, decode / 1e15, color='#27408b', lw=2.4, marker='^', ms=4,
-            label='decode FLOPs per generated token (fixed 2N)')
-ax.fill_between(L / 1e3, lin / 1e15, quad / 1e15, color='#e67e22', alpha=0.10)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 4.8), sharey=False)
 
-for Lk, lab in [(9.2, '9.2K canonical'), (32, '+~46% @32K'), (128, '~2.4× @128K')]:
-    v = 2 * N * Lk * 1e3
-    qv = v * (1 + c * ((Lk * 1e3) ** p))
-    ax.annotate(lab, xy=(Lk, qv / 1e15),
-                xytext=(Lk * 1.15, qv / 1e15 * 1.5), fontsize=8.5,
-                arrowprops=dict(arrowstyle='-|>', lw=1.0, color='#555'), color='#333')
+# Left panel: prefill FLOPs per request
+ax1.loglog(L / 1e3, lin / 1e15, color='#c0392b', lw=2.4,
+           label='prefill per request (linear 2NL)')
+ax1.loglog(L / 1e3, (lin + quad) / 1e15, color='#e67e22', lw=2.0, ls='--',
+           label='+ quadratic attention (4·nl·L²·d)')
+ax1.fill_between(L / 1e3, lin / 1e15, (lin + quad) / 1e15, color='#e67e22', alpha=0.10)
+for Lk, lab in [(9.2, '+17% @9.2K'), (32, '+60% @32K'), (128, '~2.4× @128K')]:
+    v = lin[0]  # placeholder; recompute at Lk
+    lk = Lk * 1e3
+    qv = (2 * N * lk + 4 * nl * (lk ** 2) * d) / 1e15
+    ax1.annotate(lab, xy=(Lk, qv), xytext=(Lk * 1.4, qv * 1.6),
+                 fontsize=8.5, arrowprops=dict(arrowstyle='-|>', lw=1.0, color='#555'), color='#333')
+ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=30)
+ax1.set_xlabel('Context length (K tokens)')
+ax1.set_ylabel('Prefill compute (PFLOP / request)')
+ax1.set_title('Prefill per request:\nlinear + quadratic attention', fontsize=9.5)
+ax1.set_ylim(1e-2, 1e3)
+ax1.grid(alpha=0.3, which='both')
+ax1.legend(fontsize=7.5, loc='upper left')
 
-ax.set_xscale('log')
-ax.set_xlabel('Context length (K tokens)')
-ax.set_ylabel('Compute (PFLOP; see series definition)')
-ax.set_title('Full-attention prefill increasingly reflects quadratic attention cost; decode is incurred token-by-token')
-ax.set_ylim(3e-5, 1e2)
-ax.grid(alpha=0.3, which='both')
-ax.legend(fontsize=8, loc='upper left')
-plt.tight_layout()
+# Right panel: decode FLOPs per token (flat, context-independent)
+ax2.loglog(L / 1e3, decode / 1e15, color='#27408b', lw=2.4)
+ax2.set_xlabel('Context length (K tokens)')
+ax2.set_ylabel('Decode compute (PFLOP / token)')
+ax2.set_title('Decode per token:\nfixed 2N (context-independent)', fontsize=9.5)
+ax2.set_ylim(1e-5, 1e-3)
+ax2.grid(alpha=0.3, which='both')
+ax2.text(1.2, 2.5e-5, '≈ 1.4e-4 PFLOP/token\n(fixed; same at all context)', fontsize=8, color='#27408b')
+
+fig.text(0.5, 0.01,
+         'Left panel is PER REQUEST; right panel is PER TOKEN — different units, do not compare directly. '
+         'The quadratic term is the textbook 4·n_layers·L²·d (matches Chapter 8). [ILLUSTRATIVE][DERIVED]',
+         ha='center', fontsize=7.8, color='#555', wrap=True)
+
+plt.tight_layout(rect=(0, 0.07, 1, 1))
 plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.png', dpi=150)
 plt.close()
-print('wrote fig-22-2201 (log-y, added decode series)')
+print('wrote fig-22-2201 (two aligned panels: per-request prefill vs per-token decode; exact quadratic term)')

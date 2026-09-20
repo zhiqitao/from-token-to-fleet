@@ -3,12 +3,15 @@
    weights 140 GB + runtime/NCCL ~64 GB + KV budget ~436 GB = 640 GB pool
    C(FP16) = 436 / 24.9 per-request KV (9.5K max) ~ 18 concurrent requests
    C(FP8)  = 436 / 13.4            ~ 33 concurrent requests
+
+   Authored at COLUMN width (6.5in) so fonts print near-native, and the tiny
+   "~64 GB runtime" label is moved OUT of its narrow segment into a call-out
+   (a ~64 GB segment is too thin to house a comfortable in-bar label).
 """
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch
 
 weights, runtime, kv = 140, 64, 436
 total = weights + runtime + kv  # 640
@@ -17,7 +20,7 @@ kv_fp8_req = 13.4
 C_fp16 = kv / kv_fp16_req
 C_fp8 = kv / kv_fp8_req
 
-fig, ax = plt.subplots(figsize=(9, 5.2))
+fig, ax = plt.subplots(figsize=(6.5, 4.6))
 
 y = 0.0
 kv_start = weights + runtime
@@ -43,25 +46,26 @@ while xx + kv_fp8_req <= total + 0.5:
     ax.axvline(xx, ymin=0.12, ymax=0.88, color='white', lw=0.5, alpha=0.5, ls=':')
     xx += kv_fp8_req
 
-# ---- In-segment labels (white, inside each segment => never overlap a neighbor) ----
+# ---- In-segment labels (white, inside the roomy segments only) ----
 ax.text(weights / 2, y, f'{weights} GB\nweights', ha='center', va='center', color='white', fontsize=9.5, fontweight='bold')
-ax.text(weights + runtime / 2, y, f'~{runtime} GB\nruntime', ha='center', va='center', color='white', fontsize=8.8, fontweight='bold')
 ax.text(kv_start + kv / 2, y, f'KV budget\n~{kv} GB', ha='center', va='center', color='white', fontsize=9.5, fontweight='bold')
+# runtime label moved OUT of the thin ~64 GB segment into a clear call-out above it
+ax.annotate('~64 GB runtime', xy=(weights + runtime / 2, y + 0.42), xytext=(weights + runtime / 2, 1.15),
+            ha='center', fontsize=9, color='#444',
+            arrowprops=dict(arrowstyle='->', color='#888', lw=1.0))
 
-# ---- Totals & derivation above/below the bars (single baseline each) ----
+# ---- Totals & derivation above/below the bars ----
 ax.text(kv_start + kv / 2, y + 0.95, f'~{kv} GB KV @ FP16 (2.62 MB/token, 9.5K max)', ha='center', va='bottom', color='#27408b', fontsize=9)
 
 # FP8 note below
 ax.text(kv_start + kv / 2, y8 - 0.55, f'FP8 KV: ~{C_fp8:.0f} slots (436 ÷ {kv_fp8_req:.1f} GB/request)', ha='center', va='top', color='#6f9e5f', fontsize=9.5, style='italic')
 
-# Concurrency derivation callout to the right
-ax.annotate(f'C ≈ {C_fp16:.0f} concurrent\nrequests @ FP16\n(436 ÷ {kv_fp16_req:.1f} GB/request)',
-            xy=(total, y), xytext=(total + 18, y + 0.1), fontsize=9.5, color='#27408b',
-            ha='left', va='center', arrowprops=dict(arrowstyle='->', color='#27408b', lw=1.1))
-ax.text(total + 18, y - 0.75, '8×H100 pool = 640 GB', fontsize=9, color='#666', ha='left', va='center')
+# Concurrency derivation callout to the right (clear of the bar end)
+ax.text(total + 12, y + 0.15, f'C ≈ {C_fp16:.0f} concurrent\nrequests @ FP16\n(436 ÷ {kv_fp16_req:.1f} GB/request)', fontsize=9.5, color='#27408b', ha='left', va='center')
+ax.text(total + 12, y - 0.75, '8×H100 pool = 640 GB', fontsize=9, color='#666', ha='left', va='center')
 
 ax.set_xlim(-5, total + 95)
-ax.set_ylim(-2.4, 1.6)
+ax.set_ylim(-2.6, 1.6)
 ax.set_yticks([y, y8])
 ax.set_yticklabels(['FP16 KV', 'FP8 KV'], fontsize=10)
 ax.set_xlabel('on-host HBM (GB, per 8×H100 host)', fontsize=10.5)
@@ -72,4 +76,4 @@ ax.spines['right'].set_visible(False)
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.png', dpi=150)
 plt.close()
-print('wrote fig-07-0704')
+print('wrote fig-07-0704 (column width; runtime label moved out of thin segment)')

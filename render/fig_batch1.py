@@ -65,7 +65,7 @@ size = np.logspace(-2, 2, 200)      # GB
 bw = {'NVSwitch (1.8 TB/s)': 1800, 'NVLink (0.9 TB/s)': 900,
       'InfiniBand (0.4 TB/s)': 400, 'Ethernet (0.1 TB/s)': 100}
 data_per_byte = 2.0   # all-reduce ~2x data across the tree
-fig, ax = plt.subplots(figsize=(9, 5.5))
+fig, ax = plt.subplots(figsize=(6.5, 5.0))
 cols = {'NVSwitch (1.8 TB/s)': ('#27408b', '-', 'o'),
         'NVLink (0.9 TB/s)': ('#3a6ea5', '--', 's'),
         'InfiniBand (0.4 TB/s)': ('#e67e22', '-.', '^'),
@@ -76,15 +76,16 @@ for name, b in bw.items():
     ax.loglog(size, t*1000, color=c, ls=ls, marker=mk, markevery=30,
               lw=2, label=name, markersize=4)  # ms
 ax.axvline(140, color='#555', ls='--', lw=1.5)   # 140 GB = 70B model FP16
-ax.annotate('140 GB (70B weights)', xy=(140, 5e4), xytext=(8, 2e4),
+ax.annotate('140 GB (70B weights)', xy=(140, 5e4), xytext=(1.6, 1.4e5),
             arrowprops=dict(arrowstyle='->'), fontsize=9)
 ax.set_xlabel('Data volume (GB)')
 ax.set_ylabel('All-reduce completion time (ms)')
-ax.set_title('All-reduce time vs data volume,\nby interconnect tier', fontsize=11)
-ax.legend(fontsize=8.5)
+ax.set_title('All-reduce time vs data volume,\nby interconnect tier', fontsize=10.5)
+# legend OUTSIDE the axes (below) so it does not occlude the data
+ax.legend(fontsize=8.5, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=2, frameon=False)
 ax.grid(alpha=0.3, which='both')
 ax.set_xlim(0.005, 200); ax.set_ylim(1, 2e6)
-plt.tight_layout()
+plt.tight_layout(rect=(0, 0.08, 1, 1))
 plt.savefig(base % (9, 9, 9), dpi=150); plt.close()
 print('Ch09 done')
 

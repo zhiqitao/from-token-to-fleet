@@ -116,62 +116,51 @@ roughly doubling headroom before buying hardware. This is why the
 architect treats KV precision as a first-class capacity dial, not a
 cosmetic detail.
 
-\textbf{Threshold for fleet expansion.} Suppose the agentic layer from
-Chapter\,19 is added, with a median of 2 turns and a 95th‑percentile of
-4 turns. Each turn adds \textasciitilde800 tokens of retrieved context
-and \textasciitilde65 tokens of model-generated reasoning, so the
-effective per‑request token count is
-
-\[
+Threshold for fleet expansion.** Suppose the agentic layer from \hyperref[chap:19]{Chapter 19} is added. \hyperref[chap:19]{Chapter 19}'s own telemetry puts the turn distribution at
+68\% terminating in T=1, 25\% in T=2, 5\% in T=3, and 2\% exceeding the
+turn limit (falling back to single-shot). That makes the \textbf{median}
+turn count T=1 (68\% of requests finish on the first turn) and the
+\textbf{95th percentile} T=3 (cumulative 68+25+5 = 98\% by T=3). Each
+turn adds \textasciitilde800 tokens of retrieved context (delta) and
+\textasciitilde65 tokens of model-generated reasoning (gamma), so the
+effective per-request token count is \[
 I(T) = I_0 + T(\delta + \gamma) + O_\text{final} = 9{,}200 + T \times 865 + 300
-\]
-
-\begin{itemize}
-\tightlist
-\item
-  Median (T=2):
-  \(I(2) = 9{,}200 + 2 \times 800 + 2 \times 65 + 300 = 10{,}630\)
-  tokens
-\item
-  95th percentile (T=4):
-  \(I(4) = 9{,}200 + 4 \times 800 + 4 \times 65 + 300 = 12{,}740\)
-  tokens
-\end{itemize}
+\] - Median (T=1):
+\(I(1) = 9{,}200 + 1 \times 800 + 1 \times 65 + 300 = 10{,}365\) tokens
+- 95th percentile (T=3):
+\(I(3) = 9{,}200 + 3 \times 800 + 3 \times 65 + 300 = 12{,}095\) tokens
+- Worst case (T=4, the rare tail beyond the 95th):
+\(I(4) = 9{,}200 + 4 \times 800 + 4 \times 65 + 300 = 12{,}960\) tokens
 
 The KV cache per request rises proportionally, and per-host concurrency
-capacity follows from the Ch17 formula \(C = M_{kv}/(I(T)\kappa)\):
-
-\begin{itemize}
-\tightlist
-\item
-  at T=2:
-  \(10{,}630 \times 2.62 \text{ MB} \approx 27.9 \text{ GB/request} \Rightarrow C \approx 16\)
-  concurrent
-\item
-  at T=4:
-  \(12{,}740 \times 2.62 \text{ MB} \approx 33.4 \text{ GB/request} \Rightarrow C \approx 13\)
-  concurrent
-\end{itemize}
+capacity follows from the Ch17 formula \(C = M_{kv}/(I(T)\kappa)\): - at
+T=1 (median):
+\(10{,}365 \times 2.62 \text{ MB} \approx 27.2 \text{ GB/request} \Rightarrow C \approx 16\)
+concurrent - at T=3 (95th):
+\(12{,}095 \times 2.62 \text{ MB} \approx 31.7 \text{ GB/request} \Rightarrow C \approx 14\)
+concurrent - at T=4 (worst case):
+\(12{,}960 \times 2.62 \text{ MB} \approx 34.0 \text{ GB/request} \Rightarrow C \approx 13\)
+concurrent
 
 Even the \emph{median} agentic request already drops a single host below
-the 40-concurrent peak demand, so the fleet is required under almost any
-agentic assumption.
-
-\textbf{Scaling forecast (service-time-aware).} Because the canonical
-workload's service time is \textasciitilde8.6 s --- not a
-\textasciitilde1 s latency --- the in-flight concurrency at the 40 rps
-peak is λ\_peak × W ≈ 40 × 8.6 ≈ \textbf{344 requests}, not 40. With
-FP16 KV (baseline C≈18), the fleet needs ⌈344/18⌉ ≈ \textbf{20 hosts} at
-full utilization (≈28 at the 70\% utilization target). Agentic turns
-make this strictly worse: each additional turn adds \textasciitilde800
-tokens of context (lowering C) and more generated tokens (raising W), so
-the agentic T=4 case needs a larger fleet still (C≈13 and a longer W).
-The load balancer distributes λ/N rps per host and λ·W/N concurrent per
-host, and each host's per-host KV usage must stay comfortably under its
-C. This is the fleet point: hosts are added because \emph{concurrency in
-flight × KV-per-request} exceeds a single host's residency --- and
-concurrency in flight must be computed from the full service time, not a
-target latency.
+the 40-concurrent peak demand (C≈16 \textless{} the in-flight
+concurrency needed at peak), so the fleet is required under almost any
+agentic assumption. \textbf{Scaling forecast (service-time-aware).}
+Because the canonical workload's service time is \textasciitilde8.6 s
+--- not a \textasciitilde1 s latency --- the in-flight concurrency at
+the 40 rps peak is λ\_peak × W ≈ 40 × 8.6 ≈ \textbf{344 requests}, not
+40. With FP16 KV (baseline C≈18), the fleet needs ⌈344/18⌉ ≈ \textbf{20
+hosts} at full utilization (≈28 at the 70\% utilization target). Agentic
+turns make this strictly worse: each additional turn adds
+\textasciitilde800 tokens of context (lowering C) and more generated
+tokens (raising W), so the agentic T=3 case needs a larger fleet still
+(C≈14 in the 95th-percentile case and a longer W). The load balancer
+distributes λ/N rps per host and λ·W/N concurrent per host, and each
+host's per-host KV usage must stay comfortably under its C. This is the
+fleet point: hosts are added because \emph{concurrency in flight ×
+KV-per-request} exceeds a single host's residency --- and concurrency in
+flight must be computed from the full service time, not a target
+latency.
 
 \textbf{Cross-host communication.} In the canonical scenario, requests
 are independent --- no user session spans multiple hosts. If an agentic
@@ -221,11 +210,16 @@ that trips unit analysis):
   For T = 0 (baseline, I = 9,500): C = 436 GB / (9,500 ×2.62 MB) ≈
   436/24.9 ≈ \textbf{18 concurrent requests per host}.
 \item
-  For T = 2 (median): C = 436 GB / (10,630 ×2.62 MB) ≈ 436/27.9 ≈
-  \textbf{16 concurrent requests per host}.
+  For T = 1 (median, per the \hyperref[chap:19]{Chapter 19} distribution; 68\% terminate on
+  turn 1): C = 436 GB / (10,365 ×2.62 MB) ≈ 436/27.2 ≈ \textbf{16
+  concurrent requests per host}.
 \item
-  For T = 4 (95th percentile): C = 436 GB / (12,740 ×2.62 MB) ≈ 436/33.4
-  ≈ \textbf{13 concurrent requests per host}.
+  For T = 3 (95th percentile; cumulative 98\% by T=3): C = 436 GB /
+  (12,095 ×2.62 MB) ≈ 436/31.7 ≈ \textbf{14 concurrent requests per
+  host}.
+\item
+  For T = 4 (worst-case tail beyond the 95th): C = 436 GB / (12,960
+  ×2.62 MB) ≈ 436/34.0 ≈ \textbf{13 concurrent requests per host}.
 \end{itemize}
 
 These numbers are the KV-residency ceiling; measured concurrency may be
