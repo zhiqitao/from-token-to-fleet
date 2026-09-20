@@ -182,7 +182,7 @@ These open questions are not blockers; they are signals for when the practice ma
 
 - **Title:** ADR 0017 — KV Cache Precision: FP16 vs FP8
 - **Status:** Proposed
-- **Context:** The canonical 70B RAG workload is KV-memory-bound at decode (Ch. 15). At the ~436 GB practical KV budget, full FP16 KV caps concurrency at ~18 requests/host, and Ch. 17 shows that ~40 rps at ~1 s per request implies ~40 in-flight requests — more than one host can hold. To reach the target request rate we need either more host capacity or more KV residency per host.
+- **Context:** The canonical 70B RAG workload is KV-memory-bound at decode (Ch. 15). At the ~436 GB practical KV budget, full FP16 KV caps concurrency at ~18 requests/host, and Ch. 17 shows that ~40 rps at the canonical ~8.6 s service time implies ~344 in-flight requests — far more than one host can hold (a single host holds ~18 concurrent). To reach the target request rate we need either more host capacity or more KV residency per host.
 - **Decision:** Render the KV cache in FP8 for the long-context decode path, keeping prefill and the retrieval/prompt phase in FP16. FP8 KV cuts KV residency to ~54% of the FP16 figure (vLLM's measured FP8-KV ratio), so the same ~436 GB budget holds ~33 concurrent 9,500-token requests instead of ~18 — roughly doubling per-host concurrency without adding a host.
 - **Consequences:**
   - Positive: KV residency per request falls from ~24.9 GB (FP16) to ~13.4 GB (FP8, 54% of BF16) at the 9,500-token max, so the canonical budget supports ~33 concurrent rather than ~18. This is a memory lever, not a compute lever: it does not change decode speed per token, it raises the concurrency the host can hold under the same KV budget.
