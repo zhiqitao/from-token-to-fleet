@@ -8,17 +8,18 @@ After this chapter we should be able to sit with a customer or stakeholder who s
 
 Most AI projects fail in requirements, not in technology. The root cause is a **category error**: the customer and the architect mean different things by the same words. "Fast," "good," "smart," and "it should just work" are not contracts; they are vibes. The architect's first job is to convert vibes into **quantified, testable bounds** using the disciplines of the earlier chapters.
 
-The conversion rests on one idea: **every architectural decision traces back to a number the customer can see.** Whether the model is 7B or 70B, whether we self-host or use an API, whether we cache, quantize, or disaggregate — all of it is decided by five numbers we can extract from a customer conversation:
+The conversion rests on one idea: **every architectural decision traces back to a number the customer can see.** Whether the model is 7B or 70B, whether we self-host or use an API, whether we cache, quantize, or disaggregate — all of it is decided by six numbers we can extract from a customer conversation:
 
 1. **The traffic** — how many users, at what concurrency, with what peak-to-average ratio (Ch4/Ch17).
 2. **The token profile** — what inputs look like, how long contexts are, the input/output ratio (Ch4/Ch6).
-3. **The quality bar** — what "good enough" means on *this* task, on *their* data (Ch3/Ch5/Ch14).
-4. **The latency/cost budget** — the SLO and the money they can spend (Ch6/Ch16).
-5. **The operational reality** — data privacy, geography, available staff, time-to-value (Ch13/Ch21/Ch24).
+3. **The latency/SLO** — what "fast" means, the percentile and the budget (Ch6).
+4. **The quality bar** — what "good enough" means on *this* task, on *their* data (Ch3/Ch5/Ch14).
+5. **The cost ceiling** — the money they can spend, and whether that implies self-host or API (Ch16).
+6. **The operational reality** — data privacy, geography, available staff, time-to-value (Ch13/Ch21/Ch24).
 
 ## 2. Mental Model
 
-Think of the customer conversation as **buying information, not delivering answers.** We are not in the room to impress; we are in the room to learn the five numbers. Three mental moves keep the conversation productive:
+Think of the customer conversation as **buying information, not delivering answers.** We are not in the room to impress; we are in the room to learn the six numbers. Three mental moves keep the conversation productive:
 
 - **The Socratic funnel.** Start broad ("what problem are we solving?") and narrow through a scripted set of questions that each commit the customer to a concrete bound. Every "vague" answer gets followed by a request for magnitude: "roughly how many users?" "what's the slowest acceptable answer?"
 - **The mirror test.** Restate their words back as a quantified requirement and check they still agree. "So: ~2,000 users, under 2 seconds to first token, on company-internal data — did I get that right?" The restatement is where scope actually gets locked.
@@ -72,14 +73,14 @@ Think of the customer conversation as **buying information, not delivering answe
 
 The requirements dialogue has its own quality metrics:
 
-1. **Bound coverage** — did the conversation surface all five numbers (traffic, tokens, quality, latency/cost, ops)? Missing one is a future scope surprise.
+1. **Bound coverage** — did the conversation surface all six numbers (traffic, tokens, SLO, quality, cost, ops)? Missing one is a future scope surprise.
 2. **Customer buy-in** — did the mirrored restatement get an explicit "yes"? An unconfirmed restatement is not a scope.
-3. **Decision lead time** — how quickly the five bounds let us produce a defensible draft architecture. The whole point is that extracting numbers, not more meetings, unlocks the design.
+3. **Decision lead time** — how quickly the six bounds let us produce a defensible draft architecture. The whole point is that extracting numbers, not more meetings, unlocks the design.
 4. **Assumption log** — every guess we made that the customer did not explicitly confirm, tracked as (to be verified) items, not silent defaults.
 
 ## 5. Common Mistakes
 
-- **Selling before scoping.** Pitching a model or a price before extracting the five numbers commits us to an answer we cannot yet defend.
+- **Selling before scoping.** Pitching a model or a price before extracting the six numbers commits us to an answer we cannot yet defend.
 - **Accepting aspirations as SLOs.** "Make it fast" is a goal; "p95 TTFT under 2 s" is a contract. Write the contract.
 - **Letting the customer choose the technology.** "We want a 70B model" is a solution, not a requirement; the architect derives the model from the bounds (Ch5), not from the customer's guess.
 - **Ignoring the operational constraint.** "It has to be on-prem / private / no cloud" often decides more than any performance number — surface it early.
@@ -87,13 +88,13 @@ The requirements dialogue has its own quality metrics:
 
 ## 6. Architecture Consequence
 
-The requirements conversation is where the book's entire loop is *fed.* The five bounds it extracts are exactly the inputs Ch1-16 consume: traffic feeds capacity (Ch17), tokens feed KV/memory (Ch7), quality feeds model selection (Ch5), latency feeds serving (Ch11), cost feeds TCO (Ch16), and the operational constraint picks the tier (Ch13). A good requirements session is not a warm-up to architecture — it *is* the first chapter of the architecture, and every downstream decision traces back to the numbers it locked. [2°]
+The requirements conversation is where the book's entire loop is *fed.* The six bounds it extracts are exactly the inputs Ch1-16 consume: traffic feeds capacity (Ch17), tokens feed KV/memory (Ch7), quality feeds model selection (Ch5), latency feeds serving (Ch11), cost feeds TCO (Ch16), and the operational constraint picks the tier (Ch13). A good requirements session is not a warm-up to architecture — it *is* the first chapter of the architecture, and every downstream decision traces back to the numbers it locked. [2°]
 
 ![Fig 23.1 — From vague ask to architectural bounds [ILLUSTRATIVE conceptual]](figures/fig-23-2301.png)
 
-*The framing funnel: broad ask → five Socratic questions (problem, success, data, constraints, scope) → confirmed bounds. This is the *dialogue* that surfaces requirements; the *six* architectural surfaces in Table 23-1 are what each answer reveals (traffic, token profile, SLO, quality, ops/tier, TCO). [ILLUSTRATIVE conceptual]*
+*The framing funnel: broad ask → six Socratic questions (problem, success, data, constraints, scope) → confirmed bounds. This is the *dialogue* that surfaces requirements; the *six* architectural surfaces in Table 23-1 are what each answer reveals (traffic, token profile, SLO, quality, ops/tier, TCO). [ILLUSTRATIVE conceptual]*
 
-<!-- Figure spec: mechanism-first funnel diagram; top = vague ambition; five labeled question gates narrow it; bottom = quantified scope feeding the architecture loop. -->
+<!-- Figure spec: mechanism-first funnel diagram; top = vague ambition; six labeled question gates narrow it; bottom = quantified scope feeding the architecture loop. -->
 
 ## 7. What We Still Don't Know
 

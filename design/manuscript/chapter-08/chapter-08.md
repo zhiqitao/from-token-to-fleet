@@ -50,7 +50,7 @@ $$
 \text{prefill FLOPs} \approx 2 \times N \times L = 2 \times 70 \times 10^9 \times 9.2 \times 10^3 \approx 1.29 \text{ PFLOP}
 $$
 
-[DERIVED: 2 ×N × L where N=70B, L=9,200; reconciles with Ch.2 scaling law if the full 14.8T-token pre-train budget is distributed across active parameters; the figure is large because the full context is attended to, but it is a one-time cost per request, not a sustained rate]
+[DERIVED: 2 × N × L where N=70B, L=9,200; the figure is large because the full context is attended to, but it is a one-time cost per request, not a sustained rate]
 
 *Accuracy of the 2 ×N × L approximation.* This linear prefill count omits the quadratic attention term, $\approx 4 \times n_\text{layers} \times L^2 \times d$. At the canonical 9.2K context that correction is small — roughly **+17%** of the 1.29 PFLOP — so the 2NL roofline is a sound teaching baseline there. But the omission grows with context: at 32K the attention term is ~**+60%** and at 128K it *dominates* (~2.4× the linear term). An architect sizing long-context prefill must add the quadratic term or measure it; the Unknowns section returns to this.
 
@@ -62,7 +62,7 @@ $$
 
 [DERIVED]
 
-**Table 8-1** — Per-token FLOP cost and prefill PFLOP for the canonical 70B workload. *(Per-token FLOP and prefill PFLOP computations are [ILLUSTRATIVE][DERIVED] from 2 × params × tokens; hardware peaks [1P: vendor datasheet] or [1P][FACT]; the 30–40% MFU range is [2°: industry benchmarks]; the ~295 FLOP/byte ridge is [2°][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s.)*  | metric | value | derivation |
+**Table 8-1** — Per-token FLOP cost and prefill PFLOP for the canonical 70B workload. *(Per-token FLOP and prefill PFLOP computations are [ILLUSTRATIVE][DERIVED] from 2 × params × tokens; hardware peaks [1P: vendor datasheet] or [1P][FACT]; the 30–40% MFU range is [2°: industry benchmarks]; the ~295 FLOP/byte ridge is [2°][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s.)*
 
 | metric | value | derivation |
 |---|---|---|

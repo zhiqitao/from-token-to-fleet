@@ -74,7 +74,7 @@ A practical pitfall: measuring only aggregate QPS without tracking per-host vari
 
 - **Autoscaling too aggressively**: Adding hosts at the first sign of latency increase can be suboptimal if the bottleneck is scheduler throughput or cache contention, not compute capacity. Measure the marginal cost of adding a host before triggering a scale-out event.
 
-- **Ignoring cold-start cost**: When a host is freshly provisioned or re-warmed after idle, model loading takes 30–120 seconds. Autoscaling policies must account for this warm-up window; otherwise, the fleet experiences a spike in error rate or timeout during scale-out events.
+- **Ignoring cold-start cost**: When a host is freshly provisioned or re-warmed after idle, loading the full model weights into HBM takes 30–120 seconds (a weight-load figure; distinct from the much shorter KV-cache warm-up of ~2 s discussed in Chapter 15, which re-populates only the retained KV state). Autoscaling policies must account for this weight-load warm-up window when scaling out a fresh host; otherwise the fleet experiences a spike in error rate or timeout during scale-out events.
 
 ## 6. Architecture Consequence
 

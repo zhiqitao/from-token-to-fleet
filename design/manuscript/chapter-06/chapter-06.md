@@ -46,7 +46,7 @@ A very common measurement error is reporting (and SLO-ing) the *average* latency
 $$
 \mathbb{E}[L] \approx 0.99 \times 0.8 + 0.01 \times 5.0 \approx 0.84 \text{ s}
 $$
-— looks fine. But the distribution actually has a long tail: p50 ≈ 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s. The mean hides the tail; percentiles expose it. With a p99 TTFT SLO of ≤ 2 s, none of these percentiles alone breach the budget — it is the 1% stragglers pushed out to ~5 s (beyond the 99th percentile, and shaded red in the figure) that actually cross the 2 s line. (A p95 threshold would not be breached either — p95 stays near 1 s — because a p95 budget fails only when more than ~5% of observations cross it; but the p99 reading is what brings the 1% tail into view, which is why we show it explicitly.)
+— looks fine. But the distribution actually has a long tail: p50 ≈ 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s. The mean hides the tail; percentiles expose it. Under the canonical p95 TTFT SLO of ≤ 2 s, none of these percentiles alone breach the budget — it is the 1% stragglers pushed out to ~5 s (beyond the 99th percentile, and shaded red in the figure) that actually cross the 2 s line. The p99 reading is what brings the 1% tail into view (even though p95 is the SLO percentile), which is why we show it explicitly.
 
 
 ![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean](figures/fig-06-0602.png)

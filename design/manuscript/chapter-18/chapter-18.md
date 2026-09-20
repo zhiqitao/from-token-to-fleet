@@ -40,7 +40,7 @@ The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200�
 
 ## 3. Worked Example
 
-**Scenario:** ~2,000 users, ~5% concurrent (≈100 simultaneous), ~10 rps average / ~40 rps peak. Total token volume: ~9,200 in + ~300 out per hour. Base hardware: 8×H100, 640 GB total VRAM. Model families: a 70B dense FP16, a 70B MoE (16 experts, 2 active), and a family of 8-bit/4-bit quantized models (70B equivalent).
+**Scenario:** ~2,000 users, ~5% concurrent (≈100 simultaneous), ~10 rps average / ~40 rps peak. Total token volume per request: ~9,200 in + ~300 out per hour. Base hardware: 8×H100, 640 GB total VRAM. Model families: a 70B dense FP16, a 70B MoE (16 experts, 2 active), and a family of 8-bit/4-bit quantized models (70B equivalent).
 
 ### 3.1. Hardware capacity mapping
 
@@ -82,7 +82,7 @@ For 1,000 requests/hour (≈0.28 rps — a light illustrative load; the arithmet
 
 **Mixed-fleet hourly cost** = $8.31 + $1.90 + $2.38 = **$12.59 / hour** vs. $23.75 / hour for single-FP16 (all 9.5M tokens at $2.50).
 
-**Monthly savings** ≈ ($23.75 − $12.59) × 730 hr ≈ **$8,100 / month** (≈ 47% reduction) with comparable quality because the 8-bit model meets quality thresholds for >90% of requests.
+**Monthly savings** ≈ ($23.75 − $12.59) × 720 hr ≈ **$8,100 / month** (≈ 47% reduction) with comparable quality because the 8-bit model meets quality thresholds for >90% of requests.
 
 ### 3.4. Latency check
 
@@ -98,7 +98,7 @@ The latency and capacity must also reconcile with the canonical workload's KV re
 
 ### 3.5. Consolidation vs. separation decision
 
-- **Consolidate** when: workload profile overlap >70%, latency tolerance ≥300 ms, and cost differential >30%. *Verified*: our scenario consolidates 70% of traffic to 8-bit, saving ~$8/hr.
+- **Consolidate** when: workload profile overlap >70%, latency tolerance ≥300 ms, and cost differential >30%. *Verified*: our scenario consolidates 70% of traffic to 8-bit, saving ~$11.16/hr ($23.75 − $12.59, the §3.3 derived figure).
 - **Keep separate** when: (a) security/classification policies require isolation, (b) workloads have bimodal latency needs (some ≤50 ms, others batch-tolerant), or (c) model versioning cadence differs (e.g., frequent fine-tuning on one family, stable other).
 
 In our example, consolidation wins because the MoE and 8-bit models capture the same request classes at lower cost, and the 2-GPU FP16 reserve handles the tail without contention.
@@ -109,7 +109,7 @@ To operate a mixed fleet we measure four cross-cutting metrics:
 
 | Metric | How to measure | Why it matters |
 |-------|----------------|----------------|
-| **Weighted average cost/token** | Σ(tokens_i × cost_i) / Σ(tokens_i) across all models | Directly tracks fleet economics; target < $0.002/token for competitive SaaS. |
+| **Weighted average cost/token** | Σ(tokens_i × cost_i) / Σ(tokens_i) across all models | Directly tracks fleet economics; target under the §3.2 per-1M basis (e.g. < $2.50/1M for the FP16 tier) for competitive SaaS. |
 | **Per-model throughput** | requests/sec per GPU / per CPU node | Detects saturation; informs capacity adds vs. routing tweaks. |
 | **Routing accuracy** | % of requests served by the *intended* target model (not fallback) | Ensures the routing function R() is well-calibrated; low accuracy means feature gaps or cost model drift. |
 | **Latency p95 per model** | p95 of token-level latency per model | Guarantee SLA per tier; fleet p95 must be computed from the combined routed-request latency distribution — per-model p95 values cannot in general be averaged (percentiles are not linearly composable). |
@@ -151,7 +151,7 @@ The fleet operator becomes a *cost‑latency steward* rather than a single-model
 - **Tier 2 (70B 8-bit dense):** Handles 15% of queries (order status, policy look‑up). Runs on 1×H100. Cost: $0.0015/token, latency ~250 ms.
 - **Tier 3 (70B FP16):** Handles 5% of queries (complex escalations, multilingual). Runs on 2 GPUs reserved. Cost: $0.003/token, latency ~120 ms.
 
-**Arithmetic:** 1,000 users, 20% concurrent (200 simultaneous), ~5 rps average / 20 rps peak. Hourly tokens: ~4,500 in + 500 out = 5,000.
+**Arithmetic:** 1,000 users, 20% concurrent (200 simultaneous), ~5 rps average / 20 rps peak. Hourly tokens: ~4,500 in + 500 out = 5,000. *(Scope note: these tier per-token rates are illustrative scenario values on a per-token basis, distinct from — and not directly comparable to — the per-1M-token ledger in §3.2; the mini-case uses them to demonstrate the routing economics, and a real deployment would price from the §3.2 per-1M basis.)*
 
 - Tier 1 processes 4,000 tokens/hr → $0.80
 - Tier 2 processes 750 tokens/hr → $1.13

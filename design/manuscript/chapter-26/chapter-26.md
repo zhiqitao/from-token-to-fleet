@@ -28,10 +28,10 @@ The canonical RAG scenario is one point in a much larger design space (Chapter 1
 | Batch inference | Long | Long | Utilization / cost | Offline batching, FP8, higher batch occupancy (Ch. 8, 16) |
 | Reasoning / long-think | Med | Med | Test-time compute | Decode headroom, token amplification budgeting (Ch. 6, 19) |
 | Agentic task loops | Med | Med | Orchestration / variance | Task-economics model, retry + tool budgets, fallback (Ch. 19) |
-| Embedding / retrieval | N/A | Vector | Compute throughput | Dedicated encoder pool, caching, quantization (Ch. 3, 26) |
+| Embedding / retrieval | N/A | Vector | Compute throughput | Dedicated encoder pool, caching, quantization (Ch. 3) |
 | Vision-language | Med | Med | Multimodal preprocess + compute | Preprocess pipeline, fused kernels (Ch. 5, 20) |
 | Fine-tuning | N/A | N/A | Memory + interconnect | Precised-optimizer (LoRA/QLoRA) before full FT; gradient checkpointing (Ch. 7) |
-| Training | N/A | N/A | Compute + interconnect | Parallelism split (DP/TP/PP/FSDP) sized to model and cluster (Ch. 10, 21) |
+| Training | N/A | N/A | Compute + interconnect | Parallelism split (DP/TP/PP/FSDP) sized to model and cluster (Ch. 10) |
 | Real-time multimodal | Med | Low-latency | Latency + pipeline sync | Chunked prefill, streaming decode, P/D (Ch. 8, 20) |
 
 New workloads are evaluated by *locating the dominant constraint*, not by matching the canonical row count. The matrix answers "where does the SLO saturate first?" — and that single question routes to the correct strategy class, keeping the canonical case a teaching instrument rather than a ceiling.
@@ -56,7 +56,7 @@ Take the canonical deployment: ~2,000 registered users with ~5% concurrently act
 
 Quantitative verification is non-negotiable. For each pattern, define the minimal FACT set that proves the pattern works in production:
 
-**Table 26-2** — Pattern measurement targets and observed values.
+**Table 26-1** — Pattern measurement targets and observed values.
 
 | Pattern | FACT 1 | FACT 2 | FACT 3 |
 |---|---|---|---|
@@ -98,7 +98,7 @@ These open questions define the next research cycle. Each is framed as a HYPOTHE
 
 **Step 4 — Document.** The pattern instance — 8×H100 shard + semantic response cache + circuit breaker with 2-s grace period — is recorded in the Patterns Library as Tab 26.1, ready for the next fleet expansion.
 
-**Table 26-1** — Pattern Instance: Sharded RAG Serving
+**Table 26-2** — Pattern Instance: Sharded RAG Serving
 
 | Component | Configuration | FACT Target | DERIVED Observed |
 |---|---|---|---|

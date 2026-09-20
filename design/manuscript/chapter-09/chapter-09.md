@@ -42,11 +42,11 @@ $$
 T_{\text{collective}} \approx \alpha \times n_\text{steps} + \frac{\text{bytes}}{\beta}
 $$
 
-where $\alpha$ is the per-step latency (message setup, synchronization), $\beta$ is the achieved (not peak) bandwidth, and $n_\text{steps}$ is the number of message-passing/reduction hops. (For a flat transfer $n_\text{steps}=1$.) The 0.16 s figure uses only the $\text{bytes}/\beta$ term at peak bandwidth; real NCCL all-reduce on NVLink lands tens of % above it once per-step overhead, ring stages, and topology routing are included. So treat the `bytes ÷ bandwidth` form as a *sizing lower bound*, and reserve measured `nccl-tests` numbers (Section 4) for capacity decisions. The relative ranking between interconnects is what matters most here: if those same 140 GB travel over a 200 Gb/s HDR InfiniBand link (≈ 25 GB/s effective unidirectional) it is ≈ 2.8 s — 18× longer; over 25 Gb/s Ethernet (≈ 3 GB/s unidirectional) ≈ 47 s. The interconnect choice is a first-order determinant of wall-clock time in all cases.
+where $\alpha$ is the per-step latency (message setup, synchronization), $\beta$ is the achieved (not peak) bandwidth, and $n_\text{steps}$ is the number of message-passing/reduction hops. (For a flat transfer $n_\text{steps}=1$.) The 0.16 s figure uses only the $\text{bytes}/\beta$ term at peak bandwidth; real NCCL all-reduce on NVLink lands tens of % above it once per-step overhead, ring stages, and topology routing are included. So treat the `bytes ÷ bandwidth` form as a *sizing lower bound*, and reserve measured `nccl-tests` numbers (Section 4) for capacity decisions. The relative ranking between interconnects is what matters most here: if those same 140 GB travel over a 200 Gb/s HDR InfiniBand link (≈ 25 GB/s effective unidirectional) it is ≈ 5.6 s — ~35× longer; over 25 Gb/s Ethernet (≈ 3 GB/s unidirectional) ≈ 47 s. The interconnect choice is a first-order determinant of wall-clock time in all cases.
 
 ![Fig 9.1 — All-reduce time vs data volume, by interconnect tier [1P][DERIVED]](figures/fig-09-0901.png)
 
-*All-reduce completion time as a function of data volume (x-axis, log GB) and interconnect effective bandwidth. The four lines — NVSwitch 1.8 TB/s, NVLink 0.9 TB/s, InfiniBand 0.4 TB/s, Ethernet 0.1 TB/s — are peak-bandwidth lower bounds (α/β caveat in §9.3); the dashed marker sits at the 140 GB weight footprint of a 70B model (≈ 70 GB of weights in BF16 across 8 participants). [ILLUSTRATIVE][DERIVED]*
+*All-reduce completion time as a function of data volume (x-axis, log GB) and interconnect effective bandwidth. The four lines — NVSwitch 1.8 TB/s, NVLink 0.9 TB/s, InfiniBand 0.4 TB/s, Ethernet 0.1 TB/s — are peak-bandwidth lower bounds (α/β caveat in §9.3); the dashed marker sits at the 140 GB weight footprint of a 70B model in BF16. [ILLUSTRATIVE][DERIVED]*
 <!-- Figure spec: mechanism-first — illustrate how all-reduce data flows through the interconnect hierarchy (PCIe → NVLink → NVSwitch → InfiniBand → Ethernet), with bandwidth numbers from the text annotated on each link. Used to explain the arithmetic in §9. Concept. -->
 
 ## 3. Worked Example
@@ -93,7 +93,7 @@ The key invariant: always measure on the same hardware and software stack that t
 
 - **Assuming peak bandwidth is sustained.** PCIe Gen5 x16 peaks at ~64 GB/s, but a single all-reduce never saturates the full link because the traffic is split across multiple GPUs and multiple links. Measured effective bandwidth is typically 40–60% of peak; design against the measured number, not the spec sheet peak.
 
-- **Placing all-reduce on Ethernet without a bandwidth budget.** A 70B model gradient all-reduce at 25 Gb/s takes ~56 s per step. If the training runs 1,000 iterations, that is ~56,000 s (15.5 hours) spent exclusively in communication. Always compute the per-iteration communication cost before committing to a lower-bandwidth fabric.
+- **Placing all-reduce on Ethernet without a bandwidth budget.** A 70B model gradient all-reduce at 25 Gb/s Ethernet (≈ 2.5 GB/s practical-effective) takes ~56 s per step. If the training runs 1,000 iterations, that is ~56,000 s (15.5 hours) spent exclusively in communication. Always compute the per-iteration communication cost before committing to a lower-bandwidth fabric.
 
 - **Ignoring contention from other traffic.** NVSwitch can carry many concurrent channels, but if other collectives (e.g., all-gather for optimizer state) are running simultaneously, the bisection bandwidth is shared. Measure with the full production workload pattern, not an isolated micro‑benchmark.
 

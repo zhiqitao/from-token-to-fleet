@@ -78,7 +78,7 @@ $$
 $$
 
 [ILLUSTRATIVE][DERIVED], a scenario value [ILLUSTRATIVE]
-- At the canonical ~26M requests/month: ~$539,000/month.
+- At the canonical ~26M requests/month: ~$541,000/month (26M × $0.0208 ≈ $541K).
 
 **Reading the result.** Once the fleet is sized correctly (~20 hosts), the comparison flips entirely versus the single-host framing. Self-hosted (~$5.7/1K reqs) is now **roughly twice the cloud-scaled rate** ($2.8/1K) on a fully-loaded basis ($148K/mo vs ~$72K/mo), because the canonical workload genuinely needs a multi-host fleet, and self-hosting a 20-host fleet carries ~$116K/mo of capex amortization. It is nonetheless still **well below the managed-API rate** ($20.8/1K), so at this volume self-hosting beats the API but loses to scale-to-load cloud. Cloud-scaled (~$2.8/1K) is the cheapest at this volume because only the ~5 hosts the *average* load needs are paid for the *average* load needs, bursting to ~20 at the peak. The decisive caveat remains the **staff/ops term and whether it is sunk**, and now also the **fleet requirement** — a single-host TCO understates the real cost by 4–20×.
 
@@ -88,7 +88,7 @@ $$
 |---|---|---|---|---|---|
 | Self-hosted (20×8×H100) | ~20 hosts | ~$148K | ~$5.7 | ~$148K | staff already in-house (sunk) and sustained near-peak utilization; no burst variability |
 | Cloud on-demand (scaled) | bursts to ~20, runs ~5 avg | ~$72K | ~$2.8 | ~$72K | variable load, no idle capex, staff shared |
-| Managed API | — | usage | ~$21 | ~$539K | tiny volume, fastest time-to-value |
+| Managed API | — | usage | ~$21 | ~$541K | tiny volume, fastest time-to-value |
 
 *(Figures are worked-example estimates as of Q4 2026, not vendor quotes; treat as [ILLUSTRATIVE][DERIVED] illustrative, to be re-priced before budgeting. The fleet requirement ~20 hosts (peak) / ~5 hosts (avg) is from the canonical Ch17 sizing; FP8 KV cuts the peak fleet to ~11.)*
 

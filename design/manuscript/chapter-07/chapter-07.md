@@ -37,7 +37,7 @@ We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **70B-cl
 | KV cache per token (8-bit) | 2 ×80 ×8192 ×1 B ≈ 1.3 MB | = 1,310,720 B = 1.25 MiB; reconciles with Ch.1 |
 | 9.2K input KV cache (initial) | 9,200 ×2.62 MB ≈ 24.1 GB | 9,200 ×2,621,440 B; initial KV residency |
 | 300 output KV cache | 300 ×2.62 MB ≈ 0.8 GB | 300 ×2,621,440 B |
-| total inference KV (9.5K max) | ≈ 24.9 GB | 140 GB weights + KV 24.9 GB ≈ 164.9 GB |
+| total inference KV (9.5K max) | ≈ 24.9 GB | 9,500 × 2,621,440 B ≈ 24.9 GB |
 | 32K input KV cache | 32,000 ×2.62 MB ≈ 83.8 GB | long-context variant |
 | 128K input KV cache | 128,000 ×2.62 MB ≈ 335.4 GB | aggressive long-context variant |
 | 70B FP16 weights | 70B × 2 B = 140 GB | [1P: DERIVED from 70B × 2 bytes] |
