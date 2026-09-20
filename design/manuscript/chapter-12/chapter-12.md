@@ -80,7 +80,7 @@ The architect does **not** discard Candidate (c) by parameter counting alone: it
 
 | candidate | memory (weights + KV) | host layout | throughput | SLO | economics |
 |---|---|---|---|---|---|
-| (a) 8×H100 + prefix caching | 140 + 24 = **164 GB** | 1 ×8×H100 | prefill ~19.8K (idealized; ~28K w/ prefix cache) · decode BW-bound | ✓ memory 164 < 640 GB · ✓ latency in 5 s | ✗ throughput: needs ~5 hosts |
+| (a) 8×H100 + prefix caching | 140 + 24 = **164 GB** | 1 ×8×H100 | prefill ~19.8K (idealized; ~28K w/ prefix cache) · decode BW-bound | ✓ memory 164 < 640 GB · ✓ TTFT SLO (≤1.2 s budget, p95 ≤2 s) | ✗ throughput: needs ~5 hosts |
 | (b) P/D-disaggregated | 140 + 24 = **164 GB** per pool | 2 ×8×H100 | prefill pool ~19.8K/host · decode BW-bound | ✓ memory per host · ✓ phase-split at scale | ✗ 2 hosts + fabric |
 | (c) KV-quantized 7B | 14 + 6 = **20 GB** | 1 ×H100 | high per-GPU prefill tok/s but fails quality gate | ✗ fails quality ceiling | ✗ >1 card at peak |
 

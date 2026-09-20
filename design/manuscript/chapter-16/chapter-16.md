@@ -53,8 +53,6 @@ So the canonical workload's *peak* requires roughly **20 hosts** (FP16 KV, full 
 - Monthly total ≈ $116K + $22K + $10K ≈ **~$148K/month** for ~20 hosts.
 - Per request at ~10 rps average = ~26M/month. **Cost ≈ $148K / 26M ≈ $0.0057/request ≈ $5.7 per 1,000 requests.** [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
 
-**Mode 2 — cloud GPU instances (rent, scale to load).**
-
 **Mode 2 — cloud GPU instances (rent, scale to load).** An 8×H100 on-demand instance ~$20/hr (canonical $2.50/GPU-hr × 8). Because the workload's *peak* is 40 rps, the fleet must be able to burst to ~20 instances, but the *average* load is ~5 hosts' worth — so the honest cloud bill is the instance-hours actually required. That requires a **load-duration / capacity-occupancy model**, not a single average. Parameterize the monthly cloud host-hours as the integral of required capacity over time, plus the warm-pool and capacity-reservation terms:
 
 $$
