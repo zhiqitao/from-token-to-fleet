@@ -1,4 +1,4 @@
-# Chapter 24: Red Team / Green Team
+# Chapter 24 — Red Team / Green Team
 
 ## The Architect's Question
 

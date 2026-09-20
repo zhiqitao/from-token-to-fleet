@@ -1,4 +1,4 @@
-# Chapter 18: Operating Multiple Models
+# Chapter 18 — Operating Multiple Models
 
 ## The Architect's Question
 

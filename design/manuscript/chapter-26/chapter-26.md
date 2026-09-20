@@ -1,4 +1,4 @@
-# Chapter 26: The Solution Architect's Toolkit + Patterns Library
+# Chapter 26 — The Solution Architect's Toolkit + Patterns Library
 
 ## The Architect's Question
 

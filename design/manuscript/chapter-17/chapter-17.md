@@ -1,4 +1,4 @@
-# Chapter 17: From Server to Fleet
+# Chapter 17 — From Server to Fleet
 
 ## The Architect's Question
 

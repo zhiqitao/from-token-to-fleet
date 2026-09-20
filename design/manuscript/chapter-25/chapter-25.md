@@ -1,4 +1,4 @@
-# Chapter 25: The Architecture Decision Record
+# Chapter 25 — The Architecture Decision Record
 
 ## The Architect's Question
 

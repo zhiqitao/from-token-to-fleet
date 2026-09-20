@@ -1,4 +1,4 @@
-# Chapter 19: Agentic Systems
+# Chapter 19 — Agentic Systems
 
 ## The Architect's Question
 

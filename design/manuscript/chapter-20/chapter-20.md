@@ -1,4 +1,4 @@
-# Chapter 20: Fleet-Level Optimization
+# Chapter 20 — Fleet-Level Optimization
 
 ## The Architect's Question
 

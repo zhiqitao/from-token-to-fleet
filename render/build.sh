@@ -11,6 +11,9 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
+echo "== check_tables (fail loud on column-count mismatch) =="
+python3 render/check_tables.py
+
 echo "== md_to_latex =="
 python3 render/latex/md_to_latex.py
 echo "== emit_book =="
