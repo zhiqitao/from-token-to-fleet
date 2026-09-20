@@ -234,6 +234,47 @@ def fix_captions(tex_path):
     return False
 
 
+def fix_minicase_toc(tex_path):
+    """Suppress the per-chapter *template* sections from the TOC.
+
+    The 26 chapters each use the same 8-part template (The Architect's Question
+    / Concept / Mental Model / Worked Example / Measurement / Common Mistakes /
+    Architecture Consequence / What We Still Don't Know). Left as normal
+    \\section, these write hundreds of near-identical lines into the table of
+    contents. We wrap each such template \\section in \\ntsection (defined in
+    book.sty), which numbers and formats it exactly like \\section but writes
+    NO toc entry. The chapter's 'End-of-Chapter Mini-Case: <distinct title>'
+    section is deliberately left as a normal \\section so it remains a
+    navigable, distinct TOC entry.
+    """
+    import re as _re
+    TEMPLATE = (
+        "The Architect's Question", "Concept", "Mental Model",
+        "Worked Example", "Measurement", "Common Mistakes",
+        "Architecture Consequence", "What We Still Don't Know",
+    )
+    tex = open(tex_path, encoding="utf-8").read()
+    orig = tex
+    # Match an entire \section{...}\label{...} (title may wrap across lines).
+    pat = _re.compile(r"\\section\{((?:[^{}]|(?:\{[^{}]*\}))*?)\}(\s*\\label\{[^}]*\})?", flags=_re.S)
+    def repl(m):
+        title = m.group(1).strip()
+        label = m.group(2) or ""
+        # Normalize: drop LaTeX escapes/brackets, then match on the leading
+        # template keyword so a subtitled variant is caught too (e.g.
+        # "Worked Example — Embedding-Model vs Generation").
+        norm = _re.sub(r"\\(?:[\\&%$#_{}]|text[a-z]+)|[{}~]", "", title).strip()
+        base = re.split(r"[:\u2014\u2013-]", norm)[0].strip()
+        if any(t.strip() == base for t in TEMPLATE):
+            return "\\ntsection{" + title + "}" + label + "\n"
+        return m.group(0)
+    tex = pat.sub(repl, tex)
+    if tex != orig:
+        open(tex_path, "w", encoding="utf-8").write(tex)
+        return True
+    return False
+
+
 def fix_crossrefs(tex_path, chnum):
     """Add \\label to every figure/table and turn body references
     ('Fig X.Y', 'TAB X.Y', 'Chapter N') into clickable \\hyperref links.
@@ -391,6 +432,7 @@ def convert(mapping):
         fix_urls(out)
         fix_crossrefs(out, n)
         fix_captions(out)
+        fix_minicase_toc(out)
         built[n] = (chapters[n]["title"], out)
     return built
 
