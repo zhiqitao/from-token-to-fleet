@@ -38,7 +38,7 @@ New workloads are evaluated by *locating the dominant constraint*, not by matchi
 
 ![Fig 26.1 — Workload fingerprints on the six axes](figures/fig-26-2602.png)
 
-The §4 six-axis characterization rendered as a fingerprint. The three workload families from Table 26-1 sit in distinct regions: RAG Q&A is quality- and context-heavy with short outputs; chat is traffic- and latency-sensitive with long outputs; batch inference is cost-sensitive and latency-tolerant. Reading a new workload's fingerprint against this front-end is the first move before consulting the §26 matrix.
+The Chapter 4 six-axis characterization rendered as a fingerprint. The workload families from the §2.1 workload-to-strategy matrix sit in distinct regions: RAG Q&A is quality- and context-heavy with short outputs; chat is traffic- and latency-sensitive with long outputs; batch inference is cost-sensitive and latency-tolerant. Reading a new workload's fingerprint against this front-end is the first move before consulting the §2.1 matrix.
 
 ## 3. Worked Example — Capstone Scenario
 

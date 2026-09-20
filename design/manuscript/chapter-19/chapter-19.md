@@ -36,7 +36,7 @@ The critical insight for capacity planning is that each cycle incurs a fixed ove
 
 ## 3. Worked Example
 
-Take a user query routed to an agentic RQA pipeline. The pipeline’s default policy is a maximum of 4 turns; if the model has not terminated by then, the system returns a fallback answer “I’m sorry, I couldn’t find a definitive answer within the allowed reasoning steps.”
+Take a user query routed to an agentic RQA pipeline. The pipeline’s default policy is a maximum of 4 turns; if the model has not terminated by then, the system returns a fallback answer “I’m sorry, I couldn’t find a definitive answer within the allowed reasoning steps.” (**Scope note on the turn cap.** This worked example uses a *default* cap of 4 to illustrate the binding worst case and the token-amplification curve out to T=4. The *recommended operational* policy — deployed in the §8 mini-case and used for fleet sizing in Chapter 17 — caps turns at 3, per the §4 guidance and the 95th-percentile sizing rule; the 2% of requests that exceed the limit fall back to single-shot. Table 19-1's "T=4 (beyond limit)" column is therefore an *out-of-policy bounding* case, not an in-policy turn count.)
 
 **Turn 0 (initial prompt)**:
 - Input: 9,200 tokens (user query + retrieved passages)
@@ -115,7 +115,9 @@ $$
 L_\text{E2E}(T) = L_\text{base} + T \cdot L_\text{agent}
 $$
 
-where $L_\text{base} \approx 8.6$ s is the canonical full answer generation (1.08 s prefill + 7.5 s decode of 300 output tokens) and $T \cdot L_\text{agent}$ is the added agent-orchestration overhead (≈ 220 ms per turn). So the agentic layer does *not* replace the ~8.6 s generation with ~440 ms — it *adds* a few hundred milliseconds of orchestration/tool overhead on top of a request that already takes ~8.6 s to generate its answer. The latency amplification is better expressed as overhead, not a multiple of a sub-second single-shot number:
+where $L_\text{base} \approx 8.6$ s is the canonical full answer generation (1.08 s prefill + 7.5 s decode of 300 output tokens) and $T \cdot L_\text{agent}$ is the added agent-orchestration overhead (≈ 220 ms per turn). So the agentic layer does *not* replace the ~8.6 s generation with ~440 ms — it *adds* a few hundred milliseconds of orchestration/tool overhead on top of a request that already takes ~8.6 s to generate its answer.
+
+**Scope note — this is the incremental orchestration model, not the full agentic service time.** The $L_\text{E2E}(T)$ above holds the base generation at the *single-shot* decode (300 output tokens) and adds only the per-turn orchestration overhead. It deliberately isolates *how much the agentic layer's orchestration adds*. The **full** agentic service time — the quantity used for fleet sizing in Chapter 17 — must additionally account for (a) the decode of the per-turn model-generated reasoning tokens ($\gamma \approx 65$ tokens/turn, at ~25 ms/token ≈ ~1.6 s/turn) and (b) the longer prefill of the grown context ($I(T) = 9{,}200 + T(800+65) + 300$). Chapter 17 §8 derives that full service time as $W \approx 13.8$ s at $T=3$ (1.08 s prefill of the 12,095-token context + ~12.4 s decode of ~495 generated tokens + ~0.4 s tool latency). So: the **incremental orchestration overhead** is $T \cdot L_\text{agent}$ (~660 ms at T=3, $\beta \approx 1.08\times$), while the **full end-to-end service time** of an agentic request is ~13.8 s at T=3 — the two are *different quantities*, and the latter is what sets concurrency and fleet size. Table 19-1's "Total end-to-end (Lbase + overhead)" row reports the *incremental* model; the full service-time values appear in Chapter 17's fleet-sizing tables. The latency amplification is better expressed as overhead, not a multiple of a sub-second single-shot number:
 
 $$
 \beta(T) = \frac{L_\text{base} + T\cdot L_\text{agent}}{L_\text{base}} \approx 1 + \frac{T \cdot 220\text{ ms}}{8.6\text{ s}}

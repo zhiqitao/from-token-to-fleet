@@ -33,8 +33,6 @@ Take a fleet of N hosts, each with 8×H100 running a single 70B FP16 model insta
 
 The binding per-host rate is the *minimum* of the two — here the KV/latency bound. This is exactly why a token-throughput number must not be divided by tokens-per-request to manufacture a "QPS": a token and a request are different units, and prefill (compute-bound) versus decode (bandwidth-bound) tokens are not fungible in that division. The per-host request rate is a *concurrency × service-time* quantity, not a tokens ÷ tokens conversion.
 
-- **KV-residency / latency bound (Little's law).** The real ceiling is set by concurrency and service time together: a host holds ~18 concurrent full-context requests (KV ceiling, Chapter 17) each for ~8.6 s, so it serves C/W ≈ 18 / 8.6 ≈ **2.1 requests/s** at steady state.
-
 **Call this quantity what it is.** The ~2.1 req/s figure is a **KV-residency / service-time analytical ceiling under the canonical W assumption** — not a measured serving throughput. It is achievable only if serving C concurrent sequences does *not* inflate W beyond the assumed ~8.6 s, and neither a compute, bandwidth, nor scheduler constraint binds first. In real continuous batching, W is a function of batch occupancy, scheduler policy, prefill interference, decode batching, the arrival process, tensor-parallel communication, and the context distribution — so C and W are not always independent constants. Treat ~2.1 req/s as an upper-bound model, and require benchmarked goodput (Chapter 14) under the target arrival process for actual fleet sizing.
 
 
@@ -44,7 +42,7 @@ $$
 \Lambda_\text{fleet} = N \times Q
 $$
 
-At the canonical peak of 40 rps, fleet size must satisfy **both** the KV-residency and the throughput/latency bounds *and whichever binds first*. With the per-host rate at ~2.1 req/s (the binding Little bound above), a fleet for 40 rps starts at ~20 hosts on throughput alone; the KV-residency bound is satisfied at far fewer hosts (~5 at the 10-rps average, Chapter 17), but it is not the binding constraint here — at 40 rps the throughput/Little bound requires the larger fleet. The correct statement is: the fleet must satisfy both, and the *larger* requirement wins.
+At the canonical peak of 40 rps, fleet size must satisfy **both** the KV-residency and the throughput/latency bounds *and whichever binds first*. With the per-host rate at ~2.1 req/s (the binding Little bound above), a fleet for 40 rps starts at ~20 hosts on the Little-bound. The KV-residency bound coincides here — by Little's law, the in-flight count at 40 rps is λ·W = 40 × 8.6 ≈ 344, and ⌈344/18⌉ ≈ 19–20 hosts — so the two bounds are *co-binding* at the peak, exactly as Chapter 17 notes (the two views are the same identity, λW/C = λ/(C/W)). The "far fewer hosts (~5)" figure applies only to the 10-rps average, not the 40-rps peak. The correct statement is: the fleet must satisfy both, and the *larger* requirement wins.
 
 **Scheduling overhead.** A lightweight round-robin scheduler adds ~0.5 ms of dispatch latency per request — negligible next to a real 7.5 s decode, but it must stay under ~5% of the *measured* per-request time.
 

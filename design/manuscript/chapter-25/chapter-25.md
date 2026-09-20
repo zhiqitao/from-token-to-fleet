@@ -122,7 +122,7 @@ The three blocks most often skipped are the **Architecture Decision Context**, t
 
 ADRs are only as good as the evidence they embed. This chapter recommends that each ADR include at least two derived quantities — quantities computed from raw data, not merely observed. In the model-shape ADR above, the derived quantities are:
 
-1. **70B FP16 model footprint** — $W = N \times \text{bytes-per-param} = 70 \times 10^9 \times 2 \text{ B} = 140$ GB parameters, plus ~30 GB activations (typical profiling-derived overhead) ≈ $170$ GB total. Derived from the model parameter count and a typical activation overhead factor estimated from profiling runs.
+1. **70B FP16 model footprint** — $W = N \times \text{bytes-per-param} = 70 \times 10^9 \times 2 \text{ B} = 140$ GB parameters, plus ~30 GB activations at the peak for this worked example (a per-request runtime figure; note it is below the ~64 GB runtime/workspace/NCCL reserve the body uses elsewhere — 140 GB weights + ~436 GB KV budget + ~64 GB reserve ≈ the 640 GB HBM envelope), giving ≈ $170$ GB total derived footprint. Derived from the model parameter count and a typical activation overhead factor.
 2. **Weight-quantization residency lever** — quantizing the FP16/BF16 weights to INT8 reduces the nominal parameter-weight footprint from ~140 GB to ~70 GB for a 70B model (2 B/param → 1 B/param), before runtime overheads. Whether the resulting quantized model satisfies the quality SLO must be established by benchmark, not assumed. (An FP16↔BF16 change alone is *not* a memory lever: both are 16-bit, 2 B/param, ~140 GB.)
 
 Additional measurable quantities that should be tracked (even if not all included in the ADR itself) include:
@@ -153,7 +153,7 @@ When adopting ADRs, teams frequently fall into patterns that undermine the forma
 Introducing ADRs into the "From Token to Fleet" handbook has several architecture-level consequences:
 
 - **Decision provenance:** Every significant choice in the fleet's evolution is traceable to a git commit and a Markdown file. New engineers can audit why the system is as it is, without relying on Slack history or outdated wikis.
-- **RQO (Reasoned Quality Optimization):** By forcing the articulation of alternatives and evidence, ADRs make the trade-off surface explicit. Teams can point to an ADR and say "we chose FP16 over BF16 because of X, Y, Z" — and those reasons are verifiable.
+- **RQO (Reasoned Quality Optimization):** By forcing the articulation of alternatives and evidence, ADRs make the trade-off surface explicit. Teams can point to an ADR and say "we chose BF16 over FP16 because of range robustness and training-to-serving consistency" (as ADR 0016 does) — and those reasons are verifiable.
 - **Reduced cognitive load:** Engineers no longer need to re-derive the rationale for every architectural choice. The ADR serves as a single source of truth.
 - **ADR proliferation:** As the fleet grows, the number of ADRs will grow. A naming convention (ADR 0001, ADR 0002, ...) and a top-level index (ADR index) prevent the record from becoming unwieldy.
 - **Integration with CI:** ADRs can be validated as part of the CI pipeline — e.g., ensuring every ADR has a status, a rationale, and at least one evidence tag. This automation reinforces the habit.
