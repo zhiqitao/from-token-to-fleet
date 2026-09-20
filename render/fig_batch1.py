@@ -102,7 +102,7 @@ def arrow(x1,y1,x2,y2,c=GREY,lw=2.0):
 box(2.6,9.6,8.0,1.5,'Request stream\n(text -> tokens)',BLUE,fs=9.0)
 arrow(6.6,9.6,6.6,8.7)
 # scheduler + batching
-box(2.6,7.4,8.0,1.2,'Scheduler + continuous batching',PURPLE,fs=8.6)
+box(2.6,7.4,8.0,1.2,'Scheduler +\ncontinuous batching',PURPLE,fs=8.4)
 ax.text(10.9,8.0,'scheduling\n<-> latency',fontsize=7.2,color=PURPLE,ha='left',va='center')
 arrow(6.6,7.4,6.6,6.8)
 ax.text(6.6,6.55,'P/D split (two regimes)',fontsize=7.6,color=GREY,ha='center')

@@ -33,7 +33,7 @@ Consider a fleet of N hosts, each with 8×H100 running a single 70B FP16 model i
 
 The binding per-host rate is the *minimum* of the two — here the KV/latency bound. This is exactly why a token-throughput number must not be divided by tokens-per-request to manufacture a "QPS": a token and a request are different units, and prefill (compute-bound) versus decode (bandwidth-bound) tokens are not fungible in that division. The per-host request rate is a *concurrency × service-time* quantity, not a tokens ÷ tokens conversion.
 
-- **KV-residency / latency bound (Little's law).** The real ceiling is set by concurrency and service time together: a host holds ~18 concurrent full-context requests (KV ceiling, Chapter 17) each for ~8.6 s, so it serves C/W ≈ 18 / 8.6 ≈ **2.1 requests/s** at steady state. The binding per-host rate is the *minimum* of the two — here the KV/latency bound. This is exactly why a token-throughput number must not be divided by tokens-per-request to manufacture a "QPS": a token and a request are different units, and prefill (compute-bound) versus decode (bandwidth-bound) tokens are not fungible in that division. The per-host request rate is a *concurrency × service-time* quantity, not a tokens ÷ tokens conversion.
+- **KV-residency / latency bound (Little's law).** The real ceiling is set by concurrency and service time together: a host holds ~18 concurrent full-context requests (KV ceiling, Chapter 17) each for ~8.6 s, so it serves C/W ≈ 18 / 8.6 ≈ **2.1 requests/s** at steady state.
 
 **Call this quantity what it is.** The ~2.1 req/s figure is a **KV-residency / service-time analytical ceiling under the canonical W assumption** — not a measured serving throughput. It is achievable only if serving C concurrent sequences does *not* inflate W beyond the assumed ~8.6 s, and neither a compute, bandwidth, nor scheduler constraint binds first. In real continuous batching, W is a function of batch occupancy, scheduler policy, prefill interference, decode batching, the arrival process, tensor-parallel communication, and the context distribution — so C and W are not always independent constants. Treat ~2.1 req/s as an upper-bound model, and require benchmarked goodput (Chapter 14) under the target arrival process for actual fleet sizing.
 
@@ -106,7 +106,7 @@ Several open questions remain at the fleet level:
 
 **Scenario**: A RAG Q&A fleet serves 2,000 users with the canonical parameters: 5% concurrent, 10 rps average / 40 rps peak, ~9,200 in-tokens + ~300 out-tokens per query, 70B dense FP16 model, 8×H100 per host, 8 hosts total.
 
-**Question**: What is the fleet's aggregate QPS capacity at batch size 4, and what is the marginal cost per QPS when scaling from 8 to 16 hosts? Is an end-to-end 99th-percentile latency under 100 ms even feasible for this workload — and if not, what can the scheduler bound?
+**Question**: What is the fleet's aggregate QPS capacity under the canonical KV/latency bound, and what is the marginal cost per QPS when scaling from 8 to 16 hosts? Is an end-to-end 99th-percentile latency under 100 ms even feasible for this workload — and if not, what can the scheduler bound?
 
 **Solution** (illustrative algebra — the per-host figure below is an [ILLUSTRATIVE] estimate for showing the fleet math; the real per-host QPS must come from a deployment benchmark, Chapter 14, and is bounded by KV residency per Chapter 17):
 
