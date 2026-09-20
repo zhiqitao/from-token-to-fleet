@@ -84,16 +84,18 @@ The measurement and mistake analysis drive three architecture decisions for the 
 
 ## 8. End-of-Chapter Mini-Case
 
-A new deployment adds 500 registered users with the same traffic profile (5 % concurrency, 10/40 rps). The team provisions a second 8×H100 host and (in this worked example) runs the benchmark with continuous batching and FlashAttention‑2. p95 latency drops from 320 ms (single host, batch‑1) to 140 ms (dual host, continuous batch), and token throughput rises from 8,000 to 70,000 tokens/s. The MFU stabilizes at 38 %. These are [ILLUSTRATIVE SCENARIO RESULT] values — an illustrative benchmark outcome, not a home-lab measurement; the exact figures must come from a deployment benchmark on the target hardware/stack (Chapter 14). The remaining question is whether the cross‑host request routing layer can maintain affinity KV cache residency, avoiding cache warm‑up penalties on re‑requests. The ∼20 % affinity throughput gain and the ∼2.1 s cold-start warm-up cost are themselves [ILLUSTRATIVE SCENARIO RESULT] values, not measured results.
+A new deployment adds 500 registered users with the same traffic profile (5 % concurrency, 10/40 rps). The team provisions a second 8×H100 host and (in this worked example) runs the benchmark with continuous batching and FlashAttention‑2. p95 latency drops from 320 ms (single host, batch‑1) to 140 ms (dual host, continuous batch), and token throughput rises from 8,000 to 70,000 tokens/s. The MFU stabilizes at 38 %. These are [ILLUSTRATIVE SCENARIO RESULT] values — an illustrative benchmark outcome, not a home-lab measurement; the exact figures must come from a deployment benchmark on the target hardware/stack (Chapter 14). The remaining question is whether the cross‑host request routing layer can maintain affinity KV cache residency, avoiding cache warm‑up penalties on re‑requests. The ∼20 % affinity throughput gain and the ∼2.1 s cold-start warm-up cost are themselves [ILLUSTRATIVE SCENARIO RESULT] values, not measured results.
+
+*Do not read the 8.75× throughput jump as a capacity-side win.* It is dominated by the **kernel/batching** change (batch‑1 no‑flash → continuous batching with FlashAttention‑2), which is worth most of the multiplicative gain, **plus ~2× from adding the second host** — the two are not separable from this single outcome number. This is a *per‑host kernel/batching* improvement story, not a claim that "more GPUs = 8.75×." Were we adding a second host with no kernel/batching change, the expected throughput gain would be roughly the host-pool ratio (≈2×), and the fleet-sizing consequence is computed separately in Ch 16–17 from the service-time model, not from this mini-case's aggregate number.
 
 **Table 15-1** — Performance Regime Summary
 
-| Regime | Concurrency | Request Rate (rps) | Tokens/Request | KV‑Cache/User (GB) | MFU (%) | Dominant Bottleneck |
+| Regime | In‑Flight Concurrency ( = λ·W ) | Request Rate (rps) | Tokens/Request | KV‑Cache/User (GB) | MFU (%) | Dominant Bottleneck |
 |--------|-------------|-------------------|----------------|-------------------|---------|---------------------|
-| Light | 10 | ~2 | 9,500 | ~24.9 | 12 | Compute (SDPA) |
-| Typical| 100 | 40 | 9,500 | ~24.9 | 38 | Memory / KV cache |
-| Peak | 200 | 80 | 9,500 | ~24.9 | 52 | KV + Inter‑GPU bandwidth |
+| Light | ~17 | ~2 | 9,500 | ~24.9 | 12 | Compute (SDPA) |
+| Typical | ~86 | ~10 | 9,500 | ~24.9 | 38 | Memory / KV cache |
+| Peak | ~344 | ~40 | 9,500 | ~24.9 | 52 | KV + Inter‑GPU bandwidth |
 
-*KV-Cache/User uses the canonical ~2.62 MB/token × 9,500 ≈ 24.9 GB. Concurrency, rps, and MFU are [ILLUSTRATIVE] regime labels for teaching shape; the bottleneck column reflects the roofline logic of Chapter 8.*
+*Concurrency here is **in‑flight requests**, computed as λ·W with the canonical per‑request service time W ≈ 8.6 s (the Little's‑law discipline of Chapter 17 — never equate in‑flight concurrency with a number of registered or simultaneously‑online users). The three rps values are the canonical average and peak; the resulting in‑flight concurrency (17/86/344) is what must be compared against a host's concurrent‑request ceiling. KV‑Cache/User uses the canonical ~2.62 MB/token × 9,500 ≈ 24.9 GB. MFU is an [ILLUSTRATIVE] regime label for teaching shape; the bottleneck column reflects the roofline logic of Chapter 8.*
 
 

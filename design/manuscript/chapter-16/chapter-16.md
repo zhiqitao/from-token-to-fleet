@@ -120,7 +120,7 @@ TCO is the final gate in the design loop (Ch12 candidates → Ch14 benchmark →
 
 ![Fig 16.1 — TCO break-even: self-hosted vs managed API [ILLUSTRATIVE][DERIVED]](figures/fig-16-1601.png)
 
-*Break-even: monthly cost vs monthly volume for self-hosted and managed API across three serve modes, crossing at the ~1.02 M-request scale.*
+*Break-even: monthly cost vs monthly volume for self-hosted and managed API across three serve modes, crossing at the ~7.1 M-request scale ($148K/mo ÷ $0.0208 per request).*
 
 <!-- Figure spec: mechanism-first plot; x = requests/month, y = cost per 1K requests; self-host curve high-intercept low-slope; managed-API zero-intercept linear; mark break-even volume; annotate the utilization assumption. -->
 

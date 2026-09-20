@@ -89,26 +89,50 @@ plt.tight_layout(rect=(0, 0.08, 1, 1))
 plt.savefig(base % (9, 9, 9), dpi=150); plt.close()
 print('Ch09 done')
 
-# ---- Ch11: serving stack flow ---- (compact 3x2 grid so it places 1:1 at column width)
-fig, ax = plt.subplots(figsize=(6.0, 5.4))
-ax.set_xlim(0, 12); ax.set_ylim(0, 10); ax.axis('off')
-steps = ['Request stream', 'Scheduler', 'KV page table\n+ prefix cache']
-row2  = ['Prefill pool', 'Decode pool', 'Output']
-xs = [0.4, 4.4, 8.4]
-def _row(yt, items):
-    for i, s in enumerate(items):
-        x = xs[i]
-        ax.add_patch(FancyBboxPatch((x, yt), 3.2, 1.9, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
-        ax.text(x+1.6, yt+0.95, s, ha='center', va='center', color='white', fontsize=10, fontweight='bold')
-    for i in range(len(items)-1):
-        ax.annotate('', xy=(xs[i]+3.3, yt+0.95), xytext=(xs[i]+3.2, yt+0.95), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555'))
-_row(6.0, steps)
-_row(1.6, row2)
-# down arrow between rows (KV flows prefill -> decode)
-ax.annotate('', xy=(4.4, 5.8), xytext=(4.4, 3.8), arrowprops=dict(arrowstyle='-|>', lw=2, color='#c0392b'))
-ax.text(6.6, 4.8, 'KV transfer\n(prefill→decode)', fontsize=9, color='#c0392b', ha='left')
-ax.text(6, 9.2, 'The serving stack: batching trades latency,\nprefix cache skips prefill, P/D split trades memory & throughput',
-    fontsize=8.5, fontweight='bold', ha='center', color='#333')
+# ---- Ch11: serving stack flow ---- (vertical input->output flow; resource-coded; P/D split)
+fig, ax = plt.subplots(figsize=(6.1, 5.9))
+ax.set_xlim(0, 18); ax.set_ylim(0, 12); ax.axis('off')
+BLUE='#3a6ea5'; GREEN='#27ae60'; ORANGE='#e67e22'; RED='#c0392b'; GREY='#555'; PURPLE='#6c3483'
+def box(x,y,w,h,s,fc,fs=9.3):
+    ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0.02',fc=fc,ec='none'))
+    ax.text(x+w/2,y+h/2,s,ha='center',va='center',color='white',fontsize=fs,fontweight='bold')
+def arrow(x1,y1,x2,y2,c=GREY,lw=2.0):
+    ax.annotate('',xy=(x2,y2),xytext=(x1,y1),arrowprops=dict(arrowstyle='-|>',lw=lw,color=c))
+# top: request -> scheduler
+box(2.6,9.6,8.0,1.5,'Request stream\n(text -> tokens)',BLUE,fs=9.0)
+arrow(6.6,9.6,6.6,8.7)
+# scheduler + batching
+box(2.6,7.4,8.0,1.2,'Scheduler + continuous batching',PURPLE,fs=8.6)
+ax.text(10.9,8.0,'scheduling\n<-> latency',fontsize=7.2,color=PURPLE,ha='left',va='center')
+arrow(6.6,7.4,6.6,6.8)
+ax.text(6.6,6.55,'P/D split (two regimes)',fontsize=7.6,color=GREY,ha='center')
+arrow(4.5,6.4,4.5,5.9); arrow(8.6,6.4,8.6,5.9)
+# prefill (compute) and decode (bandwidth) pools
+ax.add_patch(FancyBboxPatch((1.6,4.4),5.9,1.5,boxstyle='round,pad=0.02',fc=GREEN,ec='none'))
+ax.text(4.55,5.15,'Prefill pool\ncompute -> TTFT',ha='center',va='center',color='white',fontsize=8.4,fontweight='bold')
+ax.add_patch(FancyBboxPatch((8.6,4.4),6.0,1.5,boxstyle='round,pad=0.02',fc=ORANGE,ec='none'))
+ax.text(11.6,5.15,'Decode pool\nbandwidth -> TPOT/ITL',ha='center',va='center',color='white',fontsize=8.2,fontweight='bold')
+# shared KV cache band below both pools
+ax.add_patch(FancyBboxPatch((1.6,2.4),12.4,1.4,boxstyle='round,pad=0.02',fc=RED,ec='none'))
+ax.text(7.8,3.2,'KV cache - memory capacity -> concurrency',ha='center',va='center',color='white',fontsize=8.6,fontweight='bold')
+ax.text(7.8,2.7,'PagedAttention (page table) + prefix cache',ha='center',va='center',color='white',fontsize=7.8,fontstyle='italic')
+# prefill WRITES kv (down); decode READS/APPENDS kv (two-way)
+arrow(4.55,4.4,4.55,3.8,RED,2.2)   # prefill populates KV (write)
+ax.annotate('',xy=(11.6,3.8),xytext=(11.6,4.4),arrowprops=dict(arrowstyle='<|-|>',lw=2.0,color=RED))  # decode read+append (both ways)
+ax.text(12.0,4.1,'KV read\n+append',fontsize=6.8,color=RED,ha='left',va='center')
+# decode -> output (output sits to the right, clear of the KV band)
+arrow(14.6,5.15,15.6,5.15)  # decode right edge -> output
+box(15.7,4.55,2.3,1.2,'Output\ntokens',GREY,fs=8.4)
+# legend row (bottom-left; label beside swatch, no clipping)
+leg=[('Request',BLUE),('Scheduler',PURPLE),('Prefill',GREEN),('Decode',ORANGE),('KV',RED)]
+for i,(lab,c) in enumerate(leg):
+    x=1.6+i*2.9
+    ax.add_patch(Rectangle((x,0.6),0.75,0.7,fc=c,ec='none'))
+    ax.text(x+0.9,0.95,lab,ha='left',va='center',color='#333',fontsize=7.2)
+ax.text(1.6,0.2,'legend: colour = the resource that stage trades / occupies',fontsize=7.0,color=GREY,ha='left')
+# title
+ax.text(7.0,11.4,'The serving stack: batching trades latency,\nprefix cache skips prefill, P/D split trades memory & throughput',
+    fontsize=8.2,fontweight='bold',ha='center',color='#333')
 plt.tight_layout()
 plt.savefig(base % (11, 11, 11), dpi=150); plt.close()
 print('Ch11 done')

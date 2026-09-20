@@ -480,20 +480,20 @@ benefit from targeted research:
 serving the canonical traffic of 2,000 users at 10 rps average / 40 rps
 peak, 9,200 input + 300 output tokens, no agentic layer. After six
 months, user growth pushes peak traffic to 100 rps, and the team
-introduces the agentic layer from Chapter\,16 with a maximum of 3 turns
-(median T = 2, 95th‑percentile T = 4). The team must decide on fleet
-size.
+introduces the agentic layer from Chapter\,19 with a maximum of 3 turns
+(median T = 1, 95th‑percentile T = 3, per the Ch19 telemetry
+distribution).
 
-\textbf{Initial sizing analysis (service-time-aware).} At T = 3
-(worst‑case for sizing), I(3) = 9,200 + 3·800 + 3·65 + 300 = 12,095
-tokens. With FP16 KV (κ = 2.62 MB/token), per‑request KV ≈ 31.7 GB, so
-KV‑residency capacity C = 436 GB ÷ 31.7 GB ≈ 14 concurrent requests per
-host. But concurrency \emph{in flight} is λ × W, where W is the full
-service time, which here grows with the agentic turns: 1.08 s prefill of
-the 12,095-token context + (\textasciitilde495 generated tokens ×
-\textasciitilde25 ms/token = \textasciitilde12.4 s decode) +
-\textasciitilde0.4 s of per-turn tool/retrieval latency ≈
-\textbf{\textasciitilde13.8 s}. So at the 100-rps peak, in‑flight
+\textbf{Initial sizing analysis (service-time-aware).} At T = 3 (the
+95th‑percentile, and the honest worst‑case sizing point), I(3) = 9,200 +
+3·800 + 3·65 + 300 = 12,095 tokens. With FP16 KV (κ = 2.62 MB/token),
+per‑request KV ≈ 31.7 GB, so KV‑residency capacity C = 436 GB ÷ 31.7 GB
+≈ 14 concurrent requests per host. But concurrency \emph{in flight} is λ
+× W, where W is the full service time, which here grows with the agentic
+turns: 1.08 s prefill of the 12,095‑token context + (\textasciitilde495
+generated tokens × \textasciitilde25 ms/token = \textasciitilde12.4 s
+decode) + \textasciitilde0.4 s of per‑turn tool/retrieval latency ≈
+\textbf{\textasciitilde13.8 s}. So at the 100‑rps peak, in‑flight
 concurrency ≈ 100 × 13.8 ≈ 1,380 requests, not 200. Against C ≈ 14 per
 host, H = ⌈1,380/(14 ×0.7)⌉ ≈ \textbf{141 hosts} on FP16 KV (≈99 at full
 utilization). This is the honest arithmetic the service-time model
@@ -542,49 +542,41 @@ doubles.
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
 \textbf{\hyperref[tab:17.1]{Table 17-1}: Fleet sizing matrix --- KV-residency ceiling and
-minimum hosts (canonical FP16 KV).}
+minimum hosts (canonical FP16 KV, W = full service time).}
 
-C (per-host concurrent capacity, from canonical 2.62 MB/token and
-M\_kv≈436 GB): baseline ≈18, T=2 ≈16, T=4 ≈13. Concurrency in flight = λ
-× L. Minimum hosts H = ⌈λ·L / (C·0.7)⌉ at a 70\% utilization ceiling.
+Minimum hosts H = ⌈λ·W / (C·u)⌉ at a 70\% utilization ceiling, where the
+in-flight concurrency \textbf{must} use the full per-request service
+time W --- not a sub-second target latency. Two service times apply: W ≈
+8.6 s for the non-agentic canonical request (1.08 s prefill + 7.5 s
+decode), and W ≈ 13.8 s for the 4-turn agentic request (the mini-case's
+service-time-aware figure). These are the in-flight counts the chapter
+derives in §3/§4.
 
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.1760\linewidth}
-  >{\raggedright\arraybackslash}p{0.1695\linewidth}
-  >{\raggedright\arraybackslash}p{0.1695\linewidth}
-  >{\raggedright\arraybackslash}p{0.1043\linewidth}
-  >{\raggedright\arraybackslash}p{0.1043\linewidth}
-  >{\raggedright\arraybackslash}p{0.1565\linewidth}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Traffic scenario (λ peak)
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-L=1s, T=0 → concurrency
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-L=1s, T=4 → concurrency
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=0 (C=18)
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=4 (C=14)
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=4, FP8 KV (C≈26)
-\end{minipage} \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-40 rps (canonical peak) & 40 & 40 & ⌈40/12.6⌉ ≈ 4 & ⌈40/9.8⌉ ≈ 5 & ≈
-3 \\
-100 rps (growth) & 100 & 100 & ⌈100/12.6⌉ ≈ 8 & ⌈100/9.8⌉ ≈ 11 & ≈ 6 \\
-200 rps (2× growth) & 200 & 200 & ⌈200/12.6⌉ ≈ 16 & ⌈200/9.8⌉ ≈ 21 & ≈
-11 \\
+Traffic scenario (λ peak) \textbar{} in-flight @ non-agentic W=8.6s
+\textbar{} in-flight @ agentic W=13.8s \textbar{} H @ T=0, FP16 (C≈18)
+\textbar{} H @ T=3 (95th), FP16 (C≈14) \textbar{} H @ T=3 (95th), FP8
+(C≈25) \textbar{}
 
-\label{tab:17.1}\end{longtable}
+\textbar\textbar---\textbar---\textbar---\textbar---\textbar---\textbar---\textbar{}
+\textbar{} 40 rps (canonical peak) \textbar{} 344 \textbar{} 552
+\textbar{} ⌈344/12.6⌉ ≈ 28 \textbar{} ⌈552/9.8⌉ ≈ 57 \textbar{}
+⌈552/17.5⌉ ≈ 32 \textbar{} \textbar{} 100 rps (growth) \textbar{} 860
+\textbar{} 1,380 \textbar{} ⌈860/12.6⌉ ≈ 69 \textbar{} ⌈1380/9.8⌉ ≈ 141
+\textbar{} ⌈1380/17.5⌉ ≈ 79 \textbar{} \textbar{} 200 rps (2× growth)
+\textbar{} 1,720 \textbar{} 2,760 \textbar{} ⌈1720/12.6⌉ ≈ 137
+\textbar{} ⌈2760/9.8⌉ ≈ 282 \textbar{} ⌈2760/17.5⌉ ≈ 158 \textbar{}
 
-\emph{C is derived (canonical KV); λ, L, and the 70\% utilization target
-are ILLUSTRATIVE scenario inputs to be validated by a deployment
-benchmark (\hyperref[chap:14]{Chapter 14}) before committing hardware. H is a KV-residency
-lower bound --- the true answer is the max of this KV bound and the
-measured throughput bound.}
+\emph{The chapter sizes fleets at the \textbf{95th-percentile turn
+scenario (T=3)} per its own rule (``size for the 95th-percentile token
+scenario''), so the agentic columns use T=3 --- which is also what the
+§8 mini-case computes (141 hosts at 100 rps). C is the KV-residency
+ceiling (derived): 18 concurrent full-context requests on FP16 at T=0,
+14 at T=3 (12,095 tokens × 2.62 MB ≈ 31.7 GB/request over 436 GB), and
+\textasciitilde25 on FP8 at T=3 (12,095 × 1.42 MB ≈ 17.2 GB/request; the
+mini-case's ``≈79 hosts at FP8''). The 70\% utilization target and the
+λ, W values are ILLUSTRATIVE scenario inputs to be validated by a
+deployment benchmark (\hyperref[chap:14]{Chapter 14}) before committing hardware. H is a
+KV-residency lower bound --- the true answer is the max of this KV bound
+and the measured throughput bound.}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}

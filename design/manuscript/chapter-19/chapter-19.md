@@ -60,7 +60,9 @@ Consider a user query routed to an agentic RQA pipeline. The pipeline’s defaul
 **Token accounting**:
 - Base single-shot: 9,200 input + 300 output = 9,500 tokens
 - Agentic: 10,350 input + 300 output = 10,650 tokens
-- Amplification factor: 10,650 / 9,500 ≈ 1.12×Now consider a harder query that exhausts all 4 turns. Each additional tool call adds ~800 tokens of retrieved context and ~100 tokens of model-generated reasoning. The token trajectory grows approximately linearly: after *k* turns, total input tokens ≈ 9,200 + 800*k*, and total output ≈ 300 (final answer) + sum of intermediate model outputs (typically 50–80 tokens per turn). After 4 turns, input ≈ 9,200 + 4×800 + 4×65 = 12,660 tokens, output ≈ 300 tokens, giving a total of ~12,960 tokens. The amplification factor vs. single-shot is 12,960 / 9,500 ≈ 1.36×.
+- Amplification factor: 10,650 / 9,500 ≈ 1.12×
+
+Now consider a harder query that exhausts all 4 turns. Using the chapter's per-turn convention (each turn adds δ≈800 tokens of retrieved context plus γ≈65 tokens of model-generated reasoning), the token trajectory grows approximately linearly: after *k* turns, total input tokens ≈ 9,200 + k·(800+65), and total output ≈ 300 (final answer) plus the intermediate reasoning (≈65 tokens per turn). After 4 turns, input ≈ 9,200 + 4×800 + 4×65 = 12,660 tokens, output ≈ 300 tokens, giving a total of ~12,960 tokens. The amplification factor vs. single-shot is 12,960 / 9,500 ≈ 1.36×.
 
 This worked example demonstrates that the cost increase is moderate for short reasoning paths but compounds as the agent loops deeper. The architect must weigh the probability of deep loops against the budget per request.
 
@@ -179,7 +181,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 
 ## 8. End-of-Chapter Mini-Case
 
-**Scenario.** An enterprise RQA system serves 2,000 knowledge workers. The baseline single-shot configuration uses a 70B FP16 model on 8×H100, with 9,200 input tokens and 300 output tokens, handling 10 rps average / 40 rps peak. The team introduces an agentic layer with a maximum of 3 turns, each turn adding a search tool (800 tokens) and an SQL query tool (350 tokens). The guardrail budget caps total input at 13,000 tokens.
+**Scenario.** An enterprise RQA system serves 2,000 knowledge workers. The baseline single-shot configuration uses a 70B FP16 model on 8×H100, with 9,200 input tokens and 300 output tokens, handling 10 rps average / 40 rps peak. The team introduces an agentic layer with a maximum of 3 turns, using the chapter's per-turn convention (each turn adds δ≈800 tokens of retrieved context plus γ≈65 tokens of model-generated reasoning, i.e. ≈865 tokens/turn). The guardrail budget caps total input at 13,000 tokens.
 
 **Measurement results.** Telemetry over 30 days shows:
 - 68% of requests terminate in 1 turn
