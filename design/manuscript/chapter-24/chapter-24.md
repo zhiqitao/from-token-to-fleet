@@ -149,7 +149,7 @@ Each consequence is tracked as a **change request** in the fleet’s operational
 | **Economic cost of hardening** | Each guardrail layer adds latency, storage, or compute cost. | Compute the cost‑per‑PIES‑point reduction; establish a budget ceiling. |
 | **Human‑in‑the‑loop evaluation fatigue** | Repeated Red Team cycles may desensitize the Green Team, leading to missed detections or rubber‑stamping of results. | Rotate evaluation owners every cycle; introduce blind validation where a random 10% of outcomes are independently re‑scored. |
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: The PIES Drop: Red Team / Green Team Iteration
 
 **Scenario:** The fleet’s Green Team observes that PIES has dropped from 217 to 143 after adding a prompt‑scanning guardrail. The poisoned‑hit rate remains at 0.003 expected poisoned chunks per 1,000 queries. The tool‑use success rate is 0.32%. However, the false‑positive rate has risen to 2.4% — legitimate user queries are being blocked ~24 times per 1,000 queries.
 

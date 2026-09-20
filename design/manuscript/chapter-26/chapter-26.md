@@ -86,7 +86,7 @@ The toolkit's patterns do not exist in isolation. Inference sharding changes the
 
 These open questions define the next research cycle. Each is framed as a HYPOTHESIS waiting for FACT instrumentation.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: The Capstone: Composing the Patterns
 
 **Scenario.** A growing AI startup moves from a single-node prototype to a fleet serving ~3,000 users. The initial deployment is a 70B FP16 model on a single 8×H100 node (the canonical host), serving 12 QPS with 450 ms p99 latency.
 

@@ -101,6 +101,6 @@ The archetype sets the entire downstream design vocabulary. On the **server** ti
 - **When P/D disaggregation's benefit crosses its cost** for mid-tier workloads is (a hypothesis); the breakpoint is workload- and fabric-specific.
 - **Fleet-level economics** (Ch16 TCO across a cluster) interact with the tier choice in ways that are (a hypothesis) until a real cost model is applied.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Escalating Through the Reference-Architecture Tiers
 
 An architect returns to the canonical internal Q&A service a year later. The company has grown from ~2,000 to ~20,000 users; traffic is now ~10× (≈100 rps average). The on-prem service is saturated: p95 TTFT has drifted to 3 s against the 2 s SLO. Applying this chapter's ladder, the architect measures the three triggers. Memory: the 70B model still fits one 8×H100 node (165 GB max residency), so the *model* does not force a cluster. Traffic: host goodput is exceeded at ~100 rps — the binding trigger. Operational: the data privacy requirement still forbids a public hyperscale cloud. The architect's decision: escalate to the **cluster** tier but keep it on-prem — run a small fleet of 8×H100 replicas behind a load balancer so each carries ~10 rps again, staying within both the memory and the privacy constraints. The result: p95 TTFT back under 1.8 s at 100 rps, on site, without hyperscale — because the architect climbed the ladder precisely one rung, and the correct rung was determined by the measured traffic trigger, not by fashion or by model size alone.

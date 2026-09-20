@@ -119,6 +119,6 @@ The metric hierarchy directly dictates architecture. For the canonical workload:
 - **Prefix-cache hit rates in mixed workloads** are workload-dependent; the actual reduction in prefill FLOPs from APC/RadixAttention for a given document-retrieval distribution is (to be verified).
 - **Tail-latency drivers under batching** interact: batch size, arrival burstiness, and KV fragmentation each affect p99 differently, and their joint effect is (a hypothesis).
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: The Post-Lunch Slowdown: Reading Telemetry Up the Chain
 
 An on-call architect is paged: "the internal Q&A tool got slow after lunch." The dashboard shows rps at the ~40 rps peak (workload, up from the 10 rps baseline), p95 TTFT at 2.4 s against a 2 s SLO (serving, breached), and KV cache occupancy at 85% with low prefix-hit ratio (resource, memory/FLOP pressure). Following the chain rather than guessing, the architect reads: a concurrency spike (workload) with repeated full 9.2K prefills (low prefix hit) is saturating prefill FLOPs (compute-bound). The architecture is memory- and compute-sane at the 10 rps design point but was never sized for the lunch peak. The fix is not "buy GPUs immediately" — it is to enable prefix caching to collapse the repeated prefills, which the telemetry shows will address the actual mechanism. The architect re-checks the dashboard an hour later: p95 TTFT back under 2 s, goodput restored — because they measured the right thing at the right layer.

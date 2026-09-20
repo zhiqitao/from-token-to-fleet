@@ -153,7 +153,7 @@ The key architectural decision this enables: **can we disaggregate prefill and d
 
 - **Effect of quantization on decode bandwidth vs prefill FLOPs.** Int4 or FP8 quantization reduces the weight bytes (e.g., 70B at FP8 = 70 GB instead of 140 GB), which directly lowers the HBM read demand in decode; it does *not* reduce the algorithmic operation count of the matmuls (the 2 × params × tokens FLOPs are approximately unchanged), though lower precision can raise the *effective* throughput of the tensor cores at which those ops run. The direction of the shift is clear (decode bandwidth improves; prefill ceiling rises in effective rate), but the precise trade-off point where decode becomes compute-bound rather than bandwidth-bound depends on the quantization scheme and hardware support. — workload-dependent.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: TTFT and the Prefill/Decode Split
 
 The architect is still in the early design conversation about the internal Q&A tool described in Chapter 1. The team has settled on a 70B-class dense model for accuracy, and they have a rough traffic estimate: ~2,000 registered employees, each roughly as active as the canonical scenario (~10 requests/s average, peaks ~40 rps), with prompts of ~1,200 tokens of internal documents plus ~8K retrieved context and ~300 tokens of answer.
 

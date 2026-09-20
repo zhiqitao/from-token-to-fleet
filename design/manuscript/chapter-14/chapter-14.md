@@ -86,6 +86,6 @@ The benchmark is not a one-time event; it is the recurring production validation
 - **Portable goodput ceilings** across serving stacks are (a hypothesis) until measured on the target host with the target model.
 - **The long-run relationship between capability and serving performance** (whether a more-capable model buys latency headroom on our cards) is (a hypothesis).
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Capability Screen vs. Deployment Benchmark
 
 A team of skeptical engineers tells the architect: "The new model tops MMLU, we should just deploy it." Applying this chapter, the architect separates the claims. Yes, the model passes the capability screen for retrieval-QA quality. But the architect refuses to stop there: they build a deployment benchmark reproducing the canonical workload — real prompts at ~9.2K in / ~300 out, 40 rps concurrency, the 1.2 s/25 ms SLO — and measure the new model on the existing hardware. The result: the leaderboard-topping model's tokenizer produces more tokens for the representative prompt corpus (a larger token count for the same text) and it has slower prefill, driving p95 TTFT to 2.6 s — breaching the SLO that the incumbent 70B met at 1.9 s. The team does not deploy the leaderboard winner. The architect's discipline — screen with capability, select with deployment — prevented a service degradation that a single MMLU score would have caused. The benchmark, done right, did not rank models; it predicted experience and saved the service.

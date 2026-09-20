@@ -62,7 +62,7 @@ As of 2026-08, several questions remain open and are flagged (to be verified):
 
 These flags exist because home-lab measurements are not reference per the evidence taxonomy; each is an open empirical question a team should validate against its own target workload, not a claim the handbook has settled.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: From Vague Ask to Candidate Architectures
 An architect is brought into a design conversation for a company-wide internal Q&A system. The stakeholder states: "We need an AI system that can answer employee questions over our internal documentation, with acceptable quality and within budget." Before any architecture can be defended, the architect applies the constraint-driven method from this chapter.
 
 First, the workload is characterized across the six dimensions. Quality requirements fix the model class: the system must achieve ~70B-model answer quality on enterprise prompts. The traffic profile is the canonical one (Ch. 4/5, canonical scenario (Ch 4, Table 4-3)): ~2,000 registered users, ~5% concurrent (~100), ~10 rps average / ~40 rps peak. The token profile is the canonical 1,200-token prompt plus 8K retrieved context (~9.2K input) plus 300-token answers, with TTFT ≤ 1.2 s (p95 ≤ 2 s) and TPOT ~25 ms/token. The economic ceiling is $15,000 monthly operating budget. The operational constraint is that the system must run on existing on-premise GPU infrastructure (no cloud add-ons).

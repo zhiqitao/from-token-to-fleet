@@ -102,7 +102,7 @@ Several open questions remain at the fleet level:
 
 - **Cross-query caching effects**: In RAG workloads, the ~9,200 in-tokens and ~300 out-tokens per query overlap significantly across users asking related questions. The potential for caching intermediate embeddings or partial KV caches is substantial, but the cost of cache management (invalidation, coherence, metadata overhead) must be quantified against the compute savings. We lack large-scale measurements of caching efficiency across diverse query populations.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Aggregate QPS, Marginal Cost, and an Infeasible SLO
 
 **Scenario**: A RAG Q&A fleet serves 2,000 users with the canonical parameters: 5% concurrent, 10 rps average / 40 rps peak, ~9,200 in-tokens + ~300 out-tokens per query, 70B dense FP16 model, 8×H100 per host, 8 hosts total.
 

@@ -139,7 +139,7 @@ As of 2026-08, several questions remain open and are flagged (to be verified):
 
 These flags exist because home-lab measurements are not reference per the evidence taxonomy; each is an open empirical question a team should validate against its own target workload, not a claim the handbook has settled.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Total vs. Active Parameters, and the KV Constant
 
 *(Continuous scenario — this is its first appearance, chaining from the enterprise Q&A thread.)*
 

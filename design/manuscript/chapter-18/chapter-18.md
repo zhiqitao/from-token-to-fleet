@@ -143,7 +143,7 @@ The fleet operator becomes a *cost‑latency steward* rather than a single-model
 - **Cross-model distillation opportunities.** Can a 70B 4-bit model be distilled from a 70B FP16 teacher without quality loss, effectively lowering the cost floor? Empirical work needed.
 - **Edge–cloud continuum effects.** When users bring their own 4-bit‑quantized local models (via Ollama, etc.), the fleet routing must account for hybrid inbound/outbound token flows.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: A Three-Tier Customer-Support Model Fleet
 
 **Deploy a three‑tier fleet for a customer‑support chatbot.**
 

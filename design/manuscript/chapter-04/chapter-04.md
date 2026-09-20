@@ -218,7 +218,7 @@ The six‑dimension characterization directly dictates the architectural path fo
 - **Impact of reranking on latency**: The TTFT budget assumes retrieval (~120 ms) plus prefill. If a late‑stage reranker is added to the pipeline, the retrieval component's latency may increase, eating into the TTFT budget and potentially requiring a wider SLO margin or a faster retriever. The magnitude of this effect is (a hypothesis) and should be measured before production deployment.
 - **Economic durability at scale**: The tokens‑per‑dollar numbers are derived from 2026 on‑demand H100 pricing. Spot instances, reserved contracts, or custom cloud agreements could shift the economics significantly. The durability of the economic model across provider changes is (a hypothesis).
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: A Six-Dimension Workload Characterization
 
 An architect is brought into the early design of an internal Q&A platform. The stakeholder says: "We have thousands of employees who want to ask questions over our internal documents. We need it to be accurate and fast, but we don't know how many thousands or how fast is fast enough." Before any architecture can be defended, the architect does the workload characterization that this chapter walks through.
 

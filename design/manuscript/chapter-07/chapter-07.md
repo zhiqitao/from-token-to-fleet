@@ -164,7 +164,7 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 <!-- Figure spec: one horizontal stacked bar (140 weights + 64 runtime + 436 KV = 640 GB pool); tick KV region in 24.9 GB slots -> C~18; faint FP8 overlay ~33 slots. Locks Ch7 <-> Ch17 handoff. -->
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Sizing Memory First for the 5,000-Employee Wiki
 
 An architect is asked to design an internal Q&A system over the company's document repository. The initial ask is vague: "We need to let all 5,000 employees ask questions over our internal wikis." Before any architecture can be defended, the architect must turn this vague desire into a machine-denominated statement using the chapter's core constraint.
 

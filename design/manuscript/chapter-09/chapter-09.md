@@ -119,7 +119,7 @@ Finally, the architecture consequence extends to cost. A cluster of 8×H100 serv
 
 - **Cross‑domain generalization.** Most published bandwidth measurements use square matrices (all-reduce of a gradient tensor). Diagonal dominant tensors, sparse gradients, or structured compression may exhibit different effective bandwidths because the traffic pattern across links is less uniform. The arithmetic framework applies, but the constants need re‑measurement for the specific tensor shape.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Naming the Parallelism Before the Arithmetic
 
 An architect is asked to design a distributed inference fleet for a 70B parameter model serving user queries at 200 tokens/s per user, with 10,000 concurrent users. The team debates whether to use a single 8×H100 host with NVLink, or to shard the model across 32 nodes connected by 200 GbE RoCE. Before any hardware is ordered, the architect opens this chapter and runs the communication arithmetic.
 

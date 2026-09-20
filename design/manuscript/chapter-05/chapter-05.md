@@ -152,7 +152,7 @@ This consequence feeds directly into Pattern 12 (Fine‑tuning for specific work
 
 Each of these flags is an open empirical question a team should resolve against its own target workload — promoted to [1P] or [2°] DERIVED, dropped, or demoted into the "What We Still Don't Know" section — rather than left as an untested assumption.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Choosing the Model for the Enterprise Q&A
 
 *(Continuous scenario: the enterprise Q&A architect must now pick the model given the Ch. 4 characterization.)*
 

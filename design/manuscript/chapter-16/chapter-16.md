@@ -130,6 +130,6 @@ TCO is the final gate in the design loop (Ch12 candidates → Ch14 benchmark →
 - **How rapidly GPU list and amortization prices fall** over the 5-year horizon is (a hypothesis); newer cards (H200/B200-class) change the per-card economics.
 - **The true staff overhead of self-hosting** (SRE time, security, upgrades) is (a hypothesis) until the team bills its own time honestly.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: TCO Discipline and the Staff Term
 
 A startup's CTO shows the architect a warrant to buy two 8×H100 servers for the new internal RAG assistant, citing "we'll save on token fees." Applying TCO discipline, the architect does not dispute the raw token math. Instead they price it: at this startup's *actual* early volume — ~5 rps average, ~5M requests/month, and only 0.5 engineers fully available for GPU ops — the break-even against a managed API sits just below that volume, and the staff term dwarfs the token savings. The honest number: self-hosting two servers ~$40K/month all-in vs ~$105K/month API at current volume, but the two-server option consumes a full engineer to keep utilization and reliability up — an opportunity cost the startup cannot yet afford. The architect's verdict: **start on the managed API now, revisit self-host at ~2× this volume or when a second engineer frees up**, and re-run the same model then. The CTO did not buy the servers — the break-even graph, with staff honestly included, made the answer self-evident.

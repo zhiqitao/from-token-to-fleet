@@ -117,7 +117,7 @@ mechanism layer. Rather than restating them, we point to the fuller treatment:
 - **Effect of quantization on decode vs prefill** — Chapter 2 §7; quantization shifts both bottlenecks but the precise trade-off point is workload-dependent. (a hypothesis awaiting verification)
 - **Cross-technology bandwidth numbers** — Chapter 2 §7; HBM3e and MI300X publish higher peaks, which move the GPU-count equation without changing the compute-bound vs bandwidth-bound classification. [ILLUSTRATIVE][DERIVED]
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: The Token-to-Fleet Thought Loop
 
 The architect is still in the early design conversation about the internal Q&A tool described throughout this handbook. The team has settled on a 70B-class dense model for accuracy, and they have a rough traffic estimate: ~2,000 registered employees, each roughly as active as the canonical scenario (~10 requests/s average, peaks ~40 rps), with prompts of ~1,200 tokens of internal documents plus ~8K retrieved context and ~300 tokens of answer.
 

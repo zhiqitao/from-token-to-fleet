@@ -179,7 +179,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 - **Optimal tool design for minimal turn count.** Some tools could return more comprehensive results in a single call, reducing the need for multiple rounds. The design space of "rich vs. narrow" tools and its impact on *T* is underexplored.
 - **Cross-user context caching.** If many users ask related questions (e.g., "What does the policy say about X?"), can we cache intermediate retrieval results and avoid redundant tool calls? The savings could be substantial but require careful invalidation logic.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Agentic Turn Distribution and KV Growth
 
 **Scenario.** An enterprise RQA system serves 2,000 knowledge workers. The baseline single-shot configuration uses a 70B FP16 model on 8×H100, with 9,200 input tokens and 300 output tokens, handling 10 rps average / 40 rps peak. The team introduces an agentic layer with a maximum of 3 turns, using the chapter's per-turn convention (each turn adds δ≈800 tokens of retrieved context plus γ≈65 tokens of model-generated reasoning, i.e. ≈865 tokens/turn). The guardrail budget caps total input at 13,000 tokens.
 

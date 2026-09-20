@@ -147,7 +147,7 @@ Despite the arithmetic above, several questions remain open and would benefit fr
 - **Cross‑host communication patterns at scale.** The φ = 0.1 assumption may not hold for all workloads (e.g., RAG over a shared index, distributed fine‑tuning). Real‑world measurement of cross‑host traffic patterns is needed to size the backbone accurately.
 - **Context‑caching efficacy across a fleet.** If many users query related topics, can a fleet‑wide KV cache or retrieval cache reduce the effective δ per request? The savings could be substantial but require cross-host cache-invalidation protocols that are not yet well understood.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: Going Agentic: Service-Time-Aware Fleet Sizing
 
 **Scenario.** A AI‑product company starts with a single 8×H100 host serving the canonical traffic of 2,000 users at 10 rps average / 40 rps peak, 9,200 input + 300 output tokens, no agentic layer. After six months, user growth pushes peak traffic to 100 rps, and the team introduces the agentic layer from Chapter 19 with a maximum of 3 turns (median T = 1, 95th‑percentile T = 3, per the Ch19 telemetry distribution).
 

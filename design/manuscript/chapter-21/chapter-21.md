@@ -85,7 +85,7 @@ The AI Factory is the operational backbone that makes the book's whole loop dura
 - **How well evaluation suites generalize** across distribution shifts in real traffic is (to be verified); a suite tuned on last quarter's data may misjudge this quarter's model.
 - **The right canary size** for a given risk posture is to be verified per service; 5% worked here but high-risk systems may need smaller, staged canaries.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: The Vendor's 'Better Bench': Canary and Rollback
 
 A vendor pitches the architect a newer, cheaper model: "just swap it in — it scores better on the bench." A year ago the architect might have, and watched p95 TTFT silently drift past the SLO for a week. Now the AI Factory is in place. The architect drops the candidate into the pipeline: the data pipeline versions it, the evaluation gate scores it against quality AND the deployment benchmark (TTFT/goodput/cost) on the canonical workload, and a 5% canary serves it for two hours. The gate flags a quality regression on the legal-document subset the benchmark suite specifically covers — a subset the vendor's "better bench" never measured. The candidate is rejected automatically, the incumbent stays, and the legal subset keeps working. No fire drill, no user-visible regression, no manual heroics — the factory made the wrong vendor claim cost nothing to the business, which is precisely what industrializing the delivery loop is for.
 

@@ -114,7 +114,7 @@ Whatever we learned here, file it under **"can I size an input before I buy capa
 
 *As of 2026-08:* tokenizer internals are rarely published in full, so exact per-token behavior for a given model is often only empirically observable, not specified (— tokenizer construction details, e.g. exact BPE merge rules for commercial models, are not fully public). Whether a fully learned, near-optimal tokenization for *our* domain can beat the generic vocabulary by a repeatable, quantified margin is still an open, workload-dependent question. And the interaction between tokenizer choice and downstream reasoning quality is not yet crisply characterized — we flag it as an open area rather than a settled fact.
 
-## 8. End-of-Chapter Mini-Case
+## 8. End-of-Chapter Mini-Case: The Internal Q&A Tool, From First Principles
 
 *(Chains the continuous scenario — this is its first appearance.)*
 
