@@ -37,7 +37,7 @@ Recall the canonical enterprise-Q&A RAG workload (canonical scenario (Ch 4, Tabl
 
 ### Discrete Batching Wastes the GPU
 
-Imagine naive **discrete (static) batching**: the server accumulates requests until a batch fills, then runs them to completion, then starts the next batch. Problems compound at this workload's 9.2K-input shape:
+Naive **discrete (static) batching** accumulates requests until a batch fills, then runs them to completion, then starts the next batch. Problems compound at this workload's 9.2K-input shape:
 
 - Requests arrive in *bursts* (recall the ~40 rps peak). Discrete batching forces early-arriving requests to **wait** for the batch to fill, inflating TTFT toward the 2 s SLO breach.
 - The batch is locked until its *slowest* member finishes (fits-all-in-one-run), so a short 100-token output tails behind the longest while the GPU finishes the whole batch — idle bubbles at the end of every batch.
