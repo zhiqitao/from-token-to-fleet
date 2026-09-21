@@ -40,7 +40,7 @@ The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200�
 
 ## 3. Worked Example
 
-**Scenario:** ~2,000 users, ~5% concurrent (≈100 simultaneous), ~10 rps average / ~40 rps peak. Total token volume per request: ~9,200 in + ~300 out per hour. Base hardware: 8×H100, 640 GB total VRAM. Model families: a 70B dense FP16, a 70B MoE (16 experts, 2 active), and a family of 8-bit/4-bit quantized models (70B equivalent).
+**Scenario:** ~2,000 users, ~5% concurrent (≈100 simultaneous), ~10 rps average / ~40 rps peak. Total token volume per request: ~9,200 in + ~300 out. Base hardware: 8×H100, 640 GB total VRAM. Model families: a 70B dense FP16, a 70B MoE (16 experts, 2 active), and a family of 8-bit/4-bit quantized models (70B equivalent).
 
 ### 3.1. Hardware capacity mapping
 
@@ -82,7 +82,7 @@ For 1,000 requests/hour (≈0.28 rps — a light illustrative load; the arithmet
 
 **Mixed-fleet hourly cost** = $8.31 + $1.90 + $2.38 = **$12.59 / hour** vs. $23.75 / hour for single-FP16 (all 9.5M tokens at $2.50).
 
-**Monthly savings** ≈ ($23.75 − $12.59) × 720 hr ≈ **$8,100 / month** (≈ 47% reduction) with comparable quality because the 8-bit model meets quality thresholds for >90% of requests.
+**Monthly savings** ≈ ($23.75 − $12.59) × 720 hr ≈ **$8,035 / month** (≈ 47% reduction) with comparable quality because the 8-bit model meets quality thresholds for >90% of requests.
 
 ### 3.4. Latency check
 

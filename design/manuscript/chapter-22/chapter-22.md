@@ -49,8 +49,8 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 
 | metric | value | derivation |
 |---|---|---|
-| input tokens / request | ~9,200 | 1,200 prompt + 8K RAG context [ILLUSTRATIVE][DERIVED] |
-| output tokens / request | ~300 | generated answer length [ILLUSTRATIVE][DERIVED] |
+| input tokens / request | ~9,200 | 1,200 prompt + 8K RAG context [canonical scenario][ASSUMPTION] |
+| output tokens / request | ~300 | generated answer length [canonical scenario][ASSUMPTION] |
 | input / output ratio | ~30× | 9,200 ÷ 300 [canonical scenario][DERIVED] |
 | input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [ILLUSTRATIVE][DERIVED] |
 | input tokens/s @ peak 40 rps | ~368,000 | 9,200 ×40 [ILLUSTRATIVE][DERIVED] |

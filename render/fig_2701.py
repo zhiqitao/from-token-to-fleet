@@ -22,22 +22,22 @@ ax.barh(y - h/2, active_b, height=h, label='Active parameters', color='#ff8c42')
 # annotate each active bar with its fraction
 for i in range(len(names)):
     ax.text(active_b[i]*1.15, y[i] - h/2, f'{frac[i]:.1f}% of total',
-            va='center', fontsize=8.5, color='#b25a1e')
+            va='center', fontsize=10.5, color='#b25a1e')
 
 ax.set_xscale('log')
 ax.set_yticks(y)
-ax.set_yticklabels(names, fontsize=9.5)
-ax.set_xlabel('Parameters (B, log scale)', fontsize=9.5)
+ax.set_yticklabels(names, fontsize=11.5)
+ax.set_xlabel('Parameters (B, log scale)', fontsize=11.5)
 ax.set_xlim(1, 9000)
-ax.tick_params(labelsize=9.5)
+ax.tick_params(labelsize=11.5)
 ax.grid(alpha=0.3, which='both', axis='x')
 # legend below the axes so it never overlaps the in-row % labels
-ax.legend(fontsize=8.5, loc='upper center', bbox_to_anchor=(0.5, -0.16),
+ax.legend(fontsize=10.5, loc='upper center', bbox_to_anchor=(0.5, -0.16),
           ncol=2, frameon=False)
 
 # the point, up front
 ax.set_title('2026 frontier MoE: extreme sparsity —  single-digit active fraction of total',
-             fontsize=10, loc='left')
+             fontsize=12, loc='left')
 
 plt.tight_layout()
 out = 'design/manuscript/chapter-27/figures/fig-27-2701.png'
