@@ -52,7 +52,7 @@ $$
 
 ## 2. Mental Model
 
-Think of a token as a **metered unit of thought**, the way electricity is metered by the kilowatt-hour — important not because a single kilowatt-hour is meaningful by itself, but because *every* downstream cost and capacity number is denominated in it.
+A token is best understood as a **metered unit of thought**, the way electricity is metered by the kilowatt-hour — important not because a single kilowatt-hour is meaningful by itself, but because *every* downstream cost and capacity number is denominated in it.
 
 A useful image for the full pipeline:
 
@@ -120,4 +120,4 @@ Whatever we learned here, file it under **"can I size an input before I buy capa
 
 An architect is pulled into an early-stage design conversation about a new internal Q&A tool. There is no model, no server, no budget — just the raw ask: "We have thousands of employees who want to ask questions over our internal documents." Before any architecture can be defended, we have to turn that vague desire into a *machine-denominated* statement.
 
-from the token layer alone (which we worked through in this chapter), the architect can already establish: the unit is tokens; the request shape will be prompt + retrieved context + output; the workload is input-heavy; and the first number to lock down is tokens-per-request, because every downstream decision (which model fits, how much memory, what latency is possible) is priced against it. The specific sizing — turning "thousands of employees" into ~2,000 registered users, ~10 req/s, ~9.2K input tokens — is Chapter 4's job (workload anatomy). Here the point is narrower and sharper: *we can now speak the system's currency*, and that is a prerequisite for every architecture question that follows.
+from the token-level work alone (which we worked through in this chapter), the architect can already establish: the unit is tokens; the request shape will be prompt + retrieved context + output; the workload is input-heavy; and the first number to lock down is tokens-per-request, because every downstream decision (which model fits, how much memory, what latency is possible) is priced against it. The specific sizing — turning "thousands of employees" into ~2,000 registered users, ~10 req/s, ~9.2K input tokens — is Chapter 4's job (workload anatomy). Here the point is narrower and sharper: *we can now speak the system's currency*, and that is a prerequisite for every architecture question that follows.

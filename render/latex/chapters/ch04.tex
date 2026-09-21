@@ -78,9 +78,9 @@ mode.
 \ntsection{Mental Model}\label{mental-model}
 
 
-Think of the six dimensions as the axes of a six‑dimensional space in
-which every AI workload resides. A workload's position in this space is
-its \emph{fingerprint}. When an architect says ``we need a model for
+The six dimensions are best read as the axes of a six‑dimensional space
+in which every AI workload resides. A workload's position in this space
+is its \emph{fingerprint}. When an architect says ``we need a model for
 enterprise Q\&A,'' that is only a descriptor of the quality dimension.
 To make the statement actionable, we must project the workload onto all
 six axes: \emph{what quality level, how much traffic, what token
@@ -101,6 +101,13 @@ they matter most.
 
 \subsection{Characterizing the Canonical Enterprise-Q\&A RAG
 Workload}\label{characterizing-the-canonical-enterprise-qa-rag-workload}
+
+RAG is retrieval-augmented generation: the system retrieves relevant
+passages from a document store and prepends them to the user's question
+as context, so the model answers from evidence rather than memory. The
+canonical workload below is the book's running example of such a system
+(the Preface defines the term; this is where it becomes a quantified
+workload).
 
 We now apply the six‑dimension framework to the \textbf{canonical
 enterprise‑Q\&A RAG workload} used throughout this handbook. The
@@ -248,7 +255,13 @@ Hardware & 8×H100 (80 GB each, 640 GB) \\
 Compute price & \$2.50/GPU-hr (illustrative 2026 input) →
 \textasciitilde\$20/hr per 8×H100 host \\
 Availability & 99.9\% \\
-Monthly budget & \textasciitilde\$15,000 (illustrative ceiling) \\
+Monthly budget & \textasciitilde\$15,000 (illustrative \emph{per-host}
+ceiling: one 8×H100 host at \textasciitilde\$20/hr × 730 hr ≈
+\$14.6K/mo. Note this is a \textbf{single host}, not the whole workload
+--- meeting the canonical \textasciitilde10 rps average /
+\textasciitilde40 rps peak needs \textasciitilde5--20 hosts, so the
+workload's real monthly spend is \textasciitilde\$75K--\$350K/mo (Ch
+16); the budget box is a per-host ceiling, not the workload ceiling) \\
 
 \label{tab:4.3}\end{longtable}
 
@@ -557,37 +570,36 @@ line must be re‑evaluated.
 
 For this chapter, measurement is about \textbf{quantifying the six
 dimensions} so the workload can be communicated definitively and used to
-drive architecture decisions. Three practical habits anchor the
-architect:
+drive architecture decisions. The token-counting habits of Ch 1 §4 apply
+unchanged (run the model's own tokenizer, split input from output, log
+the distribution not just the mean) --- rather than restate them, the
+three things the \emph{six-dimension} view adds are:
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
+\tightlist
 \item
-  \textbf{Measure tokens, not words.} Run the model's own tokenizer on
-  representative prompts from real traffic. The ``4 chars ≈ 1 token''
-  heuristic is for estimation only; real counts differ by language,
-  formatting, code, and tokenizer version. Input token counts directly
-  determine KV cache size and prefill time; output token counts
-  determine decode bandwidth.
+  \textbf{Quantify each dimension with a number, not a label.} For the
+  six dimensions (workload type, token mix, concurrency, latency,
+  memory, economics), attach a concrete measured or derived figure.
+  ``RAG'' is not a load; ``1.2K prompt + 8K retrieved, 300 out, 40 rps
+  peak, p95 TTFT ≤ 2 s'' is.
 \item
-  \textbf{Split input and output.} Measure both legs of the request
-  separately (prompt tokens and generated tokens), because they land on
-  different bottlenecks --- input on memory/prefill, output on decode
-  --- and on different cost line items. An input‑heavy profile (like
-  RAG's 30× ratio) means prefill dominates; an output‑heavy profile
-  would dominate decode.
+  \textbf{Tie the token split to the bottleneck it drives.} An
+  input-heavy profile (like RAG's 30× ratio) means prefill compute and
+  KV-capacity pressure dominate; an output-heavy profile would dominate
+  decode. State which side dominates, because it decides where the money
+  and the architecture effort go (Ch 8).
 \item
-  \textbf{Log the distribution, not just the mean.} A workload that
-  averages 9.2 K input tokens but has a long tail (e.g.~32 K peak
-  contexts) has a very different KV cache and latency profile than one
-  with a tight distribution. Log percentiles (p90, p99) alongside the
-  average.
+  \textbf{Record the peak and the tail, not just the average.} A
+  workload that averages 9.2K input but has a long tail (e.g.~32K peak
+  contexts) sizes the fleet very differently. Log percentiles (p90, p99)
+  alongside the average and size against the peak.
 \end{enumerate}
 
-These measurement habits are the token-layer answer to the book's
-recurring question, ``what would I actually measure here?'' --- we
-measure token counts and their distribution, at the edge, before any
-architecture decision is made.
+These habits answer the book's recurring question, ``what would I
+actually measure here?'' --- and they let the six dimensions be stated
+as numbers an architecture decision can be defended on.
 
 \ntsection{Common Mistakes}\label{common-mistakes}
 
@@ -743,9 +755,9 @@ accurate and fast, but we don't know how many thousands or how fast is
 fast enough.'' Before any architecture can be defended, the architect
 does the workload characterization that this chapter walks through.
 
-From the token layer alone (as we did in Ch. 4), the architect can
-already establish: the unit is tokens; the request shape will be prompt
-+ retrieved context + output; the workload is input‑heavy; and the first
+From the unit-and-token work of Ch 1 alone, the architect can already
+establish: the unit is tokens; the request shape will be prompt +
+retrieved context + output; the workload is input‑heavy; and the first
 number to lock down is tokens‑per‑request, because every downstream
 decision (which model fits, how much memory, what latency is possible)
 is priced against it. Using the canonical scenario as a starting point

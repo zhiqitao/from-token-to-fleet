@@ -18,7 +18,7 @@ The core reframe — modeled in Chapter 4 — is that **model selection is a con
 
 ## 2. Mental Model
 
-Think of model selection as **system design, not model picking**. The workload is the architect's input; the model is a component that must satisfy the workload's constraints. If the workload is input-heavy (9.2K average input, 300-token output, ~30× more input than output), the system is memory‑bound and prefill‑dominated. If the workload were output‑heavy, it would be decode‑bound. The mental model holds both profiles in view: the same "which model?" question produces opposite answers depending on the token profile.
+Model selection is really **system design, not model picking**. The workload is the architect's input; the model is a component that must satisfy the workload's constraints. If the workload is input-heavy (9.2K average input, 300-token output, ~30× more input than output), the system is memory‑bound and prefill‑dominated. If the workload were output‑heavy, it would be decode‑bound. The mental model holds both profiles in view: the same "which model?" question produces opposite answers depending on the token profile.
 
 A useful image for the full pipeline:
 
@@ -110,15 +110,13 @@ where $C_\text{train}$ is the one‑time training compute, $C_\text{weights-extr
 
 ## 4. Measurement
 
-How does an architect measure the workload dimensions that drive model selection? Three concrete checks:
+How does an architect measure the workload dimensions that drive model selection? The token-counting habits of Ch 1 §4 apply unchanged; the three things the *selection* view adds are:
 
-1. **Actual token count, not the rule of thumb.** Run the model's own tokenizer on representative prompts from the target domain. The "4 chars ≈ 1 token" heuristic is for estimation only; real counts differ by language, formatting, code, and tokenizer version. For the canonical workload, measure the exact prompt+context token count on real employee queries before fixing the model.
+1. **Measure the token split on real employee queries, not the heuristic.** Run the model's own tokenizer on representative prompts from the target domain — the "4 chars ≈ 1 token" heuristic is for estimation only. For the canonical workload, measure the exact prompt+context token count on real employee queries before fixing the model, because the ~30× input-to-output ratio is the single biggest driver of this system's cost structure (Ch 4).
+2. **Quantify the output size, since that drives decode cost and per-request latency.** The output token count determines decode bandwidth and p95 TPOT; a large-output paradigm (e.g. long-form generation) changes the model-selection calculus versus a short-output Q&A system.
+3. **Know the 95th-percentile context length, not just the average.** Log the distribution of context lengths. A workload that averages 9.2K input but peaks at 32K (a variant flagged in Ch 4) requires a different KV budget and, with it, a different model-size or attention-hybridity choice. Size against the tail.
 
-2. **Input vs output split.** Measure both legs of the request (prompt tokens and generated tokens), because they land on different bottlenecks — input on memory/prefill, output on decode — and on different cost line items. The canonical ratio of ~30× more input than output is the single biggest driver of this system's cost structure.
-
-3. **Peak vs average context.** Log the distribution of context lengths, not just the mean. A workload that averages 9.2K input tokens but peaks at 32K (a variant flagged in Ch. 4) has a very different KV cache and latency profile. The architect must know the 95th‑percentile context length to size the KV budget correctly.
-
-This measurement habit is the token-layer answer to the book's recurring question, "what would I actually measure here?" — we measure token counts and their distribution, at the edge, before any architecture decision is made.
+These checks let model selection be made on measured workload dimensions rather than a generic "bigger model is better" assumption.
 
 ## 5. Common Mistakes
 

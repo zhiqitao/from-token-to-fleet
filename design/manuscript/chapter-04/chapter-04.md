@@ -26,13 +26,15 @@ The framework is deliberately dimensional: a workload that is "high‑quality, h
 
 ## 2. Mental Model
 
-Think of the six dimensions as the axes of a six‑dimensional space in which every AI workload resides. A workload's position in this space is its *fingerprint*. When an architect says "we need a model for enterprise Q&A," that is only a descriptor of the quality dimension. To make the statement actionable, we must project the workload onto all six axes: *what quality level, how much traffic, what token profile, what latency SLO, what economic ceiling, what operational constraints?* The intersection of these projections is the workload point that drives every downstream decision — model selection, infrastructure sizing, serving configuration, and TCO.
+The six dimensions are best read as the axes of a six‑dimensional space in which every AI workload resides. A workload's position in this space is its *fingerprint*. When an architect says "we need a model for enterprise Q&A," that is only a descriptor of the quality dimension. To make the statement actionable, we must project the workload onto all six axes: *what quality level, how much traffic, what token profile, what latency SLO, what economic ceiling, what operational constraints?* The intersection of these projections is the workload point that drives every downstream decision — model selection, infrastructure sizing, serving configuration, and TCO.
 
 The mental model is not a checklist; it is a *lens*. Looking through it, the architect sees which dimensions are tight (binding) and which are loose (permissive). Tight dimensions become the design drivers; loose dimensions offer optimization freedom. The goal is to identify the binding constraints so that resources are allocated where they matter most.
 
 ## 3. Worked Example
 
 ### Characterizing the Canonical Enterprise-Q&A RAG Workload
+
+RAG is retrieval-augmented generation: the system retrieves relevant passages from a document store and prepends them to the user's question as context, so the model answers from evidence rather than memory. The canonical workload below is the book's running example of such a system (the Preface defines the term; this is where it becomes a quantified workload).
 
 We now apply the six‑dimension framework to the **canonical enterprise‑Q&A RAG workload** used throughout this handbook. The canonical numbers are the fixed reference set for Part II; all arithmetic in this chapter traces to them (see the canonical-scenario provenance, Table 4-3).
 
@@ -80,7 +82,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | Hardware | 8×H100 (80 GB each, 640 GB) |
 > | Compute price | $2.50/GPU-hr (illustrative 2026 input) → ~$20/hr per 8×H100 host |
 > | Availability | 99.9% |
-> | Monthly budget | ~$15,000 (illustrative ceiling) |
+> | Monthly budget | ~$15,000 (illustrative *per-host* ceiling: one 8×H100 host at ~$20/hr × 730 hr ≈ $14.6K/mo. Note this is a **single host**, not the whole workload — meeting the canonical ~10 rps average / ~40 rps peak needs ~5–20 hosts, so the workload's real monthly spend is ~$75K–$350K/mo (Ch 16); the budget box is a per-host ceiling, not the workload ceiling) |
 >
 > *The two derived rates most chapters cite: at 10 rps the input demand is ~92,000 tokens/s (9,200 × 10) and output ~3,000 tokens/s (300 × 10); at 40 rps peak the input demand is ~368,000 tokens/s (9,200 × 40). These come from this box, not from a chapter re-deriving the mix differently.*
 
@@ -177,15 +179,13 @@ The economic constraint is what makes the workload real: a 70B FP16 model on one
 
 ## 4. Measurement
 
-For this chapter, measurement is about **quantifying the six dimensions** so the workload can be communicated definitively and used to drive architecture decisions. Three practical habits anchor the architect:
+For this chapter, measurement is about **quantifying the six dimensions** so the workload can be communicated definitively and used to drive architecture decisions. The token-counting habits of Ch 1 §4 apply unchanged (run the model's own tokenizer, split input from output, log the distribution not just the mean) — rather than restate them, the three things the *six-dimension* view adds are:
 
-1. **Measure tokens, not words.** Run the model's own tokenizer on representative prompts from real traffic. The "4 chars ≈ 1 token" heuristic is for estimation only; real counts differ by language, formatting, code, and tokenizer version. Input token counts directly determine KV cache size and prefill time; output token counts determine decode bandwidth.
+1. **Quantify each dimension with a number, not a label.** For the six dimensions (workload type, token mix, concurrency, latency, memory, economics), attach a concrete measured or derived figure. "RAG" is not a load; "1.2K prompt + 8K retrieved, 300 out, 40 rps peak, p95 TTFT ≤ 2 s" is.
+2. **Tie the token split to the bottleneck it drives.** An input-heavy profile (like RAG's 30× ratio) means prefill compute and KV-capacity pressure dominate; an output-heavy profile would dominate decode. State which side dominates, because it decides where the money and the architecture effort go (Ch 8).
+3. **Record the peak and the tail, not just the average.** A workload that averages 9.2K input but has a long tail (e.g. 32K peak contexts) sizes the fleet very differently. Log percentiles (p90, p99) alongside the average and size against the peak.
 
-2. **Split input and output.** Measure both legs of the request separately (prompt tokens and generated tokens), because they land on different bottlenecks — input on memory/prefill, output on decode — and on different cost line items. An input‑heavy profile (like RAG's 30× ratio) means prefill dominates; an output‑heavy profile would dominate decode.
-
-3. **Log the distribution, not just the mean.** A workload that averages 9.2 K input tokens but has a long tail (e.g. 32 K peak contexts) has a very different KV cache and latency profile than one with a tight distribution. Log percentiles (p90, p99) alongside the average.
-
-These measurement habits are the token-layer answer to the book's recurring question, "what would I actually measure here?" — we measure token counts and their distribution, at the edge, before any architecture decision is made.
+These habits answer the book's recurring question, "what would I actually measure here?" — and they let the six dimensions be stated as numbers an architecture decision can be defended on.
 
 ## 5. Common Mistakes
 
@@ -222,7 +222,7 @@ The six‑dimension characterization directly dictates the architectural path fo
 
 An architect is brought into the early design of an internal Q&A platform. The stakeholder says: "We have thousands of employees who want to ask questions over our internal documents. We need it to be accurate and fast, but we don't know how many thousands or how fast is fast enough." Before any architecture can be defended, the architect does the workload characterization that this chapter walks through.
 
-From the token layer alone (as we did in Ch. 4), the architect can already establish: the unit is tokens; the request shape will be prompt + retrieved context + output; the workload is input‑heavy; and the first number to lock down is tokens‑per‑request, because every downstream decision (which model fits, how much memory, what latency is possible) is priced against it. Using the canonical scenario as a starting point — ~2,000 registered users, ~5% concurrency, ~10 rps, ~9.2 K input + 300 output tokens — the architect projects the enterprise's actual headcount. If the company has 5,000 employees and expects 10% concurrent activity during peak Q&A periods (after a policy rollout), the concurrency rises to 500 users. With the same ~10 s *planning-round* request duration (the Little's-law basis used above, 100 concurrent ÷ 10 s ≈ 10 rps), throughput climbs to 500 ÷ 10 ≈ **50 rps**. Using the canonical per-host bound from Chapters 15–20 (a single 8×H100 host serves ~2.1 req/s at full modeled utilization, i.e. C/W = 18 KV-resident requests ÷ 8.6 s), the fleet rounds to:
+From the unit-and-token work of Ch 1 alone, the architect can already establish: the unit is tokens; the request shape will be prompt + retrieved context + output; the workload is input‑heavy; and the first number to lock down is tokens‑per‑request, because every downstream decision (which model fits, how much memory, what latency is possible) is priced against it. Using the canonical scenario as a starting point — ~2,000 registered users, ~5% concurrency, ~10 rps, ~9.2 K input + 300 output tokens — the architect projects the enterprise's actual headcount. If the company has 5,000 employees and expects 10% concurrent activity during peak Q&A periods (after a policy rollout), the concurrency rises to 500 users. With the same ~10 s *planning-round* request duration (the Little's-law basis used above, 100 concurrent ÷ 10 s ≈ 10 rps), throughput climbs to 500 ÷ 10 ≈ **50 rps**. Using the canonical per-host bound from Chapters 15–20 (a single 8×H100 host serves ~2.1 req/s at full modeled utilization, i.e. C/W = 18 KV-resident requests ÷ 8.6 s), the fleet rounds to:
 
 $$
 n_\text{hosts} = \frac{50 \text{ rps}}{2.1 \text{ req/s/host}} \approx 24 \text{ hosts} \quad (\text{full utilization})

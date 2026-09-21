@@ -38,11 +38,11 @@ within the specified substrate.
 \ntsection{Mental Model}\label{mental-model}
 
 
-Think of the substrate as a set of bounded resources and the
-architecture design problem as a packing exercise. The resources are:
-GPU memory (weight residency + KV cache), memory bandwidth (prefill
-throughput), inter-GPU communication volume (for parallelism schemes),
-and the latency budget split between prefill and decode. A candidate
+The substrate is a set of bounded resources, and the architecture design
+problem is essentially a packing exercise. The resources are: GPU memory
+(weight residency + KV cache), memory bandwidth (prefill throughput),
+inter-GPU communication volume (for parallelism schemes), and the
+latency budget split between prefill and decode. A candidate
 architecture is a valid packing of the workload's weight memory and KV
 cache into the available GPU memory, paired with a parallelism and
 caching strategy that delivers the required tokens-per-second throughput
@@ -68,29 +68,39 @@ of 164 GB. A single 8×H100 host provides 640 GB aggregate memory (8 ×80
 GB), leaving ample headroom. Each candidate satisfies the three hard
 constraints differently.
 
-\textbf{Candidate (a): single 8×H100 host with prefix caching (Ch.
-11).}\\
-All 70B weights and the full 24 GB KV cache reside on the 8-GPU host.
-Prefix caching from Ch. 11 amortizes the prefill attention over repeated
-requests with the same prompt prefix, reducing effective prefill FLOPs
-by \textasciitilde30\% at 10 rps average and \textasciitilde50\% at peak
-40 rps when many requests share common document roots. The 8×H100 host
-fits the full 164 GB residency easily, but on \emph{throughput} we must
-be honest with the \hyperref[chap:8]{Chapter 8} arithmetic: a single 8×H100 host sustains
-only \textasciitilde19,800 prefill-tokens/s at the idealized 35\%-MFU
+\textbf{Candidate (a): single 8×H100 host with prefix caching (Ch. 11).}
+This is the per-request-latency baseline --- the single 8×H100 host that
+the early book (Ch 2, 4, 7, 8) establishes as meeting one request's
+latency SLO. It is \emph{not} a capacity baseline: a lone host cannot
+carry the arrival rate (\textasciitilde5 hosts are needed for the
+canonical average, and \textasciitilde20 at peak --- see Ch 11, 13, 17),
+so its throughput-gate failure below is expected and is \emph{not} a
+reason to dismiss the host class itself. All 70B weights and the full 24
+GB KV cache reside on the 8-GPU host. Prefix caching from Ch. 11
+amortizes the prefill attention over repeated requests with the same
+prompt prefix, reducing effective prefill FLOPs by \textasciitilde30\%
+at 10 rps average and \textasciitilde50\% at peak 40 rps when many
+requests share common document roots. (That 30--50\% amortization range
+is a reasoned expectation, not a measured figure --- it rests on the
+untested premise about traffic overlap flagged in §7, so it is labeled
+\textbf{{[}HYPOTHESIS{]}} and should be confirmed by measuring the
+actual prefix-hit rate before it is relied on.) The 8×H100 host fits the
+full 164 GB residency easily, but on \emph{throughput} we must be honest
+with the \hyperref[chap:8]{Chapter 8} arithmetic: a single 8×H100 host sustains only
+\textasciitilde19,800 prefill-tokens/s at the idealized 35\%-MFU
 aggregate (8 × 2,471; see the Ch. 8 scope note) --- far below the
 \textasciitilde92K input tokens/s the workload needs on average. Even if
 prefix caching (\textasciitilde30\% at average load) lifts effective
-prefill throughput toward \textasciitilde28K tokens/s, that is still
-well below 92K, so a single host fails the throughput gate too ---
-prefill is compute-bound here, and meeting it is exactly the scaling
-problem Chapters 15--17 take up. Memory fit and throughput fit are
-different gates: the memory gate passes with one host; the throughput
-gate does not. Memory fit: 140 GB weights + 24 GB KV = 164 GB
-\textless{} 640 GB aggregate ({[}1P{]} canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3})).
-Latency budget: prefill + decode stay within budget thanks to prefix
-caching and the high bandwidth of 8×H100. Economics: one host purchase,
-one software license tier.
+prefill throughput toward \textasciitilde28K tokens/s
+\textbf{{[}HYPOTHESIS{]}}, that is still well below 92K, so a single
+host fails the throughput gate too --- prefill is compute-bound here,
+and meeting it is exactly the scaling problem Chapters 15--17 take up.
+Memory fit and throughput fit are different gates: the memory gate
+passes with one host; the throughput gate does not. Memory fit: 140 GB
+weights + 24 GB KV = 164 GB \textless{} 640 GB aggregate ({[}1P{]}
+canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3})). Latency budget: prefill + decode stay
+within budget thanks to prefix caching and the high bandwidth of 8×H100.
+Economics: one host purchase, one software license tier.
 
 \textbf{Candidate (b): P/D-disaggregated two-pool.}\\
 We keep the full 70B model in both pools and split by \emph{phase} ---
@@ -286,8 +296,12 @@ concurrent (\textasciitilde100), \textasciitilde10 rps average /
 1,200-token prompt plus 8K retrieved context (\textasciitilde9.2K input)
 plus 300-token answers, with TTFT ≤ 1.2 s (p95 ≤ 2 s) and TPOT
 \textasciitilde25 ms/token. The economic ceiling is \$15,000 monthly
-operating budget. The operational constraint is that the system must run
-on existing on-premise GPU infrastructure (no cloud add-ons).
+operating budget --- a \textbf{per-host} ceiling (one 8×H100 at
+\textasciitilde\$20/hr × 730 hr ≈ \$14.6K/mo), which the reader should
+note is far below what the full canonical workload costs once the
+multi-host fleet is sized (Ch 16): the budget is a single-host cap, not
+the workload ceiling. The operational constraint is that the system must
+run on existing on-premise GPU infrastructure (no cloud add-ons).
 
 From the token profile, the architect computes: 9.2K input tokens + 300
 output tokens ≈ 9.5K tokens per request. At 10 rps average and 40 rps
@@ -372,9 +386,9 @@ economics
 \endlastfoot
 (a) 8×H100 + prefix caching & 140 + 24 = \textbf{164 GB} & 1 ×8×H100 &
 prefill \textasciitilde19.8K (idealized; \textasciitilde28K w/ prefix
-cache) · decode BW-bound & ✓ memory 164 \textless{} 640 GB · ✓ TTFT SLO
-(≤1.2 s budget, p95 ≤2 s) & ✗ throughput: needs \textasciitilde5
-hosts \\
+cache \textbf{{[}HYPOTHESIS{]}}) · decode BW-bound & ✓ memory 164
+\textless{} 640 GB · ✓ TTFT SLO (≤1.2 s budget, p95 ≤2 s) & ✗
+throughput: needs \textasciitilde5 hosts \\
 (b) P/D-disaggregated & 140 + 24 = \textbf{164 GB} per pool & 2 ×8×H100
 & prefill pool \textasciitilde19.8K/host · decode BW-bound & ✓ memory
 per host · ✓ phase-split at scale & ✗ 2 hosts + fabric \\

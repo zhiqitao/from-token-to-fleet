@@ -42,31 +42,17 @@ into concrete bounds.
 \ntsection{Mental Model}\label{mental-model}
 
 
-Inference is like two gears turning at different speeds. The prefill
-gear is large and toothed: it does a lot of work per revolution (many
-FLOPs), but it only turns once per request. The decode gear is small and
-smooth: it turns every token, doing relatively little work per step, but
-it keeps turning for every output token. The prefill gear is limited by
-how fast the compute engines can crank (FLOPS); the decode gear is
-limited by how fast data can be fed from memory (GB/s). When we ask ``is
-this workload compute-bound or bandwidth-bound?'' the answer depends
-entirely on which gear is doing the work.
-
-A useful concrete image: prefill is like filling a bucket from a fire
-hose --- a burst of high-rate flow that fills the entire capacity in one
-go. That burst is limited by how hard the pump pushes water (the
-compute/FLOPS rate), not by the width of the pipe; the pipe is more than
-wide enough. Decode is like drinking from that bucket one sip at a time
---- each sip is small, but we keep sipping until the bucket is empty.
-Each sip is limited by how fast water can be drawn through the straw
-(the memory-bandwidth feed rate), not by how large each mouthful is. In
-other words: the one-shot fire-hose burst is compute-crank-limited
-(prefill), and the steady sipping is draw-rate-limited (decode).
-
-The architect's mental model, distilled: \textbf{tokens are the unit of
-measure; prefill and decode are opposite-bound processes that require
-different levers.} This distinction is the single biggest discriminator
-between an architecture that meets its SLOs and one that does not.
+The prefill/decode split is the figure the rest of the book builds on,
+and it was established in Ch 2 §2 (prefill is compute-bound --- a large
+burst of FLOPs once per request; decode is bandwidth-bound --- a small
+amount of work repeated for every output token). Ch 22 does not
+re-derive that distinction; it uses it. What this chapter adds is the
+\textbf{reasoning loop}: the architect does not have to hold every
+quantity in their head, because the loop turns a vague ask into a small,
+ordered set of token-scale bounds that the downstream chapters price
+against. The mental model, distilled, is that \textbf{the loop is the
+discipline} --- derive the unit, then the traffic, then the split, in
+that order, so every later number is anchored rather than guessed.
 
 \ntsection{Worked Example --- The Canonical
 Loop}\label{worked-example-the-canonical-loop}
@@ -89,7 +75,10 @@ measure. In the canonical scenario, the prompt consists of
 \textasciitilde1,200 tokens of query text plus \textasciitilde8,000
 tokens of retrieved RAG context, yielding \textbf{\textasciitilde9,200
 input tokens}. The answer generated is \textasciitilde300 tokens. These
-numbers are not assumed; they are measured {[}1P{]}.
+are the book's \texttt{{[}canonical\ scenario{]}} inputs (Ch 4, \hyperref[tab:4.3]{Table 4-3}) --- an author-defined illustrative workload, \emph{not} a
+vendor-reported \texttt{{[}1P{]}} figure, so they are labeled
+\texttt{{[}canonical\ scenario{]}{[}ASSUMPTION{]}}, not
+\texttt{{[}1P{]}}.
 
 \textbf{Step 2 --- Establish the traffic profile.} The ask says ``about
 2,000 employees'' and ``throughout the day.'' We instrument or survey to
@@ -173,8 +162,8 @@ input tokens / request & \textasciitilde9,200 & 1,200 prompt + 8K RAG
 context {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
 output tokens / request & \textasciitilde300 & generated answer length
 {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
-input / output ratio & \textasciitilde30× & 9,200 ÷ 300
-{[}1P{]}{[}DERIVED{]} \\
+input / output ratio & \textasciitilde30× & 9,200 ÷ 300 {[}canonical
+scenario{]}{[}DERIVED{]} \\
 input tokens/s @ 10 rps & \textasciitilde92,000 & 9,200 ×10
 {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
 input tokens/s @ peak 40 rps & \textasciitilde368,000 & 9,200 ×40
@@ -409,9 +398,10 @@ this chapter makes clear that a homogeneous design will be suboptimal
 for either bottleneck, and that the disaggregation option explored in
 \hyperref[chap:11]{Chapter 11} is worth evaluating early.
 
-Before passing this workload to \hyperref[chap:23]{Chapter 23} (Memory), the architect locks
-in one more number: the tokens-per-request split. This is the currency
-every downstream chapter will price against, and it has already been
-established as \textasciitilde9.2K input + \textasciitilde300 output per
-request. The rest of the design --- model fitting, memory budget,
-latency budget, cost --- can now proceed in token-denominated terms.
+Before passing this workload to \hyperref[chap:7]{Chapter 7} (Memory), where the KV and
+residency arithmetic is built, the architect locks in one more number:
+the tokens-per-request split. This is the currency every downstream
+chapter will price against, and it has already been established as
+\textasciitilde9.2K input + \textasciitilde300 output per request. The
+rest of the design --- model fitting, memory budget, latency budget,
+cost --- can now proceed in token-denominated terms.

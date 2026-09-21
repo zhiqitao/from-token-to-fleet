@@ -17,7 +17,7 @@ A note on provenance: the total-versus-active distinction arises from the traini
 
 ## 2. Mental Model
 
-Think of a model's parameters as a **resource pool** that is allocated differently depending on the routing regime.
+A model's parameters form a **resource pool** that is allocated differently depending on the routing regime.
 
 - In a **dense** model, the pool is *fully allocated* every time. If the model is 70B params in FP16, we need 140 GB of weight memory available for every token. There is no "spending less" — the full 140 GB is the residency floor.
 - In an **MoE** model, the pool is *fractionally allocated*. The total pool may be large (reflecting the model's capacity and training compute), but what we actually wire up per token is a slice. With top-2 routing from 8 experts, roughly 2/8 = 25% of the total parameter mass is active per token. This fraction saves compute (fewer FLOPs) but the attention layers still see every token, so the KV cache still grows with context length just as in a dense model.
@@ -73,7 +73,7 @@ Therefore, for a 70B-class model (dense or MoE) with 8K–9.2K input context:
 
 In other words: MoE sparsity = compute sparsity (fewer FLOPs per token). MoE sparsity ≠ memory sparsity (KV cache still grows linearly with context length, same as dense). Only changing the attention mechanism itself (e.g., hybrid/linear attention, compressed latent attention, or KV offload) can stop the cache from growing. This distinction — compute-sparsity versus memory-sparsity — is one an architect has to get exactly right.
 
-> **Key takeaway:** MoE provides **compute sparsity** (far fewer FLOPs per token because a fraction of experts is active), not automatic **weight-residency sparsity** — the full expert set normally remains resident unless it is explicitly offloaded or sharded in a way that changes residency. And the KV cache budget must be provisioned as if the model were dense. Do not assume MoE reduces KV cache memory, and do not confuse active-compute savings with a residency saving.
+> **Key takeaway:** MoE provides **compute sparsity** (far fewer FLOPs per token because a fraction of experts is active), not automatic **weight-residency sparsity** — the full expert set normally remains resident unless it is explicitly offloaded or sharded in a way that changes residency. And the KV cache budget must be provisioned as if the model were dense. Do not assume MoE reduces KV cache memory, and do not confuse active-compute savings with a residency saving. (This restates at the parameter level the sparsity lesson introduced conceptually in Ch 1 and developed arithmetically for the canonical model in Ch 7; each chapter teaches it at its own rung of the spine.)
 
 > **Boxed rule — two distinct accounting lines.** Keep two numbers separate and never blur them:
 > 1. **total parameters → weight residency.** The resident weights (all experts, for MoE) are what the GPUs must hold. For a 70B dense model this is ~140 GB FP16; for a ~47B MoE this is ~94 GB (full expert set) unless experts are explicitly offloaded.

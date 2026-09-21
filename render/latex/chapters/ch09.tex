@@ -112,11 +112,11 @@ hardware specs {[}1P{]}{[}FACT{]}.)}
 \ntsection{Mental Model}\label{mental-model}
 
 
-Think of the interconnect as a series of concentric rings. The GPU sits
-at the center, reachable fastest via PCIe. One ring out is the node:
-GPUs on the same server are joined by NVLink and NVSwitch, forming a
-high-radix, low-latency mesh. The next ring out is the rack: 10--20 GbE
-or 100/200/400 GbE RoCE connects nodes. The outermost ring is the
+The interconnect is best read as a series of concentric rings. The GPU
+sits at the center, reachable fastest via PCIe. One ring out is the
+node: GPUs on the same server are joined by NVLink and NVSwitch, forming
+a high-radix, low-latency mesh. The next ring out is the rack: 10--20
+GbE or 100/200/400 GbE RoCE connects nodes. The outermost ring is the
 cluster or data center: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s)
 stitches racks into a single logical network. A well-designed deployment
 keeps the heavy collectives (all-reduce, reduce-scatter) on the inner
@@ -168,13 +168,19 @@ BF16. {[}ILLUSTRATIVE{]}{[}DERIVED{]}}
 
 
 Take the canonical scenario: a 70B dense model in FP16, whose weight
-tensor is 140 GB. In data-parallel training the gradient tensor has the
-same size, so every all-reduce moves a gradient tensor of \(M = 140\) GB
-per rank. We underline that this example is best read as a
-\emph{cross-node} data-parallel setting (options B and C): a single
-8×H100 host holds only \textasciitilde640 GB, so it cannot fit eight
-full 140 GB replicas at once. For any \(N\) ranks, a ring all-reduce
-sends \(2\frac{N-1}{N}M\) through each rank --- for \(N=8\), that is
+tensor is 140 GB. Using the same FP16 precision for the gradient gives a
+gradient tensor of the same size, so every all-reduce moves a gradient
+tensor of \(M = 140\) GB per rank. (Note: this assumes an FP16 gradient,
+which is the common mixed-precision training case. Ch 10's data-parallel
+worked example instead uses an FP32 gradient of
+\(70 \times 10^9 \times 4\) B ≈ 280 GB --- the two differ only by
+gradient precision, and the communication time doubles accordingly.
+State the gradient dType explicitly before quoting a sync size.) We
+underline that this example is best read as a \emph{cross-node}
+data-parallel setting (options B and C): a single 8×H100 host holds only
+\textasciitilde640 GB, so it cannot fit eight full 140 GB replicas at
+once. For any \(N\) ranks, a ring all-reduce sends \(2\frac{N-1}{N}M\)
+through each rank --- for \(N=8\), that is
 \(1.75 \times 140 \approx 245\) GB --- which is what the ring-adjusted
 times below reflect. Let us compute the communication time under three
 interconnect options.

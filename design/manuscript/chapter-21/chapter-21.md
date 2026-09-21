@@ -18,7 +18,7 @@ The factory converts the architect's recurring question from "should we adopt th
 
 ## 2. Mental Model
 
-Think of the AI Factory as a **release pipeline with a quality gate placed before every promotion**, mirroring how software CI/CD gated deployments decades ago. Three mental moves:
+The AI Factory is best read as a **release pipeline with a quality gate placed before every promotion**, mirroring how software CI/CD gated deployments decades ago. Three mental moves:
 
 - **Models are artifacts like code.** They get versioned, tested, reviewed, and promoted through environments (staging → canary → production) with automated checks at each step — not dropped into prod on a hunch.
 - **The gate is the memory of the factory.** The evaluation suite and its thresholds encode everything we've learned about what "good enough" means (Ch4 capability, Ch14 deployment). If the gate is weak, the factory has no standards.
@@ -50,7 +50,7 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 | Ungated | ~216K in a bad release | high (all traffic) | post-hoc | slow | tiny/experimental |
 | Gated (5% canary) | ~3.6K | low (confined) | automated | fast | business-critical serving |
 
-*(ILLUSTRATIVE worked example: the canary arithmetic is DERIVED from the stated workload inputs — 5% traffic, 2-hour window, ~864,000 requests/day — and is illustrative, not a reference measurement. The workload inputs are sourced from the canonical canonical scenario (Ch 4, Table 4-3) workload; the 2-hour/5% choices are held-out example assumptions, to be re-set per deployment.)*
+*(ILLUSTRATIVE worked example: the canary arithmetic is DERIVED from the stated workload inputs — 5% traffic, 2-hour window, ~864,000 requests/day — and is illustrative, not a reference measurement. The workload inputs are sourced from the canonical scenario (Ch 4, Table 4-3); the 2-hour/5% choices are held-out example assumptions, to be re-set per deployment.)*
 
 ## 4. Measurement
 

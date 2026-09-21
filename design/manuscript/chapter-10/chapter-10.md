@@ -30,7 +30,7 @@ The strategies are not either/or. Left: a DP × TP × PP stack — the layer sta
 
 ## 2. Mental Model
 
-Think of each strategy by *what it trades bandwidth for*. Tensor parallelism trades a lot of NVLink bandwidth to avoid duplicating weights but adds per-layer sync. Pipeline parallelism trades low bandwidth but accepts bubbles as the price of not holding all layers on one GPU. Data parallelism trades gradient bandwidth (once per step) for the convenience of replicated weights and is limited by having to fit the whole model on each GPU.
+Each strategy is best distinguished by *what it trades bandwidth for*. Tensor parallelism trades a lot of NVLink bandwidth to avoid duplicating weights but adds per-layer sync. Pipeline parallelism trades low bandwidth but accepts bubbles as the price of not holding all layers on one GPU. Data parallelism trades gradient bandwidth (once per step) for the convenience of replicated weights and is limited by having to fit the whole model on each GPU.
 
 The useful mental model is a **resource triangle**: we have weights (memory), activations (work), and data (batch). Each strategy moves one corner off a single GPU at the cost of communication. When a GPU runs out of *memory*, we reach for TP/PP (weight splitting). When a GPU is *idle* waiting, we reach for DP/CP (more work per GPU). When the model is *too big to replicate*, TP wins over DP. The binding constraint chooses the strategy.
 

@@ -26,7 +26,7 @@ Key design principles:
 
 ## 2. Mental Model
 
-Think of the fleet as a *cost-aware load balancer* with three decision layers:
+The fleet operates as a *cost-aware load balancer* with three decision layers:
 
 **Table 18-1** — Fleet routing decision hierarchy: capability filter → cost–latency optimization → fallthrough.
 

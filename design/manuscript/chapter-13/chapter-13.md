@@ -20,7 +20,7 @@ These are a *continuum*, not hard categories; the useful question is always **wh
 
 ## 2. Mental Model
 
-Think of each tier as a **box with a fixed memory budget and a fixed cross-node bandwidth**. A workload fits a tier if (a) the model's weight + KV residency fits the tier's total GPU memory (Ch7), and (b) the tier's interconnect can carry the communication the chosen parallelism requires (Ch9/Ch10), and (c) the resulting throughput + latency meets the SLO (Ch11).
+Each tier is a **box with a fixed memory budget and a fixed cross-node bandwidth**. A workload fits a tier if (a) the model's weight + KV residency fits the tier's total GPU memory (Ch7), and (b) the tier's interconnect can carry the communication the chosen parallelism requires (Ch9/Ch10), and (c) the resulting throughput + latency meets the SLO (Ch11).
 
 The mental model is a **ladder with explicit rungs**: we climb a rung when a binding constraint can no longer be met. The three classic triggers for climbing:
 

@@ -19,7 +19,7 @@ The conversion rests on one idea: **every architectural decision traces back to 
 
 ## 2. Mental Model
 
-Think of the customer conversation as **buying information, not delivering answers.** We are not in the room to impress; we are in the room to learn the six numbers. Three mental moves keep the conversation productive:
+The customer conversation is really about **buying information, not delivering answers.** We are not in the room to impress; we are in the room to learn the six numbers. Three mental moves keep the conversation productive:
 
 - **The Socratic funnel.** Start broad ("what problem are we solving?") and narrow through a scripted set of questions that each commit the customer to a concrete bound. Every "vague" answer gets followed by a request for magnitude: "roughly how many users?" "what's the slowest acceptable answer?"
 - **The mirror test.** Restate their words back as a quantified requirement and check they still agree. "So: ~2,000 users, under 2 seconds to first token, on company-internal data — did I get that right?" The restatement is where scope actually gets locked.

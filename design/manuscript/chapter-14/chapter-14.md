@@ -16,7 +16,7 @@ The core insight: **a capability leaderboard is a poor proxy for serving perform
 
 ## 2. Mental Model
 
-Think of capability benchmarks as **screening** and deployment benchmarks as **selection**. Screening answers "which models are even in the running?" cheaply and broadly. Selection answers "among the screened-in models, which system actually works for our workload?" expensively and precisely. The two-stage mental model prevents two classic errors:
+Capability benchmarks serve as **screening** and deployment benchmarks as **selection**. Screening answers "which models are even in the running?" cheaply and broadly. Selection answers "among the screened-in models, which system actually works for our workload?" expensively and precisely. The two-stage mental model prevents two classic errors:
 
 - Screening with deployment metrics — e.g. benchmarking a model's MMLU to pick a serving stack. (Wrong tool.)
 - Selecting with leaderboards — e.g. taking the top-scoring MMLU model and assuming it will meet our SLO. (Wrong tool, again.)
