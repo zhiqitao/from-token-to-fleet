@@ -53,8 +53,8 @@ ax.axhline(640, color='#27408b', ls='--', lw=1, label='8×H100 (640 GB)')
 ax.axhline(80, color='#6f9e5f', ls='--', lw=1, label='1×H100 (80 GB)')
 ax.set_ylim(0, 1500)
 # annotations moved OUT of the bar area into clear white space (no label crossing the bars)
-ax.text(1.0, 1420, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
-ax.annotate('QLoRA fits a single H100', xy=(2, 60), xytext=(2.05, 250),
+ax.text(1.35, 1430, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
+ax.annotate('QLoRA fits a single H100', xy=(2, 60), xytext=(2.4, 250),
             fontsize=8.5, color='#3d6e35', arrowprops=dict(arrowstyle='->', color='#3d6e35'))
 ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, axis='y')
