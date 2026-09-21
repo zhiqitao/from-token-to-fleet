@@ -56,9 +56,9 @@ ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, axis='y')
 ax.set_ylim(0, 26000)
 # qualitative labels where the table has no single digit (placed clear of the bars)
-ax.text(1.55, 24500, 'decode pool:' + chr(10) + 'bandwidth-bound' + chr(10) + '(no digit)', ha='center',
+ax.text(1.45, 23500, 'decode pool:' + chr(10) + 'bandwidth-bound' + chr(10) + '(no digit)', ha='center',
         fontsize=8, color='#555')
-ax.text(2.0, 24500, '(c) excluded at' + chr(10) + 'quality gate', ha='center', fontsize=8,
+ax.text(2.35, 24800, '(c) excluded at' + chr(10) + 'quality gate', ha='center', fontsize=8,
         color='#c0392b', fontweight='bold')
 
 # Panel 3: latency / SLO verdict (assertions, no uncertainty '?')
