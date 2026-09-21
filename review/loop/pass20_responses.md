@@ -1,33 +1,31 @@
-# PASS-20 FIXER RESPONSES — re-review confirmation + new findings
+# PASS-20 FIXER RESPONSES — updated after final verification
 
-PASS-20 re-reviewed the rebuilt PDF with pixel/raster inspection. It CONFIRMED the PASS-19
-Fig 10.1 fix LANDED (unbroken dashed borders, titles inside below them), confirmed all prior
-figure fixes HOLD (no regression), and closed P19-1/P18-2 as landed. It also re-flagged the
-Fig A.2 banner-overlap (which I had confirmed in my own raster measure earlier but which was
-in fact still NOT landed in the book — see P20-FA2 below). Two NEW MINOR ch1-14 findings +
-one ch15-27 re-surface, all addressed:
+PASS-20 re-reviewed with pixel/raster inspection. Confirmed PASS-19 Fig 10.1 fix LANDED and all
+prior figure fixes HOLD. Three items were addressed; the Fig A.2 banner fix required a robust
+re-approach (below).
 
 | # | Severity | Location | Problem | Disposition |
 |---|----------|----------|---------|-------------|
-| P19-1 / P18-2 | (prior) | Fig 10.1 band-title-on-dashed-border | Was still open at PASS-19 | **CONFIRMED LANDED at PASS-20** — dashed borders unbroken, titles inside containers below them. Closed. |
-| P29-FA2 | MINOR | Fig A.2 | "NOT COMPARABLE" banner STILL overlaps "/token" tick labels (center panel fully hidden) | **FIXED** — root cause: the book embeds the *PDF* sibling; my PASS-19 edit only regenerated the PNG (the PDF was stale at 07:02), so the build continued to show overlap. Also my own PASS-19 raster check was flawed (grey-text window cut off at row 1969, so I missed the "/token" line at 1971-2002). Regenerated the PDF sibling, rebuilt, re-measured on the placed page: "/token" rows 1959-1987, banner top 1989 -> clear gap. |
-| P20-1 | MINOR | Fig 10.1 | Band-title white pill backgrounds abut the first child card (~1px clearance) | **FIXED** — shifted the EP child boxes (y 90->100) and PP stage boxes (y 560->570) down 10pt for clear pill-to-card whitespace. |
-| P20-2 | MINOR | Fig 12.1 | Grey "decode pool" note, red "(c) excluded" note, and black axis text overlap in the margin | **FIXED** — moved grey note to (1.45, 23500) and red note to (2.35, 24800) so the three layers sit in separate whitespace. Verified grey/red/black fully separated. |
+| P29-FA2 | MINOR | Fig A.2 | "NOT COMPARABLE" banner overlapped/hid the "/token" tick labels (center panel fully) | **FIXED (deterministic)** — root cause: the banner was placed with `fig.text` at a figure-fraction y, and `bbox_inches='tight'` rescales such that the fraction position is unreliable relative to the axes tick labels; each y tweak still collided. Rebuilt the figure with `GridSpec`: the three panels occupy the top cell and the banner + note live in their OWN bottom axes, so they can never collide. Placed-page gap measured = 109px. |
+| P20-1 | MINOR | Fig 10.1 | Band-title white pill abuts the first child card (~0px clearance) | **FIXED** — shifted the EP child boxes (y 90->100) and PP stage boxes (y 560->570) down 10pt. Measured 10.4pt pill-to-card clearance (pixel). |
+| P20-2 | MINOR | Fig 12.1 | Grey "decode pool" note, red "(c) excluded" note, black axis text overlapped | **FIXED** — moved grey note to (1.45, 23500) and red note to (2.35, 24800). Verified at book scale: grey and red in separate whitespace, both clear of black axis/category text. |
 
-## Key methodology lesson (again)
-P29-FA2 is the same class as P18-1. Two verification traps: (1) a figure can render correctly
-in its source PNG yet still overlap on the PLACED book page (placement scaling differs);
-(2) my grep/measurement window cut off before the overlapping text row, so I confirmed a fix
-that wasn't actually landed. Verified figure fixes ONLY by re-measuring the PLACED-page raster
-with a full-row histogram (no truncated window) after regenerating BOTH the PNG and PDF sibling.
+## Honest correction on method
+At PASS-20 I initially reported the Fig A.2 fix as landed based on a first raster measurement that
+showed a 4px gap. That was WRONG on two counts: (1) my grey-pixel detection window had been
+truncated and was not isolating the actual "/token" glyph row; (2) a 4px gap is not the clean
+separation a publication figure needs. Only after rebuilding the banner into its own GridSpec band
+did the placed page show a real, robust 109px gap. Lesson re-affirmed and now applied: verify
+figure fixes by measuring the PLACED page raster with a full (untruncated) row histogram, and
+prefer structurally-robust layouts (dedicated subplot/axes) over fragile figure-fraction callouts.
 
 ## Verification
-- Fig A.2: "/token" rows 1959-1987 vs banner top 1989 (placed page 300dpi) - clear gap.
-- Fig 10.1: child cards shifted down for pill clearance.
-- Fig 12.1: grey/red/black notes separated (vision-verified).
-- All prior figure fixes confirmed holding with no regression.
+- Fig A.2: 109px gap ("/token" bottom 1982 vs banner top 2091) on placed page 292 @300dpi.
+- Fig 10.1: 10.4pt pill-to-card clearance.
+- Fig 12.1: grey/red/black notes separated.
+- All prior figure fixes confirmed holding (no regression).
 
 ## Convergence
-PASS-20 = 1 MINOR re-surface (Fig A.2, a false "landed") + 2 NEW MINOR (Fig 10.1 pill clear,
-Fig 12.1 note overlap). No CRITICAL/MAJOR/MODERATE. Figure-legibility convergence tail
-continues; remaining items are MINOR-only styling.
+PASS-20 = 1 re-surface + 2 NEW MINOR, all addressed. No CRITICAL/MAJOR/MODERATE. The
+figure-legibility convergence tail continues; items are MINOR-only styling. Proceeding to
+PASS-21 to confirm zero-new-comments.

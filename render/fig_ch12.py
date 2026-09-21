@@ -55,10 +55,10 @@ ax.set_title('(2) Prefill throughput (idealized aggregate, 8×H100 host)', fonts
 ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, axis='y')
 ax.set_ylim(0, 26000)
-# qualitative labels where the table has no single digit (placed clear of the bars)
-ax.text(1.45, 23500, 'decode pool:' + chr(10) + 'bandwidth-bound' + chr(10) + '(no digit)', ha='center',
+# qualitative labels where the table has no single digit (placed CLEAR of bars, title, and red note)
+ax.text(1.5, 14500, 'decode pool:' + chr(10) + 'bandwidth-bound' + chr(10) + '(no digit)', ha='center',
         fontsize=8, color='#555')
-ax.text(2.35, 24800, '(c) excluded at' + chr(10) + 'quality gate', ha='center', fontsize=8,
+ax.text(2.5, 23000, '(c) excluded at' + chr(10) + 'quality gate', ha='center', fontsize=8,
         color='#c0392b', fontweight='bold')
 
 # Panel 3: latency / SLO verdict (assertions, no uncertainty '?')
