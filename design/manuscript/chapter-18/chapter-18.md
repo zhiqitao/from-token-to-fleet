@@ -151,7 +151,7 @@ The fleet operator becomes a *cost‑latency steward* rather than a single-model
 - **Tier 2 (70B 8-bit dense):** Handles 15% of queries (order status, policy look‑up). Runs on 1×H100. Cost: $0.0015/token, latency ~250 ms.
 - **Tier 3 (70B FP16):** Handles 5% of queries (complex escalations, multilingual). Runs on 2 GPUs reserved. Cost: $0.003/token, latency ~120 ms.
 
-**Arithmetic:** 1,000 users, 20% concurrent (200 simultaneous), ~5 rps average / 20 rps peak. Hourly tokens: ~4,500 in + 500 out = 5,000. *(Scope note: these tier per-token rates are illustrative scenario values on a per-token basis, distinct from — and not directly comparable to — the per-1M-token ledger in §3.2; the mini-case uses them to demonstrate the routing economics, and a real deployment would price from the §3.2 per-1M basis.)*
+**Arithmetic:** A small pilot deployment serving ~1,000 registered users at a modest, deliberately low volume — **5,000 tokens/hour** (each request averaging ~250 tokens gives roughly 20 requests/hour, a very light load chosen to make the per-token routing economics concrete rather than to model a busy fleet; the traffic rate is not what drives this arithmetic, the per-token volume is). Hourly tokens: ~4,500 in + 500 out = 5,000. *(Scope note: these tier per-token rates are illustrative scenario values on a per-token basis, distinct from — and not directly comparable to — the per-1M-token ledger in §3.2; the mini-case uses them to demonstrate the routing economics, and a real deployment would price from the §3.2 per-1M basis.)*
 
 - Tier 1 processes 4,000 tokens/hr → $0.80
 - Tier 2 processes 750 tokens/hr → $1.13
