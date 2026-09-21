@@ -35,6 +35,10 @@ y8 = -0.95
 ax.barh(y8, weights, left=0, height=0.7, color='#3a6ea5', alpha=0.35, edgecolor='none')
 ax.barh(y8, runtime, left=weights, height=0.7, color='#9aa0a6', alpha=0.35, edgecolor='none')
 ax.barh(y8, kv, left=weights + runtime, height=0.7, color='#6f9e5f', alpha=0.30, edgecolor='none')
+# FP8 row labels (weights/runtime so meaning need not be inferred from the FP16 row)
+ax.text(weights / 2, y8, f'{weights} GB\nweights', ha='center', va='center', color='#27408b', fontsize=9.5, fontweight='bold')
+ax.text(weights + runtime / 2, y8, f'~{runtime} GB\nruntime', ha='center', va='center', color='#555', fontsize=9)
+ax.text(kv_start + kv / 2, y8, f'KV budget\n~{kv} GB', ha='center', va='center', color='#3a6a4a', fontsize=9.5, fontweight='bold')
 
 # KV slot ticks
 x = kv_start
@@ -69,7 +73,7 @@ ax.set_ylim(-2.6, 1.6)
 ax.set_yticks([y, y8])
 ax.set_yticklabels(['FP16 KV', 'FP8 KV'], fontsize=10)
 ax.set_xlabel('on-host HBM (GB, per 8×H100 host)', fontsize=10.5)
-ax.set_title('Fig 7.4 — Where a 640 GB host pool goes [ILLUSTRATIVE][DERIVED]', fontsize=11)
+ax.set_title("Fig 7.4 — The concurrency budget: where a 70B host's 640 GB pool goes [ILLUSTRATIVE][DERIVED]", fontsize=11)
 ax.tick_params(axis='x', labelsize=9)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)

@@ -51,9 +51,9 @@ label(W/2, Ht-10, 'FlashAttention: the same math, far less HBM traffic',
       '#1a1a1a', FS+1.0, weight='bold')
 
 # two panels
-pw = (W-40)/2
+pw = (W-52)/2
 p1x0, p1x1 = 16, 16+pw
-p2x0, p2x1 = p1x1+8, W-16
+p2x0, p2x1 = p1x1+20, W-16
 panel_top = Ht-34
 panel_h = 300
 

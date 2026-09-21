@@ -14,7 +14,7 @@ kv_gqa8 = 0.165 * ctx # GB  GQA + 8-bit KV (~half of GQA FP16)
 
 fig, ax = plt.subplots(figsize=(7, 5.2))
 ax.plot(ctx, kv_fp16, '-o', color='#c0392b', label='full-MHA FP16 (bound, ~2.62 MB/tok)')
-ax.plot(ctx, kv_fp8, '-s', color='#e67e22', label='full-MHA FP8 (~1.3 MB/tok)')
+ax.plot(ctx, kv_fp8, '-s', color='#e67e22', label='full-MHA FP8 (byte-halving bound, ~1.3 MB/tok)')
 ax.plot(ctx, kv_gqa, '-^', color='#27408b', label='GQA FP16 (~0.33 MB/tok)')
 ax.plot(ctx, kv_gqa8, '-v', color='#6f9e5f', label='GQA FP8 (~0.17 MB/tok)')
 ax.set_xscale('log'); ax.set_yscale('log')
@@ -25,23 +25,23 @@ ax.set_title('KV cache size vs context — 70B-class model')
 ax.axhline(640, color='#7f8c8d', ls=':', lw=1, label='8×H100 raw (640 GB)')
 ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB (640 − 140 w − 64 rt)')
 ax.scatter([9.2], [2.5*9.2], color='#c0392b', zorder=5, s=25)
-ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(16, 30),
+ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(18, 1.2),
             arrowprops=dict(arrowstyle='->'), fontsize=8)
 ax.scatter([9.2], [0.33*9.2], color='#27408b', zorder=5, s=25)
-ax.annotate('9.2K ≈ 3 GB (GQA) — 8× saving\nvs full-MHA bound (Ch. 7 attention note)', xy=(9.2, 0.33*9.2), xytext=(14, 1.4),
+ax.annotate('9.2K ≈ 3 GB (GQA) — 8× saving\nvs full-MHA bound (Ch. 7 attention note)', xy=(9.2, 0.33*9.2), xytext=(20, 0.07),
             arrowprops=dict(arrowstyle='->', color='#27408b'), fontsize=8, color='#27408b')
-ax.legend(fontsize=7.5, loc='upper left')
+ax.legend(fontsize=7.5, loc='center right', bbox_to_anchor=(1.0, 0.42))
 ax.grid(alpha=0.3, which='both')
 ax.set_xlim(0.8, 1600)
 ax.set_ylim(0.05, 2000)
-plt.tight_layout()
+plt.tight_layout(rect=[0, 0, 0.86, 1])
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0701.png', dpi=150)
 plt.close()
 print('wrote fig-07-0701')
 
 # ---- fig-07-0702: Inference vs fine-tuning memory floor ----
 labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+optimizer)', 'QLoRA\n(weights+adapters)']
-vals = [165, 1260, 60]
+vals = [165, 1120, 60]
 fig, ax = plt.subplots(figsize=(6.5, 4.9))
 bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'], width=0.6)
 for b, v in zip(bars, vals):

@@ -42,7 +42,9 @@ TCO is meaningless until we know **how many hosts the workload actually requires
 | KV (in-flight λ·W / C) | ⌈10×8.6/18⌉ = 5 hosts | ⌈40×8.6/18⌉ = 20 hosts |
 | **N_hosts (max)** | **~5 hosts** | **~20 hosts** |
 
-So the canonical workload's *peak* requires roughly **20 hosts** (FP16 KV, full utilization; ~28 at the 70% utilization target), and even the *average* needs ~5 — a fleet, not one box. (FP8 KV roughly halves this to ~11 hosts at peak.) **Every TCO figure below is scaled to this fleet requirement — the earlier drafts priced a single host, which understated the cost by roughly 4–20×.**
+So the canonical workload's *peak* requires roughly **20 hosts** (FP16 KV, full utilization; ~28 at the 70% utilization target), and even the *average* needs ~5 — a fleet, not one box. (FP8 KV roughly halves this to ~11 hosts at peak.) **Every TCO figure below is scaled to this fleet requirement — the earlier drafts priced a single host, which understated the cost by roughly 4–20×.** 
+
+*Provisioning sensitivity (explicit):* the TCO figures below **assume the full-utilization fleet (≈20 hosts, provisioned exactly at the 40 rps peak without headroom)** so that the cost comparison is not double-counting idle capacity. If instead the fleet is provisioned at the 70% utilization target that the sizing rule (Ch17 Table 17-1) actually uses — ≈28 hosts — capex scales to ~1.4×: ≈$163K capex + ≈$30K opex + ≈$10K staff ≈ **~$203K/month**, and per-request cost rises to ≈ $203K / 26M ≈ **~$7.8 per 1,000 requests** (vs the $5.7/1K below). The durable conclusion — self-host loses to scale-to-load cloud on this workload — holds under either provisioning policy; the *specific* $5.7/1K number is the full-utilization figure and should be read with that assumption.
 
 **Step 2 — price each mode on N_hosts ≈ 20 (FP16, provisioned for the 40 rps peak).**
 

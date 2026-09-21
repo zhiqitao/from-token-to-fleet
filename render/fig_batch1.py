@@ -38,10 +38,12 @@ plt.savefig(base % (2, 2, 2), dpi=150); plt.close()
 print('Ch02 done')
 
 # ---- Ch04: Six-dimension workload characterization -> architectural decisions ----
+# The six dimensions the chapter actually defines (§4.2.1): quality, traffic, token
+# profile, latency, economic constraints, operational constraints.
 fig, ax = plt.subplots(figsize=(12, 7))
 ax.set_xlim(0, 14); ax.set_ylim(0, 10); ax.axis('off')
-dims = ['Throughput / RPS', 'SLO / latency', 'Context length', 'KV / input', 'Modality', 'Concurrency & burst']
-cons = ['sizing / serving', 'TTFT / TPOT', 'KV & memory', 'KV cache', 'encoder / P-D split', 'batch / autoscale']
+dims = ['Quality requirements', 'Traffic / concurrency', 'Token profile', 'Latency SLO', 'Economic constraints', 'Operational constraints']
+cons = ['model size / type', 'concurrency & batching', 'KV cache size & prefill demand', 'TTFT/TPOT & batch window', 'host count & cost ceiling', 'multi-region vs. single-region']
 for i, (d, c) in enumerate(zip(dims, cons)):
     y = 9 - i*1.35
     ax.add_patch(FancyBboxPatch((0.5, y-0.4), 4.5, 0.8, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))

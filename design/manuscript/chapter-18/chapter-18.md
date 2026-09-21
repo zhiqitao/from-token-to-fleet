@@ -68,6 +68,8 @@ With 8×H100 (640 GB), we can simultaneously run:
 | 70B MoE 8-bit (2 active experts) | $1.00 | 300 | public cloud [1P] |
 | 70B 4-bit GGUF (local, no GPU) | $0.15 | 800 | energy only |
 
+*Basis note (reconciled with Ch16's TCO):* these per-1M figures are **per-model nominal rates for routing comparison** — the cost per 1M tokens if that model instance were serving at its own nominal throughput on its own host. They are *not* the same quantity as the fleet-amortized per-token cost derived in Ch16 §16.4 (~$0.60/1M for the 70B FP16 self-host), which divides the full peak-provisioned fleet TCO (~$148K/mo, ≈20 hosts at full utilization) by the considerably higher token volume that fleet actually serves (~2.5×10¹¹ tokens/month). The ≈4× gap between $2.50/1M and ~$0.60/1M is therefore a **utilization/throughput basis difference, not a contradiction**: the table rates one host near its nominal (modestly-loaded) rate, while the Ch16 TCO spreads the same capex+energy over a heavily-utilized fleet's larger token output. Read each number with its own basis; the mixed-fleet *savings* conclusion below depends only on the relative per-model rates, not on the absolute self-host basis.
+
 ### 3.3. Routing arithmetic
 
 Each request carries its full token profile together: 9,200 input + 300 output = 9,500 tokens. **Request-level routing sends the entire request — input and output — to one model.** A request cannot have 70% of its input tokens answered by model A and the rest by model B, unless the architecture explicitly supports model composition, cascade, or speculative decoding (a different mechanism we do not assume here). Under ordinary routing, we therefore split by *requests*, not by in-tokens:
