@@ -38,13 +38,15 @@ for ax, p in zip(axes, panels):
 fig.text(0.01, 0.5, 'Vendor-reported reduction\n(vs each model’s own reference)', va='center',
          rotation=90, fontsize=9, color='#333')
 # PROMINENT not-comparable warning (the reviewer's key point): bold boxed banner, not small grey text
+# Placed clearly BELOW the per-panel x-axis tick labels (/'KV'/'FLOP /token') with headroom, so it never overlaps them.
 fig.text(0.5, 0.045, 'NOT COMPARABLE ACROSS PANELS', ha='center', fontsize=10,
          fontweight='bold', color='#c0392b',
          bbox=dict(boxstyle='round,pad=0.35', fc='#fdecea', ec='#c0392b', lw=1.4))
 fig.text(0.5, -0.01, 'Each bar is a model\u2019s reduction relative to its OWN stated predecessor/reference, '
                     'not a shared baseline.', ha='center', fontsize=8, color='#555')
 
-plt.tight_layout(rect=(0.04, 0.07, 1, 1))
+# Push the panels up so the tick labels + banner have clear bottom headroom.
+plt.tight_layout(rect=(0.04, 0.14, 1, 1))
 plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png',
             dpi=200, bbox_inches='tight', pad_inches=0.08)
 plt.close()
