@@ -323,30 +323,37 @@ budget}\label{cross-host-interconnect-budget}
 If a fraction φ of requests require cross-host data (e.g., distributed
 retrieval, shared vector index), each such request incurs an additional
 network round‑trip latency λ\_net and moves data volume D over the
-host‑to‑host network. Assuming an intra‑rack 10\,Gbps Ethernet backbone,
-the per-request bandwidth drawn on the network is
+host‑to‑host network. Two distinct bandwidth quantities must be
+separated: the \textbf{per‑request burst} a single cross‑host request
+draws during its round trip, and the \textbf{fleet aggregate} average
+across all hosts. Assuming an intra‑rack 10\,Gbps Ethernet backbone:
 
 \[
-B_\text{per-req} = \frac{D}{\lambda_\text{net} \cdot \varphi \cdot N}
+B_\text{per-req} = \frac{D}{\lambda_\text{net}} = 5\text{ MB} / 0.02\text{ s} = 250\text{ MB/s} \approx 2\text{ Gbps}
 \]
 
 For D = 5\,MB (top‑5 retrieval snippets), λ\_net = 20\,ms (typical rack
-latency), φ = 0.1 (10\% of requests cross‑host), N = 4:
-\(B_\text{per-req} = 5 \text{ MB} / (0.02\text{ s} \times 0.1 \times 4) = 625\text{ MB/s} \approx 5\)\,Gbps
---- already \textbf{half} the 10\,Gbps link, so only \textasciitilde2×
-headroom. If φ scales to 0.5 (many distributed queries) and D grows to
-50\,MB, the per-request bandwidth becomes
-\(50/(0.02 \times 0.5 \times 4) = 1{,}250\) MB/s ≈ 10\,Gbps --- right at
-the link limit, and aggregate traffic across the backbone is
+latency), the per‑request burst is \(B_\text{per-req} = 5 / 0.02 = 250\)
+MB/s ≈ 2\,Gbps, while the fleet aggregate --- the expected number of
+concurrent cross‑host requests (φ\,·\,N) times that burst --- is
 
 \[
-\text{aggregate} = \varphi \cdot N \cdot \frac{D}{\lambda_\text{net}} = 0.5 \times 4 \times \frac{50 \text{ MB}}{0.02 \text{ s}} = 5 \text{ GB/s}
+B_\text{agg} = \varphi \cdot N \cdot \frac{D}{\lambda_\text{net}} = 0.1 \times 4 \times 250\text{ MB/s} = 100\text{ MB/s} = 0.8\text{ Gbps}
 \]
 
-which exceeds the 10 Gbps (\textasciitilde1.25\,GB/s) limit and would
-require 5× overprovisioning or a wider fabric (e.g., 50\,Gbps or
-100\,Gbps). This calculation shows that cross-host communication must be
-dimensioned early, even if the base case appears benign.
+Both are far inside the 10\,Gbps link, so the base case appears benign
+(the burst leaves \textasciitilde5× headroom; the aggregate is even
+smaller). But if φ scales to 0.5 (many distributed queries) and D grows
+to 50\,MB, the per‑request burst becomes \(50/0.02 = 2{,}500\) MB/s ≈
+20\,Gbps --- exceeding a single 10\,Gbps link on its own --- and the
+fleet aggregate becomes \(0.5 \times 4 \times 2{,}500 = 5{,}000\) MB/s =
+5\,GB/s, which exceeds the 10\,Gbps (\textasciitilde1.25\,GB/s) limit by
+\textasciitilde4×.
+
+This calculation shows that cross‑host communication must be dimensioned
+early on the \textbf{per‑request burst} (which can exceed a single link
+even before the aggregate does), and that both the burst and the
+aggregate scale with φ and D, even if the base case appears benign.
 
 \ntsection{Common Mistakes}\label{common-mistakes}
 
@@ -420,13 +427,17 @@ stateless → software LB with consistent hashing.
 \textbf{Cross-host data infrastructure.} If any request type requires
 cross‑host communication (distributed retrieval, multi‑model
 orchestration, state sync), a dedicated backend network must be
-provisioned. The minimum bandwidth is B\_min = φ · N · D / λ\_net, and
-the fabric should provide at least 2×B\_min for headroom. In the
-canonical scenario with φ = 0.1, N = 4, D = 5\,MB, λ\_net = 20\,ms,
-B\_min ≈ 0.8\,Gbps (0.1 × 4 × 5 MB / 0.02 s = 100 MB/s), so a 10\,Gbps
-intra‑rack network has ample headroom. But the architect should
-instrument φ and D from production telemetry and revisit the bandwidth
-provisioning quarterly.
+provisioned. The minimum bandwidth is B\_min = φ · N · D / λ\_net (the
+fleet aggregate of §4 --- the expected concurrent cross-host requests
+times the per-request burst D / λ\_net), and the fabric should provide
+at least 2×B\_min for headroom. In the canonical scenario with φ = 0.1,
+N = 4, D = 5\,MB, λ\_net = 20\,ms, B\_min ≈ 0.8\,Gbps (0.1 × 4 × 5 MB /
+0.02 s = 100 MB/s), so a 10\,Gbps intra-rack network has ample headroom
+for the aggregate; but as §4 notes, the per-request burst itself (D /
+λ\_net = 250 MB/s ≈ 2\,Gbps in the base case) must also fit a single
+link once a request is in flight, which is the binding constraint when φ
+or D grows. But the architect should instrument φ and D from production
+telemetry and revisit the bandwidth provisioning quarterly.
 
 \textbf{Observability across the fleet.} With N hosts, tracing a request
 end‑to‑end requires correlating the LB routing decision, the selected
@@ -515,17 +526,22 @@ representative; a 12,095‑token prefill would scale to
 per‑turn tool + retrieval latency; \hyperref[chap:19]{Chapter 19}'s \texttt{T·L\_agent} ≈
 660 ms is the same additive orchestration overhead expressed per the
 turn distribution). (This W is the full agentic service time --- decode
-of all generated tokens plus the grown‑context prefill. It is \emph{not}
-the incremental orchestration‑overhead figure of \textasciitilde660 ms
-at T=3 that \hyperref[chap:19]{Chapter 19} reports as its \(T \cdot L_\text{agent}\); the
-two are different quantities, and it is this full W that drives
-concurrency and fleet size, per \hyperref[chap:19]{Chapter 19}'s scope note.) So at the
-100‑rps peak, in‑flight concurrency ≈ 100 × 13.8 ≈ 1,380 requests, not
-200. Against C ≈ 14 per host, H = ⌈1,380/(14 ×0.7)⌉ ≈ \textbf{141 hosts}
-on FP16 KV (≈99 at full utilization). This is the honest arithmetic the
-service-time model produces --- the naive ``1--5 hosts'' rps estimate is
-off by two orders of magnitude because it ignores both the decode
-duration and the added turn latency.
+of all generated tokens plus the grown‑context prefill. Because the
+prefill is held at the canonical 9.2K representative rather than the
+full 12,095‑token context (which would scale it to \textasciitilde1.42 s
+and give W ≈ 14.2 s), treat this \textasciitilde13.8 s as a
+\textbf{lower bound} on the agentic service time, and the resulting
+in‑flight counts and host totals as corresponding lower bounds. It is
+\emph{not} the incremental orchestration‑overhead figure of
+\textasciitilde660 ms at T=3 that \hyperref[chap:19]{Chapter 19} reports as its
+\(T \cdot L_\text{agent}\); the two are different quantities, and it is
+this full W that drives concurrency and fleet size, per \hyperref[chap:19]{Chapter 19}'s
+scope note.) So at the 100‑rps peak, in‑flight concurrency ≈ 100 × 13.8
+≈ 1,380 requests, not 200. Against C ≈ 14 per host, H = ⌈1,380/(14
+×0.7)⌉ ≈ \textbf{141 hosts} on FP16 KV (≈99 at full utilization). This
+is the honest arithmetic the service-time model produces --- the naive
+``1--5 hosts'' rps estimate is off by two orders of magnitude because it
+ignores both the decode duration and the added turn latency.
 
 \textbf{KV compression changes the answer.} Switching the KV cache to
 FP8 (κ ≈ 1.42 MB/token, 54\% of BF16) cuts per‑request KV at T=3 to

@@ -131,14 +131,21 @@ with \textasciitilde5\% concurrently active at peak (\textasciitilde100
 concurrent \emph{users}, a population measure), RAG Q\&A over a 70B
 dense FP16 model. The architect faces three interlocked questions: how
 to scale inference, how to cache retrieved context, and how to keep the
-model-service latency under its SLO --- here we adopt a \emph{stricter}
-scenario SLO of p99 ≤ 800 ms for the model-service leg (a scenario
-input, not the canonical p95-TTFT ≤ 2 s of Ch 4: the capstone
-deliberately uses a harder tail target to exercise the patterns). (All
-the other numbers below are the canonical values established in Parts
-I--V --- Ch 4's workload, Ch 7/15's KV and memory figures, Ch 17's fleet
-sizing --- recalled here rather than re-derived, and this capstone shows
-how the toolkit's patterns compose them.)
+model-service latency under its SLO --- here the model-service latency
+SLO is defined as \textbf{time-to-first-token (TTFT)}, and for the
+\emph{retrieved-context/short-prompt} leg of this scenario we adopt a
+\emph{stricter} p99 ≤ 800 ms TTFT target (a scenario input, not the
+canonical p95-TTFT ≤ 2 s of Ch 4: the capstone deliberately uses a
+harder tail target to exercise the patterns). This is a \textbf{TTFT}
+budget, not an end‑to‑end one --- the canonical request's total
+end‑to‑end time is \textasciitilde8.6 s (1.08 s prefill +
+\textasciitilde7.5 s decode of 300 output tokens), and the per‑host
+ceiling is \textasciitilde2.1 req/s (Ch 17/20), both of which still hold
+here. Do not read the sub‑second capstone figures as end‑to‑end request
+latency. (All the other numbers below are the canonical values
+established in Parts I--V --- Ch 4's workload, Ch 7/15's KV and memory
+figures, Ch 17's fleet sizing --- recalled here rather than re-derived,
+and this capstone shows how the toolkit's patterns compose them.)
 
 \textbf{Pattern A --- Inference Sharding (FACT: model FLOPs / GPU memory
 per token).} The 70B model at FP16 requires \textasciitilde140 GB of
@@ -297,23 +304,30 @@ Patterns}\label{end-of-chapter-mini-case-the-capstone-composing-the-patterns}
 \textbf{Scenario.} A growing AI startup moves from a single-node
 prototype to a fleet serving \textasciitilde3,000 users. The initial
 deployment is a 70B FP16 model on a single 8×H100 node (the canonical
-host), serving 12 QPS with 450 ms p99 latency.
+host). Note the per‑host ceiling: with the canonical \textasciitilde8.6
+s service time and C ≈ 18 KV‑resident requests, one host serves
+\textasciitilde2.1 req/s (Ch 17/20) --- so the figures below are
+expressed as \textbf{TTFT p99} on that host (the sub‑second latencies
+are time‑to‑first‑token, not end‑to‑end), and the QPS is the
+\textasciitilde2 req/s the host can actually sustain, not a multiple of
+it.
 
-\textbf{Step 1 --- Instrument.} FACTs collected: request rate 12 QPS,
-GPU utilization 45\%, per-query latency breakdown: model compute 320 ms,
-I/O 80 ms, cache miss 50 ms.
+\textbf{Step 1 --- Instrument.} FACTs collected: request rate
+\textasciitilde2 QPS (within the \textasciitilde2.1 req/s per‑host
+ceiling), GPU utilization 45\%, per-query latency breakdown (TTFT leg):
+model compute 320 ms, I/O 80 ms, cache miss 50 ms.
 
 \textbf{Step 2 --- Pattern Apply.} The architect applies Pattern A
 (inference sharding across an 8×H100 node) and Pattern B (semantic
 response cache with 5-min TTL). DERIVED: sharding distributes the model
 across the node so decode is bandwidth-bound; cache hit ratio 35\%
-reduces the number of requests that reach the model engine from 12 QPS
-to 7.8 QPS. New p99 latency: 210 ms.
+reduces the number of requests that reach the model engine from
+\textasciitilde2.0 QPS to \textasciitilde1.3 QPS. New TTFT p99: 210 ms.
 
 \textbf{Step 3 --- Validate.} HYPOTHESIS: ``sharding + caching will keep
-latency \textless{} 300 ms at 3× user growth.'' Suppose a staged load
-test at 3,000 users reports p99 = 285 ms and cost per query down 55\%
---- in this scenario these are illustrative values to show how a
+TTFT p99 \textless{} 300 ms at 3× user growth.'' Suppose a staged load
+test at 3,000 users reports TTFT p99 = 285 ms and cost per query down
+55\% --- in this scenario these are illustrative values to show how a
 hypothesis is tested, not a real experiment the book ran. The hypothesis
 is accepted only on a genuine load test's numbers.
 

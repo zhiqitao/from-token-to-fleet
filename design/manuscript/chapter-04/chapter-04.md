@@ -158,7 +158,7 @@ The input‑heavy profile means that *prefill* (processing the prompt) dominates
 
 The latency dimension is specified through Service Level Objectives, which translate user‑experience goals into concrete time budgets:
 
-- **TTFT (time-to-first-token)**: budget of 1.2 s, comprising retrieval (~120 ms for vector search and reranking on a local GPU) + prefill (~1.08 s for 9,200 tokens on an H100, assuming ~8.5K tokens/s prefill throughput). p95 TTFT must stay ≤ 2 s, allowing headroom for occasional cache misses or network jitter.
+- **TTFT (time-to-first-token)**: budget of 1.2 s, comprising retrieval (~120 ms for vector search and reranking on a local GPU) + prefill (~1.08 s for 9,200 tokens across the 8×H100 canonical host, ≈8.5K tokens/s prefill — below the host's ~19,800 tok/s ideal and far above what a single H100 alone could sustain, per Ch 2 and Ch 8). p95 TTFT must stay ≤ 2 s, allowing headroom for occasional cache misses or network jitter.
 - **TPOT (time-per-output-token)**: budget of ~25 ms/token. A 300‑token answer therefore takes ~7.5 s of total decode time. p95 TPOT ≤ 35 ms/token provides headroom for batching variability.
 
 These budgets are [ILLUSTRATIVE][DERIVED] from typical enterprise Q&A user expectations (sub‑2‑second feel) and from the hardware's published prefill/decode rates. They are the latency constraints that every subsequent architectural decision must respect.

@@ -63,7 +63,7 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 | prefill FLOPs per request | ~1.29 PFLOP | 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ [DERIVED] |
 | decode weight-read per token | ~140 GB | full-weight-read model (70B FP16) [ILLUSTRATIVE][DERIVED] |
 | decode required BW rate | ~5.6 TB/s | ~140 GB / 25 ms TPOT (= traffic / decode interval) [ILLUSTRATIVE][DERIVED] |
-| KV cache memory per request | ~24.1 GB (9.2K, FP16) / ~24.9 GB (9.5K max) | 2.62 MB/token × 9,200 / 9,500 tokens [ILLUSTRATIVE][DERIVED]; *(sensitivity: at 8-bit KV the same 9.2K context falls to ~12 GB under ideal byte-halving)* |
+| KV cache memory per request | ~24.1 GB (9.2K, FP16) / ~24.9 GB (9.5K max) | 2.62 MB/token × 9,200 / 9,500 tokens [ILLUSTRATIVE][DERIVED]; *(sensitivity: at 8-bit KV the same 9.2K context falls to ~12 GB under ideal byte-halving (2.62→1.31 MB/token); the measured FP8 constant is ~1.42 MB/token (54% of BF16, [S6]) giving ~13.4 GB — the 1.31 vs 1.42 MB/token distinction is the nominal-halving vs measured-FP8 difference used elsewhere in the book)* |
 
 :::
 

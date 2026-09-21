@@ -62,7 +62,7 @@ $$
 \text{FLOP}_{\text{MoE/token}} = n_a \times 2 \text{ FLOP/param} = 14\text{ B} \times 2 \approx 0.028\text{ T}
 $$
 
-which is $\frac{0.056}{0.28} \approx 0.20\times$ of the dense 70B figure — roughly a **5× reduction** in compute per token. (It is also $\frac{14}{47}\approx 30\%$ of a hypothetical dense model of the *same* 47B total; the 5× figure uses the book's canonical 70B dense as the comparison, so always state which baseline the ratio is against.)
+which is $\frac{0.028}{0.14} \approx 0.20\times$ of the dense 70B figure — roughly a **5× reduction** in compute per token. (It is also $\frac{14}{47}\approx 30\%$ of a hypothetical dense model of the *same* 47B total; the 5× figure uses the book's canonical 70B dense as the comparison, so always state which baseline the ratio is against.)
 
 The KV cache story is the surprising part. Recall from Chapter 1 (§KV cache as a concept, Chapter 1) that the KV cache stores one key and one value tensor per token, per layer. The cache size per token scales with the canonical Chapter 1 formula, $KV_{\text{per-token}} = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes-per-value}$. Critically, **the attention mechanism processes every token in the context densely** — each token's query attends to all previous tokens' keys and values, regardless of whether the model is dense or MoE. MoE sparsity operates in the feed-forward sub-layer; it does not change the attention sub-layer's behavior.
 
