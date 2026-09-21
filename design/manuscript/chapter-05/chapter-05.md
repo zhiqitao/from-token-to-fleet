@@ -156,7 +156,7 @@ Each of these flags is an open empirical question a team should resolve against 
 
 An architect is assembled for a design review of the enterprise Q&A tool described in Chapter 4. The requirement has been characterized: ~2,000 registered users, ~10 rps average, ~9.2K input tokens + 300 output tokens, input‑heavy profile, TTFT SLO p95 ≤ 2 s, TPOT SLO p95 ≤ 35 ms. The team has also agreed on the retrieval architecture: vector search with embeddings, 768‑dim all‑mpnet‑base‑v2, late‑max retrieval over a 1 M‑chunk corpus.
 
-From the token‑layer perspective (as we worked through in Chapter 5), the architect can immediately check the consequences:
+From the unit-and-token work of Ch 1 alone (Ch 5's selection surfaces), the architect can immediately check the consequences:
 
 - **768‑dim embeddings** give adequate retrieval quality at ~1 GFLOPs per embedding, with ~3.1 GB index storage for a 1 M‑chunk corpus (vs ~1.5 GB at 384‑dim) — a persistent footprint that scales with corpus size, alongside the 70B base model.
 - **9.2K input** at ~2.62 MB/KV‑token costs ~24.1 GB of cache (initial) on the 70B generation model, well within the 8×H100 node's 640 GB HBM. The prefill TTFT of ~1.08 s plus retrieval (~120 ms) sits at the 1.2 s TTFT budget, with the p95 ≤ 2 s SLO giving the real margin.

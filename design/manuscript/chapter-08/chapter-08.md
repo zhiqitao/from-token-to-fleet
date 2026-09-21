@@ -38,7 +38,7 @@ $$
 \text{FLOP/}_{\text{token}} \approx 2 \times N = 2 \times 70 \times 10^9 \approx 140 \text{ GFLOP/token}
 $$
 
-[DERIVED: 2 FLOPs/parameter × 70 ×10⁹ params; standard dense-forward arithmetic, consistent with the dense-forward scaling of Ch 3: 175B → 2 × 175 × 10⁹ ≈ 0.35 TFLOP/token]
+[DERIVED: 2 FLOPs/parameter × 70 ×10⁹ params; standard dense-forward arithmetic, which is the same 2×N rule that gives, e.g., a 175B dense model 2 × 175 × 10⁹ ≈ 0.35 TFLOP/token]
 
 This applies to both prefill and decode: each token that enters the forward pass costs ~140 GFLOP. The distinction between prefill and decode is not in the per-token FLOP count but in the data movement pattern — prefill reads the full context once, while decode re-reads weights per token.
 
@@ -66,7 +66,7 @@ $$
 
 | metric | value | derivation |
 |---|---|---|
-| per-token FLOPs (forward) | ~140 GFLOP/token | 2 ×70B params [DERIVED; consistent with Ch 3 dense-forward scaling: 175B ≈ 0.35 TFLOP/token] |
+| per-token FLOPs (forward) | ~140 GFLOP/token | 2 ×70B params [DERIVED; standard dense-forward arithmetic — the same 2×N rule gives 175B ≈ 0.35 TFLOP/token] |
 | prefill FLOPs for 9.2K input | ~1.29 PFLOP | 2 ×70 ×10⁹ × 9.2 ×10³ [DERIVED] |
 | sustained prefill demand @ 10 rps | ~12.9 PFLOP/s | 1.29 PFLOP × 10 [DERIVED] |
 | H100 peak FP16 TFLOPS | ~989 TFLOPS [1P: NVIDIA H100 datasheet] | NVIDIA H100 SXM5 datasheet, without sparsity |
