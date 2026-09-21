@@ -25,8 +25,9 @@ layers = [
 ax.text(4.0, 10.45, 'Where Should Intelligence Live?', fontsize=13, fontweight='bold', ha='center', color='#1a1a1a')
 ax.text(4.0, 10.0, 'The 2026 frontier question for an AI Solution Architect (Appendix §7)', fontsize=9, ha='center', color='#555', style='italic')
 
-# upward arrow in the left margin
-ax.annotate('', xy=(0.45, 1.5), xytext=(0.45, 9.1),
+# upward arrow in the left margin: points UP toward the externalized/fleet rows,
+# matching the book's thesis that intelligence shifts up out of the weights.
+ax.annotate('', xy=(0.45, 9.1), xytext=(0.45, 1.5),
             arrowprops=dict(arrowstyle='-|>', lw=2.3, color='#c0392b'))
 ax.text(0.55, 5.3, 'more of the intelligence\nand compute budget', fontsize=8, color='#c0392b', rotation=90, va='center', ha='left')
 

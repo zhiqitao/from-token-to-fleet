@@ -140,8 +140,8 @@ ax.text(1.4, 1.45, 'over-subscribed: too few\nhosts to serve 40 rps peak', fonts
 # annotate the two key provisioning crossings (text parked clear of the curve/legend)
 ax.annotate('~20 hosts: saturation\n(canonical peak fleet)', xy=(19.05, 1.02), xytext=(34, 2.25),
             fontsize=8, color='#c0392b', arrowprops=dict(arrowstyle='->', color='#c0392b'))
-ax.annotate('~27 hosts: 70% target\n(canonical 70%-util fleet)', xy=(27.2, 0.68), xytext=(38, 1.55),
-            fontsize=8, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b'))
+ax.annotate('≈28 hosts: 70% target\n(⌈40/(2.1×0.70)⌉ = 28)', xy=(27.2, 0.68), xytext=(38, 1.55),
+fontsize=8, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b'))
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Per-host utilization (ρ)', fontsize=10)
 ax.set_title('More hosts → lower per-host utilization → more tail headroom', fontsize=9.5)

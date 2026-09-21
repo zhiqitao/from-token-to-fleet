@@ -93,11 +93,11 @@ def draw_panel(x0, x1, title, subtitle, flash):
           C_TRAFFIC if not flash else '#2f6f4f', FS-1.0, weight='bold')
     # caption of traffic reduction
     if not flash:
-        cap = ('O(L^2) HBM traffic:\nevery query re-reads the row-block')
+        cap = ('O(L^2) HBM traffic:\nevery query re-reads\nthe row-block')
     else:
-        cap = ('O(L) HBM traffic:\neach tile read once, softmax online')
+        cap = ('O(L) HBM traffic:\neach tile read once,\nsoftmax online')
     label((x0+x1)/2, panel_top-panel_h-12, cap,
-          C_TRAFFIC if not flash else '#2f6f4f', FS-1.4)
+          C_TRAFFIC if not flash else '#2f6f4f', FS-1.6)
 
 draw_panel(p1x0, p1x1, 'BEFORE: naive / SDPA', 'intermediate written to HBM', False)
 draw_panel(p2x0, p2x1, 'AFTER: FlashAttention', 'tiled, stays on-chip', True)
