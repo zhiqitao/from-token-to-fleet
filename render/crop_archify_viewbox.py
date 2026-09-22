@@ -32,7 +32,6 @@ DEFAULTS = {
     "ch6-metric-hierarchy":   "design/manuscript/chapter-06/figures/fig-06-0601",
     "fleet-hierarchy":        "design/manuscript/chapter-17/figures/fig-17-1701",
     "ch10-compose":           "design/manuscript/chapter-10/figures/fig-10-1002",
-    "ch10-parallel":          "design/manuscript/chapter-10/figures/fig-10-1001",
     "spine-decision-loop":    "render/latex/assets/spine-decision-loop",
     "agent-loop-lifecycle":   "design/manuscript/chapter-19/figures/fig-19-1901",
     "fig-1-1-kv-cache":       "design/manuscript/chapter-01/figures/fig-01-kv-cache",

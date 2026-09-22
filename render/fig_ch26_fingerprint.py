@@ -29,8 +29,8 @@ ax.set_ylim(0, 1.15)
 ax.set_title('Workload fingerprints on six comparable axes (grouped bars, not radar)', fontsize=10)
 ax.legend(fontsize=8.2, loc='upper left', ncol=1, frameon=False, bbox_to_anchor=(0.0, 1.0))
 ax.grid(axis='y', alpha=0.3)
-ax.text(0.35, -0.16, 'Comparable 0-1 normalisation; height encodes intensity. [ILLUSTRATIVE]',
-        transform=ax.transAxes, fontsize=7.5, color='#555', va='top')
+ax.text(0.98, -0.16, 'comparable 0-1 scale; bar height = intensity. [ILLUSTRATIVE]',
+        transform=ax.transAxes, fontsize=7.5, color='#555', va='top', ha='right')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=170)
 plt.close()

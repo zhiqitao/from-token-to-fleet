@@ -35,16 +35,15 @@ def rw(s, fs=FS):
     return w
 
 fig, ax = plt.subplots(figsize=(6.1, 5.9))
-ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
+ax.set_xlim(-14, W+14); ax.set_ylim(0, Ht); ax.axis('off')
 
 C_ONCHIP='#27408b'; C_MEM='#e67e22'; C_NET='#2e9e63'; C_TEN='#c0392b'
 
 def label(cx, cy, text, color='#444', fs=FS-0.4, ha='center', weight='normal', style='normal'):
     ax.text(cx, cy, text, ha=ha, va='center', fontsize=fs, color=color, fontweight=weight, style=style)
 
-label(W/2, Ht-7, 'Where inference computation and data movement actually live',
-      '#1a1a1a', FS+1.0, weight='bold')
-
+label(W/2, Ht-4, 'Where inference computation and\ndata movement actually live',
+      '#1a1a1a', FS+0.6, weight='bold')
 # column boundaries
 colA_cx = 80      # hierarchy ladder
 colB_x  = 168     # what-runs-here (left-aligned)
@@ -59,8 +58,8 @@ levels = [
     ('GPU\ninterconnect', 'host / multi-GPU', C_NET),
     ('other GPUs\n/ remote', 'farthest', C_NET),
 ]
-ladder_w = 150; h = 46; gap = 6
-top = Ht-45
+ladder_w = 150; h = 42; gap = 6
+top = Ht-78
 ys=[]; y=top
 for name, role, c in levels:
     ax.add_patch(FancyBboxPatch((colA_cx-ladder_w/2, y-h/2), ladder_w, h,
@@ -89,24 +88,23 @@ ops = [
     'TP/PP communication',
     'P/D KV transfer',
 ]
-label(colB_x, top+8, 'what runs here →', '#333', FS-0.7, ha='left', weight='bold')
+label(colB_x, top+h/2+10, 'what runs here →', '#333', FS-0.7, ha='left', weight='bold')
 yy=top
 for t in ops:
     label(colB_x, yy, t, '#333', FS-0.8, ha='left')
     yy -= (h+gap)
 
-# column C: gradient
-label(colC_x+20, top+8, 'speed ↔ capacity', '#333', FS-0.7, ha='left', weight='bold')
-# vertical gradient bar
-gx=colC_x; gy0=ys[-1][0]; gy1=top
-label(colC_x+14, gy1-4, 'small · fast · close', '#666', FS-0.8, ha='center')
-label(colC_x+14, gy0+2, 'large · slow · far', '#666', FS-0.8, ha='center')
-ax.annotate('', xy=(colC_x+14, gy0), xytext=(colC_x+14, gy1),
-            arrowprops=dict(arrowstyle='<|-|>', lw=1.6, color=C_TEN, shrinkA=0, shrinkB=0))
-label(colC_x+34, (gy0+gy1)/2, 'capacity grows, speed drops,\ndistance grows', C_TEN, FS-1.0, ha='left', weight='bold')
+# column C: gradient (far right)
+gy0=ys[-1][0]; gy1=top
+gx=colC_x+52
+label(gx, gy1-2, 'small · fast\n· close', '#666', FS-0.9, ha='center')
+label(gx, gy0+2, 'large · slow\n· far', '#666', FS-0.9, ha='center')
+ax.annotate('', xy=(gx, gy0), xytext=(gx, gy1),
+            arrowprops=dict(arrowstyle='<|-|>', lw=1.6, color=C_TEN, shrinkA=14, shrinkB=14))
+label(gx-42, (gy0+gy1)/2, 'capacity grows\nspeed drops\ndistance grows', C_TEN, FS-1.3, ha='center', weight='bold')
 
 # footnote
-label(W/2, 14, 'not every component shown — the gradient makes compute, bandwidth,\ncapacity and interconnect distinct constraints', '#666', FS-0.9)
+label(W/2, 10, 'not every component shown — the gradient makes compute, bandwidth,\ncapacity and interconnect distinct constraints', '#666', FS-0.9)
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-08/figures/fig-08-0802.png', dpi=200)

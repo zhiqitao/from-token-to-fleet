@@ -119,50 +119,60 @@ plt.tight_layout(rect=(0, 0.08, 1, 1))
 plt.savefig(base % (9, 9, 9), dpi=150); plt.close()
 print('Ch09 done')
 
-# ---- Ch11: serving stack flow ---- (vertical input->output flow; resource-coded; P/D split)
-fig, ax = plt.subplots(figsize=(6.1, 5.9))
-ax.set_xlim(0, 18); ax.set_ylim(0, 12); ax.axis('off')
+# ---- Ch11: serving = four concerns, not a layer stack ----
+# The old top-down "serving stack" implied rigid layering. Present serving as four
+# orthogonal concerns (request scheduling / state management / reuse / resource
+# specialisation) that all act on the request stream in parallel -- none stacked on
+# another. Arranged as a 2x2 concern matrix around the central request->output flow.
+fig, ax = plt.subplots(figsize=(6.4, 5.9))
+ax.set_xlim(0, 20); ax.set_ylim(0, 13); ax.axis('off')
 BLUE='#3a6ea5'; GREEN='#27ae60'; ORANGE='#e67e22'; RED='#c0392b'; GREY='#555'; PURPLE='#6c3483'
-def box(x,y,w,h,s,fc,fs=9.3):
-    ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0.02',fc=fc,ec='none'))
-    ax.text(x+w/2,y+h/2,s,ha='center',va='center',color='white',fontsize=fs,fontweight='bold')
-def arrow(x1,y1,x2,y2,c=GREY,lw=2.0):
+def bbox(x,y,w,h,fc,ec='none',lw=0):
+    ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0.02',fc=fc,ec=ec,lw=lw))
+def jar(x1,y1,x2,y2,c=GREY,lw=2.0):
     ax.annotate('',xy=(x2,y2),xytext=(x1,y1),arrowprops=dict(arrowstyle='-|>',lw=lw,color=c))
-# top: request -> scheduler
-box(2.6,9.6,8.0,1.5,'Request stream\n(text -> tokens)',BLUE,fs=9.0)
-arrow(6.6,9.6,6.6,8.7)
-# scheduler + batching
-box(2.6,7.4,8.0,1.2,'Scheduler +\ncontinuous batching',PURPLE,fs=8.4)
-ax.text(10.9,8.0,'scheduling\n<-> latency',fontsize=7.2,color=PURPLE,ha='left',va='center')
-arrow(6.6,7.4,6.6,6.8)
-ax.text(6.6,6.55,'P/D split (two regimes)',fontsize=7.6,color=GREY,ha='center')
-arrow(4.5,6.4,4.5,5.9); arrow(8.6,6.4,8.6,5.9)
-# prefill (compute) and decode (bandwidth) pools
-ax.add_patch(FancyBboxPatch((1.6,4.4),5.9,1.5,boxstyle='round,pad=0.02',fc=GREEN,ec='none'))
-ax.text(4.55,5.15,'Prefill pool\ncompute -> TTFT',ha='center',va='center',color='white',fontsize=8.4,fontweight='bold')
-ax.add_patch(FancyBboxPatch((8.6,4.4),6.0,1.5,boxstyle='round,pad=0.02',fc=ORANGE,ec='none'))
-ax.text(11.6,5.15,'Decode pool\nbandwidth -> TPOT/ITL',ha='center',va='center',color='white',fontsize=8.2,fontweight='bold')
-# shared KV cache band below both pools
-ax.add_patch(FancyBboxPatch((1.6,2.4),12.4,1.4,boxstyle='round,pad=0.02',fc=RED,ec='none'))
-ax.text(7.8,3.2,'KV cache - memory capacity -> concurrency',ha='center',va='center',color='white',fontsize=8.6,fontweight='bold')
-ax.text(7.8,2.7,'PagedAttention (page table) + prefix cache',ha='center',va='center',color='white',fontsize=7.8,fontstyle='italic')
-# prefill WRITES kv (down); decode READS/APPENDS kv (two-way)
-arrow(4.55,4.4,4.55,3.8,RED,2.2)   # prefill populates KV (write)
-ax.annotate('',xy=(11.6,3.8),xytext=(11.6,4.4),arrowprops=dict(arrowstyle='<|-|>',lw=2.0,color=RED))  # decode read+append (both ways)
-ax.text(12.0,4.1,'KV read\n+append',fontsize=6.8,color=RED,ha='left',va='center')
-# decode -> output (output sits to the right, clear of the KV band)
-arrow(14.6,5.15,15.6,5.15)  # decode right edge -> output
-box(15.7,4.55,2.3,1.2,'Output\ntokens',GREY,fs=8.4)
-# legend row (bottom-left; label beside swatch, no clipping)
-leg=[('Request',BLUE),('Scheduler',PURPLE),('Prefill',GREEN),('Decode',ORANGE),('KV',RED)]
-for i,(lab,c) in enumerate(leg):
-    x=1.6+i*2.9
-    ax.add_patch(Rectangle((x,0.6),0.75,0.7,fc=c,ec='none'))
-    ax.text(x+0.9,0.95,lab,ha='left',va='center',color='#333',fontsize=7.2)
-ax.text(1.6,0.2,'legend: colour = the resource that stage trades / occupies',fontsize=7.0,color=GREY,ha='left')
+def concern(x,y,w,h,name,col,mech,trade):
+    bbox(x,y,w,h,'#fbfbfb',col,1.6)
+    bbox(x,y+h-0.66,w,0.66,col)
+    ax.text(x+w/2,y+h-0.33,name,ha='center',va='center',color='white',fontsize=8.2,fontweight='bold')
+    ax.text(x+0.4,y+h-1.25,mech,ha='left',va='top',fontsize=7.4,color='#222')
+    ax.text(x+0.4,y+0.32,trade,ha='left',va='center',fontsize=7.0,color=col,style='italic')
+
 # title
-ax.text(7.0,11.4,'The serving stack: batching trades latency,\nprefix cache skips prefill, P/D split trades memory & throughput',
-    fontsize=8.2,fontweight='bold',ha='center',color='#333')
+ax.text(10,12.4,'Serving = four concerns, not a stack',fontsize=9.2,fontweight='bold',ha='center',color='#333')
+ax.text(10,11.72,'orthogonal decisions - they interact, but none sits on top of another',
+        fontsize=7.1,ha='center',color=GREY,style='italic')
+
+# request stream (top)
+bbox(6.0,10.2,8.0,1.25,BLUE)
+ax.text(10,10.82,'Request stream\n(text \u2192 tokens)',ha='center',va='center',color='white',fontsize=8.5,fontweight='bold')
+
+# concern matrix container
+bbox(0.5,3.35,19.0,6.55,'#f4f6fa','#bbbbbb',1.0)
+ax.text(1.0,9.62,'THE FOUR SERVING CONCERNS',fontsize=7.8,fontweight='bold',ha='left',color='#5a5a5a')
+
+# 2x2 concern cards flanking the central flow
+concern(1.0,3.75,7.9,2.55,'REQUEST SCHEDULING',PURPLE,
+        'continuous batching: admit &\nevict at every decode step',
+        'scheduling \u2194 latency \u00b7 utilization')
+concern(11.1,3.75,7.9,2.55,'STATE MANAGEMENT',RED,
+        'KV cache in fixed pages\n(PagedAttention page table)',
+        'memory capacity \u2192 concurrency')
+concern(1.0,6.85,7.9,2.55,'REUSE',GREEN,
+        'prefix cache (RadixAttention / APC):\nreuse KV of shared context',
+        're-prefill FLOPs & memory skipped')
+concern(11.1,6.85,7.9,2.55,'RESOURCE SPECIALISATION',ORANGE,
+        'P/D split: prefill pool (compute) +\ndecode pool (bandwidth)',
+        'two regimes \u2192 two pools')
+
+# central flow: request -> through the concern matrix -> tokens
+jar(10,10.2,10,2.95,GREY,1.7)
+ax.text(10.45,6.55,'all four in parallel',fontsize=6.9,color=GREY,ha='left',va='center',style='italic')
+
+# output (bottom)
+bbox(6.8,1.55,6.4,1.0,GREY)
+ax.text(10,2.05,'Output tokens',ha='center',va='center',color='white',fontsize=8.2,fontweight='bold')
+
 plt.tight_layout()
 plt.savefig(base % (11, 11, 11), dpi=150); plt.close()
 print('Ch11 done')
