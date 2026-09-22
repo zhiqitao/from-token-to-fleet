@@ -36,7 +36,7 @@ def stage_text(x, y, lines):
 box(0.6, 10.0, 7.6, 2.6, '#2980b9', '||')
 stage_text(0.6, 10.0, [
     '1  FACT \u00b7 instrument',
-    'request rate ~2 QPS',
+    'request rate ~2 rps',
     'GPU utilization 45%',
     'TTFT: compute 320 ms',
     '  I/O 80 ms',
@@ -49,7 +49,7 @@ stage_text(11.8, 10.0, [
     'sharding \u21d2 decode is',
     '  bandwidth-bound',
     'cache 35% \u21d2 engine',
-    '  load 2.0 \u2192 1.3 QPS',
+    '  load 2.0 \u2192 1.3 rps',
     'TTFT p99: 210 ms',
 ])
 

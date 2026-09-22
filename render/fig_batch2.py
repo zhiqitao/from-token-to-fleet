@@ -121,8 +121,8 @@ for i, (q, a) in enumerate(stages):
     ax.text(5, y+0.80, q, ha='center', va='center', fontsize=9.0, fontweight='bold', color='#4a2f10')
     ax.text(5, y+0.34, a, ha='center', va='center', fontsize=7.7, color='#5a3a14')
 # outcome
-ax.add_patch(FancyBboxPatch((1.5, 0.45), 7.0, 0.9, boxstyle='round,pad=0.02', fc='#6f9e5f', ec='#3d5a2f'))
-ax.text(5, 0.9, 'Quantified bounds \u2192 {TTFT, throughput, cost} budget', ha='center', va='center',
+ax.add_patch(FancyBboxPatch((0.5, 0.30), 9.0, 1.15, boxstyle='round,pad=0.02', fc='#6f9e5f', ec='#3d5a2f'))
+ax.text(5, 0.88, 'Quantified bounds \u2192 {TTFT, throughput, cost} budget', ha='center', va='center',
         color='white', fontsize=8.0, fontweight='bold')
 ax.text(5, 9.85, 'From a vague ask to architectural bounds (worked example)', fontsize=11.6, fontweight='bold', ha='center', color='#1a1a1a')
 plt.tight_layout()
