@@ -31,7 +31,8 @@ def tw(s, fs=FS):
 def note_w(s, fs=FS-0.6):
     return TextPath((0, 0), s, size=fs).get_extents().width
 
-fig, ax = plt.subplots(figsize=(6.1, 8.4))
+fig, ax = plt.subplots(figsize=(6.1, 7.6))
+fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
 
 C_MODEL='#27408b'; C_DATA='#7a7a7a'; C_KV='#e67e22'; C_SEQ='#c0392b'
@@ -45,7 +46,7 @@ def arrow(x1,y1,x2,y2,color=C_AR,lw=1.4,style='-|>'):
     ax.annotate('', xy=(x2,y2), xytext=(x1,y1),
                 arrowprops=dict(arrowstyle=style,lw=lw,color=color,shrinkA=0,shrinkB=0))
 
-BOX_H = 36
+BOX_H = 40
 
 def draw_lane(cy, steps, boxh=BOX_H):
     """Draw a compact row of text-sized boxes, left->right, uniformly scaled so
