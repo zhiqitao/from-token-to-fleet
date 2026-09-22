@@ -34,7 +34,6 @@ BOOST = float(os.environ.get("BOOST", "1.45"))
 DEFAULTS = {
     "ch5-two-leg":            "design/manuscript/chapter-05/figures/fig-05-0501",
     "ch13-ladder":            "design/manuscript/chapter-13/figures/fig-13-1301",
-    "ch6-metric-hierarchy":   "design/manuscript/chapter-06/figures/fig-06-0601",
     "fleet-hierarchy":        "design/manuscript/chapter-17/figures/fig-17-1701",
     "ch10-compose":           "design/manuscript/chapter-10/figures/fig-10-1002",
     "spine-decision-loop":    "design/manuscript/chapter-22/figures/fig-22-2201",

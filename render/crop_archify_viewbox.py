@@ -29,7 +29,6 @@ PAD = float(os.environ.get("PAD", "0.02"))   # fraction of width to pad
 DEFAULTS = {
     "ch5-two-leg":            "design/manuscript/chapter-05/figures/fig-05-0501",
     "ch13-ladder":            "design/manuscript/chapter-13/figures/fig-13-1301",
-    "ch6-metric-hierarchy":   "design/manuscript/chapter-06/figures/fig-06-0601",
     "fleet-hierarchy":        "design/manuscript/chapter-17/figures/fig-17-1701",
     "ch10-compose":           "design/manuscript/chapter-10/figures/fig-10-1002",
     "spine-decision-loop":    "render/latex/assets/spine-decision-loop",
