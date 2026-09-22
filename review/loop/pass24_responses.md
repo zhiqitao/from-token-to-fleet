@@ -154,3 +154,31 @@ These are the highest-leverage structural fixes and should drive the next passes
 - **Remaining (OPEN), highest priority:** the six other P0 figure defects (Fig 10.2, 7.1, 11.3, 2.1, 19.1, 26.2) plus P1 figure re-layouts (12.1, 16.1, 17.1, 19.2/19.3, 20.1, 21.1, 22.1, 23.1, 13.1), the grayscale/color-only and aggregate-vs-per-rank systemic fixes, and the P1 conceptual/terminology items (six-vs-five gates, Table 24-1 success-rate direction), plus the minor numerics (FP8 KV, 164/165, 27.1/27.2, Fig 20.1 overhead factor).
 
 Next passes should take these one figure-system at a time (rendered-page raster verification for every edit) rather than attempting the whole set at once, in line with the review prompt's "no rush, many iterations" standard.
+
+---
+
+## PASS-24 SECOND TRANCHES (manual, committed 56c4d7a..19e8a64)
+
+Figures fixed and verified at true book scale this drive (beyond the cron's own 9615a5c):
+- Fig 16.1 x-axis clipped off page (CRITICAL regression) -> landscape rewrite (56c4d7a).
+- Fig 19.1 agent-loop state-box overlap (CRITICAL) -> matplotlib rewrite.
+- Fig 7.1 clipped group-head labels (P0) -> group brackets added.
+- Fig 12.1 caption truncation + duplicate ⑤ numbering -> compact + X-REJECTED.
+- Fig 7.5 aggregate-vs-per-rank warning (adds in-figure caveat).
+- Fig 10.2 label clipping -> print-size flag + regen exemption (a377707).
+- Fig 26.2 capstone truncation -> print-size flag + direct regen (8f4aee1).
+- Fig 2.1 labels-behind-boxes + connector crossing -> print-size + fonts (dd15f51).
+- Fig 11.3 output-arrow direction + KV-label clearance + qualified footer (3a09a77).
+- Fig 6.1 direction-on-connectors (no longer legend-only) (425fd45).
+- Fig 3.1 aligned dual-panel + consistent resident/active channel + 8 experts.
+- Fig 10.1 concrete composition (not abstract bands) + CP + top-down.
+- Fig 2.2 ridge clear of labels + grayscale (hatch/marker/text redundancy).
+- Fig 13.1 horizontal escalation path (no top=best) + triggers clear (in flight).
+
+SYSTEMIC ROOT CAUSE: regen_figs.py re-boosts + reflows every figure, which distorted
+print-size-authored figures (clipped labels, undersized renders). Added a
+`_hermes_print_sized` figure flag + matching exemption in regen_figs._scale_figure_fonts,
+and marked the verified figures so the cron loop cannot re-distort them.
+
+Ch23 six-vs-five gate framing and Ch24 'tool-use success rate' -> 'tool-use exploit rate'
+(9ea50e5) resolve the two P1 conceptual/terminology items.

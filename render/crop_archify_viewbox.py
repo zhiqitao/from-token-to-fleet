@@ -28,7 +28,6 @@ PAD = float(os.environ.get("PAD", "0.02"))   # fraction of width to pad
 # diagram (json base) -> target figure file relative to design/manuscript
 DEFAULTS = {
     "ch5-two-leg":            "design/manuscript/chapter-05/figures/fig-05-0501",
-    "ch13-ladder":            "design/manuscript/chapter-13/figures/fig-13-1301",
     "fleet-hierarchy":        "design/manuscript/chapter-17/figures/fig-17-1701",
     "spine-decision-loop":    "render/latex/assets/spine-decision-loop",
     "agent-loop-lifecycle":   "design/manuscript/chapter-19/figures/fig-19-1901",
