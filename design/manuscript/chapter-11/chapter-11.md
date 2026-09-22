@@ -109,15 +109,15 @@ The serving stack dictates the deployment choices:
 
 - **Beyond a node:** when prefill FLOPs and decode bandwidth fight on one pool, P/D disaggregation (Splitwise/DistServe/Mooncake) is the architecture of choice, with Mooncake's KV-transfer engine moving caches between pools. [S4][1P]
 
-![Fig 11.2 — The serving stack: batching, KV management, prefix caching, P/D split [ILLUSTRATIVE conceptual]](figures/fig-11-1101.png)
+![Fig 11.2 — Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation) [ILLUSTRATIVE conceptual]](figures/fig-11-1101.png)
 
 *From request arrival to token output: continuous batching, PagedAttention KV, prefix caching, and optional P/D disaggregation.*
 
 <!-- Figure spec: mechanism-first serving-flow diagram; request stream → scheduler → KV page table (+ prefix cache) → optional prefill pool / decode pool split → output; annotate the resource each stage trades. -->
 
-![Fig 11.3 — P/D disaggregation topology: prefill pool (compute-bound) and decode pool (bandwidth-bound) bridged by KV transfer [ILLUSTRATIVE][DERIVED]](figures/fig-11-1103.png)
+![Fig 11.3 — P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer [ILLUSTRATIVE][DERIVED]](figures/fig-11-1103.png)
 
-*P/D disaggregation topology. Left: prefill pool, compute-bound (FLOPs), handles the massive prompt at once. Right: decode pool, bandwidth-bound (HBM), reads steady token generation. A fabric bridge moves the per-token KV cache from prefill to decode. The split exists because the pools want opposite resources — prefill is FLOP-starved (~1.19 PFLOPS required vs 0.989 peak), decode is bandwidth-starved (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED].*
+*P/D disaggregation topology. Left: a prefill-optimized pool (FLOP-facing), which handles the long prompt at once. Right: a decode-optimized pool (HBM-facing), which reads the steady token-by-token generation. A fabric bridge moves the per-token KV cache from prefill to decode. The split exists because the two stages want opposite resources under load — prefill needs compute capacity (~1.19 PFLOPS required vs 0.989 peak single-H100), decode needs HBM bandwidth (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED].*
 
 ### The Serving Stack, Not the Product Catalog
 

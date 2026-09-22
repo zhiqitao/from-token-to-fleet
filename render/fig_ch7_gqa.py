@@ -12,9 +12,9 @@ ax.set_xlim(0, 10.5); ax.set_ylim(0, 8.4); ax.axis('off')
 
 ax.text(5.25, 8.1, 'Grouped-Query Attention (GQA): why the cache is 8× smaller',
         fontsize=10.5, fontweight='bold', ha='center')
+ax.text(5.25, 7.65, '64 query heads (8 groups of 8)  →  8 shared KV heads', fontsize=7.6, fontweight='bold', ha='center')
 
 colors = ['#3a6ea5','#6f9e5f','#e67e22','#c0392b','#8055b5','#2a9d8f','#d4a017','#5b7d94']
-ax.text(0.6, 7.5, '64 query heads (8 groups of 8)  →  8 shared KV heads', fontsize=7.6, fontweight='bold')
 
 nq = 64
 cols = 8
@@ -31,9 +31,16 @@ for i in range(nq):
     ax.add_patch(Rectangle((x0, y0), cell_w, cell_h2, fc=colors[g%8], ec='white'))
     cell_xys.setdefault(g, []).append((x0+cell_w/2, y0+cell_h2/2))
 
+# Group BRACKETS spanning each 8-head column (labels above the bracket, so the
+# many-to-one grouping does not rely on colour alone — PASS-23b/24 grayscale ask).
+grp_top = 7.15
 for g in range(8):
-    gx = xs[0] + 0.31 + g*pitch
-    ax.text(gx, 6.92, f'grp {g+1}', fontsize=6.4, ha='center', color=colors[g], fontweight='bold')
+    gx = xs[g]
+    ax.plot([gx, gx], [grp_top, grp_top-0.14], color='#555', lw=1.0)
+    ax.plot([gx+cell_w, gx+cell_w], [grp_top, grp_top-0.14], color='#555', lw=1.0)
+    ax.plot([gx, gx+cell_w], [grp_top, grp_top], color='#555', lw=1.0)
+    ax.text(gx+cell_w/2, grp_top+0.18, f'grp {g+1}', fontsize=7.0, ha='center',
+            color=colors[g], fontweight='bold')
 
 kv_w, kv_h = 0.78, 0.95
 kv_ys = {}

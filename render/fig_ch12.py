@@ -24,7 +24,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 # Throughput demand from the canonical case: ~92K input tok/s average.
 # =====================================================================
 
-fig, ax = plt.subplots(figsize=(6.1, 10.6))
+fig, ax = plt.subplots(figsize=(6.1, 7.9))
 ax.set_xlim(0, 1)
 ax.set_ylim(0, 1)
 ax.axis('off')
@@ -142,7 +142,7 @@ note(sx + sw / 2, 0.113,
 bx = sx + sw + 0.03
 bw = W - 0.04 - sw - 0.03
 box(bx, 0.070, bw, 0.112, '#fdecea', '#c0392b')
-note(bx + bw / 2, 0.160, '⑤ REJECTED', size=8.6, color='#7b241c', weight='bold')
+note(bx + bw / 2, 0.160, '✗ REJECTED', size=8.6, color='#7b241c', weight='bold')
 note(bx + bw / 2, 0.113, '(c) fails quality gate\n→ excluded from evaluation', size=6.9)
 
 plt.tight_layout()

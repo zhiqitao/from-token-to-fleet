@@ -97,19 +97,34 @@ plt.tight_layout()
 plt.savefig(base % (21, 21, 21), dpi=150); plt.close()
 print('Ch21 done')
 
-# ---- Ch23: from vague ask to architectural bounds (funnel) ----
-fig, ax = plt.subplots(figsize=(8, 7))
+# ---- Ch23: from vague ask to architectural bounds (worked example, not a generic funnel) ----
+fig, ax = plt.subplots(figsize=(6.1, 6.4))
 ax.set_xlim(0, 10); ax.set_ylim(0, 10); ax.axis('off')
-gates = ['What is the true problem?', 'What does success look like?', 'What data exists?',
-         'What are the constraints?', 'What is in scope now?']
-for i, g in enumerate(gates):
-    w = 8 - i*1.2
-    y = 8.5 - i*1.3
-    ax.add_patch(Rectangle(((10-w)/2, y), w, 0.9, fc='#f0b35f' if i<4 else '#6f9e5f', ec='none', alpha=0.85))
-    ax.text(5, y+0.45, g, ha='center', va='center', fontsize=9.5, fontweight='bold')
-ax.text(5, 9.7, 'From vague ambition to quantified scope', fontsize=13, fontweight='bold', ha='center')
-ax.add_patch(Rectangle((3.3, 1.0), 3.4, 0.9, fc='#3a6ea5', ec='none'))
-ax.text(5, 1.45, 'Quantified scope\n→ architecture loop', ha='center', va='center', color='white', fontsize=9, fontweight='bold')
+# A generic funnel restates the chapter; instead trace the CANONICAL vague ask
+# ("our app is slow") through each gate to a quantified architectural bound.
+stages = [
+    ('1. What is the true problem?',
+     '"our app is slow" \u2192 TTFT p99 1.4 s on a 70B model'),
+    ('2. What does success look like?',
+     'p95 TTFT < 300 ms, TPOT ~25 ms, 40 rps peak'),
+    ('3. What data exists?',
+     '9.2K-token prompts, ~55% share a common prefix'),
+    ('4. What are the constraints?',
+     '8\u00d7H100 host, ~$14.6K/mo, no SLO headroom'),
+    ('5. What is in scope now?',
+     'KV precision FP16\u2192FP8 + prefix cache + routing'),
+]
+for i, (q, a) in enumerate(stages):
+    w = 8.6 - i*0.55
+    y = 8.6 - i*1.35
+    ax.add_patch(FancyBboxPatch(((10-w)/2, y), w, 1.08, boxstyle='round,pad=0.02', fc='#f0b35f', ec='#c07a2a'))
+    ax.text(5, y+0.80, q, ha='center', va='center', fontsize=9.0, fontweight='bold', color='#4a2f10')
+    ax.text(5, y+0.34, a, ha='center', va='center', fontsize=7.7, color='#5a3a14')
+# outcome
+ax.add_patch(FancyBboxPatch((1.5, 0.45), 7.0, 0.9, boxstyle='round,pad=0.02', fc='#6f9e5f', ec='#3d5a2f'))
+ax.text(5, 0.9, 'Quantified bounds \u2192 {TTFT, throughput, cost} budget', ha='center', va='center',
+        color='white', fontsize=8.0, fontweight='bold')
+ax.text(5, 9.85, 'From a vague ask to architectural bounds (worked example)', fontsize=11.6, fontweight='bold', ha='center', color='#1a1a1a')
 plt.tight_layout()
 plt.savefig(base % (23, 23, 23), dpi=150); plt.close()
 print('Ch23 done')
