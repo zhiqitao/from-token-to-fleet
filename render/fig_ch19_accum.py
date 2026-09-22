@@ -51,6 +51,8 @@ for (name, dl, gm, kv), x in zip(cols, xs):
             fontweight='bold', color='#c0392b')
 
 # conclusion line in its own band above the legend
+ax.text(7.1, 1.60, 'append-only illustrative model: context is only appended, never evicted',
+        fontsize=9, ha='center', color='#1a1a1a', fontweight='bold')
 ax.text(7.1, 1.10, 'agentic depth is a fleet-sizing problem: KV grows ~36% (24.9 \u2192 34.0 GB)',
         fontsize=9, ha='center', color='#c0392b', fontweight='bold')
 ax.text(7.1, 0.55, 'canonical example @ 2.62 MB/token; total = I0 + T\u00b7\u03b4 + T\u00b7\u03b3.',

@@ -17,13 +17,17 @@ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.1, 3.24), sharex=True)
 w = 0.4
 x = Ts
 
-# Panel 1: token accumulation
-ax1.bar(x - w/2, inp, w, color='#3a6ea5', hatch='//', edgecolor='white', linewidth=0.6, label='input tokens')
-ax1.bar(x - w/2, [Of]*5, w, bottom=inp, color='#6f9e5f', hatch='..', edgecolor='white', linewidth=0.6, label='output tokens')
+# Panel 1: token accumulation — split initial context vs turn-by-turn additions
+# so the two are distinguishable in grayscale (distinct grays + distinct hatches).
+base = np.full(5, I0)               # initial prompt context (constant)
+added = Ts*(d + g)                  # appended per turn (delta retrieved + gamma generated)
+ax1.bar(x - w/2, base, w, color='#3a6ea5', hatch='//', edgecolor='white', linewidth=0.6, label='initial context (I0)')
+ax1.bar(x - w/2, added, w, bottom=base, color='#8ba9cf', hatch='..', edgecolor='white', linewidth=0.6, label='added per turn (T\u00b7\u03b4 + T\u00b7\u03b3)')
+ax1.bar(x - w/2, [Of]*5, w, bottom=inp, color='#6f9e5f', hatch='xx', edgecolor='white', linewidth=0.6, label='output tokens')
 ax1.set_ylabel('Tokens / request', fontsize=9)
 ax1.set_title('(a) Tokens accumulate', fontsize=9.5)
 ax1.grid(alpha=0.3, axis='y')
-ax1.legend(fontsize=7.5, loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=2, frameon=False)
+ax1.legend(fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.25), ncol=3, frameon=False)
 ax1.tick_params(labelsize=8)
 
 # Panel 2: resulting KV
@@ -32,9 +36,9 @@ for i, v in enumerate(kv_gb):
     ax2.annotate(f'{v:.1f}', xy=(x[i], v), xytext=(x[i], v+0.6), ha='center', fontsize=8, color='#c0392b', fontweight='bold')
 ax2.axhline(24.9, color='#888', ls=':', lw=1)
 ax2.set_ylabel('KV / request (GB, FP16)', fontsize=9)
-ax2.set_title('(b) KV grows 24.9 → 34.0 GB', fontsize=9.5)
+ax2.set_title('(b) KV grows 24.9 \u2192 34.0 GB', fontsize=9.5)
 ax2.grid(alpha=0.3, axis='y')
-ax2.legend(fontsize=7.5, loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=1, frameon=False)
+ax2.legend(fontsize=7.5, loc='upper center', bbox_to_anchor=(0.5, -0.25), ncol=1, frameon=False)
 ax2.tick_params(labelsize=8)
 # headroom so the tallest value label (34.0) is not clipped at the top spine
 ax2.set_ylim(0, 38)
@@ -45,8 +49,11 @@ for ax in (ax1, ax2):
     ax.set_xticklabels(['0 (single-shot)', '1', '2', '3', '4'], fontsize=8)
 
 fig.suptitle('Token growth vs resulting KV growth across agent turns', fontsize=10.5, fontweight='bold')
-plt.tight_layout(rect=(0, 0, 1, 0.92))
+# explicit in-plot statement that this is an append-only illustrative model
+fig.text(0.5, 0.875, 'append-only illustrative model: context only ever accumulates across turns — nothing is evicted',
+         ha='center', va='top', fontsize=7.5, style='italic', color='#444')
+plt.tight_layout(rect=(0, 0, 1, 0.85))
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',
             dpi=200, bbox_inches='tight', pad_inches=0.05)
 plt.close()
-print('wrote fig-19-1902 (narrow, tight-bbox)')
+print('wrote fig-19-1902 (narrow, tight-bbox, append-only label + grayscale hatch split)')

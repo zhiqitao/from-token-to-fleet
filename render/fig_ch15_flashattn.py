@@ -69,28 +69,35 @@ def draw_panel(x0, x1, title, subtitle, flash):
     cbw=x1-x0-24; cbh=34
     ax.add_patch(FancyBboxPatch((cb_cx-cbw/2, cb_cy-cbh/2), cbw, cbh,
                   boxstyle='round,pad=0.02', fc=C_ONCHIP, ec='#16295c', lw=1.2, clip_on=False))
-    label(cb_cx, cb_cy, 'on-chip memory', '#fff', FS-0.5, weight='bold')
+    # on-chip block label kept short so it never overflows the narrow box
+    label(cb_cx, cb_cy-2, 'on-chip', '#fff', FS-0.5, weight='bold')
     # HBM block (bottom)
     hb_cy=panel_top-215
     hbw=x1-x0-24; hbh=34
     ax.add_patch(FancyBboxPatch((cb_cx-hbw/2, hb_cy-hbh/2), hbw, hbh,
                   boxstyle='round,pad=0.02', fc=C_HBM, ec='#8a3a12', lw=1.2, clip_on=False))
     label(cb_cx, hb_cy, 'HBM', '#fff', FS-0.4, weight='bold')
-    # Q/K/V tiles (left) and output (right) note
-    label(cb_cx, hb_cy+34, 'Q / K / V live here', '#8a5a2a', FS-1.1, style='italic')
 
     # explicit MANY (before) vs FEW (after) HBM round-trips between on-chip and HBM
     n_arrows = 7 if not flash else 2
     lw = 1.4 if not flash else 1.1
+    # arrows span only the RIGHT portion of the blocks, leaving a clear LEFT gutter
+    # for the round-trips + Q/K/V labels (so no shaft ever crosses them)
+    gutter = 70
+    span_left = cb_cx - (cbw/2) + gutter
+    span_right = cb_cx + (cbw/2) - 12
     for i in range(n_arrows):
-        axx = cb_cx - (cbw/2-10) + i*(cbw-20)/max(n_arrows-1, 1)
+        axx = span_left + i*(span_right-span_left)/max(n_arrows-1, 1)
         color = C_TRAFFIC if not flash else C_TRAFFIC_LT
         ax.annotate('', xy=(axx, hb_cy+hbh/2), xytext=(axx, cb_cy-cbh/2),
                     arrowprops=dict(arrowstyle='-|>', lw=lw, color=color,
                                     shrinkA=0, shrinkB=0), annotation_clip=False)
-    label((x0+x1)/2, (cb_cy+hb_cy)/2,
-          ('many HBM round-trips' if not flash else 'few HBM round-trips'),
+    # 'round-trips' label in the clear LEFT gutter (never crossed by arrows)
+    label(x0+30, (cb_cy+hb_cy)/2,
+          ('many HBM\nround-trips' if not flash else 'few HBM\nround-trips'),
           C_TRAFFIC if not flash else '#2f6f4f', FS-1.0, weight='bold')
+    # Q/K/V note in the clear LEFT gutter beside HBM
+    label(x0+30, hb_cy, 'Q/K/V', '#8a5a2a', FS-1.2, style='italic')
     # caption of traffic reduction
     if not flash:
         cap = ('O(L^2) HBM traffic:\nevery query re-reads\nthe row-block')

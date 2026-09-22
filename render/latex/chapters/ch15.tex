@@ -40,24 +40,34 @@ shapes every later architectural decision.
 \ntsection{Mental Model}\label{mental-model}
 
 
-We model the serving pipeline as a sequence of stages: (1) prompt
-encoding, (2) autoregressive generation, (3) KV cache management, and
-(4) output decoding. Each stage has a resource ceiling: compute‑bound
-stages are limited by TFLOPS, memory‑bound stages by GB/s of GPU HBM
-bandwidth. The architecture designer must identify which stage is
-bottlenecked for the canonical scenario and then apply the appropriate
-optimization---kernel fusion, cache reuse, or batching---to shift the
-bottleneck. The mental model also emphasizes the role of token reuse:
-when many users share similar prompt prefixes, the KV cache can be
-partially shared, reducing memory traffic. This reuse effect is
-difficult to quantify without workload profiling, but it is a
-first‑order consideration in multi‑tenant serving. The model also
-captures the interaction between sequence length and memory cost:
-attention quadraticities (O(L²) FLOPs and O(L) memory per head) mean
-that long contexts (9,000+ tokens) disproportionately strain both
-compute and HBM bandwidth, making kernel choice (FlashAttention
-vs.~SDPA) the single highest‑impact optimization for the canonical
-scenario.
+We model the serving request lifecycle as a pipeline of computational
+phases with a cross‑cutting state‑management plane. The compute phases
+run in order: (1) request preprocessing / tokenization, (2) prefill, (3)
+iterative model decode, (4) token sampling / selection, (5)
+detokenization / streaming. \textbf{KV management is not a temporal
+stage after generation} --- allocation, growth, paging, reuse, eviction,
+and (in a disaggregated deployment) transfer occur throughout the whole
+request lifetime, so we draw it as a state‑management plane that spans
+prefill and decode rather than a step that follows them. Each compute
+phase has a resource ceiling: compute‑bound phases are limited by
+TFLOPS, memory‑bound phases by GB/s of GPU HBM bandwidth. The
+architecture designer must identify which phase is bottlenecked for the
+canonical scenario and then apply the appropriate optimization---kernel
+fusion, cache reuse, or batching---to shift the bottleneck. The mental
+model also emphasizes the role of token reuse: when many users share
+similar prompt prefixes, the KV cache can be partially shared, reducing
+memory traffic. This reuse effect is difficult to quantify without
+workload profiling, but it is a first‑order consideration in
+multi‑tenant serving. The model also captures the interaction between
+sequence length and memory cost: attention quadraticities (O(L²) FLOPs
+and O(L) memory per head) mean that long contexts (9,000+ tokens)
+disproportionately strain both compute and HBM bandwidth, making kernel
+choice (FlashAttention vs.~SDPA) one of the first \emph{kernel‑level}
+optimizations to validate for long‑context prefill --- not a
+demonstrated global ranking, since prefix reuse, KV precision, batching
+policy, P/D scheduling, weight precision, admission control, and simply
+provisioning more prefill capacity can each dominate depending on the
+measured workload.
 
 \ntsection{Worked Example}\label{worked-example}
 
@@ -75,8 +85,37 @@ workload mixes \textbf{prefill} (input) and \textbf{decode} (output)
 tokens, and they hit the hardware differently. Prefill demand = 40 rps ×
 9,200 = 368,000 input tokens/s; decode demand = 40 rps × 300 = 12,000
 output tokens/s. These two regimes must not be collapsed into one
-``380,000 tokens/s'' when reasoning about compute, because prefill is
-heavily compute-bound while decode is bandwidth-bound (\hyperref[chap:8]{Chapter 8}).
+``380,000 tokens/s'' when reasoning about compute, because long-prompt
+prefill commonly occupies a higher-arithmetic-intensity regime and
+low-batch decode commonly occupies a lower-arithmetic-intensity regime;
+whether either phase is actually compute- or bandwidth-bound is a
+property of the model × workload × kernel × hardware operating point
+(\hyperref[chap:8]{Chapter 8}).
+
+\textbf{A hard terminology distinction the rest of this book relies on.}
+Do not conflate two separate statements:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Kernel regime} --- the arithmetic intensity of the
+  \emph{kernel} relative to the roofline ridge (is this one kernel
+  compute-bound or bandwidth-bound?).
+\item
+  \textbf{Workload capacity deficit} --- the aggregate offered demand
+  relative to the achievable service capacity (does the
+  \emph{deployment} have enough compute/bandwidth/concurrency to absorb
+  this arrival rate?).
+\end{itemize}
+
+A workload can exceed a deployment's capacity even when the underlying
+kernel is not compute-bound; conversely, a compute-bound kernel does not
+imply the deployed fleet lacks compute. In the canonical scenario at
+peak, prefill exerts a large aggregate compute \emph{demand} (a
+capacity-deficit signal), while the prefill \emph{kernel's} high
+arithmetic intensity is what makes it land on the compute plateau of the
+roofline --- two different facts that happen to co-occur. Keep them
+separate.
 
 \emph{Compute demand versus peak --- and why this is not an MFU:} A 70B
 FP16 transformer needs ≈2 ×70×10⁹ FLOPs per generated token. The
@@ -105,11 +144,14 @@ i.e.~\textasciitilde21\,\% --- again a groundable number, not a
 ceiling-defying one; the actual achieved value must come from the target
 serving benchmark). The architectural conclusion, that there is no
 single bottleneck for the whole request, stands --- and it must be
-argued phase by phase: at the canonical peak, prefill is
-compute-capacity constrained, decode is primarily memory-bandwidth
-constrained, and maximum concurrency is constrained by KV residency,
-each from arithmetic intensity and the roofline (\hyperref[chap:8]{Chapter 8}), not from an
-impossible ``MFU \textgreater{} 1.''
+argued phase by phase: at the canonical peak, prefill shows a
+\emph{workload capacity deficit} aggregate compute demand (it needs more
+FLOPs/s than the host can supply, and leans on caching/queueing), decode
+is primarily memory-bandwidth constrained, and maximum concurrency is
+constrained by KV residency; each is established from arithmetic
+intensity and the roofline (\hyperref[chap:8]{Chapter 8}), never from an impossible ``MFU
+\textgreater{} 1,'' and none of them is the same statement as ``the
+prefill kernel is compute-bound.''
 
 \emph{KV cache memory footprint:} The KV cache grows linearly with
 cached context and layers; it must never be computed per-layer and then

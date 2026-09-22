@@ -46,11 +46,12 @@ fig.text(0.01, 0.5, 'Vendor-reported reduction\n(vs each model\u2019s own refere
 # Dedicated bottom axes for the not-comparable banner + note (guaranteed clear of tick labels)
 ax_note = fig.add_subplot(gs[1, 0])
 ax_note.axis('off')
-ax_note.text(0.5, 0.72, 'NOT COMPARABLE ACROSS PANELS', ha='center', fontsize=10,
+ax_note.text(0.5, 0.72, 'DIFFERENT BASELINES — DO NOT COMPARE BAR HEIGHTS AS ABSOLUTE EFFICIENCY',
+             ha='center', fontsize=10,
              fontweight='bold', color='#c0392b',
              bbox=dict(boxstyle='round,pad=0.35', fc='#fdecea', ec='#c0392b', lw=1.4))
 ax_note.text(0.5, 0.18, 'Each bar is a model\u2019s reduction relative to its OWN stated predecessor/reference, '
-                        'not a shared baseline.', ha='center', fontsize=8, color='#555')
+                        'not a shared baseline (independent panels, own y-axis).', ha='center', fontsize=8, color='#555')
 
 plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png',
             dpi=200, bbox_inches='tight', pad_inches=0.08)

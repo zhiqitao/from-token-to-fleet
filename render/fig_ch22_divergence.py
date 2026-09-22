@@ -19,13 +19,16 @@ lin = 2 * N * L
 quad = 4 * nl * (L ** 2) * d          # exact quadratic attention term per request
 decode = 2 * N * np.ones_like(L)      # per-token decode FLOPs, context-independent
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 4.8), sharey=False)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 5.4), sharey=False)
 
-# Left panel: prefill FLOPs per request
+# Left panel: prefill FLOPs per request, DECOMPOSED into its two components so the
+# growing quadratic attention term is visible on its own (not just the sum).
 ax1.loglog(L / 1e3, lin / 1e15, color='#c0392b', lw=2.4,
-           label='prefill per request (linear 2NL)')
-ax1.loglog(L / 1e3, (lin + quad) / 1e15, color='#e67e22', lw=2.0, ls='--',
-           label='+ quadratic attention (4·nl·L²·d)')
+           label='linear term (2·N·L)')
+ax1.loglog(L / 1e3, quad / 1e15, color='#8e44ad', lw=2.0, ls='-.',
+           label='quadratic attention term (4·nl·L²·d)')
+ax1.loglog(L / 1e3, (lin + quad) / 1e15, color='#e67e22', lw=2.2, ls='--',
+           label='total = linear + quadratic')
 ax1.fill_between(L / 1e3, lin / 1e15, (lin + quad) / 1e15, color='#e67e22', alpha=0.10)
 for Lk, lab in [(9.2, '+17% @9.2K'), (32, '+60% @32K'), (128, '~2.4× @128K')]:
     v = lin[0]  # placeholder; recompute at Lk
@@ -35,8 +38,8 @@ for Lk, lab in [(9.2, '+17% @9.2K'), (32, '+60% @32K'), (128, '~2.4× @128K')]:
                  fontsize=8.5, arrowprops=dict(arrowstyle='-|>', lw=1.0, color='#555'), color='#333')
 ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=30)
 ax1.set_xlabel('Context length (K tokens)')
-ax1.set_ylabel('Prefill compute (PFLOP / request)')
-ax1.set_title('Prefill per request:\nlinear + quadratic attention', fontsize=9.5)
+ax1.set_ylabel('Prefill compute (PFLOP / request)', fontsize=8.5)
+ax1.set_title('Prefill per request (decomposed):\nlinear + quadratic attention', fontsize=9.5)
 ax1.set_ylim(1e-2, 1e3)
 ax1.grid(alpha=0.3, which='both')
 ax1.legend(fontsize=7.5, loc='upper center', bbox_to_anchor=(0.5, -0.13), frameon=False)
@@ -50,12 +53,20 @@ ax2.set_ylim(1e-5, 1e-3)
 ax2.grid(alpha=0.3, which='both')
 ax2.text(1.2, 2.5e-5, '≈ 1.4e-4 PFLOP/token\n(fixed; same at all context)', fontsize=8, color='#27408b')
 
-fig.text(0.5, 0.01,
-         'Left panel is PER REQUEST; right panel is PER TOKEN — different units, do not compare directly. '
-         'The quadratic term is the textbook 4·n_layers·L²·d (matches Chapter 8). [ILLUSTRATIVE][DERIVED]',
-         ha='center', fontsize=7.8, color='#555', wrap=True)
+fig.text(0.5, 0.975,
+         '⚠  LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN',
+         ha='center', va='top', fontsize=11, fontweight='bold', color='#7a0000',
+         bbox=dict(boxstyle='round,pad=0.45', facecolor='#fff2f2', edgecolor='#c0392b', lw=2.0))
+fig.text(0.5, 0.928,
+         'DO NOT COMPARE Y-AXIS MAGNITUDES DIRECTLY  — different units, different baselines',
+         ha='center', va='top', fontsize=9, fontweight='bold', color='#c0392b')
+fig.text(0.5, 0.885,
+         'Left = total prefill compute for ONE request (grows with context L). Right = compute for ONE generated token '
+         '(fixed 2N, context-independent). The quadratic term is the textbook 4·n_layers·L²·d (matches Chapter 8). '
+         '[ILLUSTRATIVE][DERIVED]',
+         ha='center', va='top', fontsize=7.8, color='#555', wrap=True)
 
-plt.tight_layout(rect=(0, 0.07, 1, 1))
+plt.tight_layout(rect=(0, 0.07, 1, 0.86))
 plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.png', dpi=150)
 plt.close()
-print('wrote fig-22-2201 (two aligned panels: per-request prefill vs per-token decode; exact quadratic term)')
+print('wrote fig-22-2201 (decomposed prefill: linear + quadratic; prominent per-request-vs-per-token warning)')

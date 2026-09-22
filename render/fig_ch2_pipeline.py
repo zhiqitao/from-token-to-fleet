@@ -1,53 +1,43 @@
 #!/usr/bin/env python3
 """fig-02-0202: CANONICAL end-to-end inference pipeline (prefill / decode).
 
-Author at exactly the 6.1in book column width so regen_figs does NOT boost fonts.
+REDESIGNED for PASS-23b. Two vertically-separated bands (PREFILL, DECODE).
+Each band: a compact horizontal row of text-sized boxes with a dominant
+left->right causal flow, a receded secondary-observation line beneath it, and
+an explicit orange KV conduit linking the prefill-created KV to the decode
+reuse. A separate bottom band carries qualified resource-regime language,
+and a final strip carries the visual-grammar legend.
 
-The figure is the book's conceptual anchor. It must be clean and readable, so the
-design is deliberately simple: two vertical bands (PREFILL, DECODE), a small
-number of grouped boxes each, and a right-hand consequence column mapping the
-phase to the hardware resource it stresses and the latency metric that measures
-it.  Job (directive: every figure must have one):
-  * answers "what physically happens prompt -> tokens, and what resource is
-    stressed at each step?"
-  * makes visible the continuity that matters most: K/V is *populated* in
-    prefill and *reused* (not recomputed) in decode.
-  * reader remembers prefill (one-shot parallel burst -> compute -> TTFT) vs
-    decode (sequential loop -> bandwidth+capacity -> TPOT/ITL).
-Layout is computed from box counts so nothing collides. 1 data unit == 1 point.
+Layout is computed from box counts + measured text width, and the row is
+uniformly scaled so boxes AND text shrink together (text always fits, nothing
+clips or merges). 1 data unit == 1 point. Author at the 6.1in column width.
 """
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 
 BOLD = FontProperties(weight='bold')
-FS = 8.4
+FS = 8.6
 W = 6.1 * 72                    # 439.2 pt column width
-Ht = 7.9 * 72                   # tall anchor figure (full page is ~9in)
+Ht = 8.4 * 72
 PADX = 0.30
 
 def tw(s, fs=FS):
     return TextPath((0, 0), s, size=fs, prop=BOLD).get_extents().width
 
-fig, ax = plt.subplots(figsize=(6.1, 7.9))
+def note_w(s, fs=FS-0.6):
+    return TextPath((0, 0), s, size=fs).get_extents().width
+
+fig, ax = plt.subplots(figsize=(6.1, 8.4))
 ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
 
-C_MODEL='#27408b'; C_DATA='#8a8a8a'; C_KV='#e67e22'; C_SEQ='#c0392b'
-C_CON='#2f6f4f'; C_AR='#555555'
-C_PF='#eaf1fb'; C_DC='#fdf0e7'
+C_MODEL='#27408b'; C_DATA='#7a7a7a'; C_KV='#e67e22'; C_SEQ='#c0392b'
+C_AR='#555555'; C_PF='#eaf1fb'; C_DC='#fdf0e7'
 
-def box(cx, cy, text, w, h, fc, ec, tc='white', fs=FS):
-    ax.add_patch(FancyBboxPatch((cx-w/2, cy-h/2), w, h,
-                  boxstyle='round,pad=0.02,rounding_size=1.4',
-                  fc=fc, ec=ec, lw=1.2, clip_on=False))
-    ax.text(cx, cy, text, ha='center', va='center', fontsize=fs,
-            color=tc, fontweight='bold')
-    return (cx-w/2, cx+w/2, cy-h/2, cy+h/2)
-
-def label(cx, cy, text, color= '#444', fs=FS-0.4, ha='center', weight='normal', style='normal'):
+def label(cx, cy, text, color='#444', fs=FS-0.3, ha='center', weight='normal', style='normal'):
     ax.text(cx, cy, text, ha=ha, va='center', fontsize=fs, color=color,
             fontweight=weight, style=style)
 
@@ -55,112 +45,129 @@ def arrow(x1,y1,x2,y2,color=C_AR,lw=1.4,style='-|>'):
     ax.annotate('', xy=(x2,y2), xytext=(x1,y1),
                 arrowprops=dict(arrowstyle=style,lw=lw,color=color,shrinkA=0,shrinkB=0))
 
-BOX_H = 30; GAP = 13
-# content column centre
-cx = 168
-con_cx = W-26
+BOX_H = 36
 
-# ---- PREFILL band ----
-pf_text = 'PREFILL — process the whole prompt, populate the KV cache, emit the first token'
-pf_top = Ht - 16
-pf_bottom = 348
+def draw_lane(cy, steps, boxh=BOX_H):
+    """Draw a compact row of text-sized boxes, left->right, uniformly scaled so
+    text always fits inside. Uses LIGHT fills + dark text (legible at book print
+    and in grayscale). Returns box (x0,x1,y0,y1) list."""
+    avail = W - 24
+    widths = [max(tw(s)*(1+PADX)+14, 70) for (s,c) in steps]
+    gap = 18
+    tot = sum(widths) + (len(steps)-1)*gap
+    k = 1.0
+    if tot > avail:
+        k = avail/tot
+    # light fills so dark text is legible at print scale and in grayscale
+    FILL = {C_DATA:'#e0e0e0', C_MODEL:'#d3e0f2', C_KV:'#fbe3c8'}
+    EDGE = {C_DATA:'#888888', C_MODEL:'#27408b', C_KV:'#c06010'}
+    TXT  = {C_DATA:'#222222', C_MODEL:'#16295c', C_KV:'#8a3a12'}
+    boxes = []
+    x = (W - (sum(widths)*k + (len(steps)-1)*gap*k))/2
+    for (s,c), wd in zip(steps, widths):
+        bw = wd*k
+        cx = x+bw/2
+        fsize = FS*k*1.1
+        ax.add_patch(FancyBboxPatch((cx-bw/2, cy-boxh/2), bw, boxh,
+                      boxstyle='round,pad=0.02,rounding_size=1.4', fc=FILL[c], ec=EDGE[c], lw=1.2, clip_on=False))
+        ax.text(cx, cy, s, ha='center', va='center', fontsize=fsize,
+                color=TXT[c], fontweight='bold')
+        boxes.append((cx-bw/2, cx+bw/2, cy-boxh/2, cy+boxh/2))
+        x += bw + gap*k
+    for i in range(len(steps)-1):
+        arrow(boxes[i][1]+2, cy, boxes[i+1][0]-2, cy, C_AR, 1.2)
+    return boxes, k
+
+# ===== PREFILL band =====
+pf_title_y = Ht - 30
+label(W/2, pf_title_y, 'PREFILL', '#1a3a6b', FS+2.0, weight='bold')
+label(W/2, pf_title_y-20, 'process the whole prompt, populate the KV cache, emit the first token',
+      '#4a6a9a', FS-0.7)
+pf_cy = pf_title_y - 74
 pf_steps = [
-    ('prompt text / context', C_DATA),
-    ('tokenizer → token IDs → embeddings', C_DATA),
-    ('transformer layers (×N)', C_MODEL),
-    ('Q/K/V → attention (Q·Kᵀ softmax ·V)', C_MODEL),
-    ('KV cache populated', C_KV),
-    ('logits → sampling', C_MODEL),
-    ('first output token', C_DATA),
+    ('prompt tokens', C_DATA),
+    ('embeddings', C_DATA),
+    ('transformer layers', C_MODEL),
+    ('create K/V', C_KV),
+    ('sample first token', C_DATA),
 ]
-# compute pf band top padding: title + subtitle + boxes
-pf_title_y = pf_top - 20
-pf_sub_y = pf_title_y - 16
-n = len(pf_steps)
-band_h = n*(BOX_H+GAP) + 24
-pf_y1 = pf_sub_y - 12          # top of first box
-pf_y0 = pf_y1 - n*(BOX_H+GAP) + GAP
-ax.add_patch(FancyBboxPatch((12, pf_y0-8), W-24, (pf_y1+18-pf_y0)+8,
-              boxstyle='round,pad=0.02,rounding_size=3', fc=C_PF, ec='#b9cbe8', lw=1.0, clip_on=False))
-label(W/2, pf_title_y, pf_text, '#1a3a6b', FS+0.4, weight='bold')
-label(22, pf_sub_y, 'one-shot burst over the prompt — parallel across prompt tokens', '#4a6a9a', FS-0.8, ha='left', style='italic')
+pf_boxes, k = draw_lane(pf_cy, pf_steps)
+pf_top_edge = pf_cy + BOX_H/2 + 6
+pf_bot_edge = pf_cy - BOX_H/2 - 6
+ax.add_patch(FancyBboxPatch((9, pf_bot_edge-6), W-18, (pf_top_edge-(pf_bot_edge-6)),
+              boxstyle='round,pad=0.02,rounding_size=3', fc=C_PF, ec='#b9cbe8', lw=1.0,
+              alpha=0.40, clip_on=False, zorder=0))
+obs_pf_y = pf_bot_edge - 6 - 18
+label(W/2, obs_pf_y, 'one-shot burst — parallel across prompt positions; measured by TTFT',
+      '#6a7a9a', FS-1.1)
+kv_idx = 3
+kv_cx = (pf_boxes[kv_idx][0]+pf_boxes[kv_idx][1])/2
+kv_top = pf_cy + BOX_H/2
 
-# ---- DECODE band ----
+# ===== DECODE band =====
+dc_title_y = obs_pf_y - 70
+label(W/2, dc_title_y, 'DECODE', '#8a3a12', FS+2.0, weight='bold')
+label(W/2, dc_title_y-20, 'generate one token at a time, reusing the cached K/V',
+      '#a06a3a', FS-0.7)
+dc_cy = dc_title_y - 74
 dc_steps = [
-    ('append newly generated token', C_DATA),
-    ('reuse cached K/V from prior tokens', C_KV),
-    ('read weights from HBM (every step)', C_MODEL),
-    ('attention over cached K/V', C_MODEL),
-    ('append this token’s K/V', C_KV),
-    ('logits → sampling', C_MODEL),
+    ('latest token', C_DATA),
+    ('reuse cached K/V', C_KV),
+    ('transformer layers', C_MODEL),
+    ('append new K/V', C_KV),
+    ('sample next token', C_DATA),
 ]
-dc_top = pf_y0 - 40
-dc_title_y = dc_top - 6
-dc_sub_y = dc_title_y - 16
-dc_y1 = dc_sub_y - 12
-dc_y0 = dc_y1 - len(dc_steps)*(BOX_H+GAP) + GAP
-ax.add_patch(FancyBboxPatch((12, dc_y0-8), W-24, (dc_y1+18-dc_y0)+8,
-              boxstyle='round,pad=0.02,rounding_size=3', fc=C_DC, ec='#e8c3a8', lw=1.0, clip_on=False))
-label(W/2, dc_title_y, 'DECODE — generate one token at a time, reusing the cached K/V', '#8a3a12', FS+0.4, weight='bold')
-label(22, dc_sub_y, 'sequential autoregressive loop — one token per step', '#a06a3a', FS-0.8, ha='left', style='italic')
+dc_boxes, k2 = draw_lane(dc_cy, dc_steps)
+dc_top_edge = dc_cy + BOX_H/2 + 6
+dc_bot_edge = dc_cy - BOX_H/2 - 6
+ax.add_patch(FancyBboxPatch((9, dc_bot_edge-6), W-18, (dc_top_edge-(dc_bot_edge-6)),
+              boxstyle='round,pad=0.02,rounding_size=3', fc=C_DC, ec='#e8c3a8', lw=1.0,
+              alpha=0.40, clip_on=False, zorder=0))
+obs_dc_y = dc_bot_edge - 6 - 18
+label(W/2, obs_dc_y, 'sequential loop — one token per step, reuses + appends K/V; measured by TPOT / ITL',
+      '#b08a6a', FS-1.1)
+reuse_idx = 1
+reuse_cx = (dc_boxes[reuse_idx][0]+dc_boxes[reuse_idx][1])/2
 
-# draw prefill boxes
-pf_ys=[]
-y = pf_y1
-for text, c in pf_steps:
-    w = max(tw(text)*(1+PADX)+12, 158)
-    box(cx, y, text, w, BOX_H, c, '#333' if c==C_DATA else ('#8a3a12' if c==C_KV else '#16295c'), 'white')
-    pf_ys.append(y); y -= (BOX_H+GAP)
-for i in range(len(pf_ys)-1):
-    arrow(cx, pf_ys[i]-BOX_H/2, cx, pf_ys[i+1]+BOX_H/2, C_AR, 1.0)
+# ---- explicit orange KV conduit: a straight dashed connector placed strictly
+#      IN the inter-band whitespace (between the prefill caption and the decode
+#      title), at the far left, clear of every box/title. No arrowhead into a
+#      box (avoids collision); the orange KV boxes + caption carry create/reuse. ----
+rail_x = 18
+rail_y0 = obs_pf_y - 4        # just below the prefill caption
+rail_y1 = dc_title_y + 4      # just above the decode title
+ax.add_patch(FancyArrowPatch((rail_x, rail_y0), (rail_x, rail_y1),
+              connectionstyle='arc3,rad=0.0', arrowstyle='-', color=C_KV, lw=2.8, ls='--', clip_on=False))
+# KV caption in the far-RIGHT whitespace between the bands (opposite the rail)
+label(W-116, (rail_y0+rail_y1)/2, 'KV cache: created in prefill,\nreused (not recomputed) in decode',
+      '#8a3a12', FS-1.1, weight='bold')
 
-# draw decode boxes
-dc_ys=[]
-y=dc_y1
-for text,c in dc_steps:
-    w = max(tw(text)*(1+PADX)+12, 158)
-    box(cx, y, text, w, BOX_H, c, '#333' if c==C_DATA else ('#8a3a12' if c==C_KV else '#16295c'), 'white')
-    dc_ys.append(y); y -= (BOX_H+GAP)
-for i in range(len(dc_ys)-1):
-    arrow(cx, dc_ys[i]-BOX_H/2, cx, dc_ys[i+1]+BOX_H/2, C_AR, 1.0)
+# ---- first-token connector: prefill output -> decode entry ----
+arrow(pf_boxes[-1][1]+4, pf_cy, pf_boxes[-1][1]+4, dc_title_y+22, C_AR, 1.5)
+label(pf_boxes[-1][1]+8, (pf_cy+dc_title_y+22)/2, 'first token', '#555', FS-1.0, ha='left')
 
-# connector prefill -> decode (feedback loop), terminating in the whitespace
-# gap just above the DECODE title so the arrowhead never sits on text
-arrow(cx, pf_ys[-1]-BOX_H/2, cx, dc_title_y+8, C_SEQ, 2.0, '-|>')
-label(cx-16, (pf_ys[-1]+dc_title_y)/2, 'append token, iterate', C_SEQ, FS-0.6, ha='right', weight='bold')
+# ===== bottom resource-regime band (own clear space) =====
+strip_y = obs_dc_y - 72
+ax.add_patch(FancyBboxPatch((9, strip_y-30), W-18, 82,
+              boxstyle='round,pad=0.02,rounding_size=3', fc='#f4f4f4', ec='#cccccc', lw=0.8,
+              clip_on=False))
+label(W/2, strip_y+26, 'resource regime', '#444', FS-0.4, weight='bold')
+label(W/2, strip_y+6, 'a property of the model × workload × kernel × hardware, not a fixed rule',
+      '#666', FS-1.2)
+label(W/2, strip_y-16, 'Prefill: typically higher arithmetic intensity    |    Decode: often bandwidth-sensitive at low batch',
+      '#555', FS-1.1)
 
-# consequence column (right)
-# prefill
-label(con_cx, pf_ys[1], 'parallel over prompt tokens', C_CON, FS-0.8)
-label(con_cx, pf_ys[2]+6, '→ substantial compute', C_CON, FS-0.3, weight='bold')
-label(con_cx, pf_ys[2]-6, 'saturates FLOPs', C_CON, FS-0.9)
-label(con_cx, pf_ys[3]+0, 'prefill compute-bound', C_CON, FS-0.9, style='italic')
-label(con_cx, pf_ys[4]+4, 'KV cache → persistent', C_CON, FS-0.7)
-label(con_cx, pf_ys[4]-8, 'per-request state', C_CON, FS-0.9)
-label(con_cx, pf_ys[6], '→ TTFT', C_CON, FS-0.2, weight='bold')
-arrow(cx+95, pf_ys[2], con_cx-52, pf_ys[2], C_CON, 1.0, '-')
-# decode
-label(con_cx, dc_ys[0], 'sequential → serial latency', C_CON, FS-0.8)
-label(con_cx, dc_ys[1]+0, 'K/V reused (no recompute)', C_CON, FS-0.8)
-label(con_cx, dc_ys[2]+6, '→ repeated weight read', C_CON, FS-0.3, weight='bold')
-label(con_cx, dc_ys[2]-6, 'saturates HBM bandwidth', C_CON, FS-0.9)
-label(con_cx, dc_ys[4]+0, 'KV grows with seq length', C_CON, FS-0.8)
-label(con_cx, dc_ys[4]-10, '→ memory-capacity pressure', C_CON, FS-0.9)
-label(con_cx, dc_ys[5], '→ TPOT / ITL', C_CON, FS-0.2, weight='bold')
-
-# bottom note — placed clearly BELOW the decode band
-note_y = dc_y0 - 22
-label(W/2, note_y, 'repeat until end-of-sequence (or a stop condition)', '#666', FS-0.4)
-
-# visual grammar legend — clear whitespace BELOW the note, bottom-left
-legend_y = 16
-lx = 40
-label(lx, note_y-14, 'visual grammar:', '#444', FS-0.7, ha='left', weight='bold')
+# ===== visual grammar legend =====
+legend_y = strip_y - 62
+label(30, legend_y, 'visual grammar:', '#444', FS-0.9, ha='left', weight='bold')
 leg=[('data / tokens',C_DATA),('model / compute',C_MODEL),('KV state (persistent)',C_KV)]
-yy=note_y-30
+LEG_FILL={C_DATA:'#e0e0e0',C_MODEL:'#d3e0f2',C_KV:'#fbe3c8'}
+LEG_EDGE={C_DATA:'#888',C_MODEL:'#27408b',C_KV:'#c06010'}
+yy=legend_y-18; sx=30
 for t,c in leg:
-    ax.add_patch(FancyBboxPatch((lx,yy-6),14,11,boxstyle='round,pad=0.02',fc=c,ec='#333',lw=0.6,clip_on=False))
-    label(lx+20,yy,t,'#444',FS-1.0,ha='left'); yy-=15
+    ax.add_patch(FancyBboxPatch((sx, yy-6),14,11,boxstyle='round,pad=0.02',fc=LEG_FILL[c],ec=LEG_EDGE[c],lw=1.0,clip_on=False))
+    label(sx+20, yy, t, '#444', FS-1.1, ha='left')
+    sx += note_w(t, FS-1.1) + 44
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-02/figures/fig-02-0202.png', dpi=200)

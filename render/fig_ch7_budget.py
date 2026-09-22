@@ -64,20 +64,39 @@ ax.text(kv_start + kv / 2, y + 0.95, f'~{kv} GB KV @ FP16 (2.62 MB/token, 9.5K m
 # FP8 note below
 ax.text(kv_start + kv / 2, y8 - 0.55, f'FP8 KV: ~{C_fp8:.0f} slots (436 ÷ {kv_fp8_req:.1f} GB/request)', ha='center', va='top', color='#6f9e5f', fontsize=9.5, style='italic')
 
-# Concurrency derivation callout to the right (clear of the bar end)
-ax.text(total + 12, y + 0.15, f'C ≈ {C_fp16:.0f} concurrent\nrequests @ FP16\n(436 ÷ {kv_fp16_req:.1f} GB/request)', fontsize=9.5, color='#27408b', ha='left', va='center')
-ax.text(total + 12, y - 0.75, '8×H100 pool = 640 GB', fontsize=9, color='#666', ha='left', va='center')
+# concurrency derivation callout to the right (clear of the bar end)
+ax.text(total + 12, y + 0.15, f'C ≈ {C_fp16:.0f} concurrent\nrequests @ FP16', fontsize=9.5, color='#27408b', ha='left', va='center')
+ax.text(total + 12, y - 0.75, '8×H100 = 640 GB', fontsize=9, color='#666', ha='left', va='center')
 
-ax.set_xlim(-5, total + 95)
-ax.set_ylim(-2.6, 1.6)
+# ---- reviewer's ask (Fig 7.4): aggregate screen != per-rank fit; mark reserve; show 8 GPUs ----
+# 1. Eight lightly-separated GPU partitions behind the aggregate bar (visual device so the
+#    pool doesn't read as one freely allocatable heap).
+import numpy as np
+for g in np.linspace(0, total, 9)[:-1]:
+    ax.axvline(g, ymin=-0.16, ymax=0.16, color='#cccccc', lw=0.4, alpha=0.9)
+ax.text(total*0.5, y8 - 0.9, '8× 80 GB per-rank pool (sharding/fragmentation/workspace\nstill limit the real per-rank allocation; this is an aggregate screen)',
+        ha='center', va='top', fontsize=8.5, color='#666', style='italic')
+
+# 2. Reserve is a SCENARIO assumption, not a hardware constant (placed in the
+#    clearly-free upper-LEFT whitespace, above the weight segment)
+ax.text(weights + runtime/2, 1.10, 'scenario reserve\n(not a hardware constant)', ha='center', va='center',
+        fontsize=8, color='#444', bbox=dict(boxstyle='round,pad=0.15', fc='#f4f4f4', ec='#bbbbbb', lw=0.6))
+
+# 3. Prominent aggregate-vs-per-rank warning
+ax.text(total*0.5, 1.42, 'AGGREGATE RESIDENCY SCREEN ≠ PER-RANK FIT GUARANTEE', ha='center', va='center',
+        fontsize=10, color='#c0392b', fontweight='bold')
+
+ax.set_xlim(-5, total + 175)
+ax.set_ylim(-2.6, 2.0)
 ax.set_yticks([y, y8])
 ax.set_yticklabels(['FP16 KV', 'FP8 KV'], fontsize=10)
 ax.set_xlabel('on-host HBM (GB, per 8×H100 host)', fontsize=10.5)
-ax.set_title("Fig 7.4 — The concurrency budget: where a 70B host's 640 GB pool goes [ILLUSTRATIVE][DERIVED]", fontsize=11)
+ax.set_title("Concurrency budget: where a 70B host's 640 GB pool goes", fontsize=11)
 ax.tick_params(axis='x', labelsize=9)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
-plt.tight_layout()
+ax.set_ylim(-2.6, 2.0)
+plt.subplots_adjust(left=0.14, right=0.97, top=0.88, bottom=0.12)
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.png', dpi=150)
 plt.close()
 print('wrote fig-07-0704 (column width; runtime label moved out of thin segment)')

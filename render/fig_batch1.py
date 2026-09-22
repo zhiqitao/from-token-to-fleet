@@ -9,33 +9,57 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Rectangle
 
 base = 'design/manuscript/chapter-%02d/figures/fig-%02d-%02d01.png'
 
-# ---- Ch02: Decode vs prefill: bandwidth vs compute ----
-# LEFT: bandwidth demand vs supply (decode) ~ correct units (TB/s vs TB/s)
-# RIGHT: prefill compute demand converted to a REQUIRED compute RATE (~PFLOPS) vs supply
-import math
-prefill_work = 1.29      # PFLOP (2NL at 9.2K)
-prefill_budget_s = 1.08  # implicit ~1 s budget at 9.2K ctx full pass
-prefill_rate = prefill_work / prefill_budget_s  # ~1.2 PFLOPS required
-fig, axes = plt.subplots(1, 2, figsize=(11, 5))
-ax = axes[0]
-ax.bar(['decode\n(needed)', 'H100\n(supply)'], [5.6, 3.35], color=['#c0392b', '#3a6ea5'], hatch=['//', ''], edgecolor=['#7a1f1a','none'])
-for i, v in enumerate([5.6, 3.35]):
-    ax.text(i, v+0.1, f'{v} TB/s', ha='center', fontweight='bold')
-ax.set_ylabel('HBM bandwidth (TB/s)')
-ax.set_title('Decode: HBM-bandwidth-bound\n(5.6 needed > 3.35 supply)')
-ax.grid(alpha=0.3, axis='y')
-# right: required prefill compute RATE (~1.2 PFLOPS) vs H100 peak RATE (0.989 PFLOPS)
-ax = axes[1]
-ax.bar(['prefill\n(req. rate)', 'H100\n(peak rate)'], [prefill_rate, 0.989], color=['#c0392b', '#3a6ea5'], hatch=['//', ''], edgecolor=['#7a1f1a','none'])
-for i, v in enumerate([prefill_rate, 0.989]):
-    ax.text(i, v+0.03, f'{v:.2f} PFLOPS', ha='center', fontweight='bold')
-ax.set_ylabel('Compute rate (PFLOPS)')
-ax.set_ylim(0, 1.6)
-ax.set_title('Prefill: compute-bound → required rate\n(1.29 PFLOP ÷ ~1 s ≈ 1.2 PFLOPS)')
-ax.grid(alpha=0.3, axis='y')
-plt.tight_layout()
-plt.savefig(base % (2, 2, 2), dpi=150); plt.close()
-print('Ch02 done')
+# ---- Ch02: Decode vs prefill: an arithmetic-intensity CONTINUUM, not two boxes ----
+# The old binary "decode=bandwidth / prefill=compute" chart taught a rule that Ch8
+# later has to undo. This redesign places the two canonical operating points on an
+# arithmetic-intensity axis split by the roofline ridge (~295 FLOP/byte), and shows
+# the knobs (batch, context, precision) that move a point across the ridge.
+fig, ax = plt.subplots(figsize=(6.1, 3.4))
+ax.set_xscale('log')
+ax.set_xlim(0.3, 2000)
+ax.set_ylim(0, 1)
+ax.axis('off')
+# log axis from 0.3 to 2000
+import matplotlib.ticker as mtick
+
+# draw the axis
+ax.annotate('', xy=(2000, 0.14), xytext=(0.3, 0.14),
+            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
+ax.text(0.35, 0.10, 'lower →', fontsize=8, color='#555', ha='left')
+ax.text(1900, 0.10, '→ higher', fontsize=8, color='#555', ha='right')
+ax.text(1000, 0.30, 'arithmetic intensity (FLOP/byte) →', fontsize=9, color='#333',
+        ha='center', fontweight='bold')
+
+# ridge line (from Ch8 ~295)
+ridge = 295
+ax.axvline(ridge, color='#c0392b', ls='--', lw=1.4)
+ax.text(ridge*1.1, 0.62, 'roofline\nridge ~295', fontsize=8, color='#c0392b', fontweight='bold')
+
+# memory-bound region (left of ridge)
+ax.axvspan(0.3, ridge, color='#fdf0e7', alpha=0.5)
+ax.text(4, 0.82, 'memory-bound\n(bandwidth)', fontsize=8, color='#8a3a12', ha='center', fontweight='bold')
+# compute-bound region (right of ridge)
+ax.axvspan(ridge, 2000, color='#eaf1fb', alpha=0.5)
+ax.text(1200, 0.82, 'compute-bound\n(FLOPs)', fontsize=8, color='#1a3a6b', ha='center', fontweight='bold')
+
+# canonical operating points
+points = [
+    ('decode @ low batch', 1.0, '#c0392b', 'HBM weight-stream per token:\n~1 FLOP/byte at batch-1 (Ch8)'),
+    ('prefill @ 9.2K prompt', 180, '#27408b', '2·N·L over HBM weight stream:\nhigh intensity, near/above ridge'),
+]
+for name, x, col, note in points:
+    ax.plot([x], [0.42], 'o', ms=10, color=col, clip_on=False)
+    ax.annotate(name, xy=(x, 0.42), xytext=(x, 0.52), ha='center', fontsize=8.5,
+                color=col, fontweight='bold', arrowprops=dict(arrowstyle='-', lw=0.8, color=col))
+    ax.text(x, 0.20, note, fontsize=7, color='#555', ha='center')
+
+# knobs that move the points
+ax.text(60, 0.02, 'batch size ↑ · context ↑ · KV precision ↓ · kernel/hardware →  all move a point across the ridge',
+        fontsize=7.5, color='#666', ha='center', style='italic')
+
+plt.tight_layout(pad=0.2)
+plt.savefig('design/manuscript/chapter-02/figures/fig-02-0201.png', dpi=200); plt.close()
+print('Ch02 (continuum) done')
 
 # ---- Ch04: Six-dimension workload characterization -> architectural decisions ----
 # The six dimensions the chapter actually defines (§4.2.1): quality, traffic, token

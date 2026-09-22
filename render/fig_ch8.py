@@ -29,14 +29,33 @@ fig, ax = plt.subplots(figsize=(6.1, 4.4))
 # H100 ridge (solid) and H200 ridge (dashed); compute plateau common to both
 ach100 = np.minimum(peak, ais * bw100)
 ach200 = np.minimum(peak, ais * bw200)
-ax.loglog(ais, ach100, color='#27408b', lw=2.2, label='H100 FP16 (3.35 TB/s)')
-ax.loglog(ais, ach200, color='#c0392b', lw=1.9, ls='--', label='H200 FP16 (4.8 TB/s)')
+# Distinguishable in grayscale: H100 = solid + 'o' markers, H200 = dashed + '^' markers.
+ax.loglog(ais, ach100, color='#27408b', lw=2.2, ls='-', marker='o',
+          markevery=22, ms=3.2, label='H100 FP16 (3.35 TB/s)')
+ax.loglog(ais, ach200, color='#c0392b', lw=1.9, ls='--', marker='^',
+          markevery=22, ms=3.6, label='H200 FP16 (4.8 TB/s)')
+# Ridge points (solid/dashed vertical lines + labeled markers)
 ax.axvline(r100, color='#27408b', ls=':', lw=1.2)
 ax.axvline(r200, color='#c0392b', ls=':', lw=1.2)
-ax.text(r100, 240, f'ridge ≈ {r100:.0f}', fontsize=8.5, color='#27408b', ha='center')
-ax.text(r200*0.97, 6.5, f'ridge ≈ {r200:.0f}', fontsize=8.5, color='#c0392b', ha='center')
-ax.text(r100*2.2, 480, 'compute-bound', fontsize=9, color='#6f9e5f', ha='center')
-ax.text(0.11, 6.0, 'memory-bound', fontsize=9, color='#e67e22', ha='center')
+ax.plot([r100], [peak*0.35], marker='o', color='#27408b', ms=6, ls='none', zorder=6)
+ax.plot([r200], [peak*0.10], marker='^', color='#c0392b', ms=7, ls='none', zorder=6)
+ax.text(r100, peak*0.42, f'ridge ≈ {r100:.0f}', fontsize=8.5, color='#27408b', ha='center')
+ax.text(r200*0.97, peak*0.05, f'ridge ≈ {r200:.0f}', fontsize=8.5, color='#c0392b', ha='center')
+
+# Compute plateau ceiling (shared by both parts), plus region labels made explicit.
+ax.axhline(peak, color='gray', ls='-.', lw=1.0, alpha=0.75)
+ax.text(0.985, 0.40, 'compute plateau\n(compute-bound)\n= 989 TFLOPS',
+        transform=ax.transAxes, fontsize=8.5, color='#6f9e5f',
+        ha='right', va='center')
+ax.text(0.075, 0.12, 'memory-bound slope\n(≈ intensity × BW per GPU)',
+        transform=ax.transAxes, fontsize=8.5, color='#e67e22',
+        ha='left', va='center')
+
+# "PER GPU" stated plainly INSIDE the plotting area (top-left of the axes),
+# so the figure carries its own single-GPU qualification.
+ax.text(0.02, 0.965, 'PER GPU', transform=ax.transAxes, fontsize=10,
+        fontweight='bold', color='#333333', ha='left', va='top',
+        bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#888888', alpha=0.9))
 
 # Operating points. Prefill intensity is set by sequence length (weights read once,
 # reused across all tokens) -> to the RIGHT of the ridge, on the plateau (compute-bound).
