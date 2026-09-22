@@ -20,12 +20,13 @@ cwd = 2.4
 def h_of(tok): return tok * 0.00035
 
 fig, ax = plt.subplots(figsize=(6.1, 5.63))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, 14.2); ax.set_ylim(0, 12.2); ax.axis('off')
 ax.text(7.1, 11.7, 'Agentic context accumulation: the KV block grows every turn',
         fontsize=10.5, fontweight='bold', ha='center', color='#1a1a1a')
 
 for (name, dl, gm, kv), x in zip(cols, xs):
-    ax.text(x+cwd/2, 7.6, name, fontsize=10, fontweight='bold', ha='center', color='#27408b')
+    ax.text(x+cwd/2, 8.3, name, fontsize=10, fontweight='bold', ha='center', color='#27408b')
     y = 2.4
     # initial prompt (blue, constant)
     h0 = h_of(I0)
@@ -40,14 +41,15 @@ for (name, dl, gm, kv), x in zip(cols, xs):
                                     fc='#7fc6b5', ec='#1a7a63', lw=1, hatch='xx'))
         ax.text(x+cwd/2, y+h1/2, '\u03b4', fontsize=9, ha='center', va='center', color='#0a4a3a')
         y += h1
-    # generated reasoning (orange, grows with turns)
+    # generated reasoning (orange, grows with turns) — distinct hatch + min visible height
     if gm > 0:
-        h2 = h_of(gm)
+        h2 = max(h_of(gm), 0.35)
         ax.add_patch(FancyBboxPatch((x, y), cwd, h2, boxstyle='round,pad=0.01',
-                                    fc='#f5c98b', ec='#e67e22', lw=1, hatch='..'))
-        ax.text(x+cwd/2, y+h2/2, '\u03b3', fontsize=9, ha='center', va='center', color='#8a4b08')
+                                    fc='#f5c98b', ec='#e67e22', lw=1.2, hatch='OO'))
+        ax.text(x+cwd/2, y+h2/2, '\u03b3', fontsize=8.5, ha='center', va='center', color='#8a4b08',
+                fontweight='bold')
         y += h2
-    ax.text(x+cwd/2, y+0.3, f'KV {kv:.1f} GB', fontsize=9.5, ha='center',
+    ax.text(x+cwd/2, y+0.5, f'KV {kv:.1f} GB', fontsize=9.5, ha='center',
             fontweight='bold', color='#c0392b')
 
 # conclusion line in its own band above the legend
@@ -62,7 +64,7 @@ ax.text(7.1, 0.55, 'canonical example @ 2.62 MB/token; total = I0 + T\u00b7\u03b
 legend_comps = [
     ('initial prompt (I0)', '#c8d8ea', '//'),
     ('retrieved tool output (\u03b4)', '#7fc6b5', 'xx'),
-    ('generated reasoning (\u03b3)', '#f5c98b', '..'),
+    ('generated reasoning (\u03b3)', '#f5c98b', 'OO'),
 ]
 ax.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in legend_comps],
           loc='lower center', bbox_to_anchor=(0.5, 0.00), fontsize=9, frameon=False, ncol=3,
