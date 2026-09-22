@@ -35,7 +35,6 @@ DEFAULTS = {
     "ch5-two-leg":            "design/manuscript/chapter-05/figures/fig-05-0501",
     "ch13-ladder":            "design/manuscript/chapter-13/figures/fig-13-1301",
     "fleet-hierarchy":        "design/manuscript/chapter-17/figures/fig-17-1701",
-    "ch10-compose":           "design/manuscript/chapter-10/figures/fig-10-1002",
     "spine-decision-loop":    "design/manuscript/chapter-22/figures/fig-22-2201",
     "agent-loop-lifecycle":  "design/manuscript/chapter-19/figures/fig-19-1901",
 }

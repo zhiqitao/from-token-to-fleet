@@ -21,34 +21,37 @@ ax.set_ylim(0, 1)
 ax.axis('off')
 # log axis from 0.3 to 2000
 import matplotlib.ticker as mtick
+import matplotlib as _mpl
+_mpl.rcParams['hatch.linewidth'] = 1.4
+_mpl.rcParams['hatch.color'] = '#000000'
 
 # draw the axis
 ax.annotate('', xy=(2000, 0.14), xytext=(0.3, 0.14),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 ax.text(0.35, 0.10, 'lower →', fontsize=8, color='#555', ha='left')
 ax.text(1900, 0.10, '→ higher', fontsize=8, color='#555', ha='right')
-ax.text(1000, 0.30, 'arithmetic intensity (FLOP/byte) →', fontsize=9, color='#333',
+ax.text(1000, 0.05, 'arithmetic intensity (FLOP/byte) →', fontsize=9, color='#333',
         ha='center', fontweight='bold')
 
-# ridge line (from Ch8 ~295)
+# ridge line (from Ch8 ~295) — kept to the plot band, clear of the axis label
 ridge = 295
-ax.axvline(ridge, color='#c0392b', ls='--', lw=1.4)
-ax.text(ridge*1.1, 0.62, 'roofline\nridge ~295', fontsize=8, color='#c0392b', fontweight='bold')
+ax.axvline(ridge, color='#c0392b', ls='--', lw=1.4, ymin=0.22, ymax=0.95)
+ax.text(ridge*1.25, 0.62, 'roofline\nridge ~295', fontsize=8, color='#c0392b', fontweight='bold')
 
-# memory-bound region (left of ridge)
-ax.axvspan(0.3, ridge, color='#fdf0e7', alpha=0.5)
-ax.text(4, 0.82, 'memory-bound\n(bandwidth)', fontsize=8, color='#8a3a12', ha='center', fontweight='bold')
-# compute-bound region (right of ridge)
-ax.axvspan(ridge, 2000, color='#eaf1fb', alpha=0.5)
+# memory-bound region (left of ridge) — warm tint + forward-diagonal hatch
+ax.axvspan(0.3, ridge, color='#f6dcc8', alpha=0.55, hatch='///', ec='#5a2e08', lw=0)
+ax.text(6, 0.82, 'memory-bound\n(bandwidth)', fontsize=8, color='#8a3a12', ha='center', fontweight='bold')
+# compute-bound region (right of ridge) — cool tint + crosshatch (distinct grey tone)
+ax.axvspan(ridge, 2000, color='#c9d8ee', alpha=0.55, hatch='xxx', ec='#12294f', lw=0)
 ax.text(1200, 0.82, 'compute-bound\n(FLOPs)', fontsize=8, color='#1a3a6b', ha='center', fontweight='bold')
 
-# canonical operating points
+# canonical operating points — different markers (o vs ^) for grayscale distinction
 points = [
-    ('decode @ low batch', 1.0, '#c0392b', 'HBM weight-stream per token:\n~1 FLOP/byte at batch-1 (Ch8)'),
-    ('prefill @ 9.2K prompt', 180, '#27408b', '2·N·L over HBM weight stream:\nhigh intensity, near/above ridge'),
+    ('decode @ low batch', 1.0, '#c0392b', 'o', 'HBM weight-stream per token:\n~1 FLOP/byte at batch-1 (Ch8)'),
+    ('prefill @ 9.2K prompt', 180, '#27408b', '^', '2·N·L over HBM weight stream:\nhigh intensity'),
 ]
-for name, x, col, note in points:
-    ax.plot([x], [0.42], 'o', ms=10, color=col, clip_on=False)
+for name, x, col, mk, note in points:
+    ax.plot([x], [0.42], mk, ms=11, color=col, clip_on=False)
     ax.annotate(name, xy=(x, 0.42), xytext=(x, 0.52), ha='center', fontsize=8.5,
                 color=col, fontweight='bold', arrowprops=dict(arrowstyle='-', lw=0.8, color=col))
     ax.text(x, 0.20, note, fontsize=7, color='#555', ha='center')
