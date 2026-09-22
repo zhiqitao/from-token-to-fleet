@@ -92,7 +92,7 @@ The requirements conversation is where the book's entire loop is *fed.* The six 
 
 ![Fig 23.1 — From vague ask to architectural bounds [ILLUSTRATIVE conceptual]](figures/fig-23-2301.png)
 
-*The framing funnel: broad ask → six Socratic questions (problem, success, data, constraints, scope) → confirmed bounds. This is the *dialogue* that surfaces requirements; the *six* architectural surfaces in Table 23-1 are what each answer reveals (traffic, token profile, SLO, quality, ops/tier, TCO). [ILLUSTRATIVE conceptual]*
+*The framing funnel: broad ask → five question gates (problem, success, data, constraints, scope) → confirmed bounds. This dialogue surfaces the six architectural numbers in Table 23-1 (traffic & concurrency, token profile, SLO, quality bar, ops/tier, TCO). [ILLUSTRATIVE conceptual]*
 
 <!-- Figure spec: mechanism-first funnel diagram; top = vague ambition; six labeled question gates narrow it; bottom = quantified scope feeding the architecture loop. -->
 

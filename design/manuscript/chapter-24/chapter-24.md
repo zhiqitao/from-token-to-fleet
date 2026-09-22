@@ -102,7 +102,7 @@ The Red Team pattern applies not only to security but to the architecture decisi
 | **Poisoned‑hit rate** | DERIVED | Fraction of retrievals that return at least one poisoned chunk | < 0.3% (0.003 per query) | [ILLUSTRATIVE][ASSUMPTION] |
 | **Guardrail‑trigger rate** | FACT | Number of guardrail interventions per 1,000 user queries | < 5 | [ILLUSTRATIVE][ASSUMPTION] |
 | **False‑positive rate** | FACT | Guardrail interventions that block legitimate user intent | < 1.5% | [ILLUSTRATIVE][ASSUMPTION] |
-| **Tool‑use success rate** | FACT | Percentage of Red Team tool‑use probes that achieve an unintended action | < 0.5% | [ILLUSTRATIVE][ASSUMPTION] |
+| **Tool‑use exploit rate** | FACT | Percentage of Red Team tool‑use probes that achieve an unintended action (an *attacker*‑side success; lower is better) | < 0.5% | [ILLUSTRATIVE][ASSUMPTION] |
 | **Red‑team win rate** | HYPOTHESIS | Proportion of evaluation cycles where Red Team escapes all guardrails | → 0 over time | [ILLUSTRATIVE][ASSUMPTION] |
 
 These targets are local, author-defined guardrails for this deployment, not externally sourced thresholds; unless a target is explicitly tied to a cited standard or measured baseline, treat it as an illustrative assumption [ILLUSTRATIVE][ASSUMPTION].
@@ -134,7 +134,7 @@ The Red Team / Green Team loop directly shapes three architectural decisions:
 
 2. **RAG corpus policy** — If the poisoned‑hit rate exceeds 0.3% (0.003 per query), the architecture must enforce corpus provenance checks: every chunk must carry a verified origin tag, and the retrieval index rejects untagged embeddings. This changes the vector store from a pure FAISS index to a provenance‑aware store, which we model at ~2× storage overhead in the illustrative scenario [ILLUSTRATIVE][ASSUMPTION] — the real overhead depends on the provenance encoding and must be measured on the target corpus.
 
-3. **Tool‑use sandboxing** — If the tool‑use success rate is above 0.5%, the system must restrict function‑call capabilities via an allowlist. In the illustrative scenario this means reducing the available function surface from 87 tools to 23, with the remainder gated behind an explicit opt‑in per user group (scenario values, not a measured deployment).
+3. **Tool‑use sandboxing** — If the tool‑use exploit rate is above 0.5%, the system must restrict function‑call capabilities via an allowlist. In the illustrative scenario this means reducing the available function surface from 87 tools to 23, with the remainder gated behind an explicit opt‑in per user group (scenario values, not a measured deployment).
 
 Each consequence is tracked as a **change request** in the fleet’s operational backlog, with a clear owner, SLA, and success metric.
 
@@ -151,7 +151,7 @@ Each consequence is tracked as a **change request** in the fleet’s operational
 
 ## 8. End-of-Chapter Mini-Case: The PIES Drop: Red Team / Green Team Iteration
 
-**Scenario:** The fleet’s Green Team observes that PIES has dropped from 217 to 143 after adding a prompt‑scanning guardrail. The poisoned‑hit rate remains at ≈0.003 per query (≈3 poisoned chunks per 1,000 queries). The tool‑use success rate is 0.44%. However, the false‑positive rate has risen to 2.4% — legitimate user queries are being blocked ~24 times per 1,000 queries.
+**Scenario:** The fleet’s Green Team observes that PIES has dropped from 217 to 143 after adding a prompt‑scanning guardrail. The poisoned‑hit rate remains at ≈0.003 per query (≈3 poisoned chunks per 1,000 queries). The tool‑use exploit rate is 0.44%. However, the false‑positive rate has risen to 2.4% — legitimate user queries are being blocked ~24 times per 1,000 queries.
 
 **Decision point:** The Red Team recommends tightening the guardrail thresholds, which would reduce PIES further (to ~110) but increase the false‑positive rate to 4.1%. The Green Team rejects this trade-off, citing the 2.4% false‑positive rate as unacceptable for a public‑facing service. Instead, they opt for a targeted refinement: add a context‑aware classifier that distinguishes intent‑preserving prompts from injection attempts, aiming to bring PIES below 150 while keeping the false‑positive rate under 1.5%.
 
@@ -169,5 +169,5 @@ Each consequence is tracked as a **change request** in the fleet’s operational
 | Poisoned‑hit rate | 0.006 | 0.003 | 0.0025 | < 0.003 |
 | Guardrail‑trigger rate | 7.8 | 5.4 | 4.1 | < 5 |
 | False‑positive rate | 3.1 | 2.4 | 1.3 | < 1.5 |
-| Tool‑use success rate | 0.61 | 0.44 | 0.32 | < 0.5 |
+| Tool‑use exploit rate | 0.61 | 0.44 | 0.32 | < 0.5 |
 | Red‑team win rate | 8% | 3.5% | 1.2% | → 0 |
