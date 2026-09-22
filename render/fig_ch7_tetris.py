@@ -11,6 +11,7 @@ import matplotlib.patches as mpatches
 # axes rectangle is pinned toward the top, reserving a blank bottom band.
 # Title sized so it fits within the 6.1in column (12.0pt was ~6.18in -> clipped).
 fig, ax = plt.subplots(figsize=(6.1, 5.6))
+fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 ax.set_xlim(0, 8.0); ax.set_ylim(-640, 760)
 ax.axis('off')   # schematic; regen tight-crops to content
 ax.set_title('Memory Tetris: how the 8×H100 host (640 GB) fills with context',

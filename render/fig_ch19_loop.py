@@ -16,6 +16,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 FS = 9.0
 W = 6.1
 fig, ax = plt.subplots(figsize=(W, W*0.62))
+fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 ax.set_xlim(0, 10); ax.set_ylim(0, 6.2); ax.axis('off')
 
 # four loop states across the top, with gaps

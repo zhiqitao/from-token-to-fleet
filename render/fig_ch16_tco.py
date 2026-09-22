@@ -30,6 +30,7 @@ managed_lo = api_lo * req
 managed_hi = api_hi * req
 
 fig, ax = plt.subplots(figsize=(6.1, 5.0))
+fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 ax.fill_between(req, managed_lo, managed_hi, color='#c0392b', alpha=0.12,
                 label='managed API price band [ILLUSTRATIVE] ($15–25/1K)')
 ax.loglog(req, managed_lo, ':', color='#c0392b', lw=1.1, alpha=0.9)

@@ -25,6 +25,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 # =====================================================================
 
 fig, ax = plt.subplots(figsize=(6.1, 7.9))
+fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 ax.set_xlim(0, 1)
 ax.set_ylim(0, 1)
 ax.axis('off')

@@ -10,6 +10,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 # three patterns the loop selects (A sharding, B cache, C circuit breaker)
 # combine into the capstone outcome.  Authored at 6.1in wide.
 fig, ax = plt.subplots(figsize=(6.1, 6.5))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow this figure
 ax.set_xlim(0, 20); ax.set_ylim(0, 14.6); ax.axis('off')
 
 # ---- header: loop motto above title, scenario subtitle below ----
