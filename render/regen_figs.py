@@ -177,6 +177,10 @@ def _scale_text_art(fig, factor):
 def _scale_figure_fonts(fig, num):
     """Scale fonts up so the smallest label reaches roughly body size at print,
     then reflow; for text-art diagrams scale the geometry too."""
+    # Print-size-authored figures (author at 6.1in with their own font sizes)
+    # must NOT be re-boosted: boosting fixed boxes clips their labels.
+    if getattr(fig, '_hermes_print_sized', False):
+        return
     key = id(fig)          # key by object identity, not figure number: in
     if key in _scaled_fignums:   # multi-figure scripts the same number is
         return                    # reused across subplots() calls.

@@ -32,6 +32,10 @@ rows = [
 ]
 
 fig, ax = plt.subplots(figsize=(W, W*0.62))
+# Mark as print-size-authored so regen_figs.py does NOT font-boost + reflow it
+# (boosting these fixed pill boxes clips the strategy labels). Mirrors the
+# fig_ch18_routing exemption.
+fig._hermes_print_sized = True
 ax.set_xlim(0, 11.8); ax.set_ylim(0, 6.2); ax.axis('off')
 
 # column headers
