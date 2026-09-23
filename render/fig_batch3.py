@@ -119,6 +119,8 @@ ax.plot(hosts, qps*0.9, '--s', color='#c0392b', label='with scheduling overhead 
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Fleet throughput (req/s)', fontsize=10)
 ax.set_title('Fleet capacity (KV/service-time analytical bound, ~2.0 req/s/host)', fontsize=10)
+ax.text(0.99, 0.97, 'DERIVED [ILLUSTRATIVE]', transform=ax.transAxes, fontsize=7.5,
+        color='#8a5a00', ha='right', va='top')
 ax.legend(fontsize=9)
 ax.grid(alpha=0.3)
 ax.tick_params(labelsize=9)
@@ -144,13 +146,14 @@ ax.annotate('~20 hosts: saturation\n(canonical peak fleet)', xy=(19.05, 1.02), x
 ax.annotate('≈29 hosts: 70% target\n(⌈40/(2.0×0.70)⌉ = 29)', xy=(28.6, 0.70), xytext=(42, 2.0),
 fontsize=8, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b', lw=1.2))
 ax.set_xlabel('Host count', fontsize=10)
-ax.set_ylabel('Offered-load utilization (ρ = λ / (hosts × analytical bound))', fontsize=10)
-ax.set_title('Offered-load utilization vs host count (analytical service bound, not GPU util)', fontsize=9.5)
+ax.set_ylabel('Offered-load utilization ρ = λ/(hosts·bound)', fontsize=10)
+ax.set_title('Offered-load utilization (analytical bound, NOT GPU util)', fontsize=9.5)
 ax.legend(fontsize=8.5, loc='lower right', frameon=False, framealpha=0)
 ax.grid(alpha=0.3)
 ax.tick_params(labelsize=9)
 ax.set_ylim(0, 3.2)
 plt.tight_layout()
+plt.subplots_adjust(left=0.22, right=0.97, top=0.90, bottom=0.12)
 plt.savefig(base % (20, 20, 20), dpi=150); plt.close()
 print('Ch20 done')
 
