@@ -147,9 +147,9 @@ def jar(x1,y1,x2,y2,c=GREY,lw=2.0):
 def concern(x,y,w,h,name,col,mech,trade):
     bbox(x,y,w,h,'#fbfbfb',col,1.6)
     bbox(x,y+h-0.66,w,0.66,col)
-    ax.text(x+w/2,y+h-0.33,name,ha='center',va='center',color='white',fontsize=8.2,fontweight='bold')
-    ax.text(x+0.4,y+h-1.25,mech,ha='left',va='top',fontsize=7.4,color='#222')
-    ax.text(x+0.4,y+0.32,trade,ha='left',va='center',fontsize=7.0,color=col,style='italic')
+    ax.text(x+w/2,y+h-0.33,name,ha='center',va='center',color='white',fontsize=9.6,fontweight='bold')
+    ax.text(x+0.4,y+h-1.25,mech,ha='left',va='top',fontsize=8.2,color='#222')
+    ax.text(x+0.4,y+0.32,trade,ha='left',va='center',fontsize=7.8,color=col,style='italic')
 
 # title
 ax.text(10,12.4,'Serving = four concerns, not a stack',fontsize=9.2,fontweight='bold',ha='center',color='#333')
@@ -166,16 +166,16 @@ ax.text(1.0,9.62,'THE FOUR SERVING CONCERNS',fontsize=7.8,fontweight='bold',ha='
 
 # 2x2 concern cards flanking the central flow
 concern(1.0,3.75,7.9,2.55,'REQUEST SCHEDULING',PURPLE,
-        'continuous batching: admit &\nevict at every decode step',
-        'scheduling \u2194 latency \u00b7 utilization')
+        'continuous batching:\nadmit/evict each step',
+        'latency \u2194 utilization')
 concern(11.1,3.75,7.9,2.55,'STATE MANAGEMENT',RED,
-        'KV cache in fixed pages\n(PagedAttention page table)',
+        'KV cache in fixed pages\n(PagedAttention)',
         'memory capacity \u2192 concurrency')
 concern(1.0,6.85,7.9,2.55,'REUSE',GREEN,
-        'prefix cache (RadixAttention / APC):\nreuse KV of shared context',
-        're-prefill FLOPs & memory skipped')
+        'prefix cache: reuse\nKV of shared context',
+        're-prefill FLOPs skipped')
 concern(11.1,6.85,7.9,2.55,'RESOURCE SPECIALISATION',ORANGE,
-        'P/D split: prefill pool (compute) +\ndecode pool (bandwidth)',
+        'P/D split: prefill pool\n+ decode pool',
         'two regimes \u2192 two pools')
 
 # central flow: request -> through the concern matrix -> tokens
