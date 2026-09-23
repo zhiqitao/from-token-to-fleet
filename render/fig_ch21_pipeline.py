@@ -13,6 +13,7 @@ from matplotlib.path import Path
 # green arrow is the normal production feedback loop back to data + evaluation.
 
 fig, ax = plt.subplots(figsize=(6.1, 4.7))
+fig._hermes_print_sized = True   # authored at 6.1in; regen must not re-boost/reflow
 ax.set_xlim(0, 24); ax.set_ylim(0, 13.4); ax.axis('off')
 
 ax.set_title('AI Factory promotion: measured gates on every stage',
