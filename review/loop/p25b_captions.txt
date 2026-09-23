@@ -1,0 +1,771 @@
+===== PDF page 161 (index 160) =====
+143
+Reference Architectures: From Local to Hyperscale
+Single GPU
+one accelerator
+local memory
+Single host
+GPU rack node
+NVLink fabric
+Multi-host
+several nodes
+cluster fabric
+Cluster / fleet
+many nodes
+network spine
+outgrows 1 GPU
+forces local
+KV overflows floor
+privacy
+fleet demand
+cost pressure
+constraints
+satisfied? STOP
+constraints
+satisfied? STOP
+constraints
+satisfied? STOP
+constraints
+satisfied? STOP
+The reference-architecture escalation path
+escalate only when a constraint binds — else STOP; tiers are orthogonal levels of scale, not a ranking
+figure 13.1: The reference-architecture ladder and its escalation triggers [ILLUSTRATIVE conceptual]
+
+===== PDF page 167 (index 166) =====
+149
+Benchmarking: Predicting Real Experience, Not a Leaderboard
+Candidate
+models
+Capability screen
+(MMLU / GSM8K)
+Survivors
+Deployment bench
+(goodput)
+Selection
+TCO + SLO gate
+deployed
+filter narrows the candidates (capability first), then survivors are
+measured on the real workload against the SLO gate.  [ILLUSTRATIVE][DERIVED]
+Select models: screen on capability, then benchmark on the workload
+figure 14.1: Capability screen then deployment benchmark [ILLUSTRATIVE conceptual]
+
+===== PDF page 173 (index 172) =====
+155
+Performance Engineering: From “It Works” to “It Meets the SLO”
+FlashAttention: the same math, far less HBM traffic
+BEFORE: naive / SDPA
+intermediate written to HBM
+on-chip
+HBM
+many HBM
+round-trips
+Q/K/V
+O(L^2) HBM traffic:
+every query re-reads
+the row-block
+AFTER: FlashAttention
+tiled, stays on-chip
+on-chip
+HBM
+few HBM
+round-trips
+Q/K/V
+O(L) HBM traffic:
+each tile read once,
+softmax online
+same Q·Kᵀ·V math and same result —
+the gain is fewer HBM round-trips, not cheaper attention
+figure 15.1: FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the interme­
+diate attention matrix is materialized to HBM and re-read, so every query block re-streams the full 
+K/V row-block — many HBM round-trips. After (FlashAttention), the computation is tiled and fused 
+so the K/V tiles stream through on-chip memory once and the result is accumulated in place — few 
+HBM round-trips. The attention result is identical; the gain is fewer HBM round-trips, not a change 
+to the attention mathematics. [ILLUSTRATIVE conceptual]
+
+===== PDF page 175 (index 174) =====
+157
+Performance Engineering: From “It Works” to “It Meets the SLO”
+100
+101
+Avg prefix reuse
+0
+20
+40
+60
+80
+100
+Prefill FLOPs / req
+(% of no-cache)
+[ILLUSTRATIVE]
+(a) Caching removes
+prefill work
+no cache
+with prefix cache
+100
+101
+Decode batch size
+0
+20
+40
+60
+80
+100
+Relative decode
+goodput (a.u.)
+caching does not
+speed one decode step
+[ILLUSTRATIVE]
+(b) Decode bottleneck
+unaffected by caching
+Prefix caching vs batching: two independent effects
+figure 15.2: Prefix caching and batching affect different serving phases: caching reduces prefill work; 
+batching raises decode goodput
+
+===== PDF page 189 (index 188) =====
+171
+TCO: The Total Cost Reality Check
+1e4
+1e5
+1e6
+1e7
+1e8
+Requests/month (log)
+1e3
+1e4
+1e5
+1e6
+1e7
+Cost/month (USD, log)
+canonical 26M req/mo
+break-even ≈ 7.1M req/mo @ $20.80/1K
+sensitivity ≈ 5.9–9.9M [ILLUSTRATIVE]
+TCO break-even (~20-host fleet)
+managed API price band [ILLUSTRATIVE] ($15–25/1K)
+self-host fleet (~$148K/mo)
+cloud on-demand (~$72K/mo)
+managed API ($20.80/1K, base)
+Assumptions: self-host flat (~148K/moreserved); cloud 72K/mo @40% duty; excludes staff.
+Sensitivity [ILLUSTRATIVE]: a $15–25/1K price band moves the break-even to ~5.9–9.9M req/mo.
+figure 16.1: TCO break-even: self-hosted vs managed API [ILLUSTRATIVE][DERIVED]
+
+===== PDF page 192 (index 191) =====
+From Server to Fleet
+174
+0
+2
+4
+6
+8
+10
+time of day
+0
+2
+4
+6
+8
+10
+12
+offered load / req·s⁻¹
+one host
+~2.0 req/s
+N-1 residual (~6.0, 1 host drains)
+N = 4 fleet capacity (~8.0)
+burst peak ~5.5 req/s
+fleet sized ABOVE the burst
+(headroom + failover)
+one host cannot meet
+the burst on its own
+Sizing a fleet of one model: burst peak, headroom, failover
+offered load (burst)
+one host bound (~2.0)
+N = 4 fleet capacity (~8.0)
+N-1 residual (1 host drains)
+figure 17.1: Sizing a fleet of one model by burst peak, headroom, and failover: offered load rises to a 
+~5.5 req/s burst that a single host (~2.0 req/s analytical planning bound) cannot meet; a 4-host fleet 
+(~8.0 req/s at the analytical bound) is sized ABOVE the burst, and after one host drains the N-1 = 3 
+residual (~6.0 req/s) still clears it [ILLUSTRATIVE][DERIVED]
+17.3. Mental Model
+We visualize the fleet as a two-level hierarchy. At the top level, a load balancer — either hardware 
+(L7 switch) or software (NGINX, HAProxy, Cloud Load Balancer) — accepts inbound requests and 
+routes them to one of N backend hosts. Each backend host runs an identical copy of the model and 
+serves requests independently. At the bottom level, each host operates exactly as the single-server 
+model does: a model engine accepting prompts, producing completions, and returning tokens to the 
+load balancer, which forwards the response to the client.
+The mental model introduces two new invariants. First, the throughput invariant: total system 
+throughput ≈ N × throughput_per_host, reduced by a factor ρ that captures load‑balancer over­
+head, health‑check traffic, and imperfect distribution (typically ρ ∈ [0.85, 0.98] depending on LB 
+sophistication). Second, the memory invariant: total GPU memory across the fleet is N × memory_
+per_host, but the per-host memory available for model weights and KV cache remains the same as 
+the single-host case. The fleet does not increase the per-host model size; it increases the aggregate 
+number of concurrent requests the system can serve by parallelizing across hosts.
+A critical detail is the session-affinity decision. If user sessions must maintain conversation 
+state (KV cache, accumulated tool outputs, retrieval context), the load balancer must route subsequent 
+requests from the same user to the same host (sticky sessions). This reduces cross-host communication 
+but limits the effective parallelism, because a popular user can pin a single host to capacity while other 
+hosts stand underutilized. If sessions are stateless (the model is reloaded or KV cache is discarded 
+between requests), any host can serve any request, and load distribution becomes even. The architect 
+must choose between density (sticky sessions, higher per-host utilization) and evenness (stateless 
+
+===== PDF page 212 (index 211) =====
+Operating Multiple Models
+194
+Request
+Capability filter
+Cost / SLO gate
+Fallthrough
+Embedding
+Vision
+Math/reason
+Frontier
+Small gen
+General
+yes -> specialist
+yes -> general
+fallthrough
+only ONE model is selected per request (early exit on a match)
+policy: capability first, then cost/SLO, then general fallback. [ILLUSTRATIVE][DERIVED]
+Routing every request to the right specialised model (sequential cascade)
+figure 18.1: Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with 
+the specialist, general and fallback model families as leaves [ILLUSTRATIVE conceptual]
+
+===== PDF page 215 (index 214) =====
+197
+Agentic Systems
+Plan
+read, plan
+model
+Execute
+tool call
+action
+Observe
+append result
+state
+Decide
+resolved?
+check
+loop (iterate)
+Final answer
+emit response
+done
+Stopped
+turn limit
+terminal
+The agent loop: a four-state state machine
+resolved → final answer; no resolution within the turn limit → stopped [ILLUSTRATIVE conceptual]
+figure 19.1: The agent loop as a four-state state machine (Plan, Execute, Observe, Decide) with a 
+loop-back to Plan and the terminal outcomes final answer and stopped [ILLUSTRATIVE conceptual]
+
+===== PDF page 220 (index 219) =====
+Agentic Systems
+202
+0
+(single-shot)
+1
+2
+3
+4
+Agent turns
+0
+5000
+10000
+Tokens / request
+(a) Tokens accumulate
+initial context (I0)
+added per turn (T·δ + T·γ)
+output tokens
+0
+(single-shot)
+1
+2
+3
+4
+Agent turns
+0
+10
+20
+30
+KV / request (GB, FP16)
+24.9 27.2 29.4 31.7 34.0
+(b) KV grows 24.9 → 34.0 GB
+KV / request (FP16)
+Token growth vs resulting KV growth across agent turns
+append-only illustrative model: context only ever accumulates across turns — nothing is evicted
+figure 19.2: Input/output tokens and KV cache per request across agent turns (I₀ + T·δ + T·γ; 9,200 + 
+800 + 65 per turn), FP16 KV rising from 24.9 GB single-shot to 34.0 GB at 4 turns. This chart quantifies 
+the growth — the total token and KV numbers as turns accumulate. (Companion Fig 19.3 shows the 
+mechanism of why it grows.) [DERIVED: Ch19 §3 arithmetic]
+while an append-only design grows it ~36% by turn 4; the append-only number is the stress case that 
+bounds what the system must tolerate if the levers fail, not the expected operating point.
+Inference scaling. The base model (70B FP16, 8×H100) must now serve variable-length contexts, 
+and — critically — the KV-residency conclusion is far more severe than a per-latency convenience 
+because the canonical per-token KV is ~2.62 MB/token (Chapter 7’s full-MHA reference geometry). 
+A request that triggers 4 agent turns carries ~12,960 tokens vs. 9,500 for single-shot (Table 19-1) — 
+that is not a “35% GPU memory” tweak but a move from ~24.9 GB KV per request (9,500 tokens 
+× 2.62 MB) to ~34.0 GB (12,960 ×2.62 MB) — roughly a 36% growth, on top of an already-large KV 
+footprint. At 100 concurrent users with the median single-turn profile (~27.2 GB/request at 10,365 
+tokens), the aggregate KV alone is ~2.7 TB — far beyond one host’s ~436 GB KV budget, so agents 
+do not just stress memory, they force a fleet (Chapter 17). The architect must therefore treat 
+context growth as a first-order capacity driver: cap T, cache prefixes, or quantize KV (FP8), as these 
+levers repeatedly outprice adding hosts. Note we must be precise: the per-request KV is set by the 
+model’s canonical per-token KV (all layers), not by per-layer figures; the honest number is tens of 
+GB per request, which is exactly why agentic depth is a fleet-sizing problem.
+Why agentic depth is a fleet-sizing problem. Both the token count and the FP16 KV cache grow 
+linearly with turns; four turns take a request from ~24.9 GB to ~34.0 GB of KV — a 36% jump on an 
+already-large footprint, which is exactly why a fleet (Ch17), prefix caching, or FP8 KV pay for themselves 
+on agentic workloads.
+Agentic context accumulation as a memory sequence. Each turn appends retrieved context (δ ≈ 800 
+tokens) plus generated reasoning (γ ≈ 65 tokens) to a context that persists across every later turn; the 
+FP16 KV block therefore grows from ~24.9 GB (single-shot) to ~34.0 GB (four turns) — a 36% footprint rise 
+
+===== PDF page 221 (index 220) =====
+203
+Agentic Systems
+Agentic context accumulation: the KV block grows every turn
+Single-shot
+I0
+KV 24.9 GB
+Turn 1
+I0
+δ
+γ
+KV 27.2 GB
+Turn 2
+I0
+δ
+γ
+KV 29.4 GB
+Turn 3
+I0
+δ
+γ
+KV 31.7 GB
+Turn 4
+I0
+δ
+γ
+KV 34.0 GB
+append-only illustrative model: context is only appended, never evicted
+agentic depth is a fleet-sizing problem: KV grows ~36% (24.9 → 34.0 GB)
+canonical example @ 2.62 MB/token; total = I0 + T·δ + T·γ.
+initial prompt (I0)
+retrieved tool output (δ)
+generated reasoning (γ)
+figure 19.3: The agentic context block grows every turn: initial prompt (9.2K tok) plus tool output 
+(δ) + reasoning (γ) appended each turn, FP16 KV footprint rising 24.9 → 34.0 GB (max-KV, end-of-
+request). This schematic shows the mechanism — the initial prompt base plus cumulative tool-output 
+and reasoning blocks. (Companion Fig 19.2 quantifies the total.) [ILLUSTRATIVE][DERIVED: Ch19 
+arithmetic]
+
+===== PDF page 234 (index 233) =====
+Fleet-Level Optimization
+216
+0
+10
+20
+30
+40
+50
+60
+Host count
+0
+20
+40
+60
+80
+100
+120
+Fleet throughput (req/s)
+DERIVED [ILLUSTRATIVE]
+Fleet capacity (KV/service-time analytical bound, ~2.0 req/s/host)
+ideal linear (2.0 req/s/host)
+with scheduling overhead (~90%)
+0
+10
+20
+30
+40
+50
+60
+Host count
+0.0
+0.5
+1.0
+1.5
+2.0
+2.5
+3.0
+Offered-load utilization ρ = λ/(hosts·bound)
+over-subscribed: too few
+hosts to serve 40 rps peak
+~20 hosts: saturation
+(canonical peak fleet)
+≈29 hosts: 70% target
+(⌈40/(2.0×0.70)⌉ = 29)
+Offered-load utilization (analytical bound, NOT GPU util)
+per-host utilization @ 40 rps peak
+70% target utilization
+saturation (100%)
+figure 20.1: Fleet capacity (KV/service-time analytical bound, ~2.0 req/s/host) and per-host offered-
+load utilization, vs. host count at the canonical peak load (40 rps). Top panel: capacity against host 
+count from the KV/service-time analytical bound (~2.0 req/s/host), with a ~90% scheduling-overhead 
+line. Bottom panel: per-host offered-load utilization (ρ = λ/(hosts·bound)) at the canonical 40 rps 
+peak — this is an analytical-capacity utilization, NOT GPU utilization. This is the honest quantity for 
+the tail: p99 is driven by per-host utilization, not by host count alone. Adding hosts lowers per-host 
+utilization (more headroom) hence lowers the expected tail; the 70%-utilization and 100%-saturation 
+reference lines show the provisioning target. The tail also depends on the arrival process, scheduling 
+policy, batching, and the service-time distribution, which a provisioning model alone does not capture. 
+The ~2.0 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. 
+[ILLUSTRATIVE][DERIVED]
+
+===== PDF page 239 (index 238) =====
+221
+The AI Factory: Turning Inference Into an Industrial Process
+every promotion is a PASS/FAIL decision on a measured metric, not a hand-off
+Data
+Train
+Eval
+Canary
+Observe
+Promote
+Serve
+Data gate
+source <=
+valid
+m✓ PASS
+Train gate
+cost <=
+budget
+m✓ PASS
+Eval gate
+quality <=
+SLO
+m✓ PASS
+Canary gate
+goodput <=
+SLO
+m✓ PASS
+Observe gate
+TTFT <=
+quality
+m✓ PASS
+Promote gate
+cost <=
+blast
+m✓ PASS
+FAIL
+rollback to last-known-good & re-validate
+production feedback → data / evaluation (each cycle re-gated)
+[ILLUSTRATIVE][DERIVED] Gates pass on measured throughput / SLO / cost; a breach rolls back.
+AI Factory promotion: measured gates on every stage
+figure 21.1: The AI Factory promotion pipeline [ILLUSTRATIVE conceptual]
+
+===== PDF page 246 (index 245) =====
+How to Think Like an AI Solution Architect
+228
+100
+101
+102
+Context length (K tokens)
+10−2
+10−1
+100
+101
+102
+103
+Prefill compute (PFLOP / request)
++17% @9.2K
++60% @32K
+~2.4× @128K
+Prefill per request (decomposed):
+linear + quadratic attention
+linear term (2·N·L)
+quadratic attention term (4·nl·L²·d)
+total = linear + quadratic
+100
+101
+102
+Context length (K tokens)
+10−5
+10−4
+10−3
+Decode compute (PFLOP / token)
+≈ 1.4e-4 PFLOP/token
+(fixed; same at all context)
+Decode per token:
+fixed 2N (context-independent)
+⚠  LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN
+DO NOT COMPARE Y-AXIS MAGNITUDES DIRECTLY  — different units, different baselines
+Left = total prefill compute for ONE request (grows with context L). Right = compute for ONE generated token
+(fixed 2N, context-independent). The quadratic term is the textbook 4·n_layers·L²·d (matches Chapter 8).
+[ILLUSTRATIVE][DERIVED]
+figure 22.1: Full-attention prefill increasingly reflects quadratic attention cost; decode is incurred 
+token-by-token. Two aligned panels (different units, not directly comparable): LEFT = prefill PER 
+REQUEST (linear 2NL vs linear+quadratic 4·n_layers·L²·d; +17% @9.2K, +60% @32K, ~2.4× @128K); 
+RIGHT = decode PER TOKEN (fixed 2N ≈ 1.4e-4 PFLOP/token, flat across context). The quadratic 
+term is the textbook 4·n_layers·L²·d and matches Chapter 8 [ILLUSTRATIVE][DERIVED]
+
+===== PDF page 255 (index 254) =====
+237
+Working With Customers: From Vague Ask to Defensible Scope
+1. What is the true problem?
+"our app is slow" → TTFT p99 1.4 s on a 70B model
+2. What does success look like?
+p95 TTFT < 300 ms, TPOT ~25 ms, 40 rps peak
+3. What data exists?
+9.2K-token prompts, ~55% share a common prefix
+4. What are the constraints?
+8×H100 host, ~$14.6K/mo, no SLO headroom
+5. What is in scope now?
+KV precision FP16→FP8 + prefix cache + routing
+Quantified bounds → {TTFT, throughput, cost} budget
+From a vague ask to architectural bounds (worked example)
+figure 23.1: From vague ask to architectural bounds. This is a worked-example interrogation sequence 
+(the concrete questions asked of one canonical ask), not an exhaustive or universal question list. 
+[ILLUSTRATIVE conceptual]
+
+===== PDF page 267 (index 266) =====
+249
+Red Team / Green Team
+Red Team / Green Team cycle: probe, measure, harden, loop
+(1→6 forward cycle; one red feedback loop back to step 1)
+1 Red Team
+2 Probes
+3 Exposure
+4 Guardrails
+5 Metrics
+6 Green Team
+loop: findings from Green Team → next Red Team cycle (strong feedback leg)
+figure 24.1: Red Team / Green Team cycle [ILLUSTRATIVE conceptual]
+
+===== PDF page 274 (index 273) =====
+The Architecture Decision Record
+256
+Context
+Options
+Decision
+Rationale
+Consequences
+consequences of one decision become the
+context of the next (why is captured at decision time)
+Architecture Decision Record: an ADR supersedes an old one
+figure 25.1: The Anatomy of an Architecture Decision Record [ILLUSTRATIVE conceptual]
+• ADR proliferation: As the fleet grows, the number of ADRs will grow. A naming convention 
+(ADR 0001, ADR 0002, …) and a top-level index (ADR index) prevent the record from becoming 
+unwieldy.
+• Integration with CI: ADRs can be validated as part of the CI pipeline — e.g., ensuring every 
+ADR has a status, a rationale, and at least one evidence tag. This automation reinforces the 
+habit.
+On the negative side, ADRs add a small writing overhead. For a team of ~10 engineers making 
+~1–2 significant architectural decisions per month, this is a manageable cost. The payoff — reduced 
+on-call noise, faster onboarding, and fewer “why did we do it this way?” debates — more than 
+compensates.
+25.8. What We Still Don’t Know
+Despite the structured format, several questions remain open and would benefit from future 
+ADRs or empirical studies:
+1. ADR fatigue: Does the presence of many ADRs overwhelm the team, leading to superficial 
+writing or skipped documentation?
+2. Evidence decay: How long do derived quantities remain valid? Should ADRs include a “last 
+reviewed” date and a trigger for re-evaluation?
+3. Cross-ADR dependencies: When multiple ADRs interact (e.g., a quantization choice interacts 
+with a retrieval chunk-size choice), how should the team document the dependency graph?
+4. Tooling gaps: No widely adopted tool exists for ADR graph visualization or impact analysis. 
+
+===== PDF page 280 (index 279) =====
+The Solution Architect’s Toolkit + Patterns Library
+262
+Context
+length
+Traffic
+(rps)
+Quality
+required
+Cost
+sensitive
+Latency
+sensitive
+Output
+tokens
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Normalised intensity (0-1)
+comparable 0-1 scale; bar height = intensity.
+Workload fingerprints on six comparable axes (grouped bars, not radar)
+[ILLUSTRATIVE profiles — confirm against real telemetry]
+Long-context RAG Q&A
+High-throughput chat
+Batch inference
+figure 26.1: Workload fingerprints on the six axes
+
+===== PDF page 285 (index 284) =====
+267
+The Solution Architect’s Toolkit + Patterns Library
+the Pattern-Measurement-Feedback Loop on the capstone scenario (70B FP16 · 8×H100)
+1 · FACT
+request rate ~2 rps
+utilization 45%
+TTFT 320 ms
+2 · DERIVED
+sharding ⇒ bandwd-bound
+cache 35% ⇒ 2.0→1.3 rps
+TTFT p99 210 ms
+3 · PATTERN
+A · Inference Sharding
+B · Semantic Cache
+C · Circuit Breaker
+trace
+validate
+adjust + pick pattern
+feedback
+Pattern Application Diagram
+figure 26.2: Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the 
+capstone scenario. The loop closes on three stages: (1) FACT instrument the observed quantities 
+(request rate ~2 rps, GPU utilization 45%, TTFT legs); (2) DERIVED compute the derived consequence 
+(sharding → decode bandwidth-bound; cache 35% → engine load 2.0→1.3 rps; TTFT p99 210 ms); 
+(3) PATTERN adjust/apply the pattern (A Inference Sharding, B Semantic Response Cache, C Circuit 
+Breaker), then feed the observed effect back into the next cycle. The three patterns compose to ~680 
+ms p99 and ~40% lower generation cost versus the uncached, unsharded baseline. [ILLUSTRATIVE 
+conceptual]
+
+===== PDF page 287 (index 286) =====
+269
+Appendix A — 2026 Frontier Architecture Signals: Four Open-Weight Model Families
+0 10
+Active parameters as % of total
+DeepSeek V4-Pro/Flash
+Kimi K3
+Qwen3.8-Flash-Next
+GLM-5.3-Flash
+4.6%
+  284B total / 13B active
+3.7%
+  2800B total / 104B active
+4.8%
+  125B total / 6B active
+5.6%
+  320B total / 18B active
+VENDOR-REPORTED active-parameter fractions (mutable snapshot, ~2026 mid-year);
+parameter definitions are not perfectly harmonized across vendors
+2026 frontier MoE: extreme sparsity —  single-digit active fraction of total
+figure A.1: 2026 frontier MoE extreme sparsity: four open models, total vs activated parameters, 
+and active fraction in single digits [1P]
+A.1. The Signal in One Paragraph
+A striking number of 2026 frontier models — four open models we surveyed — converge on a 
+second-order architectural pattern, which we read as an interpretation rather than an established 
+historical fact. We should be precise about what kind of gain each lever delivers. The common error 
+is to read architecture innovation as raw capability. In our interpretation, it is mostly efficiency 
+(more context, less cost per token) that comes out of the attention and MoE changes below, not 
+intelligence. The capability story — reasoning, post-training, test-time compute — lives elsewhere 
+(§6), and carries at least as much of the frontier’s real progress. We separate the two explicitly.
+Frontier MoE sparsity in 2026. Kimi K3 is the extreme case: 2.8 T total / 104 B active (~3.7% active); 
+DeepSeek-V4-Flash 284 B/13 B (~4.6%); GLM-5.3-Flash 320 B/18 B (~5.6%); Qwen3.8-Flash-Next 125 B/6 B 
+(~4.8%). Active-parameter fraction in each of these four frontier MoE families is in the single digits — the 
+anchor for the Ch10 expert-parallelism serving calculus. [1P: arXiv 2606.19348; arXiv 2607.24653; HF 
+Qwen/Qwen3.8-Flash-Next; HF zai-org/GLM-5.3-Flash]
+Three efficiency levers every 2026 frontier family pulled:
+1. Hybrid attention as the new KV lever — an efficiency lever, not (by itself) a capability 
+lever. Every frontier model re-engineered attention to shrink long-context cost at the mecha­
+nism level — compressed/sparse hybrids (DeepSeek CSA+HCA), delta+sparse (Qwen Gated 
+DeltaNet + QSA), delta/residual (Kimi KDA + AttnRes), sparse+linear (GLM). KV cache is no 
+longer a fixed per-token constant we only quantize; it is a design surface the model vendor 
+already optimized. The intended benefit is to preserve useful model capability while reducing 
+long-context inference cost and/or extending practical context length — indispensable, but it 
+does not by itself make the model smarter. Capability gains come from the post-training/rea­
+soning stack in §6.
+2. MoE sparsity went extreme — the capacity-per-FLOP lever. Active-parameter fractions 
+fell to single digits (Kimi 104B of 2.8T; Qwen 6B of 125B). In our reading, one could argue 
+MoE is a larger architectural innovation than attention: it lets a lab grow knowledge/capacity 
+
+===== PDF page 291 (index 290) =====
+273
+Appendix A — 2026 Frontier Architecture Signals: Four Open-Weight Model Families
+Vendor-reported KV / FLOP reduction
+EACH PANEL IS A DIFFERENT BASELINE — NOT A SHARED SCALE. Do not compare cards.
+DeepSeek V4-Flash
+vs V3.2
+KV/token
+100%
+~7%
+FLOP/token
+100%
+~10%
+DeepSeek V4-Pro
+vs V3.2
+KV/token
+100%
+~10%
+FLOP/token
+100%
+~27%
+GLM-5.3-Flash
+vs stated ref
+KV/token
+100%
+~23%
+FLOP/token
+100%
+~33%
+Each reduction is relative to the model's OWN stated predecessor — there is no common denominator, so the percentages must not be read against a single baseline.
+Value source: vendor-reported [1P] (arXiv 2606.19348; HF zai-org), not yet independently reprofiled.
+figure A.2: Vendor-reported KV/FLOP reduction relative to each model’s OWN stated predeces­
+sor/reference, NOT a shared cross-model baseline. Rendered as three independent before→after 
+cards (each 100% → its own ~X%), so there is no shared bar scale to compare across. [DERIVED from 
+1P claims: arXiv 2606.19348; HF zai-org]
+
+===== PDF page 294 (index 293) =====
+Appendix A — 2026 Frontier Architecture Signals: Four Open-Weight Model Families
+276
+Efficiency-led (dashed) — context / cost / capacity
+Capability-led (solid) — reasoning / test-time / agentic
+Fleet (thick) — multi-model "intelligence placement"
+Transformer
+~2017
+Efficient Transformer
+~2020
+MoE Transformer
+~2022
+Reasoning Model
+~2023
+Test-Time Compute
+~2024
+Tool-Using Model
+~2024
+Agent
+~2025
+Agent System
+~2025
+Agent Fleet
+~2026
+From a single model to a whole system — the spine of this handbook (Appendix §6).
+Approximate era markers (≈) are loose chronological signals, not release dates. [ILLUSTRATIVE][DERIVED]
+figure A.3: A conceptual layering of frontier AI systems (dates are approximate era markers, not a 
+rigorously established chronology)
+
+===== PDF page 295 (index 294) =====
+277
+Appendix A — 2026 Frontier Architecture Signals: Four Open-Weight Model Families
+Where Should Intelligence Live?
+The 2026 frontier question for an AI Solution Architect (Appendix §7)
+scope of placement:  intelligence shifts up out of the weights
+(vertical axis = WHERE it lives, not BETTER/HIGHER)
+Across a fleet of specialised models
+Ch18, Ch20
+Inside the agent runtime
+Ch17-20, Ch24
+Inside tools
+Ch19, Ch24
+Inside test-time search
+Ch8, Ch20
+Inside post-training
+Ch19, Ch21
+Inside MoE routing
+Ch10
+Inside attention
+Ch7, Ch8
+Inside weights
+Ch3, Ch8
+Model intelligence ≠ system intelligence
+figure A.4: Where should intelligence live?

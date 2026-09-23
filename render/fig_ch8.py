@@ -23,7 +23,7 @@ bw200 = 4.8
 r100 = ridge(peak, bw100)   # ~295
 r200 = ridge(peak, bw200)   # ~206
 
-ais = np.logspace(-1, 3, 400)
+ais = np.logspace(-1, 4.3, 400)
 
 fig, ax = plt.subplots(figsize=(6.1, 4.4))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
@@ -52,7 +52,7 @@ ax.text(0.06, 0.10, 'memory-bound slope\n(≈ intensity × BW)',
         transform=ax.transAxes, fontsize=8.5, color='#e67e22',
         ha='left', va='center')
 # DERIVED / source tag in-plot (top-centre, clear of PER GPU at left and prefill ridge at right)
-ax.text(0.50, 0.965, 'DERIVED [1P: vendor datasheet]', transform=ax.transAxes,
+ax.text(0.50, 0.965, 'ANALYTICAL [DERIVED]', transform=ax.transAxes,
         fontsize=8, color='#8a5a00', ha='center', va='top')
 
 # "PER GPU" stated plainly INSIDE the plotting area (top-left of the axes),
@@ -65,7 +65,7 @@ ax.text(0.02, 0.965, 'PER GPU', transform=ax.transAxes, fontsize=10,
 # reused across all tokens) -> to the RIGHT of the ridge, on the plateau (compute-bound).
 # Decode re-reads weights each token -> low intensity, LEFT of the ridge, on the slope.
 pts = [
-    ('prefill 9.2K', 320, 989, 'prefill'),   # canonical
+    ('prefill 9.2K', 9200, 989, 'prefill'),  # canonical: intensity ≈ sequence length ≈ 9.2K FLOP/byte
     ('decode batch=1', 0.5, 1.7, 'decode'),  # canonical
     ('decode batched', 8, 27, 'decode'),     # continuous batching raises intensity
 ]
@@ -74,7 +74,8 @@ for name, a, t, tag in pts:
     ax.scatter([a], [min(t, peak)], color=colors[tag], zorder=5, s=45)
 
 # label the markers, offset so they do not sit on the dots
-ax.text(320, 989*0.60, 'prefill 9.2K', fontsize=9, color=colors['prefill'], ha='center')
+ax.text(9200, 989*0.55, 'prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', fontsize=9,
+        color=colors['prefill'], ha='center', va='top')
 ax.text(0.42, 1.65, 'decode\nbatch=1', fontsize=9, color=colors['decode'], ha='center')
 ax.text(11, 30, 'decode batched', fontsize=9, color=colors['decode'], ha='left')
 

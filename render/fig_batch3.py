@@ -115,7 +115,7 @@ per_host = 2.0
 qps = hosts * per_host
 ax = axs[0]
 ax.plot(hosts, qps, '-o', color='#3a6ea5', label='ideal linear (2.0 req/s/host)')
-ax.plot(hosts, qps*0.9, '--s', color='#c0392b', label='with scheduling overhead (~90%)')
+ax.plot(hosts, qps*0.95, '--s', color='#c0392b', label='with scheduling overhead (~95%)')
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Fleet throughput (req/s)', fontsize=10)
 ax.set_title('Fleet capacity (KV/service-time analytical bound, ~2.0 req/s/host)', fontsize=10)

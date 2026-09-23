@@ -57,7 +57,7 @@ ax.text(7.1, 1.60, 'append-only illustrative model: context is only appended, ne
         fontsize=9, ha='center', color='#1a1a1a', fontweight='bold')
 ax.text(7.1, 1.10, 'agentic depth is a fleet-sizing problem: KV grows ~36% (24.9 \u2192 34.0 GB)',
         fontsize=9, ha='center', color='#c0392b', fontweight='bold')
-ax.text(7.1, 0.55, 'canonical example @ 2.62 MB/token; total = I0 + T\u00b7\u03b4 + T\u00b7\u03b3.',
+ax.text(7.1, 0.55, 'canonical example @ 2.62 MB/token; total = I0 + T\u00b7\u03b4 + T\u00b7\u03b3 + O_final (base 9.5K = 9.2K input + 300 output).',
         fontsize=8.5, ha='center', color='#444')
 
 # legend in its OWN clean band at the very bottom (clear of the conclusion/note text)

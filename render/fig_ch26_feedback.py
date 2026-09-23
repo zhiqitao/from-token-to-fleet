@@ -21,12 +21,12 @@ def box(x, y, w, h, fc):
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.05',
                                 fc=fc, ec='#333', lw=1.2, alpha=0.92))
 
-def stage_text(x, y, lines, big):
+def stage_text(x, y, lines, big, body_fs=8.2):
     # text kept SHORT so it never clips the box width (box w=7.4 at x). 
     tx = x + 0.5; ty = y + 2.0
     ax.text(tx, ty, lines[0], ha='left', va='top', color='white', fontsize=big, fontweight='bold')
     ax.text(tx, ty - 0.55, '\n'.join(lines[1:]), ha='left', va='top', color='white',
-            fontsize=8.2, linespacing=1.4)
+            fontsize=body_fs, linespacing=1.4)
 
 BW = 7.4
 # Top row: FACT (left) -> DERIVED (right)
@@ -37,8 +37,8 @@ stage_text(0.8, 7.4, ['1 · FACT',
                       'TTFT 320 ms'], big=9.8)
 box(11.8, 7.4, BW, 2.5, '#16a085')
 stage_text(11.8, 7.4, ['2 · DERIVED',
-                       'sharding ⇒ bandwd-bound',
-                       'cache 35% ⇒ 2.0→1.3 rps',
+                       'sharding \u21d2',
+                       'decode bandwidth-bound',
                        'TTFT p99 210 ms'], big=9.8)
 
 # Bottom row: PATTERN (right, below DERIVED) so the flow turns clockwise

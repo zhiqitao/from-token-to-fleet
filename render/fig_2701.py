@@ -26,12 +26,13 @@ bars = ax.barh(y, frac, height=h, color='#ff8c42', edgecolor='none')
 
 # annotate within/beside each bar: the fraction, plus the underlying params
 for i in range(len(names)):
-    # fraction value at the bar end
-    ax.text(frac[i] + 0.12, y[i], f'{frac[i]:.1f}%',
-            va='center', fontsize=10.5, color='#b25a1e', fontweight='bold')
-    # total / active params annotation to the right of the row (clear of the bar)
-    ax.text(axis_max, y[i], f'  {total_b[i]}B total / {active_b[i]}B active',
-            va='center', fontsize=9.5, color='#555')
+    # fraction value shown just past the bar end (dark orange on white, so it is
+    # readable even though the bars are thin), clearly left of the total/active note
+    ax.text(frac[i] + 0.15, y[i], f'{frac[i]:.1f}%',
+            va='center', ha='left', fontsize=10.5, color='#b25a1e', fontweight='bold')
+    # total / active params annotation right-aligned at the plot's right edge (clear of the % label)
+    ax.text(axis_max + 0.8, y[i], f'  {total_b[i]}B total / {active_b[i]}B active',
+            va='center', fontsize=9.5, color='#555', ha='left')
 
 ax.set_yticks(y)
 ax.set_yticklabels(names, fontsize=11.5)

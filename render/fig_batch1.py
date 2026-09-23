@@ -147,7 +147,8 @@ def jar(x1,y1,x2,y2,c=GREY,lw=2.0):
 def concern(x,y,w,h,name,col,mech,trade):
     bbox(x,y,w,h,'#fbfbfb',col,1.6)
     bbox(x,y+h-0.66,w,0.66,col)
-    ax.text(x+w/2,y+h-0.33,name,ha='center',va='center',color='white',fontsize=9.6,fontweight='bold')
+    fs = 9.6 if len(name) <= 18 else 8.1
+    ax.text(x+w/2,y+h-0.33,name,ha='center',va='center',color='white',fontsize=fs,fontweight='bold')
     ax.text(x+0.4,y+h-1.25,mech,ha='left',va='top',fontsize=8.2,color='#222')
     ax.text(x+0.4,y+0.32,trade,ha='left',va='center',fontsize=7.8,color=col,style='italic')
 
