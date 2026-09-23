@@ -21,6 +21,7 @@ rows_y = [9.0, 6.2]
 W = 7.8; H = 1.5
 
 fig, ax = plt.subplots(figsize=(6.1, 5.77))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, 27); ax.set_ylim(0, 12.6); ax.axis('off')
 
 ax.text(13.5, 11.9, 'Red Team / Green Team cycle: probe, measure, harden, loop',
@@ -45,28 +46,16 @@ for c in [0, 1]:
     ax.annotate('', xy=(x+W+0.95, rows_y[0]+H/2), xytext=(x+W+0.15, rows_y[0]+H/2),
                 arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 
-# ---- Probe domains under step 3 (col 2, row 0) ----
-doms = [('Model behavior', 'jailbreak · persona'),
-        ('Tool use', 'escalation · fuzz'),
-        ('Retrieval', 'poisoning · injection')]
-ax.text(13.5, 5.1, 'probe domains (under step 3)', fontsize=8.5, ha='center',
-        color='#e67e22', style='italic')
-dxs = [0.8, 9.6, 18.4]
-DW = 7.8; DH = 1.9; ydom = 3.1
-for (t1, t2), x in zip(doms, dxs):
-    ax.add_patch(FancyBboxPatch((x, ydom), DW, DH, boxstyle='round,pad=0.02',
-                                fc='#fdf1ee', ec='#e67e22', lw=1.0))
-    ax.text(x+DW/2, ydom+DH/2, f'{t1}\n{t2}', ha='center', va='center',
-            fontsize=9, color='#333', linespacing=1.5)
-    ax.annotate('', xy=(x+DW/2, rows_y[1]), xytext=(x+DW/2, ydom+DH+0.15),
-                arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#e67e22'))
+# ---- Probe domains: moved to the caption/prose to reduce clutter (the reviewer's ask) ----
+# (the probe examples — jailbreak/persona, escalation/fuzz, poisoning/injection — now live
+#  in the Fig 24.1 caption, not as three extra dense boxes)
 
-# ---- Single feedback loop below the domains ----
-ax.annotate('', xy=(2.0, 1.7), xytext=(25.0, 1.7),
-            arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#a83232',
+# ---- Single strong feedback loop below the stages (Green -> next Red cycle) ----
+ax.annotate('', xy=(2.0, 1.9), xytext=(25.0, 1.9),
+            arrowprops=dict(arrowstyle='-|>', lw=3.0, color='#a83232',
                             connectionstyle='arc3,rad=-0.10'))
-ax.text(13.5, 0.8, 'loop: findings from Green Team \u2192 next Red Team cycle',
-        fontsize=8.5, ha='center', color='#a83232')
+ax.text(13.5, 0.9, 'loop: findings from Green Team → next Red Team cycle (strong feedback leg)',
+        fontsize=9, ha='center', color='#a83232', fontweight='bold')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-24/figures/fig-24-2401.png',
