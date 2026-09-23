@@ -109,6 +109,7 @@ print('Ch18 done')
 #          show "add load -> worse tail": it varies UTILIZATION (the true driver), not host count.
 #          Host count alone does not determine p99; arrival, scheduling, batching, and queueing do.
 fig, axs = plt.subplots(2, 1, figsize=(6.5, 7.6))
+fig._hermes_print_sized = True   # print-size authored at column width; regen must not re-boost/reflow
 hosts = np.array([1, 2, 4, 8, 16, 30, 60])
 per_host = 2.1
 qps = hosts * per_host
@@ -135,20 +136,20 @@ ax = axs[1]
 ax.plot(hosts, rho_vals, '-o', color='#e67e22', label='per-host utilization @ 40 rps peak')
 ax.axhline(0.70, color='#27408b', ls='--', lw=1.3, label='70% target utilization')
 ax.axhline(1.0, color='#c0392b', ls=':', lw=1.3, label='saturation (100%)')
-ax.axhspan(1.0, 2.5, color='#c0392b', hatch='///', alpha=0.08)
+ax.axhspan(1.0, 3.2, color='#c0392b', hatch='///', alpha=0.08)
 ax.text(1.4, 1.45, 'over-subscribed: too few\nhosts to serve 40 rps peak', fontsize=8, color='#c0392b', ha='left')
 # annotate the two key provisioning crossings (text parked clear of the curve/legend)
-ax.annotate('~20 hosts: saturation\n(canonical peak fleet)', xy=(19.05, 1.02), xytext=(34, 2.25),
-            fontsize=8, color='#c0392b', arrowprops=dict(arrowstyle='->', color='#c0392b'))
-ax.annotate('≈28 hosts: 70% target\n(⌈40/(2.1×0.70)⌉ = 28)', xy=(27.2, 0.68), xytext=(38, 1.55),
-fontsize=8, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b'))
+ax.annotate('~20 hosts: saturation\n(canonical peak fleet)', xy=(19.05, 1.02), xytext=(37, 2.9),
+            fontsize=8, color='#c0392b', arrowprops=dict(arrowstyle='->', color='#c0392b', lw=1.2))
+ax.annotate('≈28 hosts: 70% target\n(⌈40/(2.1×0.70)⌉ = 28)', xy=(27.2, 0.68), xytext=(42, 2.0),
+fontsize=8, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b', lw=1.2))
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Offered-load utilization (ρ = λ / (hosts × analytical bound))', fontsize=10)
 ax.set_title('Offered-load utilization vs host count (analytical service bound, not GPU util)', fontsize=9.5)
-ax.legend(fontsize=8.5, loc='upper right')
+ax.legend(fontsize=8.5, loc='lower right', frameon=False, framealpha=0)
 ax.grid(alpha=0.3)
 ax.tick_params(labelsize=9)
-ax.set_ylim(0, 2.5)
+ax.set_ylim(0, 3.2)
 plt.tight_layout()
 plt.savefig(base % (20, 20, 20), dpi=150); plt.close()
 print('Ch20 done')

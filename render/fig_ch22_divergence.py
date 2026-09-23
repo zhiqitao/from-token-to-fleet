@@ -19,7 +19,8 @@ lin = 2 * N * L
 quad = 4 * nl * (L ** 2) * d          # exact quadratic attention term per request
 decode = 2 * N * np.ones_like(L)      # per-token decode FLOPs, context-independent
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 5.4), sharey=False)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 5.6), sharey=False)
+fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 
 # Left panel: prefill FLOPs per request, DECOMPOSED into its two components so the
 # growing quadratic attention term is visible on its own (not just the sum).
@@ -53,20 +54,20 @@ ax2.set_ylim(1e-5, 1e-3)
 ax2.grid(alpha=0.3, which='both')
 ax2.text(1.2, 2.5e-5, '≈ 1.4e-4 PFLOP/token\n(fixed; same at all context)', fontsize=8, color='#27408b')
 
-fig.text(0.5, 0.975,
+fig.text(0.5, 0.965,
          '⚠  LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN',
          ha='center', va='top', fontsize=11, fontweight='bold', color='#7a0000',
          bbox=dict(boxstyle='round,pad=0.45', facecolor='#fff2f2', edgecolor='#c0392b', lw=2.0))
-fig.text(0.5, 0.928,
+fig.text(0.5, 0.915,
          'DO NOT COMPARE Y-AXIS MAGNITUDES DIRECTLY  — different units, different baselines',
          ha='center', va='top', fontsize=9, fontweight='bold', color='#c0392b')
-fig.text(0.5, 0.885,
+fig.text(0.5, 0.872,
          'Left = total prefill compute for ONE request (grows with context L). Right = compute for ONE generated token '
          '(fixed 2N, context-independent). The quadratic term is the textbook 4·n_layers·L²·d (matches Chapter 8). '
          '[ILLUSTRATIVE][DERIVED]',
          ha='center', va='top', fontsize=7.8, color='#555', wrap=True)
 
-plt.tight_layout(rect=(0, 0.07, 1, 0.86))
+plt.tight_layout(rect=(0, 0.07, 1, 0.82))
 plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.png', dpi=150)
 plt.close()
 print('wrote fig-22-2201 (decomposed prefill: linear + quadratic; prominent per-request-vs-per-token warning)')

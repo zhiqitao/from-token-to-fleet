@@ -33,7 +33,6 @@ BOOST = float(os.environ.get("BOOST", "1.45"))
 # diagram (json base) -> target figure file relative to design/manuscript
 DEFAULTS = {
     "ch5-two-leg":            "design/manuscript/chapter-05/figures/fig-05-0501",
-    "fleet-hierarchy":        "design/manuscript/chapter-17/figures/fig-17-1701",
     "spine-decision-loop":    "design/manuscript/chapter-22/figures/fig-22-2201",
     "agent-loop-lifecycle":  "design/manuscript/chapter-19/figures/fig-19-1901",
 }
