@@ -1,97 +1,84 @@
+#!/usr/bin/env python3
+"""Preface Fig 2 — two ways to read the book (REDESIGN).
+
+The prior 'preface-trace' figure crammed all 26 chapters + appendix into six small
+Part boxes, so the layering-by-parts vs quantity-to-decision contrast faded into a wall
+of tiny text. This version rebuilds it as TWO LARGE EXPLICIT PATHS side by side, each a
+coarse 6-step walk with far fewer words (the per-chapter detail lives in the TOC/prose):
+
+  LEFT  — "Read layer-by-layer (Parts)"  : Part I -> II -> ... -> VI, each a single card.
+  RIGHT — "Read by question (traceability)": a concrete quantity -> decision chain
+          (token -> cost & KV floor -> fits host? -> which phase binds? -> few or many
+          hosts? -> who serves it?) that traces how one quantity cascades, so the
+          two reading modes are spatially distinct at a glance.
+"""
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch, Rectangle
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
-# ---- preface traceability map: 2 columns of Parts (I-III / IV-VI).  One
-#      chapter per row inside each part band; derived quantity (left zone)
-#      and decision hint (right zone) are kept short so they never collide.
+fig, ax = plt.subplots(figsize=(6.1, 5.6))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow
+ax.set_xlim(0, 20); ax.set_ylim(0, 11.6); ax.axis('off')
 
+# Title
+ax.text(10, 11.25, 'Read the book two ways', fontsize=13, fontweight='bold', ha='center', color='#1a1a1a')
+ax.text(10, 10.7, 'layer-by-layer (Parts), or question-by-question (traceability)', fontsize=9,
+        ha='center', color='#555', style='italic')
+
+# ---- LEFT PATH: layer-by-layer ----
+LX0, LW = 0.6, 8.4
+ax.text(LX0 + LW/2, 9.9, 'A · LAYER-BY-LAYER  (Parts I → VI)', fontsize=10,
+        fontweight='bold', ha='center', color='#27408b')
 parts = [
-    ('Part I — The Token', [
-        ('Ch1', 'token = cost', 'price & KV floor'),
-        ('Ch2', 'decode vs prefill', 'which binds'),
-        ('Ch3', 'total vs active', 'model tier'),
-        ('Ch4', 'six-dim fingerprint', 'to characterize'),
-    ]),
-    ('Part II — The Workload', [
-        ('Ch5', 'capability screen', 'model family'),
-        ('Ch6', 'SLOs + goodput', 'measure & gate'),
-    ]),
-    ('Part III — The System', [
-        ('Ch7', 'KV/token × ctx', 'fit & concurrency'),
-        ('Ch8', 'roofline vs ridge', 'compute/mem-bound'),
-        ('Ch9', 'interconnect', 'comm cost'),
-        ('Ch10', 'parallelism', 'GPUs & split'),
-        ('Ch11', 'batching/cache/P-D', 'serving stack'),
-    ]),
-    ('Part IV — The Architecture', [
-        ('Ch12', 'candidate arch.', 'synthesis & score'),
-        ('Ch13', 'tier ladder', 'deploy tier'),
-        ('Ch14', 'two-stage bmark', 'accept / reject'),
-        ('Ch15', 'congestion & MFU', 'fleet saturated?'),
-        ('Ch16', 'TCO · 3 modes', 'host / cloud / API'),
-    ]),
-    ('Part V — The Fleet', [
-        ('Ch17', 'H = λL/(C·util)', 'fleet size'),
-        ('Ch18', 'route by cap/cost', 'multi-model routing'),
-        ('Ch19', 'KV per agent turn', 'depth × capacity'),
-        ('Ch20', 'fleet req/s', 'QPS vs host'),
-        ('Ch21', 'gate + rollback', 'safe rollout'),
-    ]),
-    ('Part VI — The Architect', [
-        ('Ch22', 'bottleneck diverge', 'where to invest'),
-        ('Ch23', 'vague ask → bounds', 'scope it'),
-        ('Ch24', 'red/green probe', 'stress-test design'),
-        ('Ch25', 'ADR template', 'record decision'),
-        ('Ch26', 'workload → strategy', 'pick pattern'),
-        ('ApA', '2026 constants', 're-derive anchors'),
-    ]),
+    'I · The Token', 'II · The Workload', 'III · The System',
+    'IV · The Architecture', 'V · The Fleet', 'VI · The Architect',
 ]
+yp = 9.4
+ph = 1.05
+pgap = 0.32
+for i, p in enumerate(parts):
+    yb = yp - i*(ph+pgap) - ph
+    ax.add_patch(FancyBboxPatch((LX0, yb), LW, ph, boxstyle='round,pad=0.02,rounding_size=0.18',
+                                fc='#eaf1fb', ec='#3a6ea5', lw=1.6))
+    ax.text(LX0 + LW/2, yb + ph/2, p, fontsize=10, fontweight='bold', ha='center',
+            va='center', color='#27408b')
+    if i < 5:
+        # arrow in the left margin (not through the card text)
+        ax.add_patch(FancyArrowPatch((LX0 - 0.5, yb + ph/2), (LX0 - 0.5, yb + ph/2 + ph + pgap),
+                     arrowstyle='-|>', mutation_scale=13, lw=1.8, color='#555'))
+ax.text(LX0 + LW/2, 0.62, 'build the substrate, then the discipline', fontsize=8,
+        ha='center', color='#555', style='italic')
 
-fig, ax = plt.subplots(figsize=(7.4, 9.6))
-ax.set_xlim(0, 16.0); ax.set_ylim(0, 42.0); ax.axis('off')
-ax.set_title('Read the book two ways: layer-by-layer (parts) or '
-             'question-by-question (traceability)\neach chapter supplies a '
-             'derived quantity, which feeds a decision',
-             fontsize=8.8, fontweight='bold')
-
-COLW = 7.2          # part-band width (2 columns)
-X0 = 0.4
-col_x = [X0, X0 + 7.8]
-col_parts = [parts[0:3], parts[3:6]]
-ROW_H = 1.30
-HEAD = 1.20
-GAP = 0.50          # inter-band gap (was 0.7)
-
-for colidx, colgrp in enumerate(col_parts):
-    bx = col_x[colidx]
-    y_cursor = 41.0
-    for ptitle, rows in colgrp:
-        band_h = HEAD + ROW_H * len(rows) + 0.35
-        band_top = y_cursor
-        y_cursor = band_top - band_h - GAP
-        ax.add_patch(FancyBboxPatch((bx - 0.15, band_top - band_h),
-                     COLW + 0.3, band_h, boxstyle='round,pad=0.02',
-                     fc='#eef2f7', ec='#3a6ea5', lw=1.1))
-        # Part title: clear top padding inside the band (not flush with border)
-        ax.text(bx + 0.10, band_top - 0.42, ptitle, fontsize=8.9,
-                fontweight='bold', color='#27408b', va='center')
-        for ci, (tag, qty, dec) in enumerate(rows):
-            ry = band_top - HEAD - (ci + 0.5) * ROW_H
-            rx = bx + 0.14
-            ax.add_patch(Rectangle((rx, ry - 0.16), 0.60, 0.32, fc='#27408b',
-                                   ec='white', lw=0.6))
-            ax.text(rx + 0.30, ry, tag, fontsize=8.4, ha='center', va='center',
-                    color='white', fontweight='bold')
-            # derived quantity — left zone
-            ax.text(rx + 0.78, ry, qty, fontsize=8.6, color='#333', va='center')
-            # decision — anchored to the band's right edge (never overruns)
-            ax.text(rx + COLW - 0.18, ry, '→ ' + dec, fontsize=8.4,
-                    color='#555', va='center', ha='right')
+# ---- RIGHT PATH: question-by-question (traceability) ----
+RX0, RW = 11.2, 8.2
+ax.text(RX0 + RW/2, 9.9, 'B · QUESTION-BY-QUESTION', fontsize=10,
+        fontweight='bold', ha='center', color='#c0392b')
+steps = [
+    ('token → cost', 'Ch1'),
+    ('fits host? → KV', 'Ch3/7'),
+    ('which phase binds?', 'Ch2/8'),
+    ('1 host or fleet?', 'Ch17'),
+    ('who serves it?', 'Ch18'),
+    ('is it the right call?', 'Ch21/26'),
+]
+for i, (q, ch) in enumerate(steps):
+    yb = 9.4 - i*(ph+pgap) - ph
+    ax.add_patch(FancyBboxPatch((RX0, yb), RW, ph, boxstyle='round,pad=0.02,rounding_size=0.18',
+                                fc='#fdecea', ec='#c0392b', lw=1.6))
+    ax.text(RX0 + 0.35, yb + ph/2, q, fontsize=9.5, fontweight='bold', ha='left',
+            va='center', color='#7b241c')
+    ax.text(RX0 + RW - 0.35, yb + ph/2, ch, fontsize=8.5, ha='right', va='center', color='#a53226')
+    if i < 5:
+        ax.add_patch(FancyArrowPatch((RX0 + RW + 0.5, yb + ph/2), (RX0 + RW + 0.5, yb + ph/2 + ph + pgap),
+                     arrowstyle='-|>', mutation_scale=13, lw=1.8, color='#c0392b'))
+ax.text(RX0 + RW/2, 0.62, 'each question → the chapter that answers it', fontsize=8,
+        ha='center', color='#555', style='italic')
 
 plt.tight_layout()
-plt.savefig('render/latex/assets/preface-trace.pdf', format='pdf', bbox_inches='tight')
 plt.savefig('render/latex/assets/preface-trace.png', dpi=200, bbox_inches='tight')
+import matplotlib as mpl
+with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('render/latex/assets/preface-trace.pdf', format='pdf', bbox_inches='tight')
 plt.close()
-print('wrote preface-trace.png/.pdf')
+print('wrote preface-trace.png/.pdf (two-path redesign)')
