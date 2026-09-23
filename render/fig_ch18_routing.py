@@ -38,6 +38,7 @@ def arrow(x1,y1,x2,y2,color='#555'):
                 arrowprops=dict(arrowstyle='-|>', lw=1.8, color=color, shrinkA=0, shrinkB=0))
 
 fig, ax = plt.subplots(figsize=(6.1, 4.3))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
 ax.set_title('Routing every request to the right specialised model (sequential cascade)',
              fontsize=FS+1.2, fontweight='bold', ha='center', color='#1a1a1a', pad=12)
