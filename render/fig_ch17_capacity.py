@@ -5,12 +5,12 @@ The Archify 'fleet-hierarchy' figure showed only the LB->N-hosts fan-out topolog
 the same composition as Fig 10.1 — and conveyed none of the *capacity* content the
 caption promises (sizing above peak, N-1 residual after a host drains). This matplotlib
 redesign shows the actual argument: offered load ramps toward a burst peak; a single
-host's ~2.1 req/s analytical bound is far below it; the fleet must be sized ABOVE peak;
+host's ~2.0 req/s analytical planning bound is far below it; the fleet must be sized ABOVE peak;
 and if one host drains (health-check fail) the N-1 residual must still clear the burst.
 
-Canonical numbers (frozen): per-host ~2.1 req/s analytical service bound; N = 4 in the
-canonical scenario (aggregate ~8.4 req/s); after one host drains, the N-1 = 3 residual
-is ~6.3 req/s, still above the ~5.5 req/s burst peak.
+Canonical numbers (frozen): per-host ~2.0 req/s analytical planning bound (C/W = 17.5/8.6);
+N = 4 in the canonical scenario (aggregate ~8.0 req/s); after one host drains, the N-1 = 3
+residual is ~6.0 req/s, still above the ~5.5 req/s burst peak.
 """
 import matplotlib
 matplotlib.use('Agg')
@@ -27,11 +27,11 @@ t = np.linspace(0, 10, 300)
 offered = 1.9 + 3.6*np.exp(-((t-6.3)**2)/2.0)
 peak = offered.max()                       # ~5.5 req/s
 
-host_cap = 2.1                             # one host analytical bound
+host_cap = 2.0                             # one host analytical planning bound (C/W = 17.5/8.6 ≈ 2.0)
 
 # Reference capacity levels (at the analytical per-host bound).
-N4 = 4 * host_cap          # ~8.4
-N1res = 3 * host_cap       # ~6.3  (one host drains)
+N4 = 4 * host_cap          # ~8.0
+N1res = 3 * host_cap       # ~6.0  (one host drains)
 
 # Offered load burst.
 ax.fill_between(t, 0, offered, color='#c0392b', alpha=0.14)
@@ -39,13 +39,13 @@ ax.plot(t, offered, color='#c0392b', lw=2.0, label='offered load (burst)')
 
 # Reference lines.
 ax.axhline(host_cap, color='#8a8a8a', ls='--', lw=1.4)
-ax.text(9.5, host_cap-0.22, 'one host\n~2.1 req/s', fontsize=8, color='#666',
+ax.text(9.5, host_cap-0.22, 'one host\n~2.0 req/s', fontsize=8, color='#666',
         ha='right', va='top')
 ax.axhline(N1res, color='#e67e22', ls=':', lw=2.0)
-ax.text(0.9, N1res+0.20, 'N-1 residual (~6.3, 1 host drains)', fontsize=8,
+ax.text(0.9, N1res+0.20, 'N-1 residual (~6.0, 1 host drains)', fontsize=8,
         color='#b5590a', ha='left', fontweight='bold')
 ax.axhline(N4, color='#3a6ea5', lw=1.8)
-ax.text(0.9, N4+0.20, 'N = 4 fleet capacity (~8.4)', fontsize=8, color='#27408b',
+ax.text(0.9, N4+0.20, 'N = 4 fleet capacity (~8.0)', fontsize=8, color='#27408b',
         ha='left', fontweight='bold')
 
 # Call-outs in clear whitespace.
@@ -72,8 +72,8 @@ ax.legend(handles=[Line2D([], [], color='#c0392b', lw=2),
                    Line2D([], [], color='#8a8a8a', ls='--', lw=1.4),
                    Line2D([], [], color='#3a6ea5', lw=1.8),
                    Line2D([], [], color='#e67e22', ls=':', lw=2)],
-          labels=['offered load (burst)', 'one host bound (~2.1)',
-                  'N = 4 fleet capacity (~8.4)', 'N-1 residual (1 host drains)'],
+          labels=['offered load (burst)', 'one host bound (~2.0)',
+                  'N = 4 fleet capacity (~8.0)', 'N-1 residual (1 host drains)'],
           fontsize=7.5, loc='lower center', bbox_to_anchor=(0.5, -0.52), ncol=2, frameon=False)
 plt.tight_layout(rect=(0, 0, 1, 0.93))
 plt.savefig('design/manuscript/chapter-17/figures/fig-17-1701.png', dpi=200,

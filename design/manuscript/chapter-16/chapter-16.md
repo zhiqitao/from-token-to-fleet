@@ -32,19 +32,19 @@ The decision shape is a **break-even graph**: at low volume, managed/cloud-and-s
 
 ### Size the fleet first, then price it
 
-TCO is meaningless until we know **how many hosts the workload actually requires**. The reviewer's sharpest point stands: a single 8×H100 host can only sustain ~2.1 req/s under the KV/latency bound (Chapter 17/20), so it cannot serve even the canonical 10 rps average, let alone the 40 rps peak. We therefore size the fleet first (Ch 17) and price it second.
+TCO is meaningless until we know **how many hosts the workload actually requires**. The reviewer's sharpest point stands: a single 8×H100 host can only sustain ~2.0 req/s under the KV/latency analytical planning bound (Chapter 17/20), so it cannot serve even the canonical 10 rps average, let alone the 40 rps peak. We therefore size the fleet first (Ch 17) and price it second.
 
-**Step 1 — fleet size.** The canonical workload requires N_hosts = max(N_throughput, N_KV, N_SLO). With the ~8.6 s service time and C≈18 KV-resident requests/host (Ch 17):
+**Step 1 — fleet size.** The canonical workload requires N_hosts = max(N_throughput, N_KV, N_SLO). With the ~8.6 s service time and C≈17.5 KV-resident requests/host (Ch 17; byte-accurate 17.51, conservative integer ceiling 17):
 
 | Sizing bound | Average (10 rps) | Peak (40 rps) |
 |---|---|---|
-| Throughput (per-host ~2.1 req/s) | ⌈10/2.1⌉ = 5 hosts | ⌈40/2.1⌉ = 20 hosts |
-| KV (in-flight λ·W / C) | ⌈10×8.6/18⌉ = 5 hosts | ⌈40×8.6/18⌉ = 20 hosts |
+| Throughput (per-host ~2.0 req/s) | ⌈10/2.0⌉ = 5 hosts | ⌈40/2.0⌉ = 20 hosts |
+| KV (in-flight λ·W / C) | ⌈10×8.6/17.5⌉ = 5 hosts | ⌈40×8.6/17.5⌉ = 20 hosts |
 | **N_hosts (max)** | **~5 hosts** | **~20 hosts** |
 
-So the canonical workload's *peak* requires roughly **20 hosts** (FP16 KV, full utilization; ~28 at the 70% utilization target), and even the *average* needs ~5 — a fleet, not one box. (FP8 KV roughly halves this to ~11 hosts at peak.) **Every TCO figure below is scaled to this fleet requirement — the earlier drafts priced a single host, which understated the cost by roughly 4–20×.** 
+So the canonical workload's *peak* requires roughly **20 hosts** (FP16 KV, full utilization; **29** at the 70% utilization target), and even the *average* needs ~5 — a fleet, not one box. (FP8 KV roughly halves this to ~11 hosts at peak.) **Every TCO figure below is scaled to this fleet requirement — the earlier drafts priced a single host, which understated the cost by roughly 4–20×.** 
 
-*Provisioning sensitivity (explicit):* the TCO figures below **assume the full-utilization fleet (≈20 hosts, provisioned exactly at the 40 rps peak without headroom)** so that the cost comparison is not double-counting idle capacity. If instead the fleet is provisioned at the 70% utilization target that the sizing rule (Ch17 Table 17-1) actually uses — ≈28 hosts — capex scales to ~1.4×: ≈$163K capex + ≈$30K opex + ≈$10K staff ≈ **~$203K/month**, and per-request cost rises to ≈ $203K / 26M ≈ **~$7.8 per 1,000 requests** (vs the $5.7/1K below). The durable conclusion — self-host loses to scale-to-load cloud on this workload — holds under either provisioning policy; the *specific* $5.7/1K number is the full-utilization figure and should be read with that assumption.
+*Provisioning sensitivity (explicit):* the TCO figures below **assume the full-utilization fleet (≈20 hosts, provisioned exactly at the 40 rps peak without headroom)** so that the cost comparison is not double-counting idle capacity. If instead the fleet is provisioned at the 70% utilization target that the sizing rule (Ch17 Table 17-1) actually uses — **29 hosts** — capex scales to ~1.4×: ≈$163K capex + ≈$30K opex + ≈$10K staff ≈ **~$203K/month**, and per-request cost rises to ≈ $203K / 26M ≈ **~$7.8 per 1,000 requests** (vs the $5.7/1K below). The durable conclusion — self-host loses to scale-to-load cloud on this workload — holds under either provisioning policy; the *specific* $5.7/1K number is the full-utilization figure and should be read with that assumption.
 
 **Step 2 — price each mode on N_hosts ≈ 20 (FP16, provisioned for the 40 rps peak).**
 

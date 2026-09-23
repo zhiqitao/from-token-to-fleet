@@ -88,9 +88,9 @@ These open questions define the next research cycle. Each is framed as a HYPOTHE
 
 ## 8. End-of-Chapter Mini-Case: The Capstone: Composing the Patterns
 
-**Scenario.** A growing AI startup moves from a single-node prototype to a fleet serving ~3,000 users. The initial deployment is a 70B FP16 model on a single 8×H100 node (the canonical host). Note the per‑host ceiling: with the canonical ~8.6 s service time and C ≈ 18 KV‑resident requests, one host serves ~2.1 req/s (Ch 17/20) — so the figures below are expressed as **TTFT p99** on that host (the sub‑second latencies are time‑to‑first‑token, not end‑to‑end), and the rps is the ~2 req/s the host can actually sustain, not a multiple of it.
+**Scenario.** A growing AI startup moves from a single-node prototype to a fleet serving ~3,000 users. The initial deployment is a 70B FP16 model on a single 8×H100 node (the canonical host). Note the per‑host ceiling: with the canonical ~8.6 s service time and C ≈ 17.5 KV‑resident requests, one host serves ~2.0 req/s (Ch 17/20) — so the figures below are expressed as **TTFT p99** on that host (the sub‑second latencies are time‑to‑first‑token, not end‑to‑end), and the rps is the ~2 req/s the host can actually sustain, not a multiple of it.
 
-**Step 1 — Instrument.** FACTs collected: request rate ~2 rps (within the ~2.1 req/s per‑host ceiling), GPU utilization 45%, per-query latency breakdown (TTFT leg): model compute 320 ms, I/O 80 ms, cache miss 50 ms.
+**Step 1 — Instrument.** FACTs collected: request rate ~2 rps (within the ~2.0 req/s per‑host analytical planning ceiling), GPU utilization 45%, per-query latency breakdown (TTFT leg): model compute 320 ms, I/O 80 ms, cache miss 50 ms.
 
 **Step 2 — Pattern Apply.** The architect applies Pattern A (inference sharding across an 8×H100 node) and Pattern B (semantic response cache with 5-min TTL). DERIVED: sharding distributes the model across the node so decode is bandwidth-bound; cache hit ratio 35% reduces the number of requests that reach the model engine from ~2.0 rps to ~1.3 rps. New TTFT p99: 210 ms.
 

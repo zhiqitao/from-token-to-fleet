@@ -176,16 +176,16 @@ These open questions are not blockers; they are signals for when the practice ma
 
 ## 8. End-of-Chapter Mini-Case: An ADR for the KV-Bound Fleet
 
-**Scenario:** The fleet serves the canonical RAG Q&A workload on an 8×H100 host. At peak the KV cache is the binding constraint: within the canonical ~436 GB practical KV budget, a full-precision FP16 KV at ~2.62 MB/token (the canonical per-token figure; ~2.5 MiB) lets a single host hold ~18 concurrent 9,500-token requests. The concurrency ceiling is now limiting throughput below the target request rate.
+**Scenario:** The fleet serves the canonical RAG Q&A workload on an 8×H100 host. At peak the KV cache is the binding constraint: within the canonical ~436 GB practical KV budget, a full-precision FP16 KV at ~2.62 MB/token (the canonical per-token figure; ~2.5 MiB) lets a single host hold ~17.5 concurrent 9,500-token requests (byte-accurate 17.51; conservative integer ceiling 17). The concurrency ceiling is now limiting throughput below the target request rate.
 
 **The ADR (draft):**
 
 - **Title:** ADR 0017 — KV Cache Precision: FP16 vs FP8
 - **Status:** Proposed
-- **Context:** The canonical 70B RAG workload is KV-memory-bound at decode (Ch. 15). At the ~436 GB practical KV budget, full FP16 KV caps concurrency at ~18 requests/host, and Ch. 17 shows that ~40 rps at the canonical ~8.6 s service time implies ~344 in-flight requests — far more than one host can hold (a single host holds ~18 concurrent). To reach the target request rate we need either more host capacity or more KV residency per host.
-- **Decision:** Render the KV cache in FP8 for the long-context decode path, keeping prefill and the retrieval/prompt phase in FP16. FP8 KV cuts KV residency to ~54% of the FP16 figure (vLLM's measured FP8-KV ratio), so the same ~436 GB budget holds ~33 concurrent 9,500-token requests instead of ~18 — roughly doubling per-host concurrency without adding a host.
+- **Context:** The canonical 70B RAG workload is KV-memory-bound at decode (Ch. 15). At the ~436 GB practical KV budget, full FP16 KV caps concurrency at ~17.5 requests/host, and Ch. 17 shows that ~40 rps at the canonical ~8.6 s service time implies ~344 in-flight requests — far more than one host can hold (a single host holds ~17.5 concurrent). To reach the target request rate we need either more host capacity or more KV residency per host.
+- **Decision:** Render the KV cache in FP8 for the long-context decode path, keeping prefill and the retrieval/prompt phase in FP16. FP8 KV cuts KV residency to ~54% of the FP16 figure (vLLM's measured FP8-KV ratio), so the same ~436 GB budget holds ~32.4 concurrent 9,500-token requests instead of ~17.5 — roughly doubling per-host concurrency without adding a host.
 - **Consequences:**
-  - Positive: KV residency per request falls from ~24.9 GB (FP16) to ~13.4 GB (FP8, 54% of BF16) at the 9,500-token max, so the canonical budget supports ~33 concurrent rather than ~18. This is a memory lever, not a compute lever: it does not change decode speed per token, it raises the concurrency the host can hold under the same KV budget.
+  - Positive: KV residency per request falls from ~24.9 GB (FP16) to ~13.4 GB (FP8, 54% of BF16) at the 9,500-token max, so the canonical budget supports ~32.4 concurrent requests rather than ~17.5. This is a memory lever, not a compute lever: it does not change decode speed per token, it raises the concurrency the host can hold under the same KV budget.
   - Negative: FP8 KV has lower precision in the cached K/V tensors, which can add small retrieval-fidelity error on long contexts. The trade-off is memory capacity vs long-context reconstruction fidelity; it must be validated on the held-out Q&A set, not assumed.
 - **Alternatives considered:**
   1. **Add capacity** — rejected as the first move: the canonical peak already needs ~20 hosts (Ch 16/17), so "adding a second host" misunderstands the scale; relieving the memory ceiling by adding hosts multiplies the fleet cost (each 8×H100 is ~$5.8K/mo amortized), while FP8 KV relaxes the same ceiling without commissioning new hardware.

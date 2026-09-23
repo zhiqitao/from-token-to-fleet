@@ -114,7 +114,7 @@ def main():
     print("Step 1 -- fleet sizing (Ch 17/20):")
     print(f"  service time W    = {service_time:.2f} s  ({a.ttft:.2f} s prefill + {a.out_tok:.0f} x {a.ms_per_tok:.0f} ms decode)")
     print(f"  KV per request    = {kv_gb_per_req:.2f} GB (FP16) -> {kv_gb_per_req*kv_factor:.2f} GB ({'FP8' if a.fp8 else 'FP16'})")
-    print(f"  per-host C        = {C:.0f} concurrent  -> per-host ~{per_host_rps:.2f} req/s")
+    print(f"  per-host C        = {C:.1f} concurrent  -> per-host ~{per_host_rps:.2f} req/s")
     print(f"  N_hosts (avg)     = {N_avg}")
     print(f"  N_hosts (peak)    = {N_peak}   (util target {a.util:.0%}) -> provisioning {n_hosts}")
     print()

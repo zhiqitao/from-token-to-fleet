@@ -101,7 +101,7 @@ print('Ch18 done')
 # The four-state (Plan→Execute→Observe→Decide) lifecycle figure is produced by
 # the Archify pipeline and checked in as fig-19-1901.{png,pdf}.
 
-# ---- Ch20: fleet QPS + p99 latency (Little-bound ~2.1 req/s/host; ILLUSTRATIVE) ----
+# ---- Ch20: fleet QPS + p99 latency (Little-bound ~2.0 req/s/host; ILLUSTRATIVE) ----
 # Vertical 2-panel at column width so fonts print near-native.
 # Panel 1: throughput vs host count (ideal linear, simplified — a defensible model-derived bound).
 # Panel 2: p99 QUEUEING latency vs utilization for ONE service node at a FIXED arrival rate,
@@ -111,14 +111,14 @@ print('Ch18 done')
 fig, axs = plt.subplots(2, 1, figsize=(6.5, 7.6))
 fig._hermes_print_sized = True   # print-size authored at column width; regen must not re-boost/reflow
 hosts = np.array([1, 2, 4, 8, 16, 30, 60])
-per_host = 2.1
+per_host = 2.0
 qps = hosts * per_host
 ax = axs[0]
-ax.plot(hosts, qps, '-o', color='#3a6ea5', label='ideal linear (2.1 req/s/host)')
+ax.plot(hosts, qps, '-o', color='#3a6ea5', label='ideal linear (2.0 req/s/host)')
 ax.plot(hosts, qps*0.9, '--s', color='#c0392b', label='with scheduling overhead (~90%)')
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Fleet throughput (req/s)', fontsize=10)
-ax.set_title('Fleet capacity (KV/service-time analytical bound, ~2.1 req/s/host)', fontsize=10)
+ax.set_title('Fleet capacity (KV/service-time analytical bound, ~2.0 req/s/host)', fontsize=10)
 ax.legend(fontsize=9)
 ax.grid(alpha=0.3)
 ax.tick_params(labelsize=9)
@@ -128,8 +128,8 @@ ax.tick_params(labelsize=9)
 # and adding hosts reduces per-host utilization -> more headroom -> lower expected tail.
 # Host count alone does not set p99; the quantity that does is per-host utilization,
 # which depends on arrival profile, scheduling, batching, and the service-time distribution.
-# Canonical per-host capacity = ~2.1 req/s (KV/latency bound); peak load = 40 rps.
-cap_per_host = 2.1
+# Canonical per-host capacity = ~2.0 req/s (KV/latency analytical bound); peak load = 40 rps.
+cap_per_host = 2.0
 peak = 40.0
 rho_vals = (peak/hosts)/cap_per_host   # per-host utilization at the canonical peak load
 ax = axs[1]
@@ -141,7 +141,7 @@ ax.text(1.4, 1.45, 'over-subscribed: too few\nhosts to serve 40 rps peak', fonts
 # annotate the two key provisioning crossings (text parked clear of the curve/legend)
 ax.annotate('~20 hosts: saturation\n(canonical peak fleet)', xy=(19.05, 1.02), xytext=(37, 2.9),
             fontsize=8, color='#c0392b', arrowprops=dict(arrowstyle='->', color='#c0392b', lw=1.2))
-ax.annotate('≈28 hosts: 70% target\n(⌈40/(2.1×0.70)⌉ = 28)', xy=(27.2, 0.68), xytext=(42, 2.0),
+ax.annotate('≈29 hosts: 70% target\n(⌈40/(2.0×0.70)⌉ = 29)', xy=(28.6, 0.70), xytext=(42, 2.0),
 fontsize=8, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b', lw=1.2))
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Offered-load utilization (ρ = λ / (hosts × analytical bound))', fontsize=10)
