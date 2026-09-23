@@ -31,12 +31,15 @@ We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (c
 
 **Step 1 — representative queries.** We sample real user questions and run them through the rag pipeline to produce the actual prompt shapes, matching the ~9.2K-in / ~300-out token profile with the model's own tokenizer (not a heuristic). [2°]
 
-**Step 2 — measurement protocol.** We load the candidate server with the concurrency it can actually hold while we observe it across many requests. A single 8×H100 host has a KV-residency ceiling of C ≈ 18 concurrent full-context requests (Ch 11/13/17), i.e. ~2.1 req/s at the ~8.6 s canonical service time — so we load it at ~18 concurrent (~2.1 req/s), not at a concurrency it cannot physically hold. (The full ~40 rps peak — ~344 requests in flight per Little's law — is a *fleet* burst served by on the order of ~20 hosts, Ch 16-17; a single-host benchmark cannot and should not be loaded to that.) We record, across many requests:
+**Step 2 — sweep the offered load, do NOT test a single point.** The analytical concurrency figure (C ≈ 17.5, ~2.0 req/s) is a *starting hypothesis*, not the answer. We sweep the offered load/concurrency across a range and measure the tail at each point, so the benchmark finds the SLO-satisfying operating regime instead of validating the model at the point the model selected. Run a load series (e.g. 2, 4, 8, 12, 16, 20, 24, 28 concurrent at the canonical ~9.2K-in/~300-out profile, scaled to a host's achievable concurrency) and record, at each level:
 
 - **TTFT** p50/p95/p99 (must be ≤ 1.2 s median, ≤ 2 s p95).
 - **TPOT** p50/p95 (≤ ~25 ms median).
 - **Goodput** — tokens/s that meet the SLO (Ch6), not raw throughput.
 - **KV cache utilization** and prefix-cache hit ratio (to validate the serving choices of Ch11).
+- **Admission / rejection** — the offered-load level at which the server starts queueing or rejecting (the saturation knee).
+
+The analytical ceiling sets the *range* of the sweep and flags which levels are physically impossible (a single 8×H100 host cannot hold ~344 in-flight requests; that is a fleet burst served by ~20 hosts, Ch 16-17). The benchmark then reads off the highest offered load that still meets the SLO — that *measured SLO-goodput* is the provisioning input, not the analytical C/W. The server is loaded at the concurrency it can actually hold, and we sweep across that achievable range rather than testing one number.
 
 **Step 3 — read the result.** Suppose candidate A (a 70B dense on 8×H100) shows p95 TTFT 1.9 s and goodput ~19,800 tok/s at the ~17.5-concurrent / ~2.0-req-per-second analytical load it can hold — **meets** the per-request TTFT SLO at that concurrency (the ~19,800 tok/s is also the host's prefill ceiling from Ch 8, and it is the right order for the ~2.0 req/s × ~9.5K tokens/request ≈ ~19K tok/s demand it serves there). Candidate B (a smaller 7B) shows 0.6 s TTFT — much faster — but scores lower on the capability screen for the retrieval-QA quality threshold. We therefore *select* A for deployment (capability + deployment both pass), not B (capability fails despite speed). The benchmark did not score one number; it reproduced the decision. [ILLUSTRATIVE][DERIVED]
 
