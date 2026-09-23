@@ -81,11 +81,12 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 | Prefill: input tokens | 9,200 | 1,200 prompt + 8K context [ILLUSTRATIVE][DERIVED] |
 | Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 ×70e9 ×9.2e3 ≈ 1.29 ×10^15 [DERIVED] |
 | H100 BF16 dense compute | 989 TFLOPS | NVIDIA H100 BF16 tensor-core peak [1P][FACT] |
-| Prefill: compute verdict | compute-bound | 1.29 PFLOP / ~1.08 s ≈ 1.19 PFLOPS > 0.989 PFLOPS peak → single H100 insufficient for real-time prefill [DERIVED] |
+| Prefill: regime verdict | compute-bound regime | arithmetic intensity ~9.2K FLOP/byte > ridge ~295 → on the compute-bound side of the roofline [DERIVED] |
+| Prefill: single-H100 capacity | insufficient for real-time prefill | 1.29 PFLOP / ~1.08 s ≈ 1.19 PFLOPS demand > 0.989 PFLOPS H100 peak → one H100 cannot meet the TTFT deadline under this analytical model [DERIVED] |
 
 ![Fig 2.2 — Prefill and decode sit on an arithmetic-intensity continuum, split by the roofline ridge. Low-batch decode (streaming weights per token) lands at ~1 FLOP/byte — the memory-bound side; long-prompt prefill lands at high intensity — the compute-bound side. These are operating points, not fixed identities: batch, context, precision, kernel and hardware all move a point across the ridge. [ILLUSTRATIVE conceptual, roofline developed in Ch 8]](figures/fig-02-0201.png)
 
-*Decode is HBM-bandwidth-bound (5.6 TB/s vs H100 3.35 TB/s); prefill is compute-bound (~1.19 PFLOPS required vs H100 0.989 PFLOPS peak). *(Analytical bound — not a benchmark: these are first-order model checks, not a measurement of actual serving throughput.)*
+*Two distinct conclusions, kept deliberately separate. (1) **Regime:** arithmetic intensity places the canonical prefill point ~9.2K FLOP/byte, well to the right of the ~295 ridge — so prefill sits in the compute-bound *regime*; decode at ~1 FLOP/byte sits in the memory-bound *regime*. (2) **Capacity:** the stated TTFT deadline implies ~1.19 PFLOPS demand, exceeding the compared single-H100 theoretical peak (0.989 PFLOPS) — so one H100 is *insufficient* under that analytical deadline model. The regime classification and the capacity shortfall are independent: a workload can be compute-bound in regime yet still fit on the device, and vice versa. (Analytical bounds — not a benchmark: these are first-order model checks, not a measurement of actual serving throughput.)*
 
 **Worked example arithmetic details:**
 

@@ -20,7 +20,7 @@ storage. Two cost effects must be kept distinct. The \textbf{average}
 cost per query declines as the fleet grows, because fixed costs (model
 loading, infrastructure, staff) are amortized across more concurrent
 requests. The \textbf{marginal} cost of each added host, however, is
-roughly constant in this model --- one host buys \textasciitilde2.1
+roughly constant in this model --- one host buys \textasciitilde2.0
 req/s at \textasciitilde\$20/hr, so the marginal cost stays near
 \textasciitilde\$9.5 per req/s per hour (Ch 17 §7 frames the Nth host as
 diminishing marginal \emph{benefit}, not falling marginal cost). The
@@ -110,9 +110,9 @@ interchangeable:
 \item
   \textbf{KV-residency / latency bound (Little's law).} The real ceiling
   is set by concurrency and service time together: a host holds
-  \textasciitilde18 concurrent full-context requests (KV ceiling,
-  \hyperref[chap:17]{Chapter 17}) each for \textasciitilde8.6 s, so it serves C/W ≈ 18 / 8.6
-  ≈ \textbf{2.1 requests/s} at steady state.
+  \textasciitilde17.5 concurrent full-context requests (KV ceiling,
+  \hyperref[chap:17]{Chapter 17}) each for \textasciitilde8.6 s, so it serves C/W ≈ 17.5 /
+  8.6 ≈ \textbf{2.0 requests/s} at steady state.
 \end{itemize}
 
 The binding per-host rate is the \emph{minimum} of the two --- here the
@@ -123,16 +123,16 @@ request are different units, and prefill (compute-bound) versus decode
 request rate is a \emph{concurrency × service-time} quantity, not a
 tokens ÷ tokens conversion.
 
-\textbf{Call this quantity what it is.} The \textasciitilde2.1 req/s
-figure is a \textbf{KV-residency / service-time analytical ceiling under
-the canonical W assumption} --- not a measured serving throughput. It is
-achievable only if serving C concurrent sequences does \emph{not}
-inflate W beyond the assumed \textasciitilde8.6 s, and neither a
-compute, bandwidth, nor scheduler constraint binds first. In real
-continuous batching, W is a function of batch occupancy, scheduler
+\textbf{Call this quantity what it is.} The \textasciitilde2.0 req/s
+figure is a \textbf{KV-residency / service-time analytical planning
+bound under the canonical W assumption} --- not a measured serving
+throughput. It is achievable only if serving C concurrent sequences does
+\emph{not} inflate W beyond the assumed \textasciitilde8.6 s, and
+neither a compute, bandwidth, nor scheduler constraint binds first. In
+real continuous batching, W is a function of batch occupancy, scheduler
 policy, prefill interference, decode batching, the arrival process,
 tensor-parallel communication, and the context distribution --- so C and
-W are not always independent constants. Treat \textasciitilde2.1 req/s
+W are not always independent constants. Treat \textasciitilde2.0 req/s
 as an upper-bound model, and require benchmarked goodput (\hyperref[chap:14]{Chapter 14})
 under the target arrival process for actual fleet sizing.
 
@@ -145,11 +145,11 @@ illustrative per-host QPS = Q for the algebra, aggregate throughput is
 
 At the canonical peak of 40 rps, fleet size must satisfy \textbf{both}
 the KV-residency and the throughput/latency bounds \emph{and whichever
-binds first}. With the per-host rate at \textasciitilde2.1 req/s (the
+binds first}. With the per-host rate at \textasciitilde2.0 req/s (the
 binding Little bound above), a fleet for 40 rps starts at
 \textasciitilde20 hosts on the Little-bound. The KV-residency bound
 coincides here --- by Little's law, the in-flight count at 40 rps is λ·W
-= 40 × 8.6 ≈ 344, and ⌈344/18⌉ ≈ 19--20 hosts --- so the two bounds are
+= 40 × 8.6 ≈ 344, and ⌈344/17.5⌉ ≈ 20 hosts --- so the two bounds are
 \emph{co-binding} at the peak, exactly as \hyperref[chap:17]{Chapter 17} notes (the two
 views are the same identity, λW/C = λ/(C/W)). The ``far fewer hosts
 (\textasciitilde5)'' figure applies only to the 10-rps average, not the
@@ -364,35 +364,35 @@ bounded by KV residency per \hyperref[chap:17]{Chapter 17}):
 \tightlist
 \item
   \textbf{Per-host request rate --- the KV/latency bound (Ch. 17
-  basis).} A host holds \textasciitilde18 concurrent full-context
-  requests (the KV-residency ceiling, \hyperref[chap:17]{Chapter 17}) and each request is in
-  service \textasciitilde8.6 s (1.08 s prefill + \textasciitilde7.5 s
-  decode of 300 output tokens at \textasciitilde25 ms/token, \hyperref[chap:8]{Chapter 8}).
-  So a host serves C/W ≈ 18 / 8.6 ≈ \textbf{2.1 requests/s} at steady
-  state. This is the defensible capacity number: it is derived from
-  concurrency × service time (Little's law), not from dividing a token
-  throughput by tokens per request. (Do NOT divide \textasciitilde35,000
-  tokens/s by \textasciitilde9,500 tokens/request to get
-  \textasciitilde3.7 req/s --- that would require \textasciitilde32
-  concurrent requests, which the 18-request KV ceiling cannot hold.)
+  basis).} A host holds \textasciitilde17.5 concurrent full-context
+  requests (the KV-residency ceiling, \hyperref[chap:17]{Chapter 17}; byte-accurate 17.51,
+  conservative integer ceiling 17) and each request is in service
+  \textasciitilde8.6 s (1.08 s prefill + \textasciitilde7.5 s decode of
+  300 output tokens at \textasciitilde25 ms/token, \hyperref[chap:8]{Chapter 8}). So a host
+  serves C/W ≈ 17.5 / 8.6 ≈ \textbf{2.0 requests/s} at steady state.
+  This is the defensible capacity number: it is derived from concurrency
+  × service time (Little's law), not from dividing a token throughput by
+  tokens per request. (Do NOT divide \textasciitilde35,000 tokens/s by
+  \textasciitilde9,500 tokens/request to get \textasciitilde3.7 req/s
+  --- that would require \textasciitilde32 concurrent requests, which
+  the \textasciitilde17.5-request KV ceiling cannot hold.)
 \item
-  \textbf{Fleet aggregate (8 hosts):} 8 × 2.1 ≈ \textbf{17 req/s}, which
+  \textbf{Fleet aggregate (8 hosts):} 8 × 2.0 ≈ \textbf{16 req/s}, which
   is \textbf{below} the canonical 40-rps peak. On this binding bound the
-  idealized minimum is ⌈40 / 2.1⌉ = \textbf{20 hosts}; allowing
-  \textasciitilde10\% scheduling loss raises this floor to 40 / (2.1 ×
-  0.9) ≈ 21.2 → \textbf{22 hosts}. (The KV-residency bound, \hyperref[chap:17]{Chapter 17},
+  idealized minimum is ⌈40 / 2.0⌉ = \textbf{20 hosts}; allowing
+  \textasciitilde10\% scheduling loss raises this floor to 40 / (2.0 ×
+  0.9) ≈ 22.2 → \textbf{23 hosts}. (The KV-residency bound, \hyperref[chap:17]{Chapter 17},
   is satisfied at far fewer hosts --- \textasciitilde5 at the 10-rps
   average --- but the throughput/latency bound binds here, so the larger
   requirement governs.)
 \item
   \textbf{Marginal cost (real basis):} adding one host at
   \textasciitilde\$20/hr (cloud, {[}ILLUSTRATIVE{]}) buys
-  \textasciitilde2.1 req/s, so marginal cost ≈ \$20 ÷ 2.1 ≈
-  \textbf{\$9.5 per req/s per hour.} (The earlier illustrative \$0.012
-  figure assumed 250 req/s per host --- a \textasciitilde120×
-  understatement that comes entirely from the impossible latency; with a
-  real multi-second service time per request the per-host rate is
-  \textasciitilde2.1, not 250.)
+  \textasciitilde2.0 req/s, so marginal cost ≈ \$20 ÷ 2.0 = \textbf{\$10
+  per req/s per hour.} (The earlier illustrative \$0.012 figure assumed
+  250 req/s per host --- a \textasciitilde120× understatement that comes
+  entirely from the impossible latency; with a real multi-second service
+  time per request the per-host rate is \textasciitilde2.0, not 250.)
 \item
   \textbf{Algebra practice (kept {[}ILLUSTRATIVE{]}):} the per-host 250
   QPS / fleet 2,000 QPS / \$0.012 per QPS arithmetic from the original
@@ -401,7 +401,7 @@ bounded by KV residency per \hyperref[chap:17]{Chapter 17}):
   hypothetical per-host QPS that is not achievable for this
   9.2K-in/300-out workload; the architect must substitute the measured
   per-host rate from a \hyperref[chap:14]{Chapter 14} deployment benchmark, or the
-  \textasciitilde2.1 req/s bound derived here.
+  \textasciitilde2.0 req/s bound derived here.
 \item
   \textbf{The 100-ms end-to-end p99 is infeasible under the stated
   workload, and that is the honest answer.} A request here takes
@@ -420,7 +420,7 @@ bounded by KV residency per \hyperref[chap:17]{Chapter 17}):
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Fleet capacity (KV/service-time analytical bound, \textasciitilde2.1 req/s/host) and per-host utilization, vs.~host count at the canonical peak load (40 rps). Top panel: capacity against host count from the KV/service-time analytical bound (\textasciitilde2.1 req/s/host), with a \textasciitilde90\% scheduling-overhead line. Bottom panel: per-host utilization at the canonical 40 rps peak. This is the honest quantity for the tail: p99 is driven by per-host utilization, not by host count alone. Adding hosts lowers per-host utilization (more headroom) hence lowers the expected tail; the 70\%-utilization and 100\%-saturation reference lines show the provisioning target. The tail also depends on the arrival process, scheduling policy, batching, and the service-time distribution, which a provisioning model alone does not capture. The \textasciitilde2.1 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. {[}ILLUSTRATIVE{]}{[}DERIVED{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-20-2001.pdf}}
-\caption{Fleet capacity (KV/service-time analytical bound, \textasciitilde2.1 req/s/host) and per-host utilization, vs.~host count at the canonical peak load (40 rps). Top panel: capacity against host count from the KV/service-time analytical bound (\textasciitilde2.1 req/s/host), with a \textasciitilde90\% scheduling-overhead line. Bottom panel: per-host utilization at the canonical 40 rps peak. This is the honest quantity for the tail: \textbf{p99 is driven by per-host utilization, not by host count alone.} Adding hosts lowers per-host utilization (more headroom) hence lowers the expected tail; the 70\%-utilization and 100\%-saturation reference lines show the provisioning target. The tail also depends on the arrival process, scheduling policy, batching, and the service-time distribution, which a provisioning model alone does not capture. The \textasciitilde2.1 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. {[}ILLUSTRATIVE{]}{[}DERIVED{]}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Fleet capacity (KV/service-time analytical bound, \textasciitilde2.0 req/s/host) and per-host utilization, vs.~host count at the canonical peak load (40 rps). Top panel: capacity against host count from the KV/service-time analytical bound (\textasciitilde2.0 req/s/host), with a \textasciitilde90\% scheduling-overhead line. Bottom panel: per-host utilization at the canonical 40 rps peak. This is the honest quantity for the tail: p99 is driven by per-host utilization, not by host count alone. Adding hosts lowers per-host utilization (more headroom) hence lowers the expected tail; the 70\%-utilization and 100\%-saturation reference lines show the provisioning target. The tail also depends on the arrival process, scheduling policy, batching, and the service-time distribution, which a provisioning model alone does not capture. The \textasciitilde2.0 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. {[}ILLUSTRATIVE{]}{[}DERIVED{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-20-2001.pdf}}
+\caption{Fleet capacity (KV/service-time analytical bound, \textasciitilde2.0 req/s/host) and per-host utilization, vs.~host count at the canonical peak load (40 rps). Top panel: capacity against host count from the KV/service-time analytical bound (\textasciitilde2.0 req/s/host), with a \textasciitilde90\% scheduling-overhead line. Bottom panel: per-host utilization at the canonical 40 rps peak. This is the honest quantity for the tail: \textbf{p99 is driven by per-host utilization, not by host count alone.} Adding hosts lowers per-host utilization (more headroom) hence lowers the expected tail; the 70\%-utilization and 100\%-saturation reference lines show the provisioning target. The tail also depends on the arrival process, scheduling policy, batching, and the service-time distribution, which a provisioning model alone does not capture. The \textasciitilde2.0 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. {[}ILLUSTRATIVE{]}{[}DERIVED{]}}
 
 \label{fig:20.1}\end{figure}

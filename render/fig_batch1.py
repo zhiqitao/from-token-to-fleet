@@ -14,11 +14,11 @@ base = 'design/manuscript/chapter-%02d/figures/fig-%02d-%02d01.png'
 # later has to undo. This redesign places the two canonical operating points on an
 # arithmetic-intensity axis split by the roofline ridge (~295 FLOP/byte), and shows
 # the knobs (batch, context, precision) that move a point across the ridge.
-fig, ax = plt.subplots(figsize=(6.1, 3.4))
+fig, ax = plt.subplots(figsize=(6.1, 3.1))
 fig._hermes_print_sized = True
 ax.set_xscale('log')
 ax.set_xlim(0.3, 30000)
-ax.set_ylim(0, 1)
+ax.set_ylim(0, 1.48)
 ax.axis('off')
 # log axis from 0.3 to 30000
 import matplotlib.ticker as mtick
@@ -26,42 +26,45 @@ import matplotlib as _mpl
 _mpl.rcParams['hatch.linewidth'] = 1.4
 _mpl.rcParams['hatch.color'] = '#000000'
 
-# draw the axis
-ax.annotate('', xy=(30000, 0.14), xytext=(0.3, 0.14),
-            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
-ax.text(0.35, 0.10, 'lower →', fontsize=8, color='#555', ha='left')
-ax.text(29000, 0.10, '→ higher', fontsize=8, color='#555', ha='right')
-ax.text(1000, 0.05, 'arithmetic intensity (FLOP/byte) →', fontsize=9, color='#333',
-        ha='center', fontweight='bold')
+# ---- TOP ANNOTATION: the movement qualifier (prominent, own zone above the band) ----
+ax.text(95, 1.44,
+        'operating points are NOT fixed:',
+        fontsize=8.5, color='#444', ha='center', va='top', fontweight='bold')
+ax.text(95, 1.35,
+        'batch · context · KV precision · kernel/hardware',
+        fontsize=8.5, color='#555', ha='center', va='top')
+ax.text(95, 1.26,
+        'all move a point across the ridge',
+        fontsize=8.5, color='#444', ha='center', va='top', fontweight='bold')
 
-# ridge line (from Ch8 ~295) — kept to the plot band, clear of the axis label
+# ---- ROOFLINE REGIONS (shaded band, its own vertical zone) ----
 ridge = 295
-ax.axvline(ridge, color='#c0392b', ls='--', lw=1.4, ymin=0.22, ymax=0.95)
-ax.text(ridge*1.25, 0.62, 'roofline\nridge ~295', fontsize=8, color='#c0392b', fontweight='bold')
+BAND_LO, BAND_HI = 0.30, 1.02
+ax.axvline(ridge, color='#c0392b', ls='--', lw=1.4, ymin=BAND_LO, ymax=BAND_HI)
+ax.text(ridge*1.35, 0.38, 'roofline\nridge ~295', fontsize=8, color='#c0392b', fontweight='bold')
+ax.axvspan(0.3, ridge, color='#f6dcc8', alpha=0.55, hatch='///', ec='#5a2e08', lw=0, ymin=BAND_LO, ymax=BAND_HI)
+ax.text(6, 1.00, 'memory-bound\n(bandwidth)', fontsize=8.5, color='#8a3a12', ha='center', va='top', fontweight='bold')
+ax.axvspan(ridge, 30000, color='#c9d8ee', alpha=0.55, hatch='xxx', ec='#12294f', lw=0, ymin=BAND_LO, ymax=BAND_HI)
+ax.text(4200, 1.00, 'compute-bound\n(FLOPs)', fontsize=8.5, color='#1a3a6b', ha='center', va='top', fontweight='bold')
 
-# memory-bound region (left of ridge) — warm tint + forward-diagonal hatch
-ax.axvspan(0.3, ridge, color='#f6dcc8', alpha=0.55, hatch='///', ec='#5a2e08', lw=0)
-ax.text(6, 0.82, 'memory-bound\n(bandwidth)', fontsize=8, color='#8a3a12', ha='center', fontweight='bold')
-# compute-bound region (right of ridge) — cool tint + crosshatch (distinct grey tone)
-ax.axvspan(ridge, 30000, color='#c9d8ee', alpha=0.55, hatch='xxx', ec='#12294f', lw=0)
-ax.text(4200, 0.82, 'compute-bound\n(FLOPs)', fontsize=8, color='#1a3a6b', ha='center', fontweight='bold')
-
-# canonical operating points — different markers (o vs ^) for grayscale distinction
-# prefill AI @ L = 2·N·L/(N·2 bytes) = L = 9,200 FLOP/byte for a 9.2K prompt,
-# ~31x above the ridge: it belongs decisively in the compute-bound region.
+# ---- OPERATING POINTS (inside the band, name above marker, note below it) ----
 points = [
     ('decode @ low batch', 1.0, '#c0392b', 'o', 'HBM weight-stream per token:\n~1 FLOP/byte at batch-1 (Ch8)'),
     ('prefill @ 9.2K prompt', 9200, '#27408b', '^', '2·N·L over HBM weight stream:\n~9.2K FLOP/byte (high intensity)'),
 ]
 for name, x, col, mk, note in points:
-    ax.plot([x], [0.42], mk, ms=11, color=col, clip_on=False)
-    ax.annotate(name, xy=(x, 0.42), xytext=(x, 0.52), ha='center', fontsize=8.5,
-                color=col, fontweight='bold', arrowprops=dict(arrowstyle='-', lw=0.8, color=col))
-    ax.text(x, 0.20, note, fontsize=7, color='#555', ha='center')
+    ax.plot([x], [0.70], mk, ms=12, color=col, clip_on=False)
+    # name clearly below the marker (wide gap so the dot never touches the label)
+    ax.text(x, 0.50, name, ha='center', fontsize=10, color=col, fontweight='bold')
+    ax.text(x, 0.34, note, fontsize=8, color='#444', ha='center', va='top', fontweight='bold')
 
-# knobs that move the points
-ax.text(60, 0.02, 'batch size ↑ · context ↑ · KV precision ↓ · kernel/hardware →  all move a point across the ridge',
-        fontsize=7.5, color='#666', ha='center', style='italic')
+# ---- BOTTOM BAND: a clean, self-contained x-axis ----
+ax.annotate('', xy=(30000, 0.16), xytext=(0.3, 0.16),
+            arrowprops=dict(arrowstyle='-|>', lw=1.7, color='#555'))
+ax.text(0.35, 0.115, 'lower →', fontsize=8.5, color='#555', ha='left')
+ax.text(29000, 0.115, '→ higher', fontsize=8.5, color='#555', ha='right')
+ax.text(1000, 0.055, 'arithmetic intensity (FLOP/byte) →', fontsize=9.5, color='#333',
+        ha='center', fontweight='bold')
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-02/figures/fig-02-0201.png', dpi=200); plt.close()

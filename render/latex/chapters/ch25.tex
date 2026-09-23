@@ -416,8 +416,9 @@ an 8×H100 host. At peak the KV cache is the binding constraint: within
 the canonical \textasciitilde436 GB practical KV budget, a
 full-precision FP16 KV at \textasciitilde2.62 MB/token (the canonical
 per-token figure; \textasciitilde2.5 MiB) lets a single host hold
-\textasciitilde18 concurrent 9,500-token requests. The concurrency
-ceiling is now limiting throughput below the target request rate.
+\textasciitilde17.5 concurrent 9,500-token requests (byte-accurate
+17.51; conservative integer ceiling 17). The concurrency ceiling is now
+limiting throughput below the target request rate.
 
 \textbf{The ADR (draft):}
 
@@ -430,20 +431,20 @@ ceiling is now limiting throughput below the target request rate.
 \item
   \textbf{Context:} The canonical 70B RAG workload is KV-memory-bound at
   decode (Ch. 15). At the \textasciitilde436 GB practical KV budget,
-  full FP16 KV caps concurrency at \textasciitilde18 requests/host, and
-  Ch. 17 shows that \textasciitilde40 rps at the canonical
+  full FP16 KV caps concurrency at \textasciitilde17.5 requests/host,
+  and Ch. 17 shows that \textasciitilde40 rps at the canonical
   \textasciitilde8.6 s service time implies \textasciitilde344 in-flight
   requests --- far more than one host can hold (a single host holds
-  \textasciitilde18 concurrent). To reach the target request rate we
+  \textasciitilde17.5 concurrent). To reach the target request rate we
   need either more host capacity or more KV residency per host.
 \item
   \textbf{Decision:} Render the KV cache in FP8 for the long-context
   decode path, keeping prefill and the retrieval/prompt phase in FP16.
   FP8 KV cuts KV residency to \textasciitilde54\% of the FP16 figure
   (vLLM's measured FP8-KV ratio), so the same \textasciitilde436 GB
-  budget holds \textasciitilde33 concurrent 9,500-token requests instead
-  of \textasciitilde18 --- roughly doubling per-host concurrency without
-  adding a host.
+  budget holds \textasciitilde32.4 concurrent 9,500-token requests
+  instead of \textasciitilde17.5 --- roughly doubling per-host
+  concurrency without adding a host.
 \item
   \textbf{Consequences:}
 
@@ -452,10 +453,11 @@ ceiling is now limiting throughput below the target request rate.
   \item
     Positive: KV residency per request falls from \textasciitilde24.9 GB
     (FP16) to \textasciitilde13.4 GB (FP8, 54\% of BF16) at the
-    9,500-token max, so the canonical budget supports \textasciitilde33
-    concurrent rather than \textasciitilde18. This is a memory lever,
-    not a compute lever: it does not change decode speed per token, it
-    raises the concurrency the host can hold under the same KV budget.
+    9,500-token max, so the canonical budget supports
+    \textasciitilde32.4 concurrent requests rather than
+    \textasciitilde17.5. This is a memory lever, not a compute lever: it
+    does not change decode speed per token, it raises the concurrency
+    the host can hold under the same KV budget.
   \item
     Negative: FP8 KV has lower precision in the cached K/V tensors,
     which can add small retrieval-fidelity error on long contexts. The
