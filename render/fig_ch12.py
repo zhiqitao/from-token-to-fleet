@@ -54,41 +54,29 @@ CX = X0 + W / 2      # center x for full-width boxes
 # ---------------------------------------------------------------------
 # Stage 1 — REQUIREMENTS
 # ---------------------------------------------------------------------
-box(X0, 0.885, W, 0.095, '#eaf1fb', '#3a6ea5')
-note(CX, 0.950, '① REQUIREMENTS  —  canonical enterprise-Q&A RAG workload',
+box(X0, 0.885, W, 0.085, '#eaf1fb', '#3a6ea5')
+note(CX, 0.930, '① REQUIREMENTS  —  canonical enterprise-Q&A RAG workload',
      size=9.2, color='#27408b', weight='bold')
-note(CX, 0.916,
-     '~2,000 users  ·  ~10 rps avg / 40 rps peak\n'
-     '9.2K input + 300 output tokens per request (TTFT ≤1.2 s, TPOT ~25 ms)\n'
-     'Quality class: ~70B answer quality',
-     size=7.4)
-arrow(CX, 0.885, CX, 0.845)
+note(CX, 0.900, '~2,000 users · ~10/40 rps · 9.2K-in/300-out · quality ~70B', size=7.6)
+arrow(CX, 0.885, CX, 0.850)
 
 # ---------------------------------------------------------------------
 # Stage 2 — CONSTRAINTS (the hard gates every candidate must pass)
 # ---------------------------------------------------------------------
-box(X0, 0.745, W, 0.100, '#fdf3e0', '#d68910')
-note(CX, 0.816, '② CONSTRAINTS  —  hard gates (constraint-first synthesis)',
+box(X0, 0.755, W, 0.085, '#fdf3e0', '#d68910')
+note(CX, 0.800, '② CONSTRAINTS  —  hard gates',
      size=9.2, color='#935116', weight='bold')
-note(CX, 0.782,
-     'MEMORY      total residency ≤ host aggregate (weights + KV)\n'
-     'LATENCY     TTFT ≤ 1.2 s (p95 ≤ 2 s)  ·  TPOT ~25 ms\n'
-     'ECONOMICS   ~$15K/mo per-host ceiling (≈ $14.6K/mo per 8×H100)',
-     size=7.4)
-arrow(CX, 0.745, CX, 0.705)
+note(CX, 0.770, 'memory (residency ≤ host) · latency (TTFT/TPOT) · economics (per-host ceiling)', size=7.6)
+arrow(CX, 0.755, CX, 0.720)
 
 # ---------------------------------------------------------------------
 # Stage 3 — CANDIDATES (generate two or three satisfying the gates)
 # ---------------------------------------------------------------------
-box(X0, 0.600, W, 0.105, '#e7f5ec', '#1e8449')
-note(CX, 0.676, '③ GENERATE CANDIDATES  (each must fit memory, latency, economics)',
+box(X0, 0.625, W, 0.085, '#e7f5ec', '#1e8449')
+note(CX, 0.670, '③ GENERATE CANDIDATES',
      size=9.2, color='#145a32', weight='bold')
-note(CX, 0.640,
-     '(a) 8×H100 + prefix cache        (b) P/D-disaggregated 2-pool\n'
-     'weights 140 GB + KV 24 GB = 164 GB    weights 140 GB + KV 24 GB = 164 GB/pool\n'
-     '(c) KV-quantized 7B   —   weights 14 GB + KV 6 GB = 20 GB',
-     size=7.4)
-arrow(CX, 0.600, CX, 0.560)
+note(CX, 0.640, '(a) 8×H100 + prefix cache   ·   (b) P/D-disaggregated 2-pool   ·   (c) KV-quantized 7B', size=7.6)
+arrow(CX, 0.625, CX, 0.585)
 
 # ---------------------------------------------------------------------
 # Stage 4 — TEST AGAINST memory / latency / economics
@@ -100,16 +88,16 @@ note(CX, 0.527, '④ TEST AGAINST  memory · latency · economics',
 
 rows = [
     dict(name='(a) 8×H100 + prefix cache',
-         gate='MEM 164 ≤ 640 GB ✓  |  TTFT ✓ in SLO  |  1 host ≈ $14.6K/mo ✓',
-         res='→ memory/latency OK, but prefill ~19.8K ≪ ~92K needed\n   ✗ capacity (needs ~5 hosts)',
+         gate='MEM ✓ · latency ✓ · cost ✓  |  but prefill ~19.8K ≪ ~92K needed',
+         res='✗ capacity (needs ~5 hosts)',
          edge='#3a6ea5', rescol='#7f8c8d'),
     dict(name='(b) P/D-disaggregated 2-pool',
-         gate='MEM 164 ≤ 640 GB/pool ✓  |  TTFT ✓ phase-split  |  2 hosts + fabric (~2× capex)',
-         res='→ survives as the at-scale answer (prefill pool ~19.8K)',
+         gate='MEM ✓ · latency ✓ · 2 hosts + fabric (~2× capex)',
+         res='✓ survives as the at-scale answer',
          edge='#1e8449', rescol='#1e8449'),
     dict(name='(c) KV-quantized 7B',
-         gate='MEM 20 ≤ 80 GB ✓  |  ✗ QUALITY — provisional  |  cheapest (1 H100)',
-         res='→ throughput high, but fails quality gate  ✗ EXCLUDED',
+         gate='MEM ✓ · cheapest (1 H100)  |  but fails the QUALITY gate',
+         res='✗ EXCLUDED',
          edge='#c0392b', rescol='#c0392b'),
 ]
 
