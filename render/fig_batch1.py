@@ -15,21 +15,22 @@ base = 'design/manuscript/chapter-%02d/figures/fig-%02d-%02d01.png'
 # arithmetic-intensity axis split by the roofline ridge (~295 FLOP/byte), and shows
 # the knobs (batch, context, precision) that move a point across the ridge.
 fig, ax = plt.subplots(figsize=(6.1, 3.4))
+fig._hermes_print_sized = True
 ax.set_xscale('log')
-ax.set_xlim(0.3, 2000)
+ax.set_xlim(0.3, 30000)
 ax.set_ylim(0, 1)
 ax.axis('off')
-# log axis from 0.3 to 2000
+# log axis from 0.3 to 30000
 import matplotlib.ticker as mtick
 import matplotlib as _mpl
 _mpl.rcParams['hatch.linewidth'] = 1.4
 _mpl.rcParams['hatch.color'] = '#000000'
 
 # draw the axis
-ax.annotate('', xy=(2000, 0.14), xytext=(0.3, 0.14),
+ax.annotate('', xy=(30000, 0.14), xytext=(0.3, 0.14),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 ax.text(0.35, 0.10, 'lower →', fontsize=8, color='#555', ha='left')
-ax.text(1900, 0.10, '→ higher', fontsize=8, color='#555', ha='right')
+ax.text(29000, 0.10, '→ higher', fontsize=8, color='#555', ha='right')
 ax.text(1000, 0.05, 'arithmetic intensity (FLOP/byte) →', fontsize=9, color='#333',
         ha='center', fontweight='bold')
 
@@ -42,13 +43,15 @@ ax.text(ridge*1.25, 0.62, 'roofline\nridge ~295', fontsize=8, color='#c0392b', f
 ax.axvspan(0.3, ridge, color='#f6dcc8', alpha=0.55, hatch='///', ec='#5a2e08', lw=0)
 ax.text(6, 0.82, 'memory-bound\n(bandwidth)', fontsize=8, color='#8a3a12', ha='center', fontweight='bold')
 # compute-bound region (right of ridge) — cool tint + crosshatch (distinct grey tone)
-ax.axvspan(ridge, 2000, color='#c9d8ee', alpha=0.55, hatch='xxx', ec='#12294f', lw=0)
-ax.text(1200, 0.82, 'compute-bound\n(FLOPs)', fontsize=8, color='#1a3a6b', ha='center', fontweight='bold')
+ax.axvspan(ridge, 30000, color='#c9d8ee', alpha=0.55, hatch='xxx', ec='#12294f', lw=0)
+ax.text(4200, 0.82, 'compute-bound\n(FLOPs)', fontsize=8, color='#1a3a6b', ha='center', fontweight='bold')
 
 # canonical operating points — different markers (o vs ^) for grayscale distinction
+# prefill AI @ L = 2·N·L/(N·2 bytes) = L = 9,200 FLOP/byte for a 9.2K prompt,
+# ~31x above the ridge: it belongs decisively in the compute-bound region.
 points = [
     ('decode @ low batch', 1.0, '#c0392b', 'o', 'HBM weight-stream per token:\n~1 FLOP/byte at batch-1 (Ch8)'),
-    ('prefill @ 9.2K prompt', 180, '#27408b', '^', '2·N·L over HBM weight stream:\nhigh intensity'),
+    ('prefill @ 9.2K prompt', 9200, '#27408b', '^', '2·N·L over HBM weight stream:\n~9.2K FLOP/byte (high intensity)'),
 ]
 for name, x, col, mk, note in points:
     ax.plot([x], [0.42], mk, ms=11, color=col, clip_on=False)
