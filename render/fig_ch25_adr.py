@@ -8,6 +8,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 # last box ('Consequences') has generous right margin; the loop annotation is
 # short so it never self-overlaps.
 fig, ax = plt.subplots(figsize=(6.1, 3.2))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow (already 6.1in column)
 ax.set_xlim(0, 26); ax.set_ylim(0, 7.2); ax.axis('off')
 ax.set_title('Architecture Decision Record: an ADR supersedes an old one', fontsize=9.5,
              fontweight='bold', color='#1a1a1a')
@@ -31,7 +32,7 @@ ax.add_patch(FancyArrowPatch((x0+4*(w+gap)+w/2, z), (x0+w/2, z-1.9),
              connectionstyle='arc3,rad=-0.32', arrowstyle='-|>', lw=1.8, color='#c0392b',
              ls='--'))
 ax.text(15.0, 1.9, 'consequences of one decision become the\ncontext of the next (why is captured at decision time)',
-        fontsize=8.5, ha='center', va='center', color='#c0392b',
+        fontsize=9.4, ha='center', va='center', color='#c0392b',
         bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.95))
 
 plt.tight_layout()

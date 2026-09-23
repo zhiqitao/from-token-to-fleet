@@ -13,7 +13,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
-FS = 9.0
+FS = 9.5
 W = 6.1
 fig, ax = plt.subplots(figsize=(W, W*0.62))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
@@ -33,8 +33,8 @@ for (name, desc, fc, ec, tag), x in zip(states, xs):
     ax.add_patch(FancyBboxPatch((x, y0), box_w, box_h, boxstyle='round,pad=0.02,rounding_size=0.35',
                                 fc=fc, ec=ec, lw=1.4))
     ax.text(x+box_w/2, y0+box_h-0.45, name, ha='center', va='center', fontsize=FS, fontweight='bold', color='#1a1a1a')
-    ax.text(x+box_w/2, y0+0.48, desc, ha='center', va='center', fontsize=8.0, color='#444')
-    ax.text(x+box_w-0.14, y0+box_h-0.24, tag, ha='right', va='center', fontsize=7.2, color=ec, style='italic')
+    ax.text(x+box_w/2, y0+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
+    ax.text(x+box_w-0.14, y0+box_h-0.24, tag, ha='right', va='center', fontsize=7.8, color=ec, style='italic')
 
 # forward loop arrows Plan->Execute->Observe->Decide
 for i in range(len(xs)-1):
@@ -67,13 +67,13 @@ for (name, desc, fc, ec, tag, tx) in terms:
     ax.add_patch(FancyBboxPatch((tx, term_y), box_w, box_h, boxstyle='round,pad=0.02,rounding_size=0.35',
                                 fc=fc, ec=ec, lw=1.4))
     ax.text(tx+box_w/2, term_y+box_h-0.45, name, ha='center', va='center', fontsize=FS-0.5, fontweight='bold', color='#1a1a1a')
-    ax.text(tx+box_w/2, term_y+0.48, desc, ha='center', va='center', fontsize=8.0, color='#444')
-    ax.text(tx+box_w-0.14, term_y+box_h-0.24, tag, ha='right', va='center', fontsize=7.2, color=ec, style='italic')
+    ax.text(tx+box_w/2, term_y+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
+    ax.text(tx+box_w-0.14, term_y+box_h-0.24, tag, ha='right', va='center', fontsize=7.8, color=ec, style='italic')
 
 ax.text(5.0, 5.95, 'The agent loop: a four-state state machine', ha='center', va='center',
         fontsize=10.5, fontweight='bold', color='#1a1a1a')
 ax.text(5.0, 0.45, 'resolved \u2192 final answer; no resolution within the turn limit \u2192 stopped [ILLUSTRATIVE conceptual]',
-        ha='center', va='center', fontsize=7.2, color='#666')
+        ha='center', va='center', fontsize=7.8, color='#666')
 
 out = 'design/manuscript/chapter-19/figures/fig-19-1901.png'
 plt.savefig(out, dpi=170)

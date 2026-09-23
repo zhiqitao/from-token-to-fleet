@@ -13,7 +13,7 @@ ax.set_xlim(0, 10.5); ax.set_ylim(0, 8.4); ax.axis('off')
 
 ax.text(5.25, 8.1, 'Grouped-Query Attention (GQA): why the cache is 8× smaller',
         fontsize=10.5, fontweight='bold', ha='center')
-ax.text(5.25, 7.65, '64 query heads (8 groups of 8)  →  8 shared KV heads', fontsize=7.6, fontweight='bold', ha='center')
+ax.text(5.25, 7.65, '64 query heads (8 groups of 8)  →  8 shared KV heads', fontsize=8.6, fontweight='bold', ha='center')
 
 colors = ['#3a6ea5','#6f9e5f','#e67e22','#c0392b','#8055b5','#2a9d8f','#d4a017','#5b7d94']
 
@@ -59,10 +59,10 @@ for g in range(8):
         ax.plot([cx, kx], [cy-0.1, ky+0.05], color=colors[g], lw=0.6, alpha=0.7, zorder=1)
 
 # Bottom banner: the byte accounting (narrower to fit)
-bx0, by0, bw, bh = 0.25, 0.25, 9.7, 0.95
+bx0, by0, bw, bh = 0.25, 0.25, 9.7, 1.05
 ax.add_patch(Rectangle((bx0, by0), bw, bh, fc='#fbf2ec', ec='#c0392b', lw=1.3, zorder=5))
-ax.text(bx0+0.3, by0+0.62, 'MHA (full): 64 K/V per token → 2.62 MB/token', fontsize=6.6, color='#333', zorder=6)
-ax.text(bx0+0.3, by0+0.18, 'GQA: 8 K/V per token → ~0.33 MB/token — 8× smaller cache', fontsize=6.6, color='#c0392b', fontweight='bold', zorder=6)
+ax.text(bx0+0.3, by0+0.68, 'MHA (full): 64 K/V per token → 2.62 MB/token', fontsize=7.8, color='#333', zorder=6)
+ax.text(bx0+0.3, by0+0.22, 'GQA: 8 K/V per token → ~0.33 MB/token — 8× smaller cache', fontsize=7.8, color='#c0392b', fontweight='bold', zorder=6)
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0703.png', dpi=150)

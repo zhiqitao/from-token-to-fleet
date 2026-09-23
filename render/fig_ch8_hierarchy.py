@@ -35,6 +35,7 @@ def rw(s, fs=FS):
     return w
 
 fig, ax = plt.subplots(figsize=(6.1, 5.9))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow (already 6.1in column)
 ax.set_xlim(-14, W+14); ax.set_ylim(0, Ht); ax.axis('off')
 
 C_ONCHIP='#27408b'; C_MEM='#e67e22'; C_NET='#2e9e63'; C_TEN='#c0392b'
@@ -97,14 +98,14 @@ for t in ops:
 # column C: gradient (far right)
 gy0=ys[-1][0]; gy1=top
 gx=colC_x+52
-label(gx, gy1-2, 'small · fast\n· close', '#666', FS-0.9, ha='center')
-label(gx, gy0+2, 'large · slow\n· far', '#666', FS-0.9, ha='center')
+label(gx, gy1-2, 'small · fast\n· close', '#555', FS-0.5, ha='center')
+label(gx, gy0+2, 'large · slow\n· far', '#555', FS-0.5, ha='center')
 ax.annotate('', xy=(gx, gy0), xytext=(gx, gy1),
             arrowprops=dict(arrowstyle='<|-|>', lw=1.6, color=C_TEN, shrinkA=14, shrinkB=14))
-label(gx-42, (gy0+gy1)/2, 'capacity grows\nspeed drops\ndistance grows', C_TEN, FS-1.3, ha='center', weight='bold')
+label(gx-42, (gy0+gy1)/2, 'capacity grows\nspeed drops\ndistance grows', C_TEN, FS-1.0, ha='center', weight='bold')
 
 # footnote
-label(W/2, 10, 'not every component shown — the gradient makes compute, bandwidth,\ncapacity and interconnect distinct constraints', '#666', FS-0.9)
+label(W/2, 10, 'not every component shown — the gradient makes compute, bandwidth,\ncapacity and interconnect distinct constraints', '#555', FS-0.6)
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-08/figures/fig-08-0802.png', dpi=200)

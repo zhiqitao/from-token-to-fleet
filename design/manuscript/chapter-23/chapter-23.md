@@ -90,7 +90,7 @@ The requirements dialogue has its own quality metrics:
 
 The requirements conversation is where the book's entire loop is *fed.* The six bounds it extracts are exactly the inputs Ch1-16 consume: traffic feeds capacity (Ch17), tokens feed KV/memory (Ch7), quality feeds model selection (Ch5), latency feeds serving (Ch11), cost feeds TCO (Ch16), and the operational constraint picks the tier (Ch13). A good requirements session is not a warm-up to architecture — it *is* the first chapter of the architecture, and every downstream decision traces back to the numbers it locked. [2°]
 
-![Fig 23.1 — From vague ask to architectural bounds [ILLUSTRATIVE conceptual]](figures/fig-23-2301.png)
+![Fig 23.1 — From vague ask to architectural bounds. This is a worked-example interrogation sequence (the concrete questions asked of one canonical ask), not an exhaustive or universal question list. [ILLUSTRATIVE conceptual]](figures/fig-23-2301.png)
 
 *The framing funnel: broad ask → five question gates (problem, success, data, constraints, scope) → confirmed bounds. This dialogue surfaces the six architectural numbers in Table 23-1 (traffic & concurrency, token profile, SLO, quality bar, ops/tier, TCO). [ILLUSTRATIVE conceptual]*
 

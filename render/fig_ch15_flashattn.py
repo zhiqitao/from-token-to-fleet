@@ -39,6 +39,7 @@ def tw(s, fs=FS):
     return TextPath((0, 0), s, size=fs, prop=BOLD).get_extents().width
 
 fig, ax = plt.subplots(figsize=(6.1, 5.4))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow (already 6.1in column)
 ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
 
 C_COMP='#27408b'; C_ONCHIP='#5b8ec9'; C_HBM='#e67e22'; C_TRAFFIC='#c0392b'
@@ -104,7 +105,7 @@ def draw_panel(x0, x1, title, subtitle, flash):
     else:
         cap = ('O(L) HBM traffic:\neach tile read once,\nsoftmax online')
     label((x0+x1)/2, panel_top-panel_h-12, cap,
-          C_TRAFFIC if not flash else '#2f6f4f', FS-1.6)
+          C_TRAFFIC if not flash else '#2f6f4f', FS-1.1)
 
 draw_panel(p1x0, p1x1, 'BEFORE: naive / SDPA', 'intermediate written to HBM', False)
 draw_panel(p2x0, p2x1, 'AFTER: FlashAttention', 'tiled, stays on-chip', True)
@@ -112,7 +113,7 @@ draw_panel(p2x0, p2x1, 'AFTER: FlashAttention', 'tiled, stays on-chip', True)
 # divider + takeaway banner
 banner_y = panel_top-panel_h-58
 label(W/2, banner_y, 'same Q·Kᵀ·V math and same result —\nthe gain is fewer HBM round-trips, not cheaper attention',
-      '#2f6f4f', FS-0.5, weight='bold')
+      '#2f6f4f', FS-0.2, weight='bold')
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-15/figures/fig-15-1502.png', dpi=200)

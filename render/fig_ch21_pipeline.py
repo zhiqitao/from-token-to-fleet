@@ -11,6 +11,7 @@ from matplotlib.path import Path
 # measured metric (throughput, SLO, cost, quality).  A gate that FAILs pulls
 # the candidate back to rollback / last-known-good (red dashed branch).  The
 # green arrow is the normal production feedback loop back to data + evaluation.
+# Short gate strings so the enlarged text stays inside the box (no spillover).
 
 fig, ax = plt.subplots(figsize=(6.1, 4.7))
 fig._hermes_print_sized = True   # authored at 6.1in; regen must not re-boost/reflow
@@ -37,31 +38,31 @@ for x in xs[:-1]:
 
 # ---- measurement gate row (orange), one beneath every non-terminal stage ----
 gates = [
-    ('Data',    'source fresh\n& valid'),
-    ('Train',   'cost <= budget\n@ tok/s'),
-    ('Eval',    'quality >=\nSLO on suite'),
-    ('Canary',  'throughput &\ngoodput >= SLO'),
-    ('Observe', 'p95 TTFT &\nquality held'),
-    ('Promote', 'cost & blast\nwithin plan'),
+    ('Data',    'source',   'valid'),
+    ('Train',   'cost',     'budget'),
+    ('Eval',    'quality',  'SLO'),
+    ('Canary',  'goodput',  'SLO'),
+    ('Observe', 'TTFT',     'quality'),
+    ('Promote', 'cost',     'blast'),
 ]
-gy, gw, gh = 5.7, 2.85, 1.7
-for (stage, measure), x in zip(gates, xs):
+gy, gw, gh = 5.7, 2.85, 1.75
+for (stage, m1, m2), x in zip(gates, xs):
     ax.plot([x + w/2, x + w/2], [y, gy + gh], color='#c0392b', lw=1.0, ls=':', zorder=1)
     ax.add_patch(FancyBboxPatch((x, gy), gw, gh, boxstyle='round,pad=0.04',
                                 fc='#fbe6e0', ec='#c0392b', lw=1.6, zorder=2))
     ax.text(x + gw/2, gy + gh - 0.36, stage + ' gate', ha='center', va='center',
-            fontsize=8.2, color='#8c2d1a', fontweight='bold', zorder=3)
-    ax.text(x + gw/2, gy + gh - 0.92, measure, ha='center', va='center',
-            fontsize=6.4, color='#3a2a24', zorder=3)
+            fontsize=8.8, color='#8c2d1a', fontweight='bold', zorder=3)
+    ax.text(x + gw/2, gy + gh - 0.92, m1 + ' <=\n' + m2, ha='center', va='center',
+            fontsize=7.6, color='#3a2a24', zorder=3)
     ax.text(x + gw/2, gy + 0.28, 'm\u2713 PASS', ha='center', va='center',
-            fontsize=7.6, color='#c0392b', fontweight='bold', zorder=3)
+            fontsize=8.2, color='#c0392b', fontweight='bold', zorder=3)
 
 # ---- FAIL path: any gate that does not pass -> rollback / last-known-good ----
 ax.add_patch(FancyBboxPatch((6.4, 3.5), 11.2, 1.15, boxstyle='round,pad=0.04',
                             fc='#c0392b', ec='#6d1a0e', lw=1.4))
 ax.text(12.0, 4.22, 'FAIL', ha='center', va='center', fontsize=7.8, color='white', fontweight='bold')
 ax.text(12.0, 3.82, 'rollback to last-known-good & re-validate', ha='center', va='center',
-        fontsize=7.2, color='white')
+        fontsize=7.8, color='white')
 # dashed links from a representative gate down to the FAIL node
 ax.add_patch(FancyArrowPatch((11.925, gy), (11.925, 4.65),
              arrowstyle='-|>', lw=1.6, color='#c0392b', ls='--'))
@@ -84,7 +85,7 @@ ax.text(12.0, 0.85, 'production feedback \u2192 data / evaluation (each cycle re
         fontsize=8, ha='center', color='#2f6f4f', fontweight='bold')
 
 ax.text(12.0, 0.25, '[ILLUSTRATIVE][DERIVED] Gates pass on measured throughput / SLO / cost; a breach rolls back.',
-        fontsize=7.0, ha='center', color='#777')
+        fontsize=7.2, ha='center', color='#777')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-21/figures/fig-21-2101.png', dpi=150)

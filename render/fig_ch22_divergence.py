@@ -19,7 +19,7 @@ lin = 2 * N * L
 quad = 4 * nl * (L ** 2) * d          # exact quadratic attention term per request
 decode = 2 * N * np.ones_like(L)      # per-token decode FLOPs, context-independent
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8.5, 5.6), sharey=False)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.1, 4.6), sharey=False)
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 
 # Left panel: prefill FLOPs per request, DECOMPOSED into its two components so the

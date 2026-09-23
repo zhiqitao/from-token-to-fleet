@@ -44,6 +44,8 @@ ax.spines['right'].set_visible(False)
 # the point, up front
 ax.set_title('2026 frontier MoE: extreme sparsity —  single-digit active fraction of total',
              fontsize=12, loc='left')
+ax.text(0.0, -0.16, 'VENDOR-REPORTED active-parameter fractions (mutable snapshot, ~2026 mid-year);\nparameter definitions are not perfectly harmonized across vendors',
+        transform=ax.transAxes, fontsize=9.5, color='#555', va='top')
 
 plt.tight_layout()
 out = 'design/manuscript/chapter-27/figures/fig-27-2701.png'

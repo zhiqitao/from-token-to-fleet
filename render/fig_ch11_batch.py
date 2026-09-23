@@ -8,7 +8,8 @@ from matplotlib.patches import Rectangle, FancyArrowPatch
 # Right: continuous batching — slots are filled as soon as a sequence finishes.
 # Compact narrow so it places at column width.
 
-fig, axes = plt.subplots(1, 2, figsize=(6.4, 5.6))
+fig, axes = plt.subplots(1, 2, figsize=(6.1, 5.3))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow
 colors = ['#3a6ea5', '#6f9e5f', '#e67e22', '#c0392b', '#8055b5']
 
 # ---------- discrete (left) ----------
@@ -21,14 +22,14 @@ for i in range(4):
 tasks = [(0, 1.8, 0), (0, 2.6, 1), (0, 1.5, 2), (0, 3.0, 3)]
 for (x0, w, s) in tasks:
     ax.add_patch(Rectangle((x0, 4 - 0.7*s - 0.55), w, 0.6, fc=colors[s], ec='none', alpha=0.9))
-ax.text(8.2, 4 - 0.7*2 - 0.25, 'idle (bubble)', fontsize=7, color='#c0392b', ha='left', fontweight='bold')
+ax.text(8.2, 4 - 0.7*2 - 0.25, 'idle (bubble)', fontsize=7.8, color='#c0392b', ha='left', fontweight='bold')
 ax.annotate('', xy=(7.7, 4 - 0.7*2 - 0.55), xytext=(7.9, 4 - 0.7*2 - 0.25),
             arrowprops=dict(arrowstyle='-', lw=0.7, color='#c0392b'))
 ax.add_patch(Rectangle((1.0, 0.4), 3.0, 0.6, fc='#bbb', ec='none', alpha=0.6))
-ax.text(2.5, 0.7, 'next batch waits', fontsize=8, color='#555', ha='center')
+ax.text(2.5, 0.7, 'next batch waits', fontsize=8.5, color='#555', ha='center')
 ax.annotate('', xy=(2.5, 1.0), xytext=(2.5, 0.7),
             arrowprops=dict(arrowstyle='-', lw=0.7, color='#555'))
-ax.text(5.0, 0.1, 'GPU slots idle (red) when a\nsequence finishes early', fontsize=7.5, color='#c0392b', ha='center')
+ax.text(5.0, 0.1, 'GPU slots idle (red) when a\nsequence finishes early', fontsize=8.2, color='#c0392b', ha='center')
 
 # ---------- continuous (right) ----------
 ax = axes[1]
@@ -44,8 +45,8 @@ for (x0, w, s, backfill) in ctasks:
     ec = '#1e6b42' if backfill else 'none'
     ax.add_patch(Rectangle((x0, y), w, 0.6, fc=col, ec=ec, lw=lw_e, alpha=0.95 if backfill else 0.9))
 ax.annotate('', xy=(9.8, 2.95), xytext=(9.8, 0.5), arrowprops=dict(arrowstyle='-|>', lw=1.3, color='#555'))
-ax.text(9.35, 1.7, 'a finishing sequence\nfrees its slot\nimmediately', fontsize=7.5, color='#555', ha='right')
-ax.text(5.0, 0.1, 'new sequences (green) snap into the\nfreed slot → higher GPU utilization', fontsize=7.5, color='#2e8b57', ha='center')
+ax.text(9.35, 1.7, 'a finishing sequence\nfrees its slot\nimmediately', fontsize=8.2, color='#555', ha='right')
+ax.text(5.0, 0.1, 'new sequences (green) snap into the\nfreed slot → higher GPU utilization', fontsize=8.2, color='#2e8b57', ha='center')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=150)

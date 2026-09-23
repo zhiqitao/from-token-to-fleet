@@ -22,7 +22,7 @@ ax.text(3.0, 6.7, 'Prefill-optimized (FLOPs)', fontsize=8, ha='center', color='#
 for i, (gx, gy) in enumerate([(1.4, 5.3), (4.6, 5.3), (1.4, 2.9), (4.0, 2.9)]):
     ax.add_patch(FancyBboxPatch((gx-0.85, gy-0.55), 1.7, 1.1, boxstyle='round,pad=0.02', fc='#e67e22', ec='#a04000', lw=1))
     ax.text(gx, gy, 'GPU', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
-ax.text(3.0, 1.9, 'massive prompt at once\nhigh FLOP utilization', fontsize=7.5, ha='center', color='#c0392b')
+ax.text(3.0, 1.9, 'massive prompt at once\nhigh FLOP utilization', fontsize=8.2, ha='center', color='#c0392b')
 
 # ---- Right pool: Decode (bandwidth-bound, blue) ----
 ax.add_patch(FancyBboxPatch((11.3, 1.4), 5.4, 6.2, boxstyle='round,pad=0.02', fc='#eaf2f8', ec='#27408b', lw=2))
@@ -31,12 +31,12 @@ ax.text(14.0, 6.7, 'Decode-optimized (HBM)', fontsize=8, ha='center', color='#27
 for i, (gx, gy) in enumerate([(12.4, 5.3), (15.6, 5.3), (12.0, 2.9), (15.2, 2.9)]):
     ax.add_patch(FancyBboxPatch((gx-0.85, gy-0.55), 1.7, 1.1, boxstyle='round,pad=0.02', fc='#2980b9', ec='#154360', lw=1))
     ax.text(gx, gy, 'GPU', ha='center', va='center', fontsize=8, color='white', fontweight='bold')
-ax.text(14.0, 1.9, 'steady token generation\nhigh bandwidth utilization', fontsize=7.5, ha='center', color='#27408b')
+ax.text(14.0, 1.9, 'steady token generation\nhigh bandwidth utilization', fontsize=8.2, ha='center', color='#27408b')
 
 # ---- Bridge: KV cache transfer (label in clear whitespace above the arrow) ----
 ax.annotate('', xy=(11.3, 4.5), xytext=(5.7, 4.5), arrowprops=dict(arrowstyle='<|-|>', lw=4.0, color='#a93226', connectionstyle='arc3,rad=0.0'))
-ax.text(8.5, 6.2, 'KV CACHE TRANSFER (initial)', fontsize=8.6, ha='center', color='#a93226', fontweight='bold')
-ax.text(8.5, 3.3, 'prefill writes the prompt KV, then decode READS it\nand keeps appending per generated token\n(ownership splits)', fontsize=7.4, ha='center', color='#555')
+ax.text(8.5, 6.2, 'KV CACHE TRANSFER (one-time)', fontsize=9.2, ha='center', color='#a93226', fontweight='bold')
+ax.text(8.5, 3.3, 'prefill WRITES the prompt KV, then decode READS it\nand keeps appending per generated token —\nKV moves once, then stays (ownership splits)', fontsize=8.4, ha='center', color='#555')
 
 # ---- Incoming request / output outside pools (anchor endpoints) ----
 ax.text(3.0, 8.0, 'input prompt \u2192', fontsize=8, ha='left', color='#333', fontweight='bold')
@@ -47,7 +47,7 @@ ax.annotate('', xy=(14.0, 0.75), xytext=(14.0, 1.32), arrowprops=dict(arrowstyle
 
 # ---- Why: resource conflict (aligned with qualified -optimized wording) ----
 ax.text(8.5, -0.3, 'Why split?  prefill wants compute FLOPs (~1.19 PFLOPS vs 0.989 peak single-H100);\ndecode wants HBM bandwidth (5.6 TB/s vs 3.35 TB/s). One pool forces a compromise. [ILLUSTRATIVE][DERIVED]',
-        fontsize=7.4, ha='center', color='#444')
+        fontsize=8.2, ha='center', color='#444')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-11/figures/fig-11-1103.png', dpi=150)

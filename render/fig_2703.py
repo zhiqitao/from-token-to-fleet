@@ -24,6 +24,7 @@ border = {'eff': '--', 'effcap': '--', 'cap': '-', 'fleet': '-'}
 n = len(steps)
 row_h = 1.0
 fig, ax = plt.subplots(figsize=(6.1, 6.1))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow (already 6.1in column)
 ax.set_xlim(0, 12); ax.axis('off')
 
 # Legend (three clearly separated rows at the top)
@@ -45,7 +46,7 @@ for i, (name, kind, yr) in enumerate(steps):
                                 fc=col, ec='#333', lw=1.4, ls=border[kind], alpha=0.92))
     ax.text(5.2, y+row_h/2, name, fontsize=8.5, fontweight='bold', color='white',
             ha='center', va='center')
-    ax.text(10.35, y+row_h/2, yr, fontsize=8.2, color='#444', va='center', style='italic')
+    ax.text(10.35, y+row_h/2, yr, fontsize=8.8, color='#444', va='center', style='italic')
     if i < n-1:
         ax.annotate('', xy=(2.2, y-0.02), xytext=(2.2, y+0.02),
                     arrowprops=dict(arrowstyle='-', lw=1.0, color='#999'))
@@ -57,8 +58,8 @@ y_bottom = y - 1.0
 ax.set_ylim(y_bottom, y_top)
 
 ax.text(5.9, y-0.35, 'From a single model to a whole system \u2014 the spine of this handbook (Appendix \u00a76).\n'
-                    'Dates are approximate era markers for chronology, not release dates. [ILLUSTRATIVE][DERIVED]',
-        fontsize=8, fontstyle='italic', color='#555', ha='center')
+                    'Approximate era markers (\u2248) are loose chronological signals, not release dates. [ILLUSTRATIVE][DERIVED]',
+        fontsize=8.8, fontstyle='italic', color='#555', ha='center')
 
 plt.tight_layout()
 out = 'design/manuscript/chapter-27/figures/fig-27-2703.png'

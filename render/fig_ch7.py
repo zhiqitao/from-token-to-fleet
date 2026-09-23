@@ -43,12 +43,13 @@ print('wrote fig-07-0701')
 # ---- fig-07-0702: Inference vs fine-tuning memory floor ----
 labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+optimizer)', 'QLoRA\n(weights+adapters)']
 vals = [165, 1120, 60]
-fig, ax = plt.subplots(figsize=(6.5, 4.9))
+fig, ax = plt.subplots(figsize=(6.1, 4.9))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow
 bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'], width=0.6)
 for b, v in zip(bars, vals):
     ax.text(b.get_x()+b.get_width()/2, v+30, f'~{v} GB', ha='center', fontsize=10, fontweight='bold')
 ax.set_ylabel('GPU memory floor (GB)')
-ax.set_title('Memory floor: inference vs fine-tuning (70B)')
+ax.set_title('Memory floor: inference vs fine-tuning (canonical 70B FP16)\nEach column is a DIFFERENT training scenario, not a fair single-variable comparison', fontsize=10)
 ax.axhline(160, color='#888', ls='--', lw=1, label='2×H100 (160 GB)')
 ax.axhline(640, color='#27408b', ls='--', lw=1, label='8×H100 (640 GB)')
 ax.axhline(80, color='#6f9e5f', ls='--', lw=1, label='1×H100 (80 GB)')

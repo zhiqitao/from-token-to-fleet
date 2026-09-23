@@ -67,8 +67,8 @@ legend_comps = [
     ('generated reasoning (\u03b3)', '#f5c98b', 'OO'),
 ]
 ax.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in legend_comps],
-          loc='lower center', bbox_to_anchor=(0.5, 0.00), fontsize=9, frameon=False, ncol=3,
-          bbox_transform=ax.transAxes, handlelength=1.4, columnspacing=1.6)
+          loc='lower center', bbox_to_anchor=(0.5, 0.00), fontsize=9.8, frameon=False, ncol=3,
+          bbox_transform=ax.transAxes, handlelength=1.5, columnspacing=1.8)
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1903.png',
