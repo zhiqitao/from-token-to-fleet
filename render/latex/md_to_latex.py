@@ -177,6 +177,36 @@ def fix_urls(tex_path):
     return False
 
 
+def short_title(full):
+    """Derive a concise navigational title from a (possibly long) figure caption.
+
+    Used as the bracket-form short caption for caption[short]{long} so the
+    List of Figures lists a navigational phrase rather than the full paragraph.
+    Strategy: take the leading clause up to the first sentence-period that is
+    followed by whitespace-and-a-capital (a natural title boundary), fall back to
+    the first em-dash / colon, and cap the length.
+    """
+    import re as _re
+    s = full.strip()
+    # cut at first '. ' that looks like a sentence boundary
+    m = _re.match(r"^(.*?\.)\s+(?=[A-Z])", s)
+    if m and len(m.group(1)) > 12:
+        s = m.group(1)
+    # cut at first em-dash / colon (falls back for caption-phrase titles)
+    if len(s) > 60:
+        for sep in (" — ", "——", " — ", ":", " - "):
+            i = s.find(sep)
+            if 0 < i < 200:
+                s = s[:i].strip()
+                break
+    # hard cap ~80 chars to keep the List of Figures tidy
+    if len(s) > 84:
+        s = s[:81].rstrip() + "…"
+    # strip trailing punctuation and any leftover bracket marker
+    s = s.rstrip(" .:;")
+    return s.strip() or ""
+
+
 def fix_captions(tex_path):
     """Strip the manually-written 'Fig X.Y' prefix from captions and alt text.
 
@@ -221,7 +251,13 @@ def fix_captions(tex_path):
 
     # Apply to every \\caption{...} and alt={...}.
     def cap_repl(m):
-        return "\\caption{" + clean_marks(strip_lead(m.group(1))) + "}"
+        full = clean_marks(strip_lead(m.group(1)))
+        short = short_title(full)
+        # Short caption goes into the bracket form so the List of Figures lists a
+        # navigational title instead of the full paragraph (reviewer §8).
+        if short and short != full:
+            return "\\caption[" + short + "]{" + full + "}"
+        return "\\caption{" + full + "}"
     tex = _re.sub(r"\\caption\{((?:[^{}]|\{[^{}]*\})*)\}", cap_repl, tex)
 
     def alt_repl(m):
