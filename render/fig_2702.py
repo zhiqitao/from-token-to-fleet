@@ -27,9 +27,12 @@ ax.text(4.0, 10.0, 'The 2026 frontier question for an AI Solution Architect (App
 
 # upward arrow in the left margin: points UP toward the externalized/fleet rows,
 # matching the book's thesis that intelligence shifts up out of the weights.
+# Label the axis as SCOPE OF PLACEMENT, NOT superiority (the vertical axis is location,
+# not quality — there is no 'highest/best' tier).
 ax.annotate('', xy=(0.45, 9.1), xytext=(0.45, 1.5),
             arrowprops=dict(arrowstyle='-|>', lw=2.3, color='#c0392b'))
-ax.text(0.55, 5.3, 'more of the intelligence\nand compute budget', fontsize=8, color='#c0392b', rotation=90, va='center', ha='left')
+ax.text(0.32, 5.3, 'scope of placement:  intelligence shifts up out of the weights\n(vertical axis = WHERE it lives, not BETTER/HIGHER)',
+        fontsize=8, color='#c0392b', rotation=90, va='center', ha='left')
 
 for i, (name, ch, color, y) in enumerate(layers):
     box = FancyBboxPatch((1.0, y-0.42), 4.7, 0.82,
