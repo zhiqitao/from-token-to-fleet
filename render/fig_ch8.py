@@ -26,6 +26,7 @@ r200 = ridge(peak, bw200)   # ~206
 ais = np.logspace(-1, 3, 400)
 
 fig, ax = plt.subplots(figsize=(6.1, 4.4))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow
 # H100 ridge (solid) and H200 ridge (dashed); compute plateau common to both
 ach100 = np.minimum(peak, ais * bw100)
 ach200 = np.minimum(peak, ais * bw200)
@@ -44,12 +45,15 @@ ax.text(r200*0.97, peak*0.05, f'ridge ≈ {r200:.0f}', fontsize=8.5, color='#c03
 
 # Compute plateau ceiling (shared by both parts), plus region labels made explicit.
 ax.axhline(peak, color='gray', ls='-.', lw=1.0, alpha=0.75)
-ax.text(0.985, 0.40, 'compute plateau\n(compute-bound)\n= 989 TFLOPS',
+ax.text(0.985, 0.36, 'compute plateau\n= 989 TFLOPS',
         transform=ax.transAxes, fontsize=8.5, color='#6f9e5f',
         ha='right', va='center')
-ax.text(0.075, 0.12, 'memory-bound slope\n(≈ intensity × BW per GPU)',
+ax.text(0.06, 0.10, 'memory-bound slope\n(≈ intensity × BW)',
         transform=ax.transAxes, fontsize=8.5, color='#e67e22',
         ha='left', va='center')
+# DERIVED / source tag in-plot (top-centre, clear of PER GPU at left and prefill ridge at right)
+ax.text(0.50, 0.965, 'DERIVED [1P: vendor datasheet]', transform=ax.transAxes,
+        fontsize=8, color='#8a5a00', ha='center', va='top')
 
 # "PER GPU" stated plainly INSIDE the plotting area (top-left of the axes),
 # so the figure carries its own single-GPU qualification.

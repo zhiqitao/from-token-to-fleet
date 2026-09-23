@@ -104,6 +104,7 @@ bw = {'NVSwitch (1.8 TB/s)': 1800, 'NVLink (0.9 TB/s)': 900,
       'InfiniBand (0.4 TB/s)': 400, 'Ethernet (0.1 TB/s)': 100}
 data_per_byte = 2.0   # all-reduce ~2x data across the tree
 fig, ax = plt.subplots(figsize=(6.1, 4.7))
+fig._hermes_print_sized = True   # regen must not re-boost/reflow
 cols = {'NVSwitch (1.8 TB/s)': ('#27408b', '-', 'o'),
         'NVLink (0.9 TB/s)': ('#3a6ea5', '--', 's'),
         'InfiniBand (0.4 TB/s)': ('#e67e22', '-.', '^'),
@@ -119,6 +120,9 @@ ax.annotate('140 GB (70B weights)', xy=(140, 5e4), xytext=(1.6, 1.4e5),
 ax.set_xlabel('Data volume (GB)', fontsize=9)
 ax.set_ylabel('All-reduce completion time (ms)', fontsize=9)
 ax.set_title('All-reduce time vs data volume,\nby interconnect tier', fontsize=9.5)
+# ANALYTICAL/DERIVED tag in-plot (upper right whitespace)
+ax.text(0.99, 0.94, 'ANALYTICAL [DERIVED]\n(t ∝ 2·V/B)', transform=ax.transAxes,
+        fontsize=8, color='#8a5a00', ha='right', va='top')
 ax.tick_params(labelsize=10)
 # legend OUTSIDE the axes (below) so it does not occlude the data
 ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=2, frameon=False)
