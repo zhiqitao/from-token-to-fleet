@@ -125,6 +125,16 @@ Both are far inside the 10 Gbps link, so the base case appears benign (the bur
 
 This calculation shows that cross‑host communication must be dimensioned early on the **per‑request burst** (which can exceed a single link even before the aggregate does), and that both the burst and the aggregate scale with φ and D, even if the base case appears benign.
 
+### Counter-scenarios: KV is not always the driver
+
+The canonical case is *one* regime — a mid-context, mid-rate RAG workload where the KV-residency ceiling happens to be the binding constraint. Two counter-scenarios show that the method (compute λ·W/C with the real service time) transfers while the *conclusion* (KV binds) does not. **The formula is the method; the binding term is per-workload.**
+
+**Counter-scenario A — short context, high batch: KV is not the host-count driver.** Consider a code-completion-style workload: ~500-token input, ~100-token output, but a very high arrival rate (say 200 rps peak) and a small model (7B, so weights are ~14 GB and the KV footprint per token is far lower). Here two things happen. First, per-request KV is tiny — a 600-token max-context against a small per-token κ is well under 1 GB, so the host holds hundreds of concurrent requests at the KV screen; C is *not* the ceiling. Second, the binding term becomes **decode bandwidth**: each generated token re-reads the full ~14 GB of weights, so the per-host decode token rate is capped by HBM bandwidth ÷ weight size, and at 200 rps × 100 output tokens the aggregate output-token demand dwarfs what any one host's bandwidth supplies. The host count is set by λ·O / (per-host token rate), *not* by KV residency. The fleet formula is unchanged; the binding term is bandwidth, not memory.
+
+**Counter-scenario B — long context, low rate: memory dominates even below the KV screen.** Consider a document-analysis workload: ~128K-token input, ~50-token output, but a low rate (say 2 rps). Here the per-request KV is enormous — 128K tokens against the canonical κ is ~335 GB, so only a *fraction* of one request fits on a single host's KV budget before weights. The host count is set by **aggregate KV footprint**, and because even one request nearly fills a host, the fleet is sized almost one-request-per-host despite the low rate. Here memory is not just a ceiling — it is the *dominant* term, and the canonical brief-context C/W shorthand (which assumes many small requests share a host) does not apply at all.
+
+**The transferable lesson.** In the canonical regime the host is KV-bound and sized by λ·W/C; in counter-scenario A it is bandwidth-bound and sized by output-token rate; in counter-scenario B it is memory-dominated and sized by aggregate context. The architect must identify which term binds *for the specific workload* before applying any single sizing formula — that is what makes the canonical scenario a method rather than a template.
+
 ## 5. Common Mistakes
 
 1. **Ignoring KV cache growth from agentic loops.** A common mistake is to assume that adding an agentic layer barely changes per-request resource usage. As shown, each turn adds ~800 tokens of context, which linearly reduces concurrent‑request capacity. Forgetting this leads to under‑provisioning the fleet.
