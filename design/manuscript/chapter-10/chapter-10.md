@@ -134,9 +134,17 @@ The parallelism strategy is forced by the binding constraint, and that constrain
 
 - **The canonical answer**: for the book's ~70B/8×H100 scenario, no parallelism is required at the baseline; parallelism becomes the tool when the model or workload outgrows one node. The architect escalates through TP (in-node) → PP (cross-node) → DP (replicating a fitting model) in that order.
 
-![Fig 10.2 — The five parallelization strategies and what each splits [ILLUSTRATIVE conceptual]. The figure is a comparison matrix, not five repeated fan-out diagrams, because the insight it must carry is the *difference*. One row per strategy (TP/PP/DP/EP/CP); three labelled columns — WHAT SPLITS, REPLICATED, COMMUNICATE — so reading across a row gives one strategy's full trade-off and reading down a column shows how that axis varies. Note how the five strategies differ on all three axes: TP shards the weights, DP replicates the model, EP shards experts, CP shards the sequence; and their collective communication differs — all-reduce vs point-to-point vs all-to-all vs ring](figures/fig-10-1001.png)
+**The five parallelization strategies and what each splits.** Reading across a row gives one strategy's full trade-off; reading down a column shows how each axis varies across strategies.
 
-*Each strategy splits or replicates one of the three axes while leaving the others intact, and exchanges a characteristically different collective — tensor parallel all-reduces partial sums, pipeline passes hidden states point-to-point, data parallel all-reduces gradients, expert parallel all-to-alls tokens, context parallel rings KV.*
+| Strategy | What splits | Replicated | Communicates |
+|---|---|---|---|
+| TP · tensor | W weights (rows) | activations | partial sums → all-reduce |
+| PP · pipeline | transformer layers | hidden states | hidden states (P2P) |
+| DP · data | data batch | model + optimizer | gradients → all-reduce |
+| EP · experts | MoE experts | attention / weights | routes → all-to-all |
+| CP · context | token sequence | model weights | KV (ring) |
+
+*Each strategy splits or replicates one of the three axes while leaving the others intact, and exchanges a characteristically different collective — tensor parallel all-reduces partial sums, pipeline passes hidden states point-to-point, data parallel all-reduces gradients, expert parallel all-to-alls tokens, context parallel rings KV. The insight is the *difference*: TP shards weights, DP replicates the model, EP shards experts, CP shards the sequence. [ILLUSTRATIVE conceptual]*
 
 <!-- Figure spec: mechanism-first diagram; model shown as weight-matrix + layer-stack + batch; arrows show TP slicing weights, PP stacking stages, DP replicating with all-reduce, EP sharding experts, CP splitting sequence; annotate comm cost + use-case per strategy. -->
 
