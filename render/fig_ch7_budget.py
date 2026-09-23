@@ -59,7 +59,8 @@ ax.annotate('~64 GB runtime', xy=(weights + runtime / 2, y + 0.42), xytext=(weig
             arrowprops=dict(arrowstyle='->', color='#888', lw=1.0))
 
 # ---- Totals & derivation above/below the bars ----
-ax.text(kv_start + kv / 2, y + 0.95, f'~{kv} GB KV @ FP16 (2.62 MB/token, 9.5K max)', ha='center', va='bottom', color='#27408b', fontsize=9)
+# move the KV label ABOVE the bar but offset right so it clears the reserve call-out at left
+ax.text(kv_start + kv / 2, y + 1.35, f'~{kv} GB KV @ FP16 (2.62 MB/token, 9.5K max)', ha='center', va='bottom', color='#27408b', fontsize=9)
 
 # FP8 note below
 ax.text(kv_start + kv / 2, y8 - 0.55, f'FP8 KV: ~{C_fp8:.1f} slots (436 ÷ {kv_fp8_req:.3f} GB/request)', ha='center', va='top', color='#6f9e5f', fontsize=9.5, style='italic')
@@ -69,13 +70,18 @@ ax.text(total + 12, y + 0.15, f'C ≈ {C_fp16:.1f} concurrent\nrequests @ FP16',
 ax.text(total + 12, y - 0.75, '8×H100 = 640 GB', fontsize=9, color='#666', ha='left', va='center')
 
 # ---- reviewer's ask (Fig 7.4): aggregate screen != per-rank fit; mark reserve; show 8 GPUs ----
-# 1. Eight lightly-separated GPU partitions behind the aggregate bar (visual device so the
-#    pool doesn't read as one freely allocatable heap).
+# Native per-rank geometry: add a dedicated 8-rank scale strip BELOW the bars (separate from
+# the data), so the pool's 8x80 GB structure is encoded natively without cluttering the bars.
 import numpy as np
-for g in np.linspace(0, total, 9)[:-1]:
-    ax.axvline(g, ymin=-0.16, ymax=0.16, color='#cccccc', lw=0.4, alpha=0.9)
-ax.text(total*0.5, y8 - 0.9, '8× 80 GB per-rank pool (sharding/fragmentation/workspace\nstill limit the real per-rank allocation; this is an aggregate screen)',
-        ha='center', va='top', fontsize=8.5, color='#666', style='italic')
+from matplotlib.patches import Rectangle
+rank_w = total / 8.0
+strip_y = -2.85
+for g in range(8):
+    ax.add_patch(Rectangle((g * rank_w, strip_y), rank_w, 0.5, fc='#eef1f5', ec='#8a8a8a', lw=0.8))
+    ax.text(g * rank_w + rank_w/2, strip_y + 0.25, f'{(g+1)*80:.0f}G', ha='center', va='center', fontsize=7.2, color='#555')
+# per-rank caption BELOW the strip (va=top so it extends downward, clear of the strip and the FP8 note)
+ax.text(0.05, strip_y - 0.18, '8 × 80 GB per-rank pool  (the aggregate screen ≠ a per-rank fit guarantee)',
+        ha='left', va='top', fontsize=7.8, color='#777', style='italic')
 
 # 2. Reserve is a SCENARIO assumption, not a hardware constant (placed in the
 #    clearly-free upper-LEFT whitespace, above the weight segment)
@@ -83,11 +89,11 @@ ax.text(weights + runtime/2, 1.10, 'scenario reserve\n(not a hardware constant)'
         fontsize=8, color='#444', bbox=dict(boxstyle='round,pad=0.15', fc='#f4f4f4', ec='#bbbbbb', lw=0.6))
 
 # 3. Prominent aggregate-vs-per-rank warning
-ax.text(total*0.5, 1.42, 'AGGREGATE RESIDENCY SCREEN ≠ PER-RANK FIT GUARANTEE', ha='center', va='center',
+ax.text(total*0.5, 1.85, 'AGGREGATE RESIDENCY SCREEN ≠ PER-RANK FIT GUARANTEE', ha='center', va='center',
         fontsize=10, color='#c0392b', fontweight='bold')
 
-ax.set_xlim(-5, total + 175)
-ax.set_ylim(-2.6, 2.0)
+ax.set_xlim(-5, total + 320)
+ax.set_ylim(-3.6, 2.3)
 ax.set_yticks([y, y8])
 ax.set_yticklabels(['FP16 KV', 'FP8 KV'], fontsize=10)
 ax.set_xlabel('on-host HBM (GB, per 8×H100 host)', fontsize=10.5)
@@ -95,7 +101,6 @@ ax.set_title("Concurrency budget: where a 70B host's 640 GB pool goes", fontsize
 ax.tick_params(axis='x', labelsize=9)
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
-ax.set_ylim(-2.6, 2.0)
 plt.subplots_adjust(left=0.14, right=0.97, top=0.88, bottom=0.12)
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.png', dpi=150)
 plt.close()

@@ -88,17 +88,15 @@ prompt shapes, matching the \textasciitilde9.2K-in /
 \textasciitilde300-out token profile with the model's own tokenizer (not
 a heuristic). {[}2°{]}
 
-\textbf{Step 2 --- measurement protocol.} We load the candidate server
-with the concurrency it can actually hold while we observe it across
-many requests. A single 8×H100 host has a KV-residency ceiling of C ≈ 18
-concurrent full-context requests (Ch 11/13/17), i.e.~\textasciitilde2.1
-req/s at the \textasciitilde8.6 s canonical service time --- so we load
-it at \textasciitilde18 concurrent (\textasciitilde2.1 req/s), not at a
-concurrency it cannot physically hold. (The full \textasciitilde40 rps
-peak --- \textasciitilde344 requests in flight per Little's law --- is a
-\emph{fleet} burst served by on the order of \textasciitilde20 hosts, Ch
-16-17; a single-host benchmark cannot and should not be loaded to that.)
-We record, across many requests:
+\textbf{Step 2 --- sweep the offered load, do NOT test a single point.}
+The analytical concurrency figure (C ≈ 17.5, \textasciitilde2.0 req/s)
+is a \emph{starting hypothesis}, not the answer. We sweep the offered
+load/concurrency across a range and measure the tail at each point, so
+the benchmark finds the SLO-satisfying operating regime instead of
+validating the model at the point the model selected. Run a load series
+(e.g.~2, 4, 8, 12, 16, 20, 24, 28 concurrent at the canonical
+\textsubscript{9.2K-in/}300-out profile, scaled to a host's achievable
+concurrency) and record, at each level:
 
 \begin{itemize}
 \tightlist
@@ -112,7 +110,19 @@ We record, across many requests:
 \item
   \textbf{KV cache utilization} and prefix-cache hit ratio (to validate
   the serving choices of Ch11).
+\item
+  \textbf{Admission / rejection} --- the offered-load level at which the
+  server starts queueing or rejecting (the saturation knee).
 \end{itemize}
+
+The analytical ceiling sets the \emph{range} of the sweep and flags
+which levels are physically impossible (a single 8×H100 host cannot hold
+\textasciitilde344 in-flight requests; that is a fleet burst served by
+\textasciitilde20 hosts, Ch 16-17). The benchmark then reads off the
+highest offered load that still meets the SLO --- that \emph{measured
+SLO-goodput} is the provisioning input, not the analytical C/W. The
+server is loaded at the concurrency it can actually hold, and we sweep
+across that achievable range rather than testing one number.
 
 \textbf{Step 3 --- read the result.} Suppose candidate A (a 70B dense on
 8×H100) shows p95 TTFT 1.9 s and goodput \textasciitilde19,800 tok/s at

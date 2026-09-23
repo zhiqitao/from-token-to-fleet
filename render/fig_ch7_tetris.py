@@ -29,16 +29,18 @@ for x, (label, kv) in zip(xs, ctxs):
     ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'], hatch='//', edgecolor='white', linewidth=0.8)
     ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'], hatch='xx', edgecolor='white', linewidth=0.8)
     ax.bar(x, kv, width=bar_w, bottom=204, color=cols['kv'], hatch='..', edgecolor='white', linewidth=0.8, alpha=0.92)
+    # per-rank 80 GB dividers drawn ON TOP (zorder high) so they read inside the bars
+    for rh in range(80, 640, 80):
+        ax.plot([x - 0.02, x + bar_w + 0.02], [rh, rh], color='#3d4a4a', lw=0.8, alpha=0.9, zorder=6)
     total = 204 + kv
-    # KV value above its bar (clip_on=False so it is never cut off)
     ax.text(x+bar_w/2, 204+kv+16, f'{kv:.1f} GB KV'.replace('.0 GB',' GB'),
             ha='center', va='bottom', fontsize=10.5, color='#c0392b', fontweight='bold', clip_on=False)
-    # context label + total, below the bar
     ax.text(x+bar_w/2, -40, label, ha='center', fontsize=10, fontweight='bold')
     ax.text(x+bar_w/2, -70, f'= {total:.0f} GB used', ha='center', fontsize=9, color='#555')
 
 ax.axhline(640, color='#a93226', lw=2.2, ls='--')
-ax.text(0.15, 662, '640 GB pool = 8×H100 HBM', fontsize=9.5, color='#a93226', fontweight='bold')
+ax.text(0.15, 690, '640 GB = 8× 80 GB ranks', fontsize=9.5, color='#a93226', fontweight='bold')
+ax.text(6.6, 690, '(horizontal rules = 80 GB rank boundaries)', fontsize=8, color='#777', ha='right')
 
 leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, label='KV cache (grows w/ context)'),
        mpatches.Patch(color=cols['weights'], label='weights 140 GB'),

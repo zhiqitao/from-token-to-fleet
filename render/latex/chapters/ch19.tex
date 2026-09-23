@@ -358,26 +358,42 @@ orchestration-latency budget.
 Introducing an agentic layer reshapes the system architecture in four
 ways:
 
+\textbf{State-management policy sets the trajectory.} Before quantifying
+context/KV growth, the architect must decide the \emph{state-management
+policy}, because that policy --- not the model --- determines whether
+context grows unbounded. The quantitative path that follows (\hyperref[fig:19.2]{Fig 19.2}/19.3) uses an \textbf{append-only bounding case}: context is only
+ever appended and never evicted, so it is the worst case. That is a
+deliberate upper bound, not the deployed design. The durable
+architectural lesson is that the growth rate is set by the policy levers
+--- summarization (compress the accumulated history each turn),
+truncation (drop the oldest context beyond a budget), externalized tool
+state (store retrieval results out-of-band rather than in-context),
+replay policy (re-derive rather than retain), and cache policy (prefix
+caching, KV precision). A design that applies these levers can hold
+context roughly flat while an append-only design grows it
+\textasciitilde36\% by turn 4; the append-only number is the
+\emph{stress case} that bounds what the system must tolerate if the
+levers fail, not the expected operating point.
+
 \textbf{Inference scaling.} The base model (70B FP16, 8×H100) must now
 serve variable-length contexts, and --- critically --- the KV-residency
 conclusion is far more severe than a per-latency convenience because the
-canonical per-token KV is \textasciitilde2.62 MB/token (\hyperref[chap:7]{Chapter 7}). A
-request that triggers 4 agent turns carries \textasciitilde12,960 tokens
-vs.~9,500 for single-shot (\hyperref[tab:19.1]{Table 19-1}) --- that is not a ``35\% GPU
-memory'' tweak but a move from \textasciitilde24.9 GB KV per request
-(9,500 tokens × 2.62 MB) to \textasciitilde34.0 GB (12,960 ×2.62 MB) ---
-roughly a 36\% growth, on top of an already-large KV footprint. At 100
-concurrent users with the median single-turn profile
-(\textasciitilde27.2 GB/request at 10,365 tokens), the aggregate KV
-alone is \textasciitilde2.7 TB --- far beyond one host's
-\textasciitilde436 GB KV budget, so \textbf{agents do not just stress
-memory, they force a fleet} (\hyperref[chap:17]{Chapter 17}). The architect must therefore
-treat context growth as a first-order capacity driver: cap \emph{T},
-cache prefixes, or quantize KV (FP8), as these levers repeatedly
-outprice adding hosts. Note we must be precise: the per-request KV is
-set by the model's canonical per-token KV (all layers), not by per-layer
-figures; the honest number is tens of GB per request, which is exactly
-why agentic depth is a fleet-sizing problem.
+canonical per-token KV is \textasciitilde2.62 MB/token (\hyperref[chap:7]{Chapter 7}'s
+full-MHA reference geometry). A request that triggers 4 agent turns
+carries \textasciitilde12,960 tokens vs.~9,500 for single-shot (\hyperref[tab:19.1]{Table 19-1}) --- that is not a ``35\% GPU memory'' tweak but a move from
+\textasciitilde24.9 GB KV per request (9,500 tokens × 2.62 MB) to
+\textasciitilde34.0 GB (12,960 ×2.62 MB) --- roughly a 36\% growth, on
+top of an already-large KV footprint. At 100 concurrent users with the
+median single-turn profile (\textasciitilde27.2 GB/request at 10,365
+tokens), the aggregate KV alone is \textasciitilde2.7 TB --- far beyond
+one host's \textasciitilde436 GB KV budget, so \textbf{agents do not
+just stress memory, they force a fleet} (\hyperref[chap:17]{Chapter 17}). The architect must
+therefore treat context growth as a first-order capacity driver: cap
+\emph{T}, cache prefixes, or quantize KV (FP8), as these levers
+repeatedly outprice adding hosts. Note we must be precise: the
+per-request KV is set by the model's canonical per-token KV (all
+layers), not by per-layer figures; the honest number is tens of GB per
+request, which is exactly why agentic depth is a fleet-sizing problem.
 
 \begin{figure}
 \centering

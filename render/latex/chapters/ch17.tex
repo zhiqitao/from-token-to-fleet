@@ -91,9 +91,8 @@ arithmetic, keeping the two quantities distinct: \textbf{aggregate HBM}
 weights − runtime/workspace reserve).
 
 \textbf{Single-host concurrency capacity (KV-bound).} The per-token KV
-footprint for the canonical 70B model is 2 × layers × hidden × bytes = 2
-×80 ×8,192 ×2 = 2,621,440 B ≈ 2.62 MB/token (\hyperref[chap:7]{Chapter 7} canonical).
-Subtract the 140 GB FP16 weights and \textasciitilde64 GB
+footprint for the canonical full-MHA reference geometry is 2 × layers ×
+hidden × bytes = 2 ×80 ×8,192 ×2 = 2,621,440 B ≈ 2.62 MB/token (\hyperref[chap:7]{Chapter 7} canonical). Subtract the 140 GB FP16 weights and \textasciitilde64 GB
 runtime/activations/workspace from the 640 GB pool, leaving ≈436 GB
 available for KV. Each request at 9,200 input + 300 output reserves a
 \textbf{9,500-token max} KV of 9,500 ×2.62 MB ≈ 24.9 GB (the initial
@@ -237,6 +236,59 @@ that trips unit analysis):
 These numbers are the KV-residency ceiling; measured concurrency may be
 lower if GPU throughput or bandwidth binds first, so the architect takes
 the min of the KV, compute, and bandwidth capacities.
+
+\textbf{Define the subsystem boundaries before applying Little's Law ---
+the populations are NOT the same.} The end-to-end ``in-flight request''
+count differs from the number of sequences actually occupying
+accelerator resources, because a request passes through several
+subsystems with different residency times and different occupants:
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2200\linewidth}
+  >{\raggedright\arraybackslash}p{0.2200\linewidth}
+  >{\raggedright\arraybackslash}p{0.2200\linewidth}
+  >{\raggedright\arraybackslash}p{0.2200\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Subsystem
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Service time (W)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Occupancy (L = λ·W)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+What is resident
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+End-to-end request (user view) & W\_plan ≈ 10 s (planning round) &
+λ·W\_plan & requests from first submit to final response \\
+Request admission + queue & W\_queue & λ·W\_queue & requests waiting
+before a GPU slot is free \\
+Model execution (prefill + decode) & W\_exec ≈ 8.6 s (canonical
+9.2K/300) & λ·W\_exec & sequences being served on a host \\
+Prefill phase & W\_prefill ≈ 1.08 s & (arrivals during) & sequences in
+the one-shot prompt pass \\
+Decode phase & W\_decode ≈ 7.5 s & (arrivals during) & sequences in the
+per-token loop \\
+
+\label{tab:17.1}\end{longtable}
+
+\textbf{Which one drives KV residency?} Only the \emph{model-execution}
+occupancy (λ·W\_exec) holds KV slots --- a queued request (λ·W\_queue)
+is ``in flight'' from the user's view but does not yet reserve a KV
+block, and a request in the \emph{planning} phase (λ·W\_plan) has not
+reached the host at all. The KV-residency ceiling C therefore bounds
+λ·W\_exec (the resident sequences), not λ·W\_plan or λ·W\_queue. The
+end-to-end planning time (W\_plan ≈ 10 s) is the workload-level
+Little's-law basis used to derive the arrival rate from the population
+(\hyperref[chap:4]{Chapter 4}); the model-execution time (W\_exec ≈ 8.6 s) is the
+capacity-level Little's-law basis used to size the fleet (this chapter).
+The C/W shortcut is thus an \emph{execution-residency} screen, valid
+only when the serving system is the bottleneck and no queue/planning
+backlog changes the resident count --- state that scope, and never quote
+C/W as a measured end-to-end goodput.
 
 If the peak traffic λ\_peak = 40 rps, Little's Law gives the number of
 requests \emph{in flight} as λ\_peak × L, where \textbf{L must be the
@@ -633,7 +685,7 @@ H @ T=3 (95th), FP8 (C×0.7 = 25.4×0.7 = 17.78)
 200 rps (2× growth) & 1,720 & 2,760 & ⌈1720/12.25⌉ ≈ 141 & ⌈2760/9.66⌉ ≈
 286 & ⌈2760/17.78⌉ ≈ 156 \\
 
-\label{tab:17.1}\end{longtable}
+\label{tab:17.2}\end{longtable}
 
 \emph{The chapter sizes fleets at the \textbf{95th-percentile turn
 scenario (T=3)} per its own rule (``size for the 95th-percentile token
