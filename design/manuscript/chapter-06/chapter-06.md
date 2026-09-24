@@ -106,7 +106,7 @@ These habits answer the book's recurring question — *what would we actually me
 
 The metric hierarchy directly dictates architecture. For the canonical workload:
 
-- **Bandwidth-bound decode + compute-bound prefill ⇒ consider P/D disaggregation** (Splitwise/DistServe/Mooncake) at scale, because squeezing both regimes from one resource pool fights itself. [S4][1P]
+- **Bandwidth-bound decode + compute-bound prefill ⇒ P/D disaggregation** (Splitwise/DistServe/Mooncake) is the remedy at scale, because squeezing both regimes from one resource pool fights itself. [S4][1P]
 - **Repeat-prefix RAG ⇒ enable prefix caching** (RadixAttention/APC), which turns repeated 9.2K prefills into cached lookups and defends the p95 TTFT against the 40 rps peaks. [S3][1P]
 - **KV cache pressure ⇒ quantize or offload KV.** FP8 KV is ≈54% of BF16 [S6][1P], and vLLM KV-offloading cuts TTFT by 2–22× [S6][1P] — both are memory-layer fixes the telemetry would call for when KV occupancy nears capacity.
 - **Speculative decoding where decode bandwidth is the wall** — DFlash *reports* over 6× lossless acceleration, up to 2.5× over EAGLE-3, in its paper's evaluated configurations [S5][1P] — because it reduces weight reads per accepted token. These are paper-reported results, not portable serving-speed figures: treat them as performance claims to re-measure on the target workload, not as a guaranteed speedup.

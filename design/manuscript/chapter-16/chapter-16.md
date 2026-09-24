@@ -100,7 +100,7 @@ Crucially, these are **independent sensitivity dimensions**, and each pushes the
 
 - **Fleet size** (N_hosts) — driven by the KV/throughput/SLO ceiling (Ch 17-20), not by TCO. A larger fleet raises the flat self-host line (more capex+opex) and shifts break-even right.
 - **Duty cycle** — a burst-sized fleet does *not* run every host at full paid duty all month. Self-hosted reserved cards bill flat regardless of utilization; cloud on-demand bills only what runs. Separating these two is what makes the self-host (high fixed, low variable) vs cloud (low fixed, high variable) comparison meaningful.
-- **Utilization** — the *provisioning* utilization target (70% vs 100%, Ch 17) sets how many hosts you buy, not how much they cost per unit; it is a separate line from the price-per-host.
+- **Utilization** — the *provisioning* utilization target (70% vs 100%, Ch 17) sets how many hosts are needed, not how much they cost per unit; it is a separate line from the price-per-host.
 - **Reserved / on-demand mix** — whether capacity is committed (cheaper, flat) or burst (pricier, on-demand) is a distinct lever; a mixed fleet has both a flat and a variable term.
 - **Failover reserve** — N-1/headroom hosts (Ch 17) add cost but are not production-serving capacity; they must be counted as a separate reserve line, not folded into the served-load hosts.
 - **Staffing** — the dominant human term for self-hosting; it is frequently the decider at low volume (Ch 16 §8 mini-case) and should be its own sensitivity dimension, not absorbed into opex.

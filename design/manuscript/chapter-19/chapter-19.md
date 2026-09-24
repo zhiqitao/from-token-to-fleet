@@ -62,7 +62,7 @@ Take a user query routed to an agentic RQA pipeline. The pipeline’s default po
 - Agentic: 10,350 input + 300 output = 10,650 tokens
 - Amplification factor: 10,650 / 9,500 ≈ 1.12×
 
-Now consider a harder query that exhausts all 4 turns. Using the chapter's per-turn convention (each turn adds δ≈800 tokens of retrieved context plus γ≈65 tokens of model-generated reasoning), the token trajectory grows approximately linearly: after *k* turns, total input tokens ≈ 9,200 + k·(800+65), and total output ≈ 300 (final answer) plus the intermediate reasoning (≈65 tokens per turn). After 4 turns, input ≈ 9,200 + 4×800 + 4×65 = 12,660 tokens, output ≈ 300 tokens, giving a total of ~12,960 tokens. The amplification factor vs. single-shot is 12,960 / 9,500 ≈ 1.36×.
+A harder query that exhausts all 4 turns is the upper-bound case. Using the chapter's per-turn convention (each turn adds δ≈800 tokens of retrieved context plus γ≈65 tokens of model-generated reasoning), the token trajectory grows approximately linearly: after *k* turns, total input tokens ≈ 9,200 + k·(800+65), and total output ≈ 300 (final answer) plus the intermediate reasoning (≈65 tokens per turn). After 4 turns, input ≈ 9,200 + 4×800 + 4×65 = 12,660 tokens, output ≈ 300 tokens, giving a total of ~12,960 tokens. The amplification factor vs. single-shot is 12,960 / 9,500 ≈ 1.36×.
 
 This worked example demonstrates that the cost increase is moderate for short reasoning paths but compounds as the agent loops deeper. The architect must weigh the probability of deep loops against the budget per request.
 
