@@ -143,9 +143,23 @@ ax.add_patch(FancyArrowPatch((rail_x, rail_y0), (rail_x, rail_y1),
 label(W-116, (rail_y0+rail_y1)/2, 'KV cache: created in prefill,\nreused (not recomputed) in decode',
       '#8a3a12', FS-1.1, weight='bold')
 
-# ---- first-token connector: prefill output -> decode entry ----
-arrow(pf_boxes[-1][1]+4, pf_cy, pf_boxes[-1][1]+4, dc_title_y+22, C_AR, 1.5)
-label(pf_boxes[-1][1]+8, (pf_cy+dc_title_y+22)/2, 'first token', '#555', FS-1.0, ha='left')
+# ---- first-token connector: prefill output feeds INTO the decode 'token' box ----
+# The first token emitted at the end of prefill becomes the input token the decode
+# loop consumes.  Route an ELBOW from the bottom-center of the prefill 'sample token'
+# box down through the inter-band whitespace into the top-center of the decode
+# 'token' box, so the arrowhead lands on the box (not on the band title/whitespace).
+from matplotlib.path import Path as _Path
+src_cx = (pf_boxes[-1][0] + pf_boxes[-1][1]) / 2
+dst_cx = (dc_boxes[0][0] + dc_boxes[0][1]) / 2
+src_y  = pf_boxes[-1][2]          # bottom edge of prefill 'sample token'
+dst_y  = dc_boxes[0][3]           # top edge of decode 'token'
+mid_y  = (src_y + dst_y) / 2      # inter-band whitespace
+ft_verts = [(src_cx, src_y), (src_cx, mid_y), (dst_cx, mid_y), (dst_cx, dst_y)]
+ft_codes = [_Path.MOVETO, _Path.LINETO, _Path.LINETO, _Path.LINETO]
+ax.add_patch(FancyArrowPatch(path=_Path(ft_verts, ft_codes), arrowstyle='-|>',
+             lw=1.5, color=C_AR, shrinkA=0, shrinkB=0, clip_on=False))
+ax.text((src_cx + dst_cx) / 2, mid_y + 14, 'first token', color='#555', fontsize=FS-1.0,
+        ha='center', va='bottom')
 
 # ===== bottom resource-regime band (own clear space) =====
 strip_y = obs_dc_y - 72
