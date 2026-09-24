@@ -20,7 +20,7 @@ from matplotlib.textpath import TextPath
 from matplotlib.font_manager import FontProperties
 
 BOLD = FontProperties(weight='bold')
-FS = 8.6
+FS = 9.4
 W = 6.1 * 72                    # 439.2 pt column width
 Ht = 8.4 * 72
 PADX = 0.30
@@ -86,11 +86,11 @@ label(W/2, pf_title_y-20, 'process the whole prompt, populate the KV cache, emit
       '#4a6a9a', FS-0.7)
 pf_cy = pf_title_y - 74
 pf_steps = [
-    ('prompt tokens', C_DATA),
+    ('prompt', C_DATA),
     ('embeddings', C_DATA),
-    ('transformer layers', C_MODEL),
-    ('create K/V', C_KV),
-    ('sample first token', C_DATA),
+    ('layers', C_MODEL),
+    ('make K/V', C_KV),
+    ('sample token', C_DATA),
 ]
 pf_boxes, k = draw_lane(pf_cy, pf_steps)
 pf_top_edge = pf_cy + BOX_H/2 + 6
@@ -112,11 +112,11 @@ label(W/2, dc_title_y-20, 'generate one token at a time, reusing the cached K/V'
       '#a06a3a', FS-0.7)
 dc_cy = dc_title_y - 74
 dc_steps = [
-    ('latest token', C_DATA),
-    ('reuse cached K/V', C_KV),
-    ('transformer layers', C_MODEL),
-    ('append new K/V', C_KV),
-    ('sample next token', C_DATA),
+    ('token', C_DATA),
+    ('reuse K/V', C_KV),
+    ('layers', C_MODEL),
+    ('append K/V', C_KV),
+    ('next token', C_DATA),
 ]
 dc_boxes, k2 = draw_lane(dc_cy, dc_steps)
 dc_top_edge = dc_cy + BOX_H/2 + 6

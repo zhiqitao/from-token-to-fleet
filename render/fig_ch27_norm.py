@@ -51,9 +51,10 @@ ax.text(10, 1.7, 'Each reduction is relative to the model\'s OWN stated predeces
 ax.text(10, 0.9, 'Value source: vendor-reported [1P] (arXiv 2606.19348; HF zai-org), not yet independently reprofiled.',
         fontsize=7.8, ha='center', color='#777', style='italic')
 
-plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png', dpi=200, bbox_inches='tight', pad_inches=0.08)
+plt.tight_layout(pad=0.2)
+plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png', dpi=200)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
-    plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.pdf', format='pdf')
 plt.close()
 print('wrote fig-27-2704 (independent before->after cards, each with its own baseline)')
