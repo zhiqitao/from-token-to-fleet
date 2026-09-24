@@ -58,22 +58,28 @@ be_lo = 148000 / api_hi   # crossover at the HIGH end of the price band
 be_hi = 148000 / api_lo   # crossover at the LOW end of the price band
 ax.plot([be], [148000], '*', ms=11, color='#c0392b', mec='#7b241c', zorder=6)
 ax.plot([be_lo, be_hi], [148000, 148000], '-', lw=1.4, color='#c0392b', alpha=0.8, zorder=5)
-ax.text(1.3e4, 6e5,
+# break-even annotation moved to the LOWER-LEFT, clear of the legend (which occupies
+# the upper-left) so the two text blocks do not collide. va='top' anchors the block
+# and it grows DOWNWARD into the empty lower-left region, away from the legend.
+ax.text(1.2e4, 2.2e5,
         f'break-even ≈ {be/1e6:.1f}M req/mo @ $20.80/1K\n'
         f'sensitivity ≈ {be_lo/1e6:.1f}–{be_hi/1e6:.1f}M [ILLUSTRATIVE]',
-        fontsize=8.5, color='#c0392b', fontweight='bold', ha='left', va='bottom')
+        fontsize=8.5, color='#c0392b', fontweight='bold', ha='left', va='top')
 
 # legend inside top-left (clear of data), assumptions as a compact footer OUTSIDE the axes
 ax.legend(fontsize=8.8, loc='upper left', ncol=1, frameon=False,
           handlelength=1.3, labelspacing=0.25, bbox_to_anchor=(0.0, 1.0))
-fig.text(0.13, 0.055,
+# Add explicit padding between the axes and its x-label so the label does not sit
+# inside the footnote band below.
+ax.set_xlabel('Requests/month (log)', fontsize=9, labelpad=6)
+fig.text(0.11, 0.012,
          'Assumptions: self-host flat (~$148K/mo reserved, incl. ~$10K/mo staff);\n'
          'cloud ~$72K/mo @ ~25% duty (~5 of ~20 hosts).\n'
          'Sensitivity [ILLUSTRATIVE]: a $15–25/1K price band moves\n'
          'the break-even to ~5.9–9.9M req/mo.',
-         fontsize=8.8, color='#555', ha='left', va='bottom')
+         fontsize=8.2, color='#555', ha='left', va='bottom')
 
-plt.subplots_adjust(left=0.13, right=0.97, top=0.90, bottom=0.13)
+plt.subplots_adjust(left=0.13, right=0.97, top=0.90, bottom=0.30)
 plt.savefig('design/manuscript/chapter-16/figures/fig-16-1601.png', dpi=150)
 plt.close()
 print('wrote fig-16-1601 (FLEET-scaled TCO; landscape column fit)')

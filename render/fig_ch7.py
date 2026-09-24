@@ -32,11 +32,11 @@ ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(18, 1.2),
 ax.scatter([9.2], [0.33*9.2], color='#27408b', zorder=5, s=25)
 ax.annotate('9.2K ≈ 3 GB (GQA) — 8× saving\nvs full-MHA bound (Ch. 7 attention note)', xy=(9.2, 0.33*9.2), xytext=(20, 0.07),
             arrowprops=dict(arrowstyle='->', color='#27408b'), fontsize=8.5, color='#27408b')
-ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.10), ncol=2, frameon=False)
+ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=2, frameon=False)
 ax.grid(alpha=0.3, which='both')
 ax.set_xlim(0.8, 1600)
 ax.set_ylim(0.05, 2000)
-plt.tight_layout(rect=[0, 0.06, 1, 1])
+plt.tight_layout(rect=[0, 0.10, 1, 1])
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0701.png', dpi=150)
 plt.close()
 print('wrote fig-07-0701')
