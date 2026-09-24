@@ -28,12 +28,18 @@ ax.text(7.1, 11.7, 'Agentic context accumulation: the KV block grows every turn'
 for (name, dl, gm, kv), x in zip(cols, xs):
     ax.text(x+cwd/2, 8.3, name, fontsize=10, fontweight='bold', ha='center', color='#27408b')
     y = 2.4
-    # initial prompt (blue, constant)
+    # initial prompt I0 (blue, constant) = 9.2K input
     h0 = h_of(I0)
     ax.add_patch(FancyBboxPatch((x, y), cwd, h0, boxstyle='round,pad=0.01',
                                 fc='#c8d8ea', ec='#27408b', lw=1, hatch='//'))
-    ax.text(x+cwd/2, y+h0/2, 'I0', fontsize=9, ha='center', va='center', color='#27408b')
+    ax.text(x+cwd/2, y+h0/2, 'I\u2080 (in)', fontsize=9, ha='center', va='center', color='#27408b')
     y += h0
+    # final output O_final (constant 300 tokens, separate block, matches Fig 19.2)
+    hf = max(h_of(300), 0.30)
+    ax.add_patch(FancyBboxPatch((x, y), cwd, hf, boxstyle='round,pad=0.01',
+                                fc='#6f9e5f', ec='#1e7a59', lw=1, hatch='xx'))
+    ax.text(x+cwd/2, y+hf/2, 'O\u2091', fontsize=8.5, ha='center', va='center', color='#0d4a35')
+    y += hf
     # retrieved tool output (teal, grows with turns)
     if dl > 0:
         h1 = h_of(dl)
@@ -57,18 +63,19 @@ ax.text(7.1, 1.60, 'append-only illustrative model: context is only appended, ne
         fontsize=9, ha='center', color='#1a1a1a', fontweight='bold')
 ax.text(7.1, 1.10, 'agentic depth is a fleet-sizing problem: KV grows ~36% (24.9 \u2192 34.0 GB)',
         fontsize=9, ha='center', color='#c0392b', fontweight='bold')
-ax.text(7.1, 0.55, 'canonical example @ 2.62 MB/token; total = I0 + T\u00b7\u03b4 + T\u00b7\u03b3 + O_final (base 9.5K = 9.2K input + 300 output).',
+ax.text(7.1, 0.55, 'canonical example @ 2.62 MB/token; total = I\u2080 + T\u00b7\u03b4 + T\u00b7\u03b3 + O_final (I\u2080 = 9.2K input, O_final = 300 output).',
         fontsize=8.5, ha='center', color='#444')
 
 # legend in its OWN clean band at the very bottom (clear of the conclusion/note text)
 legend_comps = [
-    ('initial prompt (I0)', '#c8d8ea', '//'),
+    ('initial prompt I\u2080 (9.2K in)', '#c8d8ea', '//'),
+    ('final output O\u2091 (300)', '#6f9e5f', 'xx'),
     ('retrieved tool output (\u03b4)', '#7fc6b5', 'xx'),
     ('generated reasoning (\u03b3)', '#f5c98b', 'OO'),
 ]
 ax.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in legend_comps],
-          loc='lower center', bbox_to_anchor=(0.5, 0.00), fontsize=9.8, frameon=False, ncol=3,
-          bbox_transform=ax.transAxes, handlelength=1.5, columnspacing=1.8)
+          loc='lower center', bbox_to_anchor=(0.5, 0.00), fontsize=8.8, frameon=False, ncol=4,
+          bbox_transform=ax.transAxes, handlelength=1.4, columnspacing=1.4)
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1903.png',

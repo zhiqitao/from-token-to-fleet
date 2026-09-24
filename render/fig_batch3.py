@@ -119,7 +119,7 @@ ax.plot(hosts, qps*0.95, '--s', color='#c0392b', label='with scheduling overhead
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Fleet throughput (req/s)', fontsize=10)
 ax.set_title('Fleet capacity (KV/service-time analytical bound, ~2.0 req/s/host)', fontsize=10)
-ax.text(0.99, 0.97, 'DERIVED [ILLUSTRATIVE]', transform=ax.transAxes, fontsize=7.5,
+ax.text(0.99, 0.97, 'DERIVED [ILLUSTRATIVE]', transform=ax.transAxes, fontsize=8.2,
         color='#8a5a00', ha='right', va='top')
 ax.legend(fontsize=9)
 ax.grid(alpha=0.3)

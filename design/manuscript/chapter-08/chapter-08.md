@@ -168,7 +168,7 @@ The compute arithmetic and roofline have direct consequences for system design:
 
 - **If decode is memory-bound** (single-stream, low batch), the primary optimization is batching — even modest batch sizes (8–16) raise arithmetic intensity toward the ridge, improving TFLOP/s utilization. KV cache quantization (FP8, int8) also reduces bytes per token, raising effective intensity. P/D disaggregation (prefill on GPUs, decode on a separate pool) can rebalance: prefill’s FLOP demand is served by compute-optimized GPUs, while decode’s bandwidth demand is served by wide-memory GPUs or even CPU offload.
 
-- **If the ridge point is exceeded** (e.g. H200 with 4.8 TB/s HBM3e and 4 PFLOPS FP8, giving a ~833 FLOP/byte ridge in FP8), the same workload may shift from memory-bound to compute-bound, changing the optimal hardware choice. This is why the H200 represents a inflection point where inference and training hardware lines begin to converge [1P: NVIDIA H100 datasheet].
+- **If the ridge point is exceeded** (e.g. H200 with 4.8 TB/s HBM3e and ~1.98 PFLOPS *dense* FP8 — not the sparsity-inclusive ~4 PFLOPS, which this book never uses as a baseline (§8.6) — giving a ~412 FLOP/byte ridge in FP8), the same workload may shift from memory-bound to compute-bound, changing the optimal hardware choice. This is why the H200 represents an inflection point where inference and training hardware lines begin to converge [1P: NVIDIA H100 datasheet].
 
 In practice, the architect measures arithmetic intensity for the target workload and precision, locates the kernel on the roofline chart, and then selects hardware and batching strategy accordingly. The roofline is the diagnostic; the architecture decision follows.
 

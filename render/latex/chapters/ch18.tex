@@ -118,7 +118,7 @@ equivalent).
 \begin{minipage}[b]{\linewidth}\raggedright
 Model
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-VRAM (FP16)
+VRAM (model precision)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 VRAM (8-bit)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -130,18 +130,22 @@ VRAM (4-bit)
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-70B dense FP16 & 140\,GB & N/A & N/A & 1 (weights + KV fit in the 640 GB
+70B dense FP16 & 140\,GB & --- & --- & 1 (weights + KV fit in the 640 GB
 pool; \textasciitilde2 GPUs hold the weights) \\
-70B dense 8-bit & \textasciitilde70\,GB & --- & --- & 1 (fits on 1×H100,
+70B dense 8-bit & --- & \textasciitilde70\,GB & --- & 1 (fits on 1×H100,
 leaves 7 for others) \\
-70B MoE FP16 (2/16 experts) & 140\,GB & N/A & N/A & 1 (same as dense
+70B MoE FP16 (2/16 experts) & 140\,GB & --- & --- & 1 (same as dense
 FP16; weights + KV fit in the 640 GB pool) \\
-70B MoE 8-bit (2 active) & \textasciitilde70\,GB & --- & --- & 1 \\
-70B 4-bit GGUF & \textasciitilde35\,GB & --- & --- & \textasciitilde2
+70B MoE 8-bit (2 active) & --- & \textasciitilde70\,GB & --- & 1 \\
+70B 4-bit GGUF & --- & --- & \textasciitilde35\,GB & \textasciitilde2
 (across 2 GPUs, can batch) \\
-70B 8-bit GGUF & \textasciitilde70\,GB & --- & --- & 1 \\
+70B 8-bit GGUF & --- & \textasciitilde70\,GB & --- & 1 \\
 
 \label{tab:18.2}\end{longtable}
+
+\emph{(Each row's footprint is its own model's size at the named
+precision --- put the number in that precision's column. A dash means
+that precision does not apply to the row's naming.)}
 
 With 8×H100 (640\,GB), we can simultaneously run:
 
@@ -279,8 +283,8 @@ decision}\label{consolidation-vs.-separation-decision}
   \textbf{Consolidate} when: workload profile overlap \textgreater70\%,
   latency tolerance ≥300\,ms, and cost differential \textgreater30\%.
   \emph{Verified}: our scenario consolidates 70\% of traffic to 8-bit,
-  saving \textasciitilde\$11.16/hr (\$23.75 − \$12.59, the §3.3 derived
-  figure).
+  saving \textasciitilde\$11.16/hr (\$23.75 − \$12.59, the §18.4.3
+  derived figure).
 \item
   \textbf{Keep separate} when: (a) security/classification policies
   require isolation, (b) workloads have bimodal latency needs (some
@@ -315,7 +319,7 @@ Why it matters
 \endlastfoot
 \textbf{Weighted average cost/token} & Σ(tokens\_i × cost\_i) /
 Σ(tokens\_i) across all models & Directly tracks fleet economics; target
-under the §3.2 per-1M basis (e.g.~\textless{} \$2.50/1M for the FP16
+under the §18.4.2 per-1M basis (e.g.~\textless{} \$2.50/1M for the FP16
 tier) for competitive SaaS. \\
 \textbf{Per-model throughput} & requests/sec per GPU / per CPU node &
 Detects saturation; informs capacity adds vs.~routing tweaks. \\
@@ -449,8 +453,8 @@ arithmetic, the per-token volume is). Hourly tokens:
 \textasciitilde4,500 in + 500 out = 5,000. \emph{(Scope note: these tier
 per-token rates are illustrative scenario values on a per-token basis,
 distinct from --- and not directly comparable to --- the per-1M-token
-ledger in §3.2; the mini-case uses them to demonstrate the routing
-economics, and a real deployment would price from the §3.2 per-1M
+ledger in §18.4.2; the mini-case uses them to demonstrate the routing
+economics, and a real deployment would price from the §18.4.2 per-1M
 basis.)}
 
 \begin{itemize}
@@ -467,7 +471,17 @@ basis.)}
 
 If we had used a single 70B FP16 model: 5,000 tokens/hr × \$0.003 =
 \$15/hr → \$10,800 / month. \textbf{Savings: \$8,870 / month} (≈82\%)
-with latency p95 ≈ 480\,ms (within the 500\,ms SLA).
+--- but the routing's latency is the honest catch: because
+\textbf{Tier\,1 (the cheapest, \textasciitilde600\,ms) serves 80\% of
+queries}, the p95 per-request latency is \textasciitilde600\,ms, which
+\emph{violates} the 500\,ms SLA for the dominant tier. The three-tier
+split saves cost by routing the bulk to a slow-but-cheap model, which is
+precisely the mean-vs-tail trap: the \emph{average} latency looks fine,
+yet the majority tier misses the deadline. To actually meet the 500\,ms
+SLA, Tier\,1 must be reshaped --- either 8-bit quantization on a GPU
+(faster than 4-bit GGUF on CPU) or a batch-window rethink --- at some
+cost that narrows the \$8,870 savings. The routing arithmetic shows the
+\emph{economic} win; the SLO check is what keeps it honest.
 
 The key enabler was the router's feature gate: queries mentioning
 ``multilingual'' or ``technical specification'' were auto‑escalated to

@@ -44,8 +44,9 @@ for i, p in enumerate(parts):
     ax.text(LX0 + LW/2, yb + ph/2, p, fontsize=10, fontweight='bold', ha='center',
             va='center', color='#27408b')
     if i < 5:
-        # arrow in the left margin (not through the card text)
-        ax.add_patch(FancyArrowPatch((LX0 - 0.5, yb + ph/2), (LX0 - 0.5, yb + ph/2 + ph + pgap),
+        # arrow in the left margin pointing DOWN: Part I -> II -> ... -> VI (top-to-bottom,
+        # matching the stated "Parts I -> VI" order)
+        ax.add_patch(FancyArrowPatch((LX0 - 0.5, yb), (LX0 - 0.5, yb - pgap),
                      arrowstyle='-|>', mutation_scale=13, lw=1.8, color='#555'))
 ax.text(LX0 + LW/2, 0.62, 'build the substrate, then the discipline', fontsize=8,
         ha='center', color='#555', style='italic')
@@ -70,7 +71,9 @@ for i, (q, ch) in enumerate(steps):
             va='center', color='#7b241c')
     ax.text(RX0 + RW - 0.35, yb + ph/2, ch, fontsize=8.5, ha='right', va='center', color='#a53226')
     if i < 5:
-        ax.add_patch(FancyArrowPatch((RX0 + RW + 0.5, yb + ph/2), (RX0 + RW + 0.5, yb + ph/2 + ph + pgap),
+        # arrow in the right margin pointing DOWN: token -> cost -> ... (top-to-bottom,
+        # matching the stated "token -> cost -> KV -> ..." trace direction)
+        ax.add_patch(FancyArrowPatch((RX0 + RW + 0.5, yb), (RX0 + RW + 0.5, yb - pgap),
                      arrowstyle='-|>', mutation_scale=13, lw=1.8, color='#c0392b'))
 ax.text(RX0 + RW/2, 0.62, 'each question → the chapter that answers it', fontsize=8,
         ha='center', color='#555', style='italic')

@@ -98,32 +98,41 @@ print('Ch04 done')
 print('fig-05-0501: Archify-rendered asset; matplotlib generator retired')
 
 # ---- Ch09: collective completion time vs data volume (the promised chart) ----
-# all-reduce completion ~ O(2 data / B_eff); lines for the interconnect tiers
-size = np.logspace(-2, 2, 200)      # GB
+# all-reduce completion ~ O(2*Nminus1/N * V / B_eff). Curves use EFFECTIVE bandwidths matched
+# to the §9.4 worked example: NVSwitch 1.8, NVLink 0.9 TB/s (intra-node nominal), InfiniBand
+# ~40 GB/s and RoCE2 ~2.5 GB/s (multi-node effective, incl. coding + contention) — NOT the
+# nominal per-port peak, which is ~50 GB/s for both IB and RoCE (Table 9-1). Using effective
+# values reconciles the figure with §9.4 (IB ~6.1 s, RoCE ~98 s at 140 GB).
+size = np.logspace(-2, np.log10(300), 240)      # GB (cover past the 140 GB weight footprint)
 bw = {'NVSwitch (1.8 TB/s)': 1800, 'NVLink (0.9 TB/s)': 900,
-      'InfiniBand (0.4 TB/s)': 400, 'Ethernet (0.1 TB/s)': 100}
-data_per_byte = 2.0   # all-reduce ~2x data across the tree
+      'InfiniBand (~40 GB/s)': 40, 'RoCE2 (~2.5 GB/s)': 2.5}
+data_per_byte = 1.75   # ring all-reduce moves ~2(N-1)/N * V; for N=8 nodes it is 1.75 (matches §9.4 worked example)
 fig, ax = plt.subplots(figsize=(6.1, 4.7))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 cols = {'NVSwitch (1.8 TB/s)': ('#27408b', '-', 'o'),
         'NVLink (0.9 TB/s)': ('#3a6ea5', '--', 's'),
-        'InfiniBand (0.4 TB/s)': ('#e67e22', '-.', '^'),
-        'Ethernet (0.1 TB/s)': ('#c0392b', ':', 'D')}
+        'InfiniBand (~40 GB/s)': ('#e67e22', '-.', '^'),
+        'RoCE2 (~2.5 GB/s)': ('#c0392b', ':', 'D')}
 for name, b in bw.items():
     c, ls, mk = cols[name]
     t = data_per_byte * size / b   # GB / (GB/s) = s
     ax.loglog(size, t*1000, color=c, ls=ls, marker=mk, markevery=30,
               lw=1.8, label=name, markersize=3.5)  # ms
 ax.axvline(140, color='#555', ls='--', lw=1.3)   # 140 GB = 70B model FP16
-ax.annotate('140 GB (70B weights)', xy=(140, 5e4), xytext=(1.6, 1.4e5),
+ax.annotate('140 GB (70B weights)', xy=(140, 2e4), xytext=(2.2, 6e4),
             arrowprops=dict(arrowstyle='->'), fontsize=8.5)
 ax.set_xlabel('Data volume (GB)', fontsize=9)
 ax.set_ylabel('All-reduce completion time (ms)', fontsize=9)
 ax.set_title('All-reduce time vs data volume,\nby interconnect tier', fontsize=9.5)
 # ANALYTICAL/DERIVED tag in-plot (upper right whitespace)
-ax.text(0.99, 0.94, 'ANALYTICAL [DERIVED]\n(t ∝ 2·V/B)', transform=ax.transAxes,
+ax.text(0.99, 0.94, 'ANALYTICAL [DERIVED]\n(t = 1.75·V/B, N=8 ring, effective B)', transform=ax.transAxes,
         fontsize=8, color='#8a5a00', ha='right', va='top')
 ax.tick_params(labelsize=10)
+# x-axis labelled tick covering the 140 GB weight-footprint reference
+ax.set_xticks([0.01, 0.1, 1, 10, 100, 200])
+ax.set_xticklabels(['0.01', '0.1', '1', '10', '100', '200'])
+ax.set_xlim(0.01, 200)   # extend past 140 so the weight-footprint marker is in-plot
+ax.set_ylim(1e-1, 1e6)
 # legend OUTSIDE the axes (below) so it does not occlude the data
 ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=2, frameon=False)
 ax.grid(alpha=0.3, which='both')
@@ -137,7 +146,8 @@ print('Ch09 done')
 # orthogonal concerns (request scheduling / state management / reuse / resource
 # specialisation) that all act on the request stream in parallel -- none stacked on
 # another. Arranged as a 2x2 concern matrix around the central request->output flow.
-fig, ax = plt.subplots(figsize=(6.4, 5.9))
+fig, ax = plt.subplots(figsize=(6.1, 5.9))
+fig._hermes_print_sized = True   # print-size authored (content pre-fit); regen must not re-boost/reflow/tight-bbox
 ax.set_xlim(0, 20); ax.set_ylim(0, 13); ax.axis('off')
 BLUE='#3a6ea5'; GREEN='#27ae60'; ORANGE='#e67e22'; RED='#c0392b'; GREY='#555'; PURPLE='#6c3483'
 def bbox(x,y,w,h,fc,ec='none',lw=0):
@@ -155,7 +165,7 @@ def concern(x,y,w,h,name,col,mech,trade):
 # title
 ax.text(10,12.4,'Serving = four concerns, not a stack',fontsize=9.2,fontweight='bold',ha='center',color='#333')
 ax.text(10,11.72,'orthogonal decisions - they interact, but none sits on top of another',
-        fontsize=7.1,ha='center',color=GREY,style='italic')
+        fontsize=7.6,ha='center',color=GREY,style='italic')
 
 # request stream (top)
 bbox(6.0,10.2,8.0,1.25,BLUE)
@@ -181,7 +191,7 @@ concern(11.1,6.85,7.9,2.55,'RESOURCE SPECIALISATION',ORANGE,
 
 # central flow: request -> through the concern matrix -> tokens
 jar(10,10.2,10,2.95,GREY,1.7)
-ax.text(10.45,6.55,'all four in parallel',fontsize=6.9,color=GREY,ha='left',va='center',style='italic')
+ax.text(10.45,6.55,'all four in parallel',fontsize=7.6,color=GREY,ha='left',va='center',style='italic')
 
 # output (bottom)
 bbox(6.8,1.55,6.4,1.0,GREY)

@@ -92,9 +92,9 @@ rows = [
          res='✗ capacity (needs ~5 hosts)',
          edge='#3a6ea5', rescol='#7f8c8d'),
     dict(name='(b) P/D-disaggregated 2-pool',
-         gate='MEM ✓ · latency ✓ · 2 hosts + fabric (~2× capex)',
-         res='✓ survives as the at-scale answer',
-         edge='#1e8449', rescol='#1e8449'),
+         gate='MEM ✓ · latency ✓ · 2 hosts + fabric (~2× capex)\nbut one prefill host ~19.8K ≪ ~92K (same as (a))',
+         res='✗ at a single prefill host — prefill pool must scale to ~5; carried to Ch.13–14',
+         edge='#e67e22', rescol='#b96a10'),
     dict(name='(c) KV-quantized 7B',
          gate='MEM ✓ · cheapest (1 H100)  |  but fails the QUALITY gate',
          res='✗ EXCLUDED',
@@ -102,16 +102,16 @@ rows = [
 ]
 
 ry = 0.420          # bottom of first candidate row; its top (0.505) sits well below the header
-rh = 0.085
-gap = 0.018
+rh = 0.098
+gap = 0.012
 for r in rows:
     box(X0 + 0.02, ry, W - 0.04, rh, '#ffffff', r['edge'], lw=1.3, r=0.02)
     ax.text(X0 + 0.045, ry + rh * 0.84, r['name'], fontsize=8.6,
             fontweight='bold', color=r['edge'], ha='left', va='center', zorder=3)
     ax.text(X0 + 0.045, ry + rh * 0.48, r['gate'],
-            fontsize=6.7, color='#555', ha='left', va='center', zorder=3)
+            fontsize=7.6, color='#555', ha='left', va='center', zorder=3)
     ax.text(X0 + 0.045, ry + rh * 0.15, r['res'],
-            fontsize=6.6, color=r['rescol'], fontweight='bold',
+            fontsize=7.5, color=r['rescol'], fontweight='bold',
             ha='left', va='center', zorder=3)
     ry -= (rh + gap)
 
@@ -122,17 +122,17 @@ arrow(CX, 0.200, CX, 0.186)
 # ---------------------------------------------------------------------
 sx = X0 + 0.02
 sw = (W - 0.04) * 0.58
-box(sx, 0.070, sw, 0.112, '#e7f5ec', '#1e8449')
-note(sx + sw / 2, 0.160, '⑤ OUTCOME — SURVIVORS', size=8.6, color='#145a32', weight='bold')
-note(sx + sw / 2, 0.113,
-     '(a) per-request-latency baseline\n(b) at-scale P/D answer — carried to Ch.13–14',
-     size=6.9)
+box(sx, 0.058, sw, 0.140, '#e7f5ec', '#1e8449')
+note(sx + sw / 2, 0.172, '⑤ OUTCOME — SURVIVORS', size=8.6, color='#145a32', weight='bold')
+note(sx + sw / 2, 0.118,
+     '(a) per-request-latency baseline\n(b) P/D — prefill pool scales independently (needs ~5 hosts); carried to Ch.13–14',
+     size=7.5)
 
 bx = sx + sw + 0.03
 bw = W - 0.04 - sw - 0.03
-box(bx, 0.070, bw, 0.112, '#fdecea', '#c0392b')
-note(bx + bw / 2, 0.160, '✗ REJECTED', size=8.6, color='#7b241c', weight='bold')
-note(bx + bw / 2, 0.113, '(c) fails quality gate\n→ excluded from evaluation', size=6.9)
+box(bx, 0.058, bw, 0.140, '#fdecea', '#c0392b')
+note(bx + bw / 2, 0.172, '✗ REJECTED', size=8.6, color='#7b241c', weight='bold')
+note(bx + bw / 2, 0.118, '(c) fails quality gate\n→ excluded from evaluation', size=7.5)
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-12/figures/fig-12-1201.png', dpi=150)

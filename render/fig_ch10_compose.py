@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
 W = 6.1
-FS = 8.2
+FS = 9.2
 fig, ax = plt.subplots(figsize=(W, W*1.02))
 fig._hermes_print_sized = True
 ax.set_xlim(0, 10); ax.set_ylim(-3.8, 9.4); ax.axis('off')

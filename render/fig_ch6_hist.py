@@ -24,16 +24,19 @@ for p, yfrac in [(50, 0.90), (90, 0.83), (95, 0.76)]:
     v = np.percentile(lat, p)
     ax.axvline(v, color='#6f9e5f', ls='--', lw=1.3)
     ax.text(v+0.04, ax.get_ylim()[1]*yfrac, f'p{p}', fontsize=8.5, color='#2f6f4f', fontweight='bold', va='center')
-# p99 breaches the tail: emphasize it in red as the one the 1% stragglers set off beyond.
+# p99 breaches the tail? NO — p99=1.33 is still under the 2s SLO. Emphasize it in red.
 v99 = np.percentile(lat, 99)
 ax.axvline(v99, color='#c0392b', ls='--', lw=1.9)
+# the 5s stragglers sit beyond p99 — between p99 and p100 — so a p99 line alone does
+# not reveal them. Add the observation that the straggler mass is only visible at max.
+ax.axvline(lat.max(), color='#c0392b', ls=':', lw=1.4)
 # mean line
 ax.axvline(mean, color='#555', ls='-', lw=1.7)
 # 2 s SLO line
 ax.axvline(2.0, color='#27408b', ls='-.', lw=2.2)
 # Compact legend in the clear upper-right whitespace (the annotated lines all cluster
 # near x=0.8-2.0 on a 6.2s axis, so label them as a legend, not along the crowded lines).
-ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\np99 = %.2fs\nSLO 2 s' % (mean, v99),
+ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\np99 = %.2fs\nSLO 2 s\n(p99 still looks fine)' % (mean, v99),
         fontsize=8.5, color='#333', ha='center', va='center',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f7f7f7', ec='#cccccc', lw=0.8))
 ax.axvspan(4.0, 6.0, color='#c0392b', alpha=0.08)

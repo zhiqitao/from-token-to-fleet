@@ -292,15 +292,31 @@ def _duo_savefig(fname, *args, **kwargs):
         print("  (font-scale skipped:", e, ")")
 
     kw = dict(kwargs)
-    kw.setdefault("bbox_inches", "tight")
-    kw.setdefault("pad_inches", 0.08)
+    # `_hermes_print_sized` figures are authored at their exact on-page size (6.1in
+    # column) with content already inside the axes.  Forcing bbox_inches='tight'
+    # expands them to the content bbox (e.g. 6.1 -> 7.0/9.7in), so the book places
+    # them at the column width and downscales, shrinking on-page fonts (the
+    # font-bump paradox in reverse).  Save print-sized figures at their authored
+    # size (no tight bbox) so they place 1:1.
+    is_print_sized = any(getattr(plt.figure(n), "_hermes_print_sized", False)
+                         for n in plt.get_fignums())
+    if is_print_sized:
+        kw.pop("bbox_inches", None)
+        kw.pop("pad_inches", None)
+    else:
+        kw.setdefault("bbox_inches", "tight")
+        kw.setdefault("pad_inches", 0.08)
     _orig_savefig(fname, *args, **kw)
     if isinstance(fname, str) and fname.lower().endswith(".png"):
         pdf_path = fname[:-4] + ".pdf"
         kwo = dict(kwargs)
         kwo.pop("dpi", None)
-        kwo.setdefault("bbox_inches", "tight")
-        kwo.setdefault("pad_inches", 0.08)
+        if is_print_sized:
+            kwo.pop("bbox_inches", None)
+            kwo.pop("pad_inches", None)
+        else:
+            kwo.setdefault("bbox_inches", "tight")
+            kwo.setdefault("pad_inches", 0.08)
         # Embed fonts as TrueType (Type 42) instead of Type 3 so the PDF is
         # accessible / searchable and Type-3 warnings are gone.
         with matplotlib.rc_context({

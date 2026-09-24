@@ -89,12 +89,16 @@ job is deciding which dimension to split first, and in which mode
 
 \label{fig:10.1}\end{figure}
 
-The strategies are not either/or. Left: a DP × TP × PP stack --- the
-layer stack is cut into PP stages (green), each stage is DP-replicated
-(orange) across nodes, and within a stage TP shards the weights across 4
-GPUs (blue). Right: expert parallel is a per-token all-to-all --- each
-token may leave its home GPU to reach the GPU holding its top-k experts.
-Which dimension binds determines which to split first.
+The strategies are not either/or. \hyperref[fig:10.1]{Fig 10.1} shows one pipeline stage
+decomposed into a concrete 2×2 GPU mesh: the two columns are
+data-parallel (DP replicates the batch across the two GPUs in a row),
+the two rows are tensor-parallel (TP shards the weights across the two
+GPUs in a column), and expert-parallelism (EP) shards the experts across
+all four GPUs, so a token may leave its home GPU to reach the GPU
+holding its top-k experts. This is a DP×TP×EP composition --- the
+per-dimension partition, replication, and communication summary is in
+the table inside the figure. Which dimension binds determines which to
+split first.
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -119,17 +123,20 @@ constraint chooses the strategy.
 glance}\label{table-10-1-parallelism-strategies-at-a-glance}
 
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.2200\linewidth}
-  >{\raggedright\arraybackslash}p{0.2200\linewidth}
-  >{\raggedright\arraybackslash}p{0.2200\linewidth}
-  >{\raggedright\arraybackslash}p{0.2200\linewidth}@{}}
+  >{\raggedright\arraybackslash}p{0.1760\linewidth}
+  >{\raggedright\arraybackslash}p{0.1760\linewidth}
+  >{\raggedright\arraybackslash}p{0.1760\linewidth}
+  >{\raggedright\arraybackslash}p{0.1760\linewidth}
+  >{\raggedright\arraybackslash}p{0.1760\linewidth}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
 Strategy
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 What it splits
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Communication need
+Replicates
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Communicates
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Fits when
 \end{minipage} \\
@@ -137,16 +144,17 @@ Fits when
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Tensor (TP) & a layer's weights within a GPU group & high --- every
-layer, over NVLink & model exceeds one GPU, fits a node \\
-Pipeline (PP) & the layer stack into stages & low --- stage boundaries
-only & model spans nodes \\
-Data (DP) & the batch; replicates weights & gradient all-reduce per step
-& model fits one GPU, need throughput \\
-Expert (EP) & MoE experts; route-by-token all-to-all & high, per token &
-MoE models \\
-Sequence (CP) & the sequence/context dimension & medium & long contexts,
-KV too big \\
+Tensor (TP) & a layer's weights within a GPU group & activations &
+partial sums → all-reduce (every layer, over NVLink) & model exceeds one
+GPU, fits a node \\
+Pipeline (PP) & the layer stack into stages & hidden states & hidden
+states → P2P (stage boundaries only) & model spans nodes \\
+Data (DP) & the data batch & model + optimizer & gradients → all-reduce
+(per step) & model fits one GPU, need throughput \\
+Expert (EP) & MoE experts & attention / weights & routes → all-to-all
+(per token) & MoE models \\
+Sequence (CP) & the token sequence & model weights & KV → ring & long
+contexts, KV too big \\
 
 \label{tab:10.1}\end{longtable}
 
@@ -335,48 +343,11 @@ constraint is usually \textbf{memory} for large models:
   (cross-node) → DP (replicating a fitting model) in that order.
 \end{itemize}
 
-\textbf{The five parallelization strategies and what each splits.}
-Reading across a row gives one strategy's full trade-off; reading down a
-column shows how each axis varies across strategies.
-
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.2200\linewidth}
-  >{\raggedright\arraybackslash}p{0.2200\linewidth}
-  >{\raggedright\arraybackslash}p{0.2200\linewidth}
-  >{\raggedright\arraybackslash}p{0.2200\linewidth}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Strategy
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-What splits
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Replicated
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Communicates
-\end{minipage} \\
-\midrule\noalign{}
-\endhead
-\bottomrule\noalign{}
-\endlastfoot
-TP · tensor & W weights (rows) & activations & partial sums →
-all-reduce \\
-PP · pipeline & transformer layers & hidden states & hidden states
-(P2P) \\
-DP · data & data batch & model + optimizer & gradients → all-reduce \\
-EP · experts & MoE experts & attention / weights & routes →
-all-to-all \\
-CP · context & token sequence & model weights & KV (ring) \\
-
-\label{tab:10.2}\end{longtable}
-
-\emph{Each strategy splits or replicates one of the three axes while
-leaving the others intact, and exchanges a characteristically different
-collective --- tensor parallel all-reduces partial sums, pipeline passes
-hidden states point-to-point, data parallel all-reduces gradients,
-expert parallel all-to-alls tokens, context parallel rings KV. The
-insight is the }difference\emph{: TP shards weights, DP replicates the
-model, EP shards experts, CP shards the sequence. {[}ILLUSTRATIVE
-conceptual{]}}
+\textbf{The five parallelization strategies and what each splits.} This
+is consolidated in \hyperref[tab:10.1]{Table 10-1} above --- reading across a row gives one
+strategy's full trade-off (what it splits, what it replicates, what it
+communicates, when it fits); reading down a column shows how each axis
+varies across strategies.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 

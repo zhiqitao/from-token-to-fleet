@@ -2,41 +2,69 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+from matplotlib.font_manager import FontProperties
 
-# ---- fig-05-0501: Model selection for RAG ----
-# workload -> five selection surfaces -> two legs (retrieval/generation)
-# -> RAG system decision.  [ILLUSTRATIVE conceptual]
-fig, ax = plt.subplots(figsize=(9.2, 6.4))
-ax.set_xlim(0, 24); ax.set_ylim(0, 17); ax.axis('off')
+# ---- fig-05-0501: Model selection for RAG [ILLUSTRATIVE conceptual] ----
+# workload -> five selection surfaces -> two legs (retrieval/generation) -> RAG decision.
+# Re-authored at the 6.1in print column so fonts stay at native size on placement.
+# Centred vertical flow, laid out with explicit bottoms so the inter-row gaps are real.
+FS = 10.0
+W = 6.1 * 72      # 439 pt
+MID = W/2
 
-def box(x, y, w, h, head, sub, fc):
-    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.12', fc=fc, ec='#888', lw=1.1, alpha=0.9))
-    ax.text(x+w/2, y+h*0.66, head, ha='center', va='center', fontsize=10, fontweight='bold', color='#222')
-    ax.text(x+w/2, y+h*0.32, sub, ha='center', va='center', fontsize=8.5, color='#333')
+fig, ax = plt.subplots(figsize=(6.1, 6.6))
+fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
+ax.set_xlim(0, W); ax.set_ylim(0, 6.6*72); ax.axis('off')
 
-# Top row
-box(1.0, 13.2, 8.5, 2.6, 'Workload characterization', 'tokens · cost · SLO', '#dff0d8')
-box(14.0, 13.2, 8.5, 2.6, 'Five selection surfaces', 'quality · latency · KV · $/tok · RAG', '#fde3e0')
-ax.annotate('', xy=(14.0, 14.5), xytext=(9.5, 14.5), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#888'))
-ax.text(11.8, 15.0, 'drives', fontsize=8.5, ha='center', color='#666')
+def box(cx, y, w, h, head, sub, fc, head_fs=FS, sub_fs=FS-1.8):
+    ax.add_patch(FancyBboxPatch((cx-w/2, y), w, h, boxstyle='round,pad=0.10', fc=fc, ec='#888', lw=1.1, alpha=0.92))
+    ax.text(cx, y+h*0.62, head, ha='center', va='center', fontsize=head_fs, fontweight='bold', color='#222')
+    ax.text(cx, y+h*0.16, sub, ha='center', va='center', fontsize=sub_fs, color='#333')
 
-# Two legs
-box(2.0, 8.0, 8.5, 2.6, 'Retrieval leg', 'embedding · 768-dim · ingest', '#eee6f7')
-box(13.5, 8.0, 8.5, 2.6, 'Generation leg', '70B FP16 · serving · latency', '#dff0d8')
-# split from surfaces to legs
-ax.annotate('', xy=(6.25, 10.6), xytext=(18.25, 13.2), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#888'))
-ax.text(10.0, 12.1, 'split', fontsize=8, color='#666')
-ax.annotate('', xy=(17.75, 10.6), xytext=(18.25, 13.2), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#888'))
-ax.text(21.4, 12.1, 'split', fontsize=8, color='#666')
+BOX_H = 56
+GAP   = 58
+BOT   = 24          # decision box bottom
+# explicit bottoms, bottom-up
+dec_bot = BOT
+leg_bot = dec_bot + BOX_H + GAP
+sur_bot = leg_bot + BOX_H + GAP
+wor_bot = sur_bot + BOX_H + GAP
+Ht = wor_bot + BOX_H + 26
+ax.set_ylim(0, Ht)
+print("Ht =", round(Ht,1))
 
-# RAG system decision
-box(8.0, 2.6, 8.0, 2.8, 'RAG system decision', 'base + RAG + guardrails', '#e8eef7')
-ax.annotate('', xy=(10.5, 5.4), xytext=(6.25, 8.0), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#888'))
-ax.text(8.4, 6.9, 'context', fontsize=8, color='#666')
-ax.annotate('', xy=(13.5, 5.4), xytext=(17.75, 8.0), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#888'))
-ax.text(15.0, 6.9, 'answer', fontsize=8, color='#666')
+WBOX = 300
+# row 1: workload
+box(MID, wor_bot, WBOX, BOX_H, 'Workload characterization', 'tokens · cost · SLO', '#dff0d8')
+# row 2: five selection surfaces (parent)
+box(MID, sur_bot, 330, BOX_H, 'Five selection surfaces', 'quality · latency · KV · $/tok', '#fde3e0')
+ax.annotate('', xy=(MID, sur_bot+BOX_H), xytext=(MID, wor_bot),
+            arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#888'))
+ax.text(MID+12, (wor_bot+sur_bot+BOX_H)/2, 'drives', fontsize=FS-1.5, color='#666', ha='left')
 
-plt.tight_layout()
+# two legs, common baseline, symmetric about the page centre
+LEG_W = 165
+LEG_GAP = 18
+lg1_cx = MID - LEG_W/2 - LEG_GAP/2
+lg2_cx = MID + LEG_W/2 + LEG_GAP/2
+for (cx, head, sub, fc) in [(lg1_cx,'Retrieval leg','embedding · 768-dim','#eee6f7'),
+                            (lg2_cx,'Generation leg','70B FP16 · serving','#dff0d8')]:
+    box(cx, leg_bot, LEG_W, BOX_H, head, sub, fc)
+    ax.annotate('', xy=(cx, leg_bot+BOX_H), xytext=(MID, sur_bot),
+                arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#888'))
+    ax.text((MID+cx)/2, (sur_bot+leg_bot+BOX_H)/2, 'split', fontsize=FS-1.5, color='#666', ha='center')
+
+# RAG system decision (centred)
+box(MID, dec_bot, 300, BOX_H, 'RAG system decision', 'base + RAG + guardrails', '#e8eef7')
+for (cx, lab) in [(lg1_cx,'context'), (lg2_cx,'answer')]:
+    ax.annotate('', xy=(MID, dec_bot+BOX_H), xytext=(cx, leg_bot),
+                arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#888'))
+    ax.text((cx+MID)/2, (leg_bot+dec_bot+BOX_H)/2 - 4, lab, fontsize=FS-1.5, color='#666', ha='center')
+
+plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-05/figures/fig-05-0501.png', dpi=150)
+import matplotlib as mpl
+with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-05/figures/fig-05-0501.pdf', format='pdf')
 plt.close()
-print('wrote fig-05-0501')
+print('wrote fig-05-0501 (6.1in, explicit bottoms, real gaps)')

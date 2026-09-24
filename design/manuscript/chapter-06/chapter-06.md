@@ -34,6 +34,8 @@ The three metric layers form a **diagnostic chain**, like the layers of the OSI 
 - **Serving** is the *service* — how well we did it.
 - **Resource** is the *engine* — how hard the machine is working, and on what.
 
+(The listing order here is by *role* — independent inputs, dependent outputs, explanatory engine. It is not the causal order: causation flows workload → resource → serving, which is how Fig 6.1 stacks them top to bottom. The two orderings are different and both intentional.)
+
 When something breaks, we read upward: a p95 TTFT breach (serving) forces us to look at the token profile (workload: did context length grow?) and then the resource layer (resource: is prefill queuing because we're FLOP-bound?). The causal direction follows the system, not the diagnosis: the workload generates resource demand, and the resource supply shapes serving behavior — so when numbers are healthy, the chain confirms our architecture was right.
 
 The mental model also inculcates **one number naming many different things**. "Throughput" without a qualifier is meaningless: is it requests per second, tokens per second, or *goodput* — tokens per second that arrived before the SLO deadline? We commit to always qualifying.
@@ -46,7 +48,7 @@ A very common measurement error is reporting (and SLO-ing) the *average* latency
 $$
 \mathbb{E}[L] \approx 0.99 \times 0.8 + 0.01 \times 5.0 \approx 0.84 \text{ s}
 $$
-— looks fine. But the distribution actually has a long tail: p50 ≈ 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s. The mean hides the tail; percentiles expose it. Under the canonical p95 TTFT SLO of ≤ 2 s, none of these percentiles alone breach the budget — it is the 1% stragglers pushed out to ~5 s (beyond the 99th percentile, and shaded red in the figure) that actually cross the 2 s line. The p99 reading is what brings the 1% tail into view (even though p95 is the SLO percentile), which is why we show it explicitly.
+— looks fine. But the distribution actually has a long tail: p50 ≈ 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s. The mean hides the tail; percentiles expose it — but notice how far one has to go to expose *this* tail. Under the canonical p95 TTFT SLO of ≤ 2 s, **even p99 (≈ 1.33 s) still looks healthy.** The 5 s stragglers are the top 1% of the stream — they sit *between* the 99th and 100th percentile, so a p99 line alone does not bring them into view. Only the p99.9 / maximum reading (or the full distribution) surfaces them. This is the sharper lesson: a tail can hide not just behind the mean but behind any single percentile, and the choice of which percentile to SLO against matters. It is why we log the full distribution and also watch the *outlier fraction* (how much probability mass sits beyond the SLO line), not just one percentile.
 
 
 ![Fig 6.2 — Request-latency distribution: p50/p90/p95/p99 and the mean](figures/fig-06-0602.png)

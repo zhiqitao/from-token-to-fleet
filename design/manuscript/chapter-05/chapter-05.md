@@ -54,6 +54,7 @@ Three realistic options, each with documented properties:
 **Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the ~2× FLOP cost over all‑mpnet‑base‑v2 (the ~2 GFLOPs vs the ~1 GFLOPs for the 768‑dim option in the table above).
 
 **Table 5-1** — Model-selection decision: embedding vs generation model
+
 | metric | value | derivation |
 |---|---|---|
 | Embedding dimension (recommended) | 768 | all‑mpnet‑base‑v2 [ILLUSTRATIVE][DERIVED] |

@@ -85,7 +85,7 @@ ax.text(12.0, 0.85, 'production feedback \u2192 data / evaluation (each cycle re
         fontsize=8, ha='center', color='#2f6f4f', fontweight='bold')
 
 ax.text(12.0, 0.25, '[ILLUSTRATIVE][DERIVED] Gates pass on measured throughput / SLO / cost; a breach rolls back.',
-        fontsize=7.2, ha='center', color='#777')
+        fontsize=7.9, ha='center', color='#777')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-21/figures/fig-21-2101.png', dpi=150)

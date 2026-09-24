@@ -28,7 +28,7 @@ ax1.bar(x - w/2, [Of]*5, w, bottom=inp, color='#6f9e5f', hatch='xx', edgecolor='
 ax1.set_ylabel('Tokens / request', fontsize=9)
 ax1.set_title('(a) Tokens accumulate', fontsize=9.5)
 ax1.grid(alpha=0.3, axis='y')
-ax1.legend(fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.42), ncol=3, frameon=False)
+ax1.legend(fontsize=7.7, loc='upper center', bbox_to_anchor=(0.5, -0.42), ncol=3, frameon=False)
 ax1.tick_params(labelsize=8)
 
 # Panel 2: resulting KV

@@ -13,7 +13,9 @@ import numpy as np
 batch = np.array([1, 2, 4, 8, 16, 32, 64])
 prefill_nocache = np.full_like(batch, 100.0, dtype=float)
 prefill_cache  = np.array([99, 94, 90, 84, 78, 72, 60], dtype=float)
-goodput = np.array([8, 16, 29, 49, 74, 93, 100], dtype=float)
+# decode goodput rises with batch, THEN PLATEAUS as bandwidth saturates (~near batch 16):
+# the knee is where further batching stops raising throughput but keeps raising tail latency.
+goodput = np.array([8, 16, 29, 48, 66, 80, 88], dtype=float)
 
 fig, (axa, axb) = plt.subplots(1, 2, figsize=(6.1, 3.5))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
@@ -39,10 +41,13 @@ axb.set_xlabel('Decode batch size', fontsize=9)
 axb.set_ylabel('Relative decode\ngoodput (a.u.)', fontsize=9)
 axb.set_title('(b) Decode bottleneck\nunaffected by caching', fontsize=9.5)
 axb.grid(alpha=0.3, which='both')
-axb.set_ylim(0, 110)
+axb.set_ylim(0, 100)
 axb.set_xlim(1, 64)
 axb.tick_params(labelsize=10)
-axb.text(1.2, 85, 'caching does not\nspeed one decode step', fontsize=8, color='#27408b')
+# knee: beyond ~batch 16 the goodput gain per added batch flattens while tail latency keeps rising
+axb.axvline(16, color='#c0392b', ls='--', lw=1.1)
+axb.text(1.7, 90, 'goodput\nplateau (~b16):\nthroughput gain\nflattens; tail\nlatency keeps rising',
+         fontsize=7.5, color='#c0392b', va='top')
 axb.text(0.99, 0.03, '[ILLUSTRATIVE]', transform=axb.transAxes, fontsize=7.5, color='#8a3a12', ha='right')
 
 fig.suptitle('Prefix caching vs batching: two independent effects', fontsize=10.5, fontweight='bold')

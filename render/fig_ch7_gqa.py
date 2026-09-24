@@ -40,7 +40,7 @@ for g in range(8):
     ax.plot([gx, gx], [grp_top, grp_top-0.14], color='#555', lw=1.0)
     ax.plot([gx+cell_w, gx+cell_w], [grp_top, grp_top-0.14], color='#555', lw=1.0)
     ax.plot([gx, gx+cell_w], [grp_top, grp_top], color='#555', lw=1.0)
-    ax.text(gx+cell_w/2, grp_top+0.18, f'grp {g+1}', fontsize=7.0, ha='center',
+    ax.text(gx+cell_w/2, grp_top+0.18, f'grp {g+1}', fontsize=7.6, ha='center',
             color=colors[g], fontweight='bold')
 
 kv_w, kv_h = 0.78, 0.95
@@ -49,7 +49,7 @@ for j in range(8):
     x0 = xs[j] + (cell_w - kv_w)/2
     y0 = 1.3
     ax.add_patch(Rectangle((x0, y0), kv_w, kv_h, fc=colors[j], ec='white'))
-    ax.text(x0+kv_w/2, y0+kv_h/2, f'K/V {j+1}', ha='center', va='center', fontsize=7, color='white', fontweight='bold')
+    ax.text(x0+kv_w/2, y0+kv_h/2, f'K/V {j+1}', ha='center', va='center', fontsize=7.6, color='white', fontweight='bold')
     kv_ys[j] = (x0+kv_w/2, y0+kv_h)
 ax.text(0.5, 2.6, '8 shared KV heads', fontsize=7.6, fontweight='bold', color='#555')
 

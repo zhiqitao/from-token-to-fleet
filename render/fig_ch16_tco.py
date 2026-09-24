@@ -32,12 +32,12 @@ managed_hi = api_hi * req
 fig, ax = plt.subplots(figsize=(6.1, 5.0))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 ax.fill_between(req, managed_lo, managed_hi, color='#c0392b', alpha=0.12,
-                label='managed API price band [ILLUSTRATIVE] ($15–25/1K)')
+                label='price band $15–25/1K [ILLUSTRATIVE]')
 ax.loglog(req, managed_lo, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, managed_hi, ':', color='#c0392b', lw=1.1, alpha=0.9)
-ax.loglog(req, self_host, '-', color='#27408b', lw=2.0, label='self-host fleet (~$148K/mo)')
-ax.loglog(req, cloud_od, '--', color='#6f9e5f', lw=1.9, label='cloud on-demand (~$72K/mo)')
-ax.loglog(req, managed, '-', color='#c0392b', lw=2.0, label='managed API ($20.80/1K, base)')
+ax.loglog(req, self_host, '-', color='#27408b', lw=2.0, label='self-host ~$148K/mo')
+ax.loglog(req, cloud_od, '--', color='#6f9e5f', lw=1.9, label='cloud ~$72K/mo')
+ax.loglog(req, managed, '-', color='#c0392b', lw=2.0, label='managed $20.80/1K')
 
 ax.set_xlabel('Requests/month (log)', fontsize=9)
 ax.set_ylabel('Cost/month (USD, log)', fontsize=9)
@@ -64,12 +64,14 @@ ax.text(1.3e4, 6e5,
         fontsize=8.5, color='#c0392b', fontweight='bold', ha='left', va='bottom')
 
 # legend inside top-left (clear of data), assumptions as a compact footer OUTSIDE the axes
-ax.legend(fontsize=7.4, loc='upper left', ncol=1, frameon=False,
+ax.legend(fontsize=8.8, loc='upper left', ncol=1, frameon=False,
           handlelength=1.3, labelspacing=0.25, bbox_to_anchor=(0.0, 1.0))
 fig.text(0.13, 0.055,
-         'Assumptions: self-host flat (~$148K/mo reserved); cloud ~$72K/mo @40% duty; excludes staff.\n'
-         'Sensitivity [ILLUSTRATIVE]: a $15–25/1K price band moves the break-even to ~5.9–9.9M req/mo.',
-         fontsize=7.4, color='#555', ha='left', va='bottom')
+         'Assumptions: self-host flat (~$148K/mo reserved, incl. ~$10K/mo staff);\n'
+         'cloud ~$72K/mo @ ~25% duty (~5 of ~20 hosts).\n'
+         'Sensitivity [ILLUSTRATIVE]: a $15–25/1K price band moves\n'
+         'the break-even to ~5.9–9.9M req/mo.',
+         fontsize=8.8, color='#555', ha='left', va='bottom')
 
 plt.subplots_adjust(left=0.13, right=0.97, top=0.90, bottom=0.13)
 plt.savefig('design/manuscript/chapter-16/figures/fig-16-1601.png', dpi=150)

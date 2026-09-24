@@ -42,7 +42,7 @@ for (name, sub, fc, ec), x in zip(tiers, xs):
     ax.add_patch(FancyBboxPatch((x, y0), bw, bh, boxstyle='round,pad=0.02,rounding_size=0.3',
                                 fc=fc, ec=ec, lw=1.5))
     ax.text(x+bw/2, y0+bh-0.5, name, ha='center', va='center', fontsize=FS, fontweight='bold', color='#1a3a2a')
-    ax.text(x+bw/2, y0+0.5, sub, ha='center', va='center', fontsize=7.2, color='#33523a')
+    ax.text(x+bw/2, y0+0.5, sub, ha='center', va='center', fontsize=7.8, color='#33523a')
 
 # escalation connectors (left->right) with trigger labels in clear whitespace BELOW
 for i in range(len(xs)-1):
@@ -59,10 +59,10 @@ for x in xs:
     cx = x + bw/2
     ax.annotate('', xy=(cx, y0-0.02), xytext=(cx, y0-2.1),
                 arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#1e8449'))
-    ax.add_patch(FancyBboxPatch((cx-0.82, STOP_Y-0.55), 1.64, 0.55,
+    ax.add_patch(FancyBboxPatch((cx-0.82, STOP_Y-0.62), 1.64, 0.62,
                  boxstyle='round,pad=0.02,rounding_size=0.12', fc='#f2f9f4', ec='#1e8449', lw=1.3))
-    ax.text(cx, STOP_Y-0.28, 'constraints\nsatisfied? STOP', ha='center', va='center',
-            fontsize=6.4, color='#1e8449', fontweight='bold')
+    ax.text(cx, STOP_Y-0.30, 'constraints\nsatisfied? STOP', ha='center', va='center',
+            fontsize=8.0, color='#1e8449', fontweight='bold')
 
 ax.text(5.0, 7.75, 'The reference-architecture escalation path', fontsize=10.5,
         fontweight='bold', ha='center', va='center', color='#1a1a1a')

@@ -30,6 +30,13 @@ This appendix surveys vendor-reported material, so we are careful to separate th
 
 When we write "a number of frontier models converge" or "one could argue MoE is a larger architectural innovation," read those as **Interpretation / Hypothesis** — defensible reads of the frontier signal, not independent measurements. Vendor numbers stay tagged [1P] and flagged verify-on-own-hardware; our reads sit one register lower and should be read with the same skepticism we ask of any vendor claim. The practical rule: *if it's a percentage from a report, it's Observed [1P]; if it's a claim about what the industry trend means, it's ours — treat it as analysis, tune it against the reader's real workload.*
 
+**Mapping onto the book's evidence taxonomy.** These three reader-friendly layers are an on-ramp to, not a replacement for, the two-axis taxonomy used throughout the book (provenance [1P]/[2°]/[LAB]/[ILLUSTRATIVE] × status [FACT]/[DERIVED]/[ASSUMPTION]/[HYPOTHESIS]/[UNRESOLVED]):
+- **Observed** ↔ [1P] · [FACT] — the vendor's stated claim, a fact *about the claim*.
+- **Interpretation** ↔ [DERIVED] — the book's own analysis, a derivation from the evidence. (Where the book's taxonomy would label it [ILLUSTRATIVE], note that; the appendix uses "interpretation" only as plain prose for a derived read, never a separate sanctioned status.)
+- **Hypothesis** ↔ [HYPOTHESIS] — a testable prediction, exactly the taxonomy's [HYPOTHESIS].
+
+The appendix's labels are the human-friendly framing; the two-axis labels are the precise book-wide convention. They should never conflict.
+
 ## 1. DeepSeek-V4 — Making Long Context Cheap by Re-Architecting Attention
 
 **Decisive fact [1P: arXiv 2606.19348; HF deepseek-ai/DeepSeek-V4-Pro]:** V4-Pro is 1.6 T total / 49 B activated, V4-Flash 284 B / 13 B activated, both 1M-token context, MIT-licensed. Its hybrid attention combines Compressed Sparse Attention (CSA) and Heavily Compressed Attention (HCA). At 1M context, DeepSeek reports **~27% (Pro) / ~10% (Flash) of V3.2's single-token inference FLOPs and ~10% / ~7% of its KV cache**.

@@ -26,7 +26,7 @@ These are not alternatives; production systems **compose** them (e.g. DP across 
 
 ![Fig 10.1 — Composing the parallel dimensions: one pipeline stage decomposed into a concrete 2×2 DP×TP×EP GPU mesh, with the per-dimension partitioned / replicated / communication summary [ILLUSTRATIVE conceptual]](figures/fig-10-1002.png)
 
-The strategies are not either/or. Left: a DP × TP × PP stack — the layer stack is cut into PP stages (green), each stage is DP-replicated (orange) across nodes, and within a stage TP shards the weights across 4 GPUs (blue). Right: expert parallel is a per-token all-to-all — each token may leave its home GPU to reach the GPU holding its top-k experts. Which dimension binds determines which to split first.
+The strategies are not either/or. Fig 10.1 shows one pipeline stage decomposed into a concrete 2×2 GPU mesh: the two columns are data-parallel (DP replicates the batch across the two GPUs in a row), the two rows are tensor-parallel (TP shards the weights across the two GPUs in a column), and expert-parallelism (EP) shards the experts across all four GPUs, so a token may leave its home GPU to reach the GPU holding its top-k experts. This is a DP×TP×EP composition — the per-dimension partition, replication, and communication summary is in the table inside the figure. Which dimension binds determines which to split first.
 
 ## 2. Mental Model
 
@@ -36,13 +36,13 @@ The useful mental model is a **resource triangle**: we have weights (memory), ac
 
 #### Table 10-1 — Parallelism strategies at a glance
 
-| Strategy | What it splits | Communication need | Fits when |
-|---|---|---|---|
-| Tensor (TP) | a layer's weights within a GPU group | high — every layer, over NVLink | model exceeds one GPU, fits a node |
-| Pipeline (PP) | the layer stack into stages | low — stage boundaries only | model spans nodes |
-| Data (DP) | the batch; replicates weights | gradient all-reduce per step | model fits one GPU, need throughput |
-| Expert (EP) | MoE experts; route-by-token all-to-all | high, per token | MoE models |
-| Sequence (CP) | the sequence/context dimension | medium | long contexts, KV too big |
+| Strategy | What it splits | Replicates | Communicates | Fits when |
+|---|---|---|---|---|
+| Tensor (TP) | a layer's weights within a GPU group | activations | partial sums → all-reduce (every layer, over NVLink) | model exceeds one GPU, fits a node |
+| Pipeline (PP) | the layer stack into stages | hidden states | hidden states → P2P (stage boundaries only) | model spans nodes |
+| Data (DP) | the data batch | model + optimizer | gradients → all-reduce (per step) | model fits one GPU, need throughput |
+| Expert (EP) | MoE experts | attention / weights | routes → all-to-all (per token) | MoE models |
+| Sequence (CP) | the token sequence | model weights | KV → ring | long contexts, KV too big |
 
 *(Strategies compose; the table names the primary cost each trades.)*
 
@@ -134,17 +134,7 @@ The parallelism strategy is forced by the binding constraint, and that constrain
 
 - **The canonical answer**: for the book's ~70B/8×H100 scenario, no parallelism is required at the baseline; parallelism becomes the tool when the model or workload outgrows one node. The architect escalates through TP (in-node) → PP (cross-node) → DP (replicating a fitting model) in that order.
 
-**The five parallelization strategies and what each splits.** Reading across a row gives one strategy's full trade-off; reading down a column shows how each axis varies across strategies.
-
-| Strategy | What splits | Replicated | Communicates |
-|---|---|---|---|
-| TP · tensor | W weights (rows) | activations | partial sums → all-reduce |
-| PP · pipeline | transformer layers | hidden states | hidden states (P2P) |
-| DP · data | data batch | model + optimizer | gradients → all-reduce |
-| EP · experts | MoE experts | attention / weights | routes → all-to-all |
-| CP · context | token sequence | model weights | KV (ring) |
-
-*Each strategy splits or replicates one of the three axes while leaving the others intact, and exchanges a characteristically different collective — tensor parallel all-reduces partial sums, pipeline passes hidden states point-to-point, data parallel all-reduces gradients, expert parallel all-to-alls tokens, context parallel rings KV. The insight is the *difference*: TP shards weights, DP replicates the model, EP shards experts, CP shards the sequence. [ILLUSTRATIVE conceptual]*
+**The five parallelization strategies and what each splits.** This is consolidated in Table 10-1 above — reading across a row gives one strategy's full trade-off (what it splits, what it replicates, what it communicates, when it fits); reading down a column shows how each axis varies across strategies.
 
 <!-- Figure spec: mechanism-first diagram; model shown as weight-matrix + layer-stack + batch; arrows show TP slicing weights, PP stacking stages, DP replicating with all-reduce, EP sharding experts, CP splitting sequence; annotate comm cost + use-case per strategy. -->
 

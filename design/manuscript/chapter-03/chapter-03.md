@@ -46,7 +46,7 @@ We contrast with a representative MoE model in the Mixtral lineage. The exact pa
 | Metric | Value | Derivation |
 |---|---|---|
 | Total parameters (across 8 experts) | ~47B | ~6B per expert × 8 + embeddings [ILLUSTRATIVE][DERIVED] |
-| Active parameters per token (top-2 routing) | ~14B | Top-2 from 8 experts ≈ 2/8 = 25% of expert mass [ILLUSTRATIVE][DERIVED] |
+| Active parameters per token (top-2 routing) | ~14B | 2 routed FFN experts + always-on attention/shared weights ≈ 14B (~30% of the ~47B total; ~25% counting expert-FFN mass alone) [ILLUSTRATIVE][DERIVED] |
 | Active/total fraction | ~30% | 14B ÷ 47B ≈ 29.8% (≈25–30% for top-2-from-8) [ILLUSTRATIVE][DERIVED] |
 | FP16 active weight-read per token | ~28 GB | 14B × 2 bytes = 28 GB read per token (compute/bandwidth; does NOT set residency) (derived — verify the input) |
 | FLOPs per forward pass (approx.) | ~0.028T | 14B active × 2 FLOP/param = 28B (derived — verify the input) |
@@ -68,7 +68,7 @@ The KV cache story is the surprising part. Recall from Chapter 1 (§KV cache as 
 
 Therefore, for a 70B-class model (dense or MoE) with 8K–9.2K input context:
 
-- **Dense 70B**: KV cache ~1.3 MB per token × 9,200 tokens ≈ 12 GB (at 8-bit) or ~24 GB (at FP16-relevant precision for the key/value storage pattern discussed in Ch. 7).
+- **Dense 70B**: KV cache ~1.3 MB per token × 9,200 tokens ≈ 12 GB (at 8-bit, the naive byte-halving figure; the *measured* FP8 serving constant is ~1.42 MB/token ≈ 54% of BF16 → ~13 GB — see Ch 7) or ~24 GB (at FP16-relevant precision for the key/value storage pattern discussed in Ch. 7).
 - **MoE 70B-equivalent**: The KV cache is *identical* in size, because attention still processes all 9,200 tokens densely. The fact that only 14B of 47B total parameters are active in the feed-forward layers does not reduce the number of keys/values emitted by the attention layers.
 
 In other words: MoE sparsity = compute sparsity (fewer FLOPs per token). MoE sparsity ≠ memory sparsity (KV cache still grows linearly with context length, same as dense). Only changing the attention mechanism itself (e.g., hybrid/linear attention, compressed latent attention, or KV offload) can stop the cache from growing. This distinction — compute-sparsity versus memory-sparsity — is one an architect has to get exactly right.
@@ -145,7 +145,7 @@ These flags exist because home-lab measurements are not reference per the eviden
 
 An architect is fleshing out the design of the internal Q&A tool described in Chapter 1's mini-case. The team is torn between a dense 70B model and a MoE model with 8 experts (roughly 47B total params, ~14B active per token). They ask: "If we go MoE, can we cut our GPU memory budget?"
 
-From the model-understanding chapter, the architect can answer: *Active-compute memory yes — only ~14B of the ~47B total is active per token, so ~28 GB of *active* weight footprint is read per token vs. 140 GB for a dense 70B. But *resident* memory is a different question. An MoE model normally keeps its **full expert set resident** — the non-active experts still occupy HBM unless we explicitly use expert offload/swapping (Ch. 3 §6, Ch. 18), which itself costs bandwidth. So MoE reduces compute per token, and it gives us the *option* to offload some experts to shrink residency, but it does **not** automatically reduce the weight-residency floor. And KV cache memory no — the attention layers still process every token densely, so the cache budget for a 9.2K-context input is the same regardless of whether the model is dense or MoE. We still need to provision for ~12 GB of KV cache (at 8-bit) or ~24 GB (at the precision pattern discussed in Ch. 7) per request, and we'll also need expert-routing infrastructure on top of that.*
+From the model-understanding chapter, the architect can answer: *Active-compute memory yes — only ~14B of the ~47B total is active per token, so ~28 GB of *active* weight footprint is read per token vs. 140 GB for a dense 70B. But *resident* memory is a different question. An MoE model normally keeps its **full expert set resident** — the non-active experts still occupy HBM unless we explicitly use expert offload/swapping (Ch. 3 §3.7, Ch. 18), which itself costs bandwidth. So MoE reduces compute per token, and it gives us the *option* to offload some experts to shrink residency, but it does **not** automatically reduce the weight-residency floor. And KV cache memory no — the attention layers still process every token densely, so the cache budget for a 9.2K-context input is the same regardless of whether the model is dense or MoE. We still need to provision for ~12 GB of KV cache (at 8-bit) or ~24 GB (at the precision pattern discussed in Ch. 7) per request, and we'll also need expert-routing infrastructure on top of that.*
 
 The architect's decision therefore hinges on whether the compute savings from MoE (fewer FLOPs per token, potentially lower \$/token) outweigh the added routing complexity and the fact that KV cache memory is unchanged. The team decides on a MoE model for the compute/\$ advantage, but provisions the KV cache budget at the dense-model rate, and adds one GPU dedicated to the routing dispatcher.
 

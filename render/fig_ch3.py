@@ -84,9 +84,9 @@ ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', h
 
 # ---- KV bars: identical under both columns ----
 for axx in axes:
-    axx.add_patch(Rectangle((0.9, KV_Y), 8.2, 0.9, fc='#c0392b', ec='white'))
-    axx.text(5, KV_Y+0.45, 'KV same as dense (matched attention geometry)',
-             ha='center', va='center', fontsize=9.0, color='white', fontweight='bold')
+    axx.add_patch(Rectangle((0.6, KV_Y), 8.8, 0.9, fc='#c0392b', ec='white'))
+    axx.text(5, KV_Y+0.45, 'KV same as dense (matched attention)',
+             ha='center', va='center', fontsize=8.8, color='white', fontweight='bold')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-03/figures/fig-03-0301.png', dpi=170)

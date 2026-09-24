@@ -15,6 +15,7 @@ active_b = [13, 104, 6, 18]           # active params (B) [1P]
 frac = [a/t*100 for a, t in zip(active_b, total_b)]
 
 fig, ax = plt.subplots(figsize=(6.1, 2.82))
+fig._hermes_print_sized = True   # print-size authored (content pre-fit); regen must not re-boost/reflow/tight-bbox
 y = np.arange(len(names))          # model index
 h = 0.5
 

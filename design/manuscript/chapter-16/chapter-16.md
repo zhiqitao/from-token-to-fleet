@@ -103,7 +103,7 @@ Crucially, these are **independent sensitivity dimensions**, and each pushes the
 - **Utilization** — the *provisioning* utilization target (70% vs 100%, Ch 17) sets how many hosts are needed, not how much they cost per unit; it is a separate line from the price-per-host.
 - **Reserved / on-demand mix** — whether capacity is committed (cheaper, flat) or burst (pricier, on-demand) is a distinct lever; a mixed fleet has both a flat and a variable term.
 - **Failover reserve** — N-1/headroom hosts (Ch 17) add cost but are not production-serving capacity; they must be counted as a separate reserve line, not folded into the served-load hosts.
-- **Staffing** — the dominant human term for self-hosting; it is frequently the decider at low volume (Ch 16 §8 mini-case) and should be its own sensitivity dimension, not absorbed into opex.
+- **Staffing** — the dominant human term for self-hosting; it is frequently the decider at low volume (Ch 16 §9 mini-case) and should be its own sensitivity dimension, not absorbed into opex.
 
 Because these dimensions are independent, the break-even is a **region**, not a point: the figure marks the [ILLUSTRATIVE] price band, and the honest output is a range (here ~5.9–9.9M req/mo) rather than a single "the break-even is 7.1M" claim. Report the range and name which dimension is being varied.
 
