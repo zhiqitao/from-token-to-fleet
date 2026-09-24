@@ -56,10 +56,13 @@ for (cx, head, sub, fc) in [(lg1_cx,'Retrieval leg','embedding · 768-dim','#eee
 
 # RAG system decision (centred)
 box(MID, dec_bot, 300, BOX_H, 'RAG system decision', 'base + RAG + guardrails', '#e8eef7')
-for (cx, lab) in [(lg1_cx,'context'), (lg2_cx,'answer')]:
-    ax.annotate('', xy=(MID, dec_bot+BOX_H), xytext=(cx, leg_bot),
+# context/answer feeds land at DISTINCT points on the decision box top edge — the
+# retrieval feed registers at the LEFT third, the generation feed at the RIGHT third,
+# so the two arrows do not converge onto one point.
+for (cx, lab, land_x) in [(lg1_cx,'context', MID-55), (lg2_cx,'answer', MID+55)]:
+    ax.annotate('', xy=(land_x, dec_bot+BOX_H), xytext=(cx, leg_bot),
                 arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#888'))
-    ax.text((cx+MID)/2, (leg_bot+dec_bot+BOX_H)/2 - 4, lab, fontsize=FS-1.5, color='#666', ha='center')
+    ax.text((cx+land_x)/2, (leg_bot+dec_bot+BOX_H)/2 - 4, lab, fontsize=FS-1.5, color='#666', ha='center')
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-05/figures/fig-05-0501.png', dpi=150)

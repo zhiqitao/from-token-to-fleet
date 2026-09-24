@@ -36,24 +36,40 @@ for i, (label, col, hatch) in enumerate(STAGES):
                                 fc=col, ec='#333', lw=0.8, hatch=hatch))
     ax.text(x+W/2, y+H/2, label, ha='center', va='center',
             color='white', fontsize=10, fontweight='bold')
-# row 1 forward arrows: 1->2->3 ; row 0 arrows: 4->5->6
+# row 0 forward arrows: 1->2->3 ; row 1 arrows: 4->5->6
 for c in [0, 1]:
-    # row 0 (y=rows_y[0]) stages 1,2,3
+    # row 0 (y=rows_y[1]) stages 1,2,3
     x=cols_x[c]
     ax.annotate('', xy=(x+W+0.95, rows_y[1]+H/2), xytext=(x+W+0.15, rows_y[1]+H/2),
                 arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
     # row 1 (y=rows_y[0]) stages 4,5,6
     ax.annotate('', xy=(x+W+0.95, rows_y[0]+H/2), xytext=(x+W+0.15, rows_y[0]+H/2),
                 arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
+# 3 -> 4 down-connector (Exposure, top-right, to Guardrails, bottom-left): the gap
+# between the two rows is otherwise empty, breaking the 1->6 forward chain.
+# Land the arrowhead on box 4's TOP edge (rows_y[1]+H), not inside the box.
+ax.annotate('', xy=(cols_x[0]+W/2, rows_y[1]+H), xytext=(cols_x[2]+W/2, rows_y[0]),
+            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555',
+                            connectionstyle='arc3,rad=-0.12'))
 
 # ---- Probe domains: moved to the caption/prose to reduce clutter (the reviewer's ask) ----
 # (the probe examples — jailbreak/persona, escalation/fuzz, poisoning/injection — now live
 #  in the Fig 24.1 caption, not as three extra dense boxes)
 
 # ---- Single strong feedback loop below the stages (Green -> next Red cycle) ----
-ax.annotate('', xy=(2.0, 1.9), xytext=(25.0, 1.9),
-            arrowprops=dict(arrowstyle='-|>', lw=3.0, color='#a83232',
-                            connectionstyle='arc3,rad=-0.10'))
+# L-shaped return on the FAR LEFT (clear of box 4, which sits directly below box 1 at
+# the same x): hook out from box 6 (Green Team, bottom row) bottom-center, run left
+# along the bottom, up the left margin, then right into box 1 (Red Team, top row)
+# LEFT-EDGE middle. Both ends attach to a box edge; the stem does not cross a box.
+from matplotlib.path import Path
+FBY = 1.9
+LX  = 0.25                     # far-left rail, just inside canvas, left of box 4's left edge (x=0.8)
+ret_verts = [(cols_x[2]+W/2, rows_y[1]), (cols_x[2]+W/2, FBY+0.35),
+             (cols_x[2]+W/2, FBY), (LX, FBY),
+             (LX, rows_y[0]+H/2), (cols_x[0], rows_y[0]+H/2)]
+ret_codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.LINETO]
+ax.add_patch(FancyArrowPatch(path=Path(ret_verts, ret_codes), arrowstyle='-|>',
+             mutation_scale=18, lw=3.0, color='#a83232', zorder=1))
 ax.text(13.5, 0.9, 'loop: findings from Green Team → next Red Team cycle (strong feedback leg)',
         fontsize=9, ha='center', color='#a83232', fontweight='bold')
 

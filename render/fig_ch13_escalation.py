@@ -57,8 +57,10 @@ for i in range(len(xs)-1):
 STOP_Y = y0 - 2.7
 for x in xs:
     cx = x + bw/2
-    ax.annotate('', xy=(cx, y0-0.02), xytext=(cx, y0-2.1),
-                arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#1e8449'))
+    # vertical shaft from the tier card bottom-center down to the STOP box top-center
+    # (the arrowhead lands ON the STOP box top edge; the tail originates at the tier card).
+    ax.annotate('', xy=(cx, STOP_Y), xytext=(cx, y0),
+                arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#1e8449', shrinkA=0, shrinkB=0))
     ax.add_patch(FancyBboxPatch((cx-0.82, STOP_Y-0.62), 1.64, 0.62,
                  boxstyle='round,pad=0.02,rounding_size=0.12', fc='#f2f9f4', ec='#1e8449', lw=1.3))
     ax.text(cx, STOP_Y-0.30, 'constraints\nsatisfied? STOP', ha='center', va='center',

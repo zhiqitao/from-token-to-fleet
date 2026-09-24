@@ -28,10 +28,12 @@ for i, name in enumerate(stages):
                     arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#444'))
 
 # feedback: consequences -> context (supersession loop), kept clear of the caption
-ax.add_patch(FancyArrowPatch((x0+4*(w+gap)+w/2, z), (x0+w/2, z-1.9),
-             connectionstyle='arc3,rad=-0.32', arrowstyle='-|>', lw=1.8, color='#c0392b',
+# Source from Consequences bottom-edge middle (x0+4*(w+gap)+w/2, z) and LAND on the
+# Context box's LEFT-edge middle (x0, z+0.6) so both endpoints attach to box edges.
+ax.add_patch(FancyArrowPatch((x0+4*(w+gap)+w/2, z), (x0, z+0.6),
+             connectionstyle='arc3,rad=-0.28', arrowstyle='-|>', lw=1.8, color='#c0392b',
              ls='--'))
-ax.text(15.0, 1.9, 'consequences of one decision become the\ncontext of the next (why is captured at decision time)',
+ax.text(15.0, 1.15, 'consequences of one decision become the\ncontext of the next (why is captured at decision time)',
         fontsize=9.4, ha='center', va='center', color='#c0392b',
         bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.95))
 
