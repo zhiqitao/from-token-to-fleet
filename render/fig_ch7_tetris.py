@@ -33,8 +33,13 @@ for x, (label, kv) in zip(xs, ctxs):
     for rh in range(80, 640, 80):
         ax.plot([x - 0.02, x + bar_w + 0.02], [rh, rh], color='#3d4a4a', lw=0.8, alpha=0.9, zorder=6)
     total = 204 + kv
-    ax.text(x+bar_w/2, 204+kv+16, f'{kv:.1f} GB KV'.replace('.0 GB',' GB'),
-            ha='center', va='bottom', fontsize=10.5, color='#c0392b', fontweight='bold', clip_on=False)
+    # KV value label: draw at a UNIFORM height well above the bar, with a short
+    # leader line, so it never sits on an 80 GB rank rule or the bar fill.
+    ax.annotate(f'{kv:.1f} GB KV'.replace('.0 GB',' GB'),
+                xy=(x+bar_w/2, 204+kv), xytext=(x+bar_w/2, 596),
+                ha='center', va='bottom', fontsize=10.5, color='#c0392b', fontweight='bold',
+                arrowprops=dict(arrowstyle='-', color='#c0392b', lw=0.9, shrinkA=0, shrinkB=0),
+                clip_on=False, zorder=8)
     ax.text(x+bar_w/2, -40, label, ha='center', fontsize=10, fontweight='bold')
     ax.text(x+bar_w/2, -70, f'= {total:.0f} GB used', ha='center', fontsize=9, color='#555')
 

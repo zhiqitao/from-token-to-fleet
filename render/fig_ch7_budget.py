@@ -12,6 +12,7 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 
 weights, runtime, kv = 140, 64, 436
 total = weights + runtime + kv  # 640
@@ -30,15 +31,16 @@ ax.barh(y, weights, left=0, height=0.8, color='#3a6ea5', edgecolor='white', hatc
 ax.barh(y, runtime, left=weights, height=0.8, color='#9aa0a6', edgecolor='white', hatch='xx', lw=0.5)
 ax.barh(y, kv, left=weights + runtime, height=0.8, color='#6f9e5f', edgecolor='white', hatch='..', lw=0.5)
 
-# FP8 row (faint overlay)
+# FP8 row (faint overlay) -- hatch 'o' adds non-colour (grayscale) redundancy vs FP16
 y8 = -0.95
-ax.barh(y8, weights, left=0, height=0.7, color='#3a6ea5', alpha=0.35, edgecolor='none')
-ax.barh(y8, runtime, left=weights, height=0.7, color='#9aa0a6', alpha=0.35, edgecolor='none')
-ax.barh(y8, kv, left=weights + runtime, height=0.7, color='#6f9e5f', alpha=0.30, edgecolor='none')
+halo = [pe.withStroke(linewidth=3.0, foreground='white')]
+ax.barh(y8, weights, left=0, height=0.7, color='#3a6ea5', alpha=0.35, hatch='o', edgecolor='#3a6ea5', lw=0.8)
+ax.barh(y8, runtime, left=weights, height=0.7, color='#9aa0a6', alpha=0.35, hatch='o', edgecolor='#9aa0a6', lw=0.8)
+ax.barh(y8, kv, left=weights + runtime, height=0.7, color='#6f9e5f', alpha=0.35, hatch='o', edgecolor='#6f9e5f', lw=0.8)
 # FP8 row labels (weights/runtime so meaning need not be inferred from the FP16 row)
-ax.text(weights / 2, y8, f'{weights} GB\nweights', ha='center', va='center', color='#27408b', fontsize=9.5, fontweight='bold')
-ax.text(weights + runtime / 2, y8, f'~{runtime} GB\nruntime', ha='center', va='center', color='#555', fontsize=9)
-ax.text(kv_start + kv / 2, y8, f'KV budget\n~{kv} GB', ha='center', va='center', color='#3a6a4a', fontsize=9.5, fontweight='bold')
+ax.text(weights / 2, y8, f'{weights} GB\nweights', ha='center', va='center', color='#27408b', fontsize=9.5, fontweight='bold', path_effects=halo)
+ax.text(weights + runtime / 2, y8, f'~{runtime} GB\nruntime', ha='center', va='center', color='#555', fontsize=9, path_effects=halo)
+ax.text(kv_start + kv / 2, y8, f'KV budget\n~{kv} GB', ha='center', va='center', color='#3a6a4a', fontsize=9.5, fontweight='bold', path_effects=halo)
 
 # KV slot ticks
 x = kv_start
@@ -50,9 +52,16 @@ while xx + kv_fp8_req <= total + 0.5:
     ax.axvline(xx, ymin=0.12, ymax=0.88, color='white', lw=0.5, alpha=0.5, ls=':')
     xx += kv_fp8_req
 
+# ---- NATIVE per-rank geometry: the pool is 8 × 80 GB ranks. Draw prominent
+# 80 GB rank-boundary gridlines across BOTH bar rows so "aggregate ≠ per-rank"
+# lives in the bar geometry (not only in the scale strip below). ----
+for g in range(80, 640, 80):
+    ax.plot([g, g], [y8 - 0.30, y + 0.44], color='#3d3d3d', lw=1.0,
+            ls=(0, (4, 2)), zorder=2)   # behind the value labels (z3) so rank lines don't cut glyphs
+
 # ---- In-segment labels (white, inside the roomy segments only) ----
-ax.text(weights / 2, y, f'{weights} GB\nweights', ha='center', va='center', color='white', fontsize=9.5, fontweight='bold')
-ax.text(kv_start + kv / 2, y, f'KV budget\n~{kv} GB', ha='center', va='center', color='white', fontsize=9.5, fontweight='bold')
+ax.text(weights / 2, y, f'{weights} GB\nweights', ha='center', va='center', color='white', fontsize=9.5, fontweight='bold', path_effects=[pe.withStroke(linewidth=3.0, foreground='white')])
+ax.text(kv_start + kv / 2, y, f'KV budget\n~{kv} GB', ha='center', va='center', color='white', fontsize=9.5, fontweight='bold', path_effects=[pe.withStroke(linewidth=3.0, foreground='white')])
 # runtime label moved OUT of the thin ~64 GB segment into a clear call-out above it
 ax.annotate('~64 GB runtime', xy=(weights + runtime / 2, y + 0.42), xytext=(weights + runtime / 2, 1.15),
             ha='center', fontsize=9, color='#444',
