@@ -39,16 +39,19 @@ for _ in stages:
 
 colors = ['#3a6ea5', '#2f6f4f', '#6f4fa0', '#a53226']
 
-# left forward connector (Understand -> ... -> Commit) and the return edge
+# forward connector (Understand -> ... -> Commit) drops down the CENTER of the cards,
+# from the bottom-center of one card to the top-center of the next (so the loop reads
+# symmetric: forward flow down the middle, iterate return up the right).
 for i in range(3):
-    ax.add_patch(FancyArrowPatch((CX - CARD_W/2, ys[i] - CARD_H), (CX - CARD_W/2, ys[i+1]),
+    ax.add_patch(FancyArrowPatch((CX, ys[i] - CARD_H), (CX, ys[i+1]),
                  arrowstyle='-|>', mutation_scale=14, lw=2.2, color='#555', zorder=1))
-# return edge Commit -> Understand: start at Commit's right edge, run up the far right,
-# and land on Understand's right edge with a clear arrowhead that closes the loop.
+# return edge Commit -> Understand: hook out from the MIDDLE of Commit's right edge,
+# run up the far right, and land on the MIDDLE of Understand's right edge (symmetric),
+# with a clear arrowhead that closes the loop.
 from matplotlib.path import Path
 ret_x = CX + CARD_W/2 + 1.0
-ret_verts = [(CX + CARD_W/2, ys[3] - CARD_H), (ret_x, ys[3] - CARD_H),
-             (ret_x, ys[0]), (CX + CARD_W/2, ys[0])]
+ret_verts = [(CX + CARD_W/2, ys[3] - CARD_H/2), (ret_x, ys[3] - CARD_H/2),
+             (ret_x, ys[0] - CARD_H/2), (CX + CARD_W/2, ys[0] - CARD_H/2)]
 ret_codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
 ax.add_patch(FancyArrowPatch(path=Path(ret_verts, ret_codes), arrowstyle='-|>',
              mutation_scale=18, lw=2.6, color='#c0392b', zorder=1))
@@ -64,11 +67,11 @@ for (name, sub, foot, fill), yy, col in zip(stages, ys, colors):
     ax.text(CX + CARD_W/2 - 0.35, yy - 0.65, foot, fontsize=8.5, color=col,
             ha='right', va='center', style='italic', zorder=3)
 
-# transition labels in the clear GAP between cards (left of the forward connector, whitespace)
+# transition labels in the clear GAP between cards (beside the centered forward arrow)
 trans = ['define', 'size', 'justify']
 for i, lab in enumerate(trans):
     gy = ys[i] - CARD_H - GAP/2
-    ax.text(CX - CARD_W/2 + 0.15, gy, lab, fontsize=9, color='#555', ha='left', va='center',
+    ax.text(CX + 0.20, gy, lab, fontsize=9, color='#555', ha='left', va='center',
             fontweight='bold', zorder=3)
 # iterate label on the return edge
 ax.text(CX + CARD_W/2 + 1.55, (ys[0] - CARD_H + ys[3]) / 2, 'iterate', fontsize=9,
