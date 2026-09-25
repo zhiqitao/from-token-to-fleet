@@ -178,7 +178,10 @@ ft_verts = [(ft[4], ft[2]), (right_x, ft[2]), (right_x, feed_y),
 ft_codes = [_Path.MOVETO, _Path.LINETO, _Path.LINETO, _Path.LINETO, _Path.LINETO]
 ax.add_patch(FancyArrowPatch(path=_Path(ft_verts, ft_codes), arrowstyle='-|>',
              lw=1.7, color=C_SEQ, shrinkA=0, shrinkB=0, clip_on=False))
-_feed_lab_y = (pf_cy - 21 + KVC_TOP) / 2
+# Place the two-line feed label in the clear whitespace between the cache box
+# bottom (KVC_BOT) and the DECODE title — the band-to-cache gap is only ~17pt
+# and would let the label's top line cross the prefill band border.
+_feed_lab_y = (KVC_BOT + dc_title_y) / 2
 ax.text(right_x-8, _feed_lab_y, 'first token\nfeeds the loop', color='#8a1a1a',
         fontsize=FSN-0.3, fontweight='bold', ha='right', va='center')
 
@@ -186,12 +189,12 @@ ax.text(right_x-8, _feed_lab_y, 'first token\nfeeds the loop', color='#8a1a1a',
 ax.add_patch(FancyBboxPatch((9, rg_c-rg_h/2), W-18, rg_h,
               boxstyle='round,pad=0.02,rounding_size=3', fc='#f7f7f7', ec='#c8c8c8',
               lw=0.9, clip_on=False, zorder=0))
-label(W/2, rg_c+18, 'compute- vs bandwidth-bound is an operating-point property',
+label(W/2, rg_c+20, 'compute- vs bandwidth-bound is an operating-point property',
       '#222', FSL+0.2, weight='bold')
-label(W/2, rg_c-4,
+label(W/2, rg_c+0,
       'a property of the model × workload × kernel × hardware — not a fixed rule',
       '#333', FSN)
-label(W/2, rg_c-26,
+label(W/2, rg_c-20,
       'Prefill: typically higher arithmetic intensity        Decode: often bandwidth-sensitive at low batch',
       '#333', FSN)
 
