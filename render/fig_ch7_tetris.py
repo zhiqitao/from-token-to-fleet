@@ -33,11 +33,11 @@ for x in xs:
 base = 204   # weights 140 + runtime 64 (context-independent baseline)
 
 for x, (label, kv) in zip(xs, ctxs):
-    ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'], hatch='//',
+    ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'],
            edgecolor='white', linewidth=0.8, zorder=3)
-    ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'], hatch='xx',
+    ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'],
            edgecolor='white', linewidth=0.8, zorder=3)
-    ax.bar(x, kv, width=bar_w, bottom=base, color=cols['kv'], hatch='..',
+    ax.bar(x, kv, width=bar_w, bottom=base, color=cols['kv'],
            edgecolor='white', linewidth=0.8, alpha=0.92, zorder=3)
     total = base + kv
     # KV value as a tag just ABOVE ITS OWN bar top (bars top out at 229/288/539,
@@ -57,7 +57,7 @@ ax.text(0.15, 655, '640 GB = 8× 80 GB ranks', fontsize=9.5, color='#a93226',
 ax.text(6.6, 690, '(light rules = 80 GB rank boundaries)', fontsize=8, color='#777',
         ha='right', zorder=8)
 
-leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, label='KV cache (grows with context)'),
+leg = [mpatches.Patch(color=cols['kv'], edgecolor='white', lw=0.5, label='KV cache (grows with context)'),
        mpatches.Patch(color=cols['weights'], label='weights 140 GB'),
        mpatches.Patch(color=cols['runtime'], label='runtime / NCCL ~64 GB')]
 ax.legend(handles=leg, loc='lower left', bbox_to_anchor=(0.0, -0.10), fontsize=9.0,

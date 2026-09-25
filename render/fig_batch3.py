@@ -108,7 +108,7 @@ print('Ch18 done')
 #          using an M/M/c (single-class, one server) queueing model. This is the honest way to
 #          show "add load -> worse tail": it varies UTILIZATION (the true driver), not host count.
 #          Host count alone does not determine p99; arrival, scheduling, batching, and queueing do.
-fig, axs = plt.subplots(2, 1, figsize=(6.5, 7.6))
+fig, axs = plt.subplots(2, 1, figsize=(6.1, 8.0), gridspec_kw={'hspace': 0.45})
 fig._hermes_print_sized = True   # print-size authored at column width; regen must not re-boost/reflow
 hosts = np.array([1, 2, 4, 8, 16, 30, 60])
 per_host = 2.0
@@ -119,7 +119,7 @@ ax.plot(hosts, qps*0.95, '--s', color='#c0392b', label='with scheduling overhead
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Fleet throughput (req/s)', fontsize=10)
 ax.set_title('Fleet capacity (KV/service-time analytical bound, ~2.0 req/s/host)', fontsize=10)
-ax.text(0.99, 0.97, 'DERIVED [ILLUSTRATIVE]', transform=ax.transAxes, fontsize=8.2,
+ax.text(0.99, 0.97, 'DERIVED [ILLUSTRATIVE]', transform=ax.transAxes, fontsize=9.0,
         color='#8a5a00', ha='right', va='top')
 ax.legend(fontsize=9)
 ax.grid(alpha=0.3)
@@ -139,12 +139,12 @@ ax.plot(hosts, rho_vals, '-o', color='#e67e22', label='per-host utilization @ 40
 ax.axhline(0.70, color='#27408b', ls='--', lw=1.3, label='70% target utilization')
 ax.axhline(1.0, color='#c0392b', ls=':', lw=1.3, label='saturation (100%)')
 ax.axhspan(1.0, 3.2, color='#c0392b', hatch='///', alpha=0.08)
-ax.text(1.4, 1.45, 'over-subscribed: too few\nhosts to serve 40 rps peak', fontsize=8, color='#c0392b', ha='left')
+ax.text(1.4, 1.45, 'over-subscribed: too few\nhosts to serve 40 rps peak', fontsize=9.0, color='#c0392b', ha='left')
 # annotate the two key provisioning crossings (text parked clear of the curve/legend)
-ax.annotate('~20 hosts: saturation\n(canonical peak fleet)', xy=(19.05, 1.02), xytext=(37, 2.9),
-            fontsize=8, color='#c0392b', arrowprops=dict(arrowstyle='->', color='#c0392b', lw=1.2))
-ax.annotate('≈29 hosts: 70% target\n(⌈40/(2.0×0.70)⌉ = 29)', xy=(28.6, 0.70), xytext=(42, 2.0),
-fontsize=8, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b', lw=1.2))
+ax.annotate('~20 hosts: saturation\n(canonical peak fleet)', xy=(19.05, 1.02), xytext=(36, 2.95),
+            fontsize=9.0, color='#c0392b', arrowprops=dict(arrowstyle='->', color='#c0392b', lw=1.2))
+ax.annotate('≈29 hosts: 70% target\n(⌈40/(2.0×0.70)⌉ = 29)', xy=(28.6, 0.70), xytext=(42, 2.1),
+fontsize=9.0, color='#27408b', arrowprops=dict(arrowstyle='->', color='#27408b', lw=1.2))
 ax.set_xlabel('Host count', fontsize=10)
 ax.set_ylabel('Offered-load utilization ρ = λ/(hosts·bound)', fontsize=10)
 ax.set_title('Offered-load utilization (analytical bound, NOT GPU util)', fontsize=9.5)

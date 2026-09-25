@@ -11,16 +11,18 @@ from matplotlib.path import Path
 # measured metric (throughput, SLO, cost, quality).  A gate that FAILs pulls
 # the candidate back to rollback / last-known-good (red dashed branch).  The
 # green arrow is the normal production feedback loop back to data + evaluation.
-# Short gate strings so the enlarged text stays inside the box (no spillover).
+# 2026-09 review: the gate boxes carried three small text lines and read as
+# visual texture.  Each gate is now a SHORT one-line criterion at a larger
+# size (details live in the caption/body), and PASS is a compact badge.
 
 fig, ax = plt.subplots(figsize=(6.1, 4.7))
 fig._hermes_print_sized = True   # authored at 6.1in; regen must not re-boost/reflow
 ax.set_xlim(0, 24); ax.set_ylim(0, 13.4); ax.axis('off')
 
 ax.set_title('AI Factory promotion: measured gates on every stage',
-             fontsize=11.3, fontweight='bold', ha='center', color='#1a1a1a')
+             fontsize=11.5, fontweight='bold', ha='center', color='#1a1a1a')
 ax.text(12, 12.5, 'every promotion is a PASS/FAIL decision on a measured metric, not a hand-off',
-        fontsize=8, ha='center', color='#555', style='italic')
+        fontsize=8.2, ha='center', color='#555', style='italic')
 
 # ---- stage row (blue) ----
 stages  = ['Data', 'Train', 'Eval', 'Canary', 'Observe', 'Promote', 'Serve']
@@ -29,7 +31,7 @@ w, h, y = 2.8, 1.25, 9.6
 for name, x in zip(stages, xs):
     fc = '#6f9e5f' if name == 'Serve' else '#3a6ea5'
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.04', fc=fc, ec='#1a3a6b', lw=1.2))
-    ax.text(x + w/2, y + h/2, name, ha='center', va='center', fontsize=9, color='white', fontweight='bold')
+    ax.text(x + w/2, y + h/2, name, ha='center', va='center', fontsize=9.2, color='white', fontweight='bold')
 
 # forward arrows along stage row
 for x in xs[:-1]:
@@ -37,37 +39,38 @@ for x in xs[:-1]:
                 arrowprops=dict(arrowstyle='-|>', lw=1.7, color='#555'))
 
 # ---- measurement gate row (orange), one beneath every non-terminal stage ----
+# One-line short criterion per gate, larger type; PASS badge below.
 gates = [
-    ('Data',    'source',   'valid'),
-    ('Train',   'cost',     'budget'),
-    ('Eval',    'quality',  'SLO'),
-    ('Canary',  'goodput',  'SLO'),
-    ('Observe', 'TTFT',     'quality'),
-    ('Promote', 'cost',     'blast'),
+    ('Data',    'src valid'),
+    ('Train',   'cost ok'),
+    ('Eval',    'qual ok'),
+    ('Canary',  'good ok'),
+    ('Observe', 'TTFT ok'),
+    ('Promote', 'cost ok'),
 ]
-gy, gw, gh = 5.7, 2.85, 1.75
-for (stage, m1, m2), x in zip(gates, xs):
+gy, gw, gh = 5.55, 2.85, 2.2
+for (stage, crit), x in zip(gates, xs):
     ax.plot([x + w/2, x + w/2], [y, gy + gh], color='#c0392b', lw=1.0, ls=':', zorder=1)
     ax.add_patch(FancyBboxPatch((x, gy), gw, gh, boxstyle='round,pad=0.04',
-                                fc='#fbe6e0', ec='#c0392b', lw=1.6, zorder=2))
-    ax.text(x + gw/2, gy + gh - 0.36, stage + ' gate', ha='center', va='center',
-            fontsize=8.8, color='#8c2d1a', fontweight='bold', zorder=3)
-    ax.text(x + gw/2, gy + gh - 0.92, m1 + ' <=\n' + m2, ha='center', va='center',
-            fontsize=7.6, color='#3a2a24', zorder=3)
-    ax.text(x + gw/2, gy + 0.28, 'm\u2713 PASS', ha='center', va='center',
-            fontsize=8.2, color='#c0392b', fontweight='bold', zorder=3)
+                                fc='#fbe6e0', ec='#c0392b', lw=1.7, zorder=2))
+    ax.text(x + gw/2, gy + gh - 0.58, stage, ha='center', va='center',
+            fontsize=9.6, color='#8c2d1a', fontweight='bold', zorder=3)
+    ax.text(x + gw/2, gy + gh - 1.30, crit, ha='center', va='center',
+            fontsize=9.2, color='#3a2a24', zorder=3)
+    ax.text(x + gw/2, gy + 0.42, 'm\u2713 PASS', ha='center', va='center',
+            fontsize=8.8, color='#c0392b', fontweight='bold', zorder=3)
 
 # ---- FAIL path: any gate that does not pass -> rollback / last-known-good ----
-ax.add_patch(FancyBboxPatch((6.4, 3.5), 11.2, 1.15, boxstyle='round,pad=0.04',
+ax.add_patch(FancyBboxPatch((6.4, 3.35), 11.2, 1.15, boxstyle='round,pad=0.04',
                             fc='#c0392b', ec='#6d1a0e', lw=1.4))
-ax.text(12.0, 4.22, 'FAIL', ha='center', va='center', fontsize=7.8, color='white', fontweight='bold')
-ax.text(12.0, 3.82, 'rollback to last-known-good & re-validate', ha='center', va='center',
-        fontsize=7.8, color='white')
+ax.text(12.0, 4.14, 'FAIL', ha='center', va='center', fontsize=8.4, color='white', fontweight='bold')
+ax.text(12.0, 3.68, 'rollback to last-known-good & re-validate', ha='center', va='center',
+        fontsize=8.0, color='white')
 # dashed links from a representative gate down to the FAIL node
-ax.add_patch(FancyArrowPatch((11.925, gy), (11.925, 4.65),
+ax.add_patch(FancyArrowPatch((11.925, gy), (11.925, 4.5),
              arrowstyle='-|>', lw=1.6, color='#c0392b', ls='--'))
 # dashed return from FAIL node back up to the Train gate
-ax.add_patch(FancyArrowPatch((6.4, 4.1), (5.2, 5.7),
+ax.add_patch(FancyArrowPatch((6.4, 3.95), (5.2, 5.55),
              connectionstyle='arc3,rad=0.22', arrowstyle='-|>', lw=1.6,
              color='#c0392b', ls='--'))
 
@@ -82,12 +85,15 @@ loopcodes = [Path.MOVETO] + [Path.CURVE4]*9
 ax.add_patch(FancyArrowPatch(path=Path(loopverts, loopcodes), arrowstyle='-|>',
                              lw=2.2, color='#2f6f4f', zorder=1))
 ax.text(12.0, 0.85, 'production feedback \u2192 data / evaluation (each cycle re-gated)',
-        fontsize=8, ha='center', color='#2f6f4f', fontweight='bold')
+        fontsize=8.2, ha='center', color='#2f6f4f', fontweight='bold')
 
 ax.text(12.0, 0.25, '[ILLUSTRATIVE][DERIVED] Gates pass on measured throughput / SLO / cost; a breach rolls back.',
         fontsize=7.9, ha='center', color='#777')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-21/figures/fig-21-2101.png', dpi=150)
+import matplotlib as mpl
+with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-21/figures/fig-21-2101.pdf')
 plt.close()
 print('wrote fig-21-2101')
