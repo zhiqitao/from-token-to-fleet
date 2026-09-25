@@ -53,7 +53,8 @@ ax.text((xs[3]+box_w/2+xs[0]+box_w/2)/2, mid_y+0.16, 'loop (iterate)', ha='cente
 # terminal outcomes below, from Decide
 term_y = 1.35
 # Decide splits: down-left to Final answer, down-right to Stopped
-ax.annotate('', xy=(xs[2]+0.2, term_y+0.95), xytext=(xs[3]+box_w*0.35, y0),
+# Final answer box is at tx=xs[1]; land the arrowhead on its TOP edge (box_w/2).
+ax.annotate('', xy=(xs[1]+box_w/2, term_y+box_h), xytext=(xs[3]+box_w*0.35, y0),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#555',
                             connectionstyle='arc3,rad=0.12'))
 ax.plot([xs[3]+box_w*0.75, xs[3]+box_w*0.75], [y0, term_y+0.95], color='#555', lw=1.4)
