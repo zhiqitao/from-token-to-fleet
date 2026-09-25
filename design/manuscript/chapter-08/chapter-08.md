@@ -67,7 +67,7 @@ $$
 | metric | value | derivation |
 |---|---|---|
 | per-token FLOPs (forward) | ~140 GFLOP/token | 2 ×70B params [DERIVED; standard dense-forward arithmetic — the same 2×N rule gives 175B ≈ 0.35 TFLOP/token] |
-| prefill FLOPs for 9.2K input | ~1.29 PFLOP | 2 ×70 ×10⁹ × 9.2 ×10³ [DERIVED] |
+| prefill FLOPs for 9.2K input (linear only) | ~1.29 PFLOP | 2 ×70 ×10⁹ × 9.2 ×10³ [DERIVED; **parameterized-linear term — excludes the quadratic attention term**, see Ch 22] |
 | sustained prefill demand @ 10 rps | ~12.9 PFLOP/s | 1.29 PFLOP × 10 [DERIVED] |
 | H100 peak FP16 TFLOPS | ~989 TFLOPS [1P: NVIDIA H100 datasheet] | NVIDIA H100 SXM5 datasheet, without sparsity |
 | H100 sustained MFU (typical) | 30–40% [2°: industry benchmarks] | ~346 TFLOPS sustained at 35% MFU |
@@ -124,7 +124,7 @@ This rough sizing illustrates that prefill is FLOP-bound at this scale — the c
 
 ![Fig 8.2 — Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge *classification* (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. [DERIVED from 1P: vendor datasheet]](figures/fig-08-0801.png)
 
-*The roofline: prefill is compute-bound, low-batch decode is memory-bound.*
+*The roofline: at the canonical long-prompt operating point prefill is compute-bound; at low batch decode is memory-bound.*
 
 <!-- Figure spec: mechanism-first roofline diagram; arithmetic intensity on x-axis, achievable FLOP/s on y-axis, ridge line where FLOP-bound meets byte-bound; label the prefill and decode operating points. -->
 
@@ -188,7 +188,7 @@ In practice, the architect measures arithmetic intensity for the target workload
 
 An architect is brought into an ongoing deployment of a 70B-class Q&A system on 8×H100 GPUs. The system is serving ~10 requests/s average with ~9.2K input + 300 output tokens per request, and the TTFT budget is being missed: p95 TTFT is 2.8 s, exceeding the SLO of 2 s. The TPOT of 28 ms/token is within spec, but the prefill delay is the bottleneck.
 
-The temptation is to reach for a roofline and "prove" prefill is memory-bound. That reasoning is wrong here, and the error is worth naming: it is spread by treating prefill like token-by-token decode. In decode, each new token re-reads the weight matrix from HBM, so the arithmetic intensity is ~1 FLOP/byte — genuinely memory-bound. In prefill, the weight matrix is read *once* and reused across the whole sequence; the sequence dimension supplies the matrix-matrix reuse. Prefill's effective intensity is `(2 × N × L) / (N × 2 B)` = `L / 1 byte per parameter` ≈ **9,200 FLOP/byte** at the canonical 9.2K context — two orders of magnitude above the ~295 FLOP/byte dense-FP16 ridge. Prefill is compute-bound, exactly as the rest of this chapter teaches.
+The temptation is to reach for a roofline and "prove" prefill is memory-bound. That reasoning is wrong here, and the error is worth naming: it is spread by treating prefill like token-by-token decode. In decode, each new token re-reads the weight matrix from HBM, so the arithmetic intensity is ~1 FLOP/byte — genuinely memory-bound. In prefill, the weight matrix is read *once* and reused across the whole sequence; the sequence dimension supplies the matrix-matrix reuse. Prefill's effective intensity is `(2 × N × L) / (N × 2 B)` = `L / 1 byte per parameter` ≈ **9,200 FLOP/byte** at the canonical 9.2K context — two orders of magnitude above the ~295 FLOP/byte dense-FP16 ridge. At that operating point prefill is compute-bound, exactly as the rest of this chapter teaches.
 
 So a high TTFT is *not* evidence of a bandwidth problem. The architect does the correct thing: profile the prefill kernel and determine which of several distinct causes is actually limiting it, rather than assuming memory. The profile separates four candidates:
 

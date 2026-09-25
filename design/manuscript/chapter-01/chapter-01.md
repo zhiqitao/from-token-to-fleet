@@ -16,7 +16,7 @@ Tokenization splits a string into an ordered list of integer IDs from the model'
 
 ### Context window
 
-The **context window** is the maximum number of tokens the model can attend to in a single forward pass — the sum of the prompt (input) and the tokens it generates (output). It is a hard architectural constraint: exceed it and the request fails or must be truncated. Current-gen models commonly ship windows ranging from roughly 8K up to a million-plus tokens, varying by model and vendor ([2°] vendor model cards, e.g. 128K/1M+ windows as of 2026); the exact number is a fixed, checkable property of the model we choose — verify it on the card, never assume it from the family name. The context window is one of the first numbers we will be quoted, and one of the easiest to overcommit against, because it bounds memory and cost whether we use every token or not.
+The **context window** is the maximum sequence length the model can condition on at a given generation step — that is, the total of the retained input/prefix and the tokens generated so far. It is a hard architectural constraint: exceed it and the request fails or must be truncated. Current-gen models commonly ship windows ranging from roughly 8K up to a million-plus tokens, varying by model and vendor ([2°] vendor model cards, e.g. 128K/1M+ windows as of 2026); the exact number is a fixed, checkable property of the model we choose — verify it on the card, never assume it from the family name. The context window is one of the first numbers we will be quoted, and one of the easiest to overcommit against, because it bounds memory and cost whether we use every token or not.
 
 ### Embeddings
 
@@ -41,10 +41,10 @@ When the model generates one token at a time, it recomputes the same prefix repe
 KV cache size per token scales with
 
 $$
-KV_{\text{per-token}} = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes-per-value}
+KV_{\text{per-token}} = 2 \times n_\text{layers} \times n_\text{KV heads} \times d_\text{head} \times \text{bytes-per-value}
 $$
 
-(one key and one value per layer) — on the order of **~256 KB per token for a 7B-class model and ~1.3 MB per token for a 70B-class model** at 8-bit precision (the naive byte-halving figure; the *measured* FP8 serving constant is ~1.42 MB/token ≈ 54% of BF16, giving ~13 GB rather than ~12 GB at 9.2K — see Ch 7), so a long context (say 32K tokens) alone can be tens of GB of memory. A first non-obvious architectural lesson hides here: *model sparsity does not reduce the KV cache.* A Mixture-of-Experts model activates only a fraction of its neurons per token, which saves compute, but the attention layers still process every token densely and emit a key/value per token — so MoE shrinks compute-per-token, not memory-per-context. Only changing the *attention mechanism* (hybrid/linear attention, compressed latent attention) actually stops the cache from growing. This distinction — compute-sparsity vs memory-sparsity — is one an architect has to get exactly right, and it is why "the KV problem" is an attention-architecture question more than a model-size question (developed fully in Ch. 3 and Ch. 7). We deliberately keep this to concept + order of magnitude here; Chapter 7 (Memory) does the verified arithmetic against the canonical scenario.
+(one key and one value per layer per **KV head**). For **full multi-head attention (MHA)** the KV heads are all the query heads, so `n_KV heads × d_head = d_hidden` and the formula reduces to the simpler introductory form `2 × n_layers × d_hidden × bytes-per-value`. The general form matters once we meet **grouped-query (GQA)** and **multi-query (MQA)** attention, which share a small number of KV heads across many query heads and can make the cache several times smaller than the full-MHA figure (Ch. 7) — so `d_hidden` alone is *not* the correct KV width for those architectures. It is on the order of **~256 KB per token for a 7B-class model and ~1.3 MB per token for a 70B-class model** at 8-bit precision (the naive byte-halving figure; the *measured* FP8 serving constant is ~1.42 MB/token ≈ 54% of BF16, giving ~13 GB rather than ~12 GB at 9.2K — see Ch 7), so a long context (say 32K tokens) alone can be tens of GB of memory. A first non-obvious architectural lesson hides here: *model sparsity does not reduce the KV cache.* A Mixture-of-Experts model activates only a fraction of its neurons per token, which saves compute, but the attention layers still process every token densely and emit a key/value per token — so MoE shrinks compute-per-token, not memory-per-context. Only changing the *attention mechanism* (hybrid/linear attention, compressed latent attention) actually stops the cache from growing. This distinction — compute-sparsity vs memory-sparsity — is one an architect has to get exactly right, and it is why "the KV problem" is an attention-architecture question more than a model-size question (developed fully in Ch. 3 and Ch. 7). We deliberately keep this to concept + order of magnitude here; Chapter 7 (Memory) does the verified arithmetic against the canonical scenario.
 
 ![Fig 1.1 — The KV cache: every decoded token adds one K+V per layer per head [ILLUSTRATIVE conceptual]](figures/fig-01-kv-cache.png)
 
@@ -52,7 +52,7 @@ $$
 
 ## 2. Mental Model
 
-A token is best understood as a **metered unit of thought**, the way electricity is metered by the kilowatt-hour — important not because a single kilowatt-hour is meaningful by itself, but because *every* downstream cost and capacity number is denominated in it.
+A token is best understood as a **metered unit of model I/O**, the way electricity is metered by the kilowatt-hour — important not because a single kilowatt-hour is meaningful by itself, but because *every* downstream cost and capacity number is denominated in it. (It is a computational/textual unit, not a unit of thought: two tokenizers can render the same semantic content in different token counts, and a reasoning model can spend very different compute per visible token.)
 
 A useful image for the full pipeline:
 

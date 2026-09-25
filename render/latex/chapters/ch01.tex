@@ -51,18 +51,18 @@ own tokenizer before pricing anything.
 
 \subsection{Context window}\label{context-window}
 
-The \textbf{context window} is the maximum number of tokens the model
-can attend to in a single forward pass --- the sum of the prompt (input)
-and the tokens it generates (output). It is a hard architectural
-constraint: exceed it and the request fails or must be truncated.
-Current-gen models commonly ship windows ranging from roughly 8K up to a
-million-plus tokens, varying by model and vendor ({[}2°{]} vendor model
-cards, e.g.~128K/1M+ windows as of 2026); the exact number is a fixed,
-checkable property of the model we choose --- verify it on the card,
-never assume it from the family name. The context window is one of the
-first numbers we will be quoted, and one of the easiest to overcommit
-against, because it bounds memory and cost whether we use every token or
-not.
+The \textbf{context window} is the maximum sequence length the model can
+condition on at a given generation step --- that is, the total of the
+retained input/prefix and the tokens generated so far. It is a hard
+architectural constraint: exceed it and the request fails or must be
+truncated. Current-gen models commonly ship windows ranging from roughly
+8K up to a million-plus tokens, varying by model and vendor ({[}2°{]}
+vendor model cards, e.g.~128K/1M+ windows as of 2026); the exact number
+is a fixed, checkable property of the model we choose --- verify it on
+the card, never assume it from the family name. The context window is
+one of the first numbers we will be quoted, and one of the easiest to
+overcommit against, because it bounds memory and cost whether we use
+every token or not.
 
 \subsection{Embeddings}\label{embeddings}
 
@@ -136,12 +136,21 @@ memory, not just in compute.''
 KV cache size per token scales with
 
 \[
-KV_{\text{per-token}} = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes-per-value}
+KV_{\text{per-token}} = 2 \times n_\text{layers} \times n_\text{KV heads} \times d_\text{head} \times \text{bytes-per-value}
 \]
 
-(one key and one value per layer) --- on the order of
-\textbf{\textasciitilde256 KB per token for a 7B-class model and
-\textasciitilde1.3 MB per token for a 70B-class model} at 8-bit
+(one key and one value per layer per \textbf{KV head}). For \textbf{full
+multi-head attention (MHA)} the KV heads are all the query heads, so
+\texttt{n\_KV\ heads\ ×\ d\_head\ =\ d\_hidden} and the formula reduces
+to the simpler introductory form
+\texttt{2\ ×\ n\_layers\ ×\ d\_hidden\ ×\ bytes-per-value}. The general
+form matters once we meet \textbf{grouped-query (GQA)} and
+\textbf{multi-query (MQA)} attention, which share a small number of KV
+heads across many query heads and can make the cache several times
+smaller than the full-MHA figure (Ch. 7) --- so \texttt{d\_hidden} alone
+is \emph{not} the correct KV width for those architectures. It is on the
+order of \textbf{\textasciitilde256 KB per token for a 7B-class model
+and \textasciitilde1.3 MB per token for a 70B-class model} at 8-bit
 precision (the naive byte-halving figure; the \emph{measured} FP8
 serving constant is \textasciitilde1.42 MB/token ≈ 54\% of BF16, giving
 \textasciitilde13 GB rather than \textasciitilde12 GB at 9.2K --- see Ch
@@ -174,10 +183,14 @@ arithmetic is Ch. 7's).}
 \ntsection{Mental Model}\label{mental-model}
 
 
-A token is best understood as a \textbf{metered unit of thought}, the
+A token is best understood as a \textbf{metered unit of model I/O}, the
 way electricity is metered by the kilowatt-hour --- important not
 because a single kilowatt-hour is meaningful by itself, but because
 \emph{every} downstream cost and capacity number is denominated in it.
+(It is a computational/textual unit, not a unit of thought: two
+tokenizers can render the same semantic content in different token
+counts, and a reasoning model can spend very different compute per
+visible token.)
 
 A useful image for the full pipeline:
 

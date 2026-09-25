@@ -43,31 +43,34 @@ ax1.set_ylabel('Prefill compute (PFLOP / request)', fontsize=8.5)
 ax1.set_title('Prefill per request (decomposed):\nlinear + quadratic attention', fontsize=9.5)
 ax1.set_ylim(1e-2, 1e3)
 ax1.grid(alpha=0.3, which='both')
-ax1.legend(fontsize=7.5, loc='upper center', bbox_to_anchor=(0.5, -0.13), frameon=False)
+# legend placed INSIDE the axes (upper-left), clear of the axis label below
+ax1.legend(fontsize=7.3, loc='upper left', framealpha=0.9, frameon=True)
 
 # Right panel: decode FLOPs per token (flat, context-independent)
 ax2.loglog(L / 1e3, decode / 1e15, color='#27408b', lw=2.4)
 ax2.set_xlabel('Context length (K tokens)')
 ax2.set_ylabel('Decode compute (PFLOP / token)')
-ax2.set_title('Decode per token:\nfixed 2N (context-independent)', fontsize=9.5)
+ax2.set_title('Decode per token (fixed 2N)', fontsize=9.5)
 ax2.set_ylim(1e-5, 1e-3)
 ax2.grid(alpha=0.3, which='both')
-ax2.text(1.2, 2.5e-5, '≈ 1.4e-4 PFLOP/token\n(fixed; same at all context)', fontsize=8, color='#27408b')
+# value label in the clear lower-left of the short right panel (below the flat line)
+ax2.text(1.2, 2.1e-4, '≈ 1.4e-4 PFLOP/token', fontsize=8, color='#27408b',
+         va='center', ha='left')
 
 fig.text(0.5, 0.965,
          '⚠  LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN',
          ha='center', va='top', fontsize=11, fontweight='bold', color='#7a0000',
          bbox=dict(boxstyle='round,pad=0.45', facecolor='#fff2f2', edgecolor='#c0392b', lw=2.0))
-fig.text(0.5, 0.915,
-         'DO NOT COMPARE Y-AXIS MAGNITUDES DIRECTLY  — different units, different baselines',
-         ha='center', va='top', fontsize=9, fontweight='bold', color='#c0392b')
-fig.text(0.5, 0.872,
-         'Left = total prefill compute for ONE request (grows with context L). Right = compute for ONE generated token '
-         '(fixed 2N, context-independent). The quadratic term is the textbook 4·n_layers·L²·d (matches Chapter 8). '
-         '[ILLUSTRATIVE][DERIVED]',
-         ha='center', va='top', fontsize=8.4, color='#555', wrap=True)
+
+# The 'do not compare y-axis magnitudes' warning and the unit/quadratic-term
+# explanation are MOVED TO THE FIGURE CAPTION (publication review: they competed
+# with the charts and duplicated the message). Only the concise per-request vs
+# per-generated-token header remains above the panels.
 
 plt.tight_layout(rect=(0, 0.07, 1, 0.82))
 plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.png', dpi=150)
+import matplotlib as mpl
+with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.pdf', format='pdf')
 plt.close()
-print('wrote fig-22-2201 (decomposed prefill: linear + quadratic; prominent per-request-vs-per-token warning)')
+print('wrote fig-22-2201 (decomposed prefill: linear + quadratic; per-request-vs-per-token header)')

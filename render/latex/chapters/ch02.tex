@@ -217,18 +217,24 @@ another concept,'' it has broken the thread.
 Inference is two fundamentally different physical processes,
 distinguished by what limits them.
 
-\textbf{Prefill is compute-bound.} It is like turning on a massive
-industrial fire hose to fill a reservoir. The burst of flow is enormous,
-and the time it takes is limited entirely by the raw horsepower of the
-pump (compute/FLOPs) pushing the water. The pipe is wide open, but the
-motor is working at its absolute limit.
+\textbf{In the canonical operating point --- a long prompt with high
+arithmetic intensity --- prefill is compute-bound.} It is like turning
+on a massive industrial fire hose to fill a reservoir. The burst of flow
+is enormous, and the time it takes is limited entirely by the raw
+horsepower of the pump (compute/FLOPs) pushing the water. The pipe is
+wide open, but the motor is working at its absolute limit. (This is an
+operating-point property, not a fixed identity: a low-intensity prefill
+or a tiny prompt could shift it toward the bandwidth side --- Ch. 8
+makes the dependence on model × workload × kernel × hardware explicit.)
 
-\textbf{Decode is bandwidth-bound.} It is like trying to empty a
-140,000-gallon swimming pool through a standard garden hose every 25
-milliseconds just to produce a single glass of water. The pump (compute)
-is more than powerful enough, but the diameter of the hose (HBM
-bandwidth) physically cannot move that volume of water in that time
-frame.
+\textbf{In the canonical operating point --- low batch --- decode is
+bandwidth-bound.} It is like trying to empty a 140,000-gallon swimming
+pool through a standard garden hose every 25 milliseconds just to
+produce a single glass of water. The pump (compute) is more than
+powerful enough, but the diameter of the hose (HBM bandwidth) physically
+cannot move that volume of water in that time frame. (Again an
+operating-point property, not an identity: at high batch decode can
+become compute-bound.)
 
 When we ask ``is this workload compute-bound or bandwidth-bound?'' the
 answer depends entirely on which physical constraint we are hitting: the
@@ -524,24 +530,24 @@ architectural consequences:
 
 \begin{itemize}
 \item
-  \textbf{Prefill is compute-bound → optimization levers:} kernel fusion
-  (flash-attention, scaled-dot-product attention with fewer reads),
-  model parallelism (splitting the 70B parameters across GPUs), more
-  GPUs in parallel, or prefill-specific servers that dedicate hardware
-  to the bursty preload phase. Quantization (FP8/BF16) does \emph{not}
-  reduce the underlying algorithmic operation count (the usual 2 ×
-  params × tokens FLOPs are approximately unchanged --- the matmuls
-  still multiply the same matrices); rather it reduces the precision,
-  lowers the bytes transferred/stored, and can raise the
+  \textbf{With prefill in the compute-bound regime → optimization
+  levers:} kernel fusion (flash-attention, scaled-dot-product attention
+  with fewer reads), model parallelism (splitting the 70B parameters
+  across GPUs), more GPUs in parallel, or prefill-specific servers that
+  dedicate hardware to the bursty preload phase. Quantization (FP8/BF16)
+  does \emph{not} reduce the underlying algorithmic operation count (the
+  usual 2 × params × tokens FLOPs are approximately unchanged --- the
+  matmuls still multiply the same matrices); rather it reduces the
+  precision, lowers the bytes transferred/stored, and can raise the
   \emph{effective} accelerator throughput (8-bit tensor cores run at
   higher peak rate).
 \item
-  \textbf{Decode is bandwidth-bound → optimization levers:} continuous
-  batching (vLLM, PagedAttention) to amortize weight reads across many
-  tokens in flight, KV cache offloading to SSD or system memory, P/D
-  (prefill/decode) disaggregation (separate pools of GPUs for prefill
-  bursts vs.~decode steady state), and higher-bandwidth memory
-  topologies (NVSwitch, HBM3e).
+  \textbf{With decode in the bandwidth-bound regime → optimization
+  levers:} continuous batching (vLLM, PagedAttention) to amortize weight
+  reads across many tokens in flight, KV cache offloading to SSD or
+  system memory, P/D (prefill/decode) disaggregation (separate pools of
+  GPUs for prefill bursts vs.~decode steady state), and higher-bandwidth
+  memory topologies (NVSwitch, HBM3e).
 \end{itemize}
 
 The key architectural decision this enables: \textbf{can we disaggregate

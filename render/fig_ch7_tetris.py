@@ -3,61 +3,74 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-# ---- fig-07-0705: Memory Tetris — how the 8xH100 host's 640 GB fills at three contexts ----
-# Canonical (Ch 7): weights 140 GB, runtime/NCCL ~64 GB, KV FP16 ~2.5 MB/token
-# 9.5K max -> ~24.9 GB KV ; 32K -> ~84 GB ; 128K -> ~335 GB
-# NOTE: height bumped +0.4 (4.74 -> 5.14) so the caption/legend have clear bottom
-# breathing room; labels are placed INSIDE the axes (ylim extended down) and the
-# axes rectangle is pinned toward the top, reserving a blank bottom band.
-# Title sized so it fits within the 6.1in column (12.0pt was ~6.18in -> clipped).
-fig, ax = plt.subplots(figsize=(6.1, 5.6))
-fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
-ax.set_xlim(0, 8.0); ax.set_ylim(-640, 760)
-ax.axis('off')   # schematic; regen tight-crops to content
+# ---- fig-07-0705: Memory Tetris — how the 8xH100 host's 640 GB fills at three contexts
+# REDESIGN (publication review): make the GROWTH lesson dominant. The old figure drew
+# red KV-value annotations with leader lines ONTO the bars, plus many 80 GB rank rules
+# and two dense text blocks. All of that competed with the orange KV block. Now:
+#   - the three stacked bars are clean (runtime / weights / growing KV);
+#   - the KV size is a value tag at the TOP of each bar (outside the fill), no overlay;
+#   - 80 GB rank rules are light and drawn BEHIND the bars (structure, not noise);
+#   - one focused note, moved to the caption body of the figure (single line).
+fig, ax = plt.subplots(figsize=(6.1, 4.6))
+fig._hermes_print_sized = True
+ax.set_xlim(0, 8.0); ax.set_ylim(-180, 800)
+ax.axis('off')
 ax.set_title('Memory Tetris: how the 8×H100 host (640 GB) fills with context',
-             fontsize=11.0, fontweight='bold', pad=14)
+             fontsize=11.0, fontweight='bold', pad=10)
 
 bar_w = 2.1
-ctxs = [('9.5K max', 24.9), ('32K context', 84), ('128K context', 335)]
+ctxs = [('9.5K context', 24.9), ('32K context', 84), ('128K context', 335)]
 xs = [1.6, 4.0, 6.4]
 cols = {'runtime': '#95a5a6', 'weights': '#27408b', 'kv': '#e67e22'}
+rank_color = '#b9c4c4'   # light rank rules, behind the bars
 
-# Put each segment's total label ABOVE its bar, outside the fill, so nothing
-# collides with an in-bar value.  Bars carry only a small white value where it
-# fits; the KV value (the one that varies) is always shown above its bar.
-for x, (label, kv) in zip(xs, ctxs):
-    ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'], hatch='//', edgecolor='white', linewidth=0.8)
-    ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'], hatch='xx', edgecolor='white', linewidth=0.8)
-    ax.bar(x, kv, width=bar_w, bottom=204, color=cols['kv'], hatch='..', edgecolor='white', linewidth=0.8, alpha=0.92)
-    # per-rank 80 GB dividers drawn ON TOP (zorder high) so they read inside the bars
+# 80 GB rank rules drawn first (zorder low) so they read as structure behind the fill
+for x in xs:
     for rh in range(80, 640, 80):
-        ax.plot([x - 0.02, x + bar_w + 0.02], [rh, rh], color='#3d4a4a', lw=0.8, alpha=0.9, zorder=6)
-    total = 204 + kv
-    # KV value label: draw at a UNIFORM height well above the bar, with a short
-    # leader line, so it never sits on an 80 GB rank rule or the bar fill.
-    ax.annotate(f'{kv:.1f} GB KV'.replace('.0 GB',' GB'),
-                xy=(x+bar_w/2, 204+kv), xytext=(x+bar_w/2, 596),
-                ha='center', va='bottom', fontsize=10.5, color='#c0392b', fontweight='bold',
-                arrowprops=dict(arrowstyle='-', color='#c0392b', lw=0.9, shrinkA=0, shrinkB=0),
-                clip_on=False, zorder=8)
-    ax.text(x+bar_w/2, -40, label, ha='center', fontsize=10, fontweight='bold')
-    ax.text(x+bar_w/2, -70, f'= {total:.0f} GB used', ha='center', fontsize=9, color='#555')
+        ax.plot([x - 0.02, x + bar_w + 0.02], [rh, rh], color=rank_color,
+                lw=0.7, alpha=0.55, zorder=1)
 
-ax.axhline(640, color='#a93226', lw=2.2, ls='--')
-ax.text(0.15, 690, '640 GB = 8× 80 GB ranks', fontsize=9.5, color='#a93226', fontweight='bold')
-ax.text(6.6, 690, '(horizontal rules = 80 GB rank boundaries)', fontsize=8, color='#777', ha='right')
+base = 204   # weights 140 + runtime 64 (context-independent baseline)
 
-leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, label='KV cache (grows w/ context)'),
+for x, (label, kv) in zip(xs, ctxs):
+    ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'], hatch='//',
+           edgecolor='white', linewidth=0.8, zorder=3)
+    ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'], hatch='xx',
+           edgecolor='white', linewidth=0.8, zorder=3)
+    ax.bar(x, kv, width=bar_w, bottom=base, color=cols['kv'], hatch='..',
+           edgecolor='white', linewidth=0.8, alpha=0.92, zorder=3)
+    total = base + kv
+    # KV value as a tag just ABOVE ITS OWN bar top (bars top out at 229/288/539,
+    # so the tags stagger naturally and never collide with each other or the 640 line)
+    ax.text(x + bar_w/2, total + 12, f'{kv:.1f} GB KV'.replace('.0 GB', ' GB'),
+            ha='center', va='bottom', fontsize=10.5, color='#c0392b', fontweight='bold',
+            zorder=8)
+    # context label below the bar
+    ax.text(x + bar_w/2, -40, label, ha='center', fontsize=10, fontweight='bold', zorder=8)
+    ax.text(x + bar_w/2, -80, f'= {total:.0f} GB used', ha='center', fontsize=9,
+            color='#555', zorder=8)
+
+# 640 GB capacity line (the fixed ceiling — the thing KV approaches)
+ax.axhline(640, color='#a93226', lw=2.0, ls='--', zorder=5)
+ax.text(0.15, 655, '640 GB = 8× 80 GB ranks', fontsize=9.5, color='#a93226',
+        fontweight='bold', zorder=8)
+ax.text(6.6, 690, '(light rules = 80 GB rank boundaries)', fontsize=8, color='#777',
+        ha='right', zorder=8)
+
+leg = [mpatches.Patch(color=cols['kv'], hatch='..', edgecolor='white', lw=0.5, label='KV cache (grows with context)'),
        mpatches.Patch(color=cols['weights'], label='weights 140 GB'),
        mpatches.Patch(color=cols['runtime'], label='runtime / NCCL ~64 GB')]
+ax.legend(handles=leg, loc='lower left', bbox_to_anchor=(0.0, -0.10), fontsize=9.0,
+          frameon=False, ncol=3, handlelength=1.4, columnspacing=1.2)
 
-ax.text(0.2, -260, 'baseline (weights + runtime) is context-independent;\nthe KV cache is the lever that grows with context.\nFP16 ~2.5 MB/token [ILLUSTRATIVE][DERIVED].',
-        fontsize=8.6, color='#444')
-ax.text(0.2, -420, 'AGGREGATE RESIDENCY SCREEN \u2260 PER-RANK FIT GUARANTEE\n(total < 640 GB is a first-order check;\nsharding / fragmentation still validated per GPU)',
-        fontsize=8.6, color='#c0392b', fontweight='bold')
-ax.legend(handles=leg, loc='lower left', bbox_to_anchor=(0.0, -0.28), fontsize=9.5, frameon=False, ncol=1)
+# one focused note (moved most of the old explanation to the figure caption in the MS)
+ax.text(0.2, -150, 'The baseline (weights + runtime) is fixed; only the KV cache grows with context.',
+        fontsize=8.4, color='#555', zorder=8)
 
-fig.subplots_adjust(top=0.90, bottom=0.04, left=0.06, right=0.96)
+fig.subplots_adjust(top=0.90, bottom=0.02, left=0.05, right=0.97)
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0705.png', dpi=150, bbox_inches='tight', pad_inches=0.05)
+import matplotlib as mpl
+with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-07/figures/fig-07-0705.pdf', format='pdf')
 plt.close()
-print('fig-07-0705 done')
+print('fig-07-0705 done (growth-dominant redesign; KV tag above bar)')

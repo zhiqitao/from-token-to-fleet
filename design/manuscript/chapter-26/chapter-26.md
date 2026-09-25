@@ -92,7 +92,7 @@ These open questions define the next research cycle. Each is framed as a HYPOTHE
 
 **Step 1 — Instrument.** FACTs collected: request rate ~2 rps (within the ~2.0 req/s per‑host analytical planning ceiling), GPU utilization 45%, per-query latency breakdown (TTFT leg): model compute 320 ms, I/O 80 ms, cache miss 50 ms.
 
-**Step 2 — Pattern Apply.** The architect applies Pattern A (inference sharding across an 8×H100 node) and Pattern B (semantic response cache with 5-min TTL). DERIVED: sharding distributes the model across the node so decode is bandwidth-bound; cache hit ratio 35% reduces the number of requests that reach the model engine from ~2.0 rps to ~1.3 rps. New TTFT p99: 210 ms.
+**Step 2 — Pattern Apply.** The architect applies Pattern A (inference sharding across an 8×H100 node) and Pattern B (semantic response cache with 5-min TTL). DERIVED: sharding distributes the model across the node so decode lands in the bandwidth-bound regime; cache hit ratio 35% reduces the number of requests that reach the model engine from ~2.0 rps to ~1.3 rps. New TTFT p99: 210 ms.
 
 **Step 3 — Validate.** HYPOTHESIS: "sharding + caching will keep TTFT p99 < 300 ms at 3× user growth." Suppose a staged load test at 3,000 users reports TTFT p99 = 285 ms and cost per query down 55% — in this scenario these are illustrative values to show how a hypothesis is tested, not a real experiment the book ran. The hypothesis is accepted only on a genuine load test's numbers.
 
