@@ -165,8 +165,8 @@ ax.text(XL-14, dc_state_y, 'read', color='#7a3410',
         fontsize=FSN-0.3, fontweight='bold', ha='right', va='center')
 ex_cx = XL + 26
 arrow(ex_cx, dc_boxes['layers'][2]-2, ex_cx, KVC_BOT+2, C_KV, 2.0)
-ax.text(ex_cx-14, dc_state_y, 'extend', color='#7a3410',
-        fontsize=FSN-0.3, fontweight='bold', ha='right', va='center')
+ax.text(ex_cx+14, dc_state_y, 'extend', color='#7a3410',
+        fontsize=FSN-0.3, fontweight='bold', ha='left', va='center')
 
 # ==================== FIRST-TOKEN FEED (dark red, right+bottom margins) ====================
 from matplotlib.path import Path as _Path
