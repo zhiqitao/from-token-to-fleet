@@ -28,11 +28,12 @@ ax.set_title('Hosts Required by Request Rate and Average Latency')
 
 # mark the canonical operating points as (lambda, latency) -> plot (x=L, y=lambda)
 canon = [(40,1.0),(100,1.0),(100,2.0),(40,0.5)]
-offsets = {(40,1.0):(0.20,14),(100,1.0):(0.20,-18),(100,2.0):(0.35,18),(40,0.5):(-0.95,-18)}
+offsets = {(40,1.0):(0.45,22),(100,1.0):(0.20,-18),(100,2.0):(0.35,18),(40,0.5):(-1.15,-22)}
 for (la, l) in canon:
     ox, oy = offsets[(la,l)]
     ax.plot(l, la, '*', ms=15, color='#c0392b', mec='#7b241c', zorder=6)
-    ax.annotate(f'λ={la}, L={l}s', xy=(l,la), xytext=(l+ox, la+oy), fontsize=8, fontweight='bold')
+    ax.annotate(f'λ={la}, L={l}s', xy=(l,la), xytext=(l+ox, la+oy), fontsize=8, fontweight='bold',
+                bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='none'), zorder=8)
 # 'You are here' callout -> immediately beside the canonical (40 rps, 1.0 s) star, in low-host whitespace
 ax.annotate('You are here (40 rps, 1.0 s)\nFP16 ≈ 3 hosts', xy=(1.0, 40), xytext=(2.0, 22),
             fontsize=9, fontweight='bold', color='#c0392b', va='center',

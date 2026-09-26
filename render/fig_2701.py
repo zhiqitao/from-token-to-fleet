@@ -14,7 +14,7 @@ total_b = [284, 2800, 125, 320]       # total params (B) [1P]
 active_b = [13, 104, 6, 18]           # active params (B) [1P]
 frac = [a/t*100 for a, t in zip(active_b, total_b)]
 
-fig, ax = plt.subplots(figsize=(6.1, 2.82))
+fig, ax = plt.subplots(figsize=(6.1, 3.55))
 fig._hermes_print_sized = True   # print-size authored (content pre-fit); regen must not re-boost/reflow/tight-bbox
 y = np.arange(len(names))          # model index
 h = 0.5
@@ -46,7 +46,7 @@ ax.spines['right'].set_visible(False)
 # the point, up front
 ax.set_title('2026 frontier MoE: extreme sparsity —  single-digit active fraction of total',
              fontsize=12, loc='left')
-ax.text(0.0, -0.16, 'VENDOR-REPORTED active-parameter fractions (mutable snapshot, ~2026 mid-year);\nparameter definitions are not perfectly harmonized across vendors',
+ax.text(0.0, -0.26, 'VENDOR-REPORTED active-parameter fractions (mutable snapshot, ~2026 mid-year);\nparameter definitions are not perfectly harmonized across vendors',
         transform=ax.transAxes, fontsize=9.5, color='#555', va='top')
 
 plt.tight_layout()

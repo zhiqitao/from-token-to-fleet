@@ -17,7 +17,7 @@ FS = 9.5
 W = 6.1
 fig, ax = plt.subplots(figsize=(W, W*0.62))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
-ax.set_xlim(0, 10); ax.set_ylim(0, 6.2); ax.axis('off')
+ax.set_xlim(0, 10.9); ax.set_ylim(0, 6.2); ax.axis('off')
 
 # four loop states across the top, with gaps
 states = [
@@ -26,15 +26,15 @@ states = [
     ('Observe', 'append result',   '#d9f3e0', '#2e9e63', 'state'),
     ('Decide',  'resolved?',       '#fbe0e0', '#c0392b', 'check'),
 ]
-box_w, box_h, y0 = 2.1, 1.5, 4.15
+box_w, box_h, y0 = 2.45, 1.5, 4.15
 gap = 0.32
 xs = [0.6 + i*(box_w+gap) for i in range(4)]
 for (name, desc, fc, ec, tag), x in zip(states, xs):
     ax.add_patch(FancyBboxPatch((x, y0), box_w, box_h, boxstyle='round,pad=0.02,rounding_size=0.35',
                                 fc=fc, ec=ec, lw=1.4))
-    ax.text(x+box_w/2, y0+box_h-0.45, name, ha='center', va='center', fontsize=FS, fontweight='bold', color='#1a1a1a')
+    ax.text(x+0.20, y0+box_h-0.42, name, ha='left', va='center', fontsize=8.7, fontweight='bold', color='#1a1a1a')
     ax.text(x+box_w/2, y0+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
-    ax.text(x+box_w-0.14, y0+box_h-0.24, tag, ha='right', va='center', fontsize=7.8, color=ec, style='italic')
+    ax.text(x+box_w-0.12, y0+box_h-0.42, tag, ha='right', va='center', fontsize=7.8, color=ec, style='italic')
 
 # forward loop arrows Plan->Execute->Observe->Decide
 for i in range(len(xs)-1):
@@ -61,15 +61,15 @@ ax.plot([xs[3]+box_w*0.75, xs[3]+box_w*0.75], [y0, term_y+0.95], color='#555', l
 ax.annotate('', xy=(xs[3]+box_w*0.75, term_y+0.95), xytext=(xs[3]+box_w*0.75, y0),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#555'))
 terms = [
-    ('Final answer', 'emit response', '#ece6fb', '#5b3fa8', 'done', xs[1]),
-    ('Stopped', 'turn limit', '#fdeecb', '#c98a1e', 'terminal', xs[3]),
+    ('Final answer', 'emit', '#ece6fb', '#5b3fa8', 'done', xs[1]),
+    ('Stopped', 'limit', '#fdeecb', '#c98a1e', 'terminal', xs[3]),
 ]
 for (name, desc, fc, ec, tag, tx) in terms:
     ax.add_patch(FancyBboxPatch((tx, term_y), box_w, box_h, boxstyle='round,pad=0.02,rounding_size=0.35',
                                 fc=fc, ec=ec, lw=1.4))
-    ax.text(tx+box_w/2, term_y+box_h-0.45, name, ha='center', va='center', fontsize=FS-0.5, fontweight='bold', color='#1a1a1a')
-    ax.text(tx+box_w/2, term_y+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
-    ax.text(tx+box_w-0.14, term_y+box_h-0.24, tag, ha='right', va='center', fontsize=7.8, color=ec, style='italic')
+    ax.text(tx+0.18, term_y+box_h-0.42, name, ha='left', va='center', fontsize=8.4, fontweight='bold', color='#1a1a1a')
+    ax.text(tx+box_w/2-0.55, term_y+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
+    ax.text(tx+box_w-0.12, term_y+0.48, tag, ha='right', va='center', fontsize=7.8, color=ec, style='italic')
 
 ax.text(5.0, 5.95, 'The agent loop: a four-state state machine', ha='center', va='center',
         fontsize=10.5, fontweight='bold', color='#1a1a1a')

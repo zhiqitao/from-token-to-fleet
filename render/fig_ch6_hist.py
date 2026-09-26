@@ -44,9 +44,9 @@ ax.text(5.0, 0.40, '1% stragglers\n~5 s (cross the SLO)', fontsize=8.5, color='#
 
 ax.set_xlabel('Request latency (s)', fontsize=9.5)
 ax.set_ylabel('Request count', fontsize=9.5)
-ax.set_title('Latency distribution: the mean hides the tail', fontsize=10.5, pad=14)
-# bold ILLUSTRATIVE tag as a distinct subtitle line
-ax.text(0.5, 1.015, '[ILLUSTRATIVE synthetic profile]', transform=ax.transAxes, fontsize=9,
+ax.set_title('Latency distribution: the mean hides the tail', fontsize=10.5, pad=26)
+# bold ILLUSTRATIVE tag as a distinct subtitle line (clear below the title)
+ax.text(0.5, 1.055, '[ILLUSTRATIVE synthetic profile]', transform=ax.transAxes, fontsize=9,
         fontweight='bold', color='#8a3a12', ha='center', va='bottom')
 ax.set_xlim(0, 6.2)
 ax.grid(alpha=0.2, axis='y')

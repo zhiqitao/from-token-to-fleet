@@ -15,18 +15,20 @@ cols = [
     ('Turn 3',     3*d, 3*g, 31.7),
     ('Turn 4',     4*d, 4*g, 34.0),
 ]
-xs = [0.4, 3.0, 5.6, 8.2, 10.8]
-cwd = 2.4
+xs = [0.3, 2.85, 5.4, 7.95, 10.5]
+cwd = 2.45
 def h_of(tok): return tok * 0.00035
 
 fig, ax = plt.subplots(figsize=(6.1, 5.63))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
-ax.set_xlim(0, 14.2); ax.set_ylim(0, 12.2); ax.axis('off')
-ax.text(7.1, 11.7, 'Agentic context accumulation: the KV block grows every turn',
+ax.set_xlim(0, 12.8); ax.set_ylim(-0.6, 12.2); ax.axis('off')
+ax.text(6.4, 11.7, 'Agentic context accumulation: the KV block grows every turn',
         fontsize=10.5, fontweight='bold', ha='center', color='#1a1a1a')
 
-for (name, dl, gm, kv), x in zip(cols, xs):
-    ax.text(x+cwd/2, 8.3, name, fontsize=10, fontweight='bold', ha='center', color='#27408b')
+for i, (name, dl, gm, kv) in enumerate(cols):
+    x = xs[i]
+    # reduce name size so the widest ('Single-shot') stays inside its column
+    ax.text(x+cwd/2, 8.3, name, fontsize=8.6, fontweight='bold', ha='center', color='#27408b')
     y = 2.4
     # initial prompt I0 (blue, constant) = 9.2K input
     h0 = h_of(I0)
@@ -40,9 +42,9 @@ for (name, dl, gm, kv), x in zip(cols, xs):
                                 fc='#6f9e5f', ec='#1e7a59', lw=1, hatch='xx'))
     ax.text(x+cwd/2, y+hf/2, 'O\u2091', fontsize=8.5, ha='center', va='center', color='#0d4a35')
     y += hf
-    # retrieved tool output (teal, grows with turns)
+    # retrieved tool output (teal, grows with turns) — min height so the δ label fits inside
     if dl > 0:
-        h1 = h_of(dl)
+        h1 = max(h_of(dl), 0.42)
         ax.add_patch(FancyBboxPatch((x, y), cwd, h1, boxstyle='round,pad=0.01',
                                     fc='#7fc6b5', ec='#1a7a63', lw=1, hatch='xx'))
         ax.text(x+cwd/2, y+h1/2, '\u03b4', fontsize=9, ha='center', va='center', color='#0a4a3a')
@@ -55,15 +57,17 @@ for (name, dl, gm, kv), x in zip(cols, xs):
         ax.text(x+cwd/2, y+h2/2, '\u03b3', fontsize=8.5, ha='center', va='center', color='#8a4b08',
                 fontweight='bold')
         y += h2
-    ax.text(x+cwd/2, y+0.5, f'KV {kv:.1f} GB', fontsize=9.5, ha='center',
+    ax.text(x+cwd/2, y+0.5, f'KV {kv:.1f}', fontsize=8.0, ha='center',
             fontweight='bold', color='#c0392b')
 
 # conclusion line in its own band above the legend
-ax.text(7.1, 1.60, 'append-only illustrative model: context is only appended, never evicted',
+ax.text(6.4, 1.60, 'append-only illustrative model: context is only appended, never evicted',
         fontsize=9, ha='center', color='#1a1a1a', fontweight='bold')
-ax.text(7.1, 1.10, 'agentic depth is a fleet-sizing problem: KV grows ~36% (24.9 \u2192 34.0 GB)',
+ax.text(6.4, 1.10, 'agentic depth is a fleet-sizing problem: KV grows ~36% (24.9 \u2192 34.0 GB)',
         fontsize=9, ha='center', color='#c0392b', fontweight='bold')
-ax.text(7.1, 0.55, 'canonical example @ 2.62 MB/token; total = I\u2080 + T\u00b7\u03b4 + T\u00b7\u03b3 + O_final (I\u2080 = 9.2K input, O_final = 300 output).',
+ax.text(6.4, 0.58, 'canonical example @ 2.62 MB/token; total = I\u2080 + T\u00b7\u03b4 + T\u00b7\u03b3 + O_final',
+        fontsize=8.5, ha='center', color='#444')
+ax.text(6.4, 0.22, '(I\u2080 = 9.2K input, O_final = 300 output).',
         fontsize=8.5, ha='center', color='#444')
 
 # legend in its OWN clean band at the very bottom (clear of the conclusion/note text)

@@ -13,7 +13,7 @@ inp = I0 + Ts*d + Ts*g
 out = Of
 kv_gb = (inp + out) * kv_mb / 1000
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.1, 3.6), sharex=True)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.1, 4.3), sharex=True)
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 w = 0.4
 x = Ts
@@ -45,15 +45,17 @@ ax2.tick_params(labelsize=8)
 ax2.set_ylim(0, 38)
 
 for ax in (ax1, ax2):
-    ax.set_xlabel('Agent turns', fontsize=9)
     ax.set_xticks(x)
     ax.set_xticklabels(['0\n(single-shot)', '1', '2', '3', '4'], fontsize=8)
+
+# single shared x-label at the very bottom (clear of both legends)
+fig.text(0.5, 0.015, 'Agent turns', fontsize=9, ha='center')
 
 fig.suptitle('Token growth vs resulting KV growth across agent turns', fontsize=10.5, fontweight='bold')
 # explicit in-plot statement that this is an append-only illustrative model
 fig.text(0.5, 0.875, 'append-only illustrative model: context only ever accumulates across turns — nothing is evicted',
          ha='center', va='top', fontsize=7.5, style='italic', color='#444')
-plt.tight_layout(rect=(0, 0, 1, 0.88))
+plt.tight_layout(rect=(0, 0.05, 1, 0.86))
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',
             dpi=200, bbox_inches='tight', pad_inches=0.05)
 plt.close()

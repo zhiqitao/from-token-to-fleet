@@ -59,11 +59,11 @@ for name, x, col, mk, note in points:
     ax.text(x, 0.34, note, fontsize=8, color='#444', ha='center', va='top', fontweight='bold')
 
 # ---- BOTTOM BAND: a clean, self-contained x-axis ----
-ax.annotate('', xy=(30000, 0.16), xytext=(0.3, 0.16),
+ax.annotate('', xy=(30000, 0.30), xytext=(0.3, 0.30),
             arrowprops=dict(arrowstyle='-|>', lw=1.7, color='#555'))
-ax.text(0.35, 0.115, 'lower →', fontsize=8.5, color='#555', ha='left')
-ax.text(29000, 0.115, '→ higher', fontsize=8.5, color='#555', ha='right')
-ax.text(1000, 0.055, 'arithmetic intensity (FLOP/byte) →', fontsize=9.5, color='#333',
+ax.text(0.35, 0.15, 'lower →', fontsize=8.5, color='#555', ha='left')
+ax.text(29000, 0.15, '→ higher', fontsize=8.5, color='#555', ha='right')
+ax.text(1000, 0.035, 'arithmetic intensity (FLOP/byte) →', fontsize=9.5, color='#333',
         ha='center', fontweight='bold')
 
 plt.tight_layout(pad=0.2)
