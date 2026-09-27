@@ -58,13 +58,14 @@ be_lo = 148000 / api_hi   # crossover at the HIGH end of the price band
 be_hi = 148000 / api_lo   # crossover at the LOW end of the price band
 ax.plot([be], [148000], '*', ms=11, color='#c0392b', mec='#7b241c', zorder=6)
 ax.plot([be_lo, be_hi], [148000, 148000], '-', lw=1.4, color='#c0392b', alpha=0.8, zorder=5)
-# break-even annotation moved to the LOWER-LEFT, clear of the legend (which occupies
-# the upper-left) so the two text blocks do not collide. va='top' anchors the block
-# and it grows DOWNWARD into the empty lower-left region, away from the legend.
-ax.text(1.2e4, 2.2e5,
+# break-even annotation stays in the LOWER-LEFT region (the original placement) but
+# with white-background bbox backing so chart lines can't show through the glyphs,
+# and pulled SHIFTED to lower-y so neither annotation row sits on the y=1e5 gridline.
+ax.text(1.2e4, 1.40e5,
         f'break-even ≈ {be/1e6:.1f}M req/mo @ $20.80/1K\n'
         f'sensitivity ≈ {be_lo/1e6:.1f}–{be_hi/1e6:.1f}M [ILLUSTRATIVE]',
-        fontsize=8.5, color='#c0392b', fontweight='bold', ha='left', va='top')
+        fontsize=8.5, color='#c0392b', fontweight='bold', ha='left', va='top',
+        bbox=dict(boxstyle='round,pad=0.30', fc='white', ec='#c0392b', lw=0.8))
 
 # legend inside top-left (clear of data), assumptions as a compact footer OUTSIDE the axes
 ax.legend(fontsize=8.8, loc='upper left', ncol=1, frameon=False,
@@ -81,5 +82,8 @@ fig.text(0.11, 0.012,
 
 plt.subplots_adjust(left=0.13, right=0.97, top=0.90, bottom=0.30)
 plt.savefig('design/manuscript/chapter-16/figures/fig-16-1601.png', dpi=150)
+import matplotlib as _mpl
+with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-16/figures/fig-16-1601.pdf', format='pdf')
 plt.close()
 print('wrote fig-16-1601 (FLEET-scaled TCO; landscape column fit)')

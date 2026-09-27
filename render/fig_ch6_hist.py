@@ -18,12 +18,30 @@ fig, ax = plt.subplots(figsize=(6.1, 4.2))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.hist(lat, bins=60, color='#3a6ea5', alpha=0.75, edgecolor='white', lw=0.3)
 mean = lat.mean()
-# p50/p90/p95 lines cluster near the left (0.8-1.0s of a 6.2s axis), so label each
-# directly above its own line in the upper whitespace (data-x, high data-y).
-for p, yfrac in [(50, 0.90), (90, 0.83), (95, 0.76)]:
-    v = np.percentile(lat, p)
+# p50/p90/p95 lines cluster near the left (0.8-1.0s of a 6.2s axis). Put the three
+# labels in a small leader-callout BLOCK in the upper-RIGHT whitespace (away from any
+# bars), and draw short tick-leaders connecting each label to its data-x. This avoids
+# any bar/line occlusion and stops labels stacking into each other.
+ytop = ax.get_ylim()[1]
+leaders = [
+    (50, np.percentile(lat, 50), 0.92),
+    (90, np.percentile(lat, 90), 0.86),
+    (95, np.percentile(lat, 95), 0.80),
+]
+# Anchor block at upper-right (data-x, data-y)
+bx, by = 3.5, ytop * 0.99
+for p, v, dy_off in leaders:
+    # Vertical line for the percentile at v
     ax.axvline(v, color='#6f9e5f', ls='--', lw=1.3)
-    ax.text(v+0.04, ax.get_ylim()[1]*yfrac, f'p{p}', fontsize=8.5, color='#2f6f4f', fontweight='bold', va='center')
+    # Annotation: pull leaders from (bx, by-dy_off*ytop) toward (v+0.04, ytop*0.96)
+    ax.annotate(
+        f'p{p}',
+        xy=(v+0.02, ytop*0.96),
+        xytext=(bx, ytop*(1.0-dy_off)),
+        fontsize=8.5, color='#2f6f4f', fontweight='bold', va='center', ha='left',
+        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='#cfcfcf', lw=0.5),
+        arrowprops=dict(arrowstyle='-', color='#9ec0a3', lw=0.8, connectionstyle='arc3,rad=-0.05'),
+    )
 # p99 breaches the tail? NO — p99=1.33 is still under the 2s SLO. Emphasize it in red.
 v99 = np.percentile(lat, 99)
 ax.axvline(v99, color='#c0392b', ls='--', lw=1.9)

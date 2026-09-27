@@ -40,8 +40,16 @@ ax.axvline(r100, color='#27408b', ls=':', lw=1.2)
 ax.axvline(r200, color='#c0392b', ls=':', lw=1.2)
 ax.plot([r100], [peak*0.35], marker='o', color='#27408b', ms=6, ls='none', zorder=6)
 ax.plot([r200], [peak*0.10], marker='^', color='#c0392b', ms=7, ls='none', zorder=6)
-ax.text(r100, peak*0.42, f'ridge ≈ {r100:.0f}', fontsize=8.5, color='#27408b', ha='center')
-ax.text(r200*0.97, peak*0.05, f'ridge ≈ {r200:.0f}', fontsize=8.5, color='#c0392b', ha='center')
+# Ridge labels — opaque white bbox backing so the ridge axvline + major gridlines
+# never show through the digit glyphs.
+ax.text(r100, peak*0.42, f'ridge ≈ {r100:.0f}', fontsize=8.5, color='#27408b', ha='center',
+        bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none'))
+ax.text(r200*0.97, peak*0.05, f'ridge ≈ {r200:.0f}', fontsize=8.5, color='#c0392b', ha='center',
+        bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none'))
+
+# Lift grid-line alpha to lower visibility (still informative but won't compete with labels)
+ax.grid(alpha=0.18, which='major', axis='both')
+ax.minorticks_off()
 
 # Compute plateau ceiling (shared by both parts), plus region labels made explicit.
 ax.axhline(peak, color='gray', ls='-.', lw=1.0, alpha=0.75)
@@ -88,7 +96,7 @@ ax.set_xlabel('Arithmetic intensity (FLOP/byte) — per GPU', fontsize=9)
 ax.set_ylabel('Achievable performance (TFLOPS) — per GPU', fontsize=9)
 ax.set_title('Per-GPU roofline: dense FP16, one H100 vs one H200', fontsize=9.5)
 ax.tick_params(labelsize=11)
-ax.grid(alpha=0.3, which='both')
+# (Grid already enabled above with reduced alpha near the ridge labels.)
 ax.legend(fontsize=8, loc='lower right')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-08/figures/fig-08-0801.png', dpi=150)
