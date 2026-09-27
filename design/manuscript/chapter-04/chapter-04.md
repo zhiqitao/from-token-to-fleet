@@ -67,9 +67,11 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | Field | Value |
 > |---|---|
 > | Employees / registered users | ~2,000 |
-> | Active users at peak concurrency | ~100 (5% of 2,000) |
-> | Average request rate | 10 rps |
-> | Peak request rate | 40 rps |
+> | Concurrent users (typical) | ~100 (5% of 2,000) |
+> | Concurrent users (peak)     | ~400 (20% of 2,000) |
+> | Mean request service time (planning) | ~10 s  *[1P/ASSUMPTION — planning round; retrieval ~120ms + prefill ~1.08s + decode ~7.5s rounded to comfortable planning figure]* |
+> | Average arrival rate | ~10 rps *[2° DERIVED — Little's Law 100/10]* |
+> | Peak arrival rate    | ~40 rps *[2° DERIVED — Little's Law 400/10]* |
 > | Prompt / query | 1,200 tokens |
 > | Retrieved context | 8,000 tokens |
 > | Total input | 9,200 tokens |
@@ -186,6 +188,15 @@ The economic dimension translates the token profile and traffic into a cost stru
 - **Cost per request**: At 10 rps, each request carries ~9,500 tokens (9,200 input + 300 output). At the per‑million rates, cost per request ≈ ($1.20 × 9.2 + $2.00 × 0.3) / 1,000 ≈ $0.01164 ≈ **$0.012 per request** per inference cycle. At 40 rps peak, cost scales linearly. **Basis note — two different cost bases, not interchangeable.** The $0.012 figure is derived from *per-token market/API list prices* ($1.20/M in, $2.00/M out); it is a cloud-provider price a customer would pay per request on a hosted API. It is *not* the fleet owner's marginal infrastructure cost, which is ~$20/hr ÷ 10 rps ≈ **~$0.00056 per request** (roughly 21× lower) — the owned-fleet cost is nearly all fixed capex/opex and barely scales per request. Keep these separate: use the per-token price when reasoning about a *hosted/API* cost model, and the $/hr infrastructure cost when reasoning about an *owned fleet*. The two are juxtaposed later in §4.7 only to show the hosted-API pricing basis, not as an owned-fleet marginal cost.
 
 The economic constraint is what makes the workload real: a 70B FP16 model on one host *meets the per‑request latency SLO* (TTFT/TPOT) — but the *capacity* question, how many hosts absorb the ~10 rps average / ~40 rps peak arrival, is a separate computation. As Chapters 8 and 16–17 show, a single 8×H100 host holds ~17.5 KV‑resident requests (the conservative integer floor is 17), so it cannot carry the ~40 rps peak (~344 in flight); the canonical workload needs on the order of ~5 hosts at the average and ~20 hosts at the peak. Scaling to higher traffic or longer contexts pushes the host count further, and the cost line must be re‑evaluated.
+
+**Cost-basis distinction (do not confuse the two):**
+
+| Basis | Derivation | Number |
+|---|---|---|
+| Cloud-provider list price (what a customer pays Managed-API-by-token) | [ILLUSTRATIVE] 2026 cloud list snapshot | ~$1.20 / 1M input tokens, ~$2.00 / 1M output tokens |
+| Self-host cost per million tokens (infrastructure $20/hr divided by canonical 92K inp tok/s + 3K out tok/s) | [$20/hr] / [92K inp tok/s + 3K out/s] converted to per-million-tokens via 3600 | ~$0.061 / 1M input tokens (i.e. ~16.5M tokens per dollar), ~$1.85 / 1M output tokens |
+
+These are NOT redundant measures of the same effective cost — they are what-the-customer-pays-the-cloud (basis A) vs what-the-host-cost-spread-across-tokens-costs (basis B). Quoting both without labelling the basis confuses readers into treating basis B as if it were basis A.
 
 
 ## 4. Measurement

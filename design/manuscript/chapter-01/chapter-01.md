@@ -20,7 +20,7 @@ The **context window** is the maximum sequence length the model can condition on
 
 ### Embeddings
 
-Text enters the model as token IDs, but the model does arithmetic on vectors. An **embedding** is the learned dense vector that represents a token (or a position, or a subword context) in a high-dimensional space — typically 128 to a few thousand dimensions. Embeddings are the bridge between discrete tokens and continuous computation: nearby tokens (in a learned sense) map to nearby vectors, which is what lets attention and downstream layers do useful math.
+Text enters the model as token IDs, but the model does arithmetic on vectors. An **embedding** is the learned dense vector that represents a token (or a position, or a subword context) in a high-dimensional space — typically 128 to a few thousand dimensions. The embedding maps each discrete token id to a learned continuous vector the transformer operates on; relationships in that learned space emerge from training but should not be interpreted as a simple human-semantic distance metric.
 
 For the architect the practical facts are: embeddings live in a lookup table sized `vocab × dim`, they account for a real but small slice of a model's parameter count (a 100k × 4096 table is ~0.4B params — a rounding error next to a 70B model, but not zero), and they are the first thing a *vocabulary mismatch* or a *re-tokenized prompt* can silently change.
 
