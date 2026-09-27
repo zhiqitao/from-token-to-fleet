@@ -2,7 +2,7 @@
 
 ## The Architect's Question
 
-Having established the single-host serving model — a 70B FP16 model on 8×H100 serving ~2,000 registered users at ~10 rps average / ~40 rps peak — the natural next question is: when does one host cease to suffice, and how do we scale to a fleet? This chapter answers the architect's question: at what point must we move from a lone server to a coordinated fleet, and what are the quantitative trade-offs of that transition?
+Having established the single-host serving model — a 70B FP16 model on 8×H100 serving the canonical workload (Ch 4, Table 4-3) at ~10 rps average / ~40 rps peak — the natural next question is: when does one host cease to suffice, and how do we scale to a fleet? This chapter answers the architect's question: at what point must we move from a lone server to a coordinated fleet, and what are the quantitative trade-offs of that transition?
 
 ## 1. Concept
 
@@ -20,7 +20,7 @@ A critical detail is the **session-affinity** decision. If user sessions must ma
 
 ## 3. Worked Example
 
-We continue from the canonical scenario: ~2,000 registered users, ~5% concurrent (~100 users), ~10 rps average / ~40 rps peak, prompt ~9,200 input tokens + ~300 output, 70B-class dense FP16 model, 8×H100 host with 640 GB GPU memory. A single 8×H100 host's capacity is set by the *binding constraint* among GPU compute, HBM bandwidth, and KV cache memory. Let us verify with arithmetic, keeping the two quantities distinct: **aggregate HBM** (640 GB) is not the same as **KV-available memory** (640 − 140 GB weights − runtime/workspace reserve).
+We continue from the canonical scenario (Ch 4, Table 4-3): ~10 rps average / ~40 rps peak, prompt ~9,200 input tokens + ~300 output, 70B-class dense FP16 model, 8×H100 host with 640 GB GPU memory. A single 8×H100 host's capacity is set by the *binding constraint* among GPU compute, HBM bandwidth, and KV cache memory. Let us verify with arithmetic, keeping the two quantities distinct: **aggregate HBM** (640 GB) is not the same as **KV-available memory** (640 − 140 GB weights − runtime/workspace reserve).
 
 **Single-host concurrency capacity (KV-bound).** The per-token KV footprint for the canonical full-MHA reference geometry is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 = 2,621,440 B ≈ 2.62 MB/token (Chapter 7 canonical). Subtract the 140 GB FP16 weights and ~64 GB runtime/activations/workspace from the 640 GB pool, leaving ≈436 GB available for KV. Each request at 9,200 input + 300 output reserves a **9,500-token max** KV of 9,500 ×2.62 MB ≈ 24.9 GB (the initial 9.2K residency is 24.1 GB). A single host therefore holds C = 436 GB ÷ 24.9037 GB ≈ **17.5 concurrent requests** (byte-accurate; the conservative integer "requests that fit" ceiling is **17**, not 18 — 17.51 cannot round up for a hard fit) — using the canonical layer-complete κ. Computing κ from a single layer instead of all 80 would overstate the concurrency figure by two orders of magnitude.
 

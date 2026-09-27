@@ -4,7 +4,7 @@
 
 In large-scale RQA (retrieval-augmented QA) pipelines serving thousands of concurrent users, the transition from static LLM calls to agentic orchestration raises fundamental trade-offs: increased capability versus increased latency, higher per-request token consumption versus better answers, and richer multi-step reasoning versus harder-to-debug execution paths. This chapter addresses the architect's central question: how to design agentic layers that amplify intelligence without unsustainably inflating cost and latency.
 
-We begin from a concrete deployment scenario: ~2,000 users with ~5% concurrent access, driving ~10 requests/second average and ~40 requests/second peak. Each request carries ~9,200 input tokens and produces ~300 output tokens. The base model is a 70B dense FP16 engine running on 8×H100 GPUs (640 GB total memory). The agentic layer sits above this foundation, introducing tool use, retrieval, and multi-step reasoning. The question we answer is how much additional overhead this layer introduces, whether the quality gain justifies the cost, and how to size the infrastructure accordingly.
+We begin from the canonical deployment scenario (Ch 4, Table 4-3): ~10 requests/second average and ~40 requests/second peak. Each request carries ~9,200 input tokens and produces ~300 output tokens. The base model is a 70B dense FP16 engine running on 8×H100 GPUs (640 GB total memory). The agentic layer sits above this foundation, introducing tool use, retrieval, and multi-step reasoning. The question we answer is how much additional overhead this layer introduces, whether the quality gain justifies the cost, and how to size the infrastructure accordingly.
 
 ## 1. Concept
 

@@ -28,7 +28,7 @@ The arrow from workload to selection surfaces is the one the architect must keep
 
 ## 3. Worked Example — Embedding‑Model vs Generation‑Model Selection for the Canonical RAG Workload
 
-The canonical scenario (the enterprise Q&A over internal documents, RAG — see Ch 4 Table 4-3) is: ~2,000 registered users, ~10 requests/s average, ~40 rps peak; average prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output; 70B-class dense model, FP16 (~140 GB), 1 host with 8×H100-class GPUs (80 GB each). TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. SLO: p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
+Per the canonical workload (Ch 4, Table 4-3): the enterprise Q&A RAG tool — input-heavy, ~9.2K input (1,200 prompt + 8K retrieved) + 300-token output; 70B-class dense FP16 model (~140 GB) on one 8×H100 host. TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT ~25 ms/token; p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
 
 We walk the two‑model selection for this workload.
 
@@ -155,7 +155,7 @@ Each of these flags is an open empirical question a team should resolve against 
 
 *(Continuous scenario: the enterprise Q&A architect must now pick the model given the Ch. 4 characterization.)*
 
-An architect is assembled for a design review of the enterprise Q&A tool described in Chapter 4. The requirement has been characterized: ~2,000 registered users, ~10 rps average, ~9.2K input tokens + 300 output tokens, input‑heavy profile, TTFT SLO p95 ≤ 2 s, TPOT SLO p95 ≤ 35 ms. The team has also agreed on the retrieval architecture: vector search with embeddings, 768‑dim all‑mpnet‑base‑v2, late‑max retrieval over a 1 M‑chunk corpus.
+An architect is assembled for a design review of the enterprise Q&A tool described in Chapter 4 — the canonical workload (Ch 4, Table 4-3). The team has agreed on the retrieval architecture: vector search with embeddings, 768‑dim all‑mpnet‑base‑v2, late‑max retrieval over a 1 M‑chunk corpus.
 
 From the unit-and-token work of Ch 1 alone (Ch 5's selection surfaces), the architect can immediately check the consequences:
 
