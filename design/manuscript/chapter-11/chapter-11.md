@@ -111,13 +111,13 @@ The serving stack dictates the deployment choices:
 
 ![Fig 11.2 — Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation) [ILLUSTRATIVE conceptual]](figures/fig-11-1101.png)
 
-*From request arrival to token output: continuous batching, PagedAttention KV, prefix caching, and optional P/D disaggregation.*
+*Four orthogonal concerns all act on the request stream in parallel; none is stacked on another. **Request scheduling** runs continuous (admit/evict-each-step) batching, trading latency ↔ utilization. **State management** keeps the KV cache in fixed pages (PagedAttention), trading memory capacity → concurrency. **Reuse** prefix-caches the KV of shared context, skipping re-prefill FLOPs. **Resource specialisation** splits prefill and decode into two pools, matching two compute/memory regimes to two pools.*
 
 <!-- Figure spec: mechanism-first serving-flow diagram; request stream → scheduler → KV page table (+ prefix cache) → optional prefill pool / decode pool split → output; annotate the resource each stage trades. -->
 
 ![Fig 11.3 — P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer [ILLUSTRATIVE][DERIVED]](figures/fig-11-1103.png)
 
-*P/D disaggregation topology. Left: a prefill-optimized pool (FLOP-facing), which handles the long prompt at once. Right: a decode-optimized pool (HBM-facing), which reads the steady token-by-token generation. A fabric bridge moves the per-token KV cache from prefill to decode. The split exists because the two stages want opposite resources under load — prefill needs compute capacity (~1.19 PFLOPS required vs 0.989 peak single-H100), decode needs HBM bandwidth (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED].*
+*P/D disaggregation topology. Left: a prefill-optimized pool (FLOP-facing), which handles the long prompt at once. Right: a decode-optimized pool (HBM-facing), which reads the steady token-by-token generation. Once, a fabric bridge moves the prompt KV cache from prefill to decode: prefill writes the prompt KV, then decode reads it and keeps appending per generated token — the KV moves once, then stays (ownership splits). The split exists because the two stages want opposite resources under load — prefill needs compute capacity (~1.19 PFLOPS required vs 0.989 peak single-H100), decode needs HBM bandwidth (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED].*
 
 ### The Serving Stack, Not the Product Catalog
 

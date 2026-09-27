@@ -9,66 +9,13 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Rectangle
 
 base = 'design/manuscript/chapter-%02d/figures/fig-%02d-%02d01.png'
 
-# ---- Ch02: Decode vs prefill: an arithmetic-intensity CONTINUUM, not two boxes ----
-# The old binary "decode=bandwidth / prefill=compute" chart taught a rule that Ch8
-# later has to undo. This redesign places the two canonical operating points on an
-# arithmetic-intensity axis split by the roofline ridge (~295 FLOP/byte), and shows
-# the knobs (batch, context, precision) that move a point across the ridge.
-fig, ax = plt.subplots(figsize=(6.1, 3.1))
-fig._hermes_print_sized = True
-ax.set_xscale('log')
-ax.set_xlim(0.3, 30000)
-ax.set_ylim(0, 1.48)
-ax.axis('off')
-# log axis from 0.3 to 30000
-import matplotlib.ticker as mtick
-import matplotlib as _mpl
-_mpl.rcParams['hatch.linewidth'] = 1.4
-_mpl.rcParams['hatch.color'] = '#000000'
-
-# ---- TOP ANNOTATION: the movement qualifier (prominent, own zone above the band) ----
-ax.text(95, 1.44,
-        'operating points are NOT fixed:',
-        fontsize=8.5, color='#444', ha='center', va='top', fontweight='bold')
-ax.text(95, 1.35,
-        'batch · context · KV precision · kernel/hardware',
-        fontsize=8.5, color='#555', ha='center', va='top')
-ax.text(95, 1.26,
-        'all move a point across the ridge',
-        fontsize=8.5, color='#444', ha='center', va='top', fontweight='bold')
-
-# ---- ROOFLINE REGIONS (shaded band, its own vertical zone) ----
-ridge = 295
-BAND_LO, BAND_HI = 0.30, 1.02
-ax.axvline(ridge, color='#c0392b', ls='--', lw=1.4, ymin=BAND_LO, ymax=BAND_HI)
-ax.text(ridge*1.35, 0.38, 'roofline\nridge ~295', fontsize=8, color='#c0392b', fontweight='bold')
-ax.axvspan(0.3, ridge, color='#f6dcc8', alpha=0.55, hatch='///', ec='#5a2e08', lw=0, ymin=BAND_LO, ymax=BAND_HI)
-ax.text(6, 1.00, 'memory-bound\n(bandwidth)', fontsize=8.5, color='#8a3a12', ha='center', va='top', fontweight='bold')
-ax.axvspan(ridge, 30000, color='#c9d8ee', alpha=0.55, hatch='xxx', ec='#12294f', lw=0, ymin=BAND_LO, ymax=BAND_HI)
-ax.text(4200, 1.00, 'compute-bound\n(FLOPs)', fontsize=8.5, color='#1a3a6b', ha='center', va='top', fontweight='bold')
-
-# ---- OPERATING POINTS (inside the band, name above marker, note below it) ----
-points = [
-    ('decode @ low batch', 1.0, '#c0392b', 'o', 'HBM weight-stream per token:\n~1 FLOP/byte at batch-1 (Ch8)'),
-    ('prefill @ 9.2K prompt', 9200, '#27408b', '^', '2·N·L over HBM weight stream:\n~9.2K FLOP/byte (high intensity)'),
-]
-for name, x, col, mk, note in points:
-    ax.plot([x], [0.70], mk, ms=12, color=col, clip_on=False)
-    # name clearly below the marker (wide gap so the dot never touches the label)
-    ax.text(x, 0.50, name, ha='center', fontsize=10, color=col, fontweight='bold')
-    ax.text(x, 0.34, note, fontsize=8, color='#444', ha='center', va='top', fontweight='bold')
-
-# ---- BOTTOM BAND: a clean, self-contained x-axis ----
-ax.annotate('', xy=(30000, 0.30), xytext=(0.3, 0.30),
-            arrowprops=dict(arrowstyle='-|>', lw=1.7, color='#555'))
-ax.text(0.35, 0.15, 'lower →', fontsize=8.5, color='#555', ha='left')
-ax.text(29000, 0.15, '→ higher', fontsize=8.5, color='#555', ha='right')
-ax.text(1000, 0.035, 'arithmetic intensity (FLOP/byte) →', fontsize=9.5, color='#333',
-        ha='center', fontweight='bold')
-
-plt.tight_layout(pad=0.2)
-plt.savefig('design/manuscript/chapter-02/figures/fig-02-0201.png', dpi=200); plt.close()
-print('Ch02 (continuum) done')
+# ---- Ch02 Fig 2.2 (arithmetic-intensity continuum / roofline) ----
+# RETIRED: competes with the dedicated roofline asset render/fig_ch2_roofline.py
+# -> design/manuscript/chapter-02/figures/fig-02-0201.{png,pdf}.  The reviewer (2026-09)
+# demanded roofline + two regimes dominate over annotation; fig_ch2_roofline.py is a
+# single log-log roofline with two large region shadings and minimal text.
+# regen_figs.py must not clobber the redesigned asset.
+print('fig-02-0201: see render/fig_ch2_roofline.py; Ch02 block retired')
 
 # ---- Ch04: Six-dimension workload characterization -> architectural decisions ----
 # The six dimensions the chapter actually defines (§4.2.1): quality, traffic, token
@@ -142,60 +89,44 @@ plt.savefig(base % (9, 9, 9), dpi=150); plt.close()
 print('Ch09 done')
 
 # ---- Ch11: serving = four concerns, not a layer stack ----
-# The old top-down "serving stack" implied rigid layering. Present serving as four
-# orthogonal concerns (request scheduling / state management / reuse / resource
-# specialisation) that all act on the request stream in parallel -- none stacked on
-# another. Arranged as a 2x2 concern matrix around the central request->output flow.
-fig, ax = plt.subplots(figsize=(6.1, 5.9))
-fig._hermes_print_sized = True   # print-size authored (content pre-fit); regen must not re-boost/reflow/tight-bbox
-ax.set_xlim(0, 20); ax.set_ylim(0, 13); ax.axis('off')
+# REDESIGN (reviewer, 2026-09-27): the prior version packed each concern card
+# with a mechanism line plus an italic trade-off note, burying the "orthogonal"
+# claim under text.  New version makes the 2x2 orthogonality grid the dominant
+# visual -- four large, empty cards (accent header only, mostly whitespace) with
+# BIG concern labels, threaded by a single request -> output spine.  The
+# per-concern mechanism and trade-off now live in the manuscript caption.
+fig, ax = plt.subplots(figsize=(6.1, 5.2))
+fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
+ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
 BLUE='#3a6ea5'; GREEN='#27ae60'; ORANGE='#e67e22'; RED='#c0392b'; GREY='#555'; PURPLE='#6c3483'
-def bbox(x,y,w,h,fc,ec='none',lw=0):
-    ax.add_patch(FancyBboxPatch((x,y),w,h,boxstyle='round,pad=0.02',fc=fc,ec=ec,lw=lw))
-def jar(x1,y1,x2,y2,c=GREY,lw=2.0):
-    ax.annotate('',xy=(x2,y2),xytext=(x1,y1),arrowprops=dict(arrowstyle='-|>',lw=lw,color=c))
-def concern(x,y,w,h,name,col,mech,trade):
-    bbox(x,y,w,h,'#fbfbfb',col,1.6)
-    bbox(x,y+h-0.66,w,0.66,col)
-    fs = 9.6 if len(name) <= 18 else 8.1
-    ax.text(x+w/2,y+h-0.33,name,ha='center',va='center',color='white',fontsize=fs,fontweight='bold')
-    ax.text(x+0.4,y+h-1.25,mech,ha='left',va='top',fontsize=8.2,color='#222')
-    ax.text(x+0.4,y+0.32,trade,ha='left',va='center',fontsize=7.8,color=col,style='italic')
+
+def box(x, y, w, h, fc, ec, lw=1.4):
+    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.01', fc=fc, ec=ec, lw=lw))
+
+def card(x, y, w, h, label, col, fill):
+    box(x, y, w, h, fill, col, 2.0)
+    ax.text(x + w / 2, y + h / 2, label, ha='center', va='center',
+            fontsize=11.5, color=col, fontweight='bold')
 
 # title
-ax.text(10,12.4,'Serving = four concerns, not a stack',fontsize=9.2,fontweight='bold',ha='center',color='#333')
-ax.text(10,11.72,'orthogonal decisions - they interact, but none sits on top of another',
-        fontsize=7.6,ha='center',color=GREY,style='italic')
+ax.text(0.5, 0.965, 'Serving = four orthogonal concerns, not a stack',
+        fontsize=9.2, fontweight='bold', ha='center', color='#333')
 
-# request stream (top)
-bbox(6.0,10.2,8.0,1.25,BLUE)
-ax.text(10,10.82,'Request stream\n(text \u2192 tokens)',ha='center',va='center',color='white',fontsize=8.5,fontweight='bold')
+# request stream (top) -> output (bottom) spine
+box(0.30, 0.875, 0.40, 0.065, BLUE, BLUE, 0)
+ax.text(0.5, 0.9075, 'Request stream', ha='center', va='center',
+        color='white', fontsize=8.5, fontweight='bold')
+ax.annotate('', xy=(0.5, 0.12), xytext=(0.5, 0.872),
+            arrowprops=dict(arrowstyle='-|>', lw=1.7, color=GREY))
+box(0.30, 0.045, 0.40, 0.065, GREY, GREY, 0)
+ax.text(0.5, 0.0775, 'Output tokens', ha='center', va='center',
+        color='white', fontsize=8.5, fontweight='bold')
 
-# concern matrix container
-bbox(0.5,3.35,19.0,6.55,'#f4f6fa','#bbbbbb',1.0)
-ax.text(1.0,9.62,'THE FOUR SERVING CONCERNS',fontsize=7.8,fontweight='bold',ha='left',color='#5a5a5a')
-
-# 2x2 concern cards flanking the central flow
-concern(1.0,3.75,7.9,2.55,'REQUEST SCHEDULING',PURPLE,
-        'continuous batching:\nadmit/evict each step',
-        'latency \u2194 utilization')
-concern(11.1,3.75,7.9,2.55,'STATE MANAGEMENT',RED,
-        'KV cache in fixed pages\n(PagedAttention)',
-        'memory capacity \u2192 concurrency')
-concern(1.0,6.85,7.9,2.55,'REUSE',GREEN,
-        'prefix cache: reuse\nKV of shared context',
-        're-prefill FLOPs skipped')
-concern(11.1,6.85,7.9,2.55,'RESOURCE SPECIALISATION',ORANGE,
-        'P/D split: prefill pool\n+ decode pool',
-        'two regimes \u2192 two pools')
-
-# central flow: request -> through the concern matrix -> tokens
-jar(10,10.2,10,2.95,GREY,1.7)
-ax.text(10.45,6.55,'all four in parallel',fontsize=7.6,color=GREY,ha='left',va='center',style='italic')
-
-# output (bottom)
-bbox(6.8,1.55,6.4,1.0,GREY)
-ax.text(10,2.05,'Output tokens',ha='center',va='center',color='white',fontsize=8.2,fontweight='bold')
+# 2x2 orthogonality grid -- dominant, empty cards with BIG labels
+card(0.045, 0.600, 0.415, 0.245, 'REQUEST\nSCHEDULING', PURPLE, '#f7f3fb')
+card(0.540, 0.600, 0.415, 0.245, 'STATE\nMANAGEMENT', RED, '#fdecea')
+card(0.045, 0.305, 0.415, 0.245, 'REUSE', GREEN, '#eafaf0')
+card(0.540, 0.305, 0.415, 0.245, 'RESOURCE\nSPECIALISATION', ORANGE, '#fdf3e0')
 
 plt.tight_layout()
 plt.savefig(base % (11, 11, 11), dpi=150); plt.close()
