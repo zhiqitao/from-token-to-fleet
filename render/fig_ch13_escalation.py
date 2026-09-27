@@ -1,80 +1,101 @@
 #!/usr/bin/env python3
-"""fig-13-1301: the reference-architecture escalation path (horizontal, non-hierarchical).
+"""fig-13-1301: reference-architecture escalation ladder — VERTICAL, causal-arrow-dominant.
 
-PASS-24 fix: the Archify 'ladder' version stacked Single GPU at the TOP and Cluster/
-fleet at the BOTTOM, so a ladder metaphor implied the top tier was 'best'. It also drew
-the escalation-trigger pills directly on the rung borders (straddling the connectors)
-and truncated one trigger ('forces local'). This is a HORIZONTAL escalation path: tiers
-advance left-to-right as requirements grow, so there is no best/worst vertical reading,
-and each trigger label sits in clear whitespace BELOW the connector (not on it).
+DESIGN (designer pass): the escalation TRIGGERS dominate the tier cards. A bold
+vertical up-arrow (the causal "escalator") is the visual spine; between every two
+tiers a LARGE trigger label states what FORCES the climb (KV residency overruns /
+host goodput < demand / demand exceeds ceiling). Tier cards are deliberately small
+ladder-rungs on the left. A thin dashed GREEN down-arrow on the right is the
+de-escalation path (privacy, sovereignty, cost). A small green STOP label hangs off
+every rung ("constraints met? STOP here") so the exit is visible at each level and
+the reader never reads the ladder as a best/worst ranking.
 
-PASS-2 add: make 'STOP when constraints are satisfied' first-class. Escalation is only
-for a BINDING constraint; if the current tier satisfies the workload, stay put. Each
-tier card carries a green STOP branch (down arrow + 'constraints satisfied? STOP here')
-so the reader sees the exit at every tier, and the footer states the rule explicitly.
+CHANNEL-REDUNDANCY: escalation vs de-escalation differ by colour AND arrow style
+(filled solid up-arrow vs open dashed down-arrow) AND label, never colour alone.
+Tier cards are a single neutral green (all are "tiers", not categories), so there
+is no colour-categorical reading.
 """
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+from matplotlib.patches import FancyBboxPatch, Rectangle, Polygon
 
 W = 6.1
-FS = 8.2
-fig, ax = plt.subplots(figsize=(W, W*0.88))
-fig._hermes_print_sized = True
-ax.set_xlim(0, 10); ax.set_ylim(0, 8.2); ax.axis('off')
+fig, ax = plt.subplots(figsize=(W, 7.0))
+fig._hermes_print_sized = True   # print-size authored; regen must not re-boost/reflow
+ax.set_xlim(0, 10); ax.set_ylim(0, 12.4); ax.axis('off')
 
+# ---------------------------------------------------------------------------
+# Tier ladder (LEFT column) — deliberately small neutral-green rungs.
+# bottom -> top is the direction the workload escalates.
+# ---------------------------------------------------------------------------
 tiers = [
-    ('Single GPU', 'one accelerator\nlocal memory', '#e7f5ec', '#1e8449'),
-    ('Single host', 'GPU rack node\nNVLink fabric', '#e7f5ec', '#1e8449'),
-    ('Multi-host', 'several nodes\ncluster fabric', '#e7f5ec', '#1e8449'),
-    ('Cluster / fleet', 'many nodes\nnetwork spine', '#e7f5ec', '#1e8449'),
+    ('Single GPU', 'one accel.\nlocal mem.'),
+    ('Single host', 'GPU node\nNVLink fabric'),
+    ('Multi-host', 'several nodes\ncluster fabric'),
+    ('Cluster / fleet', 'many nodes\nnetwork spine'),
 ]
+tier_y = [2.0, 4.7, 7.4, 10.1]
+bw, bh = 1.8, 0.9
+tx = 0.5
+for (name, sub), y in zip(tiers, tier_y):
+    ax.add_patch(FancyBboxPatch((tx, y - bh/2), bw, bh,
+                                boxstyle='round,pad=0.02,rounding_size=0.15',
+                                fc='#eef7f0', ec='#1e8449', lw=1.2))
+    ax.text(tx + bw/2, y + 0.16, name, ha='center', va='center',
+            fontsize=8.2, fontweight='bold', color='#1a3a2a')
+    ax.text(tx + bw/2, y - 0.22, sub, ha='center', va='center',
+            fontsize=6.0, color='#33523a')
+    # small STOP branch hanging off each rung (the escape at every level)
+    ax.text(tx + bw/2, y - bh/2 - 0.36, '\u25bc constraints \u2192 STOP',
+            ha='center', va='center', fontsize=5.6, color='#1e8449')
+
+# ---------------------------------------------------------------------------
+# Dominant CAUSAL up-arrow (the escalator spine) — fat red shaft + triangle head.
+# ---------------------------------------------------------------------------
+shaft_x0, shaft_x1 = 5.9, 6.7
+ax.add_patch(Rectangle((shaft_x0, 0.9), shaft_x1 - shaft_x0, 9.6,
+                       fc='#c0392b', ec='none', zorder=1))
+ax.add_patch(Polygon([(shaft_x0 - 0.6, 10.5), (shaft_x1 + 0.6, 10.5),
+                      ((shaft_x0 + shaft_x1)/2, 11.5)],
+                     fc='#c0392b', ec='none', zorder=1))
+# thin rung-to-escalator connectors at each tier
+for y in tier_y:
+    ax.plot([tx + bw, shaft_x0], [y, y], color='#c0392b', lw=1.0, zorder=0)
+
+# ---------------------------------------------------------------------------
+# ESCALATION TRIGGERS — LARGE, dominant, red; "what forces the next".
+# ---------------------------------------------------------------------------
 triggers = [
-    ('outgrows 1 GPU', 'forces local', '#c0392b', '#1e8449'),
-    ('KV overflows floor', 'privacy', '#c0392b', '#1e8449'),
-    ('fleet demand', 'cost pressure', '#c0392b', '#1e8449'),
+    (3.35, 'KV residency overruns\n\u2192 forces scale-up'),
+    (6.05, 'host goodput < demand\n\u2192 forces scale-up'),
+    (8.75, 'demand exceeds ceiling\n\u2192 forces scale-up'),
 ]
-bw, bh = 1.9, 1.5
-y0 = 4.6
-xs = [0.45 + i*2.42 for i in range(4)]
-for (name, sub, fc, ec), x in zip(tiers, xs):
-    ax.add_patch(FancyBboxPatch((x, y0), bw, bh, boxstyle='round,pad=0.02,rounding_size=0.3',
-                                fc=fc, ec=ec, lw=1.5))
-    ax.text(x+bw/2, y0+bh-0.5, name, ha='center', va='center', fontsize=FS, fontweight='bold', color='#1a3a2a')
-    ax.text(x+bw/2, y0+0.5, sub, ha='center', va='center', fontsize=7.8, color='#33523a')
+for y, label in triggers:
+    ax.text(2.6, y, label, ha='left', va='center',
+            fontsize=11.0, fontweight='bold', color='#a01515', linespacing=1.35)
 
-# escalation connectors (left->right) with trigger labels in clear whitespace BELOW
-for i in range(len(xs)-1):
-    ax.annotate('', xy=(xs[i+1], y0+bh/2), xytext=(xs[i]+bw, y0+bh/2),
-                arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555'))
-    trig_l, trig_r, cl, cr = triggers[i]
-    midx = (xs[i]+bw + xs[i+1])/2
-    ax.text(midx-0.05, y0-0.55, trig_l, ha='center', va='top', fontsize=7.6, color=cl, fontweight='bold')
-    ax.text(midx-0.05, y0-1.05, trig_r, ha='center', va='top', fontsize=7.6, color=cr, fontweight='bold')
+# ---------------------------------------------------------------------------
+# DE-ESCALATION — thin dashed GREEN down-arrow (policy/governance), right side.
+# ---------------------------------------------------------------------------
+ax.annotate('', xy=(9.5, 0.95), xytext=(9.5, 10.1), arrowprops=dict(
+    arrowstyle='-|>', lw=1.6, color='#1e8449', ls='--', shrinkA=0, shrinkB=0))
+ax.text(7.9, 5.3, 'DE-ESCALATE:\nprivacy \u00b7 cost', ha='center', va='center',
+        fontsize=6.8, color='#1e8449', fontweight='bold', linespacing=1.3)
 
-# STOP branch below each tier: 'constraints satisfied? STOP here' (the escape at every tier)
-STOP_Y = y0 - 2.7
-for x in xs:
-    cx = x + bw/2
-    # vertical shaft from the tier card bottom-center down to the STOP box top-center
-    # (the arrowhead lands ON the STOP box top edge; the tail originates at the tier card).
-    ax.annotate('', xy=(cx, STOP_Y), xytext=(cx, y0),
-                arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#1e8449', shrinkA=0, shrinkB=0))
-    ax.add_patch(FancyBboxPatch((cx-0.82, STOP_Y-0.62), 1.64, 0.62,
-                 boxstyle='round,pad=0.02,rounding_size=0.12', fc='#f2f9f4', ec='#1e8449', lw=1.3))
-    ax.text(cx, STOP_Y-0.30, 'constraints\nsatisfied? STOP', ha='center', va='center',
-            fontsize=8.0, color='#1e8449', fontweight='bold')
-
-ax.text(5.0, 7.75, 'The reference-architecture escalation path', fontsize=10.5,
-        fontweight='bold', ha='center', va='center', color='#1a1a1a')
-ax.text(5.0, 0.5, 'escalate only when a constraint binds — else STOP; tiers are orthogonal levels of scale, not a ranking',
+# ---------------------------------------------------------------------------
+# Headings
+# ---------------------------------------------------------------------------
+ax.text(5.0, 12.15, 'The reference-architecture escalation ladder',
+        fontsize=12.0, fontweight='bold', ha='center', va='center', color='#1a1a1a')
+ax.text(5.0, 0.35,
+        'escalate only when a constraint binds \u2014 else STOP; tiers are orthogonal levels of scale, not a ranking',
         ha='center', va='center', fontsize=7.6, color='#666')
 
 out = 'design/manuscript/chapter-13/figures/fig-13-1301.png'
 plt.savefig(out, dpi=170)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
-    plt.savefig(out[:-4]+'.pdf', format='pdf')
+    plt.savefig(out[:-4] + '.pdf', format='pdf')
 plt.close()
-print('wrote fig-13-1301 (horizontal escalation path + STOP-when-satisfied)')
+print('wrote fig-13-1301 (vertical escalation ladder, triggers dominate)')
