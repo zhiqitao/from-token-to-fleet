@@ -4,12 +4,14 @@
 Reviewer: "TOO MUCH ANNOTATION relative to physical footprint; give roofline and two
 regimes substantially more visual dominance."
 
-Redesign: ONE log-log roofline plot fills the 6.1in column.  The two regimes are carried
-by two large dominant background shadings (the memory-bound bandwidth diagonal on the
-left of the ridge, the compute-bound plateau on the right), NOT by a stack of callout
-notes.  Text is held to the reviewer's minimum: title, x/y axis labels, the ridge label,
-and the two operating-point labels (decode / prefill).  Every secondary annotation and
-per-point note from the previous design is dropped.
+Redesign: ONE log-log roofline plot fills the 6.1in column, and the two regimes carry
+their own background.  Each regime is drawn as a large shading AND given its own
+region label AND its own hatch texture, so the memory-bound / compute-bound split is
+readable without relying on colour alone (label + texture + colour).  Text is held to
+the reviewer's minimum: title, x/y axis labels, the ridge label, the two operating-point
+labels, and the two region labels.  Every per-point numeric note from the earlier design
+is dropped; those values live in the caption.  The roofline curve is the single heaviest
+element (lw 2.8); the regimes sit beneath it; the markers / labels are lightest.
 
 Derived numbers match the Ch2 canonical table and the Ch8 roofline:
   peak compute = 0.989 PFLOPS   (H100 BF16 dense tensor-core, no sparsity)
@@ -25,6 +27,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.ticker as mtick
 
+matplotlib.rcParams['hatch.linewidth'] = 0.6
+
 # ---- hardware model (matches Ch2 table + Ch8 roofline) ----
 PEAK_FLOPS = 0.989e15      # FLOP/s  (0.989 PFLOPS)
 PEAK_BW    = 3.353e12      # bytes/s (3.35 TB/s)
@@ -36,41 +40,53 @@ YMIN, YMAX = 1.0e11, 3.0e15
 I = np.logspace(np.log10(XMIN), np.log10(XMAX), 400)
 roofline = np.minimum(PEAK_BW * I, PEAK_FLOPS)   # attainable upper envelope
 
-fig, ax = plt.subplots(figsize=(6.1, 4.35))
+# regime fills + matching label/hatch channels (never colour alone)
+C_MEM  = '#e2a366'   # memory-bound fill
+C_CMP  = '#8fb0dd'   # compute-bound fill
+C_MEML = '#7a4a12'   # memory-bound label
+C_CMPL = '#173a6e'   # compute-bound label
+
+fig, ax = plt.subplots(figsize=(6.1, 4.5))
 fig._hermes_print_sized = True                  # regen must not re-boost/reflow
 ax.set_xscale('log'); ax.set_yscale('log')
 ax.set_xlim(XMIN, XMAX); ax.set_ylim(YMIN, YMAX)
 
-# === dominant regime shading (background) ===
+# === dominant regime shading (background) with a distinct hatch per regime ===
 mask_mem = I <= RIDGE
 mask_cmp = I >= RIDGE
 ax.fill_between(I[mask_mem], YMIN, roofline[mask_mem],
-                color='#f2c9a2', alpha=0.55, lw=0, zorder=1)   # memory-bound slope
+                facecolor=C_MEM, alpha=0.55, lw=0, hatch='///',
+                edgecolor=C_MEML, zorder=1)          # memory-bound slope
 ax.fill_between(I[mask_cmp], YMIN, roofline[mask_cmp],
-                color='#b7cbe8', alpha=0.60, lw=0, zorder=1)   # compute-bound plateau
+                facecolor=C_CMP, alpha=0.55, lw=0, hatch='---',
+                edgecolor=C_CMPL, zorder=1)          # compute-bound plateau
 
-# === ridge ===
+# === region labels (the redundant, non-colour channel) ===
+ax.text(4.5, 1.05e12, 'memory-bound', color=C_MEML, fontsize=12.5,
+        ha='center', va='center', fontweight='bold', alpha=0.9, zorder=2)
+ax.text(2200.0, 1.6e13, 'compute-bound', color=C_CMPL, fontsize=12.5,
+        ha='center', va='center', fontweight='bold', alpha=0.9, zorder=2)
+
+# === ridge (boundary between the two regimes) ===
 ax.axvline(RIDGE, color='#c0392b', ls='--', lw=1.7, zorder=3)
-ax.text(RIDGE * 1.03, YMAX * 0.84, 'roofline ridge ~295', color='#c0392b',
+ax.text(RIDGE * 1.03, YMAX * 0.82, 'roofline ridge ~295', color='#c0392b',
         fontsize=8.5, ha='left', va='top', fontweight='bold', zorder=6)
 
-# === roofline curve (upper envelope) ===
-ax.plot(I, roofline, color='#1a1a1a', lw=2.6, zorder=4, solid_capstyle='round')
+# === roofline curve (heaviest element; upper envelope) ===
+ax.plot(I, roofline, color='#1a1a1a', lw=2.8, zorder=4, solid_capstyle='round')
 
-# === operating points (marked on the roofline, labels above into white space) ===
+# === operating points: markers on the roofline, labels lifted into white space ===
 ax.plot([1.0], [PEAK_BW * 1.0], marker='o', ms=11, color='#c0392b',
         mec='#7a1c10', zorder=5)
-ax.text(1.0, PEAK_BW * 2.3, 'decode', color='#8f2318', fontsize=10.5,
-        ha='center', fontweight='bold', zorder=6)
-ax.text(1.0, PEAK_BW * 1.32, '~1 FLOP/byte', color='#444', fontsize=8.4,
-        ha='center', zorder=6)
+ax.annotate('decode', xy=(1.0, PEAK_BW), xytext=(0, 15), textcoords='offset points',
+            ha='center', va='bottom', color='#8f2318', fontsize=11,
+            fontweight='bold', zorder=6)
 
 ax.plot([9200.0], [PEAK_FLOPS], marker='^', ms=12, color='#27408b',
         mec='#12294f', zorder=5)
-ax.text(9200.0, PEAK_FLOPS * 1.42, 'prefill', color='#12294f', fontsize=10.5,
-        ha='center', fontweight='bold', zorder=6)
-ax.text(9200.0, PEAK_FLOPS * 1.11, '~9.2K FLOP/byte', color='#444', fontsize=8.4,
-        ha='center', zorder=6)
+ax.annotate('prefill', xy=(9200.0, PEAK_FLOPS), xytext=(0, 15),
+            textcoords='offset points', ha='center', va='bottom',
+            color='#12294f', fontsize=11, fontweight='bold', zorder=6)
 
 # === axes + minimal text ===
 ax.set_xlabel('arithmetic intensity (FLOP/byte)', fontsize=9.5, fontweight='bold')
