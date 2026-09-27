@@ -1,14 +1,11 @@
-"""Fig 7.4 - The concurrency budget, split into TWO panels so the physical-memory
-stack is not conflated with the derived concurrency count (publication review).
+"""Fig 7.4 - The concurrency budget, redrawn (publication review: too dense).
 
-PANEL A (left): the physical on-host HBM stack.
-    140 GB weights + ~64 GB runtime/workspace + ~436 GB KV budget = 640 GB pool.
-    Includes the 8 x 80 GB per-rank geometry (gridlines + rank strip) and the
-    aggregate-vs-per-rank warning.
-
-PANEL B (right): the DERIVED concurrency count, shown as its own result frame.
-    C(FP16) = 436 / 24.9037 ~ 17.5 -> integer floor 17 concurrent requests
-    C(FP8)  = 436 / 13.448  ~ 32.4 -> integer floor 32 concurrent requests
+The reviewer flagged this as one of the densest figures: "too many tiny
+quantities around a small graphical core".  Redesign around the DOMINANT
+budget relationship: C = KV budget / KV per request, shown as one large
+equation with a single region-band bar carrying the physical decomposition.
+Secondary arithmetic (FP8 variant, integer-floor detail, per-rank geometry)
+is moved to the figure caption / body, not drawn in the raster.
 
 Authored at column width so fonts print near-native, print-sized.
 """
@@ -16,80 +13,63 @@ Authored at column width so fonts print near-native, print-sized.
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.patheffects as pe
 from matplotlib.patches import Rectangle
 
 weights, runtime, kv = 140, 64, 436
 total = weights + runtime + kv
-kv_fp16_req, kv_fp8_req = 24.9037, 13.448
-C_fp16, C_fp8 = kv / kv_fp16_req, kv / kv_fp8_req
-halo = [pe.withStroke(linewidth=3.0, foreground='white')]
+kv_fp16_req = 24.9037
+C_fp16 = kv / kv_fp16_req          # ~17.51 -> integer floor 17
 
-fig, (axA, axB) = plt.subplots(1, 2, figsize=(6.1, 3.6),
-                               gridspec_kw={'width_ratios': [1.55, 1.0],
-                                            'wspace': 0.18})
+fig, ax = plt.subplots(figsize=(6.1, 3.9))
 fig._hermes_print_sized = True
+ax.set_xlim(0, 10); ax.set_ylim(0, 6.6); ax.axis('off')
+ax.set_position((0, 0, 1, 1))
 
-# ==================== PANEL A: physical memory stack ====================
-axA.set_xlim(-12, total + 30)
-axA.set_ylim(-1.35, 1.75)
-axA.set_yticks([0])
-axA.set_yticklabels(['KV 8-bit'], fontsize=9.5)
-axA.set_xlabel('on-host HBM (GB, per 8×H100 host)', fontsize=9.5)
-axA.spines['top'].set_visible(False)
-axA.spines['right'].set_visible(False)
-axA.tick_params(axis='x', labelsize=8.5)
+# ---- title (short; explanation lives in the caption) ----
+ax.text(5.0, 6.28, 'Concurrency budget — one 8×H100 host',
+        fontsize=11.0, fontweight='bold', ha='center', va='center', color='#1a1a1a')
 
-axA.barh(0, weights, left=0, height=0.7, color='#3a6ea5', edgecolor='white', hatch='//', lw=0.5)
-axA.barh(0, runtime, left=weights, height=0.7, color='#9aa0a6', edgecolor='white', hatch='xx', lw=0.5)
-axA.barh(0, kv, left=weights + runtime, height=0.7, color='#6f9e5f', edgecolor='white', hatch='..', lw=0.5)
+# ---- region-band budget bar (0..640 GB mapped across the width) ----
+bx0, bx1 = 0.5, 10.4                 # bar spans this x range
+bar_y, bar_h = 4.85, 0.85
+def gb_to_x(g): return bx0 + (g / total) * (bx1 - bx0)
+def label(x, gb, txt, fc):
+    ax.text(x, bar_y + bar_h / 2.0, txt, ha='center', va='center',
+            fontsize=9.0, color='white', fontweight='bold')
 
-axA.text(weights/2, 0, '140 GB\nweights', ha='center', va='center', color='white',
-         fontsize=9.5, fontweight='bold', path_effects=halo)
-axA.text(weights + runtime/2, 0, '~64 GB\nruntime', ha='center', va='center', color='white',
-         fontsize=9.5, fontweight='bold', path_effects=halo)
-axA.text(weights + runtime + kv/2, 0, '~436 GB\nKV budget', ha='center', va='center',
-         color='white', fontsize=9.5, fontweight='bold', path_effects=halo)
+# weights region
+ax.add_patch(Rectangle((gb_to_x(0), bar_y), gb_to_x(weights) - gb_to_x(0), bar_h,
+                       fc='#3a6ea5', ec='white', hatch='//', lw=0.5))
+label((gb_to_x(0) + gb_to_x(weights)) / 2.0, 0, '140 GB\nweights', '#ffffff')
+# runtime region
+ax.add_patch(Rectangle((gb_to_x(weights), bar_y), gb_to_x(weights + runtime) - gb_to_x(weights), bar_h,
+                       fc='#9aa0a6', ec='white', hatch='xx', lw=0.5))
+label((gb_to_x(weights) + gb_to_x(weights + runtime)) / 2.0, 0, '~64 GB\nruntime', '#ffffff')
+# KV budget region (the dominant band)
+ax.add_patch(Rectangle((gb_to_x(weights + runtime), bar_y), gb_to_x(total) - gb_to_x(weights + runtime), bar_h,
+                       fc='#6f9e5f', ec='white', hatch='..', lw=0.5))
+label((gb_to_x(weights + runtime) + gb_to_x(total)) / 2.0, 0, '~436 GB\nKV budget', '#ffffff')
 
-# 8 x 80 GB per-rank geometry
-for g in range(80, 640, 80):
-    axA.plot([g, g], [-0.32, 0.35], color='#3d3d3d', lw=1.0, ls=(0, (4, 2)), zorder=3)
-rank_w = total / 8.0
-strip_y = -0.92
-for g in range(8):
-    axA.add_patch(Rectangle((g*rank_w, strip_y), rank_w, 0.38, fc='#eef1f5', ec='#8a8a8a', lw=0.8))
-    axA.text(g*rank_w + rank_w/2, strip_y + 0.19, f'{(g+1)*80:.0f}G', ha='center',
-             va='center', fontsize=7.0, color='#555')
-axA.text(0.0, strip_y - 0.14, '8 × 80 GB ranks — the aggregate screen ≠ a per-rank fit guarantee',
-         ha='left', va='top', fontsize=7.2, color='#c0392b', style='italic')
+# per-request slot ticks inside the KV budget band (17.5 slots of 24.9 GB)
+for k in range(1, 18):                      # 17 full slots + partial
+    g = weights + runtime + k * kv_fp16_req
+    if g < total:
+        ax.plot([gb_to_x(g), gb_to_x(g)], [bar_y, bar_y + bar_h],
+                color='#ffffff', lw=0.7, alpha=0.8)
+# faint 640 GB pool reference above the bar
+ax.plot([gb_to_x(0), gb_to_x(total)], [bar_y + bar_h + 0.12, bar_y + bar_h + 0.12],
+        color='#7f8c8d', lw=1.0)
+ax.text(gb_to_x(total), bar_y + bar_h + 0.34, '640 GB pool', ha='right', va='center',
+        fontsize=8.0, color='#777777')
 
-# ==================== PANEL B: derived concurrency ====================
-axB.set_xlim(0, 1); axB.set_ylim(-0.6, 4.6); axB.axis('off')
-axB.text(0.5, 4.30, 'derived concurrency', fontsize=9.8, fontweight='bold',
-         ha='center', va='center', color='#333')
-axB.text(0.5, 3.92, 'C = KV budget ÷ KV/request', fontsize=8.4, ha='center',
-         va='center', color='#555', style='italic')
+# ---- the DOMINANT budget equation (large, centered) ----
+eq_y = 2.72
+ax.text(5.0, eq_y, 'in-flight  ≈  KV budget  ÷  KV per request',
+        fontsize=10.5, ha='center', va='center', color='#333333')
+ax.text(5.0, eq_y - 0.85,
+        f'≈  {kv:.0f} GB  ÷  {kv_fp16_req:.1f} GB  ≈  {C_fp16:.1f}   →   ~{int(C_fp16)} requests',
+        fontsize=13.0, fontweight='bold', ha='center', va='center', color='#27408b')
 
-def slot_row(ax, ycen, name, cval, cint, req, color):
-    ax.text(0.10, ycen, name, fontsize=9.0, fontweight='bold', ha='left', va='center', color=color)
-    ax.text(0.10, ycen - 0.40, f'C ≈ {cval:.1f}', fontsize=11, fontweight='bold',
-            ha='left', va='center', color=color)
-    ax.text(0.55, ycen - 0.40, f'(÷ {req:.3f} GB/request)', fontsize=6.8,
-            ha='left', va='center', color='#777')
-    ax.text(0.10, ycen - 0.78, f'→ integer floor {cint} requests', fontsize=8.0,
-            ha='left', va='center', color='#444')
-
-slot_row(axB, 3.10, 'FP16 / 8-bit KV', C_fp16, 17, kv_fp16_req, '#27408b')
-slot_row(axB, 1.50, 'FP8 KV',          C_fp8,  32, kv_fp8_req,  '#6f9e5f')
-
-axB.text(0.5, 0.15, 'KV slot ticks on the FP16 bar mark\nthe per-request boundaries.',
-         fontsize=7.2, ha='center', va='center', color='#777', style='italic')
-
-fig.suptitle("Concurrency budget: where a 70B host's 640 GB pool goes", fontsize=11)
-plt.subplots_adjust(left=0.12, right=0.97, top=0.86, bottom=0.18)
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.png', dpi=150)
-import matplotlib as mpl
-with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
-    plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.pdf', format='pdf')
 plt.close()
-print('wrote fig-07-0704 (two panels: physical stack | derived concurrency)')
+print('wrote fig-07-0704')

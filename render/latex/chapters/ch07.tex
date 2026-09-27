@@ -232,10 +232,14 @@ changes. (\texttt{kv\_gqa\_variant\_mb} is recorded in
 
 \label{fig:7.1}\end{figure}
 
-The figure illustrates the 8× reduction. Full MHA caches a K,V per query
-head (2.62 MB/token); GQA shares one K,V across a group of 8 query
-heads, so only 8 K/V per token → \textasciitilde0.33 MB/token. Head
-count is the real dial: substitute the model's KV-head count into
+The figure shows one group's geometry: \textbf{8 query heads funnel into
+a single shared K/V head.} Because GQA caches only one K/V per group (8
+K/V per token) instead of one per query head (64 K/V per token), the
+per-token KV falls \textasciitilde8× --- from \textasciitilde2.62
+MB/token (full MHA) to \textasciitilde0.33 MB/token. That is the
+takeaway: many query heads can share a few K/V heads, and the cache
+shrinks by exactly the 8:1 head ratio. Head count is the real dial:
+substitute the model's KV-head count into
 \texttt{2\ ×\ layers\ ×\ KV\_heads\ ×\ head\_dim\ ×\ bytes}.
 
 \textbf{\hyperref[tab:7.2]{Table 7-2}} --- Inference residency vs.~fine-tuning residency
@@ -536,14 +540,18 @@ QLoRA fits \textasciitilde50--70 GB on a single GPU.}
 
 \label{fig:7.4}\end{figure}
 
-\emph{Where a serving host's 640 GB pool goes. 140 GB weights +
-\textasciitilde64 GB runtime/NCCL leaves \textasciitilde436 GB of KV
-budget; at the 24.9 GB/request max-FP16 KV that gives C ≈ 17.5
+\emph{The figure shows the one dominant budget relationship: the on-host
+pool decomposes into weights + runtime + a leftover KV budget, and that
+KV budget divided by the per-request KV price sets concurrency. 140 GB
+weights + \textasciitilde64 GB runtime/NCCL leaves \textasciitilde436 GB
+of KV budget; at the 24.9 GB/request max-FP16 KV that gives C ≈ 17.5
 concurrent requests (byte-accurate 436÷24.9037 = 17.51; the conservative
 integer ``requests that fit'' ceiling is 17, not 18), and FP8
 (\textasciitilde13.4 GB/request) roughly raises it to
 \textasciitilde32.4. This is the arithmetic behind the single-host
-capacity in Ch17.}
+capacity in Ch17. The per-rank fit caveat (the 640 GB pool is an
+aggregate across eight 80-GB H100s, not a freely-allotable heap) is
+validated in Chapters 9--10.}
 
 \begin{figure}
 \centering

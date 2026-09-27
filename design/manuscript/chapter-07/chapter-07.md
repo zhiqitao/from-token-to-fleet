@@ -72,7 +72,7 @@ $$
 
 ![Fig 7.1 — Grouped-Query Attention cuts per-token KV](figures/fig-07-0703.png)
 
-The figure illustrates the 8× reduction. Full MHA caches a K,V per query head (2.62 MB/token); GQA shares one K,V across a group of 8 query heads, so only 8 K/V per token → ~0.33 MB/token. Head count is the real dial: substitute the model's KV-head count into `2 × layers × KV_heads × head_dim × bytes`.
+The figure shows one group's geometry: **8 query heads funnel into a single shared K/V head.** Because GQA caches only one K/V per group (8 K/V per token) instead of one per query head (64 K/V per token), the per-token KV falls ~8× — from ~2.62 MB/token (full MHA) to ~0.33 MB/token. That is the takeaway: many query heads can share a few K/V heads, and the cache shrinks by exactly the 8:1 head ratio. Head count is the real dial: substitute the model's KV-head count into `2 × layers × KV_heads × head_dim × bytes`.
 
 **Table 7-2** — Inference residency vs. fine-tuning residency contrast for a 70B model.
 
@@ -156,7 +156,7 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 ![Fig 7.4 — The concurrency budget: where a 70B host's 640 GB pool goes. **Aggregate-feasibility caveat:** the 640 GB figure is an *aggregate* across eight 80-GB H100s, not a single freely-allotable heap. Whether a given allocation actually fits depends on tensor-parallel sharding, KV partitioning, replication, runtime layout, per-rank fragmentation, workspace requirements, and communication topology — so "total bytes < total HBM" is a necessary but not sufficient test. Per-rank fit and sharding must also be validated (Chapters 9–10). [ILLUSTRATIVE][DERIVED]](figures/fig-07-0704.png)
 
-*Where a serving host's 640 GB pool goes. 140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget; at the 24.9 GB/request max-FP16 KV that gives C ≈ 17.5 concurrent requests (byte-accurate 436÷24.9037 = 17.51; the conservative integer "requests that fit" ceiling is 17, not 18), and FP8 (~13.4 GB/request) roughly raises it to ~32.4. This is the arithmetic behind the single-host capacity in Ch17.*
+*The figure shows the one dominant budget relationship: the on-host pool decomposes into weights + runtime + a leftover KV budget, and that KV budget divided by the per-request KV price sets concurrency. 140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget; at the 24.9 GB/request max-FP16 KV that gives C ≈ 17.5 concurrent requests (byte-accurate 436÷24.9037 = 17.51; the conservative integer "requests that fit" ceiling is 17, not 18), and FP8 (~13.4 GB/request) roughly raises it to ~32.4. This is the arithmetic behind the single-host capacity in Ch17. The per-rank fit caveat (the 640 GB pool is an aggregate across eight 80-GB H100s, not a freely-allotable heap) is validated in Chapters 9–10.*
 
 ![Fig 7.5 — Memory Tetris: how the 8×H100 host's 640 GB **aggregate** pool fills at three contexts (9.5K max / 32K / 128K). Runtime ~64 GB + weights 140 GB + KV cache 24.9 / 84 / 335 GB. **Aggregate-feasibility caveat:** this is an aggregate residency test on the 640 GB total, not a proof that each allocation maps cleanly onto per-rank HBM. Sharding, KV partitioning, fragmentation, and interconnect topology must be validated per rank; "total bytes < total HBM" is a first-order screen, not a fit guarantee. [ILLUSTRATIVE][DERIVED]](figures/fig-07-0705.png)
 

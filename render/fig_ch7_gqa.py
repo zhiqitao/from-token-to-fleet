@@ -1,70 +1,71 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle, FancyArrowPatch
-from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 
-# ---- fig-07-0703: GQA head-grouping (64 query heads over 8 KV heads) ----
-# Narrower layout (figsize 7.4x6.4, tighter 8-col pitch) so the tight-crop content
-# fits the print column and the cell labels place ~8pt on-page.
-fig, ax = plt.subplots(figsize=(6.1, 5.28))
+# ---- fig-07-0703: GQA head-sharing (many-query-share-fewer-KV) ----
+# Density reduction (publication review): one clean funnel schematic; NO per-head
+# numeric labels, NO per-group "grp N" brackets, NO bottom annotation/summary box.
+# The 8:1 ratio is carried by the geometry (a row of 8 Q cells -> one K/V cell)
+# and the ratio/takeaway text lives in the figure caption, not in the raster.
+fig, ax = plt.subplots(figsize=(6.1, 4.0))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
-ax.set_xlim(0, 10.5); ax.set_ylim(0, 8.4); ax.axis('off')
+ax.set_xlim(0, 10); ax.set_ylim(0, 6.6); ax.axis('off')
+ax.set_position((0, 0, 1, 1))    # fill the whole figure canvas
 
-ax.text(5.25, 8.1, 'Grouped-Query Attention (GQA): why the cache is 8× smaller',
-        fontsize=10.5, fontweight='bold', ha='center')
-ax.text(5.25, 7.65, '64 query heads (8 groups of 8)  →  8 shared KV heads', fontsize=8.6, fontweight='bold', ha='center')
+# ---- title (short; the takeaway numbers move to the caption) ----
+ax.text(5.0, 6.30, 'Grouped-Query Attention (GQA)', fontsize=11.5,
+        fontweight='bold', ha='center', va='center', color='#1a1a1a')
+ax.text(5.0, 5.90, 'many query heads  →  few shared K/V heads',
+        fontsize=9.0, ha='center', va='center', color='#555555')
 
-colors = ['#3a6ea5','#6f9e5f','#e67e22','#c0392b','#8055b5','#2a9d8f','#d4a017','#5b7d94']
+# ---- layout ----
+Q_FILL, Q_EDGE = '#cfe3f2', '#4a7fb5'
+KV_FILL, KV_EDGE = '#e67e22', '#b3591f'
 
-nq = 64
-cols = 8
-cell_w, cell_h2 = 0.62, 0.30
-pitch = 1.10
-xs = [0.35 + c*pitch for c in range(cols)]
-cell_xys = {}
-for i in range(nq):
-    g = i // 8
-    r = i % 8
-    c = g
-    x0 = xs[c]
-    y0 = 6.85 - r*0.34
-    ax.add_patch(Rectangle((x0, y0), cell_w, cell_h2, fc=colors[g%8], ec='white'))
-    cell_xys.setdefault(g, []).append((x0+cell_w/2, y0+cell_h2/2))
+# Three visible groups (rows of 8 query heads) + an ellipsis to signal "many more".
+group_x = [1.65, 4.55, 7.45]     # cell-row centre x per group
+n_per_group = 8
+cell_w, cell_h, pitch = 0.26, 0.34, 0.30
+q_row_y0 = 4.85                  # bottom of the query-head cells
+kv_top = 3.40                    # top of each shared K/V cell
 
-# Group BRACKETS spanning each 8-head column (labels above the bracket, so the
-# many-to-one grouping does not rely on colour alone — PASS-23b/24 grayscale ask).
-grp_top = 7.15
-for g in range(8):
-    gx = xs[g]
-    ax.plot([gx, gx], [grp_top, grp_top-0.14], color='#555', lw=1.0)
-    ax.plot([gx+cell_w, gx+cell_w], [grp_top, grp_top-0.14], color='#555', lw=1.0)
-    ax.plot([gx, gx+cell_w], [grp_top, grp_top], color='#555', lw=1.0)
-    ax.text(gx+cell_w/2, grp_top+0.18, f'grp {g+1}', fontsize=7.6, ha='center',
-            color=colors[g], fontweight='bold')
+for gx in group_x:
+    x0 = gx - (n_per_group - 1) * pitch / 2.0
+    # a row of 8 query-head cells
+    for i in range(n_per_group):
+        cx = x0 + i * pitch
+        ax.add_patch(Rectangle((cx, q_row_y0), cell_w, cell_h,
+                               fc=Q_FILL, ec=Q_EDGE, lw=0.8))
+    # thin converging connectors from each head down to the single K/V cell
+    for i in range(n_per_group):
+        cx = x0 + i * pitch + cell_w / 2.0
+        ax.plot([cx, gx], [q_row_y0, kv_top], color='#8a9aa5', lw=0.6, alpha=0.65)
+    # one shared K/V cell (larger, accent colour)
+    kv_w, kv_h = 1.25, 0.72
+    kv_x = gx - kv_w / 2.0
+    ax.add_patch(Rectangle((kv_x, kv_top - kv_h), kv_w, kv_h,
+                           fc=KV_FILL, ec=KV_EDGE, lw=1.0))
+    ax.text(gx, kv_top - kv_h / 2.0, 'K/V', ha='center', va='center',
+            fontsize=8.8, color='white', fontweight='bold')
 
-kv_w, kv_h = 0.78, 0.95
-kv_ys = {}
-for j in range(8):
-    x0 = xs[j] + (cell_w - kv_w)/2
-    y0 = 1.3
-    ax.add_patch(Rectangle((x0, y0), kv_w, kv_h, fc=colors[j], ec='white'))
-    ax.text(x0+kv_w/2, y0+kv_h/2, f'K/V {j+1}', ha='center', va='center', fontsize=7.6, color='white', fontweight='bold')
-    kv_ys[j] = (x0+kv_w/2, y0+kv_h)
-ax.text(0.5, 2.6, '8 shared KV heads', fontsize=7.6, fontweight='bold', color='#555')
+# ellipsis signals the pattern repeats across many groups / heads
+ax.text(9.35, q_row_y0 + cell_h / 2.0, '⋯', fontsize=13, ha='center', va='center',
+        color='#8a9aa5')
+ax.text(9.35, kv_top - 0.36, '⋯', fontsize=13, ha='center', va='center',
+        color='#8a9aa5')
 
-for g in range(8):
-    kx, ky = kv_ys[g]
-    for (cx, cy) in cell_xys[g]:
-        ax.plot([cx, kx], [cy-0.1, ky+0.05], color=colors[g], lw=0.6, alpha=0.7, zorder=1)
+# ---- minimal row labels (no per-cell / per-group text) ----
+ax.text(0.35, 5.75, 'query heads', fontsize=8.2, ha='left', va='center',
+        color='#4a7fb5', fontweight='bold')
+ax.text(0.35, 2.35, 'shared K/V heads', fontsize=8.2, ha='left', va='center',
+        color='#b3591f', fontweight='bold')
 
-# Bottom banner: the byte accounting (narrower to fit)
-bx0, by0, bw, bh = 0.25, 0.25, 9.7, 1.05
-ax.add_patch(Rectangle((bx0, by0), bw, bh, fc='#fbf2ec', ec='#c0392b', lw=1.3, zorder=5))
-ax.text(bx0+0.3, by0+0.68, 'MHA (full): 64 K/V per token → 2.62 MB/token', fontsize=7.8, color='#333', zorder=6)
-ax.text(bx0+0.3, by0+0.22, 'GQA: 8 K/V per token → ~0.33 MB/token — 8× smaller cache', fontsize=7.8, color='#c0392b', fontweight='bold', zorder=6)
+# 8 : 1 ratio badge (kept short; the MB/token takeaway is in the caption)
+ax.text(5.0, 1.62, '8 query heads : 1 K/V head  (× 8 groups)',
+        fontsize=8.8, ha='center', va='center', color='#333333',
+        bbox=dict(boxstyle='round,pad=0.35', fc='#f5f5f5', ec='#b9b9b9', lw=0.8))
 
-plt.tight_layout()
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0703.png', dpi=150)
 plt.close()
 print('wrote fig-07-0703')
