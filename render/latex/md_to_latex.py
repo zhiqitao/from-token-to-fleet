@@ -343,7 +343,11 @@ def fix_crossrefs(tex_path, chnum):
         k[0] += 1
         body, end = m.groups()
         lab = f"tab:{chnum}.{k[0]}"
-        return f"{body}\n\\label{{{lab}}}{end}"
+        # \nopagebreak[4] before the longtable keeps the bold "Table N-M —"
+        # caption paragraph (which sits immediately above) on the same page as
+        # the table's first row; otherwise a page break can land between the
+        # caption and the table (e.g. Table 5-1).
+        return f"\\nopagebreak[4]\n{body}\n\\label{{{lab}}}{end}"
     tex = tab_pat.sub(tab_repl, tex)
 
     # 3) Body refs -> \\hyperref. Stash caption/alt definitions first so a
