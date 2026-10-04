@@ -29,8 +29,8 @@ large geometry needs manual SVG / matplotlib.
 ## 1. The setup (once)
 
 ```bash
-git clone --depth 1 https://github.com/tt-a1i/archify.git /tmp/archify
-cd /tmp/archify/archify && node bin/archify.mjs --help
+# Archify is installed at /home/ubuntu/tools/archify (full clone, .git kept for upgrades)
+cd /home/ubuntu/tools/archify/archify && node bin/archify.mjs --help
 ```
 
 No npm install — the `archify/` subdir is self-contained, Node only.

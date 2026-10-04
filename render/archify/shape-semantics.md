@@ -1,6 +1,6 @@
 # Archify Geometry→Semantics: which shape for what
 
-Research source: `/tmp/archify/archify/renderers/shared/utils.mjs` (SIGIL_SHAPE, SIGIL_TONE) +
+Research source: `/home/ubuntu/tools/archify/archify/renderers/shared/utils.mjs` (SIGIL_SHAPE, SIGIL_TONE) +
 renderers (architecture/lifecycle/workflow/dataflow/sequence) + schemas. Date 2026-08-31.
 
 ## The core language
