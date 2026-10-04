@@ -41,9 +41,11 @@ def label(x, gb, txt, fc):
 ax.add_patch(Rectangle((gb_to_x(0), bar_y), gb_to_x(weights) - gb_to_x(0), bar_h,
                        fc='#3a6ea5', ec='white', hatch='//', lw=0.5))
 label((gb_to_x(0) + gb_to_x(weights)) / 2.0, 0, '140 GB\nweights', '#ffffff')
-# runtime region
+# runtime region (darkened + NO hatch so the white "64" label is crisp — the earlier
+# light gray + 'xx' dot hatch let the white dots fill the open top of the "6", making
+# it read as "8"; a solid dark gray keeps the digit unambiguous and the contrast high)
 ax.add_patch(Rectangle((gb_to_x(weights), bar_y), gb_to_x(weights + runtime) - gb_to_x(weights), bar_h,
-                       fc='#9aa0a6', ec='white', hatch='xx', lw=0.5))
+                       fc='#4a4e52', ec='white', lw=0.5))
 label((gb_to_x(weights) + gb_to_x(weights + runtime)) / 2.0, 0, '~64 GB\nruntime', '#ffffff')
 # KV budget region (the dominant band)
 ax.add_patch(Rectangle((gb_to_x(weights + runtime), bar_y), gb_to_x(total) - gb_to_x(weights + runtime), bar_h,

@@ -41,8 +41,9 @@ for x, (label, kv) in zip(xs, ctxs):
            edgecolor='white', linewidth=0.8, alpha=0.92, zorder=3)
     total = base + kv
     # KV value as a tag just ABOVE ITS OWN bar top (bars top out at 229/288/539,
-    # so the tags stagger naturally and never collide with each other or the 640 line)
-    ax.text(x + bar_w/2, total + 12, f'{kv:.1f} GB KV'.replace('.0 GB', ' GB'),
+    # so the tags stagger naturally and never collide with each other or the 640 line).
+    # Wording says "KV" (not a bare number) so it is not misread as the bar total.
+    ax.text(x + bar_w/2, total + 12, f'KV {kv:.1f} GB'.replace('.0 GB', ' GB'),
             ha='center', va='bottom', fontsize=10.5, color='#c0392b', fontweight='bold',
             zorder=8)
     # context label below the bar

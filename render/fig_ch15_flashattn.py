@@ -79,7 +79,9 @@ def draw_panel(x0, x1, title, subtitle, flash):
                   boxstyle='round,pad=0.02', fc=C_HBM, ec='#8a3a12', lw=1.2, clip_on=False))
     label(cb_cx, hb_cy, 'HBM', '#fff', FS-0.4, weight='bold')
 
-    # explicit MANY (before) vs FEW (after) HBM round-trips between on-chip and HBM
+    # explicit MANY (before) vs FEW (after) HBM round-trips between on-chip and HBM.
+    # Double-headed arrows: a round-trip is a read AND a write, so traffic is
+    # bidirectional (the caption says "round-trips", not one-way loads).
     n_arrows = 7 if not flash else 2
     lw = 1.4 if not flash else 1.1
     # arrows span only the RIGHT portion of the blocks, leaving a clear LEFT gutter
@@ -87,18 +89,21 @@ def draw_panel(x0, x1, title, subtitle, flash):
     gutter = 70
     span_left = cb_cx - (cbw/2) + gutter
     span_right = cb_cx + (cbw/2) - 12
+    # colour matches the panel's message: red = many round-trips (problem),
+    # green = few round-trips (fix) — so arrow colour and label colour agree.
+    color = C_TRAFFIC if not flash else '#2f6f4f'
     for i in range(n_arrows):
         axx = span_left + i*(span_right-span_left)/max(n_arrows-1, 1)
-        color = C_TRAFFIC if not flash else C_TRAFFIC_LT
         ax.annotate('', xy=(axx, hb_cy+hbh/2), xytext=(axx, cb_cy-cbh/2),
-                    arrowprops=dict(arrowstyle='-|>', lw=lw, color=color,
+                    arrowprops=dict(arrowstyle='<|-|>', lw=lw, color=color,
                                     shrinkA=0, shrinkB=0), annotation_clip=False)
     # 'round-trips' label in the clear LEFT gutter (never crossed by arrows)
     label(x0+30, (cb_cy+hb_cy)/2,
           ('many HBM\nround-trips' if not flash else 'few HBM\nround-trips'),
           C_TRAFFIC if not flash else '#2f6f4f', FS-1.0, weight='bold')
-    # Q/K/V note in the clear LEFT gutter beside HBM
-    label(x0+30, hb_cy, 'Q/K/V', '#8a5a2a', FS-1.2, style='italic')
+    # Q/K/V note in the clear LEFT gutter beside HBM (white on the orange HBM box
+    # for contrast — the earlier brown-on-orange was low-contrast)
+    label(x0+30, hb_cy, 'Q/K/V', '#fff', FS-1.2, style='italic', weight='bold')
     # caption of traffic reduction
     if not flash:
         cap = ('O(L^2) HBM traffic:\nevery query re-reads\nthe row-block')

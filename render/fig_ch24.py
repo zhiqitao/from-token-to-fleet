@@ -11,7 +11,7 @@ STAGES = [
     ('1 Red Team',   '#a83232'),
     ('2 Probes',     '#c0392b'),
     ('3 Exposure',   '#e67e22'),
-    ('4 Guardrails', '#d68910'),
+    ('4 Guardrails', '#7d3c98'),
     ('5 Metrics',    '#16a085'),
     ('6 Green Team', '#2980b9'),
 ]
@@ -45,11 +45,17 @@ for c in [0, 1]:
     # row 1 (y=rows_y[0]) stages 4,5,6
     ax.annotate('', xy=(x+W+0.95, rows_y[0]+H/2), xytext=(x+W+0.15, rows_y[0]+H/2),
                 arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
-# 3 -> 4 down-connector (Exposure, top-right, to Guardrails, bottom-left). Straight
-# L-shaped connector (cleaner than a curve) landing on box 4's TOP edge.
-ax.annotate('', xy=(cols_x[0]+W/2, rows_y[1]+H), xytext=(cols_x[2]+W/2, rows_y[0]),
-            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555',
-                            connectionstyle='angle,angleA=0,angleB=90,rad=6'))
+# 3 -> 4 connector (Exposure, top-right, to Guardrails, bottom-left). The 'angle'
+# connectionstyle was collapsing to a left-column 1->4 vertical, so use an explicit
+# L-shaped Path: down from box 3's bottom, across the inter-row gap, down into box 4's
+# top. The gap between rows is y=7.7 (box 4 top) .. y=9.0 (box 3 bottom); mid = 8.35.
+from matplotlib.path import Path
+_x3 = cols_x[2] + W/2      # box 3 (Exposure) bottom-center
+_x4 = cols_x[0] + W/2      # box 4 (Guardrails) top-center
+_mid = (rows_y[0] + rows_y[1] + H) / 2.0
+c34 = [(_x3, rows_y[0]), (_x3, _mid), (_x4, _mid), (_x4, rows_y[1] + H)]
+ax.add_patch(FancyArrowPatch(path=Path(c34, [Path.MOVETO] + [Path.LINETO]*3),
+             arrowstyle='-|>', mutation_scale=16, lw=1.6, color='#555', zorder=1))
 
 # ---- Probe domains: moved to the caption/prose to reduce clutter (the reviewer's ask) ----
 # (the probe examples — jailbreak/persona, escalation/fuzz, poisoning/injection — now live

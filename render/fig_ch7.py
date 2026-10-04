@@ -42,7 +42,7 @@ plt.close()
 print('wrote fig-07-0701')
 
 # ---- fig-07-0702: Inference vs fine-tuning memory floor ----
-labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+optimizer)', 'QLoRA\n(weights+adapters)']
+labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+opt)', 'QLoRA\n(weights+adapters)']
 vals = [165, 1120, 60]
 fig, ax = plt.subplots(figsize=(6.1, 4.9))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
@@ -50,13 +50,16 @@ bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'], width=0.6)
 for b, v in zip(bars, vals):
     ax.text(b.get_x()+b.get_width()/2, v+30, f'~{v} GB', ha='center', fontsize=10, fontweight='bold')
 ax.set_ylabel('GPU memory floor (GB)')
-ax.set_title('Memory floor: inference vs fine-tuning (canonical 70B FP16)\nEach column is a DIFFERENT training scenario, not a fair single-variable comparison', fontsize=10)
+ax.tick_params(axis='x', labelsize=9)
+# title 2nd line shortened so it fits the 6.1in width (was clipped on the left)
+ax.set_title('Memory floor: inference vs fine-tuning (canonical 70B FP16)\nEach column is a different scenario, not a single-variable comparison', fontsize=9)
 ax.axhline(160, color='#888', ls='--', lw=1, label='2×H100 (160 GB)')
 ax.axhline(640, color='#27408b', ls='--', lw=1, label='8×H100 (640 GB)')
 ax.axhline(80, color='#6f9e5f', ls='--', lw=1, label='1×H100 (80 GB)')
 ax.set_ylim(0, 1500)
-# annotations moved OUT of the bar area into clear white space (no label crossing the bars)
-ax.text(1.35, 1430, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
+# red annotation sits directly above the red bar (x=1), in the clear gap between
+# the bar top (1120) and the title — away from the upper-left legend (no collision)
+ax.text(1, 1250, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
 ax.annotate('QLoRA fits a single H100', xy=(2, 60), xytext=(2.4, 250),
             fontsize=8.5, color='#3d6e35', arrowprops=dict(arrowstyle='->', color='#3d6e35'))
 ax.legend(fontsize=8, loc='upper left')

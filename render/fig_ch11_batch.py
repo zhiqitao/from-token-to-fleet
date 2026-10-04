@@ -45,7 +45,13 @@ for (x0, w, s, backfill) in ctasks:
     ec = '#1e6b42' if backfill else 'none'
     ax.add_patch(Rectangle((x0, y), w, 0.6, fc=col, ec=ec, lw=lw_e, alpha=0.95 if backfill else 0.9))
 ax.annotate('', xy=(9.8, 2.95), xytext=(9.8, 0.5), arrowprops=dict(arrowstyle='-|>', lw=1.3, color='#555'))
-ax.text(9.35, 1.7, 'a finishing sequence\nfrees its slot\nimmediately', fontsize=8.2, color='#555', ha='right')
+# annotation in the clear top-right band (above the top slot row, which ends at
+# x=6.6); the arrow points down to the last backfilled green slot — no overlap
+# with the slot rectangles.
+ax.text(9.8, 4.15, 'a finishing sequence frees\nits slot immediately',
+        fontsize=8.2, color='#555', ha='right', va='top')
+ax.annotate('', xy=(6.55, 2.95), xytext=(7.3, 3.5),
+            arrowprops=dict(arrowstyle='->', lw=0.9, color='#555'))
 ax.text(5.0, 0.1, 'new sequences (green) snap into the\nfreed slot → higher GPU utilization', fontsize=8.2, color='#2e8b57', ha='center')
 
 plt.tight_layout()

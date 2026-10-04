@@ -19,7 +19,7 @@ fig, ax = plt.subplots(figsize=(6.1, 4.7))
 fig._hermes_print_sized = True   # authored at 6.1in; regen must not re-boost/reflow
 ax.set_xlim(0, 24); ax.set_ylim(0, 13.4); ax.axis('off')
 
-ax.set_title('AI Factory promotion: measured gates on every stage',
+ax.set_title('AI Factory promotion: a measured gate on each transition',
              fontsize=11.5, fontweight='bold', ha='center', color='#1a1a1a')
 ax.text(12, 12.5, 'every promotion is a PASS/FAIL decision on a measured metric, not a hand-off',
         fontsize=8.2, ha='center', color='#555', style='italic')
@@ -44,7 +44,7 @@ gates = [
     ('Data',    'src valid'),
     ('Train',   'cost ok'),
     ('Eval',    'qual ok'),
-    ('Canary',  'good ok'),
+    ('Canary',  'health ok'),
     ('Observe', 'TTFT ok'),
     ('Promote', 'cost ok'),
 ]
@@ -57,31 +57,33 @@ for (stage, crit), x in zip(gates, xs):
             fontsize=9.6, color='#8c2d1a', fontweight='bold', zorder=3)
     ax.text(x + gw/2, gy + gh - 1.30, crit, ha='center', va='center',
             fontsize=9.2, color='#3a2a24', zorder=3)
-    ax.text(x + gw/2, gy + 0.42, 'm\u2713 PASS', ha='center', va='center',
+    ax.text(x + gw/2, gy + 0.42, '\u2713 PASS', ha='center', va='center',
             fontsize=8.8, color='#c0392b', fontweight='bold', zorder=3)
 
 # ---- FAIL path: any gate that does not pass -> rollback / last-known-good ----
-ax.add_patch(FancyBboxPatch((6.4, 3.35), 11.2, 1.15, boxstyle='round,pad=0.04',
+# The FAIL box must span from below the leftmost gate (Data, centre x=2.0) to below
+# the rightmost (Promote, centre x=18.5) so every gate's dashed drop lands on it.
+ax.add_patch(FancyBboxPatch((1.0, 3.35), 18.0, 1.15, boxstyle='round,pad=0.04',
                             fc='#c0392b', ec='#6d1a0e', lw=1.4))
-ax.text(12.0, 4.14, 'FAIL', ha='center', va='center', fontsize=8.4, color='white', fontweight='bold')
-ax.text(12.0, 3.68, 'rollback to last-known-good & re-validate', ha='center', va='center',
+ax.text(10.0, 4.14, 'FAIL', ha='center', va='center', fontsize=8.4, color='white', fontweight='bold')
+ax.text(10.0, 3.68, 'rollback to last-known-good & re-validate', ha='center', va='center',
         fontsize=8.0, color='white')
-# dashed links from a representative gate down to the FAIL node
-ax.add_patch(FancyArrowPatch((11.925, gy), (11.925, 4.5),
-             arrowstyle='-|>', lw=1.6, color='#c0392b', ls='--'))
-# dashed return from FAIL node back up to the Train gate
-ax.add_patch(FancyArrowPatch((6.4, 3.95), (5.2, 5.55),
-             connectionstyle='arc3,rad=0.22', arrowstyle='-|>', lw=1.6,
-             color='#c0392b', ls='--'))
+# dashed links from the 6 GATED stages (xs[:6]; Serve is terminal, no gate) down to
+# the FAIL node — any gate breach rolls back
+for x in xs[:6]:
+    ax.add_patch(FancyArrowPatch((x + w/2, gy), (x + w/2, 4.5),
+                 arrowstyle='-|>', lw=1.2, color='#c0392b', ls='--', zorder=1))
 
 # ---- green production feedback loop: Serve -> data / evaluation (bottom, clear of gates) ----
+# Route the return leg to the LEFT of the Data gate box (x=0.3 < gate left edge 0.6)
+# so the vertical segment no longer passes through the gate; enter the Data stage
+# box at its left edge.
 loopverts = [
     (xs[6] + w/2, y),                       # start: Serve bottom
-    (xs[6] + w/2, 2.55), (xs[6] + w/2, 1.5), (19.0, 1.5),
-    (10.5, 1.5), (1.5, 1.5), (xs[0] + w/2, 2.6),
-    (xs[0] + w/2, 5.2), (xs[0] + w/2, 7.4), (xs[0] + w/2, y),   # end: Data bottom
+    (xs[6] + w/2, 1.5), (0.3, 1.5),
+    (0.3, y + h/2), (xs[0], y + h/2),       # end: Data stage left edge
 ]
-loopcodes = [Path.MOVETO] + [Path.CURVE4]*9
+loopcodes = [Path.MOVETO] + [Path.LINETO]*4
 ax.add_patch(FancyArrowPatch(path=Path(loopverts, loopcodes), arrowstyle='-|>',
                              lw=2.2, color='#2f6f4f', zorder=1))
 ax.text(12.0, 0.85, 'production feedback \u2192 data / evaluation (each cycle re-gated)',

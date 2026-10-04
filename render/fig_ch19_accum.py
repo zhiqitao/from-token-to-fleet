@@ -22,7 +22,8 @@ def h_of(tok): return tok * 0.00035
 fig, ax = plt.subplots(figsize=(6.1, 5.63))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, 12.8); ax.set_ylim(-0.6, 12.2); ax.axis('off')
-ax.text(6.4, 11.7, 'Agentic context accumulation: the KV block grows every turn',
+# title shortened so it is not clipped at the left edge of the 12.8-unit width
+ax.text(6.4, 11.7, 'Agentic context: the KV block grows every turn',
         fontsize=10.5, fontweight='bold', ha='center', color='#1a1a1a')
 
 for i, (name, dl, gm, kv) in enumerate(cols):
@@ -70,7 +71,8 @@ ax.text(6.4, 0.58, 'canonical example @ 2.62 MB/token; total = I\u2080 + T\u00b7
 ax.text(6.4, 0.22, '(I\u2080 = 9.2K input, O_final = 300 output).',
         fontsize=8.5, ha='center', color='#444')
 
-# legend in its OWN clean band at the very bottom (clear of the conclusion/note text)
+# legend in its OWN clean band at the TOP (below the title, above the column names)
+# so it no longer crowds the conclusion/note text at the bottom
 legend_comps = [
     ('initial prompt I\u2080 (9.2K in)', '#c8d8ea', '//'),
     ('final output O\u2091 (300)', '#6f9e5f', 'xx'),
@@ -78,8 +80,8 @@ legend_comps = [
     ('generated reasoning (\u03b3)', '#f5c98b', 'OO'),
 ]
 ax.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in legend_comps],
-          loc='lower center', bbox_to_anchor=(0.5, 0.00), fontsize=8.8, frameon=False, ncol=4,
-          bbox_transform=ax.transAxes, handlelength=1.4, columnspacing=1.4)
+          loc='upper center', bbox_to_anchor=(0.5, 0.985), fontsize=8.2, frameon=False, ncol=4,
+          bbox_transform=ax.transAxes, handlelength=1.4, columnspacing=1.2)
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1903.png',

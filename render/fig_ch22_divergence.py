@@ -41,22 +41,25 @@ ax1.set_ylim(1e-2, 1e3)
 ax1.tick_params(labelsize=8.5)
 ax1.grid(alpha=0.3, which='both')
 ax1.legend(fontsize=7.6, loc='upper right', framealpha=0.92, frameon=True)
-ax1.annotate('quadratic dominates\n\u2265 ~32K',
+ax1.annotate('quadratic dominates\nbeyond ~32K',
              xy=(32, (2*N*32e3 + 4*nl*(32e3**2)*d)/1e15),
              xytext=(1.7, 0.06), fontsize=10.5, color='#8e44ad', fontweight='bold',
              ha='left', va='bottom',
-             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#8e44ad'))
+             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#8e44ad',
+                             connectionstyle='arc3,rad=-0.25'))
 # canonical 9.2K point (Figure caption footnote refers to it)
 ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=26)
 
 # ---- RIGHT panel: decode FLOPs per token (flat, context-independent) ----
-ax2.loglog(L / 1e3, decode / 1e15, color='#27408b', lw=3.4)
+ax2.loglog(L / 1e3, decode / 1e15, color='#27408b', lw=3.4,
+           label='decode  2·N  (per token)')
 ax2.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax2.set_ylabel('Decode compute (PFLOP / token)', fontsize=9.5)
 ax2.set_title('DECODE  (per token)', fontsize=10, fontweight='bold', color='#27408b')
 ax2.set_ylim(1e-5, 1e-3)
 ax2.tick_params(labelsize=8.5)
 ax2.grid(alpha=0.3, which='both')
+ax2.legend(fontsize=7.6, loc='upper right', framealpha=0.92, frameon=True)
 ax2.text(1.2, 2.6e-5, '\u2248 1.4e-4 PFLOP/token\n(flat across context)',
          fontsize=10.5, color='#27408b', fontweight='bold', va='center', ha='left')
 

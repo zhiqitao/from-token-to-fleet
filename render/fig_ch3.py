@@ -83,9 +83,12 @@ ax.text(5, A_SENT, 'only top-2 of 8 experts compute per token', fontsize=9.0, co
 ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', ha='center')
 
 # ---- KV bars: identical under both columns ----
+# Each panel is only ~2.9in wide (6.1in / 2), so the 8.8/10 bar is ~184pt — the
+# earlier "KV unchanged (matched attention)" (173pt) left only ~10pt margin and
+# clipped on the right. "KV: matched attention" (111pt) keeps the point with room.
 for axx in axes:
     axx.add_patch(Rectangle((0.6, KV_Y), 8.8, 0.9, fc='#c0392b', ec='white'))
-    axx.text(5, KV_Y+0.45, 'KV same as dense (matched attention)',
+    axx.text(5, KV_Y+0.45, 'KV: matched attention',
              ha='center', va='center', fontsize=8.8, color='white', fontweight='bold')
 
 plt.tight_layout()

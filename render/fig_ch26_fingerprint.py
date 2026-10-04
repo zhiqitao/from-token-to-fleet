@@ -26,9 +26,17 @@ ax.set_xticks(x)
 ax.set_xticklabels(dims, fontsize=9.2, rotation=0, ha='center')
 ax.tick_params(axis='x', length=0, pad=6)
 ax.set_ylabel('Normalised intensity (0-1)', fontsize=9)
-ax.set_ylim(0, 1.15)
-ax.set_title('Workload fingerprints on six comparable axes (grouped bars, not radar)\n[ILLUSTRATIVE profiles — confirm against real telemetry]', fontsize=10)
-ax.legend(fontsize=8.2, loc='upper left', ncol=1, frameon=False, bbox_to_anchor=(0.0, 1.0))
+# raise the top so the legend has its own clear band INSIDE the plot (above the
+# tallest bar, 0.95) — the earlier bbox_to_anchor=(0.5,1.01) put it OUTSIDE the
+# axes, on the same line as the title, so the two collided.
+ax.set_ylim(0, 1.45)
+# title: the internal "confirm against real telemetry" note is dropped from the
+# published title (it belongs in the caption, not the figure heading)
+ax.set_title('Workload fingerprints on six comparable axes (grouped bars, not radar)', fontsize=10)
+# legend in its own band at the TOP INSIDE the plot (clear of the title above and
+# the bars below)
+ax.legend(fontsize=8.2, loc='upper center', ncol=3, frameon=False,
+          bbox_to_anchor=(0.5, 0.99), columnspacing=1.2, handlelength=1.4)
 ax.grid(axis='y', alpha=0.3)
 ax.text(0.98, -0.13, 'comparable 0-1 scale; bar height = intensity.', transform=ax.transAxes,
         fontsize=7.5, color='#555', va='top', ha='right')

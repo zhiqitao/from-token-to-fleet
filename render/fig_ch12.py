@@ -35,15 +35,22 @@ def stagelabel(x, y, s, color, size=11.5):
 ax.text(CX, 0.982, 'Candidate architecture synthesis', fontsize=8.8,
         fontweight='bold', ha='center', color='#333')
 
+def downarrow(y_top, y_bot):
+    """vertical connector arrow between two stages (the reasoning chain)."""
+    ax.annotate('', xy=(CX, y_bot), xytext=(CX, y_top),
+                arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555'))
+
 # ---- Stage 1 REQUIREMENTS ----
 box(X0, 0.790, W, 0.150, '#eaf1fb', '#3a6ea5')
 stagelabel(CX, 0.865, '\u2460  REQUIREMENTS', '#27408b')
 divider(0.778)
+downarrow(0.778, 0.750)
 
 # ---- Stage 2 CONSTRAINTS ----
 box(X0, 0.600, W, 0.150, '#fdf3e0', '#d68910')
 stagelabel(CX, 0.675, '\u2461  CONSTRAINTS', '#935116')
 divider(0.588)
+downarrow(0.588, 0.560)
 
 # ---- Stage 3 CANDIDATES (taller: title + the candidate line) ----
 box(X0, 0.335, W, 0.225, '#e7f5ec', '#1e8449')
@@ -51,8 +58,12 @@ stagelabel(CX, 0.510, '\u2462  CANDIDATES', '#145a32')
 ax.text(CX, 0.435, '(a) 8\u00d7H100 + prefix cache \u00b7 (b) P/D 2-pool \u00b7 (c) KV-quant 7B',
         ha='center', va='center', fontsize=8.2, color='#1e8449', zorder=3)
 divider(0.323)
+downarrow(0.323, 0.290)
 
 # ---- Stage 4 OUTCOME — SURVIVORS vs REJECTED (one stage, two halves) ----
+# (a) and (b) both clear the gates at the per-host level; (b) additionally scales its
+# prefill pool to ~5 hosts to meet the 92K throughput target (per the caption). (c) is
+# rejected on the quality gate.
 sw = (W - 0.04) * 0.58
 sx = X0
 box(sx, 0.090, sw, 0.200, '#e7f5ec', '#1e8449')

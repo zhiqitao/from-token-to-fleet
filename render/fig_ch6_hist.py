@@ -46,8 +46,8 @@ for p, v, dy_off in leaders:
 v99 = np.percentile(lat, 99)
 ax.axvline(v99, color='#c0392b', ls='--', lw=1.9)
 # the 5s stragglers sit beyond p99 — between p99 and p100 — so a p99 line alone does
-# not reveal them. Add the observation that the straggler mass is only visible at max.
-ax.axvline(lat.max(), color='#c0392b', ls=':', lw=1.4)
+# not reveal them. The shaded band below marks the straggler region; a separate dotted
+# line at the max (5.0) was removed because it ran straight through the band's label.
 # mean line
 ax.axvline(mean, color='#555', ls='-', lw=1.7)
 # 2 s SLO line

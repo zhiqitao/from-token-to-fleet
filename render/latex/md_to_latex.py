@@ -199,9 +199,13 @@ def short_title(full):
             if 0 < i < 200:
                 s = s[:i].strip()
                 break
-    # hard cap ~80 chars to keep the List of Figures tidy
+    # hard cap ~80 chars to keep the List of Figures tidy; cut at a word
+    # boundary so the ellipsis never lands mid-word (e.g. "rooflin…").
     if len(s) > 84:
-        s = s[:81].rstrip() + "…"
+        cut = s[:81]
+        if " " in cut:
+            cut = cut[:cut.rfind(" ")]
+        s = cut.rstrip() + "…"
     # strip trailing punctuation and any leftover bracket marker
     s = s.rstrip(" .:;")
     return s.strip() or ""
@@ -238,7 +242,10 @@ def fix_captions(tex_path):
         # Remove editorial bracket markers: {[}ILLUSTRATIVE textual{]},
         # [ILLUSTRATIVE…], [VERIFY…], [HYPOTHESIS…], [DERIVED…], [1P], [2°…],
         # and the pandoc-escaped braces around them.
-        t = _re.sub(r"\{\[\]\}\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\{\]\}", "", t)
+        # Pandoc escapes a literal '[' as '{[}' and ']' as '{]}' in the .tex,
+        # so the escaped form is e.g. '{[}ILLUSTRATIVE{]}' / '{[}DERIVED from 1P: …{]}'
+        # (the inner text carries no braces). Strip that form first.
+        t = _re.sub(r"\{\[\}(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^{}]*\{\]\}", "", t)
         t = _re.sub(r"\[\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\]", "", t)
         # Drop a stray leading backslash that can remain from a stripped
         # '\hyperref[...]{Fig X.Y} --- ' prefix (an undefined-control-sequence

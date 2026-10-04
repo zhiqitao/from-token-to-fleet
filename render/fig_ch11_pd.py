@@ -26,31 +26,33 @@ ax.add_patch(FancyBboxPatch((0.02, 0.18), 0.36, 0.66, boxstyle='round,pad=0.01',
                             fc='#fdecea', ec='#c0392b', lw=2.4))
 ax.text(0.20, 0.76, 'PREFILL POOL', ha='center', va='center',
         fontsize=11.5, color='#c0392b', fontweight='bold')
-for gx in [0.055, 0.135, 0.215, 0.295]:   # unlabelled GPU glyphs
+for gx in [0.055, 0.135, 0.215, 0.295]:   # GPU glyphs
     ax.add_patch(FancyBboxPatch((gx, 0.34), 0.06, 0.10, boxstyle='round,pad=0.005',
                                 fc='#e67e22', ec='#a04000', lw=0.8))
+ax.text(0.20, 0.27, 'GPU', ha='center', va='center', fontsize=7.5, color='#888')
 
 # ---- Decode pool (right, large empty block) ----
 ax.add_patch(FancyBboxPatch((0.62, 0.18), 0.36, 0.66, boxstyle='round,pad=0.01',
                             fc='#eaf2f8', ec='#27408b', lw=2.4))
 ax.text(0.80, 0.76, 'DECODE POOL', ha='center', va='center',
         fontsize=11.5, color='#27408b', fontweight='bold')
-for gx in [0.655, 0.735, 0.815, 0.895]:   # unlabelled GPU glyphs
+for gx in [0.655, 0.735, 0.815, 0.895]:   # GPU glyphs
     ax.add_patch(FancyBboxPatch((gx, 0.34), 0.06, 0.10, boxstyle='round,pad=0.005',
                                 fc='#2980b9', ec='#154360', lw=0.8))
+ax.text(0.80, 0.27, 'GPU', ha='center', va='center', fontsize=7.5, color='#888')
 
-# ---- Single bridging transfer line ----
+# ---- Single bridging transfer line (prefill -> decode, one direction) ----
 ax.annotate('', xy=(0.62, 0.55), xytext=(0.38, 0.55),
-            arrowprops=dict(arrowstyle='<|-|>', lw=4.0, color='#a93226'))
+            arrowprops=dict(arrowstyle='-|>', lw=4.0, color='#a93226'))
 ax.text(0.50, 0.68, 'KV TRANSFER', ha='center', va='center',
         fontsize=8.6, color='#a93226', fontweight='bold')
 
-# ---- Input / output anchors (faint, single words) ----
-ax.text(0.20, 0.06, 'prompt \u2192', ha='center', va='center', fontsize=8.5,
+# ---- Input / output anchors (faint, single words; arrows point up into the pools) ----
+ax.text(0.20, 0.06, 'prompt', ha='center', va='center', fontsize=8.5,
         color='#333', fontweight='bold')
 ax.annotate('', xy=(0.20, 0.175), xytext=(0.20, 0.06),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#333'))
-ax.text(0.80, 0.06, 'tokens \u2192', ha='center', va='center', fontsize=8.5,
+ax.text(0.80, 0.06, 'tokens', ha='center', va='center', fontsize=8.5,
         color='#333', fontweight='bold')
 ax.annotate('', xy=(0.80, 0.175), xytext=(0.80, 0.06),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#333'))

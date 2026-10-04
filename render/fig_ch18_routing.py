@@ -127,8 +127,8 @@ fth = (spine[3][0]+spine[3][1])/2
 spg = (spec[0][0]+spec[-1][1])/2
 gen_yes_x = (gen[0][1]+gen[1][0])/2
 gen_ft_x  = (gen[2][0]+gen[2][1])/2
-fan(sep, SP-14, spec, '#2f6f4f', 'yes -> specialist', spg, 146)
-fan(spc, SP-14, gen[:2], '#2f6f4f', 'yes -> general', gen_yes_x, 140)
+fan(sep, SP-14, spec, '#2f6f4f', 'yes \u2192 specialist', spg, 146)
+fan(spc, SP-14, gen[:2], '#2f6f4f', 'yes \u2192 frontier / small', gen_yes_x, 140)
 arrow(fth, SP-14, gen_ft_x, RES+16, '#555')
 ax.text(gen_ft_x, 126, 'fallthrough', fontsize=FS-0.6, color='#555', ha='center', fontweight='bold')
 

@@ -58,8 +58,9 @@ y_bottom = y - 1.0
 ax.set_ylim(y_bottom, y_top)
 
 ax.text(5.9, y-0.35, 'From a single model to a whole system \u2014 the spine of this handbook (Appendix \u00a76).\n'
-                    'Approximate era markers (\u2248) are loose chronological signals, not release dates. [ILLUSTRATIVE][DERIVED]',
-        fontsize=8.8, fontstyle='italic', color='#555', ha='center')
+                    'Approximate era markers (\u2248) are loose chronological signals,\n'
+                    'not release dates. [ILLUSTRATIVE][DERIVED]',
+        fontsize=8.8, fontstyle='italic', color='#555', ha='center', linespacing=1.4)
 
 plt.tight_layout()
 out = 'design/manuscript/chapter-27/figures/fig-27-2703.png'
