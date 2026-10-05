@@ -20,7 +20,7 @@ cols_x = [0.8, 9.6, 18.4]
 rows_y = [9.0, 6.2]
 W = 7.8; H = 1.5
 
-fig, ax = plt.subplots(figsize=(6.1, 5.77))
+fig, ax = plt.subplots(figsize=(6.1, 4.6))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, 27); ax.set_ylim(0, 12.6); ax.axis('off')
 
@@ -37,14 +37,18 @@ for i, (label, col) in enumerate(STAGES):
     ax.text(x+W/2, y+H/2, label, ha='center', va='center',
             color='white', fontsize=10, fontweight='bold')
 # row 0 forward arrows: 1->2->3 ; row 1 arrows: 4->5->6
+# each arrow is a full line from the source box's right edge to the target box's
+# left edge (the gap is 1.0 wide: box right edge at x+W, next box left at x+W+1.0)
 for c in [0, 1]:
     # row 0 (y=rows_y[1]) stages 1,2,3
     x=cols_x[c]
-    ax.annotate('', xy=(x+W+0.95, rows_y[1]+H/2), xytext=(x+W+0.15, rows_y[1]+H/2),
-                arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
+    ax.annotate('', xy=(x+W+0.95, rows_y[1]+H/2), xytext=(x+W+0.05, rows_y[1]+H/2),
+                arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555',
+                                shrinkA=0, shrinkB=0))
     # row 1 (y=rows_y[0]) stages 4,5,6
-    ax.annotate('', xy=(x+W+0.95, rows_y[0]+H/2), xytext=(x+W+0.15, rows_y[0]+H/2),
-                arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
+    ax.annotate('', xy=(x+W+0.95, rows_y[0]+H/2), xytext=(x+W+0.05, rows_y[0]+H/2),
+                arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555',
+                                shrinkA=0, shrinkB=0))
 # 3 -> 4 connector (Exposure, top-right, to Guardrails, bottom-left). The 'angle'
 # connectionstyle was collapsing to a left-column 1->4 vertical, so use an explicit
 # L-shaped Path: down from box 3's bottom, across the inter-row gap, down into box 4's
@@ -67,7 +71,7 @@ ax.add_patch(FancyArrowPatch(path=Path(c34, [Path.MOVETO] + [Path.LINETO]*3),
 # along the bottom, up the left margin, then right into box 1 (Red Team, top row)
 # LEFT-EDGE middle. Both ends attach to a box edge; the stem does not cross a box.
 from matplotlib.path import Path
-FBY = 1.9
+FBY = 3.2
 LX  = 0.25                     # far-left rail, just inside canvas, left of box 4's left edge (x=0.8)
 ret_verts = [(cols_x[2]+W/2, rows_y[1]), (cols_x[2]+W/2, FBY+0.35),
              (cols_x[2]+W/2, FBY), (LX, FBY),
@@ -75,7 +79,7 @@ ret_verts = [(cols_x[2]+W/2, rows_y[1]), (cols_x[2]+W/2, FBY+0.35),
 ret_codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.LINETO]
 ax.add_patch(FancyArrowPatch(path=Path(ret_verts, ret_codes), arrowstyle='-|>',
              mutation_scale=18, lw=3.0, color='#a83232', zorder=1))
-ax.text(13.5, 0.9, 'loop: findings from Green Team → next Red Team cycle (strong feedback leg)',
+ax.text(13.5, 2.3, 'loop: findings from Green Team → next Red Team cycle (strong feedback leg)',
         fontsize=9, ha='center', color='#a83232', fontweight='bold')
 
 plt.tight_layout()
