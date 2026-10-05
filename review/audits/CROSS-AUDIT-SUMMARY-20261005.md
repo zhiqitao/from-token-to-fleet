@@ -86,3 +86,41 @@ All canonical quantities are consistent book-wide (70B dense FP16, 140 GB, 9,200
 7. Whitespace sweep (24 single-figure pages) + in-figure qualifier typography + color redundancy.
 8. Table fixes (18-1 dedup, 4-1 column width, 10-1 keep-together, 17-1 N-1 row).
 9. Pre-publication verification sweep (App.A links, prices, H100 specs, vLLM FP8) with visible re-verify date.
+
+## E. Fix status (2026-10-05, applied + vision-verified)
+
+**P0 figures — FIXED (commits 91261d9→b432218):**
+- Fig 19.3: removed the in-figure title that overprinted the legend. ✓
+- Fig 13.1: shortened the three trigger first-lines ("KV residency > cap", "goodput < demand", "demand > ceiling") so none runs under the red shaft. ✓
+- Fig 11.2: removed the Request-stream/Output-tokens boxes and the central pipeline arrow (which encoded a stack, contradicting the title); 2×2 grid now reads as four orthogonal concerns; canvas rebalanced. ✓
+- Fig 12.1: SURVIVORS now "(b)" with qualifier "(b) needs a ~5-host prefill pool"; REJECTED now "(a)·(c)" — matches Table 12-1. ✓
+- Fig 20.1: relabelled MEASURED → DERIVED (the blue curve is analytical × 0.95, not a measurement); fixed the "gap ≈95%" annotation to "95% efficiency"; caption aligned. ✓
+- Fig 24.1: forward arrows now edge-to-edge (were floating); feedback loop compacted to remove the lower-half void. ✓
+
+**P1 figures — FIXED (commit 58beac8 + earlier):**
+- Fig 6.2: stragglers label moved off the tail bars into the clear upper band. ✓
+- Fig 22.1: decode "flat" annotation qualified (2·N parameter term; total decode adds KV attention); caption aligned. ✓
+- Fig 8.1: hierarchy two-line boxes given enough height (h=46, name at FS−1.0) so names/roles no longer clip; ladder ends above the footnote. ✓
+- Fig 23.1: removed the orphan "~55% share a common prefix" (Ch.2 says the hit rate is not yet pinned down). ✓
+- Fig 17.1: caption flags 5.5 rps as a small illustrative example and cross-references the canonical 40 rps → ≈20 hosts. ✓
+- Fig 10.1: verified clean (red all-reduce annotations legible, no collisions) — no change.
+
+**P0 text — FIXED (commits b4fee31, 2a8cccc):**
+- Ch.10: DP gradient sync now uses the ring all-reduce factor 2(N−1)/N (1.75× for N=8), matching Ch.9. ✓
+- Ch.18: mini-case checks the SLO before claiming the 82% saving (SLO gates cost). ✓
+- Ch.17: names the 25 ms TPOT as the *budget* and adds the 5.2/10/25 ms sensitivity band (W 2.6/4.1/8.6 s → ~6/10/20 hosts). ✓
+- Ch.16: adds the GQA operating-configuration note (full-MHA ~20 hosts is the conservative teaching case; GQA ~3 hosts). ✓
+- Ch.4: owned-fleet per-request cost now computed on the whole fleet (~$0.0028/req), not one host's $20/hr ÷ the workload's 10 rps (dimensionally wrong, gave ~$0.00056). ✓
+
+**Verified already-correct in current text (no change needed):**
+- 2NL "Prefill FLOPs" qualifier — Ch.2 §3 and Ch.8 accuracy note already state 2NL excludes the quadratic attention term (+17% at 9.2K, ~2.4× at 128K).
+- 5.6 vs 3.35 aggregate/per-GPU — Ch.2 and Ch.6 already label 5.6 TB/s as the aggregate model-wide weight-read rate, not a single H100's literal bandwidth.
+- 1.31 vs 1.42 FP8/8-bit KV — Ch.3 already distinguishes the naive byte-halving (~1.3) from the measured FP8 serving constant (~1.42).
+- Single-host language — Ch.4/11/13 already carry scope notes (single host is latency-feasible but not capacity-sufficient; fleet is ~20 hosts).
+- Ch.24 candidate 4×/8×H100 — already self-consistent: it derives the 6.5-host theoretical floor and the ~16-host 40%-MFU estimate, and states Candidate B (8 hosts) sits below the 16-host estimate and remains "pending measurement."
+- Ch.26 capstone 800 ms TTFT — already flagged as "a scenario input, not the canonical p95-TTFT ≤ 2 s of Ch 4."
+- App.A Ornith sidebar — already marked "Post-snapshot observation (recorded 2026-09-27; outside the 2026-08-30 compile-date envelope)" and not promoted into the four-family figures.
+
+**Rejected (verified false):** Bunny's Ch.18 "1000× unit error" (arithmetic is correct); Muse's Fig 6.2 "leader lines tangle" (clean fan); Bunny's Fig 7.4 "right-edge clipping" (no clipping); Bunny's Fig 21.1 "TFT ok" (reads "TTFT ok"); Bunny's Fig 26.2 "trace on the arrow" (label is below the arrow); Bunny's Fig 7.3 "640 GB line strikes the annotation" (line crosses the bar, not the text); Bunny's Fig 1.2 "four text-on-text collisions" (only label-vs-border crowding).
+
+**Remaining (not yet done):** Table 19-1 cross-page row break; storyline compression (Ch.12/18/20/22/24, −25–35 pp, optional); whitespace sweep; the P2 figure polish list (Fig 15.2/16.1/18.1/21.1/26.1 etc.); pre-publication verification sweep.
