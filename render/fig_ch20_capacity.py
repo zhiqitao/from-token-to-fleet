@@ -39,10 +39,9 @@ ax1.tick_params(labelsize=8)
 # ---- BOTTOM: measured deployment throughput ----
 ax2.plot(hosts, measured, '-', color='#27408b', lw=2.4, label='derived deployment throughput (95% efficiency)')
 ax2.plot(hosts, analytical, ':', color='#888', lw=1.2, label='analytical bound (ceiling)')
-# annotation 1: ~5 hosts -> ~9.5 req/s (lower-left clear region, arrow to the rising curve)
-ax2.annotate('~5 hosts \u2192 ~9.5 req/s', xy=(5, 9.5), xytext=(7, 22),
-             fontsize=8.2, color='#1a1a1a', ha='left',
-             arrowprops=dict(arrowstyle='->', color='#555', lw=0.9))
+# annotation 1: removed — the "~5 hosts -> ~9.5 req/s" data point is redundant
+# (the linear rise makes it obvious) and could not be placed without crossing the
+# rising blue curve. The upper annotation (annotation 2) carries the key point.
 # annotation 2: ~20 hosts -> reaches the 40 rps peak. Placed in the UPPER-LEFT clear
 # region (below the legend, above the rising curves: the grey line is y=2x, so at
 # x<15 it is at y<30, well below this text; the legend sits at y>100, well above).
