@@ -42,13 +42,13 @@ for i, (label, col) in enumerate(STAGES):
 for c in [0, 1]:
     # row 0 (y=rows_y[1]) stages 1,2,3
     x=cols_x[c]
-    ax.annotate('', xy=(x+W+0.95, rows_y[1]+H/2), xytext=(x+W+0.05, rows_y[1]+H/2),
+    ax.annotate('', xy=(x+W+1.0, rows_y[1]+H/2), xytext=(x+W+0.0, rows_y[1]+H/2),
                 arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555',
-                                shrinkA=0, shrinkB=0))
+                                mutation_scale=11, shrinkA=0, shrinkB=0))
     # row 1 (y=rows_y[0]) stages 4,5,6
-    ax.annotate('', xy=(x+W+0.95, rows_y[0]+H/2), xytext=(x+W+0.05, rows_y[0]+H/2),
+    ax.annotate('', xy=(x+W+1.0, rows_y[0]+H/2), xytext=(x+W+0.0, rows_y[0]+H/2),
                 arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555',
-                                shrinkA=0, shrinkB=0))
+                                mutation_scale=11, shrinkA=0, shrinkB=0))
 # 3 -> 4 connector (Exposure, top-right, to Guardrails, bottom-left). The 'angle'
 # connectionstyle was collapsing to a left-column 1->4 vertical, so use an explicit
 # L-shaped Path: down from box 3's bottom, across the inter-row gap, down into box 4's
