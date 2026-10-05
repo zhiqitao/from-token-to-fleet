@@ -108,7 +108,7 @@ stages = [
     ('2. What does success look like?',
      'p95 TTFT < 300 ms, TPOT ~25 ms, 40 rps peak'),
     ('3. What data exists?',
-     '9.2K-token prompts, ~55% share a common prefix'),
+     '9.2K-token prompts; shared prefix (hit rate to benchmark)'),
     ('4. What are the constraints?',
      '8\u00d7H100 host, ~$14.6K/mo, no SLO headroom'),
     ('5. What is in scope now?',
