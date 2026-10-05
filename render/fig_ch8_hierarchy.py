@@ -59,8 +59,8 @@ levels = [
     ('GPU\ninterconnect', 'host / multi-GPU', C_NET),
     ('other GPUs\n/ remote', 'farthest', C_NET),
 ]
-ladder_w = 150; h = 42; gap = 6
-top = Ht-78
+ladder_w = 150; h = 46; gap = 3
+top = Ht-74
 ys=[]; y=top
 for name, role, c in levels:
     ax.add_patch(FancyBboxPatch((colA_cx-ladder_w/2, y-h/2), ladder_w, h,
@@ -68,12 +68,13 @@ for name, role, c in levels:
                   ec='#16295c' if c in (C_ONCHIP,C_NET) else '#8a3a12', lw=1.3, clip_on=False))
     nl = name.count('\n') + 1      # 1 or 2 name lines
     if nl == 2:
-        # two-line name centered in upper 60% of box; role in lower part
-        label(colA_cx, y+h*0.24, name, '#ffffff', FS, weight='bold', style='normal')
-        label(colA_cx, y-h*0.28, role, '#eaeaea', FS-0.9)
+        # two-line name centered in upper 60% of box; role in lower part.
+        # name at FS-1.0 so the 3 text lines (2 name + 1 role) fit inside the box.
+        label(colA_cx, y+h*0.26, name, '#ffffff', FS-1.0, weight='bold', style='normal')
+        label(colA_cx, y-h*0.30, role, '#eaeaea', FS-0.9)
     else:
-        label(colA_cx, y+h*0.22, name, '#ffffff', FS, weight='bold')
-        label(colA_cx, y-h*0.26, role, '#eaeaea', FS-0.9)
+        label(colA_cx, y+h*0.24, name, '#ffffff', FS, weight='bold')
+        label(colA_cx, y-h*0.28, role, '#eaeaea', FS-0.9)
     ys.append((y,c)); y -= (h+gap)
 for i in range(len(ys)-1):
     ax.annotate('', xy=(colA_cx, ys[i+1][0]+h/2), xytext=(colA_cx, ys[i][0]-h/2),

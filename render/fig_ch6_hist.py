@@ -58,7 +58,11 @@ ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\np99 = %.2fs\nSLO 2 s\n(p99 s
         fontsize=8.5, color='#333', ha='center', va='center',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f7f7f7', ec='#cccccc', lw=0.8))
 ax.axvspan(4.0, 6.0, color='#c0392b', alpha=0.08)
-ax.text(5.0, 0.40, '1% stragglers\n~5 s (cross the SLO)', fontsize=8.5, color='#c0392b', ha='center')
+# place the stragglers label in the CLEAR upper region of the red band (the tail
+# bars near x=5 are tiny, and the legend box ends at x=4.0), so it never sits on a bar.
+ax.text(5.0, ytop*0.72, '1% stragglers\n~5 s (cross the SLO)', fontsize=8.5, color='#c0392b',
+        ha='center', va='center',
+        bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#c0392b', lw=0.8, alpha=0.9))
 
 ax.set_xlabel('Request latency (s)', fontsize=9.5)
 ax.set_ylabel('Request count', fontsize=9.5)

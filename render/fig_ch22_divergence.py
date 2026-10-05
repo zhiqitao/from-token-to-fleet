@@ -60,8 +60,8 @@ ax2.set_ylim(1e-5, 1e-3)
 ax2.tick_params(labelsize=8.5)
 ax2.grid(alpha=0.3, which='both')
 ax2.legend(fontsize=7.6, loc='upper right', framealpha=0.92, frameon=True)
-ax2.text(1.2, 2.6e-5, '\u2248 1.4e-4 PFLOP/token\n(flat across context)',
-         fontsize=10.5, color='#27408b', fontweight='bold', va='center', ha='left')
+ax2.text(1.2, 2.6e-5, '\u2248 1.4e-4 PFLOP/token\n(2\u00b7N parameter term, flat;\ntotal decode adds KV attn)',
+         fontsize=9.0, color='#27408b', fontweight='bold', va='center', ha='left')
 
 fig.text(0.5, 0.975, 'LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN',
          ha='center', va='top', fontsize=10, fontweight='bold', color='#7a0000',
