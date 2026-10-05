@@ -199,21 +199,42 @@ for a, b in [('previous token', 'token + position'),
     arrow(dc[a][1] + 2, dc_rail, dc[b][0] - 2, dc_rail, C_AR, 1.2)
 
 # ==================== read (cache -> decode transformer, down) ==============
-arrow(X_T, kc_bot - 2, X_T, dc['transformer'][3] + 2, C_AR, 2.0)
-_ry = (kc_bot + dc_top) / 2
+# The green "initialize" channel (gn_y = green_chan) runs in the gap BELOW the
+# cache box, so the read arrow is split into two segments with a bridge gap
+# where the green line passes over it.
+gn_y = green_chan                  # gap below cache [dc_top, kc_bot]: no pierce
+BR = 7                             # bridge half-gap where green passes over
+# Upper read stub is a PLAIN line (no head) so the single "read" flow shows one
+# arrowhead only at its final destination (the decode transformer).
+ax.plot([X_T, X_T], [kc_bot - 2, gn_y + BR], color=C_AR, lw=2.0,
+        solid_capstyle='butt', zorder=2)
+arrow(X_T, gn_y - BR, X_T, dc['transformer'][3] + 2, C_AR, 2.0)
+_ry = (kc_bot + gn_y + BR) / 2
 ax.text(X_T - 12, _ry, 'read', color='#333333', fontsize=FSN,
         fontweight='bold', ha='right', va='center')
 
 # ==================== GREEN initialize ====================
-ft = pf['first token']             # right-midpoint of 'first token'
+# first token (right edge) -> down the right margin -> left along the channel
+# below the cache box -> drop into the TOP of previous token.  The channel
+# (green_chan) sits in the empty gap between the cache box bottom (kc_bot) and
+# the decode rail top (dc_top), so the green line never pierces the cache box;
+# the read arrow is bridged where the green line crosses it.
+ft = pf['first token']
 prev = dc['previous token']
-gv = [(ft[1], ft[4]), (X_R, ft[4]), (X_R, green_chan),
-      (prev[4], green_chan), (prev[4], prev[3])]
+# End the green drop 1pt INTO the box (below its top edge) so the arrowhead
+# tip clearly touches the previous-token box's top border (no floating gap).
+# FancyArrowPatch with a `path` does not render the -|> head, so the line body
+# is drawn plain and an explicit annotate arrowhead is added at the terminal.
+gv = [(ft[1], pf_rail), (X_R, pf_rail), (X_R, gn_y),
+      (prev[4], gn_y), (prev[4], prev[3] - 1)]
 gc = [_Path.MOVETO, _Path.LINETO, _Path.LINETO, _Path.LINETO, _Path.LINETO]
-ax.add_patch(FancyArrowPatch(path=_Path(gv, gc), arrowstyle='-|>', lw=1.6,
-             color=C_GN, shrinkA=0, shrinkB=0, clip_on=False, zorder=2))
-ax.text(X_R - 4, green_chan - 14, 'initialize', color=C_GN, fontsize=FSN,
-        fontweight='bold', ha='right', va='center')
+ax.add_patch(FancyArrowPatch(path=_Path(gv, gc), arrowstyle='-', lw=1.6,
+             color=C_GN, shrinkA=0, shrinkB=0, clip_on=False, zorder=5))
+ax.annotate('', xy=(prev[4], prev[3] - 1), xytext=(prev[4], prev[3] + 11),
+            arrowprops=dict(arrowstyle='-|>', lw=1.6, color=C_GN,
+                            shrinkA=0, shrinkB=0), zorder=5)
+ax.text(X_R - 4, gn_y + 8, 'initialize', color=C_GN, fontsize=FSN,
+        fontweight='bold', ha='right', va='bottom')
 
 # ==================== GREY loop ====================
 nt = dc['next token']
