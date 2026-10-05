@@ -92,7 +92,7 @@ $$
 | Cloud on-demand (scaled) | bursts to ~20, runs ~5 avg | ~$72K | ~$2.8 | ~$72K | variable load, no idle capex, staff shared |
 | Managed API | — | usage | ~$21 | ~$541K | tiny volume, fastest time-to-value |
 
-*(Figures are worked-example estimates as of Q4 2026, not vendor quotes; treat as [ILLUSTRATIVE][DERIVED] illustrative, to be re-priced before budgeting. The fleet requirement ~20 hosts (peak) / ~5 hosts (avg) is from the canonical Ch17 sizing; FP8 KV cuts the peak fleet to ~11.)*
+*(Figures are worked-example estimates as of Q4 2026, not vendor quotes; treat as [ILLUSTRATIVE][DERIVED] illustrative, to be re-priced before budgeting. The fleet requirement ~20 hosts (peak) / ~5 hosts (avg) is from the canonical Ch17 sizing; FP8 KV cuts the peak fleet to ~11. **GQA operating configuration:** the ~20-host figure assumes the canonical full-MHA KV constant (2.62 MB/token). A 2026 production model with grouped-query attention (GQA) uses roughly 8× less KV per token, which raises the per-host KV-residency ceiling C by ~8× and cuts the peak fleet to on the order of ~3 hosts at the same 40 rps. The full-MHA number is the conservative teaching case; own the 6–7× gap explicitly rather than quoting ~20 hosts for a GQA deployment.)*
 
 **Parametric sensitivity is the durable form.** All the fixed inputs above — GPU price, electricity, staffing, capacity, API price, and the fleet size itself — are [ILLUSTRATIVE] scenario values; the *structure* of the model is what generalizes. The architect computes N_hosts from the workload first (Ch 17/20), then re-runs this TCO with the customer's real numbers (Chapter 23). A runnable, parameterised version ships with the book as `render/tco_calc.py`.
 
