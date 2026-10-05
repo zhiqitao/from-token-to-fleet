@@ -95,7 +95,7 @@ print('Ch09 done')
 # visual -- four large, empty cards (accent header only, mostly whitespace) with
 # BIG concern labels, threaded by a single request -> output spine.  The
 # per-concern mechanism and trade-off now live in the manuscript caption.
-fig, ax = plt.subplots(figsize=(6.1, 5.2))
+fig, ax = plt.subplots(figsize=(6.1, 3.5))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
 BLUE='#3a6ea5'; GREEN='#27ae60'; ORANGE='#e67e22'; RED='#c0392b'; GREY='#555'; PURPLE='#6c3483'
@@ -112,21 +112,14 @@ def card(x, y, w, h, label, col, fill):
 ax.text(0.5, 0.965, 'Serving = four orthogonal concerns, not a stack',
         fontsize=9.2, fontweight='bold', ha='center', color='#333')
 
-# request stream (top) -> output (bottom) spine
-box(0.30, 0.875, 0.40, 0.065, BLUE, BLUE, 0)
-ax.text(0.5, 0.9075, 'Request stream', ha='center', va='center',
-        color='white', fontsize=8.5, fontweight='bold')
-ax.annotate('', xy=(0.5, 0.12), xytext=(0.5, 0.872),
-            arrowprops=dict(arrowstyle='-|>', lw=1.7, color=GREY))
-box(0.30, 0.045, 0.40, 0.065, GREY, GREY, 0)
-ax.text(0.5, 0.0775, 'Output tokens', ha='center', va='center',
-        color='white', fontsize=8.5, fontweight='bold')
+# the request stream is named in the caption; no arrow is drawn, because a
+# top-to-bottom arrow would encode a pipeline/stack, contradicting the title.
 
 # 2x2 orthogonality grid -- dominant, empty cards with BIG labels
-card(0.045, 0.600, 0.415, 0.245, 'REQUEST\nSCHEDULING', PURPLE, '#f7f3fb')
-card(0.540, 0.600, 0.415, 0.245, 'STATE\nMANAGEMENT', RED, '#fdecea')
-card(0.045, 0.305, 0.415, 0.245, 'REUSE', GREEN, '#eafaf0')
-card(0.540, 0.305, 0.415, 0.245, 'RESOURCE\nSPECIALISATION', ORANGE, '#fdf3e0')
+card(0.045, 0.52, 0.415, 0.30, 'REQUEST\nSCHEDULING', PURPLE, '#f7f3fb')
+card(0.540, 0.52, 0.415, 0.30, 'STATE\nMANAGEMENT', RED, '#fdecea')
+card(0.045, 0.10, 0.415, 0.30, 'REUSE', GREEN, '#eafaf0')
+card(0.540, 0.10, 0.415, 0.30, 'RESOURCE\nSPECIALISATION', ORANGE, '#fdf3e0')
 
 plt.tight_layout()
 plt.savefig(base % (11, 11, 11), dpi=150); plt.close()

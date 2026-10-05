@@ -67,9 +67,9 @@ for y in tier_y:
 # ESCALATION TRIGGERS — LARGE, dominant, red; "what forces the next".
 # ---------------------------------------------------------------------------
 triggers = [
-    (3.35, 'KV residency overruns\n\u2192 forces scale-up'),
-    (6.05, 'host goodput < demand\n\u2192 forces scale-up'),
-    (8.75, 'demand exceeds ceiling\n\u2192 forces scale-up'),
+    (3.35, 'KV residency > cap\n\u2192 forces scale-up'),
+    (6.05, 'goodput < demand\n\u2192 forces scale-up'),
+    (8.75, 'demand > ceiling\n\u2192 forces scale-up'),
 ]
 # placed in the clear band between the tier cards (x<2.3) and the red shaft (x>5.9);
 # kept left of the shaft so the dark-red text never sits on the red arrow (contrast).

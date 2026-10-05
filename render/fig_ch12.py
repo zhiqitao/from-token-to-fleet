@@ -61,20 +61,22 @@ divider(0.323)
 downarrow(0.323, 0.290)
 
 # ---- Stage 4 OUTCOME — SURVIVORS vs REJECTED (one stage, two halves) ----
-# (a) and (b) both clear the gates at the per-host level; (b) additionally scales its
-# prefill pool to ~5 hosts to meet the 92K throughput target (per the caption). (c) is
-# rejected on the quality gate.
+# (a) fails the capacity gate (a monolithic 8xH100 cannot add prefill hosts);
+# (b) survives because its prefill pool scales independently to ~5 hosts;
+# (c) is rejected on the quality gate.
 sw = (W - 0.04) * 0.58
 sx = X0
 box(sx, 0.090, sw, 0.200, '#e7f5ec', '#1e8449')
 stagelabel(sx + sw / 2, 0.245, '\u2463  OUTCOME', '#145a32')
-ax.text(sx + sw / 2, 0.165, 'SURVIVORS  (a) \u00b7 (b)', ha='center', va='center',
+ax.text(sx + sw / 2, 0.165, 'SURVIVORS  (b)', ha='center', va='center',
         fontsize=8.4, color='#145a32', fontweight='bold', zorder=3)
+ax.text(sx + sw / 2, 0.125, '(b) needs a ~5-host prefill pool', ha='center', va='center',
+        fontsize=7.2, color='#145a32', zorder=3)
 bx = sx + sw + 0.04
 bw = W - sw - 0.04
 box(bx, 0.090, bw, 0.200, '#fdecea', '#c0392b')
 stagelabel(bx + bw / 2, 0.245, '\u2717  REJECTED', '#7b241c')
-ax.text(bx + bw / 2, 0.165, '(c)', ha='center', va='center',
+ax.text(bx + bw / 2, 0.165, '(a) \u00b7 (c)', ha='center', va='center',
         fontsize=8.4, color='#7b241c', fontweight='bold', zorder=3)
 
 plt.tight_layout()

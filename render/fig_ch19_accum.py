@@ -22,9 +22,6 @@ def h_of(tok): return tok * 0.00035
 fig, ax = plt.subplots(figsize=(6.1, 5.63))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, 12.8); ax.set_ylim(-0.6, 12.2); ax.axis('off')
-# title shortened so it is not clipped at the left edge of the 12.8-unit width
-ax.text(6.4, 11.7, 'Agentic context: the KV block grows every turn',
-        fontsize=10.5, fontweight='bold', ha='center', color='#1a1a1a')
 
 for i, (name, dl, gm, kv) in enumerate(cols):
     x = xs[i]
