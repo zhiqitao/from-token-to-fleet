@@ -89,7 +89,8 @@ $$
 | Mode | Capacity | Opex/month | Cost/1K req | $/month @26M req | When it wins |
 |---|---|---|---|---|---|
 | Self-hosted (20×8×H100) | ~20 hosts | ~$148K | ~$5.7 | ~$148K | staff already in-house (sunk) and sustained near-peak utilization; no burst variability |
-| Cloud on-demand (scaled) | bursts to ~20, runs ~5 avg | ~$72K | ~$2.8 | ~$72K | variable load, no idle capex, staff shared |
+| Cloud on-demand (scaled) | bursts to ~20, runs ~5 avg | ~$72K | ~$2.8 | ~$72K | variable load, no idle capex, staff shared — **only if scale-up is fast and the average run is ~5 hosts** |
+| Cloud on-demand (always-on-at-peak) | ~20 hosts all month | ~$288K | ~$11.1 | ~$288K | scale-up is slow or the load is sustained near peak; the elastic-ideal $72K does not apply |
 | Managed API | — | usage | ~$21 | ~$541K | tiny volume, fastest time-to-value |
 
 *(Figures are worked-example estimates as of Q4 2026, not vendor quotes; treat as [ILLUSTRATIVE][DERIVED] illustrative, to be re-priced before budgeting. The fleet requirement ~20 hosts (peak) / ~5 hosts (avg) is from the canonical Ch17 sizing; FP8 KV cuts the peak fleet to ~11. **GQA operating configuration:** the ~20-host figure assumes the canonical full-MHA KV constant (2.62 MB/token). A 2026 production model with grouped-query attention (GQA) uses roughly 8× less KV per token, which raises the per-host KV-residency ceiling C by ~8× and cuts the peak fleet to on the order of ~3 hosts at the same 40 rps. The full-MHA number is the conservative teaching case; own the 6–7× gap explicitly rather than quoting ~20 hosts for a GQA deployment.)*

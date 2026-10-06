@@ -63,6 +63,8 @@ Inference is two fundamentally different physical processes, distinguished by wh
 
 When we ask "is this workload compute-bound or bandwidth-bound?" the answer depends entirely on which physical constraint we are hitting: the horsepower of the engine, or the diameter of the pipe.
 
+**Figure convention (used throughout the book).** Arrows in the diagrams carry different meanings by context, and the reader should not assume one universal reading: a **data-flow** arrow (Fig 2.1, 11.3) shows tokens or activations moving; a **dependency** arrow (Fig 4.1) shows "must be decided before"; a **causation** arrow (Fig 6.1) shows "drives / causes"; and a **conceptual-association** arrow (App. A.4) shows "relates to." Where a figure's arrows are ambiguous, the caption states the intended reading.
+
 ## 3. Worked Example
 
 To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario from canonical scenario (Ch 4, Table 4-3): a 70B-class dense model in FP16, 1 host with 8×H100 GPUs, prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical scenario; none are measurement claims. Where the book writes *Analytical bound — not a benchmark*, it marks a first-order model check under a stated bounding assumption, not a measurement of actual serving throughput.

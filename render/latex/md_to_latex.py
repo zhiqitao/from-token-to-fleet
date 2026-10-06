@@ -298,6 +298,18 @@ def fix_minicase_toc(tex_path):
     )
     tex = open(tex_path, encoding="utf-8").read()
     orig = tex
+    # "The Architect's Question" is UNNUMBERED in the source (it has no "N."
+    # prefix), so it must not consume a section number. If it did, every
+    # numbered template section after it (Concept, Mental Model, ...) would
+    # render one higher than the source, and the book's §N.M cross-references
+    # (which use source numbering) would all point at the wrong section.
+    # Render it as \section* (unnumbered, no TOC entry) so the numbered
+    # sections align with the source.
+    tex = _re.sub(
+        r"\\section\{The Architect's Question\}(\\label\{[^}]*\})?",
+        r"\\section*{The Architect's Question}\1",
+        tex,
+    )
     # Match an entire \section{...}\label{...} (title may wrap across lines).
     pat = _re.compile(r"\\section\{((?:[^{}]|(?:\{[^{}]*\}))*?)\}(\s*\\label\{[^}]*\})?", flags=_re.S)
     def repl(m):
@@ -416,9 +428,14 @@ def copy_figures():
             # Prefer a sibling vector .pdf (matplotlib 'pdf' backend) when it
             # exists -- keeps the book PDF small and figures crisp on zoom.
             # Hand-drawn HTML/SVG originals (no .pdf) stay as .png.
+            # GUARD: only use the .pdf if it is at least as new as the .png.
+            # Several figure scripts regenerate only the .png; a stale .pdf left
+            # over from an older version would otherwise be embedded and silently
+            # revert the figure (e.g. Fig 11.2 kept showing the old pipeline spine
+            # after the fix because the 09-27 .pdf was newer than nothing).
             if src.lower().endswith(".png"):
                 pdf_src = src[:-4] + ".pdf"
-                if os.path.exists(pdf_src):
+                if os.path.exists(pdf_src) and os.path.getmtime(pdf_src) >= os.path.getmtime(src):
                     src = pdf_src
             flat = os.path.basename(src)
             dst = os.path.join(FIG, flat)

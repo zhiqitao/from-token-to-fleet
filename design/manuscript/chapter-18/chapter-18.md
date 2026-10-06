@@ -47,11 +47,10 @@ The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200�
 | Model | VRAM (model precision) | VRAM (8-bit) | VRAM (4-bit) | # fit on 8×H100 |
 |------|-------------|--------------|--------------|-----------------|
 | 70B dense FP16 | 140 GB | — | — | 1 (weights + KV fit in the 640 GB pool; ~2 GPUs hold the weights) |
-| 70B dense 8-bit | — | ~70 GB | — | 1 (fits on 1×H100, leaves 7 for others) |
+| 70B dense 8-bit | — | ~70 GB | — | 1 (weights alone fit on 1×H100, leaving 7 GPUs; with the canonical KV budget the 8×H100 pool still holds weights + KV) |
 | 70B MoE FP16 (2/16 experts) | 140 GB | — | — | 1 (same as dense FP16; weights + KV fit in the 640 GB pool) |
 | 70B MoE 8-bit (2 active) | — | ~70 GB | — | 1 |
 | 70B 4-bit GGUF | — | — | ~35 GB | ~2 (across 2 GPUs, can batch) |
-| 70B 8-bit GGUF | — | ~70 GB | — | 1 |
 
 *(Each row's footprint is its own model's size at the named precision — put the number in that precision's column. A dash means that precision does not apply to the row's naming.)*
 
@@ -63,14 +62,14 @@ With 8×H100 (640 GB), we can simultaneously run:
 
 ### 3.2. Per-token cost (example numbers, Q4 2026 pricing)
 
-| Model | Token cost (USD / 1M) | Latency/token (ms) | Basis |
+| Model | Token cost (USD / 1M) | Per-request service latency (ms) | Basis |
 |-------|----------------------|--------------------|---------------------|
 | 70B dense FP16 (8×H100 capital amortized) | $2.50 | 120 | capital + energy |
 | 70B dense 8-bit (1×H100) | $1.25 | 250 | public cloud [1P] |
 | 70B MoE 8-bit (2 active experts) | $1.00 | 300 | public cloud [1P] |
 | 70B 4-bit GGUF (local, no GPU) | $0.15 | 800 | energy only |
 
-*Basis note (reconciled with Ch16's TCO):* these per-1M figures are **per-model nominal rates for routing comparison** — the cost per 1M tokens if that model instance were serving at its own nominal throughput on its own host. They are *not* the same quantity as the fleet-amortized per-token cost derived in Ch16 §16.4 (~$0.60/1M for the 70B FP16 self-host), which divides the full peak-provisioned fleet TCO (~$148K/mo, ≈20 hosts at full utilization) by the considerably higher token volume that fleet actually serves (~2.5×10¹¹ tokens/month). The ≈4× gap between $2.50/1M and ~$0.60/1M is therefore a **utilization/throughput basis difference, not a contradiction**: the table rates one host near its nominal (modestly-loaded) rate, while the Ch16 TCO spreads the same capex+energy over a heavily-utilized fleet's larger token output. Read each number with its own basis; the mixed-fleet *savings* conclusion below depends only on the relative per-model rates, not on the absolute self-host basis.
+*Basis note (reconciled with Ch16's TCO):* these per-1M figures are **per-model nominal rates for routing comparison** — the cost per 1M tokens if that model instance were serving at its own nominal throughput on its own host. They are *not* the same quantity as the fleet-amortized per-token cost derived in Ch16 §16.3 (~$0.60/1M for the 70B FP16 self-host), which divides the full peak-provisioned fleet TCO (~$148K/mo, ≈20 hosts at full utilization) by the considerably higher token volume that fleet actually serves (~2.5×10¹¹ tokens/month). The ≈4× gap between $2.50/1M and ~$0.60/1M is therefore a **utilization/throughput basis difference, not a contradiction**: the table rates one host near its nominal (modestly-loaded) rate, while the Ch16 TCO spreads the same capex+energy over a heavily-utilized fleet's larger token output. Read each number with its own basis; the mixed-fleet *savings* conclusion below depends only on the relative per-model rates, not on the absolute self-host basis.
 
 ### 3.3. Routing arithmetic
 
@@ -96,13 +95,15 @@ $$
 \bar{L} = \sum_i p_i \cdot L_i = 0.70 \times 250 + 0.20 \times 300 + 0.10 \times 120 \approx 247 \text{ ms/request}
 $$
 
-(no separate output-routing term — output rides with its requesting model), where $p_i$ is the fraction of requests routed to model $i$ and $L_i$ its latency. Acceptable for interactive chat (typical threshold: ≤500 ms).
+(no separate output-routing term — output rides with its requesting model), where $p_i$ is the fraction of requests routed to model $i$ and $L_i$ its per-request service latency. Acceptable for interactive chat (typical threshold: ≤500 ms).
+
+**Scope note — the latency column is an illustrative routing-comparison input, not the canonical service time.** The 120/250/300/800 ms values are per-request service latencies used to compare the four models *for the routing decision*; they are deliberately small (sub-second) so the interactive-threshold check (≤500 ms) is meaningful. They are **not** the ~8.6 s service time of the 9.5K-token canonical RAG request (Ch 17), which is a multi-second, capacity-side number that governs fleet sizing. The cost column, by contrast, *is* computed on the canonical 9.5K-token request (6.65M tokens for 700 requests). Read the two columns on their own bases: cost on the canonical request, latency as the illustrative interactive-routing input. A deployment benchmark (Ch 14) must supply the real per-model service times before either column is used for a production decision.
 
 The latency and capacity must also reconcile with the canonical workload's KV residency (Chapter 17): routing 70% of requests to an 8-bit model on 1×H100 changes the per-host KV ceiling accordingly, and the fleet host count is set by the model each tier runs on. These are [ILLUSTRATIVE] pricing and latency figures for Q4 2026; the architect re-runs the same arithmetic with measured per-model cost/latency from a deployment benchmark (Chapter 14).
 
 ### 3.5. Consolidation vs. separation decision
 
-- **Consolidate** when: workload profile overlap >70%, latency tolerance ≥300 ms, and cost differential >30%. *Verified*: our scenario consolidates 70% of traffic to 8-bit, saving ~$11.16/hr ($23.75 − $12.59, the §18.4.3 derived figure).
+- **Consolidate** when: workload profile overlap >70%, latency tolerance ≥300 ms, and cost differential >30%. *Verified*: our scenario consolidates 70% of traffic to 8-bit, saving ~$11.16/hr ($23.75 − $12.59, the §18.3.3 derived figure).
 - **Keep separate** when: (a) security/classification policies require isolation, (b) workloads have bimodal latency needs (some ≤50 ms, others batch-tolerant), or (c) model versioning cadence differs (e.g., frequent fine-tuning on one family, stable other).
 
 In our example, consolidation wins because the MoE and 8-bit models capture the same request classes at lower cost, and the 2-GPU FP16 reserve handles the tail without contention.
@@ -113,7 +114,7 @@ To operate a mixed fleet we measure four cross-cutting metrics:
 
 | Metric | How to measure | Why it matters |
 |-------|----------------|----------------|
-| **Weighted average cost/token** | Σ(tokens_i × cost_i) / Σ(tokens_i) across all models | Directly tracks fleet economics; target under the §18.4.2 per-1M basis (e.g. < $2.50/1M for the FP16 tier) for competitive SaaS. |
+| **Weighted average cost/token** | Σ(tokens_i × cost_i) / Σ(tokens_i) across all models | Directly tracks fleet economics; target under the §18.3.2 per-1M basis (e.g. < $2.50/1M for the FP16 tier) for competitive SaaS. |
 | **Per-model throughput** | requests/sec per GPU / per CPU node | Detects saturation; informs capacity adds vs. routing tweaks. |
 | **Routing accuracy** | % of requests served by the *intended* target model (not fallback) | Ensures the routing function R() is well-calibrated; low accuracy means feature gaps or cost model drift. |
 | **Latency p95 per model** | p95 of token-level latency per model | Guarantee SLA per tier; fleet p95 must be computed from the combined routed-request latency distribution — per-model p95 values cannot in general be averaged (percentiles are not linearly composable). |
@@ -155,7 +156,7 @@ The fleet operator becomes a *cost‑latency steward* rather than a single-model
 - **Tier 2 (70B 8-bit dense):** Handles 15% of queries (order status, policy look‑up). Runs on 1×H100. Cost: $0.0015/token, latency ~250 ms.
 - **Tier 3 (70B FP16):** Handles 5% of queries (complex escalations, multilingual). Runs on 2 GPUs reserved. Cost: $0.003/token, latency ~120 ms.
 
-**Arithmetic:** A small pilot deployment serving ~1,000 registered users at a modest, deliberately low volume — **5,000 tokens/hour** (each request averaging ~250 tokens gives roughly 20 requests/hour, a very light load chosen to make the per-token routing economics concrete rather than to model a busy fleet; the traffic rate is not what drives this arithmetic, the per-token volume is). Hourly tokens: ~4,500 in + 500 out = 5,000. *(Scope note: these tier per-token rates are illustrative scenario values on a per-token basis, distinct from — and not directly comparable to — the per-1M-token ledger in §18.4.2; the mini-case uses them to demonstrate the routing economics, and a real deployment would price from the §18.4.2 per-1M basis.)*
+**Arithmetic:** A small pilot deployment serving ~1,000 registered users at a modest, deliberately low volume — **5,000 tokens/hour** (each request averaging ~250 tokens gives roughly 20 requests/hour, a very light load chosen to make the per-token routing economics concrete rather than to model a busy fleet; the traffic rate is not what drives this arithmetic, the per-token volume is). Hourly tokens: ~4,500 in + 500 out = 5,000. *(Scope note: these tier per-token rates are illustrative scenario values on a per-token basis, distinct from — and not directly comparable to — the per-1M-token ledger in §18.3.2; the mini-case uses them to demonstrate the routing economics, and a real deployment would price from the §18.3.2 per-1M basis.)*
 
 - Tier 1 processes 4,000 tokens/hr → $0.80
 - Tier 2 processes 750 tokens/hr → $1.13

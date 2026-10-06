@@ -207,7 +207,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 
 **Table 19-1** — Token amplification and latency trade-offs for agentic RQA pipelines
 
-| Metric | T=1 (median) | T=2 (90th pct) | T=3 (95th pct) | T=4 (beyond limit) | Single-shot |
+| Metric | T=1 (med.) | T=2 (p90) | T=3 (p95) | T=4 (beyond limit) | Single-shot |
 |--------|-----|--------------|-----|----------------|-------------|
 | Input tokens (9,200 + T·800 + T·65) | 10,065 | 10,930 | 11,795 | 12,660 | 9,200 |
 | Total tokens (incl. 300 output) | 10,365 | 11,230 | 12,095 | 12,960 | 9,500 |
