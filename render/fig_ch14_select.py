@@ -27,7 +27,7 @@ def stage(x, w, name, screen, fc1, fc2, conn='screen'):
     # connector label in the CLEAR GAP between the two boxes (y 3.35..3.9), offset
     # LEFT of the connector so it does not sit on the connector line or on the
     # white box text inside the process box (which is at y<=3.35).
-    ax.text(x+w/2-1.05, 3.62, conn, fontsize=7.6, color='#2f6f4f', ha='center', va='center', fontweight='bold')
+    ax.text(x+w/2-1.55, 3.62, conn, fontsize=7.6, color='#2f6f4f', ha='center', va='center', fontweight='bold')
 
 # Stage 1: candidates -> capability screen
 stage(0.9, 5.2, 'Candidate\nmodels', 'Capability screen\n(MMLU / GSM8K)', '#3a6ea5', '#e67e22', conn='screen')

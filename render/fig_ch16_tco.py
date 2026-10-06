@@ -50,7 +50,7 @@ ax.tick_params(labelsize=9)
 
 # reference line
 ax.axvline(2.6e7, color='#27408b', ls=':', lw=1.2)
-ax.text(2.0e7, 2.5e5, 'canonical 26M req/mo', fontsize=9, color='#27408b', ha='right')
+ax.text(1.6e7, 4.0e5, 'canonical 26M req/mo', fontsize=9, color='#27408b', ha='right')
 
 # break-even self-host fleet vs managed: solve 0.0208*x = 148000
 be = 148000 / 0.0208
@@ -69,7 +69,7 @@ ax.text(9.5e7, 1.2e4,
 
 # legend inside top-left (clear of data), assumptions as a compact footer OUTSIDE the axes
 ax.legend(fontsize=8.8, loc='upper left', ncol=1, frameon=False,
-          handlelength=1.3, labelspacing=0.25, bbox_to_anchor=(0.0, 1.0))
+          handlelength=1.3, labelspacing=0.25, bbox_to_anchor=(0.02, 0.97))
 # Add explicit padding between the axes and its x-label so the label does not sit
 # inside the footnote band below.
 ax.set_xlabel('Requests/month (log)', fontsize=9, labelpad=6)
