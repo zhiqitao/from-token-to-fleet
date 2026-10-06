@@ -1,5 +1,4 @@
-\ntsection{The Architect's Question}\label{the-architects-question}
-
+\section*{The Architect's Question}\label{the-architects-question}
 
 Designing an AI system means producing candidate architectures from the
 substrate --- memory, compute, communication, and parallelism --- rather
@@ -63,10 +62,10 @@ enterprise-Q\&A RAG workload: \textasciitilde10 requests/s average, peak
 context), 300-token output. The canonical weight memory is 140 GB (70B ×
 2 bytes FP16). The KV cache for 9.2K context at FP16 precision ({[}1P{]}
 canonical (Ch 4, \hyperref[tab:4.3]{Table 4-3})) is approximately 24 GB (2 × num\_layers ×
-hidden\_dim × 9,200 ×2 bytes / scale factor), giving a total residency
-of 164 GB. A single 8×H100 host provides 640 GB aggregate memory (8 ×80
-GB), leaving ample headroom. Each candidate satisfies the three hard
-constraints differently.
+hidden\_dim × 9,200 × 2 bytes per FP16 element), giving a total
+residency of 164 GB. A single 8×H100 host provides 640 GB aggregate
+memory (8 ×80 GB), leaving ample headroom. Each candidate satisfies the
+three hard constraints differently.
 
 \textbf{Candidate (a): single 8×H100 host with prefix caching (Ch. 11).}
 This is the per-request-latency baseline --- the single 8×H100 host that
@@ -160,10 +159,10 @@ thousands of prefill tokens/s (vs \textasciitilde2,471 per \emph{GPU}
 for the 70B, \hyperref[chap:8]{Chapter 8}) --- but that throughput advantage is only useful
 if the quality gate is first satisfied. The candidate is therefore
 provisional: its fate depends on the measured quality gate, which
-Chapters 13--14 administer. This candidate illustrates the extreme end
-of the KV-quantization space: the memory footprint is trivially small,
-but neither quality nor throughput makes it competitive for this
-workload.
+\hyperref[chap:14]{Chapter 14} (the capability screen) administers. This candidate
+illustrates the extreme end of the KV-quantization space: the memory
+footprint is trivially small, but neither quality nor throughput makes
+it competitive for this workload.
 
 \emph{Memory/residency arithmetic summary.} The canonical weights (140
 GB) + KV (24 GB FP16 at the 9.2K input context) = 164 GB fits 640 GB
@@ -171,7 +170,7 @@ GB) + KV (24 GB FP16 at the 9.2K input context) = 164 GB fits 640 GB
 (b) keeps the full model in each pool, so each 8×H100 host also holds
 \textasciitilde164 GB. Candidate (c) fits \textasciitilde15 GB on one
 H100 and its throughput is high, but it is \textbf{provisional} --- its
-fate turns on the Ch 13--14 quality-gate measurement, not on parameter
+fate turns on the Ch 14 quality-gate measurement, not on parameter
 counting.
 
 \ntsection{Measurement}\label{measurement}
@@ -196,9 +195,11 @@ KV = 2 \times n_\text{layers} \times d_\text{hidden} \times L \times \text{bytes
 \]
 
 where \(L\) is the context length. For a 70B model with 8-bit KV
-caching, this is approximately 12 GB for 9.2K context; at FP16 precision
-it doubles to \textasciitilde24 GB {[}ILLUSTRATIVE{]}{[}DERIVED{]}. The
-architect should compute this for the exact context length of the
+caching, this is approximately 12 GB for 9.2K context (the byte-halving
+bound: 2.62 MB/token FP16 ÷ 2; the measured FP8 constant is
+\textasciitilde1.42 MB/token → \textasciitilde13.4 GB, Ch 7); at FP16
+precision it is \textasciitilde24 GB {[}ILLUSTRATIVE{]}{[}DERIVED{]}.
+The architect should compute this for the exact context length of the
 workload, not assume a fixed value. 3. \textbf{Throughput per device.}
 Tokens-per-second that a single device can sustain for prefill and
 decode, measured on the target hardware. This is the number that,
@@ -313,12 +314,14 @@ concurrent (\textasciitilde100), \textasciitilde10 rps average /
 1,200-token prompt plus 8K retrieved context (\textasciitilde9.2K input)
 plus 300-token answers, with TTFT ≤ 1.2 s (p95 ≤ 2 s) and TPOT
 \textasciitilde25 ms/token. The economic ceiling is \$15,000 monthly
-operating budget --- a \textbf{per-host} ceiling (one 8×H100 at
-\textasciitilde\$20/hr × 730 hr ≈ \$14.6K/mo), which the reader should
-note is far below what the full canonical workload costs once the
-multi-host fleet is sized (Ch 16): the budget is a single-host cap, not
-the workload ceiling. The operational constraint is that the system must
-run on existing on-premise GPU infrastructure (no cloud add-ons).
+operating budget --- a \textbf{per-host} ceiling, expressed as the
+cloud-equivalent of one 8×H100 at \textasciitilde\$20/hr × 720 hr ≈
+\$14.4K/mo (an on-premise host has no \$/hr, so this is a budget cap,
+not a metered cost), which the reader should note is far below what the
+full canonical workload costs once the multi-host fleet is sized (Ch
+16): the budget is a single-host cap, not the workload ceiling. The
+operational constraint is that the system must run on existing
+on-premise GPU infrastructure (no cloud add-ons).
 
 From the token profile, the architect computes: 9.2K input tokens + 300
 output tokens ≈ 9.5K tokens per request. At 10 rps average and 40 rps
@@ -341,16 +344,17 @@ already fails. Candidate (b): a P/D-disaggregated two-pool keeping the
 full 70B in each pool (prefill and decode pools, each \textasciitilde164
 GB residency on its own 8×H100 host), which buys phase-splitting at the
 cost of a second host plus the KV-transfer fabric. Candidate (c): a
-KV-quantized 7B model on a single H100, which fits the memory budget (20
-GB total residency), but its quality is \emph{provisional} --- whether a
-7B-class model can reach the required answer quality is a hypothesis to
-be measured against the quality gate (Chapters 13--14), not a settled
-fact --- and it faces the same throughput demand at peak, making it
-provisionally non-viable.
+KV-quantized 7B model on a single H100, which fits the memory budget
+(\textasciitilde15 GB total residency: 14 GB FP16 weights +
+\textasciitilde1.2 GB 4-bit KV), but its quality is \emph{provisional}
+--- whether a 7B-class model can reach the required answer quality is a
+hypothesis to be measured against the quality gate (\hyperref[chap:14]{Chapter 14}), not a
+settled fact --- and it faces the same throughput demand at peak, making
+it provisionally non-viable.
 
 The architect does \textbf{not} discard Candidate (c) by parameter
 counting alone: it is provisionally moved to the quality-gate evaluation
-(Chapters 13--14) to measure whether a 7B-class model actually meets the
+(\hyperref[chap:14]{Chapter 14}) to measure whether a 7B-class model actually meets the
 workload's capability/quality threshold on its evaluation set. Its
 memory and economics are trivially favorable; its fate turns on that
 measured gate. Because candidate (c) is strongly suspected to fail the
@@ -367,8 +371,8 @@ demand alone), to the stakeholder as the decision foundation.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Candidate architecture synthesis: a constraint-first reasoning chain. Requirements (canonical RAG: \textasciitilde2,000 users, \textasciitilde10/40 rps, 9.2K-in/300-out, \textasciitilde70B quality) → hard constraints (memory residency ≤ host, TTFT ≤1.2 s / TPOT \textasciitilde25 ms, \textasciitilde\$14.6K/mo per-host ceiling) → three generated candidates → survivors vs rejected. Each candidate is tested against the three gates (MEM / LAT / ECON); the per-gate verdicts and their arithmetic live in \hyperref[tab:12.1]{Table 12-1} and §12.4 (a: 8×H100 + prefix cache, 140+24=164 GB, prefill \textasciitilde19.8K ≪ \textasciitilde92K → fails throughput; b: P/D-disaggregated 2-pool, 164 GB/pool, one prefill host still \textasciitilde19.8K ≪ \textasciitilde92K → fails throughput at a single host, but the prefill pool scales independently to \textasciitilde5 hosts; c: KV-quantized 7B, 20 GB, fails the quality gate).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-12-1201.png}}
-\caption[Candidate architecture synthesis]{Candidate architecture synthesis: a constraint-first reasoning chain. Requirements (canonical RAG: \textasciitilde2,000 users, \textasciitilde10/40 rps, 9.2K-in/300-out, \textasciitilde70B quality) → hard constraints (memory residency ≤ host, TTFT ≤1.2 s / TPOT \textasciitilde25 ms, \textasciitilde\$14.6K/mo per-host ceiling) → three generated candidates → survivors vs rejected. Each candidate is tested against the three gates (MEM / LAT / ECON); the per-gate verdicts and their arithmetic live in \hyperref[tab:12.1]{Table 12-1} and §12.4 (a: 8×H100 + prefix cache, 140+24=164 GB, prefill \textasciitilde19.8K ≪ \textasciitilde92K → fails throughput; b: P/D-disaggregated 2-pool, 164 GB/pool, one prefill host still \textasciitilde19.8K ≪ \textasciitilde92K → fails throughput at a single host, but the prefill pool scales independently to \textasciitilde5 hosts; c: KV-quantized 7B, 20 GB, fails the quality gate).}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Candidate architecture synthesis: a constraint-first reasoning chain. Requirements (canonical RAG: \textasciitilde2,000 users, \textasciitilde10/40 rps, 9.2K-in/300-out, \textasciitilde70B quality) → hard constraints (memory residency ≤ host, TTFT ≤1.2 s / TPOT \textasciitilde25 ms, \textasciitilde\$14.4K/mo per-host ceiling) → three generated candidates → survivors vs rejected. Each candidate is tested against the three gates (MEM / LAT / ECON); the per-gate verdicts and their arithmetic live in \hyperref[tab:12.1]{Table 12-1} and §12.3 (a: 8×H100 + prefix cache, 140+24=164 GB, prefill \textasciitilde19.8K ≪ \textasciitilde92K → fails throughput; b: P/D-disaggregated 2-pool, 164 GB/pool, one prefill host still \textasciitilde19.8K ≪ \textasciitilde92K → fails throughput at a single host, but the prefill pool scales independently to \textasciitilde5 hosts; c: KV-quantized 7B, \textasciitilde15 GB, fails the quality gate).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-12-1201.pdf}}
+\caption[Candidate architecture synthesis]{Candidate architecture synthesis: a constraint-first reasoning chain. Requirements (canonical RAG: \textasciitilde2,000 users, \textasciitilde10/40 rps, 9.2K-in/300-out, \textasciitilde70B quality) → hard constraints (memory residency ≤ host, TTFT ≤1.2 s / TPOT \textasciitilde25 ms, \textasciitilde\$14.4K/mo per-host ceiling) → three generated candidates → survivors vs rejected. Each candidate is tested against the three gates (MEM / LAT / ECON); the per-gate verdicts and their arithmetic live in \hyperref[tab:12.1]{Table 12-1} and §12.3 (a: 8×H100 + prefix cache, 140+24=164 GB, prefill \textasciitilde19.8K ≪ \textasciitilde92K → fails throughput; b: P/D-disaggregated 2-pool, 164 GB/pool, one prefill host still \textasciitilde19.8K ≪ \textasciitilde92K → fails throughput at a single host, but the prefill pool scales independently to \textasciitilde5 hosts; c: KV-quantized 7B, \textasciitilde15 GB, fails the quality gate).}
 
 \label{fig:12.1}\end{figure}
 
@@ -416,8 +420,8 @@ pool must itself scale to \textasciitilde5 hosts (92K ÷ 19.8K ≈ 4.65) +
 decode pool; \textasciitilde2× capex + fabric \\
 (c) KV-quantized 7B & 14 + \textasciitilde1.2 =
 \textbf{\textasciitilde15 GB} & 1 ×H100 & high per-GPU prefill tok/s & ✗
-quality --- provisional (subject to Ch 13--14 quality-gate measurement)
-& ✗ \textgreater1 card at peak \\
+quality --- provisional (subject to Ch 14 quality-gate measurement) & ✗
+\textgreater1 card at peak \\
 
 \label{tab:12.1}\end{longtable}
 
@@ -427,6 +431,8 @@ worked examples, not measurement claims.}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\emph{Next chapter: \hyperref[chap:13]{Chapter 13} --- Evaluating Candidate Architectures,
-which subjects the three candidates from \hyperref[tab:12.1]{Table 12-1} to quantitative
-throughput, cost, and quality evaluation across the canonical workload.}
+\emph{Next chapter: \hyperref[chap:13]{Chapter 13} --- Reference Architectures: From Local
+to Hyperscale, which places the surviving candidates on the deployment
+ladder. The 7B candidate (c)'s quality gate is then administered in
+\hyperref[chap:14]{Chapter 14} (Benchmarking), where the capability screen decides which
+candidates qualify for deployment.}

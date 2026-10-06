@@ -1,5 +1,4 @@
-\ntsection{The Architect's Question}\label{the-architects-question}
-
+\section*{The Architect's Question}\label{the-architects-question}
 
 As the ``From Token to Fleet'' handbook reaches its final chapters, we
 turn from technical mechanisms to the governance of those mechanisms.
@@ -370,7 +369,7 @@ it this way?'' debates --- more than compensates.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The Anatomy of an Architecture Decision Record},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-25-2501.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The Anatomy of an Architecture Decision Record},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-25-2501.png}}
 \caption{The Anatomy of an Architecture Decision Record}
 
 \label{fig:25.1}\end{figure}
@@ -430,14 +429,18 @@ ceiling is now limiting throughput below the target request rate.
 \item
   \textbf{Status:} Proposed
 \item
-  \textbf{Context:} The canonical 70B RAG workload is KV-memory-bound at
-  decode (Ch. 15). At the \textasciitilde436 GB practical KV budget,
-  full FP16 KV caps concurrency at \textasciitilde17.5 requests/host,
-  and Ch. 17 shows that \textasciitilde40 rps at the canonical
-  \textasciitilde8.6 s service time implies \textasciitilde344 in-flight
-  requests --- far more than one host can hold (a single host holds
-  \textasciitilde17.5 concurrent). To reach the target request rate we
-  need either more host capacity or more KV residency per host.
+  \textbf{Context:} The canonical 70B RAG workload is bandwidth-bound at
+  decode (Ch. 8's ``memory-bound'' = low arithmetic intensity,
+  \textasciitilde1 FLOP/byte), and its \emph{concurrency} is
+  capacity-constrained by KV residency (a distinct constraint from the
+  decode bandwidth bound --- Ch. 15). At the \textasciitilde436 GB
+  practical KV budget, full FP16 KV caps concurrency at
+  \textasciitilde17.5 requests/host, and Ch. 17 shows that
+  \textasciitilde40 rps at the canonical \textasciitilde8.6 s service
+  time implies \textasciitilde344 in-flight requests --- far more than
+  one host can hold (a single host holds \textasciitilde17.5
+  concurrent). To reach the target request rate we need either more host
+  capacity or more KV residency per host.
 \item
   \textbf{Decision:} Render the KV cache in FP8 for the long-context
   decode path, keeping prefill and the retrieval/prompt phase in FP16.
@@ -480,9 +483,14 @@ ceiling is now limiting throughput below the target request rate.
     \textasciitilde\$5.8K/mo amortized), while FP8 KV relaxes the same
     ceiling without commissioning new hardware.
   \item
-    \textbf{GQA (grouped-query attention) reduction} --- already in
-    place; a further reduction changes model architecture and
-    retraining, outside a serving-only change.
+    \textbf{GQA (grouped-query attention) reduction} --- not available
+    for the canonical model: the 70B reference geometry is full
+    multi-head attention (32 KV heads, 2.62 MB/token, Ch 7). Adopting
+    GQA would cut KV per token by \textasciitilde8× (the largest single
+    capacity lever in this book, Ch 16), but it changes the model
+    architecture and requires retraining and re-evaluation --- it is
+    outside a serving-only change. It is the right \emph{next-model}
+    decision, not a knob on this deployment.
   \item
     \textbf{Prefix/context caching} --- complementary, not a substitute:
     it reduces prefill work and recomputation, but does not shrink the

@@ -72,7 +72,7 @@ The RAG request's 8K retrieved-context tokens are largely shared across queries 
 
 ### When to Disaggregate: Prefill and Decode Want Different Pools
 
-Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported >525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
+Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (5.6 TB/s aggregate single-device demand vs 3.35 TB/s per GPU; under the canonical 8×H100 host the 140 GB is sharded to ~0.70 TB/s per GPU, and the shard-invariant cause is the low ~1.0 FLOP/byte intensity, Ch 6) [1P][DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported >525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
 
 #### Table 11-1 — Serving techniques at a glance
 
@@ -102,7 +102,7 @@ Good serving telemetry answers "are we meeting the SLO while keeping the GPU bus
 
 - **Serving KV contiguous and watching fragmentation.** PagedAttention removes the fragmentation tax; skipping it wastes memory under concurrency.
 
-*Re-prefilling shared context.* Without prefix caching, repeated RAG documents are recomputed per request — one of the most wasteful failures for this workload.
+- **Re-prefilling shared context.** Without prefix caching, repeated RAG documents are recomputed per request — one of the most wasteful failures for this workload.
 
 - **Choosing P/D disaggregation too early.** Splitting pools adds fabric + orchestration; for a single host it is overhead without the resource conflict that motivates it.
 
@@ -126,7 +126,7 @@ The serving stack dictates the deployment choices:
 
 ![Fig 11.3 — P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer [ILLUSTRATIVE][DERIVED]](figures/fig-11-1103.png)
 
-*P/D disaggregation topology. Left: a prefill-optimized pool (FLOP-facing), which handles the long prompt at once. Right: a decode-optimized pool (HBM-facing), which reads the steady token-by-token generation. Once, a fabric bridge moves the prompt KV cache from prefill to decode: prefill writes the prompt KV, then decode reads it and keeps appending per generated token — the KV moves once, then stays (ownership splits). The split exists because the two stages want opposite resources under load — prefill needs compute capacity (~1.19 PFLOPS required vs 0.989 peak single-H100), decode needs HBM bandwidth (5.6 TB/s demand vs 3.35 TB/s) [1P][DERIVED].*
+*P/D disaggregation topology. Left: a prefill-optimized pool (FLOP-facing), which handles the long prompt at once. Right: a decode-optimized pool (HBM-facing), which reads the steady token-by-token generation. Once, a fabric bridge moves the prompt KV cache from prefill to decode: prefill writes the prompt KV, then decode reads it and keeps appending per generated token — the KV moves once, then stays (ownership splits). The split exists because the two stages want opposite resources under load — prefill needs compute capacity (~1.19 PFLOPS required vs 0.989 peak single-H100), decode needs HBM bandwidth (5.6 TB/s aggregate single-device demand vs 3.35 TB/s per GPU; sharded to ~0.70 TB/s per GPU under the canonical 8×H100 host, Ch 6) [1P][DERIVED].*
 
 ### The Serving Stack, Not the Product Catalog
 

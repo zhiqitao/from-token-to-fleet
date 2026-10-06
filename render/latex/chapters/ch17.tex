@@ -1,5 +1,4 @@
-\ntsection{The Architect's Question}\label{the-architects-question}
-
+\section*{The Architect's Question}\label{the-architects-question}
 
 Having established the single-host serving model --- a 70B FP16 model on
 8×H100 serving the canonical workload (Ch 4, \hyperref[tab:4.3]{Table 4-3}) at
@@ -58,8 +57,8 @@ hosts.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Sizing a fleet of one model by burst peak, headroom, and failover: offered load rises to a \textasciitilde5.5 req/s burst that a single host (\textasciitilde2.0 req/s analytical planning bound) cannot meet; a 4-host fleet (\textasciitilde8.0 req/s at the analytical bound) is sized ABOVE the burst, and after one host drains the N-1 = 3 residual (\textasciitilde6.0 req/s) still clears it},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-17-1701.pdf}}
-\caption[Sizing a fleet of one model by burst peak, headroom, and failover]{Sizing a fleet of one model by burst peak, headroom, and failover: offered load rises to a \textasciitilde5.5 req/s burst that a single host (\textasciitilde2.0 req/s analytical planning bound) cannot meet; a 4-host fleet (\textasciitilde8.0 req/s at the analytical bound) is sized ABOVE the burst, and after one host drains the N-1 = 3 residual (\textasciitilde6.0 req/s) still clears it}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Sizing a fleet of one model by burst peak, headroom, and failover: offered load rises to a \textasciitilde5.5 req/s burst that a single host (\textasciitilde2.0 req/s analytical planning bound) cannot meet; a 4-host fleet (\textasciitilde8.0 req/s at the analytical bound) is sized ABOVE the burst, and after one host drains the N-1 = 3 residual (\textasciitilde6.0 req/s) still clears it. The 5.5 req/s burst is a small illustrative example of the sizing method; the canonical 40 rps peak is sized the same way to ≈20 hosts (Ch. 17-20)},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-17-1701.pdf}}
+\caption[Sizing a fleet of one model by burst peak, headroom, and failover]{Sizing a fleet of one model by burst peak, headroom, and failover: offered load rises to a \textasciitilde5.5 req/s burst that a single host (\textasciitilde2.0 req/s analytical planning bound) cannot meet; a 4-host fleet (\textasciitilde8.0 req/s at the analytical bound) is sized ABOVE the burst, and after one host drains the N-1 = 3 residual (\textasciitilde6.0 req/s) still clears it. The 5.5 req/s burst is a small illustrative example of the sizing method; the canonical 40 rps peak is sized the same way to ≈20 hosts (Ch. 17-20)}
 
 \label{fig:17.1}\end{figure}
 
@@ -236,6 +235,30 @@ These numbers are the KV-residency ceiling; measured concurrency may be
 lower if GPU throughput or bandwidth binds first, so the architect takes
 the min of the KV, compute, and bandwidth capacities.
 
+\begin{quote}
+\textbf{Reconciliation box --- the four throughput rates in this book
+are different quantities, not a contradiction.} (1)
+\textbf{\textasciitilde50 tok/s} (Ch. 5) is a deliberately conservative
+\emph{single-stream, low-batch} generation rate used to illustrate the
+tokens-per-dollar \emph{method}; it is a floor, not the host's serving
+throughput. (2) \textbf{\textasciitilde19,800 tok/s} (Ch. 8) is the
+\emph{idealized prefill} aggregate (8 × 2,471 at 35\% MFU) before
+TP/system loss --- an analytical upper bound on prefill, not a servable
+goodput. (3) \textbf{\textasciitilde35,000--70,000 tok/s} (Ch. 15) is
+the \emph{batched serving} decode+prefill range under FlashAttention +
+continuous batching --- the multi-request serving throughput of the same
+host. (4) \textbf{\textasciitilde2.0 req/s} (Ch. 17/20) is the
+\emph{KV/service-time bound} on whole requests per host (C ÷ W), the
+quantity that sizes the fleet. The first three are token-rates at
+different batch/phase assumptions; the fourth is a request-rate bound.
+They reconcile because a request is \textasciitilde9,500 tokens: 2.0
+req/s × 9,500 ≈ 19,000 tok/s of \emph{total} token work per host, which
+sits between the single-stream floor (50) and the batched serving range
+(35--70K) --- the gap is exactly the batching/phase headroom. Use the
+token-rates for kernel and cost reasoning, and the request-rate for
+fleet sizing. {[}DERIVED{]}
+\end{quote}
+
 \textbf{Define the subsystem boundaries before applying Little's Law ---
 the populations are NOT the same.} The end-to-end ``in-flight request''
 count differs from the number of sequences actually occupying
@@ -324,6 +347,19 @@ overhead). At the canonical peak:
   honest fleet size and matches the throughput/latency analysis in
   \hyperref[chap:20]{Chapter 20}.
 \item
+  \textbf{The 25 ms/token in W is the TPOT \emph{budget}, not a measured
+  per-step time.} The decode-bandwidth floor for the canonical 8×H100
+  host is 140 GB ÷ (8 × 3.35 TB/s) ≈ 5.2 ms/step, so a well-tuned decode
+  can run well under the 25 ms SLO. The fleet number above therefore
+  uses the \emph{least-favourable} (budget) pole of the service time.
+  The sensitivity band, holding prefill at 1.08 s and 300 output tokens:
+  at 5.2 ms/step W ≈ 2.6 s (in-flight ≈ 106, \textasciitilde6 hosts at
+  full util); at 10 ms/step W ≈ 4.1 s (in-flight ≈ 164,
+  \textasciitilde10 hosts); at the 25 ms budget W ≈ 8.6 s (in-flight ≈
+  344, \textasciitilde20 hosts). Sizing at the 25 ms budget is the
+  conservative choice; a measured per-step time from a \hyperref[chap:14]{Chapter 14}
+  benchmark should replace it before committing hardware.
+\item
   Switching to FP8 KV (κ ≈ 1.42 MB/token, 54\% of BF16, C ≈ 32.4 at T=0)
   raises per-host concurrency to \textasciitilde32.4, cutting the fleet
   to H\_min ≈ 344/32.4 ≈ 10.6 → \textbf{\textasciitilde11 hosts} (≈15 at
@@ -368,9 +404,9 @@ health‑check traffic (\textasciitilde1\% of requests), session‑affinity
 hashing skew, and LB process CPU limits. The throughput\_per\_host
 itself must come from a benchmark on the actual workload
 (tokens/context/batch) --- it is an ILLUSTRATIVE proxy until measured.
-What is \emph{derivable} is the KV‑residency ceiling C from §17.4; the
+What is \emph{derivable} is the KV‑residency ceiling C from §17.3; the
 LB overhead multiplies the schedulable fraction of that ceiling. In the
-worked example, the fleet is currently sized by KV capacity (§17.4), not
+worked example, the fleet is currently sized by KV capacity (§17.3), not
 by a fabricated tokens/s number: at T=4, FP16-KV C≈13/host (436 GB ÷
 (12,960 × 2.62 MB ≈ 34.0 GB) ≈ 12.8) sets the ceiling, and adding a host
 raises aggregate schedulable concurrency by ρ·C, i.e.~\textasciitilde12
@@ -534,12 +570,12 @@ stateless → software LB with consistent hashing.
 cross‑host communication (distributed retrieval, multi‑model
 orchestration, state sync), a dedicated backend network must be
 provisioned. The minimum bandwidth is B\_min = φ · N · D / λ\_net (the
-fleet aggregate derived in §17.4 --- the expected concurrent cross-host
+fleet aggregate derived in §17.3 --- the expected concurrent cross-host
 requests times the per-request burst D / λ\_net), and the fabric should
 provide at least 2×B\_min for headroom. In the canonical scenario with φ
 = 0.1, N = 4, D = 5\,MB, λ\_net = 20\,ms, B\_min ≈ 0.8\,Gbps (0.1 × 4 ×
 5 MB / 0.02 s = 100 MB/s), so a 10\,Gbps intra-rack network has ample
-headroom for the aggregate; but as §17.4 notes, the per-request burst
+headroom for the aggregate; but as §17.3 notes, the per-request burst
 itself (D / λ\_net = 250 MB/s ≈ 2\,Gbps in the base case) must also fit
 a single link once a request is in flight, which is the binding
 constraint when φ or D grows. But the architect should instrument φ and
@@ -699,7 +735,7 @@ time W --- not a sub-second target latency. Two service times apply: W ≈
 8.6 s for the non-agentic canonical request (1.08 s prefill + 7.5 s
 decode), and W ≈ 13.8 s for the T=3 (95th-percentile) agentic request
 (the mini-case's service-time-aware figure). These are the in-flight
-counts the chapter derives in §17.4/§17.5.
+counts the chapter derives in §17.3/§17.4.
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -733,13 +769,15 @@ H @ T=3 (95th), FP8 (C×0.7 = 25.4×0.7 = 17.78)
 ⌈1380/17.78⌉ ≈ 78 \\
 200 rps (2× growth) & 1,720 & 2,760 & ⌈1720/12.25⌉ ≈ 141 & ⌈2760/9.66⌉ ≈
 286 & ⌈2760/17.78⌉ ≈ 156 \\
+\textbf{N-1 failover, 40 rps peak (survive one host loss)} & --- & --- &
+30 & 59 & 33 \\
 
 \label{tab:17.2}\end{longtable}
 
 \emph{The chapter sizes fleets at the \textbf{95th-percentile turn
 scenario (T=3)} per its own rule (``size for the 95th-percentile token
 scenario''), so the agentic columns use T=3 --- which is also what the
-§17.9 mini-case computes (\textasciitilde143 hosts at 100 rps). C is the
+§17.8 mini-case computes (\textasciitilde143 hosts at 100 rps). C is the
 KV-residency ceiling (derived): 17.5 concurrent full-context requests on
 FP16 at T=0 (conservative integer floor 17), 13.8 at T=3 (12,095 tokens
 × 2.62 MB ≈ 31.7 GB/request over 436 GB), and 25.4 on FP8 at T=3 (12,095

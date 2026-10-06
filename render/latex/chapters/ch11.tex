@@ -1,5 +1,4 @@
-\ntsection{The Architect's Question}\label{the-architects-question}
-
+\section*{The Architect's Question}\label{the-architects-question}
 
 After this chapter we should be able to answer the operational half of
 deployment: \emph{the model is in memory and the requests are arriving
@@ -55,6 +54,43 @@ order:
 These mechanisms compose: continuous batching is the baseline,
 PagedAttention makes it memory-efficient, prefix caching makes it
 cheaper, and P/D disaggregation makes it scale.
+
+\textbf{Source keys {[}S1{]}--{[}S6{]}.} The bracketed keys used
+throughout this book (and in the evidence taxonomy of \hyperref[chap:26]{Chapter 26}) point
+to the primary sources below. Each is a {[}1P{]} first-party or
+peer-reviewed source; the book's derived numbers cite the key plus a
+{[}DERIVED{]} tag.
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{{[}S1{]} Orca} --- Yu et al., ``Orca: A Distributed Serving
+  System for Transformer-Based Generative Models,'' OSDI 2022.
+  Continuous (iteration-level) batching.
+\item
+  \textbf{{[}S2{]} PagedAttention / vLLM} --- Kwon et al., ``Efficient
+  Memory Management for Large Language Model Serving with
+  PagedAttention,'' SOSP 2023. Block-based KV cache.
+\item
+  \textbf{{[}S3{]} Prefix caching} --- ``Fast Inference from
+  Transformers via Radix Attention'' (SGLang, 2023) and vLLM Automatic
+  Prefix Caching (APC). Caching shared-prefix KV.
+\item
+  \textbf{{[}S4{]} P/D disaggregation} --- ``Splitwise: Efficient
+  Generative LLM Inference Using Phase Splitting'' (ISCA 2024),
+  ``DistServe: Disaggregating Prefill and Decoding for Goodput-optimized
+  Large Language Model Serving'' (OSDI 2024), and Mooncake (KV-centric
+  disaggregation, 2024).
+\item
+  \textbf{{[}S5{]} DFlash} --- speculative-decoding system reporting
+  \textgreater6× (up to 2.5× in its evaluated configuration) lossless
+  acceleration.
+\item
+  \textbf{{[}S6{]} vLLM FP8-KV measurement} --- vLLM's measured FP8
+  KV-cache residency at ≈54\% of BF16 (the \textasciitilde1.42 MB/token
+  constant used in Chapters 7, 15, 17, 22, 25; distinct from the naive
+  50\% byte-halving).
+\end{itemize}
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -187,10 +223,13 @@ Pools}\label{when-to-disaggregate-prefill-and-decode-want-different-pools}
 
 Recall from Ch2/Ch6: prefill is \textbf{compute-bound}
 (\textasciitilde1.29 PFLOP → \textasciitilde1.19 PFLOPS required vs
-0.989 PFLOPS peak), decode is \textbf{bandwidth-bound} (5.6 TB/s demand
-vs 3.35 TB/s) {[}1P{]}{[}DERIVED{]}. Serving both from one pool forces a
-compromise: batch for prefill and it slows decode; optimize for decode
-and prefill starves. \textbf{P/D disaggregation
+0.989 PFLOPS peak), decode is \textbf{bandwidth-bound} (5.6 TB/s
+aggregate single-device demand vs 3.35 TB/s per GPU; under the canonical
+8×H100 host the 140 GB is sharded to \textasciitilde0.70 TB/s per GPU,
+and the shard-invariant cause is the low \textasciitilde1.0 FLOP/byte
+intensity, Ch 6) {[}1P{]}{[}DERIVED{]}. Serving both from one pool
+forces a compromise: batch for prefill and it slows decode; optimize for
+decode and prefill starves. \textbf{P/D disaggregation
 (Splitwise/DistServe/Mooncake {[}S4{]}{[}1P{]})} runs prefill nodes at
 high FLOP-utilization and decode nodes at high bandwidth-utilization,
 transferring KV across via the fabric (\textbf{\hyperref[fig:11.3]{Fig 11.3}} shows the
@@ -277,13 +316,10 @@ the GPU busy?'':
   \textbf{Serving KV contiguous and watching fragmentation.}
   PagedAttention removes the fragmentation tax; skipping it wastes
   memory under concurrency.
-\end{itemize}
-
-\emph{Re-prefilling shared context.} Without prefix caching, repeated
-RAG documents are recomputed per request --- one of the most wasteful
-failures for this workload.
-
-\begin{itemize}
+\item
+  \textbf{Re-prefilling shared context.} Without prefix caching,
+  repeated RAG documents are recomputed per request --- one of the most
+  wasteful failures for this workload.
 \item
   \textbf{Choosing P/D disaggregation too early.} Splitting pools adds
   fabric + orchestration; for a single host it is overhead without the
@@ -327,7 +363,7 @@ The serving stack dictates the deployment choices:
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation)},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1101.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation)},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1101.png}}
 \caption[Serving is four orthogonal concerns, not a stack (request scheduling, state…]{Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation)}
 
 \label{fig:11.2}\end{figure}
@@ -357,8 +393,9 @@ reads it and keeps appending per generated token --- the KV moves once,
 then stays (ownership splits). The split exists because the two stages
 want opposite resources under load --- prefill needs compute capacity
 (\textasciitilde1.19 PFLOPS required vs 0.989 peak single-H100), decode
-needs HBM bandwidth (5.6 TB/s demand vs 3.35 TB/s)
-{[}1P{]}{[}DERIVED{]}.}
+needs HBM bandwidth (5.6 TB/s aggregate single-device demand vs 3.35
+TB/s per GPU; sharded to \textasciitilde0.70 TB/s per GPU under the
+canonical 8×H100 host, Ch 6) {[}1P{]}{[}DERIVED{]}.}
 
 \subsection{The Serving Stack, Not the Product
 Catalog}\label{the-serving-stack-not-the-product-catalog}

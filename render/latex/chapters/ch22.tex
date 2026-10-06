@@ -1,5 +1,4 @@
-\ntsection{The Architect's Question}\label{the-architects-question}
-
+\section*{The Architect's Question}\label{the-architects-question}
 
 Before any model is selected, any GPU is counted, any latency budget is
 allocated, the architect must answer one question: \emph{what is the
@@ -174,8 +173,8 @@ output tokens/s @ 10 rps & \textasciitilde3,000 & 300 ×10
 {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
 output tokens/s @ peak 40 rps & \textasciitilde12,000 & 300 ×40
 {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
-prefill FLOPs per request & \textasciitilde1.29 PFLOP & 2 ×70B × 9.2K ≈
-1.29 ×10¹⁵ {[}DERIVED{]} \\
+prefill FLOPs per request (parameterized-linear, excl. attention term) &
+\textasciitilde1.29 PFLOP & 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ {[}DERIVED{]} \\
 decode weight-read per token & \textasciitilde140 GB & full-weight-read
 model (70B FP16) {[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
 decode required BW rate & \textasciitilde5.6 TB/s & \textasciitilde140
@@ -194,8 +193,8 @@ difference used elsewhere in the book)} \\
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Prefill vs decode scaling as context grows; two panels (different units, NOT directly comparable). LEFT = PREFILL PER REQUEST (linear 2NL, quadratic 4·n\_layers·L²·d, total): the quadratic attention term dominates at long context (≥ \textasciitilde32K). RIGHT = DECODE PER TOKEN (fixed 2N ≈ 1.4e-4 PFLOP/token, flat across context). The quadratic term is the textbook 4·n\_layers·L²·d and matches \hyperref[chap:8]{Chapter 8}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-22-2201.png}}
-\caption[Prefill vs decode scaling as context grows; two panels (different units, NOT…]{Prefill vs decode scaling as context grows; two panels (different units, NOT directly comparable). LEFT = PREFILL PER REQUEST (linear 2NL, quadratic 4·n\_layers·L²·d, total): the quadratic attention term dominates at long context (≥ \textasciitilde32K). RIGHT = DECODE PER TOKEN (fixed 2N ≈ 1.4e-4 PFLOP/token, flat across context). The quadratic term is the textbook 4·n\_layers·L²·d and matches \hyperref[chap:8]{Chapter 8}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Prefill vs decode scaling as context grows; two panels (different units, NOT directly comparable). LEFT = PREFILL PER REQUEST (linear 2NL, quadratic 4·n\_layers·L²·d, total): the quadratic attention term dominates at long context (≥ \textasciitilde32K). RIGHT = DECODE PER TOKEN (fixed 2N ≈ 1.4e-4 PFLOP/token for the parameter term, flat across context; the total per-token decode also adds attention over the growing KV cache, which grows with context). The quadratic term is the textbook 4·n\_layers·L²·d and matches \hyperref[chap:8]{Chapter 8}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-22-2201.pdf}}
+\caption[Prefill vs decode scaling as context grows; two panels (different units, NOT…]{Prefill vs decode scaling as context grows; two panels (different units, NOT directly comparable). LEFT = PREFILL PER REQUEST (linear 2NL, quadratic 4·n\_layers·L²·d, total): the quadratic attention term dominates at long context (≥ \textasciitilde32K). RIGHT = DECODE PER TOKEN (fixed 2N ≈ 1.4e-4 PFLOP/token for the parameter term, flat across context; the total per-token decode also adds attention over the growing KV cache, which grows with context). The quadratic term is the textbook 4·n\_layers·L²·d and matches \hyperref[chap:8]{Chapter 8}}
 
 \label{fig:22.1}\end{figure}
 
@@ -203,7 +202,7 @@ difference used elsewhere in the book)} \\
 with sequence length while the MLP/projection portion stays roughly
 linear, so total prefill compute becomes increasingly dominated by the
 quadratic attention term as context grows (the 9.2K canonical point is
-marked; +17\% at 9.2K → \textasciitilde2.4× at 128K). Prefill is
+marked; +17\% at 9.2K → \textasciitilde33× at 128K). Prefill is
 compute-bound (\textasciitilde1.29 PFLOP/request → \textasciitilde1.19
 PFLOPS required at the \textasciitilde1.08 s budget vs H100
 \textasciitilde0.989 PFLOPS peak). The decode series is FLOPs per
@@ -299,11 +298,15 @@ workload's prefill phase dominates: \textasciitilde1.29 PFLOP of compute
 per request, and a KV cache that grows with 9.2K input tokens. The
 decode phase, while smaller in total tokens, requires a weight-read rate
 of \textasciitilde5.6 TB/s sustained over each \textasciitilde25 ms
-decode step (the \textasciitilde140 GB weight-read interval), against
-one GPU's \textasciitilde3.35 TB/s --- a bandwidth-bound design at low
-batch. (Note the units: 5.6 TB/s is a \emph{rate}; the \emph{per-token
-weight traffic} is \textasciitilde140 GB under the full-weight-read
-model, and rate = traffic / TPOT.)
+decode step (the \textasciitilde140 GB weight-read interval) --- an
+aggregate single-device figure; under the canonical 8×H100
+tensor-parallel host the 140 GB is sharded, so each GPU streams only
+\textasciitilde0.70 TB/s against its own 3.35 TB/s (Ch 6). The
+shard-invariant reason decode is memory-limited is its low arithmetic
+intensity (\textasciitilde1.0 FLOP/byte), not the raw
+5.6\textgreater3.35 comparison. (Note the units: 5.6 TB/s is a
+\emph{rate}; the \emph{per-token weight traffic} is \textasciitilde140
+GB under the full-weight-read model, and rate = traffic / TPOT.)
 
 These opposite bottlenecks lead to a central architectural decision:
 \textbf{can we disaggregate prefill and decode?} If prefill needs FLOPS
@@ -395,12 +398,15 @@ respectively. The architect can also state the two opposite bottlenecks:
 prefill will be compute-bound (\textasciitilde1.29 PFLOP per request at
 9.2K input), and decode will be bandwidth-bound (a \textasciitilde140
 GB/token weight-read requiring \textasciitilde5.6 TB/s sustained over
-the \textasciitilde25 ms decode interval). The team's immediate
-architectural choice is whether to build a single homogeneous GPU
-cluster or to separate prefill and decode pools --- the arithmetic from
-this chapter makes clear that a homogeneous design will be suboptimal
-for either bottleneck, and that the disaggregation option explored in
-\hyperref[chap:11]{Chapter 11} is worth evaluating early.
+the \textasciitilde25 ms decode interval --- an aggregate single-device
+figure; under the canonical 8×H100 host the 140 GB is sharded, so each
+GPU streams \textasciitilde0.70 TB/s, and the shard-invariant cause is
+the low \textasciitilde1.0 FLOP/byte intensity, Ch 6). The team's
+immediate architectural choice is whether to build a single homogeneous
+GPU cluster or to separate prefill and decode pools --- the arithmetic
+from this chapter makes clear that a homogeneous design will be
+suboptimal for either bottleneck, and that the disaggregation option
+explored in \hyperref[chap:11]{Chapter 11} is worth evaluating early.
 
 Before passing this workload to \hyperref[chap:7]{Chapter 7} (Memory), where the KV and
 residency arithmetic is built, the architect locks in one more number:

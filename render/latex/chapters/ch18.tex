@@ -1,5 +1,4 @@
-\ntsection{The Architect's Question}\label{the-architects-question}
-
+\section*{The Architect's Question}\label{the-architects-question}
 
 \begin{quote}
 How does an operator organize a fleet of complementary models---dense
@@ -134,14 +133,14 @@ VRAM (4-bit)
 \endlastfoot
 70B dense FP16 & 140\,GB & --- & --- & 1 (weights + KV fit in the 640 GB
 pool; \textasciitilde2 GPUs hold the weights) \\
-70B dense 8-bit & --- & \textasciitilde70\,GB & --- & 1 (fits on 1×H100,
-leaves 7 for others) \\
+70B dense 8-bit & --- & \textasciitilde70\,GB & --- & 1 (weights alone
+fit on 1×H100, leaving 7 GPUs; with the canonical KV budget the 8×H100
+pool still holds weights + KV) \\
 70B MoE FP16 (2/16 experts) & 140\,GB & --- & --- & 1 (same as dense
 FP16; weights + KV fit in the 640 GB pool) \\
 70B MoE 8-bit (2 active) & --- & \textasciitilde70\,GB & --- & 1 \\
 70B 4-bit GGUF & --- & --- & \textasciitilde35\,GB & \textasciitilde2
 (across 2 GPUs, can batch) \\
-70B 8-bit GGUF & --- & \textasciitilde70\,GB & --- & 1 \\
 
 \label{tab:18.2}\end{longtable}
 
@@ -177,7 +176,7 @@ Model
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Token cost (USD / 1M)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Latency/token (ms)
+Per-request service latency (ms)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Basis
 \end{minipage} \\
@@ -198,7 +197,7 @@ energy \\
 \textbf{per-model nominal rates for routing comparison} --- the cost per
 1M tokens if that model instance were serving at its own nominal
 throughput on its own host. They are \emph{not} the same quantity as the
-fleet-amortized per-token cost derived in Ch16 §16.4
+fleet-amortized per-token cost derived in Ch16 §16.3
 (\textasciitilde\$0.60/1M for the 70B FP16 self-host), which divides the
 full peak-provisioned fleet TCO (\textasciitilde\$148K/mo, ≈20 hosts at
 full utilization) by the considerably higher token volume that fleet
@@ -266,8 +265,23 @@ weighted-average request latency is
 
 (no separate output-routing term --- output rides with its requesting
 model), where \(p_i\) is the fraction of requests routed to model \(i\)
-and \(L_i\) its latency. Acceptable for interactive chat (typical
-threshold: ≤500 ms).
+and \(L_i\) its per-request service latency. Acceptable for interactive
+chat (typical threshold: ≤500 ms).
+
+\textbf{Scope note --- the latency column is an illustrative
+routing-comparison input, not the canonical service time.} The
+120/250/300/800 ms values are per-request service latencies used to
+compare the four models \emph{for the routing decision}; they are
+deliberately small (sub-second) so the interactive-threshold check (≤500
+ms) is meaningful. They are \textbf{not} the \textasciitilde8.6 s
+service time of the 9.5K-token canonical RAG request (Ch 17), which is a
+multi-second, capacity-side number that governs fleet sizing. The cost
+column, by contrast, \emph{is} computed on the canonical 9.5K-token
+request (6.65M tokens for 700 requests). Read the two columns on their
+own bases: cost on the canonical request, latency as the illustrative
+interactive-routing input. A deployment benchmark (Ch 14) must supply
+the real per-model service times before either column is used for a
+production decision.
 
 The latency and capacity must also reconcile with the canonical
 workload's KV residency (\hyperref[chap:17]{Chapter 17}): routing 70\% of requests to an
@@ -286,7 +300,7 @@ decision}\label{consolidation-vs.-separation-decision}
   \textbf{Consolidate} when: workload profile overlap \textgreater70\%,
   latency tolerance ≥300\,ms, and cost differential \textgreater30\%.
   \emph{Verified}: our scenario consolidates 70\% of traffic to 8-bit,
-  saving \textasciitilde\$11.16/hr (\$23.75 − \$12.59, the §18.4.3
+  saving \textasciitilde\$11.16/hr (\$23.75 − \$12.59, the §18.3.3
   derived figure).
 \item
   \textbf{Keep separate} when: (a) security/classification policies
@@ -323,7 +337,7 @@ Why it matters
 \endlastfoot
 \textbf{Weighted average cost/token} & Σ(tokens\_i × cost\_i) /
 Σ(tokens\_i) across all models & Directly tracks fleet economics; target
-under the §18.4.2 per-1M basis (e.g.~\textless{} \$2.50/1M for the FP16
+under the §18.3.2 per-1M basis (e.g.~\textless{} \$2.50/1M for the FP16
 tier) for competitive SaaS. \\
 \textbf{Per-model throughput} & requests/sec per GPU / per CPU node &
 Detects saturation; informs capacity adds vs.~routing tweaks. \\
@@ -434,17 +448,17 @@ Fleet}\label{end-of-chapter-mini-case-a-three-tier-customer-support-model-fleet}
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Tier\,1 (4-bit GGUF):} Handles 80\% of queries (FAQ, account
-  lookup). Runs on edge nodes (AMD Ryzen\,7950X, 64\,GB RAM). Cost:
-  \$0.0002/token, latency \textasciitilde600\,ms.
+  \textbf{Tier 1 (4-bit GGUF):} Handles 80\% of queries (FAQ, account
+  lookup). Runs on edge nodes (AMD Ryzen 7950X, 64 GB RAM). Cost:
+  \$0.0002/token, latency \textasciitilde600 ms.
 \item
-  \textbf{Tier\,2 (70B 8-bit dense):} Handles 15\% of queries (order
-  status, policy look‑up). Runs on 1×H100. Cost: \$0.0015/token, latency
-  \textasciitilde250\,ms.
+  \textbf{Tier 2 (70B 8-bit dense):} Handles 15\% of queries (order
+  status, policy look-up). Runs on 1×H100. Cost: \$0.0015/token, latency
+  \textasciitilde250 ms.
 \item
-  \textbf{Tier\,3 (70B FP16):} Handles 5\% of queries (complex
+  \textbf{Tier 3 (70B FP16):} Handles 5\% of queries (complex
   escalations, multilingual). Runs on 2 GPUs reserved. Cost:
-  \$0.003/token, latency \textasciitilde120\,ms.
+  \$0.003/token, latency \textasciitilde120 ms.
 \end{itemize}
 
 \textbf{Arithmetic:} A small pilot deployment serving
@@ -457,8 +471,8 @@ arithmetic, the per-token volume is). Hourly tokens:
 \textasciitilde4,500 in + 500 out = 5,000. \emph{(Scope note: these tier
 per-token rates are illustrative scenario values on a per-token basis,
 distinct from --- and not directly comparable to --- the per-1M-token
-ledger in §18.4.2; the mini-case uses them to demonstrate the routing
-economics, and a real deployment would price from the §18.4.2 per-1M
+ledger in §18.3.2; the mini-case uses them to demonstrate the routing
+economics, and a real deployment would price from the §18.3.2 per-1M
 basis.)}
 
 \begin{itemize}
@@ -474,18 +488,20 @@ basis.)}
 \end{itemize}
 
 If we had used a single 70B FP16 model: 5,000 tokens/hr × \$0.003 =
-\$15/hr → \$10,800 / month. \textbf{Savings: \$8,870 / month} (≈82\%)
---- but the routing's latency is the honest catch: because
-\textbf{Tier\,1 (the cheapest, \textasciitilde600\,ms) serves 80\% of
-queries}, the p95 per-request latency is \textasciitilde600\,ms, which
-\emph{violates} the 500\,ms SLA for the dominant tier. The three-tier
-split saves cost by routing the bulk to a slow-but-cheap model, which is
-precisely the mean-vs-tail trap: the \emph{average} latency looks fine,
-yet the majority tier misses the deadline. To actually meet the 500\,ms
-SLA, Tier\,1 must be reshaped --- either 8-bit quantization on a GPU
-(faster than 4-bit GGUF on CPU) or a batch-window rethink --- at some
-cost that narrows the \$8,870 savings. The routing arithmetic shows the
-\emph{economic} win; the SLO check is what keeps it honest.
+\$15/hr → \$10,800 / month. Before we can call the three-tier split a
+win, we must check the SLO, because the SLO gates the cost claim.
+\textbf{Tier 1 (the cheapest, \textasciitilde600 ms) serves 80\% of
+queries, so the p95 per-request latency is \textasciitilde600 ms, which
+violates the 500 ms SLA for the dominant tier.} The three-tier split
+saves cost by routing the bulk to a slow-but-cheap model --- precisely
+the mean-vs-tail trap: the \emph{average} latency looks fine, yet the
+majority tier misses the deadline. So the \$8,870 / month (≈82\%) saving
+is \emph{conditional}: it holds only if we first reshape Tier\,1 to meet
+the 500\,ms SLA --- either 8-bit quantization on a GPU (faster than
+4-bit GGUF on CPU) or a batch-window rethink --- at some cost that
+narrows the saving. The correct order is: check the SLO, then size the
+cost. The routing arithmetic shows the \emph{economic} win; the SLO
+check is what keeps it honest, and it must come first.
 
 The key enabler was the router's feature gate: queries mentioning
 ``multilingual'' or ``technical specification'' were auto‑escalated to

@@ -1,5 +1,4 @@
-\ntsection{The Architect's Question}\label{the-architects-question}
-
+\section*{The Architect's Question}\label{the-architects-question}
 
 Before we can place a model across multiple GPUs or across a cluster, we
 need to know what the interconnect can --- and cannot --- move. This
@@ -50,17 +49,6 @@ single node moves 140 GB over NVLink; across 8 nodes connected by
 InfiniBand moves 140 GB (or more, depending on the algorithm) over the
 fabric. The same 140 GB over a 25 GB/s Ethernet link takes more than 5×
 the time of the same operation over a 900 GB/s NVLink.
-
-\textbf{\hyperref[tab:9.1]{Table 9-1}} --- Interconnect hierarchy with bandwidth
-(bidirectional where applicable), latency, and approximate cost per GB.
-PCIe Gen5 x16 \textasciitilde64 GB/s, \textasciitilde1 µs latency, low
-cost (integrated); NVLink H100 900 GB/s bisection, \textasciitilde0.5--1
-µs latency, high cost (GPU-attached); Ethernet RoCE2 200/400 Gb/s ≈
-25/50 GB/s, \textasciitilde10--25 µs latency, moderate cost (standard
-NICs); InfiniBand HDR 200 Gb/s / NDR 400 Gb/s ≈ 25/50 GB/s,
-\textasciitilde2--5 µs latency, high cost (switches, optics). Cost per
-GB is inversely proportional to bandwidth for fixed-form optics, but
-system cost includes cables, switches, and rack density trade-offs.
 
 \subsubsection{Table 9-1 --- The interconnect
 hierarchy}\label{table-9-1-the-interconnect-hierarchy}
@@ -125,11 +113,13 @@ rings and reserves the outer rings for less volume or latency-tolerant
 traffic.
 
 The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink
-bisection provides 900 GB/s per direction, \textbf{a lower bound} on
-time is 140 GB ÷ 900 GB/s ≈ \textbf{0.16 s {[}1P{]}{[}DERIVED{]}} ---
-note the word \emph{lower bound}. The actual completion time of a real
-collective is higher because a collective is not one flat transfer but a
-sequence of message-passing and reduction steps across the topology:
+bisection provides 900 GB/s of total bidirectional bandwidth per GPU
+(450 GB/s per direction; 18 NVLink 4.0 links × 50 GB/s bidirectional,
+NVIDIA H100 datasheet), \textbf{a lower bound} on time is 140 GB ÷ 900
+GB/s ≈ \textbf{0.16 s {[}1P{]}{[}DERIVED{]}} --- note the word
+\emph{lower bound}. The actual completion time of a real collective is
+higher because a collective is not one flat transfer but a sequence of
+message-passing and reduction steps across the topology:
 
 \[
 T_{\text{collective}} \approx \alpha \times n_\text{steps} + \frac{\text{bytes}}{\beta}
@@ -143,18 +133,18 @@ a flat transfer \(n_\text{steps}=1\).) The 0.16 s figure uses only the
 NVLink lands tens of \% above it once per-step overhead, ring stages,
 and topology routing are included. So treat the
 \texttt{bytes\ ÷\ bandwidth} form as a \emph{sizing lower bound}, and
-reserve measured \texttt{nccl-tests} numbers (§9.5 Measurement) for
+reserve measured \texttt{nccl-tests} numbers (§9.4 Measurement) for
 capacity decisions. The relative ranking between interconnects is what
 matters most here: if those same 140 GB travel over a 200 Gb/s HDR
 InfiniBand link (≈ 25 GB/s effective unidirectional) it is ≈ 5.6 s ---
-\textasciitilde35× longer; over 25 Gb/s Ethernet (≈ 3 GB/s
-unidirectional) ≈ 47 s. The interconnect choice is a first-order
-determinant of wall-clock time in all cases.
+\textasciitilde35× longer; over 25 Gb/s Ethernet (≈ 2.5 GB/s
+practical-effective, §3) ≈ 56 s. The interconnect choice is a
+first-order determinant of wall-clock time in all cases.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={All-reduce time vs data volume, by interconnect tier (ANALYTICAL model). The plot is marked in-figure as analytical, not measured network performance: each curve uses the EFFECTIVE bandwidth of its tier (NVSwitch 1.8, NVLink 0.9 TB/s, InfiniBand \textasciitilde40 GB/s, RoCE2 \textasciitilde2.5 GB/s) with the large-N ring factor t ≈ 2·V/B (2(N-1)/N → 2 as N grows; for N=8 it is 1.75). These effective values --- not the nominal per-port peaks, which are \textasciitilde50 GB/s for both IB and RoCE (\hyperref[tab:9.1]{Table 9-1}) --- are what the §9.4 worked example uses, so the figure and the example agree (IB \textasciitilde6.1 s, RoCE \textasciitilde98 s at 140 GB). The 140 GB vertical line marks the 70B FP16 weight footprint.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0901.pdf}}
-\caption[All-reduce time vs data volume, by interconnect tier (ANALYTICAL model)]{All-reduce time vs data volume, by interconnect tier (ANALYTICAL model). The plot is marked in-figure as analytical, not measured network performance: each curve uses the EFFECTIVE bandwidth of its tier (NVSwitch 1.8, NVLink 0.9 TB/s, InfiniBand \textasciitilde40 GB/s, RoCE2 \textasciitilde2.5 GB/s) with the large-N ring factor t ≈ 2·V/B (2(N-1)/N → 2 as N grows; for N=8 it is 1.75). These effective values --- not the nominal per-port peaks, which are \textasciitilde50 GB/s for both IB and RoCE (\hyperref[tab:9.1]{Table 9-1}) --- are what the §9.4 worked example uses, so the figure and the example agree (IB \textasciitilde6.1 s, RoCE \textasciitilde98 s at 140 GB). The 140 GB vertical line marks the 70B FP16 weight footprint.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={All-reduce time vs data volume, by interconnect tier (ANALYTICAL model). The plot is marked in-figure as analytical, not measured network performance: each curve uses the EFFECTIVE bandwidth of its tier (NVSwitch 1.8, NVLink 0.9 TB/s, InfiniBand \textasciitilde40 GB/s, RoCE2 \textasciitilde2.5 GB/s) with the large-N ring factor t ≈ 2·V/B (2(N-1)/N → 2 as N grows; for N=8 it is 1.75). These effective values --- not the nominal per-port peaks, which are \textasciitilde50 GB/s for both IB and RoCE (\hyperref[tab:9.1]{Table 9-1}) --- are what the §9.3 worked example uses, so the figure and the example agree (IB \textasciitilde6.1 s, RoCE \textasciitilde98 s at 140 GB). The 140 GB vertical line marks the 70B FP16 weight footprint.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0901.png}}
+\caption[All-reduce time vs data volume, by interconnect tier (ANALYTICAL model)]{All-reduce time vs data volume, by interconnect tier (ANALYTICAL model). The plot is marked in-figure as analytical, not measured network performance: each curve uses the EFFECTIVE bandwidth of its tier (NVSwitch 1.8, NVLink 0.9 TB/s, InfiniBand \textasciitilde40 GB/s, RoCE2 \textasciitilde2.5 GB/s) with the large-N ring factor t ≈ 2·V/B (2(N-1)/N → 2 as N grows; for N=8 it is 1.75). These effective values --- not the nominal per-port peaks, which are \textasciitilde50 GB/s for both IB and RoCE (\hyperref[tab:9.1]{Table 9-1}) --- are what the §9.3 worked example uses, so the figure and the example agree (IB \textasciitilde6.1 s, RoCE \textasciitilde98 s at 140 GB). The 140 GB vertical line marks the 70B FP16 weight footprint.}
 
 \label{fig:9.1}\end{figure}
 
@@ -162,7 +152,7 @@ determinant of wall-clock time in all cases.
 log GB) and interconnect effective bandwidth. The four lines ---
 NVSwitch 1.8 TB/s, NVLink 0.9 TB/s, InfiniBand \textasciitilde40 GB/s,
 RoCE2 \textasciitilde2.5 GB/s --- use the effective bandwidths worked in
-§9.4; the dashed marker sits at the 140 GB weight footprint of a 70B
+§9.3; the dashed marker sits at the 140 GB weight footprint of a 70B
 model in BF16. {[}ILLUSTRATIVE{]}{[}DERIVED{]}}
 
 \ntsection{Worked Example}\label{worked-example}
@@ -415,9 +405,10 @@ per-step data movement is a TP all-reduce of the per-layer activations
 (tens of MBs, not GBs) plus the KV cache fragment exchange in
 disaggregated serving --- e.g.~\textasciitilde35 GB of KV moved over
 NVLink (\textasciitilde0.04 s at 900 GB/s) when a P-D sequence transfers
-context between prefill and decode pools. The distinction changes the
-answer by orders of magnitude: re-fetching 140 GB of weights each step
-is pathological (that is a design smell, an anti-pattern to flag, not a
+a \textasciitilde13K-token context (35 GB ÷ 2.62 MB/token ≈ 13.3K)
+between prefill and decode pools. The distinction changes the answer by
+orders of magnitude: re-fetching 140 GB of weights each step is
+pathological (that is a design smell, an anti-pattern to flag, not a
 baseline); exchanging activations or KV fragments is the normal case
 that fits comfortably within NVLink.
 
