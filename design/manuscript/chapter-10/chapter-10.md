@@ -93,7 +93,7 @@ The lesson: PP is communication-light (each stage only moves activation boundari
 Data parallelism replicates the 140 GB model on every GPU. For the gradient all-reduce: if the model has 140 GB of weights and we sync gradients after each step across G GPUs, each GPU sends its gradient tensor once per step. The gradient bytes are
 
 $$
-\text{grad bytes} = N \times \text{bytes/param} = 70 \times 10^9 \times 4 \text{ B} \approx 280 \text{ GB}
+\text{grad bytes} = N_\text{params} \times \text{bytes/param} = 70 \times 10^9 \times 4 \text{ B} \approx 280 \text{ GB}
 $$
 
 per step (FP32 gradient; the all-reduce moves the gradient once, not weights+gradients). As in Chapter 9, a ring all-reduce moves $2\frac{N-1}{N}$ times the per-rank gradient through each rank, so for $N=8$ the per-rank traffic is $1.75 \times 280 \approx 490$ GB and the sync time is $T_\text{ring} = 2\frac{N-1}{N}\,\text{bytes} / B_\text{eff}$. At 25 GB/s (single 200Gb/s link) that is `490 / 25 ≈ 19.6 s` per step — far too slow if the step takes ~1 s. At node NVLink 900 GB/s it is `490/900 ≈ 0.54 s`. The sync cost, not compute, often caps DP at small scale unless the interconnect is fast. [1P][DERIVED]
