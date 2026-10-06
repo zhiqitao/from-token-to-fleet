@@ -52,7 +52,7 @@ $$
 
 [DERIVED: 2 × N × L where N=70B, L=9,200; the figure is large because the full context is attended to, but it is a one-time cost per request, not a sustained rate]
 
-*Accuracy of the 2 ×N × L approximation.* This linear prefill count omits the quadratic attention term, $\approx 4 \times n_\text{layers} \times L^2 \times d$. At the canonical 9.2K context that correction is small — roughly **+17%** of the 1.29 PFLOP — so the 2NL roofline is a sound teaching baseline there. But the omission grows with context: at 32K the attention term is ~**+206%** of the linear term and at 128K it *dominates* (~33× the linear term, ≈+3,300%). An architect sizing long-context prefill must add the quadratic term or measure it; the Unknowns section returns to this.
+*Accuracy of the 2 ×N × L approximation.* This linear prefill count omits the quadratic attention term, $\approx 4 \times n_\text{layers} \times L^2 \times d$. At the canonical 9.2K context that correction is small — roughly **+17%** of the 1.29 PFLOP — so the 2NL roofline is a sound teaching baseline there. But the omission grows with context: at 32K the attention term is ~**+60%** of the linear term and at 128K it *dominates* (~2.4× the linear term, ≈+240%). An architect sizing long-context prefill must add the quadratic term or measure it; the Unknowns section returns to this.
 
 At 10 requests/s, the sustained prefill throughput demand is:
 

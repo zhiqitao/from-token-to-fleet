@@ -65,7 +65,7 @@ If the workload must run fully on-site without data leaving a facility, and the 
 | Cluster | tens-hundreds | InfiniBand/Eth | any that needs splitting | depends | model > node, or traffic > host goodput |
 | Hyperscale fleet | dedicated | high-bandwidth fabric | MoE+, specialized | extreme-scale economics | multi-tenant, largest scale |
 
-*(Bounds are [ILLUSTRATIVE][DERIVED]/[ILLUSTRATIVE][DERIVED] design heuristics, not vendor guarantees.)*
+*(Bounds are [ILLUSTRATIVE][DERIVED] design heuristics, not vendor guarantees.)*
 
 ## 4. Measurement
 
