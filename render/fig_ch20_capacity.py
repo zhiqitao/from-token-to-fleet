@@ -37,7 +37,7 @@ ax1.legend(fontsize=8.0, loc='upper left', frameon=False)
 ax1.tick_params(labelsize=8)
 
 # ---- BOTTOM: measured deployment throughput ----
-ax2.plot(hosts, measured, '-', color='#27408b', lw=2.4, label='derived deployment throughput (95% efficiency)')
+ax2.plot(hosts, measured, '-', color='#27408b', lw=2.8, label='derived deployment throughput (95% efficiency)')
 ax2.plot(hosts, analytical, ':', color='#888', lw=1.2, label='analytical bound (ceiling)')
 # annotation 1: removed — the "~5 hosts -> ~9.5 req/s" data point is redundant
 # (the linear rise makes it obvious) and could not be placed without crossing the

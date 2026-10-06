@@ -38,7 +38,7 @@ c_flop = 382       # FLOP/token cluster centre
 h_kv   = 36        # half span of the 100%/arrow/~X% cluster
 
 # ---- vertical centering: compute the content block and center it in the canvas ----
-pitch = 56
+pitch = 60
 block_height = 125 + 3 * pitch          # title (top) .. footnote2 (bottom)
 T = (H + block_height) / 2              # title y
 

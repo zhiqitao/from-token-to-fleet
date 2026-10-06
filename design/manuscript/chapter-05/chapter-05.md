@@ -39,8 +39,8 @@ The retrieval leg maps chunks of internal documents to dense vectors so that a u
 
 Three realistic options, each with documented properties:
 
-| Embedding model | Dim | Params ~ | FLOPs per embedding | Typical use case |
-|---|---|---|---|---|
+| Embedding model | Dim | Params | FLOPs per embedding | Typical use case |
+|------------------|----|--------|---------------------|--------------------|
 | all‑MiniLM‑L6‑v2 | 384 | ~85M | ~0.3 GFLOPs | Light‑weight, high‑throughput search |
 | all‑mpnet‑base‑v2 | 768 | ~110M | ~1 GFLOPs | General‑purpose, quality‑first |
 | bge‑large‑en | 1024 | ~335M | ~2 GFLOPs | Dense-retrieval-optimal, technical docs |
