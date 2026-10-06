@@ -36,7 +36,7 @@ The critical insight for capacity planning is that each cycle incurs a fixed ove
 
 ## 3. Worked Example
 
-Take a user query routed to an agentic RQA pipeline. The pipeline’s default policy is a maximum of 4 turns; if the model has not terminated by then, the system returns a fallback answer “I’m sorry, I couldn’t find a definitive answer within the allowed reasoning steps.” (**Scope note on the turn cap.** This worked example uses a *default* cap of 4 to illustrate the binding worst case and the token-amplification curve out to T=4. The *recommended operational* policy — deployed in the §8 mini-case and used for fleet sizing in Chapter 17 — caps turns at 3, per the §4 guidance and the 95th-percentile sizing rule; the 2% of requests that exceed the limit fall back to single-shot. Table 19-1's "T=4 (beyond limit)" column is therefore an *out-of-policy bounding* case, not an in-policy turn count.)
+Take a user query routed to an agentic RQA pipeline. The pipeline’s default policy is a maximum of 4 turns; if the model has not terminated by then, the system returns a fallback answer “I’m sorry, I couldn’t find a definitive answer within the allowed reasoning steps.” (**Scope note on the turn cap.** This worked example uses a *default* cap of 4 to illustrate the binding worst case and the token-amplification curve out to T=4. The *recommended operational* policy — deployed in the §8 mini-case and used for fleet sizing in Chapter 17 — caps turns at 3, per the §4 guidance and the 95th-percentile sizing rule; the 2% of requests that exceed the limit fall back to single-shot. Table 19-1's "T=4 (over cap)" column is therefore an *out-of-policy bounding* case, not an in-policy turn count.)
 
 **Turn 0 (initial prompt)**:
 - Input: 9,200 tokens (user query + retrieved passages)
@@ -207,7 +207,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 
 **Table 19-1** — Token amplification and latency trade-offs for agentic RQA pipelines
 
-| Metric | T=1 (med.) | T=2 (p90) | T=3 (p95) | T=4 (beyond limit) | Single-shot |
+| Metric | T=1 (med.) | T=2 (p90) | T=3 (p95) | T=4 (over cap) | Single-shot |
 |----------------------------------|-----|-----|-----|-----|-----|
 | Input tokens (9,200 + T·800 + T·65) | 10,065 | 10,930 | 11,795 | 12,660 | 9,200 |
 | Total tokens (incl. 300 output) | 10,365 | 11,230 | 12,095 | 12,960 | 9,500 |

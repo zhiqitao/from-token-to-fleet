@@ -59,7 +59,7 @@ Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval ~120 m
 
 ### Goodput vs Raw Throughput
 
-Deploying a higher-throughput configuration can *reduce* goodput. Concretely: suppose we enable larger dynamic batching to raise raw tokens/s from 50 tok/s to 70 tok/s, but the batch window pushes p95 TTFT from 1.8 s to 2.3 s — above the 2 s SLO. The extra 20 tok/s are produced, but every one of them misses the deadline. Raw throughput is up 40%; **goodput** (tokens that met the SLO) is effectively unchanged, because the batch of SLO-compliant tokens didn't grow. Goodput is the metric the customer experiences; raw throughput is what the GPU achieves. The architect optimizes goodput. This is why "faster" hardware or bigger batches do not trivially mean a better system.
+Deploying a higher-throughput configuration can *reduce* goodput. Concretely: suppose we enable larger dynamic batching to raise raw tokens/s from 50 tok/s to 70 tok/s, but the batch window pushes p95 TTFT from 1.8 s to 2.3 s — above the 2 s SLO. The extra 20 tok/s are produced, but they land in the tail that misses the SLO, so goodput does not grow. Raw throughput is up 40%; **goodput** (tokens that met the SLO) is effectively unchanged, because the batch of SLO-compliant tokens didn't grow. Goodput is the metric the customer experiences; raw throughput is what the GPU achieves. The architect optimizes goodput. This is why "faster" hardware or bigger batches do not trivially mean a better system.
 
 ### Detecting the Regime: Bandwidth-Bound vs Compute-Bound
 

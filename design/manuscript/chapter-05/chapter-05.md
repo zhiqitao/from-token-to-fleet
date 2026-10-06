@@ -76,7 +76,7 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 [DERIVED] per‑request memory budget: 640 GB total HBM − 140 GB weights = 500 GB headroom. The 24.1 GB KV cache for 9.2K input consumes 4.7% of headroom, leaving ~476.6 GB for activations, intermediate buffers, and OS overhead. This is comfortably within a single 8×H100 node's capacity.
 
-[2°] DERIVED: vLLM continuous batching on 8×H100 with a 70B FP16 model and 9.2K context yields ~50 tokens/s aggregate throughput for 300‑token outputs. The prefill phase (9.2K tokens) dominates TTFT: at ~1.08 s it leaves ~0.12 s under the 1.2 s TTFT budget (retrieval ~120 ms + prefill ~1.08 s = ~1.20 s, at the SLO), with the p95 ≤ 2 s target giving the real margin.
+[2°] DERIVED: vLLM continuous batching on 8×H100 with a 70B FP16 model and 9.2K context yields ~50 tokens/s aggregate throughput for 300‑token outputs. The prefill phase (9.2K tokens) dominates TTFT: at ~1.08 s it leaves ~0.12 s of headroom against the 1.2 s budget *for prefill alone*. Adding retrieval (~120 ms) puts the full TTFT (retrieval + prefill) at ~1.20 s, i.e. at the 1.2 s SLO line with no prefill-side margin; the real margin is the p95 ≤ 2 s target.
 
 [2°] DERIVED: tokens/s per dollar for generation. On‑demand H100 list price ~$2.50/hour per GPU → 8×H100 = $20/hour. At ~50 tok/s aggregate throughput, the effective cost is ~0.40 $/tok/s, or equivalently ~2.5 tokens/s per dollar-hour. In tokens‑per‑dollar terms: 50 tok/s × 3600 s/hr ÷ $20/hr = 9,000 tokens per dollar per hour of runtime.
 
@@ -140,7 +140,7 @@ Whatever we learned here, file it under **"can I size the workload before I pick
 - Use the selection surfaces (quality, latency, KV cost, cost/token, retrieve‑vs‑generate) to narrow the model space from the full vendor catalog to a handful of viable candidates.
 - For RAG workloads, select the embedding model and generation model as a two‑part decision, not a single choice. The embedding model is chosen at ingestion time (compute‑light, storage‑bound); the generation model is chosen at serving time (compute‑bound, latency‑bound).
 
-This consequence feeds directly into Pattern 12 (Fine‑tuning for specific workloads) and Pattern 11 (RAG): the architect first characterizes the workload, then lets the characterization speak the model selection, not the other way around.
+This consequence feeds directly into the fine-tuning-for-specific-workloads pattern and the RAG pattern (both cataloged in Ch 26, Patterns Library): the architect first characterizes the workload, then lets the characterization speak the model selection, not the other way around.
 
 ## 7. What We Still Don't Know
 

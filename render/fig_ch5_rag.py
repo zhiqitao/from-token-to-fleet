@@ -37,7 +37,7 @@ WBOX = 300
 # row 1: workload
 box(MID, wor_bot, WBOX, BOX_H, 'Workload characterization', 'tokens · cost · SLO', '#dff0d8')
 # row 2: five selection surfaces (parent)
-box(MID, sur_bot, 330, BOX_H, 'Five selection surfaces', 'quality · latency · KV · $/tok', '#fde3e0')
+box(MID, sur_bot, 360, BOX_H, 'Five selection surfaces', 'quality · latency · KV · $/tok · retrieve-vs-generate', '#fde3e0', sub_fs=FS-2.4)
 ax.annotate('', xy=(MID, sur_bot+BOX_H), xytext=(MID, wor_bot),
             arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#888'))
 ax.text(MID+12, (wor_bot+sur_bot+BOX_H)/2, 'drives', fontsize=FS-1.5, color='#666', ha='left')

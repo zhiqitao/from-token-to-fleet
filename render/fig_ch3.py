@@ -54,7 +54,7 @@ for r in range(NROWS):
 # red bracket around ALL cells (all active)
 ax.add_patch(Rectangle((0.62, cell_top(NROWS-1)-CELL_H-0.10),
                         COLS*1.35+0.55, (NROWS-1)*ROW_P+CELL_H+0.22, fc='none', ec='#c0392b', lw=2.0))
-ax.text(9.0, cell_top(0)+0.42, 'ALL active', fontsize=9, color='#c0392b', ha='right', fontweight='bold')
+ax.text(4.725, cell_top(0)+0.42, 'ALL active', fontsize=9, color='#c0392b', ha='center', fontweight='bold')
 legend_row(ax, A_RES, '#cccccc', '#888', 'resident \u2248 140 GB', '#444')
 legend_row(ax, A_ACT, '#3a6ea5', '#333', 'active per token \u2248 140 GB', '#333')
 ax.text(5, A_SENT, 'every token activates all 70B params', fontsize=9.0, color='#333', ha='center')
@@ -76,19 +76,19 @@ for idx, (r, c) in enumerate(expert_cells):
             color='white' if active else '#555', fontweight='bold' if active else 'normal')
 # red bracket around the two active E1/E4 cells (col 0, rows 0-1)
 ax.add_patch(Rectangle((0.66, cell_top(1)-CELL_H-0.10), 2.06, ROW_P+CELL_H+0.22, fc='none', ec='#c0392b', lw=2.0))
-ax.text(9.0, cell_top(0)+0.42, 'top-2 active', fontsize=9, color='#c0392b', ha='right', fontweight='bold')
+ax.text(3.9, cell_top(0)+0.42, 'top-2 active', fontsize=9, color='#c0392b', ha='center', fontweight='bold')
 legend_row(ax, A_RES, '#cccccc', '#888', 'resident \u2248 full expert set', '#444')
 legend_row(ax, A_ACT, '#e67e22', '#333', 'active per token \u2248 28 GB', '#333')
 ax.text(5, A_SENT, 'only top-2 of 8 experts compute per token', fontsize=9.0, color='#333', ha='center')
 ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', ha='center')
 
 # ---- KV bars: identical under both columns ----
-# Each panel is only ~2.9in wide (6.1in / 2), so the 8.8/10 bar is ~184pt — the
-# earlier "KV unchanged (matched attention)" (173pt) left only ~10pt margin and
-# clipped on the right. "KV: matched attention" (111pt) keeps the point with room.
+# Each panel is only ~2.9in wide (6.1in / 2), so the 8.8/10 bar is ~184pt. The
+# label must stay under ~150pt to keep right margin. "KV: identical (dense = MoE)"
+# (28 chars, ~123pt) states the intended point: KV growth is the same in both.
 for axx in axes:
     axx.add_patch(Rectangle((0.6, KV_Y), 8.8, 0.9, fc='#c0392b', ec='white'))
-    axx.text(5, KV_Y+0.45, 'KV: matched attention',
+    axx.text(5, KV_Y+0.45, 'KV: identical (dense = MoE)',
              ha='center', va='center', fontsize=8.8, color='white', fontweight='bold')
 
 plt.tight_layout()
