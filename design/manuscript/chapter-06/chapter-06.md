@@ -75,10 +75,10 @@ At the resource layer, the tell is utilization: a decode kernel pinned at ~95% o
 
 | Phase | Demand | H100 capacity | Verdict | Resource tell |
 |---|---|---|---|---|
-| Prefill (9.2K input) | ~1.29 PFLOP | ~0.989 PFLOPS BF16 | compute-bound | high FLOP / MFU util, mid bandwidth |
+| Prefill (9.2K input) | ~1.19 PFLOPS (1.29 PFLOP ÷ 1.08 s) | ~0.989 PFLOPS BF16 | compute-bound | high FLOP / MFU util, mid bandwidth |
 | Decode (per token) | ~140 GB weight-read → ~5.6 TB/s rate | ~3.35 TB/s HBM | bandwidth-bound | high HBM util, low FLOP util |
 
-*(All figures [1P][FACT] hardware / [ILLUSTRATIVE][DERIVED] arithmetic traced to canonical scenario (Ch 4, Table 4-3) and Chapter 2.)*
+*(All figures [1P][FACT] hardware / [ILLUSTRATIVE][DERIVED] arithmetic traced to canonical scenario (Ch 4, Table 4-3) and Chapter 2. The regime verdict follows from arithmetic intensity, not from the demand-vs-capacity rate comparison: prefill ~9,200 FLOP/byte ≫ ridge ~295 (compute-bound), decode ~1.0 FLOP/byte ≪ ridge (bandwidth-bound). The 1.19 vs 0.989 PFLOPS rates are a secondary consistency check, not the basis of the verdict.)*
 
 ### Reading Telemetry Into a Decision
 

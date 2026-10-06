@@ -62,7 +62,7 @@ ax.set_ylim(0, 1500)
 ax.text(1, 1250, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
 ax.annotate('QLoRA fits a single H100', xy=(2, 60), xytext=(2.4, 250),
             fontsize=8.5, color='#3d6e35', arrowprops=dict(arrowstyle='->', color='#3d6e35'))
-ax.legend(fontsize=8, loc='upper left')
+ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.16), ncol=3, frameon=False)
 ax.grid(alpha=0.3, axis='y')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0702.png', dpi=150)

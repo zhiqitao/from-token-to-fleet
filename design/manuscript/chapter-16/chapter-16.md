@@ -42,7 +42,7 @@ TCO is meaningless until we know **how many hosts the workload actually requires
 | KV (in-flight λ·W / C) | ⌈10×8.6/17.5⌉ = 5 hosts | ⌈40×8.6/17.5⌉ = 20 hosts |
 | **N_hosts (max)** | **~5 hosts** | **~20 hosts** |
 
-So the canonical workload's *peak* requires roughly **20 hosts** (FP16 KV, full utilization; **29** at the 70% utilization target), and even the *average* needs ~5 — a fleet, not one box. (FP8 KV roughly halves this to ~11 hosts at peak.) **Every TCO figure below is scaled to this fleet requirement — the earlier drafts priced a single host, which understated the cost by roughly 4–20×.** 
+So the canonical workload's *peak* requires roughly **20 hosts** (FP16 KV, full utilization; **29** at the 70% utilization target), and even the *average* needs ~5 — a fleet, not one box. (FP8 KV roughly halves this to ~11 hosts at peak.) **Every TCO figure below is scaled to this fleet requirement; pricing a single host would understate the cost by roughly 4–20×.** 
 
 *Provisioning sensitivity (explicit):* the TCO figures below **assume the full-utilization fleet (≈20 hosts, provisioned exactly at the 40 rps peak without headroom)** so that the cost comparison is not double-counting idle capacity. If instead the fleet is provisioned at the 70% utilization target that the sizing rule (Ch17 Table 17-1) actually uses — **29 hosts** — capex scales to ~1.4×: ≈$163K capex + ≈$30K opex + ≈$10K staff ≈ **~$203K/month**, and per-request cost rises to ≈ $203K / 26M ≈ **~$7.8 per 1,000 requests** (vs the $5.7/1K below). The durable conclusion — self-host loses to scale-to-load cloud on this workload — holds under either provisioning policy; the *specific* $5.7/1K number is the full-utilization figure and should be read with that assumption.
 
@@ -132,7 +132,7 @@ TCO is the final gate in the design loop (Ch12 candidates → Ch14 benchmark →
 
 ![Fig 16.1 — TCO break-even: self-hosted vs managed API [ILLUSTRATIVE][DERIVED]](figures/fig-16-1601.png)
 
-*Break-even: monthly cost vs monthly volume for self-hosted and managed API across three serve modes, crossing at the ~7.1 M-request scale ($148K/mo ÷ $0.0208 per request).*
+*Break-even: monthly cost vs monthly volume for self-hosted and managed API across three serve modes. The self-host line crosses the managed line over a **range** of ~5.9–9.9 M requests/mo (the $15–25/1K price band), with the ~7.1 M mid-point at the canonical $20.80/1K ($148K/mo ÷ $0.0208 per request). The figure marks the mid-point (star) and the full sensitivity span (horizontal line).*
 
 <!-- Figure spec: mechanism-first plot; x = requests/month, y = cost per 1K requests; self-host curve high-intercept low-slope; managed-API zero-intercept linear; mark break-even volume; annotate the utilization assumption. -->
 

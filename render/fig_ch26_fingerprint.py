@@ -32,13 +32,13 @@ ax.set_ylabel('Normalised intensity (0-1)', fontsize=9)
 ax.set_ylim(0, 1.45)
 # title: the internal "confirm against real telemetry" note is dropped from the
 # published title (it belongs in the caption, not the figure heading)
-ax.set_title('Workload fingerprints on six comparable axes (grouped bars, not radar)', fontsize=10)
+ax.set_title('Workload fingerprints on six axes (grouped bars, not radar)', fontsize=10)
 # legend in its own band at the TOP INSIDE the plot (clear of the title above and
 # the bars below)
 ax.legend(fontsize=8.2, loc='upper center', ncol=3, frameon=False,
           bbox_to_anchor=(0.5, 0.99), columnspacing=1.2, handlelength=1.4)
 ax.grid(axis='y', alpha=0.3)
-ax.text(0.98, -0.13, 'comparable 0-1 scale; bar height = intensity.', transform=ax.transAxes,
+ax.text(0.98, -0.13, 'per-axis 0-1 scale; compare within an axis, not across axes.', transform=ax.transAxes,
         fontsize=7.5, color='#555', va='top', ha='right')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=170)

@@ -44,8 +44,7 @@ $$
 
 This loop — stakeholder ask → measured token counts → traffic profile → token throughput → architecture-relevant derived quantities — is the canonical thought process an AI solution architect runs, every time, before a single architecture decision is made. It is how we move from "we need a Q&A system" to "at the canonical operating point our prefill will be compute-bound at ~1.29 PFLOP per request, and our decode will be bandwidth-bound at a required weight-read rate of ~5.6 TB/s over each ~25 ms token interval." The loop is the chapter's central contribution; the quantities that issue from it are the evidence [1P]/[2°]/(to be verified) that every following chapter trades on.
 
-::: {#tab-22-1}
-### Table 22-1 — Derived quantities from the canonical loop (worked example, not reference)
+**Table 22-1** — Derived quantities from the canonical loop (worked example, not reference)
 
 | metric | value | derivation |
 |---|---|---|
@@ -60,8 +59,6 @@ This loop — stakeholder ask → measured token counts → traffic profile → 
 | decode weight-read per token | ~140 GB | full-weight-read model (70B FP16) [ILLUSTRATIVE][DERIVED] |
 | decode required BW rate | ~5.6 TB/s | ~140 GB / 25 ms TPOT (= traffic / decode interval) [ILLUSTRATIVE][DERIVED] |
 | KV cache memory per request | ~24.1 GB (9.2K, FP16) / ~24.9 GB (9.5K max) | 2.62 MB/token × 9,200 / 9,500 tokens [ILLUSTRATIVE][DERIVED]; *(sensitivity: at 8-bit KV the same 9.2K context falls to ~12 GB under ideal byte-halving (2.62→1.31 MB/token); the measured FP8 constant is ~1.42 MB/token (54% of BF16, [S6]) giving ~13.4 GB — the 1.31 vs 1.42 MB/token distinction is the nominal-halving vs measured-FP8 difference used elsewhere in the book)* |
-
-:::
 
 ![Fig 22.1 - Prefill vs decode scaling as context grows; two panels (different units, NOT directly comparable). LEFT = PREFILL PER REQUEST (linear 2NL, quadratic 4·n_layers·L²·d, total): the quadratic attention term dominates at long context (≥ ~32K). RIGHT = DECODE PER TOKEN (fixed 2N ≈ 1.4e-4 PFLOP/token for the parameter term, flat across context; the total per-token decode also adds attention over the growing KV cache, which grows with context). The quadratic term is the textbook 4·n_layers·L²·d and matches Chapter 8 [ILLUSTRATIVE][DERIVED]](figures/fig-22-2201.png)
 
