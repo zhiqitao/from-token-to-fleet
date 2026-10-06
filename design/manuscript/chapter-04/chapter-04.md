@@ -69,7 +69,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | Employees / registered users | ~2,000 |
 > | Concurrent users (typical) | ~100 (5% of 2,000) |
 > | Concurrent users (peak)     | ~400 (20% of 2,000) |
-> | Mean request service time (planning) | ~10 s  *[1P/ASSUMPTION — planning round; retrieval ~120ms + prefill ~1.08s + decode ~7.5s rounded to comfortable planning figure]* |
+> | Mean request service time (planning) | ~10 s  *[ILLUSTRATIVE][ASSUMPTION — planning round; retrieval ~120ms + prefill ~1.08s + decode ~7.5s rounded to comfortable planning figure]* |
 > | Average arrival rate | ~10 rps *[2° DERIVED — Little's Law 100/10]* |
 > | Peak arrival rate    | ~40 rps *[2° DERIVED — Little's Law 400/10]* |
 > | Prompt / query | 1,200 tokens |

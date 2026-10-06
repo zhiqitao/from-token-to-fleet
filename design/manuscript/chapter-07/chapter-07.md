@@ -29,8 +29,8 @@ We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **70B-cl
 
 | metric | value | derivation |
 |---|---|---|
-| layers | 80 | canonical 70B full-MHA teaching model [1P: canonical-workload.yaml] |
-| hidden_dim | 8192 | canonical 70B full-MHA teaching model [1P: canonical-workload.yaml] |
+| layers | 80 | canonical 70B full-MHA teaching model [ILLUSTRATIVE][ASSUMPTION] |
+| hidden_dim | 8192 | canonical 70B full-MHA teaching model [ILLUSTRATIVE][ASSUMPTION] |
 | bytes per parameter (FP16) | 2 | FP16 = 2 bytes/param [1P: NVIDIA H100 spec] |
 | KV cache per token per layer | 2 × hidden_dim × bytes | one key + one value per layer |
 | KV cache per token (FP16) | 2 ×80 ×8192 ×2 B ≈ 2.62 MB | = 2,560 KB = 2.5 MiB; exact decimal 2.62 MB |

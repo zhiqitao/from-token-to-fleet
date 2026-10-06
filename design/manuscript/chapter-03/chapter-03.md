@@ -37,7 +37,7 @@ We now carry concrete arithmetic using the canonical enterprise Q&A scenario (ca
 | Active parameters per token | 70B | All parameters active for every token [1P][FACT] |
 | FLOPs per forward pass (approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [ILLUSTRATIVE][DERIVED] |
 
-*Table 3.1 — Dense 70B model parameter arithmetic (worked example, not reference).*
+**Table 3-1 — Dense 70B model parameter arithmetic (worked example, not reference).**
 
 ### MoE model representative (Mixtral 8x7B class, [2°])
 
@@ -50,9 +50,9 @@ We contrast with a representative MoE model in the Mixtral lineage. The exact pa
 | Active/total fraction | ~30% | 14B ÷ 47B ≈ 29.8% (≈25–30% for top-2-from-8) [ILLUSTRATIVE][DERIVED] |
 | FP16 active weight-read per token | ~28 GB | 14B × 2 bytes = 28 GB read per token (compute/bandwidth; does NOT set residency) (derived — verify the input) |
 | FLOPs per forward pass (approx.) | ~0.028T | 14B active × 2 FLOP/param = 28B (derived — verify the input) |
-| Compute ratio vs dense 70B | ~0.20× (~5× less) | (14B × 2) ÷ (70B × 2) = 28B ÷ 140B [ILLUSTRATIVE][DERIVED] |
+| Compute ratio vs dense 70B | ~0.20× (~5× less) | (14B × 2) ÷ (70B × 2) = 28 GFLOP ÷ 140 GFLOP [ILLUSTRATIVE][DERIVED] |
 
-*Table 3.2 — MoE model parameter arithmetic (worked example, not reference). The active fraction for top-2-of-8 routing is ~25–30% of total, not single-digit. Note the contrast with the 2026 frontier models in Appendix A, where active fractions do fall to a few percent (Qwen 6B/125B, Kimi 104B/2.8T) because those use extreme expert sparsity plus shared/offloadable parameters.*
+**Table 3-2 — MoE model parameter arithmetic (worked example, not reference). The active fraction for top-2-of-8 routing is ~25–30% of total, not single-digit. Note the contrast with the 2026 frontier models in Appendix A, where active fractions do fall to a few percent (Qwen 6B/125B, Kimi 104B/2.8T) because those use extreme expert sparsity plus shared/offloadable parameters.**
 
 ### Why MoE saves compute but not KV cache memory
 
@@ -145,7 +145,7 @@ These flags exist because home-lab measurements are not reference per the eviden
 
 An architect is fleshing out the design of the internal Q&A tool described in Chapter 1's mini-case. The team is torn between a dense 70B model and a MoE model with 8 experts (roughly 47B total params, ~14B active per token). They ask: "If we go MoE, can we cut our GPU memory budget?"
 
-From the model-understanding chapter, the architect can answer: Active-compute memory yes — only ~14B of the ~47B total is active per token, so ~28 GB of *active* weight footprint is read per token vs. 140 GB for a dense 70B. But *resident* memory is a different question. An MoE model normally keeps its **full expert set resident** — the non-active experts still occupy HBM unless we explicitly use expert offload/swapping (Ch. 3 §3.6, Ch. 18), which itself costs bandwidth. So MoE reduces compute per token, and it gives us the *option* to offload some experts to shrink residency, but it does **not** automatically reduce the weight-residency floor. And KV cache memory no — the attention layers still process every token densely, so the cache budget for a 9.2K-context input is the same regardless of whether the model is dense or MoE. We still need to provision for ~12 GB of KV cache (at 8-bit) or ~24 GB (at the precision pattern discussed in Ch. 7) per request, and we'll also need expert-routing infrastructure on top of that.
+From the model-understanding chapter, the architect can answer: Active-compute memory yes — only ~14B of the ~47B total is active per token, so ~28 GB of *active* weight footprint is read per token vs. 140 GB for a dense 70B. But *resident* memory is a different question. An MoE model normally keeps its **full expert set resident** — the non-active experts still occupy HBM unless we explicitly use expert offload/swapping (Ch. 3 §3, Ch. 18), which itself costs bandwidth. So MoE reduces compute per token, and it gives us the *option* to offload some experts to shrink residency, but it does **not** automatically reduce the weight-residency floor. And KV cache memory no — the attention layers still process every token densely, so the cache budget for a 9.2K-context input is the same regardless of whether the model is dense or MoE. We still need to provision for ~12 GB of KV cache (at 8-bit) or ~24 GB (at the precision pattern discussed in Ch. 7) per request, and we'll also need expert-routing infrastructure on top of that.
 
 The architect's decision therefore hinges on whether the compute savings from MoE (fewer FLOPs per token, potentially lower \$/token) outweigh the added routing complexity and the fact that KV cache memory is unchanged. The team decides on a MoE model for the compute/\$ advantage, but provisions the KV cache budget at the dense-model rate, and adds one GPU dedicated to the routing dispatcher.
 
@@ -154,7 +154,7 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 
 *Parameter-activation contrast. A dense 70B activates all 70B parameters per token (residency ≈ 140 GB, KV grows linearly with context). An 8-expert MoE still stores its full expert set as resident weights (not shown to scale), but only the top-2 (~14B) are active per token (active compute footprint ≈ 28 GB). KV cache growth with context is identical to dense — attention still processes every token.*
 
-### Table 3-1 — Parameter and KV cache arithmetic for the canonical workload
+**Table 3-3** — Parameter and KV cache arithmetic for the canonical workload
 
 | metric | dense 70B | MoE (8×7B class) | derivation |
 |---|---|---|---|
