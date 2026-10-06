@@ -16,9 +16,6 @@ The collective operations that dominate multi-node training and inference are:
 
 The bandwidth each collective consumes depends on three factors: the data volume (bytes), the number of participating nodes (N), and the interconnect's effective bandwidth in the presence of contention. A 70B FP16 model is 140 GB. An all-reduce of that model across 8 GPUs on a single node moves 140 GB over NVLink; across 8 nodes connected by InfiniBand moves 140 GB (or more, depending on the algorithm) over the fabric. The same 140 GB over a 25 GB/s Ethernet link takes more than 5× the time of the same operation over a 900 GB/s NVLink.
 
-**Table 9-1** — Interconnect hierarchy with bandwidth (bidirectional where applicable), latency, and approximate cost per GB. PCIe Gen5 x16 ~64 GB/s, ~1 µs latency, low cost (integrated); NVLink H100 900 GB/s bisection, ~0.5–1 µs latency, high cost (GPU-attached); Ethernet RoCE2 200/400 Gb/s ≈ 25/50 GB/s, ~10–25 µs latency, moderate cost (standard NICs); InfiniBand HDR 200 Gb/s / NDR 400 Gb/s ≈ 25/50 GB/s, ~2–5 µs latency, high cost (switches, optics). Cost per GB is inversely proportional to bandwidth for fixed-form optics, but system cost includes cables, switches, and rack density trade-offs.
-
-
 #### Table 9-1 — The interconnect hierarchy
 
 | Layer | Example | Bandwidth (one direction / aggregate) | Latency | Cost | [source] |
@@ -36,7 +33,7 @@ The bandwidth each collective consumes depends on three factors: the data volume
 
 The interconnect is best read as a series of concentric rings. The GPU sits at the center, reachable fastest via PCIe. One ring out is the node: GPUs on the same server are joined by NVLink and NVSwitch, forming a high-radix, low-latency mesh. The next ring out is the rack: 10–20 GbE or 100/200/400 GbE RoCE connects nodes. The outermost ring is the cluster or data center: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s) stitches racks into a single logical network. A well-designed deployment keeps the heavy collectives (all-reduce, reduce-scatter) on the inner rings and reserves the outer rings for less volume or latency-tolerant traffic.
 
-The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink bisection provides 900 GB/s per direction, **a lower bound** on time is 140 GB ÷ 900 GB/s ≈ **0.16 s [1P][DERIVED]** — note the word *lower bound*. The actual completion time of a real collective is higher because a collective is not one flat transfer but a sequence of message-passing and reduction steps across the topology:
+The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink bisection provides 900 GB/s of total bidirectional bandwidth per GPU (450 GB/s per direction; 18 NVLink 4.0 links × 50 GB/s bidirectional, NVIDIA H100 datasheet), **a lower bound** on time is 140 GB ÷ 900 GB/s ≈ **0.16 s [1P][DERIVED]** — note the word *lower bound*. The actual completion time of a real collective is higher because a collective is not one flat transfer but a sequence of message-passing and reduction steps across the topology:
 
 $$
 T_{\text{collective}} \approx \alpha \times n_\text{steps} + \frac{\text{bytes}}{\beta}

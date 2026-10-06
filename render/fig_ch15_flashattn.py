@@ -106,9 +106,9 @@ def draw_panel(x0, x1, title, subtitle, flash):
     label(x0+30, hb_cy, 'Q/K/V', '#fff', FS-1.2, style='italic', weight='bold')
     # caption of traffic reduction
     if not flash:
-        cap = ('O(L^2) HBM traffic:\nevery query re-reads\nthe row-block')
+        cap = ('O(L²) HBM traffic:\nevery query re-reads\nthe row-block')
     else:
-        cap = ('O(L) HBM traffic:\neach tile read once,\nsoftmax online')
+        cap = ('O(L) memory (no L×L\nintermediate); HBM traffic\nreduced by SRAM size')
     label((x0+x1)/2, panel_top-panel_h-12, cap,
           C_TRAFFIC if not flash else '#2f6f4f', FS-1.1)
 

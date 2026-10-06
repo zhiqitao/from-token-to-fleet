@@ -106,7 +106,7 @@ stages = [
     ('1. What is the true problem?',
      '"our app is slow" \u2192 TTFT p99 1.4 s on a 70B model'),
     ('2. What does success look like?',
-     'p95 TTFT < 300 ms, TPOT ~25 ms, 40 rps peak'),
+     'p95 TTFT \u2264 2 s, ~25 ms/token, 40 rps peak'),
     ('3. What data exists?',
      '9.2K-token prompts; shared prefix (hit rate to benchmark)'),
     ('4. What are the constraints?',
