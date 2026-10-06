@@ -22,7 +22,7 @@ rows = [
     ("GLM-5.3-Flash",     "vs stated ref", 23, 33, "#6f9e5f"),
 ]
 
-W, H = 6.1 * 72, 5.4 * 72
+W, H = 6.1 * 72, 7.4 * 72
 FS_H, FS_F, FS_C, FS_R = 10.0, 9.6, 9.0, 8.8
 
 fig, ax = plt.subplots(figsize=(W/72, H/72))
@@ -37,15 +37,20 @@ c_kv   = 284       # KV/token "100% -> ~X%" cluster centre
 c_flop = 382       # FLOP/token cluster centre
 h_kv   = 36        # half span of the 100%/arrow/~X% cluster
 
+# ---- vertical centering: compute the content block and center it in the canvas ----
+pitch = 56
+block_height = 125 + 3 * pitch          # title (top) .. footnote2 (bottom)
+T = (H + block_height) / 2              # title y
+
 # ---- title / warning ----
-ax.text(W/2, H-16, 'Vendor-reported KV / FLOP reduction', fontsize=FS_H+1.6,
+ax.text(W/2, T, 'Vendor-reported KV / FLOP reduction', fontsize=FS_H+1.6,
         fontweight='bold', ha='center', va='center', color='#1a1a1a')
-ax.text(W/2, H-38,
+ax.text(W/2, T - 24,
         'Each figure is relative to that model\'s OWN stated baseline — no shared scale',
         fontsize=FS_R-0.4, ha='center', va='center', color='#c0392b', fontweight='bold')
 
 # ---- column headers ----
-hy = H - 70
+hy = T - 56
 ax.text(c_name, hy, 'model family', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
 ax.text(c_base, hy, 'own baseline', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
 ax.text(c_kv,   hy, 'KV / token',   fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
@@ -56,7 +61,6 @@ ax.plot([12, W-12], [sep_y, sep_y], color='#999', lw=1.0)
 
 # ---- one row per family ----
 row0 = sep_y - 20
-pitch = 34
 for r, (name, base, kv, flop, col) in enumerate(rows):
     ry = row0 - r * pitch
     ax.text(12, ry, name, fontsize=FS_F, fontweight='bold', ha='left', va='center', color=col)

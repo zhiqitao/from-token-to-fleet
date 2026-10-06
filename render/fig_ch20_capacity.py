@@ -59,7 +59,7 @@ ax2.legend(fontsize=8.0, loc='upper left', frameon=False)
 ax2.tick_params(labelsize=8)
 
 ax2.set_xlabel('Host count', fontsize=9)
-fig.text(0.5, 0.005, '[ILLUSTRATIVE][DERIVED]', ha='center', fontsize=7.5, color='#777')
+fig.text(0.5, 0.005, '[ILLUSTRATIVE][DERIVED]', ha='center', fontsize=9, color='#444')
 
 plt.tight_layout(rect=(0, 0.02, 1, 1))
 import matplotlib as _mpl
