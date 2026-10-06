@@ -69,7 +69,7 @@ ax.text(2200.0, 1.6e13, 'compute-bound', color=C_CMPL, fontsize=12.5,
 
 # === ridge (boundary between the two regimes) ===
 ax.axvline(RIDGE, color='#c0392b', ls='--', lw=1.7, zorder=3)
-ax.text(RIDGE * 1.03, YMAX * 0.82, 'roofline ridge ~295', color='#c0392b',
+ax.text(RIDGE * 1.03, YMAX * 0.72, 'roofline ridge ~295', color='#c0392b',
         fontsize=8.5, ha='left', va='top', fontweight='bold', zorder=6)
 
 # === roofline curve (heaviest element; upper envelope) ===
