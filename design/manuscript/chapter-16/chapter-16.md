@@ -34,7 +34,7 @@ The decision shape is a **break-even graph**: at low volume, managed/cloud-and-s
 
 TCO is meaningless until we know **how many hosts the workload actually requires**. The reviewer's sharpest point stands: a single 8×H100 host can only sustain ~2.0 req/s under the KV/latency analytical planning bound (Chapter 17/20), so it cannot serve even the canonical 10 rps average, let alone the 40 rps peak. We therefore size the fleet first (Ch 17) and price it second.
 
-**Step 1 — fleet size.** The canonical workload requires N_hosts = max(N_throughput, N_KV, N_SLO). With the ~8.6 s service time and C≈17.5 KV-resident requests/host (Ch 17; byte-accurate 17.51, conservative integer ceiling 17):
+**Step 1 — fleet size.** The canonical workload requires N_hosts = max(N_throughput, N_KV, N_SLO). With the ~8.6 s service time and C≈17.5 KV-resident requests/host (Ch 17; byte-accurate 17.51, conservative integer floor 17):
 
 | Sizing bound | Average (10 rps) | Peak (40 rps) |
 |---|---|---|
