@@ -28,9 +28,11 @@ for i, (d, c) in enumerate(zip(dims, cons)):
     y = 9 - i*1.35
     ax.add_patch(FancyBboxPatch((0.5, y-0.4), 4.5, 0.8, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
     ax.text(2.75, y, d, ha='center', va='center', color='white', fontsize=11, fontweight='bold')
-    ax.annotate('', xy=(6.6, y), xytext=(5.2, y), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555'))
-    ax.add_patch(FancyBboxPatch((6.8, y-0.4), 6.5, 0.8, boxstyle='round,pad=0.02', fc='#e67e22', ec='none'))
-    ax.text(10.05, y, c, ha='center', va='center', color='white', fontsize=11)
+    # dashed arrow: the mapping is a heuristic influence, not a deterministic one-to-one
+    ax.annotate('', xy=(6.6, y), xytext=(5.2, y), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555', linestyle=(0, (4, 2))))
+    # pale orange + dark text: white-on-orange is below the print contrast floor
+    ax.add_patch(FancyBboxPatch((6.8, y-0.4), 6.5, 0.8, boxstyle='round,pad=0.02', fc='#f5c99b', ec='none'))
+    ax.text(10.05, y, c, ha='center', va='center', color='#7a3b00', fontsize=11)
 ax.text(7, 9.7, 'Six-dimension workload characterization → architectural consequences',
         fontsize=13, fontweight='bold', ha='center')
 plt.tight_layout()

@@ -85,7 +85,7 @@ For 1,000 requests/hour (≈0.28 rps — a light illustrative load; the arithmet
 
 **Mixed-fleet hourly cost** = $8.31 + $1.90 + $2.38 = **$12.59 / hour** vs. $23.75 / hour for single-FP16 (all 9.5M tokens at $2.50).
 
-**Monthly savings** ≈ ($23.75 − $12.59) × 720 hr ≈ **$8,035 / month** (≈ 47% reduction) with comparable quality because the 8-bit model meets quality thresholds for >90% of requests.
+**Monthly savings** ≈ ($23.75 − $12.59) × 730 hr ≈ **$8,147 / month** (≈ 47% reduction) with comparable quality because the 8-bit model meets quality thresholds for >90% of requests.
 
 ### 3.4. Latency check
 
