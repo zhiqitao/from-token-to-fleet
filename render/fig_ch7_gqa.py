@@ -10,7 +10,7 @@ from matplotlib.patches import Rectangle
 # and the ratio/takeaway text lives in the figure caption, not in the raster.
 fig, ax = plt.subplots(figsize=(6.1, 4.0))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
-ax.set_xlim(0, 10); ax.set_ylim(0, 6.6); ax.axis('off')
+ax.set_xlim(0, 10); ax.set_ylim(0.9, 6.6); ax.axis('off')
 ax.set_position((0, 0, 1, 1))    # fill the whole figure canvas
 
 # ---- title (short; the takeaway numbers move to the caption) ----

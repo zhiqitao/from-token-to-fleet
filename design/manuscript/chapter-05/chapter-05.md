@@ -74,7 +74,7 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 [DERIVED] KV cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.62 MB/token (FP16; = 2.5 MiB) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.62 MB ≈ 24.1 GB of KV cache (initial residency).
 
-[DERIVED] per‑request memory budget: 640 GB total HBM − 140 GB weights = 500 GB headroom. The 24.1 GB KV cache for 9.2K input consumes 4.7% of headroom, leaving ~476.6 GB for activations, intermediate buffers, and OS overhead. This is comfortably within a single 8×H100 node's capacity.
+[DERIVED] per‑request memory budget: 640 GB total HBM − 140 GB weights = 500 GB headroom (before the ~64 GB runtime reserve that the concurrency budget in Ch. 7 subtracts to reach the ~436 GB KV budget). The 24.1 GB KV cache for 9.2K input consumes 4.7% of headroom, leaving ~476.6 GB for activations, intermediate buffers, and OS overhead. This is comfortably within a single 8×H100 node's capacity.
 
 [2°] DERIVED: vLLM continuous batching on 8×H100 with a 70B FP16 model and 9.2K context yields ~50 tokens/s aggregate throughput for 300‑token outputs. The prefill phase (9.2K tokens) dominates TTFT: at ~1.08 s it leaves ~0.12 s of headroom against the 1.2 s budget *for prefill alone*. Adding retrieval (~120 ms) puts the full TTFT (retrieval + prefill) at ~1.20 s, i.e. at the 1.2 s SLO line with no prefill-side margin; the real margin is the p95 ≤ 2 s target.
 

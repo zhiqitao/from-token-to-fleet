@@ -2,7 +2,7 @@
 
 ## The Architect's Question
 
-After this chapter we should be able to answer the inevitable scaling question: *a single GPU cannot hold this model or keep up with this workload — how do we split the work across many GPUs, and which split is right?* We will build the arithmetic for why a model outgrows one GPU, then study the five parallelization strategies — tensor, pipeline, data, expert, and sequence parallelism — and develop a rule for choosing among them based on the model's weight-residency, the workload's batch shape, and the interconnect speed. After this chapter, "we scaled it out" becomes a precise claim about *what* was split and *why*.
+After this chapter we should be able to answer the inevitable scaling question: *a single GPU cannot hold this model or keep up with this workload — how do we split the work across many GPUs, and which split is right?* We will build the arithmetic for why a model outgrows one GPU, then study the five parallelization strategies — tensor, pipeline, data, expert, and sequence parallelism — plus a serving-only sixth (P/D disaggregation, which has no training counterpart), and develop a rule for choosing among them based on the model's weight-residency, the workload's batch shape, and the interconnect speed. After this chapter, "we scaled it out" becomes a precise claim about *what* was split and *why*.
 
 ## 1. Concept
 
@@ -134,7 +134,7 @@ The parallelism strategy is forced by the binding constraint, and that constrain
 
 - **The canonical answer**: for the book's ~70B/8×H100 scenario, no parallelism is required at the baseline; parallelism becomes the tool when the model or workload outgrows one node. The architect escalates through TP (in-node) → PP (cross-node) → DP (replicating a fitting model) in that order.
 
-**The five parallelization strategies and what each splits.** This is consolidated in Table 10-1 above — reading across a row gives one strategy's full trade-off (what it splits, what it replicates, what it communicates, when it fits); reading down a column shows how each axis varies across strategies.
+**The five parallelization strategies (plus the serving-only P/D disaggregation) and what each splits.** This is consolidated in Table 10-1 above — reading across a row gives one strategy's full trade-off (what it splits, what it replicates, what it communicates, when it fits); reading down a column shows how each axis varies across strategies.
 
 <!-- Figure spec: mechanism-first diagram; model shown as weight-matrix + layer-stack + batch; arrows show TP slicing weights, PP stacking stages, DP replicating with all-reduce, EP sharding experts, CP splitting sequence; annotate comm cost + use-case per strategy. -->
 
