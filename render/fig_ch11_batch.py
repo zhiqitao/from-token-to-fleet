@@ -26,10 +26,10 @@ ax.text(8.2, 4 - 0.7*2 - 0.25, 'idle (bubble)', fontsize=7.8, color='#c0392b', h
 ax.annotate('', xy=(7.7, 4 - 0.7*2 - 0.55), xytext=(7.9, 4 - 0.7*2 - 0.25),
             arrowprops=dict(arrowstyle='-', lw=0.7, color='#c0392b'))
 ax.add_patch(Rectangle((1.0, 0.4), 3.0, 0.6, fc='#bbb', ec='none', alpha=0.6))
-ax.text(2.5, 0.7, 'next batch waits', fontsize=8.5, color='#555', ha='center')
+ax.text(2.5, 0.7, 'next batch waits', fontsize=9, color='#333', ha='center', fontweight='bold')
 ax.annotate('', xy=(2.5, 1.0), xytext=(2.5, 0.7),
             arrowprops=dict(arrowstyle='-', lw=0.7, color='#555'))
-ax.text(5.0, 0.1, 'GPU slots idle (red) when a\nsequence finishes early', fontsize=8.2, color='#c0392b', ha='center')
+ax.text(5.0, 0.1, 'GPU slots idle (pink) when a\nsequence finishes early', fontsize=8.2, color='#c0392b', ha='center')
 
 # ---------- continuous (right) ----------
 ax = axes[1]
@@ -44,7 +44,10 @@ for (x0, w, s, backfill) in ctasks:
     lw_e = 1.6 if backfill else 0
     ec = '#1e6b42' if backfill else 'none'
     ax.add_patch(Rectangle((x0, y), w, 0.6, fc=col, ec=ec, lw=lw_e, alpha=0.95 if backfill else 0.9))
-ax.annotate('', xy=(9.8, 2.95), xytext=(9.8, 0.5), arrowprops=dict(arrowstyle='-|>', lw=1.3, color='#555'))
+# time arrow: points DOWN (top = first, bottom = later), matching the top-to-bottom
+# reading order of the slot rows; labeled so its meaning is not guessed.
+ax.annotate('', xy=(9.8, 0.5), xytext=(9.8, 2.95), arrowprops=dict(arrowstyle='-|>', lw=1.3, color='#555'))
+ax.text(9.55, 1.7, 'time', fontsize=8.5, color='#555', ha='right', va='center', rotation=90)
 # annotation in the clear top-right band (above the top slot row, which ends at
 # x=6.6); the arrow points down to the last backfilled green slot — no overlap
 # with the slot rectangles.

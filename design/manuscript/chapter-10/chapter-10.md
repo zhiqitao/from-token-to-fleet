@@ -40,7 +40,7 @@ The useful mental model is a **resource triangle**: we have weights (memory), ac
 |---|---|---|---|---|
 | Tensor (TP) | a layer's weights within a GPU group | activations | partial sums → all-reduce (every layer, over NVLink) | model exceeds one GPU, fits a node |
 | Pipeline (PP) | the layer stack into stages | hidden states | hidden states → P2P (stage boundaries only) | model spans nodes |
-| Data (DP) | the data batch | model + optimizer | gradients → all-reduce (per step) | model fits one GPU, need throughput |
+| Data (DP) | the data batch | model + optimizer | gradients → all-reduce (per step) | model fits one GPU, need throughput (the canonical 70B is 140 GB > 80 GB per GPU, so it does not fit one GPU — DP is not its baseline; see §3) |
 | Expert (EP) | MoE experts | attention / weights | routes → all-to-all (per token) | MoE models |
 | Sequence (CP) | the token sequence | model weights | KV → ring | long contexts, KV too big |
 
