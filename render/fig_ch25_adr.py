@@ -21,8 +21,8 @@ x0 = (24 - total)/2.0
 z = 3.6
 for i, name in enumerate(stages):
     x = x0 + i*(w+gap)
-    ax.add_patch(FancyBboxPatch((x, z), w, 1.2, boxstyle='round,pad=0.05', fc='#3a6ea5', ec='#1a3a6b', lw=1.1))
-    ax.text(x+w/2, z+0.6, name, ha='center', va='center', fontsize=8.5, color='white', fontweight='bold')
+    ax.add_patch(FancyBboxPatch((x, z), w, 1.2, boxstyle='round,pad=0.05', fc='#dbe7f5', ec='#1a3a6b', lw=1.3))
+    ax.text(x+w/2, z+0.6, name, ha='center', va='center', fontsize=9.6, color='#1a3a6b', fontweight='bold')
     if i < n-1:
         ax.annotate('', xy=(x+w+gap-0.1, z+0.6), xytext=(x+w+0.1, z+0.6),
                     arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#444'))

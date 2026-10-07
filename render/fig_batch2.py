@@ -120,10 +120,17 @@ for i, (q, a) in enumerate(stages):
     ax.add_patch(FancyBboxPatch(((10-w)/2, y), w, 1.08, boxstyle='round,pad=0.02', fc='#f0b35f', ec='#c07a2a'))
     ax.text(5, y+0.80, q, ha='center', va='center', fontsize=9.0, fontweight='bold', color='#4a2f10')
     ax.text(5, y+0.34, a, ha='center', va='center', fontsize=7.7, color='#5a3a14')
-# outcome
-ax.add_patch(FancyBboxPatch((0.5, 0.30), 9.0, 1.15, boxstyle='round,pad=0.02', fc='#6f9e5f', ec='#3d5a2f'))
-ax.text(5, 0.88, 'Quantified bounds \u2192 {TTFT, throughput, cost} budget', ha='center', va='center',
-        color='white', fontsize=8.0, fontweight='bold')
+    if i < len(stages)-1:
+        # arrow in the gap: from box i's bottom (y) down to box i+1's top (y-0.27)
+        ax.annotate('', xy=(5, y-0.25), xytext=(5, y-0.02),
+                    arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#c07a2a', mutation_scale=11))
+# outcome (narrower than the top box so the funnel silhouette holds: the quantified
+# bound is the narrow, specific result of the five widening questions)
+ax.add_patch(FancyBboxPatch((1.7, 1.13), 6.6, 1.15, boxstyle='round,pad=0.02', fc='#6f9e5f', ec='#3d5a2f'))
+ax.text(5, 1.71, 'Quantified bounds: TTFT / throughput / cost', ha='center', va='center',
+        color='white', fontsize=7.8, fontweight='bold')
+ax.annotate('', xy=(5, 2.30), xytext=(5, 3.18),
+            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#3d5a2f', mutation_scale=13))
 ax.text(5, 9.85, 'From a vague ask to architectural bounds (worked example)', fontsize=11.6, fontweight='bold', ha='center', color='#1a1a1a')
 plt.tight_layout()
 plt.savefig(base % (23, 23, 23), dpi=150); plt.close()

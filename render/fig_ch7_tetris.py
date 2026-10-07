@@ -65,7 +65,7 @@ ax.legend(handles=leg, loc='lower left', bbox_to_anchor=(0.0, -0.10), fontsize=9
           frameon=False, ncol=3, handlelength=1.4, columnspacing=1.2)
 
 # one focused note (moved most of the old explanation to the figure caption in the MS)
-ax.text(0.2, -150, 'The baseline (weights + runtime) is fixed; only the KV cache grows with context.',
+ax.text(0.2, -150, 'The baseline (weights + runtime) is fixed; only the KV cache grows with context.\nBar heights are to scale (GB).',
         fontsize=8.4, color='#555', zorder=8)
 
 fig.subplots_adjust(top=0.90, bottom=0.02, left=0.05, right=0.97)
