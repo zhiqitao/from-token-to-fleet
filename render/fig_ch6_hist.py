@@ -24,12 +24,12 @@ mean = lat.mean()
 # (2.0s) verticals, creating clutter. Direct labels have no leaders, so nothing crosses.
 ytop = ax.get_ylim()[1]
 # Stagger the three green percentile labels onto three clearly-separated rows
-# (0.99 / 0.91 / 0.83 of ytop) so the boxes do not nearly-touch; the p99 and
-# SLO labels sit on the top row to the right, clear of this green stack.
+# (0.99 / 0.88 / 0.77 of ytop) so the boxes have comfortable vertical gaps; the
+# p99 and SLO labels sit on the top row to the right, clear of this green stack.
 leaders = [
     (50, np.percentile(lat, 50), 0.99),
-    (90, np.percentile(lat, 90), 0.91),
-    (95, np.percentile(lat, 95), 0.83),
+    (90, np.percentile(lat, 90), 0.88),
+    (95, np.percentile(lat, 95), 0.77),
 ]
 for p, v, dy_off in leaders:
     ax.axvline(v, color='#6f9e5f', ls='--', lw=1.3)
