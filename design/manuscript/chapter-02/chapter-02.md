@@ -27,7 +27,7 @@ The critical architectural insight: prefill is dominated by FLOPs (matrix-multip
 | **KV cache** | the stored K and V tensors per token per layer, saved so decode does not recompute the prefix | an *optimization* over a shared prefix |
 | **PagedAttention** | a memory-*allocation* scheme for the KV cache (splits it into fixed-size pages, cuts fragmentation/waste) | a way to *reduce* the amount of KV state |
 | **prefix caching / KV reuse** | reusing *already-computed* K/V for a shared prefix, to skip re-prefilling it | the same as caching the KV of a *single* request's own decode |
-| **prompt caching** | broader system/provider term; the book uses it to mean *reusing the KV of a shared prompt prefix across requests* | a distinct mechanism from prefix caching |
+| **prompt caching** | broader system/provider term; the book uses it to mean *reusing the KV of a shared prompt prefix across requests* | not a separate mechanism from prefix caching in this book's usage |
 | **KV quantization** | reducing the *bytes* per K/V element (e.g. FP16→FP8) | reducing the *number* of key/value entries |
 | **KV offloading** | moving some KV state out of GPU HBM (to host DRAM/SSD), trading capacity against transfer latency | shrinking the state itself |
 
@@ -130,7 +130,7 @@ These measurements cost nothing but a profiler attach and a few representative r
 
 - **Treating prefill and decode as the same bottleneck.** A dangerous mistake is assuming that what slows prefill will also slow decode, or vice versa. Prefill FLOPs scale with input length; decode bandwidth is constant per token. Confusing the two leads to over-provisioning compute for a bandwidth-bound workload, or under-provisioning compute for a compute-bound one.
 
-- **Assuming one H100 suffices for 70B inference.** The arithmetic in Section 3 shows that a single H100 cannot meet the decode bandwidth demand (5.6 TB/s vs 3.35 TB/s) nor the prefill compute demand (1.29 PFLOP vs 0.989 PFLOPS). Attributing 70B serveability to a single GPU ignores the opposite bottlenecks and produces an architecture that fails latency SLOs.
+- **Assuming one H100 suffices for 70B inference.** The arithmetic in Section 3 shows that a single H100 cannot meet the decode bandwidth demand (5.6 TB/s vs 3.35 TB/s) nor the prefill compute demand (1.19 PFLOPS required vs 0.989 PFLOPS peak, from 1.29 PFLOP / 1.08 s). Attributing 70B serveability to a single GPU ignores the opposite bottlenecks and produces an architecture that fails latency SLOs.
 
 - **Ignoring the input/output token asymmetry.** A workload with 9.2K input tokens and 300 output tokens imposes a *substantial prefill compute burden* despite producing relatively few output tokens — do not infer serving cost or resource pressure from output-token count alone. The two legs of the request have different cost structures and different optimization paths: decode is repeated per output token and dominates *wall-clock latency* (at the canonical ~25 ms/token, 300 output tokens ≈ 7.5 s of decode vs a ~1.08 s prefill budget), while prefill is a large one-shot burst of compute and dominates the *compute* burden (the 9.2K-input attention pass). Quoting only per-token latency or only throughput/s hides this distinction.
 
