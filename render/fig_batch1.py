@@ -80,12 +80,11 @@ ax.tick_params(labelsize=10)
 # x-axis labelled tick covering the 140 GB weight-footprint reference
 ax.set_xticks([0.01, 0.1, 1, 10, 100, 200])
 ax.set_xticklabels(['0.01', '0.1', '1', '10', '100', '200'])
-ax.set_xlim(0.01, 200)   # extend past 140 so the weight-footprint marker is in-plot
 ax.set_ylim(1e-1, 1e6)
 # legend OUTSIDE the axes (below) so it does not occlude the data
 ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=2, frameon=False)
 ax.grid(alpha=0.3, which='both')
-ax.set_xlim(0.005, 200); ax.set_ylim(1, 2e6)
+ax.set_xlim(0.005, 250); ax.set_ylim(1, 2e6)   # extend past the 200 tick so its label is not on the right border
 plt.tight_layout(rect=(0, 0.08, 1, 1))
 plt.savefig(base % (9, 9, 9), dpi=150); plt.close()
 print('Ch09 done')
