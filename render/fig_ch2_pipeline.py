@@ -213,6 +213,17 @@ _ry = (kc_bot + gn_y + BR) / 2
 ax.text(X_T - 12, _ry, 'read', color='#333333', fontsize=FSN,
         fontweight='bold', ha='right', va='center')
 
+# ==================== append (decode transformer -> cache, up) ==============
+# The decode step writes its new K/V back to the cache (the caption's "appends
+# the new K/V").  Routed to the RIGHT of the read arrow (X_T + 26) so the two
+# cache operations are visually distinct; the corridor is clear of the green
+# initialize channel (which sits at gn_y, below the arrow's lower end).
+X_APP = X_T + 26
+arrow(X_APP, dc['transformer'][3] + 2, X_APP, kc_bot - 2, C_AR, 2.0)
+_ay = (dc['transformer'][3] + kc_bot) / 2
+ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
+        fontweight='bold', ha='left', va='center')
+
 # ==================== GREEN initialize ====================
 # first token (right edge) -> down the right margin -> left along the channel
 # below the cache box -> drop into the TOP of previous token.  The channel

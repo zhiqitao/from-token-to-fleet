@@ -129,7 +129,7 @@ These derived quantities give the architect concrete numbers to set policies: ca
 
 ## 5. Common Mistakes
 
-1. **Unbounded turn limits.** Setting the maximum number of agent turns too high (e.g., 10 or more) leads to runaway token consumption and latency spikes. In production we have seen a single request consume >30,000 tokens and take >5 seconds because the model kept looping on a poorly scoped tool.
+1. **Unbounded or miscalibrated turn limits.** Setting the maximum number of agent turns too high for the task leads to runaway token consumption and latency spikes. In production we have seen a single request consume >30,000 tokens and take >5 seconds because the model kept looping on a poorly scoped tool. The right cap is task-calibrated, not a universal number: measure the distribution of useful completion turns, loop-failure turns, and marginal value per turn for your workload, then set the cap where marginal value drops off (the canonical policy caps at 3, with a 2% fallback to single-shot — §4, §8). A cap of 10 may be too many for one workflow and too few for another; the number is a policy parameter, not a constant.
 
 2. **Neglecting token accounting per turn.** Many architects track only the initial input tokens and forget that each retrieval or tool call adds context that persists for all subsequent turns. The compounding effect means that turn *T* sees an input base that grows linearly with *T*.
 
@@ -137,7 +137,7 @@ These derived quantities give the architect concrete numbers to set policies: ca
 
 4. **Confusing 'agentic' with 'more prompts'.** Adding extra prompts without a structured loop (Plan/Execute/Observe/Decide) does not give the model reasoning power; it just inflates token count. The agentic value comes from the model’s ability to reinterpret prior observations and decide the next action.
 
-5. **Skipping guardrails.** Without pre-call validation (e.g., query sanitization, budget checks) and post-call verification (answer relevance, hallucination detection), agentic systems can produce plausible but incorrect or unsafe outputs. Guardrails are not optional — they are the safety net that makes unbounded loops acceptable in production.
+5. **Skipping guardrails.** Without pre-call validation (e.g., query sanitization, budget checks) and post-call verification (answer relevance, hallucination detection), agentic systems can produce plausible but incorrect or unsafe outputs. Guardrails are not optional — they are the safety net that makes *bounded* loops safe in production. A production agent needs explicit termination, budget, recovery, and escalation policies: hard turn/token/cost/wall-time limits, tool timeouts, cancellation, idempotency/retry discipline, state checkpointing, and human escalation. A logical multi-step task may be resumed across bounded execution windows rather than granted unlimited resources — guardrails make the loop *safe*, not *unbounded*.
 
 ## 6. Architecture Consequence
 

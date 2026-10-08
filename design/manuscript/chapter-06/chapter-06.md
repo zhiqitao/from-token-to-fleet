@@ -24,7 +24,7 @@ The discipline this chapter works toward: **never jump from a workload metric st
 
 ### Why the Wrong Metric Persists
 
-Teams default to measuring what they already have dashboards for: model quality (accuracy, ROUGE, benchmark scores) and average latency. Both are dangerously incomplete. Quality is the *goal* but never the *bottleneck*; average latency is a single scalar that hides the tail that actually violates SLAs. The entire thesis of this chapter is that the metric that drives an architecture decision is usually **not** the metric the model card advertises.
+Teams default to measuring what they already have dashboards for: model quality (accuracy, ROUGE, benchmark scores) and average latency. Both are dangerously incomplete. Quality is the *goal* and a *feasibility gate* — a fast or cheap architecture that fails the quality bar is disqualified before performance even matters — but it is not the *bottleneck* that explains a resource or latency failure once quality is acceptable; that is the role of the serving metrics. Average latency is a single scalar that hides the tail that actually violates SLAs. The entire thesis of this chapter is that the metric that drives an architecture decision is usually **not** the metric the model card advertises.
 
 ## 2. Mental Model
 

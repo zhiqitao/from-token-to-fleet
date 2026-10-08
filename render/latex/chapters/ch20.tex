@@ -272,22 +272,36 @@ ways:
   \textbf{Centralized scheduler}: A lightweight service (e.g., based on
   etcd or a custom placement engine) maintains real-time view of
   per-host utilization and makes dispatch decisions. This service must
-  be highly available and sub-millisecond in decision latency, otherwise
-  it becomes the system bottleneck.
+  be highly available, and its dispatch overhead should stay a small
+  fraction of the per-request SLO --- for the canonical
+  \textasciitilde8.6 s service time, a sub-millisecond decision is a
+  comfortable \emph{target} (the round-robin baseline adds
+  \textasciitilde0.5 ms, §3), not a universal necessity: the binding
+  constraint is that dispatch overhead not consume a meaningful share of
+  the request/turn SLO, which depends on routing frequency and
+  scheduling architecture.
 \item
   \textbf{Data colocation}: Vector indexes and model weights are stored
   close to the hosts that consume them. This may mean running a local
   Qdrant or Milvus instance per host, or using a shared object store
   (e.g., MinIO) with read-replicas per availability zone. The goal is to
   minimize the distance---measured in network hops---between the
-  scheduler's placement decision and the data fetch.
+  scheduler's placement decision and the data fetch. But colocation is a
+  trade, not a free win: a per-host index multiplies memory/storage,
+  consistency, ingestion, and operational cost across the fleet, and
+  model-weight locality is a different problem from vector-index
+  locality. The right placement depends on the workload --- compare
+  centralized retrieval, AZ-local retrieval, replicated indexes, and
+  cached results, and identify the traffic/latency point at which
+  colocation's access-latency saving outweighs its replication cost. Do
+  not conflate the two locality questions.
 \item
   \textbf{Graceful degradation}: The fleet should have a mode where,
   under extreme overload, it serves stale or truncated answers rather
   than failing entirely. This could mean returning the top-k results
   from a cached embedding rather than recomputing, or surfacing a ``try
   again'' message with an estimated wait time. The architectural
-  contract must explicitize this trade-off so product teams can set
+  contract must make this trade-off explicit so product teams can set
   appropriate SLOs.
 \end{enumerate}
 
@@ -309,10 +323,10 @@ Several open questions remain at the fleet level:
 \item
   \textbf{Multi-model serving}: When multiple model sizes coexist (e.g.,
   70B for complex queries, 7B for quick ones), the scheduling problem
-  gains a dimensionality dimension---placement must balance model size
-  against query urgency and host memory. Mixed-precision serving (FP16,
-  FP8, INT4) adds another layer: lower precision increases throughput
-  but may degrade answer quality on subtle reasoning tasks, and the
+  gains a new dimension---placement must balance model size against
+  query urgency and host memory. Mixed-precision serving (FP16, FP8,
+  INT4) adds another layer: lower precision increases throughput but may
+  degrade answer quality on subtle reasoning tasks, and the
   quality-throughput trade-off curve is model-specific.
 \item
   \textbf{Economic auto-scaling}: The break-even point between owning
