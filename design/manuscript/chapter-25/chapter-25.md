@@ -114,9 +114,19 @@ This is the minimal template to copy into a repo, intended to be filled and to s
 ## Review trigger
 <what event (metric, date, new evidence)
   re-opens this ADR>
+
+## Falsification path
+- Hypothesis:      <the claim this decision rests on,
+  stated so it can be wrong>
+- Evidence required: <the measurement/benchmark that
+  would confirm it>
+- Invalidation:     <the specific counterexample or
+  measured result that would prove the decision wrong
+  and force a re-open>
+- Alternative:      <what we switch to if invalidated>
 ```
 
-The three blocks most often skipped are the **Architecture Decision Context**, the **unit check**, and the **decision owner + review trigger** — and skipping exactly those three is what turns an ADR into a decision log instead of a decision *apparatus*. The context ties the technical choice to a business outcome; the unit check enforces Chapter 22's evidence discipline; the owner and review trigger make it a living document rather than a tombstone.
+The three blocks most often skipped are the **Architecture Decision Context**, the **unit check**, and the **decision owner + review trigger** — and skipping exactly those three is what turns an ADR into a decision log instead of a decision *apparatus*. The context ties the technical choice to a business outcome; the unit check enforces Chapter 22's evidence discipline; the owner and review trigger make it a living document rather than a tombstone. The **falsification path** is what makes the decision *reproducible* rather than merely plausible: it names the hypothesis, the evidence that would confirm it, and the specific measured result that would invalidate it — so the next engineer can re-run the decision instead of inheriting it on faith.
 
 ## 4. Measurement
 

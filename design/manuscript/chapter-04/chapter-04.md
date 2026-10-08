@@ -200,6 +200,18 @@ The economic constraint is what makes the workload real: a 70B FP16 model on one
 
 These are NOT redundant measures of the same effective cost — they are what-the-customer-pays-the-cloud (basis A) vs what-the-host-cost-spread-across-tokens-costs (basis B). Quoting both without labelling the basis confuses readers into treating basis B as if it were basis A.
 
+**A note on the canonical example's limits.** The input-heavy enterprise-RAG workload above is one shape, not the whole space. The same six-dimension framework characterizes any inference workload; what changes is *which dimension dominates* and *which decision reverses*. The compact ledger below is a transfer aid, not five parallel case studies — for each shape it names the changed dominant constraint and the single decision that would flip relative to the canonical RAG case.
+
+| Workload shape | Dominant constraint (vs canonical RAG) | Decision that reverses |
+|---|---|---|
+| Short-context, high-throughput chat | Decode bandwidth + batch occupancy, not KV residency | Batch size and continuous-batching policy dominate; KV quantization is a smaller lever |
+| Long-context retrieval (32K–128K) | KV residency per request (linear in context) | Concurrency floor drops; FP8/GQA KV and P/D disaggregation become first-class, not optional |
+| Output-heavy reasoning (long generation) | Decode wall-clock (TPOT × output length), not prefill | TTFT budget relaxes; decode throughput and TPOT SLO bind; prefill optimization is a smaller lever |
+| Agentic tool use (multi-turn) | Per-turn context accumulation + orchestration overhead | Turn cap, prefix caching, and per-task cost (not per-token) drive sizing; see Ch 19 |
+| Embedding-only retrieval (no generation) | Embedding throughput + vector-index locality, not KV | No decode, no KV cache; the bottleneck is the embedding model and the retrieval index, not the LLM serving stack |
+
+The canonical RAG case is *input-heavy* (9.2K in / 300 out), so prefill compute and KV residency dominate. Each row above is a workload where a different dimension takes over — and the architecture that is right for the canonical case is not automatically right for it. This is why the book keeps the six dimensions separate rather than collapsing them into one "throughput" number.
+
 
 ## 4. Measurement
 
