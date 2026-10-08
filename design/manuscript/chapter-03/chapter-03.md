@@ -28,13 +28,15 @@ The durable mental model: **total parameters set the ceiling; active parameters 
 
 We now carry concrete arithmetic using the canonical enterprise Q&A scenario (canonical scenario (Ch 4, Table 4-3): ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is labeled (to be verified).
 
-### Dense 70B model (canonical, [1P])
+### Dense 70B model (canonical teaching model, [ILLUSTRATIVE][ASSUMPTION])
+
+The 70B dense full-MHA model below is a *constructed teaching reference* (the canonical scenario, Ch 4 Table 4-3), not a named vendor model — so its geometry is [ILLUSTRATIVE][ASSUMPTION] and its arithmetic is [ILLUSTRATIVE][DERIVED]. Reserve [1P] for a named, traceable first-party model specification.
 
 | Metric | Value | Derivation |
 |---|---|---|
-| Total parameters | 70B | canonical scenario (Ch 4, Table 4-3) [1P] |
+| Total parameters | 70B | canonical scenario (Ch 4, Table 4-3) [ILLUSTRATIVE][ASSUMPTION] reference model |
 | FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [ILLUSTRATIVE][DERIVED] |
-| Active parameters per token | 70B | All parameters active for every token [1P][FACT] |
+| Active parameters per token | 70B | All parameters active for every token (dense) [ILLUSTRATIVE][DERIVED] |
 | FLOPs per forward pass (approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [ILLUSTRATIVE][DERIVED] |
 
 **Table 3-1 — Dense 70B model parameter arithmetic (worked example, not reference).**
@@ -150,7 +152,7 @@ From the model-understanding chapter, the architect can answer: Active-compute m
 The architect's decision therefore hinges on whether the compute savings from MoE (fewer FLOPs per token, potentially lower \$/token) outweigh the added routing complexity and the fact that KV cache memory is unchanged. The team decides on a MoE model for the compute/\$ advantage, but provisions the KV cache budget at the dense-model rate, and adds one GPU dedicated to the routing dispatcher.
 
 * * *
-![Fig 3.1 — Dense vs MoE parameter allocation and KV cache behavior [ILLUSTRATIVE][DERIVED]](figures/fig-03-0301.png)
+![Fig 3.1 — Dense vs MoE parameter allocation and KV cache behavior. Controlled comparison: same 70B-equivalent class, same attention geometry, same context and cache dtype — so the KV footprint is identical and only the active-compute fraction differs. An MoE model that also uses GQA or a different attention mechanism is a different comparison (Ch. 7). [ILLUSTRATIVE][DERIVED]](figures/fig-03-0301.png)
 
 *Parameter-activation contrast. A dense 70B activates all 70B parameters per token (residency ≈ 140 GB, KV grows linearly with context). An 8-expert MoE still stores its full expert set as resident weights (not shown to scale), but only the top-2 (~14B) are active per token (active compute footprint ≈ 28 GB). KV cache growth with context is identical to dense — attention still processes every token.*
 

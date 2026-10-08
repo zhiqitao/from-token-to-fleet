@@ -106,7 +106,7 @@ A recurring error — easy to fall into after reading four new model cards — i
 
 This is why architecture alone never tells an architect how good a frontier model is, and why the decision can no longer stop at "which model" — the marginal capability may live in the post-training and the runtime that wraps it.
 
-![Fig A.3 — A conceptual layering of frontier AI systems (dates are approximate era markers, not a rigorously established chronology)](figures/fig-27-2703.png)
+![Fig A.3 — A conceptual layering of frontier AI systems. The dates are approximate era markers, not a rigorously established chronology, and the vertical stacking is a *layering* (which capabilities sit on which substrate), not a causal lineage: a later layer does not require the one below it, and the eras overlap. Read it as "what exists at each stage," not "what caused what." [ILLUSTRATIVE conceptual]](figures/fig-27-2703.png)
 
 From a single model to a whole system. The earlier stages (Transformer, Efficient, MoE) are *efficiency-led* — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are *capability-led* — they raise effective intelligence. [DERIVED]*
 
