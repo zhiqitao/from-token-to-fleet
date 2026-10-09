@@ -16,7 +16,7 @@ ax.set_title('Select models: screen on capability, then benchmark on the workloa
 
 def cell(x, y, w, h, label, fc):
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.05', fc=fc, ec='#1a3a6b', lw=1.3))
-    ax.text(x+w/2, y+h/2, label, ha='center', va='center', fontsize=9.0, color='white', fontweight='bold')
+    ax.text(x+w/2, y+h/2, label, ha='center', va='center', fontsize=8.0, color='white', fontweight='bold')
 
 def stage(x, w, name, screen, fc1, fc2, conn='screen'):
     cell(x, 3.9, w, 1.15, name, fc1)
@@ -30,11 +30,11 @@ def stage(x, w, name, screen, fc1, fc2, conn='screen'):
     ax.text(x+w/2-1.55, 3.62, conn, fontsize=7.6, color='#2f6f4f', ha='center', va='center', fontweight='bold')
 
 # Stage 1: candidates -> capability screen
-stage(0.9, 5.2, 'Candidate\nmodels', 'Capability screen\n(MMLU / GSM8K)', '#3a6ea5', '#e67e22', conn='screen')
+stage(0.9, 5.2, 'Candidate\nmodels', 'Capability\nMMLU/GSM8K', '#3a6ea5', '#e67e22', conn='screen')
 # Stage 2: survivors -> deployment bench
-stage(7.2, 5.2, 'Survivors', 'Deployment bench\n(goodput)', '#3a6ea5', '#e67e22', conn='benchmark')
+stage(7.2, 5.2, 'Survivors', 'Deploy bench\n(goodput)', '#3a6ea5', '#e67e22', conn='benchmark')
 # Stage 3: selection + TCO
-stage(13.5, 5.2, 'Selection', 'TCO + SLO gate', '#3a6ea5', '#e67e22', conn='gate')
+stage(13.5, 5.2, 'Selection', 'TCO + SLO\ngate', '#3a6ea5', '#e67e22', conn='gate')
 
 # arrows between stages (top row)
 for x0, x1 in [(6.1, 7.2), (12.4, 13.5)]:

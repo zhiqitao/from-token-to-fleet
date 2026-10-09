@@ -53,7 +53,7 @@ ax.annotate('canonical 26M req/mo', xy=(canon, 200), xytext=(3e5, 500),
             arrowprops=dict(arrowstyle='->'), fontsize=9, color='#27408b')
 # Mode 2 assumption caveat (keeps whole figure honest: flat line only valid at fixed 40% duty,
 # excludes staff/integration; crossover at ~1.02M is self-host vs API, not Mode 2)
-ax.annotate('Mode 2 flat @ 40% duty —\nexcludes staff/integration (see §16.4);\nbreak-even ≈1.02M is self-host vs API',
+ax.annotate('Mode 2 flat @ 40% duty —\nexcludes staff/integration (see Sec. 16.4);\nbreak-even ≈1.02M is self-host vs API',
             xy=(8e5, 1000), xytext=(9e5, 20000),
             arrowprops=dict(arrowstyle='->', color='#6f9e5f'),
             fontsize=8.5, color='#6f9e5f')

@@ -35,7 +35,7 @@ ROH = 0.84   # row height
 
 ax.text(4.0, 10.5, 'Where Should Intelligence Live?', fontsize=12.5,
         fontweight='bold', ha='center', color='#1a1a1a')
-ax.text(4.0, 10.05, 'The 2026 frontier question for an AI Solution Architect (Appendix §7)',
+ax.text(4.0, 10.05, 'The 2026 frontier question for an AI Solution Architect (Appendix A, Sec. 7)',
         fontsize=8.6, ha='center', color='#555', style='italic')
 
 # upward arrow in the left margin (scope of placement, not superiority)
@@ -50,12 +50,13 @@ for i, (name, ch, color, y) in enumerate(layers):
             va='center', ha='left')
     ax.text(CH_X, y, ch, fontsize=7.6, color='#333', va='center', ha='left')
 
-# horizontalized scope annotation (vertical axis = WHERE, not BETTER)
-ax.text(2.0, 0.92, 'scope of placement: intelligence shifts up out of the weights '
-        '(vertical axis = WHERE it lives, not BETTER/HIGHER)',
-        fontsize=7.8, color='#c0392b', ha='left', va='center')
+# horizontalized scope annotation (vertical axis = WHERE, not BETTER) — two centered lines so it fits
+ax.text(4.0, 1.25, 'scope of placement: intelligence shifts up out of the weights',
+        fontsize=7.8, color='#c0392b', ha='center', va='center')
+ax.text(4.0, 0.90, '(vertical axis = WHERE it lives, not BETTER/HIGHER)',
+        fontsize=7.8, color='#c0392b', ha='center', va='center')
 
-ax.text(4.0, 0.42, 'Model intelligence \u2260 system intelligence', fontsize=9.2,
+ax.text(4.0, 0.35, 'Model intelligence \u2260 system intelligence', fontsize=9.2,
         fontweight='bold', ha='center', color='#c0392b',
         bbox=dict(boxstyle='round,pad=0.35', fc='#fdecea', ec='#c0392b'))
 
