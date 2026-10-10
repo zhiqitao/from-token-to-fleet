@@ -70,7 +70,7 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 #### Real‑derived arithmetic for the 70B candidate
 
-[ILLUSTRATIVE][DERIVED]: a 70B‑class parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (model-card specification, vendor‑published). [1P][FACT]: 8×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory.
+[ILLUSTRATIVE][ASSUMPTION][DERIVED]: a 70B-class parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (the 70B is the constructed canonical teaching geometry, Ch 4 Table 4-3; the 140 GB is derived from it, not a vendor-published model card). [1P][FACT]: 8×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory (real hardware spec).
 
 [DERIVED] KV cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.62 MB/token (FP16; = 2.5 MiB) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.62 MB ≈ 24.1 GB of KV cache (initial residency).
 

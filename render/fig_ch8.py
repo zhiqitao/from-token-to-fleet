@@ -84,7 +84,9 @@ for name, a, t, tag in pts:
 # label the markers, offset so they do not sit on the dots
 ax.text(9200, 989*0.55, 'prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', fontsize=9,
         color=colors['prefill'], ha='center', va='top')
-ax.text(0.42, 1.65, 'decode\nbatch=1', fontsize=9, color=colors['decode'], ha='center')
+# decode batch=1: label to the LEFT of its marker (ha='right') so the centered text
+# no longer spans the (0.5, 1.7) dot and obscures "batch"
+ax.text(0.42, 1.65, 'decode\nbatch=1', fontsize=9, color=colors['decode'], ha='right', va='center')
 ax.text(11, 30, 'decode batched', fontsize=9, color=colors['decode'], ha='left')
 
 # continuous-batching arrow: decode batch=1 -> decode batched, up the slope

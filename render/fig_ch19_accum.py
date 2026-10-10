@@ -38,7 +38,7 @@ for i, (name, dl, gm, kv) in enumerate(cols):
     hf = max(h_of(300), 0.30)
     ax.add_patch(FancyBboxPatch((x, y), cwd, hf, boxstyle='round,pad=0.01',
                                 fc='#6f9e5f', ec='#1e7a59', lw=1, hatch='xx'))
-    ax.text(x+cwd/2, y+hf/2, 'O\u2091', fontsize=8.5, ha='center', va='center', color='#0d4a35')
+    ax.text(x+cwd/2, y+hf/2, 'O_final', fontsize=7.5, ha='center', va='center', color='#0d4a35')
     y += hf
     # retrieved tool output (teal, grows with turns) — min height so the δ label fits inside
     if dl > 0:
@@ -72,7 +72,7 @@ ax.text(6.4, 0.22, '(I\u2080 = 9.2K input, O_final = 300 output).',
 # so it no longer crowds the conclusion/note text at the bottom
 legend_comps = [
     ('initial prompt I\u2080 (9.2K in)', '#c8d8ea', '//'),
-    ('final output O\u2091 (300)', '#6f9e5f', 'xx'),
+    ('final output O_final (300)', '#6f9e5f', 'xx'),
     ('retrieved tool output (\u03b4)', '#7fc6b5', 'xx'),
     ('generated reasoning (\u03b3)', '#f5c98b', 'OO'),
 ]
