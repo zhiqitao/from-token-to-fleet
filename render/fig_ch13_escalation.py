@@ -36,7 +36,7 @@ tiers = [
     ('Cluster / fleet', 'many nodes\nnetwork spine'),
 ]
 tier_y = [2.0, 4.7, 7.4, 10.1]
-bw, bh = 1.8, 0.9
+bw, bh = 2.2, 0.9
 tx = 0.5
 for (name, sub), y in zip(tiers, tier_y):
     ax.add_patch(FancyBboxPatch((tx, y - bh/2), bw, bh,
@@ -45,15 +45,15 @@ for (name, sub), y in zip(tiers, tier_y):
     ax.text(tx + bw/2, y + 0.16, name, ha='center', va='center',
             fontsize=8.2, fontweight='bold', color='#1a3a2a')
     ax.text(tx + bw/2, y - 0.22, sub, ha='center', va='center',
-            fontsize=6.0, color='#33523a')
+            fontsize=8.0, color='#33523a')
     # small STOP branch hanging off each rung (the escape at every level)
     ax.text(tx + bw/2, y - bh/2 - 0.36, '\u25bc constraints \u2192 STOP',
-            ha='center', va='center', fontsize=5.6, color='#1e8449')
+            ha='center', va='center', fontsize=8.0, color='#1e8449')
 
 # ---------------------------------------------------------------------------
 # Dominant CAUSAL up-arrow (the escalator spine) — fat red shaft + triangle head.
 # ---------------------------------------------------------------------------
-shaft_x0, shaft_x1 = 5.9, 6.7
+shaft_x0, shaft_x1 = 6.1, 6.9
 ax.add_patch(Rectangle((shaft_x0, 0.9), shaft_x1 - shaft_x0, 9.6,
                        fc='#c0392b', ec='none', zorder=1))
 ax.add_patch(Polygon([(shaft_x0 - 0.6, 10.5), (shaft_x1 + 0.6, 10.5),
@@ -71,10 +71,10 @@ triggers = [
     (6.05, 'goodput < demand\n\u2192 forces scale-up'),
     (8.75, 'demand > ceiling\n\u2192 forces scale-up'),
 ]
-# placed in the clear band between the tier cards (x<2.3) and the red shaft (x>5.9);
+# placed in the clear band between the tier cards (x<2.7) and the red shaft (x>6.1);
 # kept left of the shaft so the dark-red text never sits on the red arrow (contrast).
 for y, label in triggers:
-    ax.text(2.45, y, label, ha='left', va='center',
+    ax.text(2.85, y, label, ha='left', va='center',
             fontsize=9.5, fontweight='bold', color='#a01515', linespacing=1.3)
 
 # ---------------------------------------------------------------------------
@@ -82,8 +82,8 @@ for y, label in triggers:
 # ---------------------------------------------------------------------------
 ax.annotate('', xy=(9.5, 0.95), xytext=(9.5, 10.1), arrowprops=dict(
     arrowstyle='-|>', lw=1.6, color='#1e8449', ls='--', shrinkA=0, shrinkB=0))
-ax.text(7.9, 5.3, 'DE-ESCALATE:\nprivacy \u00b7 cost', ha='center', va='center',
-        fontsize=6.8, color='#1e8449', fontweight='bold', linespacing=1.3)
+ax.text(8.0, 5.3, 'DE-ESCALATE:\nprivacy \u00b7 cost', ha='center', va='center',
+        fontsize=8.0, color='#1e8449', fontweight='bold', linespacing=1.3)
 
 # ---------------------------------------------------------------------------
 # Headings
@@ -92,7 +92,7 @@ ax.text(5.0, 12.15, 'The reference-architecture escalation ladder',
         fontsize=12.0, fontweight='bold', ha='center', va='center', color='#1a1a1a')
 ax.text(5.0, 0.35,
         'escalate only when a constraint binds \u2014 else STOP; tiers are orthogonal levels of scale, not a ranking',
-        ha='center', va='center', fontsize=7.6, color='#666')
+        ha='center', va='center', fontsize=8.0, color='#666')
 
 out = 'design/manuscript/chapter-13/figures/fig-13-1301.png'
 plt.savefig(out, dpi=170)

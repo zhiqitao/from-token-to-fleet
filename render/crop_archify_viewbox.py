@@ -168,6 +168,10 @@ def render(min_html, out_pdf, out_png):
         W, H = 1000, 600
     # Explicit @page size = the cropped content aspect -> NO letterbox, and the
     # PDF page IS the diagram, so \maxwidth{\textwidth} scales it to full column.
+    # Idempotent: strip any @page rules left by prior render() calls first, so
+    # repeated runs do not accumulate (the last one was being ignored and the
+    # page fell back to US Letter, shrinking the diagram and its labels).
+    t = re.sub(r'@page\{[^}]*\}', '', t)
     inject = ("<style>html,body{margin:0;padding:0;width:100%;height:100%;"
               "background:#fff}svg{width:100%!important;height:100%!important;"
               "min-width:0!important;display:block}@page{size:" +

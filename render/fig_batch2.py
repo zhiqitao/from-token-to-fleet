@@ -118,8 +118,8 @@ for i, (q, a) in enumerate(stages):
     w = 8.6 - i*0.55
     y = 8.6 - i*1.35
     ax.add_patch(FancyBboxPatch(((10-w)/2, y), w, 1.08, boxstyle='round,pad=0.02', fc='#f0b35f', ec='#c07a2a'))
-    ax.text(5, y+0.80, q, ha='center', va='center', fontsize=9.0, fontweight='bold', color='#4a2f10')
-    ax.text(5, y+0.34, a, ha='center', va='center', fontsize=7.7, color='#5a3a14')
+    ax.text(5, y+0.80, q, ha='center', va='center', fontsize=9.5, fontweight='bold', color='#4a2f10')
+    ax.text(5, y+0.34, a, ha='center', va='center', fontsize=8.5, color='#5a3a14')
     if i < len(stages)-1:
         # arrow in the gap: from box i's bottom (y) down to box i+1's top (y-0.27)
         ax.annotate('', xy=(5, y-0.25), xytext=(5, y-0.02),
@@ -128,7 +128,7 @@ for i, (q, a) in enumerate(stages):
 # bound is the narrow, specific result of the five widening questions)
 ax.add_patch(FancyBboxPatch((1.7, 1.13), 6.6, 1.15, boxstyle='round,pad=0.02', fc='#6f9e5f', ec='#3d5a2f'))
 ax.text(5, 1.71, 'Quantified bounds: TTFT / throughput / cost', ha='center', va='center',
-        color='white', fontsize=7.8, fontweight='bold')
+        color='white', fontsize=8.5, fontweight='bold')
 ax.annotate('', xy=(5, 2.30), xytext=(5, 3.18),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#3d5a2f', mutation_scale=13))
 ax.text(5, 9.85, 'From a vague ask to architectural bounds (worked example)', fontsize=11.6, fontweight='bold', ha='center', color='#1a1a1a')

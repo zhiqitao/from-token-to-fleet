@@ -2,6 +2,17 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import FuncFormatter
+
+# Log-axis tick labels as "10^e" with Unicode superscripts, so the exponent
+# renders at the FULL tick size (matplotlib's mathtext exponents are 0.7x,
+# which put them below the 8pt print floor).
+_SUP = str.maketrans("0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
+def _logfmt(x, pos):
+    if x <= 0:
+        return ""
+    e = int(round(np.log10(x)))
+    return "10" + str(e).translate(_SUP)
 
 # ---- fig-22-2201: Prefill compute grows super-linearly with context; decode is flat ----
 # Canonical 70B (N = 70e9). Prefill FLOPs grow with context length:
@@ -38,9 +49,12 @@ ax1.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax1.set_ylabel('Prefill compute (PFLOP / request)', fontsize=9.5)
 ax1.set_title('PREFILL  (per request)', fontsize=10, fontweight='bold', color='#5a2a7a')
 ax1.set_ylim(1e-2, 1e3)
-ax1.tick_params(labelsize=8.5)
+ax1.tick_params(which='major', labelsize=8.5)
+ax1.tick_params(which='minor', labelsize=0)   # hide minor tick labels (log-axis clutter); keep grid
+ax1.yaxis.set_major_formatter(FuncFormatter(_logfmt))  # "10^e" at full tick size
+ax1.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax1.grid(alpha=0.3, which='both')
-ax1.legend(fontsize=7.6, loc='upper right', framealpha=0.92, frameon=True)
+ax1.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
 ax1.annotate('quadratic dominates\nbeyond ~32K',
              xy=(32, (2*N*32e3 + 4*nl*(32e3**2)*d)/1e15),
              xytext=(1.7, 0.06), fontsize=10.5, color='#8e44ad', fontweight='bold',
@@ -55,11 +69,14 @@ ax2.loglog(L / 1e3, decode / 1e15, color='#27408b', lw=3.4,
            label='decode  2·N  (per token, PARAMETER term only)')
 ax2.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax2.set_ylabel('Decode compute (PFLOP / token)', fontsize=9.5)
-ax2.set_title('DECODE  (per token, parameter term only)', fontsize=10, fontweight='bold', color='#27408b')
+ax2.set_title('DECODE  (per token)', fontsize=10, fontweight='bold', color='#27408b')
 ax2.set_ylim(1e-5, 1e-3)
-ax2.tick_params(labelsize=8.5)
+ax2.tick_params(which='major', labelsize=8.5)
+ax2.tick_params(which='minor', labelsize=0)   # hide minor tick labels (log-axis clutter); keep grid
+ax2.yaxis.set_major_formatter(FuncFormatter(_logfmt))  # "10^e" at full tick size
+ax2.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax2.grid(alpha=0.3, which='both')
-ax2.legend(fontsize=7.6, loc='upper right', framealpha=0.92, frameon=True)
+ax2.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
 ax2.text(1.2, 2.6e-5, '\u2248 1.4e-4 PFLOP/token\n(2\u00b7N parameter term, flat;\nNOT the full decode cost —\nfull decode adds KV attention,\nwhich grows with context)',
          fontsize=8.6, color='#27408b', fontweight='bold', va='center', ha='left')
 

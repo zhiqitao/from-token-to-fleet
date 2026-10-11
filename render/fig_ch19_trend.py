@@ -28,7 +28,7 @@ ax1.bar(x - w/2, [Of]*5, w, bottom=inp, color='#6f9e5f', hatch='xx', edgecolor='
 ax1.set_ylabel('Tokens / request', fontsize=9)
 ax1.set_title('(a) Tokens accumulate', fontsize=9.5)
 ax1.grid(alpha=0.3, axis='y')
-ax1.legend(fontsize=7.7, loc='upper center', bbox_to_anchor=(0.5, -0.42), ncol=3, frameon=False)
+ax1.legend(fontsize=8.0, loc='upper center', bbox_to_anchor=(0.5, -0.42), ncol=3, frameon=False)
 ax1.tick_params(labelsize=8)
 # headroom so the tallest bar (turn 4 ~12.7K) is not clipped at the top spine
 ax1.set_ylim(0, 14000)
@@ -45,7 +45,7 @@ ax2.set_ylabel('KV / request (GB, FP16)', fontsize=9)
 # title shortened so "GB" is not clipped at the right edge of the panel
 ax2.set_title('(b) KV grows 24.9 \u2192 34.0 GB', fontsize=9)
 ax2.grid(alpha=0.3, axis='y')
-ax2.legend(fontsize=7.5, loc='upper center', bbox_to_anchor=(0.5, -0.42), ncol=1, frameon=False)
+ax2.legend(fontsize=8.0, loc='upper center', bbox_to_anchor=(0.5, -0.42), ncol=1, frameon=False)
 ax2.tick_params(labelsize=8)
 # headroom so the tallest rotated value label (34.0 + its vertical extent) is not clipped at the top spine
 ax2.set_ylim(0, 44)
@@ -60,7 +60,7 @@ for ax in (ax1, ax2):
 fig.suptitle('Token growth vs resulting KV growth across agent turns', fontsize=10.5, fontweight='bold')
 # explicit in-plot statement that this is an append-only illustrative model
 fig.text(0.5, 0.875, 'append-only illustrative model: context only ever accumulates across turns — nothing is evicted',
-         ha='center', va='top', fontsize=7.5, style='italic', color='#444')
+         ha='center', va='top', fontsize=8.0, style='italic', color='#444')
 plt.tight_layout(rect=(0, 0.05, 1, 0.86))
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',
             dpi=200, bbox_inches='tight', pad_inches=0.05)
