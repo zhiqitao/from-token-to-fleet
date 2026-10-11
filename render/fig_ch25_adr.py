@@ -34,7 +34,7 @@ for i, name in enumerate(stages):
 ax.add_patch(FancyArrowPatch((x0+4*(w+gap)+w/2, z), (x0, z+0.6),
              connectionstyle='arc3,rad=-0.28', arrowstyle='-|>', mutation_scale=18,
              lw=1.8, color='#c0392b', ls='--'))
-ax.text(15.0, 1.15, 'consequences of one decision become the\ncontext of the next (why is captured at decision time)',
+ax.text(15.0, 1.15, 'consequences feed a NEW ADR (the old one is\nsuperseded, not edited); why is captured at decision time',
         fontsize=9.4, ha='center', va='center', color='#c0392b',
         bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='none', alpha=0.95))
 

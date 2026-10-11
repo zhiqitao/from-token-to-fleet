@@ -17,7 +17,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
 fig, ax = plt.subplots(figsize=(6.1, 6.6))
 fig._hermes_print_sized = True
-ax.set_xlim(0, 11); ax.set_ylim(0, 12.0); ax.axis('off')
+ax.set_xlim(-1.2, 11); ax.set_ylim(0, 12.0); ax.axis('off')
 
 stages = [
     ('01 · Understand', 'requirements & workload', 'inputs', '#eef1f5'),
@@ -76,6 +76,21 @@ for i, lab in enumerate(trans):
 # iterate label on the return edge
 ax.text(CX + CARD_W/2 + 1.55, (ys[0] - CARD_H + ys[3]) / 2, 'iterate', fontsize=9,
         color='#c0392b', ha='center', va='center', fontweight='bold', rotation=90, zorder=3)
+
+# LOCAL validation->candidate loop (left side): a failed benchmark or TCO check in
+# "Validate & Defend" returns to "Design & size" to re-derive the candidate, rather
+# than waiting until Commit. This is the inner loop; the right-side "iterate" edge is
+# the outer requirements-revision loop (Commit -> Understand).
+left_x = CX - CARD_W/2 - 0.9
+val_mid = ys[2] - CARD_H/2
+des_mid = ys[1] - CARD_H/2
+loop_verts = [(CX - CARD_W/2, val_mid), (left_x, val_mid),
+              (left_x, des_mid), (CX - CARD_W/2, des_mid)]
+loop_codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO]
+ax.add_patch(FancyArrowPatch(path=Path(loop_verts, loop_codes), arrowstyle='-|>',
+             mutation_scale=14, lw=2.0, color='#2f6f4f', zorder=1))
+ax.text(left_x - 0.15, (val_mid + des_mid) / 2, 're-design\n(benchmark / TCO\nfail)', fontsize=7.5,
+        color='#2f6f4f', ha='right', va='center', fontweight='bold', zorder=3)
 
 ax.text(CX, top + 0.35, "the architect's decision loop (the book's spine)", fontsize=11,
         fontweight='bold', ha='center', color='#1a1a1a')

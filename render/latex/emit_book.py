@@ -93,7 +93,7 @@ def make_copyrightpage():
     lines.append(r"\thispagestyle{empty}")
     lines.append(r"{\centering\MakeUppercase{Copyright \textcopyright{} 2026 Zhiqi Tao}\\[2pt] All rights reserved.\par}")
     lines.append(r"\vspace{1.2cm}")
-    lines.append(r"\noindent\textbf{License.} This work --- the book text, diagrams, figures, and build scripts --- is distributed under a \emph{source-available} license.")
+    lines.append(r"\noindent\textbf{License.} This work --- the book text, diagrams, figures, and build scripts --- is distributed under a \emph{source-available} license. The ``all rights reserved'' line above is the \emph{default}; the grant below is an \emph{explicit exception} to it, and the two coexist because the exception is stated here. (This copyright page and the LICENSE file should be reviewed together by publishing counsel for consistency across editions, figure assets, and distribution-channel obligations --- e.g. Amazon KDP's terms --- before publication; this is an editorial/legal review item, not a legal conclusion.)")
     lines.append("")
     lines.append(r"\begin{itemize}")
     lines.append(r"\item \textbf{\color{memory}You may} freely read, study, learn from, and \textbf{redistribute} the work (verbatim, with attribution) for personal and non-commercial ends --- no permission needed.")

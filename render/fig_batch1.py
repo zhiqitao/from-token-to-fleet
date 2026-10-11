@@ -67,8 +67,8 @@ for name, b in bw.items():
     t = data_per_byte * size / b   # GB / (GB/s) = s
     ax.loglog(size, t*1000, color=c, ls=ls, marker=mk, markevery=30,
               lw=1.8, label=name, markersize=3.5)  # ms
-ax.axvline(140, color='#555', ls='--', lw=1.3)   # 140 GB = 70B model FP16
-ax.annotate('140 GB (70B weights)', xy=(140, 2e4), xytext=(2.2, 6e4),
+ax.axvline(140, color='#555', ls='--', lw=1.3)   # 140 GB = §9.3 worked-example payload (70B FP16 gradient all-reduce)
+ax.annotate('140 GB (Sec. 9.3: 70B FP16\ngradient all-reduce)', xy=(140, 2e4), xytext=(2.2, 6e4),
             arrowprops=dict(arrowstyle='->'), fontsize=8.5)
 ax.set_xlabel('Data volume (GB)', fontsize=9)
 ax.set_ylabel('All-reduce completion time (ms)', fontsize=9)

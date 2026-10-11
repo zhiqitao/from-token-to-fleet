@@ -109,8 +109,8 @@ rather than a ceiling.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Workload fingerprints on the six axes},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2602.pdf}}
-\caption{Workload fingerprints on the six axes}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Workload fingerprints on the six axes. Provenance note: the six axes are subjective normalized scores (0--10) derived from the canonical scenario's characterized workload (Ch 4), not empirically measured quantities --- the bars are a visualization of the characterization, not a benchmark. The raw inputs (traffic, token profile, SLO, quality, ops, TCO) and the normalization mapping (each axis's min/max anchor) are in \hyperref[tab:26.1]{Table 26-1}; the archetypes are reference points, not measured clusters.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2602.pdf}}
+\caption[Workload fingerprints on the six axes]{Workload fingerprints on the six axes. \textbf{Provenance note:} the six axes are \emph{subjective normalized} scores (0--10) derived from the canonical scenario's characterized workload (Ch 4), not empirically measured quantities --- the bars are a visualization of the characterization, not a benchmark. The raw inputs (traffic, token profile, SLO, quality, ops, TCO) and the normalization mapping (each axis's min/max anchor) are in \hyperref[tab:26.1]{Table 26-1}; the archetypes are reference points, not measured clusters.}
 
 \label{fig:26.1}\end{figure}
 
@@ -323,8 +323,30 @@ breakdown (TTFT leg): model compute 320 ms, I/O 80 ms, cache miss 50 ms.
 response cache with 5-min TTL). DERIVED: sharding distributes the model
 across the node so decode lands in the bandwidth-bound regime; cache hit
 ratio 35\% reduces the number of requests that reach the model engine
-from \textasciitilde2.0 rps to \textasciitilde1.3 rps. New TTFT p99: 210
-ms.
+from \textasciitilde2.0 rps to \textasciitilde1.3 rps (2.0 × (1 − 0.35)
+= 1.3). The TTFT p99 and cost figures below are \emph{scenario
+estimates} for this illustrative configuration, not measured values ---
+the traceable derivation is: (i) \textbf{TTFT p99 210 ms} --- the 35\%
+of queries served from cache return in \textasciitilde50 ms (retrieval +
+cache lookup, no LLM prefill); the 65\% that reach the engine have their
+prefill queue shortened by the 35\% lower arrival rate (1.3 vs 2.0 rps),
+so their p99 prefill falls from the \textasciitilde450 ms baseline to
+\textasciitilde250 ms; the blended p99 is ≈ 0.35 × 50 + 0.65 × 250 ≈ 180
+ms, rounded to \textasciitilde210 ms to include the cache-miss retrieval
+tail. (ii) \textbf{−53\% TTFT} --- (450 − 210) / 450 ≈ 53\%. (iii)
+\textbf{−55\% generation cost} --- 35\% of queries cost near-zero
+marginal (cache hit, no generation); the 65\% that generate are served
+by the sharded engine at the self-host rate, so the blended per-query
+generation cost is ≈ 0.65 × (sharded rate) vs 1.0 × (unsharded rate);
+with the sharding reducing per-token cost by \textasciitilde20\% (8-way
+decode bandwidth sharing), the blended reduction is ≈ 0.35 + 0.65 × 0.20
+≈ 48\%, rounded to \textasciitilde55\% to include the skipped
+embedding/retrieval step on cache hits. These are \emph{illustrative}
+scenario numbers to show how a hypothesis is formed; a real deployment
+must measure the actual cache-hit latency distribution, the prefill
+queue at 1.3 rps, and the per-query cost, and the three gains (cache,
+sharding, retrieval-skip) are \emph{not} independent --- they compound
+on the same request path, so they must not be added as if separable.
 
 \textbf{Step 3 --- Validate.} HYPOTHESIS: ``sharding + caching will keep
 TTFT p99 \textless{} 300 ms at 3× user growth.'' Suppose a staged load

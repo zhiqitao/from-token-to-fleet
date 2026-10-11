@@ -44,7 +44,7 @@ The mental model also inculcates **one number naming many different things**. "T
 
 ### Latency Is a Distribution, Not a Mean
 
-A very common measurement error is reporting (and SLO-ing) the *average* latency. Figure 6.2 shows a synthetic request stream: the body of requests follows a log‑normal distribution centered near 0.8 s (99% of observations), with a 1% straggler cluster at 5.0 s. That combination is deliberately *not* a two‑point "99% at 0.8, 1% at 5" distribution; it is a realistic spread, so the percentiles below are read off the plotted histogram rather than guessed. The mean of that stream is
+A very common measurement error is reporting (and SLO-ing) the *average* latency. Figure 6.2 shows a synthetic request stream: the body of requests follows a log‑normal distribution centered near 0.8 s (99% of observations), with a 1% straggler cluster at 5.0 s. That combination is deliberately *not* a two‑point "99% at 0.8, 1% at 5" distribution; it is a realistic spread, so the percentiles below are read off the plotted histogram rather than guessed. The plotted stream is a synthetic sample of N = 10,000 requests — 99% drawn from a log‑normal with median 0.8 s, 1% a straggler cluster at 5.0 s — and the percentiles are read by linear interpolation on the sorted sample. The mean of that stream is
 $$
 \mathbb{E}[L] \approx 0.99 \times 0.8 + 0.01 \times 5.0 \approx 0.84 \text{ s}
 $$

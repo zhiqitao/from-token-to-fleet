@@ -169,7 +169,7 @@ The architect now has a concrete model shortlist: 768‑dim all‑mpnet‑base�
 
 ---
 
-![Fig 5.1 — Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision [ILLUSTRATIVE conceptual]](figures/fig-05-0501.png)
+![Fig 5.1 — Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision. The five surfaces are the *model-selection* dimensions; they are deliberately distinct from the **end-to-end evaluation gates** (retrieval quality, reranking, embedding recall, grounding, and final answer quality) that a RAG system must also pass — those gates are measured on the target corpus (Ch 5 §4) and are not shown here because this figure is a selection map, not an evaluation pipeline. [ILLUSTRATIVE conceptual]](figures/fig-05-0501.png)
 
 
 ---

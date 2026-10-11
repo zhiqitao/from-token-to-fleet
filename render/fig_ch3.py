@@ -90,6 +90,8 @@ for axx in axes:
     axx.add_patch(Rectangle((0.6, KV_Y), 8.8, 0.9, fc='#c0392b', ec='white'))
     axx.text(5, KV_Y+0.45, 'KV: identical (dense = MoE)',
              ha='center', va='center', fontsize=8.8, color='white', fontweight='bold')
+    axx.text(5, KV_Y-0.55, 'controlled: same attention geometry,\ncontext length, and cache dtype',
+             ha='center', va='center', fontsize=7.6, color='#7a1f1f', style='italic')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-03/figures/fig-03-0301.png', dpi=170)

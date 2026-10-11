@@ -188,23 +188,37 @@ def short_title(full):
     """
     import re as _re
     s = full.strip()
-    # cut at first '. ' that looks like a sentence boundary
-    m = _re.match(r"^(.*?\.)\s+(?=[A-Z])", s)
-    if m and len(m.group(1)) > 12:
-        s = m.group(1)
-    # cut at first em-dash / colon (falls back for caption-phrase titles)
-    if len(s) > 60:
-        for sep in (" — ", "——", " — ", ":", " - "):
-            i = s.find(sep)
-            if 0 < i < 200:
-                s = s[:i].strip()
-                break
-    # hard cap ~80 chars to keep the List of Figures tidy; cut at a word
-    # boundary so the ellipsis never lands mid-word (e.g. "rooflin…").
+    def balanced(t):
+        # a cut is only safe if it does not split a LaTeX command's braces
+        return t.count('{') == t.count('}')
+    seps = (";", " — ", "——", "---", " - ", ":", " (")
+    # Iteratively cut at the earliest safe boundary (sentence boundary first,
+    # then clause separators) until the title is short enough. The backslash in
+    # the lookahead lets "axes. \textbf{...}" be a valid cut point.
+    for _ in range(6):
+        if len(s) <= 84:
+            break
+        m = _re.match(r"^(.*?\.)\s+(?=[A-Z\\])", s)
+        cut = None
+        if m and len(m.group(1)) > 12 and balanced(m.group(1)):
+            cut = m.group(1)
+        else:
+            for sep in seps:
+                i = s.find(sep)
+                if 0 < i < len(s) and balanced(s[:i]):
+                    cut = s[:i].strip()
+                    break
+        if cut is None or len(cut) >= len(s):
+            break
+        s = cut
+    # last-resort hard cap ~80 chars; cut at a word boundary so the ellipsis
+    # never lands mid-word (e.g. "rooflin…"), and keep it brace-safe.
     if len(s) > 84:
         cut = s[:81]
         if " " in cut:
             cut = cut[:cut.rfind(" ")]
+        while not balanced(cut) and len(cut) < len(s):
+            cut = s[:len(cut) + 1]
         s = cut.rstrip() + "…"
     # strip trailing punctuation and any leftover bracket marker
     s = s.rstrip(" .:;")

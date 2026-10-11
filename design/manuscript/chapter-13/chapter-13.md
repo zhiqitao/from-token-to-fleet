@@ -89,7 +89,7 @@ These three numbers locate the workload on the ladder objectively.
 
 The archetype sets the entire downstream design vocabulary. On the **server** tier (canonical), the consequences are already established: continuous batching + PagedAttention + prefix caching (Ch11), KV quantization when residency binds (Ch7), no parallelism (Ch10). Moving up to **cluster** introduces: DP/PP/TP replicas (Ch10), P/D disaggregation (Ch11), and interconnect budgeting (Ch9). Moving **down** to local forces distillation and on-device KV limits. The tier is the top-level decision; every other choice in the book slots beneath it.
 
-![Fig 13.1 — The reference-architecture ladder and its escalation triggers [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
+![Fig 13.1 — The reference-architecture ladder and its escalation triggers. Escalation (red) fires when model/KV/throughput outgrows a tier; de-escalation (green) fires on privacy, data sovereignty, and cost — but scale-down decisions should also reference **utilization** (sustained low load on a tier), **failure domain** (a smaller tier has a smaller blast radius), **operations burden** (fewer hosts to run), and **SLO margin** (headroom to absorb a burst without breaching the SLO). Make these measurable: e.g. de-escalate when 30-day p95 utilization < 40% AND SLO margin > 2× AND the smaller tier's failure domain is acceptable. [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
 
 *The reference-architecture ladder: single GPU → single host → multi-host → cluster/fleet, with escalation triggers (red: model/KV/throughput outgrows a tier) and de-escalation (green: privacy, data sovereignty, cost) moving a workload between tiers.*
 

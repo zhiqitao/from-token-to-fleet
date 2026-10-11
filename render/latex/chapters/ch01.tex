@@ -12,12 +12,17 @@ ultimately a statement about \emph{tokens}.
 \ntsection{Concept}\label{concept}
 
 
-A \textbf{token} is the atomic unit of text that a language model reads
-and writes. It is not a word, not a character, and not a byte --- it is
-whatever the model's \emph{tokenizer} decided to carve the text into. A
-single token can be a whole word (\texttt{handbook}), a common subword
-(\texttt{hand}), a single character, a short punctuation+space pair, or
-in worst cases a fragment of a character.
+A \textbf{token} is the atomic unit of \emph{text} that a language model
+reads and writes. It is not a word, not a character, and not a byte ---
+it is whatever the model's \emph{tokenizer} decided to carve the text
+into. A single token can be a whole word (\texttt{handbook}), a common
+subword (\texttt{hand}), a single character, a short punctuation+space
+pair, or in worst cases a fragment of a character. (This chapter scopes
+to \emph{text-tokenized} autoregressive models. Modern multimodal
+systems also use non-text token-like representations --- image patches,
+audio frames --- that are not produced by a text tokenizer; for those,
+``token count'' is a different quantity from text-token count and does
+not map one-to-one onto model compute the way it does here.)
 
 The disconnection from human units is the first thing an architect has
 to internalize: \textbf{cost and capacity in an LLM are measured in
@@ -73,11 +78,19 @@ bounds memory and cost whether we use every token or not.
 Text enters the model as token IDs, but the model does arithmetic on
 vectors. An \textbf{embedding} is the learned dense vector that
 represents a token (or a position, or a subword context) in a
-high-dimensional space --- typically 128 to a few thousand dimensions.
-The embedding maps each discrete token id to a learned continuous vector
-the transformer operates on; relationships in that learned space emerge
-from training but should not be interpreted as a simple human-semantic
-distance metric.
+high-dimensional space. Two distinct widths must not be conflated: the
+\textbf{token-embedding width} (the model's hidden dimension, e.g.~4096
+for LLaMA-7B, 8192 for the canonical 70B reference, 12288 for LLaMA-2
+70B) and the \textbf{retrieval-embedding width} (the dimension of a
+sentence/document embedding produced by a separate encoder for RAG,
+typically 384--1536 for dedicated retrieval models, or the full hidden
+dim if the LLM itself is used as the encoder). The ``128 to a few
+thousand'' range applies to \emph{retrieval} embeddings; the
+\emph{token} embedding width is architecture-dependent and for modern
+LLMs is in the 4096--16384 range. The embedding maps each discrete token
+id to a learned continuous vector the transformer operates on;
+relationships in that learned space emerge from training but should not
+be interpreted as a simple human-semantic distance metric.
 
 For the architect the practical facts are: embeddings live in a lookup
 table sized \texttt{vocab\ ×\ dim}, they account for a real but small
@@ -121,12 +134,17 @@ One architectural consequence to hold now: \emph{which layers emit a
 per-token cache is a property of the attention architecture}, not the
 context length alone --- dense attention emits a key/value per token on
 every layer, while hybrid/linear-attention layers (Mamba-style state,
-compressed latent attention) hold a state that does not grow with
-length. This is why ``the KV problem'' and its fixes are really a
-\emph{model-architecture} question (Ch. 3) that lands as a \emph{memory}
-question (Ch. 7) --- and why the token layer is the right place to have
-met it. We only need the concept here; the mechanism inventory is
-\hyperref[chap:3]{Chapter 3}'s, the arithmetic \hyperref[chap:7]{Chapter 7}'s.
+linear-attention kernels) hold a \emph{constant-size} recurrent state
+that does not grow with length. A third family --- \textbf{compressed
+per-token KV} (MLA-style latent attention, GQA/MQA head sharing) ---
+still stores a per-token entry, so its cache \emph{does} grow with token
+count, but at fewer bytes/token than full MHA. These are distinct
+mechanisms: constant-state (no per-token growth) versus reduced-width
+per-token (per-token growth, smaller footprint). This is why ``the KV
+problem'' and its fixes are really a \emph{model-architecture} question
+(Ch. 3) that lands as a \emph{memory} question (Ch. 7) --- and why the
+token layer is the right place to have met it. We only need the concept
+here; the mechanism inventory is \hyperref[chap:3]{Chapter 3}'s, the arithmetic \hyperref[chap:7]{Chapter 7}'s.
 
 \subsection{KV cache as a concept}\label{kv-cache-as-a-concept}
 
@@ -184,8 +202,8 @@ arithmetic against the canonical scenario.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The KV cache: every decoded token adds one K/V per layer per head},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-kv-cache.png}}
-\caption[The KV cache]{The KV cache: every decoded token adds one K/V per layer per head}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The KV cache: every decoded token adds one K/V per layer per head. This is a single-layer detail view (one layer's K/V heads); the multi-layer, multi-head overview and the full token-travel pipeline are in \hyperref[fig:1.2]{Fig 1.2} and \hyperref[fig:2.1]{Fig 2.1}. At print size the token labels and K/V boxes are intentionally small to fit the per-head detail --- read the layer/head structure here, and the cross-layer accumulation in \hyperref[fig:2.1]{Fig 2.1}.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-kv-cache.png}}
+\caption[The KV cache: every decoded token adds one K/V per layer per head]{The KV cache: every decoded token adds one K/V per layer per head. This is a \textbf{single-layer detail} view (one layer's K/V heads); the multi-layer, multi-head overview and the full token-travel pipeline are in \hyperref[fig:1.2]{Fig 1.2} and \hyperref[fig:2.1]{Fig 2.1}. At print size the token labels and K/V boxes are intentionally small to fit the per-head detail --- read the layer/head structure here, and the cross-layer accumulation in \hyperref[fig:2.1]{Fig 2.1}.}
 
 \label{fig:1.1}\end{figure}
 
@@ -209,8 +227,8 @@ A useful image for the full pipeline:
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={How a token travels: text → tokenizer → IDs → embedding → attention → KV cache},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-token-travel.png}}
-\caption[How a token travels]{How a token travels: text → tokenizer → IDs → embedding → attention → KV cache}
+\pandocbounded{\includegraphics[keepaspectratio,alt={How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. Conceptual only: this is a one-pass abstraction, not the full transformer --- the K/V are produced within every applicable layer (not after a single ``attention'' stage), and the KV cache is a persistent state that is both written (append) and read (attend) across steps, not a terminal processing stage. The read-side and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1}.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-token-travel.png}}
+\caption[How a token travels: text → tokenizer → IDs → embedding → attention → KV cache]{How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. \textbf{Conceptual only:} this is a one-pass abstraction, not the full transformer --- the K/V are produced \emph{within every applicable layer} (not after a single ``attention'' stage), and the KV cache is a \emph{persistent state} that is both written (append) and read (attend) across steps, not a terminal processing stage. The read-side and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1}.}
 
 \label{fig:1.2}\end{figure}
 

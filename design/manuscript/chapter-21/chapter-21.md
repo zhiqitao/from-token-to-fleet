@@ -73,7 +73,7 @@ The factory is only as trustworthy as its gates. We measure four things continuo
 
 The AI Factory is the operational backbone that makes the book's whole loop durable. Every architectural decision recomputes through it: model selection (Ch3/5) feeds the evaluation gate, serving choices (Ch11) determine canary mechanics, benchmarking (Ch14) becomes the recurring gate, TCO (Ch16) sets how much gating overhead is affordable, and fleet operations (Ch17-20) provide the rollout/rollback surfaces. Without the factory, each chapter's decision is a one-off; with it, they compound into a system that gets better and safer every cycle.
 
-![Fig 21.1 — The AI Factory promotion pipeline [ILLUSTRATIVE conceptual]](figures/fig-21-2101.png)
+![Fig 21.1 — The AI Factory promotion pipeline. Each stage has an explicit **promotion gate** (a measurable artifact that must pass before the next stage begins): (1) *build* → gate: unit tests + static analysis pass; (2) *integrate* → gate: integration tests + contract checks pass; (3) *staging* → gate: load test at 1× production + SLO p95 met; (4) *canary* → gate: 5% traffic, error rate < threshold, SLO p99 met; (5) *production* → gate: full rollout, monitoring armed. **Failure paths:** any gate failure rolls back to the previous stage (not to build); a canary failure halts the rollout and pages the owner. **Ownership:** each stage has a named owner (build = model team, integrate = platform team, staging/canary/production = SRE). The gates are the mechanism that makes "promotion" a decision, not a hope. [ILLUSTRATIVE conceptual]](figures/fig-21-2101.png)
 
 *The model lifecycle: data → evaluate gate → canary → promote/rollback, with an observation feedback loop.*
 
