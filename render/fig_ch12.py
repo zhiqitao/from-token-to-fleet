@@ -71,7 +71,7 @@ stagelabel(sx + sw / 2, 0.245, '\u2463  OUTCOME', '#145a32')
 ax.text(sx + sw / 2, 0.165, 'SURVIVORS  (b)', ha='center', va='center',
         fontsize=8.4, color='#145a32', fontweight='bold', zorder=3)
 ax.text(sx + sw / 2, 0.125, '(b) needs a ~5-host prefill pool', ha='center', va='center',
-        fontsize=7.2, color='#145a32', zorder=3)
+        fontsize=8.0, color='#145a32', zorder=3)
 bx = sx + sw + 0.04
 bw = W - sw - 0.04
 box(bx, 0.090, bw, 0.200, '#fdecea', '#c0392b')

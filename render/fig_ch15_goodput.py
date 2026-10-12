@@ -2,6 +2,17 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import FuncFormatter
+
+# log-axis tick labels: show plain "1", "10" (not "10^0"/"10^1") so the
+# exponent does not render at 0.7x (7pt) — same fix as Fig 22.1.
+def _logfmt(x, pos):
+    if x <= 0:
+        return ""
+    e = np.floor(np.log10(x))
+    if abs(x - 10**e) < 1e-9:
+        return f"{int(10**e)}"
+    return f"{x:g}"
 
 # ---- fig-15-1501: TWO SEPARATE EFFECTS (do not conflate) ----
 # Panel (a): prefill work removed by prefix caching (effects the PREFILL phase).
@@ -32,7 +43,8 @@ axa.grid(alpha=0.3, which='both')
 axa.set_ylim(0, 110)
 axa.set_xlim(1, 64)
 axa.tick_params(labelsize=10)
-axa.text(0.99, 0.03, '[ILLUSTRATIVE]', transform=axa.transAxes, fontsize=7.5, color='#8a3a12', ha='right')
+axa.xaxis.set_major_formatter(FuncFormatter(_logfmt))
+axa.text(0.99, 0.03, '[ILLUSTRATIVE]', transform=axa.transAxes, fontsize=8.0, color='#8a3a12', ha='right')
 
 # Panel (b): decode goodput
 axb.plot(batch, goodput, '-o', color='#27408b', lw=1.8)
@@ -44,11 +56,12 @@ axb.grid(alpha=0.3, which='both')
 axb.set_ylim(0, 100)
 axb.set_xlim(1, 64)
 axb.tick_params(labelsize=10)
+axb.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 # knee: beyond ~batch 16 the goodput gain per added batch flattens while tail latency keeps rising
 axb.axvline(16, color='#c0392b', ls='--', lw=1.1)
 axb.text(1.7, 90, 'goodput\nplateau (~b16):\nthroughput gain\nflattens; tail\nlatency keeps rising',
-         fontsize=7.5, color='#c0392b', va='top')
-axb.text(0.99, 0.03, '[ILLUSTRATIVE]', transform=axb.transAxes, fontsize=7.5, color='#8a3a12', ha='right')
+         fontsize=8.0, color='#c0392b', va='top')
+axb.text(0.99, 0.03, '[ILLUSTRATIVE]', transform=axb.transAxes, fontsize=8.0, color='#8a3a12', ha='right')
 
 fig.suptitle('Prefix caching vs batching: two independent effects', fontsize=10.5, fontweight='bold')
 plt.tight_layout(rect=(0, 0, 1, 0.91))

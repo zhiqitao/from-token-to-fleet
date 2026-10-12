@@ -48,13 +48,13 @@ for i, (name, ch, color, y) in enumerate(layers):
     ax.add_patch(box)
     ax.text(NAME_X, y, name, fontsize=8.4, fontweight='bold', color='white',
             va='center', ha='left')
-    ax.text(CH_X, y, ch, fontsize=7.6, color='#333', va='center', ha='left')
+    ax.text(CH_X, y, ch, fontsize=8.0, color='#333', va='center', ha='left')
 
 # horizontalized scope annotation (vertical axis = WHERE, not BETTER) — two centered lines so it fits
 ax.text(4.0, 1.25, 'scope of placement: intelligence shifts up out of the weights',
-        fontsize=7.8, color='#c0392b', ha='center', va='center')
+        fontsize=8.0, color='#c0392b', ha='center', va='center')
 ax.text(4.0, 0.90, '(vertical axis = WHERE it lives, not BETTER/HIGHER)',
-        fontsize=7.8, color='#c0392b', ha='center', va='center')
+        fontsize=8.0, color='#c0392b', ha='center', va='center')
 
 ax.text(4.0, 0.35, 'Model intelligence \u2260 system intelligence', fontsize=9.2,
         fontweight='bold', ha='center', color='#c0392b',

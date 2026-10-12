@@ -74,7 +74,7 @@ ax.legend(handles=[Line2D([], [], color='#c0392b', lw=2),
                    Line2D([], [], color='#e67e22', ls=':', lw=2)],
           labels=['offered load (burst)', 'one host bound (~2.0)',
                   'N = 4 fleet capacity (~8.0)', 'N-1 residual (1 host drains)'],
-          fontsize=7.5, loc='lower center', bbox_to_anchor=(0.5, -0.52), ncol=2, frameon=False)
+          fontsize=8.0, loc='lower center', bbox_to_anchor=(0.5, -0.52), ncol=2, frameon=False)
 plt.tight_layout(rect=(0, 0, 1, 0.93))
 plt.savefig('design/manuscript/chapter-17/figures/fig-17-1701.png', dpi=200,
             bbox_inches='tight', pad_inches=0.05)

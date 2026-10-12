@@ -39,7 +39,7 @@ ax.legend(fontsize=8.2, loc='upper center', ncol=3, frameon=False,
           bbox_to_anchor=(0.5, 0.99), columnspacing=1.2, handlelength=1.4)
 ax.grid(axis='y', alpha=0.3)
 ax.text(0.98, -0.13, 'per-axis 0-1 scale; compare within an axis, not across axes.', transform=ax.transAxes,
-        fontsize=7.5, color='#555', va='top', ha='right')
+        fontsize=8.0, color='#555', va='top', ha='right')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=170)
 import matplotlib as mpl
