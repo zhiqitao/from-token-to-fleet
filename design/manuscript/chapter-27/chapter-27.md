@@ -116,7 +116,7 @@ This chain is the spine of this handbook — from a single model's tokens (Ch1�
 
 The most useful lens for an AI Solution Architect in 2026 is not "which attention mechanism does the model card list?" but *where the intelligence and the compute budget should be placed*:
 
-![Fig A.4 — Where should intelligence live?](figures/fig-27-2702.png)
+![Fig A.4 — Where should intelligence live? The horizontal bands are a **design choice** (which layer owns which capability), not a ranking of superiority: a lower band is not "better" or "worse" than a higher one, and the boundaries shift with the workload, the trust model, and the cost/latency budget. Read each band as "what we put here and why," not "what is best here." [ILLUSTRATIVE conceptual]](figures/fig-27-2702.png)
 
 The placement ladder. Every host layer that can carry intelligence is a place the architect may choose to push capability or cost; this book gives the arithmetic and decision framework for each (Ch3/7/8 weights & attention, Ch10 MoE routing, Ch19/21 post-training, Ch8/20 test-time, Ch19/24 tools, Ch17–20 runtime, Ch18/20 fleet). [ILLUSTRATIVE][DERIVED]
 
