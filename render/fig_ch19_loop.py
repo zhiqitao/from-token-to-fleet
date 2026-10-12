@@ -26,15 +26,15 @@ states = [
     ('Observe', 'append result',   '#d9f3e0', '#2e9e63', 'state'),
     ('Decide',  'resolved?',       '#fbe0e0', '#c0392b', 'check'),
 ]
-box_w, box_h, y0 = 2.3, 1.5, 4.15
-gap = 0.25
+box_w, box_h, y0 = 2.42, 1.5, 4.15
+gap = 0.18
 xs = [0.6 + i*(box_w+gap) for i in range(4)]
 for (name, desc, fc, ec, tag), x in zip(states, xs):
     ax.add_patch(FancyBboxPatch((x, y0), box_w, box_h, boxstyle='round,pad=0.02,rounding_size=0.35',
                                 fc=fc, ec=ec, lw=1.4))
-    ax.text(x+0.20, y0+box_h-0.42, name, ha='left', va='center', fontsize=8.7, fontweight='bold', color='#1a1a1a')
+    ax.text(x+0.20, y0+box_h-0.42, name, ha='left', va='center', fontsize=8.4, fontweight='bold', color='#1a1a1a')
     ax.text(x+box_w/2, y0+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
-    ax.text(x+box_w-0.12, y0+box_h-0.42, tag, ha='right', va='center', fontsize=7.8, color=ec, style='italic')
+    ax.text(x+box_w-0.12, y0+box_h-0.42, tag, ha='right', va='center', fontsize=8.0, color=ec, style='italic')
 
 # forward loop arrows Plan->Execute->Observe->Decide
 for i in range(len(xs)-1):
@@ -50,7 +50,7 @@ ax.annotate('', xy=(xs[0]+box_w/2, y0+0.1), xytext=(xs[0]+box_w/2, mid_y),
 # loop label sits in the clear band ABOVE the dashed return line (the diagonal
 # terminal arrow no longer crosses it — see below)
 ax.text((xs[3]+box_w/2+xs[0]+box_w/2)/2, mid_y+0.14, 'loop (iterate) — not resolved', ha='center', va='bottom',
-        fontsize=7.6, color='#1b7a9e')
+        fontsize=8.0, color='#1b7a9e')
 
 # terminal outcomes below, from Decide
 term_y = 1.35
@@ -60,13 +60,13 @@ fa_cx = xs[1]+box_w/2
 ax.annotate('', xy=(fa_cx, term_y+box_h), xytext=(xs[3]+box_w/2, y0),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#555'))
 ax.text(xs[3]+box_w/2-0.12, (y0+term_y+box_h)/2, 'resolved', ha='right', va='center',
-        fontsize=7.4, color='#555', fontweight='bold')
+        fontsize=8.0, color='#555', fontweight='bold')
 # Stopped: vertical from Decide's bottom-right to Stopped's top (Stopped at xs[3])
 st_cx = xs[3]+box_w/2
 ax.annotate('', xy=(st_cx, term_y+box_h), xytext=(xs[3]+box_w*0.85, y0),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#555'))
 ax.text(xs[3]+box_w*0.85+0.12, (y0+term_y+box_h)/2, 'limit hit', ha='left', va='center',
-        fontsize=7.4, color='#555', fontweight='bold')
+        fontsize=8.0, color='#555', fontweight='bold')
 terms = [
     ('Final answer', 'emit', '#ece6fb', '#5b3fa8', 'done', xs[1]),
     ('Stopped', 'limit', '#fdeecb', '#c98a1e', 'terminal', xs[3]),
@@ -76,12 +76,12 @@ for (name, desc, fc, ec, tag, tx) in terms:
                                 fc=fc, ec=ec, lw=1.4))
     ax.text(tx+0.18, term_y+box_h-0.42, name, ha='left', va='center', fontsize=8.4, fontweight='bold', color='#1a1a1a')
     ax.text(tx+box_w/2-0.55, term_y+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
-    ax.text(tx+box_w-0.12, term_y+0.48, tag, ha='right', va='center', fontsize=7.8, color=ec, style='italic')
+    ax.text(tx+box_w-0.12, term_y+0.48, tag, ha='right', va='center', fontsize=8.0, color=ec, style='italic')
 
 ax.text(5.0, 5.95, 'The agent loop: a four-state state machine', ha='center', va='center',
         fontsize=10.5, fontweight='bold', color='#1a1a1a')
 ax.text(5.0, 0.45, 'resolved \u2192 final answer; no resolution within the turn limit \u2192 stopped [ILLUSTRATIVE conceptual]',
-        ha='center', va='center', fontsize=7.8, color='#666')
+        ha='center', va='center', fontsize=8.0, color='#666')
 
 out = 'design/manuscript/chapter-19/figures/fig-19-1901.png'
 plt.savefig(out, dpi=170)

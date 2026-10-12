@@ -17,9 +17,9 @@ from matplotlib.font_manager import FontProperties
 BOLD = FontProperties(weight='bold')
 
 rows = [
-    ("DeepSeek V4-Flash", "vs V3.2",       7,  10, "#c0392b"),
-    ("DeepSeek V4-Pro",   "vs V3.2",      10,  27, "#3a6ea5"),
-    ("GLM-5.3-Flash",     "vs stated ref", 23, 33, "#6f9e5f"),
+    ("DeepSeek V4-Flash", "vs V3.2",        "reported 2026-06",  7,  10, "#c0392b"),
+    ("DeepSeek V4-Pro",   "vs V3.2",        "reported 2026-06", 10,  27, "#3a6ea5"),
+    ("GLM-5.3-Flash",     "vs prior GLM-5", "reported 2026-02", 23, 33, "#6f9e5f"),
 ]
 
 W, H = 6.1 * 72, 7.4 * 72
@@ -61,10 +61,11 @@ ax.plot([12, W-12], [sep_y, sep_y], color='#999', lw=1.0)
 
 # ---- one row per family ----
 row0 = sep_y - 20
-for r, (name, base, kv, flop, col) in enumerate(rows):
+for r, (name, base, date, kv, flop, col) in enumerate(rows):
     ry = row0 - r * pitch
     ax.text(12, ry, name, fontsize=FS_F, fontweight='bold', ha='left', va='center', color=col)
     ax.text(c_base, ry, base, fontsize=FS_C, fontstyle='italic', ha='center', va='center', color='#555')
+    ax.text(c_base, ry - 13, date, fontsize=8.0, ha='center', va='center', color='#888')
     for (cc, pct) in ((c_kv, kv), (c_flop, flop)):
         ax.text(cc - h_kv*0.62, ry, '100%', fontsize=FS_R+0.3, fontweight='bold',
                 ha='center', va='center', color='#555')

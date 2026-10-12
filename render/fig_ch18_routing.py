@@ -100,9 +100,9 @@ for i in range(len(spine)-1):
     arrow(spine[i][1], SP, spine[i+1][0], SP)
 
 # ---- branches down ----
-def branch(xf, yf, xt, yt, lab, lx, ly, color='#2f6f4f'):
+def branch(xf, yf, xt, yt, lab, lx, ly, color='#1e5a3a'):
     arrow(xf, yf, xt, yt, color=color)
-    ax.text(lx, ly, lab, fontsize=FS-0.6, color=color, ha='center', fontweight='bold')
+    ax.text(lx, ly, lab, fontsize=FS-0.2, color=color, ha='center', fontweight='bold')
 
 # ---- branches down: direct fan-out arrows from each gate to each leaf, so every
 #      leaf has an explicit, unambiguous incoming connector ----
@@ -119,7 +119,7 @@ def fan(drop_x, y_from, leaves, color, lab, lab_x, lab_y):
         cx = (x0+x1)/2
         ax.annotate('', xy=(cx, RES+16), xytext=(cx, BUS_Y-2),
                     arrowprops=dict(arrowstyle='-|>', lw=1.4, color=color, shrinkA=0, shrinkB=0))
-    ax.text(lab_x, lab_y, lab, fontsize=FS-0.6, color=color, ha='center', fontweight='bold')
+    ax.text(lab_x, lab_y, lab, fontsize=FS-0.2, color=color, ha='center', fontweight='bold')
 
 sep = (spine[1][0]+spine[1][1])/2
 spc = (spine[2][0]+spine[2][1])/2
@@ -127,16 +127,16 @@ fth = (spine[3][0]+spine[3][1])/2
 spg = (spec[0][0]+spec[-1][1])/2
 gen_yes_x = (gen[0][1]+gen[1][0])/2
 gen_ft_x  = (gen[2][0]+gen[2][1])/2
-fan(sep, SP-14, spec, '#2f6f4f', 'yes \u2192 specialist', spg, 146)
-fan(spc, SP-14, gen[:2], '#2f6f4f', 'yes \u2192 frontier / small', gen_yes_x, 140)
-arrow(fth, SP-14, gen_ft_x, RES+16, '#555')
-ax.text(gen_ft_x, 126, 'fallthrough', fontsize=FS-0.6, color='#555', ha='center', fontweight='bold')
+fan(sep, SP-14, spec, '#1e5a3a', 'yes \u2192 specialist', spg, 146)
+fan(spc, SP-14, gen[:2], '#1e5a3a', 'yes \u2192 frontier / small', gen_yes_x, 140)
+arrow(fth, SP-14, gen_ft_x, RES+16, '#444')
+ax.text(gen_ft_x, 126, 'fallthrough', fontsize=FS-0.2, color='#444', ha='center', fontweight='bold')
 
 # ---- bottom annotation ----
 ax.text(W/2, 26, 'only ONE model is selected per request (early exit on a match)',
-        fontsize=FS-0.6, ha='center', color='#666')
+        fontsize=FS-0.2, ha='center', color='#444')
 ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback. [ILLUSTRATIVE][DERIVED]',
-        fontsize=FS-1.0, ha='center', color='#666')
+        fontsize=FS-0.2, ha='center', color='#444')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-18/figures/fig-18-1801.png', dpi=200)

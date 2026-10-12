@@ -20,21 +20,26 @@ print('fig-02-0201: see render/fig_ch2_roofline.py; Ch02 block retired')
 # ---- Ch04: Six-dimension workload characterization -> architectural decisions ----
 # The six dimensions the chapter actually defines (§4.2.1): quality, traffic, token
 # profile, latency, economic constraints, operational constraints.
-fig, ax = plt.subplots(figsize=(12, 7))
-ax.set_xlim(0, 14); ax.set_ylim(0, 10); ax.axis('off')
+# v8 review: the 12x7 figure rendered as a thin band in a large empty field.
+# Make it more square (taller) so it fills the page, add column headers for
+# hierarchy, and enlarge the row labels.
+fig, ax = plt.subplots(figsize=(7.6, 7.6))
+ax.set_xlim(0, 10); ax.set_ylim(0, 10); ax.axis('off')
 dims = ['Quality requirements', 'Traffic / concurrency', 'Token profile', 'Latency SLO', 'Economic constraints', 'Operational constraints']
 cons = ['model size / type', 'concurrency & batching', 'KV cache size & prefill demand', 'TTFT/TPOT & batch window', 'host count & cost ceiling', 'multi-region vs. single-region']
+# column headers (hierarchy: the two reading units)
+ax.text(2.5, 9.55, 'WORKLOAD DIMENSION', ha='center', va='center', fontsize=10.5, fontweight='bold', color='#27408b')
+ax.text(7.5, 9.55, 'ARCHITECTURAL DECISION', ha='center', va='center', fontsize=10.5, fontweight='bold', color='#7a3b00')
+ax.plot([0.3, 9.7], [9.25, 9.25], color='#bbb', lw=1.0)
 for i, (d, c) in enumerate(zip(dims, cons)):
-    y = 9 - i*1.35
-    ax.add_patch(FancyBboxPatch((0.5, y-0.4), 4.5, 0.8, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
-    ax.text(2.75, y, d, ha='center', va='center', color='white', fontsize=11, fontweight='bold')
+    y = 8.4 - i*1.30
+    ax.add_patch(FancyBboxPatch((0.3, y-0.42), 4.4, 0.84, boxstyle='round,pad=0.02', fc='#3a6ea5', ec='none'))
+    ax.text(2.5, y, d, ha='center', va='center', color='white', fontsize=11.5, fontweight='bold')
     # dashed arrow: the mapping is a heuristic influence, not a deterministic one-to-one
-    ax.annotate('', xy=(6.6, y), xytext=(5.2, y), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555', linestyle=(0, (4, 2))))
+    ax.annotate('', xy=(6.3, y), xytext=(4.9, y), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555', linestyle=(0, (4, 2))))
     # pale orange + dark text: white-on-orange is below the print contrast floor
-    ax.add_patch(FancyBboxPatch((6.8, y-0.4), 6.5, 0.8, boxstyle='round,pad=0.02', fc='#f5c99b', ec='none'))
-    ax.text(10.05, y, c, ha='center', va='center', color='#7a3b00', fontsize=11)
-ax.text(7, 9.7, 'Six-dimension workload characterization → architectural consequences',
-        fontsize=13, fontweight='bold', ha='center')
+    ax.add_patch(FancyBboxPatch((6.5, y-0.42), 3.2, 0.84, boxstyle='round,pad=0.02', fc='#f5c99b', ec='none'))
+    ax.text(8.1, y, c, ha='center', va='center', color='#7a3b00', fontsize=10.5)
 plt.tight_layout()
 plt.savefig(base % (4, 4, 4), dpi=150); plt.close()
 print('Ch04 done')

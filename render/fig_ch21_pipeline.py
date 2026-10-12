@@ -54,7 +54,7 @@ for (stage, crit), x in zip(gates, xs):
     ax.add_patch(FancyBboxPatch((x, gy), gw, gh, boxstyle='round,pad=0.04',
                                 fc='#fbe6e0', ec='#c0392b', lw=1.7, zorder=2))
     ax.text(x + gw/2, gy + gh - 0.58, stage, ha='center', va='center',
-            fontsize=9.6, color='#8c2d1a', fontweight='bold', zorder=3)
+            fontsize=9.2, color='#8c2d1a', fontweight='bold', zorder=3)
     ax.text(x + gw/2, gy + gh - 1.30, crit, ha='center', va='center',
             fontsize=9.2, color='#3a2a24', zorder=3)
     ax.text(x + gw/2, gy + 0.42, '\u2713 PASS', ha='center', va='center',
@@ -90,7 +90,7 @@ ax.text(12.0, 0.85, 'production feedback \u2192 data / evaluation (each cycle re
         fontsize=8.2, ha='center', color='#2f6f4f', fontweight='bold')
 
 ax.text(12.0, 0.25, '[ILLUSTRATIVE][DERIVED] Gates pass on measured throughput / SLO / cost; a breach rolls back.',
-        fontsize=7.9, ha='center', color='#777')
+        fontsize=8.0, ha='center', color='#777')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-21/figures/fig-21-2101.png', dpi=150)
