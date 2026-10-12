@@ -26,9 +26,15 @@ not map one-to-one onto model compute the way it does here.)
 
 The disconnection from human units is the first thing an architect has
 to internalize: \textbf{cost and capacity in an LLM are measured in
-tokens, not words or characters}, because every model operation ---
-embedding lookup, attention arithmetic, KV cache memory, decode time ---
-prices by token. This chapter exists to make that switch automatic.
+tokens, not words or characters}, because the workload accounting is
+token-based --- embedding lookup, attention arithmetic, KV cache memory,
+and decode time are all \emph{counted} in tokens. That does not mean
+every operation has a fixed per-token price: the cost per token varies
+by phase (prefill vs decode), by operating point (batch size, context
+length), and by hardware utilization, and attention work grows
+nonlinearly with context. The token is the unit we count and budget in;
+the per-token cost is what the later chapters derive. This chapter
+exists to make that switch automatic.
 
 \subsection{Tokenization}\label{tokenization}
 
@@ -58,17 +64,23 @@ own tokenizer before pricing anything.
 The \textbf{context window} is the maximum sequence length the model can
 condition on at a given generation step --- that is, the total of the
 retained input/prefix and the tokens generated so far. It is a hard
-architectural constraint: exceed it and the request fails or must be
-truncated. Current-gen models commonly ship windows ranging from roughly
-8K up to a million-plus tokens, varying by model and vendor ({[}2°{]}
-vendor model cards, e.g.~128K/1M+ windows as of 2026); the advertised
-number is a fixed, checkable property of the model we choose --- verify
-it on the card, never assume it from the family name. Note there are
-three related but distinct limits: the \emph{model-advertised maximum}
-(the card's window), the \emph{engine-configured maximum} (what the
-serving stack is set to allow, which can be lower to bound memory), and
-the \emph{request-level available input budget} (the advertised window
-minus the reserved generation budget and any positional-scaling or
+\emph{service} constraint at the configured limit: exceed it and the
+request fails or must be truncated. (This is the engine-configured
+maximum, not a law of physics --- some models use sliding-window or
+rolling attention that retains only a bounded recent context, and a few
+support positional-scaling or provider-side context extension, so the
+\emph{model's} positional capability and the \emph{serving stack's}
+configured cap can differ; the distinction is developed in Ch 7 and Ch
+22.) Current-gen models commonly ship windows ranging from roughly 8K up
+to a million-plus tokens, varying by model and vendor ({[}2°{]} vendor
+model cards, e.g.~128K/1M+ windows as of 2026); the advertised number is
+a fixed, checkable property of the model we choose --- verify it on the
+card, never assume it from the family name. Note there are three related
+but distinct limits: the \emph{model-advertised maximum} (the card's
+window), the \emph{engine-configured maximum} (what the serving stack is
+set to allow, which can be lower to bound memory), and the
+\emph{request-level available input budget} (the advertised window minus
+the reserved generation budget and any positional-scaling or
 provider-API cap). The context window is one of the first numbers we
 will be quoted, and one of the easiest to overcommit against, because it
 bounds memory and cost whether we use every token or not.
@@ -172,15 +184,21 @@ form matters once we meet \textbf{grouped-query (GQA)} and
 heads across many query heads and can make the cache several times
 smaller than the full-MHA figure (Ch. 7) --- so \texttt{d\_hidden} alone
 is \emph{not} the correct KV width for those architectures. It is on the
-order of \textbf{\textasciitilde256 KB per token for a 7B-class model
-(32 layers, d\_hidden 4096, full-MHA) and \textasciitilde1.3 MB per
-token for a 70B-class model (80 layers, d\_hidden 8192, full-MHA)} at
-8-bit precision (the naive byte-halving figure; the \emph{measured} FP8
-serving constant is \textasciitilde1.42 MB/token ≈ 54\% of BF16, giving
-\textasciitilde13 GB rather than \textasciitilde12 GB at 9.2K --- see Ch
-7), so a long context (say 32K tokens) alone can be tens of GB of
-memory. A first non-obvious architectural lesson hides here: \emph{MoE
-expert sparsity alone does not reduce per-token KV state.} A
+order of \textbf{\textasciitilde256 KiB (0.26 MB) per token for a
+7B-class model (32 layers, d\_hidden 4096, full-MHA) and
+\textasciitilde1.25 MiB (1.31 MB) per token for a 70B-class model (80
+layers, d\_hidden 8192, full-MHA)} at 8-bit precision. The arithmetic is
+the formula above with one byte per value: 2 × 32 × 4096 = 262,144 B and
+2 × 80 × 8192 = 1,310,720 B. That 8-bit figure is the \emph{naive
+byte-halving} of the BF16 value --- exactly 50\% (1.31 MB vs 2.62 MB).
+The \emph{measured} FP8 serving constant is higher, \textasciitilde1.42
+MB/token ≈ 54\% of BF16, because the serving footprint includes
+per-token metadata and cache-block rounding, not just the raw K/V bytes;
+at 9.2K tokens that is \textasciitilde13 GB rather than the
+\textasciitilde12 GB the naive halving implies (the full derivation is
+in Ch 7). Either way, a long context (say 32K tokens) alone can be tens
+of GB of memory. A first non-obvious architectural lesson hides here:
+\emph{MoE expert sparsity alone does not reduce per-token KV state.} A
 Mixture-of-Experts model activates only a fraction of its neurons per
 token, which saves compute, but the attention layers still process every
 token densely and emit a key/value per token --- so MoE shrinks
