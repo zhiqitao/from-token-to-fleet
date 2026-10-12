@@ -57,7 +57,7 @@ from matplotlib.path import Path
 _x3 = cols_x[2] + W/2      # box 3 (Exposure) bottom-center
 _x4 = cols_x[0] + W/2      # box 4 (Guardrails) top-center
 _mid = (rows_y[0] + rows_y[1] + H) / 2.0
-c34 = [(_x3, rows_y[0]), (_x3, _mid), (_x4, _mid), (_x4, rows_y[1] + H)]
+c34 = [(_x3, rows_y[0]), (_x3, _mid), (_x4, _mid), (_x4, rows_y[1] + H - 0.15)]
 ax.add_patch(FancyArrowPatch(path=Path(c34, [Path.MOVETO] + [Path.LINETO]*3),
              arrowstyle='-|>', mutation_scale=16, lw=1.6, color='#555', zorder=1))
 
@@ -75,7 +75,7 @@ FBY = 3.2
 LX  = 0.25                     # far-left rail, just inside canvas, left of box 4's left edge (x=0.8)
 ret_verts = [(cols_x[2]+W/2, rows_y[1]), (cols_x[2]+W/2, FBY+0.35),
              (cols_x[2]+W/2, FBY), (LX, FBY),
-             (LX, rows_y[0]+H/2), (cols_x[0], rows_y[0]+H/2)]
+             (LX, rows_y[0]+H/2), (cols_x[0]+0.15, rows_y[0]+H/2)]
 ret_codes = [Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.LINETO, Path.LINETO]
 ax.add_patch(FancyArrowPatch(path=Path(ret_verts, ret_codes), arrowstyle='-|>',
              mutation_scale=18, lw=3.0, color='#a83232', zorder=1))

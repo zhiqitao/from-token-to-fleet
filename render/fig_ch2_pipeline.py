@@ -45,7 +45,7 @@ BOLD = FontProperties(weight='bold')
 W = 6.1 * 72          # 6.1in column, in points
 FS  = 8.0             # box label  (8pt body minimum on page)
 FST = 9.0             # band title
-FSN = 8.0             # transition label
+FSN = 8.5             # transition label (bumped from 8.0 for print legibility, v8 review)
 PAD = 8               # horizontal padding inside each box
 GAP = 11              # gap between rail boxes
 BH  = 30              # box height
@@ -54,7 +54,7 @@ RMB = 16              # right margin reserved for the green descent corridor
 
 # monochrome greys + the single green channel-accent
 C_AR    = '#3a3a3a'   # rail / populate / read arrows
-C_LOOP  = '#8a8a8a'   # grey loop arrow
+C_LOOP  = '#6a6a6a'   # grey loop arrow (darkened from #8a8a8a for print contrast, v8 review)
 C_GN    = '#2c7a4b'   # green initialize arrow
 C_EDGE  = '#5a5a5a'
 C_BOX   = '#f1f1f1'   # neutral boxes

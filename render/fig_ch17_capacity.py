@@ -20,7 +20,7 @@ from matplotlib.lines import Line2D
 
 fig, ax = plt.subplots(figsize=(6.1, 3.7))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
-ax.set_xlim(0, 10); ax.set_ylim(0, 12.0)
+ax.set_xlim(0, 11.6); ax.set_ylim(0, 12.0)
 
 # Time axis (hours of a workday); offered load follows a smooth burst.
 t = np.linspace(0, 10, 300)
@@ -53,14 +53,24 @@ ax.annotate('burst peak ~5.5 req/s',
             xy=(6.3, peak+0.15), xytext=(6.8, 7.6),
             fontsize=8, color='#c0392b', ha='left', fontweight='bold',
             arrowprops=dict(arrowstyle='->', color='#c0392b'))
-ax.annotate('fleet sized ABOVE the burst\n(headroom + failover)',
-            xy=(6.3, N4+0.1), xytext=(7.6, 9.4),
-            fontsize=8.5, color='#27408b', fontweight='bold', ha='left',
-            arrowprops=dict(arrowstyle='->', color='#27408b'))
 ax.annotate('one host cannot meet\nthe burst on its own',
             xy=(3.4, host_cap+0.05), xytext=(2.4, 3.9),
             fontsize=8, color='#555', ha='left', va='bottom',
             arrowprops=dict(arrowstyle='->', color='#555'))
+
+# Distinguish headroom vs failover (v8 review: the combined "(headroom +
+# failover)" annotation lumped them). The failover margin (burst peak 5.5 ->
+# N-1 residual 6.0) is only ~0.5 req/s, too thin to shade, so a right-side
+# vertical brace spans the whole margin (5.5 -> 8.0) with a tick at 6.0; the
+# two labels sit to the RIGHT of the brace, clear of the reference lines.
+ax.axhspan(N1res, N4, color='#2c7a4b', alpha=0.16)   # headroom band (visible)
+bx = 9.7
+ax.plot([bx, bx], [peak, N4], color='#555', lw=1.2)   # brace
+ax.plot([bx-0.15, bx+0.15], [N1res, N1res], color='#555', lw=1.2)  # tick at N-1
+ax.text(bx+0.3, (peak+N1res)/2, 'failover', fontsize=8, color='#27408b',
+        ha='left', va='center', fontweight='bold')
+ax.text(bx+0.3, (N1res+N4)/2, 'headroom', fontsize=8, color='#1e6b3a',
+        ha='left', va='center', fontweight='bold')
 
 ax.set_xlabel('time of day', fontsize=9)
 ax.set_ylabel('offered load / req·s⁻¹', fontsize=9)

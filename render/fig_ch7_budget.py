@@ -31,7 +31,7 @@ ax.text(5.0, 6.28, 'Concurrency budget — one 8×H100 host',
 
 # ---- region-band budget bar (0..640 GB mapped across the width) ----
 bx0, bx1 = 0.5, 10.4                 # bar spans this x range
-bar_y, bar_h = 4.85, 0.85
+bar_y, bar_h = 4.70, 1.15            # taller bar (v8 review: more breathing room for the two-line labels)
 def gb_to_x(g): return bx0 + (g / total) * (bx1 - bx0)
 def label(x, gb, txt, fc):
     ax.text(x, bar_y + bar_h / 2.0, txt, ha='center', va='center',
@@ -47,9 +47,11 @@ label((gb_to_x(0) + gb_to_x(weights)) / 2.0, 0, '140 GB\nweights', '#ffffff')
 ax.add_patch(Rectangle((gb_to_x(weights), bar_y), gb_to_x(weights + runtime) - gb_to_x(weights), bar_h,
                        fc='#4a4e52', ec='white', lw=0.5))
 label((gb_to_x(weights) + gb_to_x(weights + runtime)) / 2.0, 0, '~64 GB\nruntime', '#ffffff')
-# KV budget region (the dominant band)
+# KV budget region (the dominant band) — solid green (no dot hatch) so the
+# white label has clean contrast (v8 review: the dotted pattern lowered the
+# label's legibility).
 ax.add_patch(Rectangle((gb_to_x(weights + runtime), bar_y), gb_to_x(total) - gb_to_x(weights + runtime), bar_h,
-                       fc='#6f9e5f', ec='white', hatch='..', lw=0.5))
+                       fc='#6f9e5f', ec='white', lw=0.5))
 label((gb_to_x(weights + runtime) + gb_to_x(total)) / 2.0, 0, '~436 GB\nKV budget', '#ffffff')
 
 # per-request slot ticks inside the KV budget band (17.5 slots of 24.9 GB)
