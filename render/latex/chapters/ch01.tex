@@ -82,27 +82,43 @@ set to allow, which can be lower to bound memory), and the
 \emph{request-level available input budget} (the advertised window minus
 the reserved generation budget and any positional-scaling or
 provider-API cap). The context window is one of the first numbers we
-will be quoted, and one of the easiest to overcommit against, because it
-bounds memory and cost whether we use every token or not.
+will be quoted, and one of the easiest to overcommit against. But it is
+a \emph{configured maximum}, not a per-request charge: a 9.2K request in
+a 128K window is computed, cached, and billed on the \textasciitilde9.2K
+tokens actually used, not on the full 128K. What the window \emph{does}
+bound is the worst case --- the memory a single request could reserve
+and the admission capacity the engine must hold --- and some engines
+reserve or pre-allocate against that maximum (a policy choice that
+varies by engine), while others allocate only for the tokens actually
+processed. So the window sets the ceiling on reservation and admission,
+not the floor on per-request cost; the cost tracks the tokens actually
+cached and billed (developed in Ch 7 and Ch 16).
 
 \subsection{Embeddings}\label{embeddings}
 
 Text enters the model as token IDs, but the model does arithmetic on
-vectors. An \textbf{embedding} is the learned dense vector that
-represents a token (or a position, or a subword context) in a
-high-dimensional space. Two distinct widths must not be conflated: the
-\textbf{token-embedding width} (the model's hidden dimension, e.g.~4096
-for LLaMA-7B, 8192 for the canonical 70B reference, 12288 for LLaMA-2
-70B) and the \textbf{retrieval-embedding width} (the dimension of a
-sentence/document embedding produced by a separate encoder for RAG,
-typically 384--1536 for dedicated retrieval models, or the full hidden
-dim if the LLM itself is used as the encoder). The ``128 to a few
-thousand'' range applies to \emph{retrieval} embeddings; the
-\emph{token} embedding width is architecture-dependent and for modern
-LLMs is in the 4096--16384 range. The embedding maps each discrete token
-id to a learned continuous vector the transformer operates on;
-relationships in that learned space emerge from training but should not
-be interpreted as a simple human-semantic distance metric.
+vectors. The first such vector is the \textbf{token embedding}: a
+learned lookup table maps each discrete token id to a dense vector in a
+high-dimensional space, and the transformer operates on those vectors.
+Two distinct widths must not be conflated: the \textbf{token-embedding
+width} (the model's hidden dimension, e.g.~4096 for LLaMA-7B, 8192 for
+the canonical 70B reference, 12288 for LLaMA-2 70B) and the
+\textbf{retrieval-embedding width} (the dimension of a sentence/document
+embedding produced by a separate encoder for RAG, typically 384--1536
+for dedicated retrieval models, or the full hidden dim if the LLM itself
+is used as the encoder). The ``128 to a few thousand'' range applies to
+\emph{retrieval} embeddings; the \emph{token} embedding width is
+architecture-dependent and for modern LLMs is \emph{illustratively} in
+the 4096--16384 range (not an exhaustive bound across all models). Two
+other vector objects are distinct from the token embedding and should
+not be merged with it: \textbf{positional encodings} (which encode a
+token's position in the sequence, added to or modulating the embedding)
+and \textbf{contextual hidden states} (the per-layer, per-position
+activations the transformer produces, which depend on the whole context,
+not just the token id). The token embedding maps each discrete token id
+to a learned continuous vector; relationships in that learned space
+emerge from training but should not be interpreted as a simple
+human-semantic distance metric.
 
 For the architect the practical facts are: embeddings live in a lookup
 table sized \texttt{vocab\ ×\ dim}, they account for a real but small
@@ -191,24 +207,28 @@ layers, d\_hidden 8192, full-MHA)} at 8-bit precision. The arithmetic is
 the formula above with one byte per value: 2 × 32 × 4096 = 262,144 B and
 2 × 80 × 8192 = 1,310,720 B. That 8-bit figure is the \emph{naive
 byte-halving} of the BF16 value --- exactly 50\% (1.31 MB vs 2.62 MB).
-The \emph{measured} FP8 serving constant is higher, \textasciitilde1.42
-MB/token ≈ 54\% of BF16, because the serving footprint includes
-per-token metadata and cache-block rounding, not just the raw K/V bytes;
-at 9.2K tokens that is \textasciitilde13 GB rather than the
-\textasciitilde12 GB the naive halving implies (the full derivation is
-in Ch 7). Either way, a long context (say 32K tokens) alone can be tens
-of GB of memory. A first non-obvious architectural lesson hides here:
-\emph{MoE expert sparsity alone does not reduce per-token KV state.} A
-Mixture-of-Experts model activates only a fraction of its neurons per
-token, which saves compute, but the attention layers still process every
-token densely and emit a key/value per token --- so MoE shrinks
-compute-per-token, not memory-per-context. What actually determines KV
-memory is the \emph{attention architecture and cache policy}, not the
-expert count: GQA/MQA shrink the per-token K/V width,
-hybrid/linear/compressed-latent attention change how much context is
-retained, sliding-window caps some layers' retained context, and
-quantization (FP8) reduces the bytes per element without stopping the
-linear growth. This is a controlled comparison --- it holds the
+The \emph{measured} FP8 serving footprint (vLLM, the canonical 80-layer
+full-MHA geometry) is higher, \textasciitilde1.42 MB/token ≈ 54\% of
+BF16, because the serving footprint includes per-token scale/offset
+metadata and cache-block rounding, not just the raw K/V bytes; at 9.2K
+tokens that is \textasciitilde13 GB rather than the \textasciitilde12 GB
+the naive halving implies. This is a specified measured configuration,
+not a universal FP8 constant --- a different engine or a
+GQA/hybrid-attention model has a different per-token footprint, so
+re-derive it for the target stack (full provenance and the ``do not
+generalize'' caveat are in Ch 7). Either way, a long context (say 32K
+tokens) alone can be tens of GB of memory. A first non-obvious
+architectural lesson hides here: \emph{MoE expert sparsity alone does
+not reduce per-token KV state.} A Mixture-of-Experts model activates
+only a fraction of its neurons per token, which saves compute, but the
+attention layers still process every token densely and emit a key/value
+per token --- so MoE shrinks compute-per-token, not memory-per-context.
+What actually determines KV memory is the \emph{attention architecture
+and cache policy}, not the expert count: GQA/MQA shrink the per-token
+K/V width, hybrid/linear/compressed-latent attention change how much
+context is retained, sliding-window caps some layers' retained context,
+and quantization (FP8) reduces the bytes per element without stopping
+the linear growth. This is a controlled comparison --- it holds the
 attention geometry, context length, and cache dtype fixed; an MoE model
 that also uses GQA or a different attention mechanism can have a much
 smaller KV footprint than a dense full-MHA baseline. The distinction ---
@@ -267,6 +287,14 @@ Text → \textbf{tokenizer} → discrete IDs → \textbf{embedding} → vectors
 → \textbf{attention} recomputes each token → \textbf{KV cache} remembers
 the prefix → generate one token at a time.
 \end{quote}
+
+\emph{Reading the mnemonic:} the ``KV cache remembers the prefix'' step
+is not a terminal post-attention block. The K/V are computed
+\emph{within} the attention layers (one K/V per layer per head), and the
+cached K/V are \emph{read} by subsequent steps --- the cache is a
+persistent state that is written and read across the whole forward pass,
+not a stage that runs after attention. The full per-step read/append
+ordering is in \hyperref[fig:2.1]{Fig 2.1}.
 
 We do not need to hold all of this as a practitioner. The durable mental
 model is: \textbf{tokens are the interface between a human's request and
@@ -327,14 +355,14 @@ input tokens / request & \textasciitilde9,200 & canonical scenario (Ch
 4, \hyperref[tab:4.3]{Table 4-3}) (1,200 prompt + 8K context) \\
 output tokens / request & \textasciitilde300 & canonical scenario (Ch 4,
 \hyperref[tab:4.3]{Table 4-3}) \\
-input / output ratio & \textasciitilde30× & 9,200 ÷ 300
-{[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
-input tokens/s @ 10 rps & \textasciitilde92,000 & 9,200 ×10
-{[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
+input / output ratio & \textasciitilde30× & 9,200 ÷ 300 {[}canonical
+scenario{]}{[}DERIVED{]} \\
+input tokens/s @ 10 rps & \textasciitilde92,000 & 9,200 ×10 {[}canonical
+scenario{]}{[}DERIVED{]} \\
 input tokens/s @ peak 40 rps & \textasciitilde368k & 9,200 ×40
-{[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
-output tokens/s @ 10 rps & \textasciitilde3,000 & 300 ×10
-{[}ILLUSTRATIVE{]}{[}DERIVED{]} \\
+{[}canonical scenario{]}{[}DERIVED{]} \\
+output tokens/s @ 10 rps & \textasciitilde3,000 & 300 ×10 {[}canonical
+scenario{]}{[}DERIVED{]} \\
 
 \label{tab:1.1}\end{longtable}
 

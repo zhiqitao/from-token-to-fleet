@@ -224,6 +224,14 @@ _ay = (dc['transformer'][3] + kc_bot) / 2
 ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
         fontweight='bold', ha='left', va='center')
 
+# R-09: the single read/append pair is a *conceptual* per-step, per-layer
+# cache I/O, not one global read/append bracketing the whole transformer.
+# Placed in the clear strip right of the "append" label, above the green
+# initialize line (data coords ~x 295-382, y 137-160).
+ax.text(295, 149, 'conceptual per-step,\nper-layer cache I/O',
+        color='#555555', fontsize=8.0, style='italic',
+        ha='left', va='center')
+
 # ==================== GREEN initialize ====================
 # first token (right edge) -> down the right margin -> left along the channel
 # below the cache box -> drop into the TOP of previous token.  The channel

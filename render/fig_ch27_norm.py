@@ -80,7 +80,7 @@ ax.text(W/2, fy,
         'Each reduction is relative to the model\'s OWN stated predecessor — no common denominator.',
         fontsize=FS_R-0.2, ha='center', va='center', color='#555')
 ax.text(W/2, fy - 20,
-        'Value source: vendor-reported [1P] (arXiv 2606.19348; HF zai-org), not yet independently reprofiled.',
+        'Value source: vendor-reported [1P] — DeepSeek V4: arXiv 2606.19348; GLM-5.3-Flash: arXiv 2602.15763 (HF zai-org). Not yet independently reprofiled.',
         fontsize=FS_R-0.6, ha='center', va='center', color='#777', fontstyle='italic')
 
 plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png', dpi=200)
