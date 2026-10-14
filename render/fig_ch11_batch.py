@@ -69,7 +69,15 @@ ax.annotate('', xy=(6.55, 2.95), xytext=(7.3, 3.5),
             arrowprops=dict(arrowstyle='->', lw=0.9, color='#555'))
 ax.text(5.0, 0.35, 'new sequences (green) snap into freed slots', fontsize=8.2, color='#2e8b57', ha='center')
 
-plt.tight_layout()
+# Ch 11.1 IMPROVE: the "decode-only" scope is in the caption; put it in the
+# figure too so a reader cannot mistake it for full mixed prefill/decode
+# scheduling. Figure-level so it spans both panels, below the time axis.
+fig.text(0.5, 0.015,
+         'Decode-only illustration: every shown request is in the per-token decode phase.\n'
+         'A real stack also interleaves prefill of new requests into the same steps (Ch 11 Sec. 4, Ch 15).',
+         fontsize=8.0, color='#555', ha='center', va='bottom', style='italic')
+
+plt.tight_layout(rect=(0, 0.05, 1, 1))
 plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=150)
 plt.close()
 print('wrote fig-11-1102')

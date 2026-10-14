@@ -25,7 +25,7 @@ These mechanisms compose: continuous batching is the baseline, PagedAttention ma
 - **[S3] Prefix caching** — "Fast Inference from Transformers via Radix Attention" (SGLang, 2023) and vLLM Automatic Prefix Caching (APC). Caching shared-prefix KV.
 - **[S4] P/D disaggregation** — "Splitwise: Efficient Generative LLM Inference Using Phase Splitting" (ISCA 2024), "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving" (OSDI 2024), and Mooncake (KV-centric disaggregation, 2024).
 - **[S5] DFlash** — speculative-decoding system reporting >6× (up to 2.5× in its evaluated configuration) lossless acceleration.
-- **[S6] vLLM FP8-KV measurement** — vLLM's measured FP8 KV-cache residency at ≈54% of BF16 (the ~1.42 MB/token constant used in Chapters 7, 15, 17, 22, 25; distinct from the naive 50% byte-halving).
+- **[S6] vLLM FP8-KV measurement** — vLLM's *vendor-reported* FP8 KV-cache residency at ≈54% of BF16 (the ~1.42 MB/token amortized serving footprint used in Chapters 7, 15, 17, 22, 25; distinct from the naive 50% byte-halving of ~1.31 MB/token raw tensor storage). This is a vendor figure, not an author home-lab measurement; the exact block size and reserved-vs-allocated accounting boundary are as stated in the vLLM blog post (References, [S6]).
 
 ## 2. Mental Model
 

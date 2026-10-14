@@ -93,7 +93,7 @@ def make_copyrightpage():
     lines.append(r"\thispagestyle{empty}")
     lines.append(r"{\centering\MakeUppercase{Copyright \textcopyright{} 2026 Zhiqi Tao}\\[2pt] All rights reserved, except as explicitly granted below.\par}")
     lines.append(r"\vspace{1.2cm}")
-    lines.append(r"\noindent\textbf{License.} This work --- the book text, diagrams, figures, and build scripts --- is distributed under a \emph{source-available} license. The copyright line above is qualified by the explicit grant below: the default is all rights reserved, and the grant is the stated exception. The distributed LICENSE file, the copyright notice, the repository, and the distribution-channel terms (e.g.\ Amazon KDP) are intended to be consistent with this grant; the exact channel-specific rights are finalized at publication.")
+    lines.append(r"\noindent\textbf{License.} This work --- the book text, diagrams, figures, and build scripts --- is distributed under the \emph{source-available} grant stated below. That grant is the operative license for this edition: the default is all rights reserved, and the two permissions below are the stated exception. The full text of the license, including the redistribution restrictions and the channel-specific terms (e.g.\ Amazon KDP), is the \texttt{LICENSE} file in the repository, which is the authoritative statement of rights for this work.")
     lines.append("")
     lines.append(r"\begin{itemize}")
     lines.append(r"\item \textbf{\color{memory}You may} freely read, study, learn from, and \textbf{redistribute} the work (verbatim, with attribution) for personal and non-commercial ends --- no permission needed.")

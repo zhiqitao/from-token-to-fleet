@@ -22,7 +22,7 @@ stages = [
     # (num, title, subtitle, tag, fill, edge)
     ('01', 'Understand',        'requirements & workload',        'inputs',    '#e8edf3', '#34495e'),
     ('02', 'Design & size',     'candidates, benchmark, bottleneck','work',     '#e7f5ec', '#1e8449'),
-    ('03', 'Validate & Defend', 'TCO, recommendation',            'economics', '#f0eaf7', '#7d3c98'),
+    ('03', 'Validate & Defend', 'TCO, provisional recommendation', 'economics', '#f0eaf7', '#7d3c98'),
     ('04', 'Commit',            'red team, then final choice',    'decide',    '#fdecea', '#c0392b'),
 ]
 transitions = ['define', 'size', 'justify']   # main-path labels (3 gaps)

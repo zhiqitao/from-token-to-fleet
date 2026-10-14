@@ -53,18 +53,30 @@ ax.set_ylabel('GPU memory floor (GB)')
 ax.tick_params(axis='x', labelsize=9)
 # title 2nd line shortened so it fits the 6.1in width (was clipped on the left)
 ax.set_title('Memory floor: inference vs fine-tuning (canonical 70B FP16)\nEach column is a different scenario, not a single-variable comparison', fontsize=9)
+# P0-04: each bar is a *conditional floor* (parameter/optimizer floor), not a
+# generally achievable deployment config. State the key assumptions compactly.
+# The legend is moved inside the plot (top, 2-col) so the footnote at the
+# figure bottom has the full width and does not collide with the x-axis labels.
+fig.text(0.5, 0.01,
+         'Each bar is a conditional floor (weights + the listed states), not a full deployment config.\n'
+         'Full fine-tune: FP16 weights + FP16 grads + Adam m/v/master (~16 B/param).\n'
+         'Activation, microbatch/sequence, and offload/checkpointing are NOT included (Table 7-2).\n'
+         'QLoRA: 4-bit (NF4) base + LoRA adapters + a small optimizer.\n'
+         'Adapter rank, activation, and offload are NOT included (Table 7-2).',
+         fontsize=8.0, color='#555', ha='center', va='bottom', linespacing=1.5)
 ax.axhline(160, color='#888', ls='--', lw=1, label='2×H100 (160 GB)')
 ax.axhline(640, color='#27408b', ls='--', lw=1, label='8×H100 (640 GB)')
 ax.axhline(80, color='#6f9e5f', ls='--', lw=1, label='1×H100 (80 GB)')
 ax.set_ylim(0, 1500)
-# red annotation sits directly above the red bar (x=1), in the clear gap between
-# the bar top (1120) and the title — away from the upper-left legend (no collision)
-ax.text(1, 1250, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
+# red annotation sits directly above the red bar (x=1), just above its value
+# label (1150) and clear of the top legend band.
+ax.text(1, 1195, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
 ax.annotate('QLoRA fits a single H100', xy=(2, 60), xytext=(2.4, 250),
             fontsize=8.5, color='#3d6e35', arrowprops=dict(arrowstyle='->', color='#3d6e35'))
-ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.16), ncol=3, frameon=False)
+ax.legend(fontsize=8, loc='upper center', ncol=2, frameon=False)
 ax.grid(alpha=0.3, axis='y')
-plt.tight_layout()
+# reserve the bottom ~18% for the 5-line fig.text footnote (P0-04)
+plt.tight_layout(rect=(0, 0.18, 1, 1))
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0702.png', dpi=150)
 plt.close()
 print('wrote fig-07-0702')
