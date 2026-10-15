@@ -79,11 +79,11 @@ is what we compute.
 it}\label{size-the-fleet-first-then-price-it}
 
 TCO is meaningless until we know \textbf{how many hosts the workload
-actually requires}. The reviewer's sharpest point stands: a single
-8×H100 host can only sustain \textasciitilde2.0 req/s under the
-KV/latency analytical planning bound (\hyperref[chap:17]{Chapter 17}/20), so it cannot serve
-even the canonical 10 rps average, let alone the 40 rps peak. We
-therefore size the fleet first (Ch 17) and price it second.
+actually requires}. A common sizing mistake is to start from a single
+host: a single 8×H100 host can only sustain \textasciitilde2.0 req/s
+under the KV/latency analytical planning bound (\hyperref[chap:17]{Chapter 17}/20), so it
+cannot serve even the canonical 10 rps average, let alone the 40 rps
+peak. We therefore size the fleet first (Ch 17) and price it second.
 
 \textbf{Step 1 --- fleet size.} The canonical workload requires N\_hosts
 = max(N\_throughput, N\_KV, N\_SLO). With the \textasciitilde8.6 s
@@ -123,6 +123,78 @@ not one box. (FP8 KV roughly halves this to \textasciitilde11 hosts at
 peak.) \textbf{Every TCO figure below is scaled to this fleet
 requirement; pricing a single host would understate the cost by roughly
 4--20×.}
+
+\textbf{What kind of number is \textasciitilde2.0 req/s?} The per-host
+rate \texttt{C\_KV\ /\ W\ ≈\ 17.5\ /\ 8.6\ ≈\ 2.0\ req/s} is an
+\emph{upper-order planning estimate under a particular concurrency,
+timing, and cache geometry} --- not an observed service rate. It is an
+average-in-system relation, not a measured goodput. The three quantities
+behind \texttt{N\_hosts\ =\ max(N\_throughput,\ N\_KV,\ N\_SLO)} are
+\textbf{three different models that must be derived and measured
+separately}, and the formula is only as strong as the weakest one:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{N\_KV (KV-memory occupancy ceiling)} --- how many requests
+  \emph{reside} in KV cache given the host's usable HBM and the
+  per-token KV footprint. This is an arithmetic allocation bound (the
+  \textasciitilde17.5 figure).
+\item
+  \textbf{N\_throughput (phase capacity)} --- how many requests the host
+  can \emph{complete} per second given the service time. The
+  \textasciitilde8.6 s service time is an uncontended request-level
+  estimate, and \texttt{C/W} treats it as fixed.
+\item
+  \textbf{N\_SLO (queueing / goodput)} --- the number of hosts needed to
+  hold p95/p99 TTFT, TPOT, and success rate under \emph{concurrent}
+  arrival. \textbf{Little's law relates average in-system work to
+  elapsed time under stability; it does not independently prove a
+  throughput ceiling or a p99 latency.} At concurrency
+  \textasciitilde17, TTFT and TPOT can differ substantially from the
+  isolated \textasciitilde8.6 s used to obtain \texttt{C/W}, because
+  batch efficiency, per-request duration, and interference are all
+  coupled to load.
+\end{itemize}
+
+So the 20-host figure is a \textbf{scenario-specific bound contingent on
+the 8.6-second service time remaining valid under concurrent execution},
+not a deployment-validated estimate. Before budgeting against it,
+measure \texttt{λ\_goodput} per host at the target p95/p99 TTFT, TPOT,
+and success rate on the actual workload, and re-derive N\_hosts. (See
+the falsification protocol in Ch 17.)
+
+\textbf{Treat both provisioning policies explicitly.} The headline \$
+figures below use the full-utilization fleet (≈20 hosts, provisioned
+exactly at the 40 rps peak with no headroom). The capacity-planning rule
+(Ch 17 \hyperref[tab:17.1]{Table 17-1}) uses a 70\% max-operating-utilization target, which
+gives \textbf{29 hosts} with \textbf{N−1} (one spare so any single host
+can fail or be drained without dropping the fleet below the target).
+Both outcomes belong in the decision:
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}
+  >{\raggedright\arraybackslash}p{0.2933\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Provisioning policy
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Full-utilization (≈20 hosts)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+70\% target + N−1 (≈29 hosts)
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Peak fleet & \textasciitilde20 hosts & \textasciitilde29 hosts \\
+Self-host (capex+opex+staff) & \textasciitilde\$148K/mo &
+\textasciitilde\$203K/mo \\
+Per 1,000 requests & \textasciitilde\$5.7 & \textasciitilde\$7.8 \\
+
+\label{tab:16.2}\end{longtable}
 
 \emph{Provisioning sensitivity (explicit):} the TCO figures below
 \textbf{assume the full-utilization fleet (≈20 hosts, provisioned
@@ -206,9 +278,22 @@ scale-up, that is ≈ 5 × \$20/hr × 730 hr ≈ \textasciitilde\$73K/month
 elastically-scalable capacity, not a measured or guaranteed cost. If the
 burst is long-lived or scale-up is slow, the real cloud cost rises
 toward the always-on-at-peak figure and the ``cloud is cheapest'' result
-weakens accordingly. The durable lesson --- \emph{fleet size first,
+weakens accordingly.
+
+\textbf{The cloud case is a family, not a single line.} \$73K and \$292K
+are the two endpoints (ideal fast-scale vs always-on-at-peak). The
+realistic midpoint is set by two \emph{parameters} --- the
+\textbf{hours-at-peak} per day/week and the
+\textbf{reserved-warm-instance} count held to avoid cold-start. For
+example, a mid-case with \textasciitilde5 reserved warm hosts +
+\textasciitilde15 burst hosts held for \textasciitilde4 peak hours/day,
+at \$20/hr (burst) and the warm pool at a reserved rate, lands between
+the two endpoints; the exact number depends on the provider's
+reserved/discount and billing-granularity terms, which are scenario
+inputs, not market facts. The durable lesson --- \emph{fleet size first,
 price second} --- does not depend on this elasticity assumption, but the
-specific \$2.8/1K number does.
+specific \$2.8/1K number does and should be read as the \emph{fast-scale
+ideal}, not the default decision line.
 
 \begin{itemize}
 \tightlist
@@ -307,21 +392,24 @@ Cloud on-demand (always-on-at-peak) & \textasciitilde20 hosts all month
 Managed API & --- & usage & \textasciitilde\$21 & \textasciitilde\$541K
 & tiny volume, fastest time-to-value \\
 
-\label{tab:16.2}\end{longtable}
+\label{tab:16.3}\end{longtable}
 
-\emph{(Figures are worked-example estimates as of Q4 2026, not vendor
-quotes; treat as {[}ILLUSTRATIVE{]}{[}DERIVED{]} illustrative, to be
-re-priced before budgeting. The fleet requirement \textasciitilde20
-hosts (peak) / \textasciitilde5 hosts (avg) is from the canonical Ch17
-sizing; FP8 KV cuts the peak fleet to \textasciitilde11. \textbf{GQA
-operating configuration:} the \textasciitilde20-host figure assumes the
-canonical full-MHA KV constant (2.62 MB/token). A 2026 production model
-with grouped-query attention (GQA) uses roughly 8× less KV per token,
-which raises the per-host KV-residency ceiling C by \textasciitilde8×
-and cuts the peak fleet to on the order of \textasciitilde3 hosts at the
-same 40 rps. The full-MHA number is the conservative teaching case; own
-the 6--7× gap explicitly rather than quoting \textasciitilde20 hosts for
-a GQA deployment.)}
+\emph{(Figures are worked-example estimates --- a \textbf{Q4 2026
+illustrative pricing scenario, not market quotes} --- and treat as
+{[}ILLUSTRATIVE{]}{[}DERIVED{]}, to be re-priced before budgeting. These
+are }scenario inputs the architect chooses and re-prices\emph{, not
+assertions governed by the 2026-08-30 evidence cutoff; they do not claim
+to be a source available at that date. The fleet requirement
+\textasciitilde20 hosts (peak) / \textasciitilde5 hosts (avg) is from
+the canonical Ch17 sizing; FP8 KV cuts the peak fleet to
+\textasciitilde11. \textbf{GQA operating configuration:} the
+\textasciitilde20-host figure assumes the canonical full-MHA KV constant
+(2.62 MB/token). A 2026 production model with grouped-query attention
+(GQA) uses roughly 8× less KV per token, which raises the per-host
+KV-residency ceiling C by \textasciitilde8× and cuts the peak fleet to
+on the order of \textasciitilde3 hosts at the same 40 rps. The full-MHA
+number is the conservative teaching case; own the 6--7× gap explicitly
+rather than quoting \textasciitilde20 hosts for a GQA deployment.)}
 
 \textbf{Parametric sensitivity is the durable form.} All the fixed
 inputs above --- GPU price, electricity, staffing, capacity, API price,

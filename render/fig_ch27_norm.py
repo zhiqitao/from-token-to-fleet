@@ -39,15 +39,18 @@ h_kv   = 36        # half span of the 100%/arrow/~X% cluster
 
 # ---- vertical centering: compute the content block and center it in the canvas ----
 pitch = 60
-block_height = 125 + 3 * pitch          # title (top) .. footnote2 (bottom)
+block_height = 125 + 3 * pitch + 22      # title (top) .. footnote2 (bottom)
 T = (H + block_height) / 2              # title y
 
 # ---- title / warning ----
 ax.text(W/2, T, 'Vendor-reported KV / FLOP reduction', fontsize=FS_H+1.6,
         fontweight='bold', ha='center', va='center', color='#1a1a1a')
 ax.text(W/2, T - 24,
-        'Each figure is relative to that model\'s OWN stated baseline — no shared scale',
-        fontsize=FS_R-0.4, ha='center', va='center', color='#c0392b', fontweight='bold')
+        'NOT A CROSS-MODEL PERFORMANCE RANKING',
+        fontsize=FS_R-0.2, ha='center', va='center', color='#c0392b', fontweight='bold')
+ax.text(W/2, T - 24 - 20,
+        "Each figure is relative to that model's OWN stated baseline — no shared scale",
+        fontsize=FS_R-0.6, ha='center', va='center', color='#c0392b')
 
 # ---- column headers ----
 hy = T - 56
@@ -77,11 +80,15 @@ for r, (name, base, date, kv, flop, col) in enumerate(rows):
 # ---- footnote ----
 fy = row0 - len(rows)*pitch - 16
 ax.text(W/2, fy,
-        'Each reduction is relative to the model\'s OWN stated predecessor — no common denominator.',
+        "Each reduction is relative to the model's OWN stated predecessor",
         fontsize=FS_R-0.2, ha='center', va='center', color='#555')
+# NOTE: replaced by cleaner two-line footnote below to avoid horizontal clipping.
 ax.text(W/2, fy - 20,
-        'Value source: vendor-reported [1P] — DeepSeek V4: arXiv 2606.19348; GLM-5.3-Flash: arXiv 2602.15763 (HF zai-org). Not yet independently reprofiled.',
-        fontsize=FS_R-0.6, ha='center', va='center', color='#777', fontstyle='italic')
+        'Value source: vendor-reported [1P] \u2014 DeepSeek V4: arXiv 2606.19348',
+        fontsize=FS_R-0.8, ha='center', va='center', color='#777', fontstyle='italic')
+ax.text(W/2, fy - 40,
+        'GLM-5.3-Flash: arXiv 2602.15763 (HF zai-org). Not yet independently verified.',
+        fontsize=FS_R-0.8, ha='center', va='center', color='#777', fontstyle='italic')
 
 plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png', dpi=200)
 import matplotlib as mpl

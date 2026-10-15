@@ -76,6 +76,13 @@ ax.set_xlabel('time of day', fontsize=9)
 ax.set_ylabel('offered load / req·s⁻¹', fontsize=9)
 ax.set_title('Sizing a fleet of one model: burst peak, headroom, failover',
              fontsize=10, fontweight='bold')
+# T-02 (review): the smooth curve is *offered-load capacity*, not a queueing
+# proof. Place the note INSIDE the axes (top, empty region) so bbox_inches='tight'
+# cannot clip it and it does not collide with the title.
+ax.text(0.5, 0.965, 'Offered-load capacity only \u2014 not a proof of p99 TTFT/TPOT;'
+        ' tail latency needs a measured queueing model (Ch 14)',
+        transform=ax.transAxes, fontsize=8.0, color='#444', ha='center', va='top',
+        style='italic', bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='none', alpha=0.85))
 ax.set_yticks([0, 2, 4, 6, 8, 10, 12])
 ax.grid(alpha=0.25, axis='y')
 ax.legend(handles=[Line2D([], [], color='#c0392b', lw=2),
