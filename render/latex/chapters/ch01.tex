@@ -211,28 +211,37 @@ layers, d\_hidden 8192, full-MHA)} at 8-bit precision. The arithmetic is
 the formula above with one byte per value: 2 × 32 × 4096 = 262,144 B and
 2 × 80 × 8192 = 1,310,720 B. That 8-bit figure is the \emph{naive
 byte-halving} of the BF16 value --- exactly 50\% (1.31 MB vs 2.62 MB).
-The \emph{measured} FP8 serving footprint (vLLM, the canonical 80-layer
-full-MHA geometry) is higher, \textasciitilde1.42 MB/token ≈ 54\% of
-BF16, because the serving footprint includes per-token scale/offset
-metadata and cache-block rounding, not just the raw K/V bytes; at 9.2K
-tokens that is \textasciitilde13 GB rather than the \textasciitilde12 GB
-the naive halving implies. This is a specified measured configuration,
-not a universal FP8 constant --- a different engine or a
-GQA/hybrid-attention model has a different per-token footprint, so
-re-derive it for the target stack (full provenance and the ``do not
-generalize'' caveat are in Ch 7). Either way, a long context (say 32K
-tokens) alone can be tens of GB of memory. A first non-obvious
-architectural lesson hides here: \emph{MoE expert sparsity alone does
-not reduce per-token KV state.} A Mixture-of-Experts model activates
-only a fraction of its neurons per token, which saves compute, but the
-attention layers still process every token densely and emit a key/value
-per token --- so MoE shrinks compute-per-token, not memory-per-context.
-What actually determines KV memory is the \emph{attention architecture
-and cache policy}, not the expert count: GQA/MQA shrink the per-token
-K/V width, hybrid/linear/compressed-latent attention change how much
-context is retained, sliding-window caps some layers' retained context,
-and quantization (FP8) reduces the bytes per element without stopping
-the linear growth. This is a controlled comparison --- it holds the
+The \emph{measured} FP8 serving footprint is higher, \textasciitilde1.42
+MB/token ≈ 54\% of BF16, because the serving footprint includes
+per-token scale/offset metadata and cache-block rounding, not just the
+raw K/V bytes; at 9.2K tokens that is \textasciitilde13 GB rather than
+the \textasciitilde12 GB the naive halving implies. \textbf{Basis of the
+\textasciitilde1.42 MB figure:} it is a \emph{vendor-published}
+measurement reported by the vLLM project in its FP8-KV blog post
+(\textsc{[S6]}, cited in Ch. 7 and the References chapter), for the
+canonical 80-layer full-MHA geometry --- not an author-measured value
+(this book's home lab is CPU-only and does not run H100-scale FP8
+serving). The vendor-published figure's exact engine version,
+cache-block size, scale/offset packing, and allocator rounding are as
+documented in that blog post; where those details are not separately
+re-verified here, the \textasciitilde1.42 MB value should be treated as
+an \emph{illustrative engine-specific example} rather than an audited
+universal rate. A different engine or a GQA/hybrid-attention model has a
+different per-token footprint, so re-derive it for the target stack
+(full provenance and the ``do not generalize'' caveat are in Ch. 7).
+Either way, a long context (say 32K tokens) alone can be tens of GB of
+memory. A first non-obvious architectural lesson hides here: \emph{MoE
+expert sparsity alone does not reduce per-token KV state.} A
+Mixture-of-Experts model activates only a fraction of its neurons per
+token, which saves compute, but the attention layers still process every
+token densely and emit a key/value per token --- so MoE shrinks
+compute-per-token, not memory-per-context. What actually determines KV
+memory is the \emph{attention architecture and cache policy}, not the
+expert count: GQA/MQA shrink the per-token K/V width,
+hybrid/linear/compressed-latent attention change how much context is
+retained, sliding-window caps some layers' retained context, and
+quantization (FP8) reduces the bytes per element without stopping the
+linear growth. This is a controlled comparison --- it holds the
 attention geometry, context length, and cache dtype fixed; an MoE model
 that also uses GQA or a different attention mechanism can have a much
 smaller KV footprint than a dense full-MHA baseline. The distinction ---

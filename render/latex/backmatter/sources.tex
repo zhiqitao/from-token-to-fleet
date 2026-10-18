@@ -46,25 +46,65 @@
 
 \noindent\textbf{Claim-to-source ledger.} Every load-bearing number traces to a source by a fixed path, so a reader can re-derive it without guessing: (1) a \textsc{[S\#]} key resolves to the matching entry in the References chapter, which gives the work, venue, and a stable identifier (arXiv id or first-party URL); all such sources were accessed as of the build date (v20260913). (2) a number derived from the canonical scenario traces to Ch 4, Table 4-3 (the single set of inputs every chapter cites). (3) the calculation itself is either the in-text arithmetic (stated with its operands) or the figure's generator script in the repository (\texttt{render/fig\_*.py}), which is reproducible from the stated inputs. A \textsc{[1P]} first-party claim is cited to its source but is a vendor statement, not an independent re-measurement; per the ``moving target'' note above, re-verify it against the current source before acting. This ledger is the mechanism; it does not substitute for the independent re-derivation and print proof that the release gates require.
 
-\noindent\textbf{Canonical parameter-and-unit ledger.} Every derivative fleet/TCO/memory table cites this single ledger for its geometry, precision, and byte conventions, so a number is never silently re-based between the raw tensor overhead, the cache-block allocation, and the serving-engine observed footprint. The canonical scenario (Ch 4, Table 4-3) is full multi-head attention (MHA), 80 layers, hidden width 8192, BF16/FP16 KV, on an 8\,$\times$\,H100 host.
+\noindent\textbf{Canonical parameter-and-unit ledger.} Every derivative fleet/TCO/memory table cites this single ledger for its geometry, precision, and byte conventions, so a number is never silently re-based between the raw tensor overhead, the cache-block allocation, and the serving-engine observed footprint. The canonical scenario (Ch 4, Table 4-3) is full multi-head attention (MHA), 80 layers, hidden width 8192, BF16/FP16 KV, on an 8\,$\times$\,H100 host. The ledger is split into two blocks: the \emph{geometry and byte arithmetic} and the \emph{planning and engine observations}.
 
-\begin{center}\small
-\begin{tabular}{@{}lll@{}}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.85in} >{\raggedright\arraybackslash}p{2.05in} >{\raggedright\arraybackslash}X@{}}
 \toprule
-\textbf{Parameter} & \textbf{Value} & \textbf{Convention}\\
+\emph{Geometry and byte arithmetic} & \textbf{Value} & \textbf{Convention}\\
 \midrule
 Host usable HBM (canonical) & $\sim$640\,GB (8\,$\times$\,H100) & advertised capacity; usable-vs-advertised reserve not rolled up\\
 Model weight bytes (70B, FP16) & $\sim$140\,GB & 2\,B/param, dense\\
-KV, raw per token (full-MHA, 8-bit/FP8) & 2\,$\times$\,80\,$\times$\,8192\,$=$\,1,310,720\,B\,$=$\,1.25\,MiB\,$=$\,1.31\,MB & theoretical byte-halving, no block/metadata overhead\\
-KV, raw per token (full-MHA, BF16/FP16) & 2\,$\times$\,80\,$\times$\,8192\,$\times$\,2\,$=$\,2,621,440\,B\,$=$\,2.5\,MiB\,$=$\,2.62\,MB & raw array, no block/overhead\\
-KV, engine-measured per token (FP8) & $\sim$1.42\,MB & vLLM vendor-reported amortized footprint: raw tensor + per-token scale/offset metadata + cache-block layout overhead\\
-KV, allocated per token (FP16, canonical 9.5K req) & $\sim$24.9\,GB & per-request allocated residency\\
-Concurrent requests/host (KV ceiling) & $C \approx 17.5$ (integer floor 17) & arithmetic allocation bound\\
-Service time per request & $\sim$8.6\,s ($\sim$1.08\,s prefill + $\sim$7.5\,s decode) & uncontended request-level estimate\\
+KV, raw per token (full-MHA, 8-bit/FP8) & $2 \times 80 \times 8192 = 1{,}310{,}720$\,B $= 1.25$\,MiB $= 1.31$\,MB & theoretical byte-halving; no block or metadata overhead\\
+KV, raw per token (full-MHA, BF16/FP16) & $2 \times 80 \times 8192 \times 2 = 2{,}621{,}440$\,B $= 2.5$\,MiB $= 2.62$\,MB & raw array; no block or overhead\\
+KV, allocated per request (FP16, canonical 9.5K) & $\sim$24.9\,GB & per-request allocated residency within the SLO\\
+KV, engine footprint per token (FP8) & $\sim$1.42\,MB & vLLM \emph{vendor-reported} amortized footprint: raw tensor + per-token scale/offset metadata + cache-block layout overhead\\
+\bottomrule
+\end{tabularx}
+
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.85in} >{\raggedright\arraybackslash}p{2.05in} >{\raggedright\arraybackslash}X@{}}
+\toprule
+\emph{Planning and engine observations} & \textbf{Value} & \textbf{Convention}\\
+\midrule
+Concurrent requests/host (KV ceiling) & $C \approx 17.5$ (integer floor 17) & arithmetic allocation bound from usable HBM $\div$ per-request KV\\
+Service time per request & $\sim$8.6\,s ($\sim$1.08\,s prefill + $\sim$7.5\,s decode) & uncontended request-level estimate, not measured under concurrency\\
 Per-host request rate (planning) & $C/W \approx 2.0$ req/s & upper-order planning estimate, not observed goodput\\
 GQA KV reduction & $\sim$8$\times$ (one config) & geometry-dependent sensitivity, not a universal fact\\
 \bottomrule
-\end{tabular}
-\end{center}
+\end{tabularx}
 
 \noindent Two conventions apply throughout. (1) ``KV raw per token'' always means the un-allocated array product, stated in base-2 (MiB) and base-10 (MB) as appropriate; ``KV allocated'' or ``measured footprint'' includes the metadata and cache-block overhead. Do not conflate them. (2) A precision adjective is always attached to its subject (``FP16 \emph{weights}'' vs ``FP8 \emph{KV}''), never implied. (3) An architecture-specific advantage (GQA $\sim$8$\times$, MLA, hybrid) is a sensitivity for that configuration only and is not inherited by a different model.
+
+\medskip
+\noindent\textbf{Edition history.} This is the release-information panel for the PDF produced from build \texttt{v20260913}. A later content change requires a new build identifier and a new row here; a re-render of the same source changes only the generation timestamp, not the identifiers. Any subsequent revision increments the build identifier and appends its change log here.
+
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.55in} >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Field} & \textbf{Value / note}\\
+\midrule
+Edition & First edition, 2026 (title page)\\
+Build identifier & \texttt{v20260913} (content edition, 2026-09-13)\\
+Evidence cutoff & 2026-08-30 (single cutoff; see Preface)\\
+Appendix addenda & one boxed 2026-09-27 post-snapshot observation (App.~A, \S4), outside the cutoff envelope\\
+Generation date & recorded in PDF metadata (the date this source was rendered to PDF)\\
+Source revision & the repository commit of this build, recorded in the accompanying repository / commit log\\
+\bottomrule
+\end{tabularx}
+
+\medskip
+\noindent\textbf{Measurement-status hierarchy.} A number in this book can fall into one of four stages, and they are not interchangeable. Reading ``ceiling'' as ``achieved'' is the single most consequential mistake an architect can make with these figures. The same convention is applied in the fleet and TCO synthesis tables (Chs. 12, 17, 20, 22).
+
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{1.75in} >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Stage} & \textbf{What it is / what it is not}\\
+\midrule
+\textbf{ANALYTICAL} & an arithmetic or physical upper bound from stated inputs (e.g.\ KV occupancy ceiling $C$, or the per-host prefill rate). Valid for \emph{planning}; \emph{not} an achieved rate.\\
+\textbf{ILLUSTRATIVE} & a worked-example value on stated assumptions, chosen to make the method concrete; not a measurement or a vendor claim.\\
+\textbf{MODELED (offered-load)} & the result of a simulation or queueing model on a synthetic or recorded load curve; reflects the model, not a measured system.\\
+\textbf{MEASURED (SLO-goodput)} & the only stage that demonstrates a deployed system meets a rate and a tail-latency SLO on real hardware. Requires a load test with a recorded trace.\\
+\bottomrule
+\end{tabularx}
+
+\noindent In the text and figures, an \textsc{[ANALYTICAL]}, \textsc{[ILLUSTRATIVE]}, \textsc{[MODELED]}, or \textsc{[MEASURED]} tag states the stage; where the stage is not yet determined, the value is marked \textsc{[UNMEASURED]} and cannot be treated as achieved throughput. A capacity ceiling becomes a deployment claim only after the \textsc{[MEASURED]} stage is reached. Author-run probes (a one-off API call to probe a capability) are labeled \textsc{[LAB]} and are evidence of \emph{one} functional path, not a model benchmark or an [1P] vendor claim; they never double as a vendor validation.
+
+\medskip
+\noindent\textbf{Presentation of evidence tags.} Inline provenance and status tags are carried on a number because a later calculation or decision depends on it (load-bearing). When the \emph{same} tag applies to a contiguous run of related values or an entire section, the book does not repeat it on every line: it states the tag once in a boxed per-section \emph{Assumptions \& evidence} note (or in a table footnote that names the whole group), and the reader applies it to every value the note governs. A tag is always shown inline on a number that carries a \emph{different} status from its neighbours, so the reader can spot a status change without re-reading the surrounding prose. Never strip a source/status control; group it, so it stays legible rather than fragmenting the sentence.
