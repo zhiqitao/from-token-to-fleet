@@ -72,7 +72,7 @@ for i, (name, dl, gm, kv) in enumerate(cols):
             fontweight='bold', color='#c0392b')
 
 # conclusion lines
-ax.text(6.4, 1.60, 'append-only illustrative model: context is only appended, never evicted',
+ax.text(6.4, 1.60, 'Illustrative append-only context; compaction/reconstruction can interrupt growth',
         fontsize=9, ha='center', color='#1a1a1a', fontweight='bold')
 ax.text(6.4, 1.10, 'agentic depth is a fleet-sizing problem: KV grows ~36% (24.9 \u2192 34.0 GB)',
         fontsize=9, ha='center', color='#c0392b', fontweight='bold')

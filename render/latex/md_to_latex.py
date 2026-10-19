@@ -270,20 +270,69 @@ def fix_captions(tex_path):
         t = _re.sub(r"\s+", " ", t).strip()
         return t
 
-    # Apply to every \\caption{...} and alt={...}.
-    def cap_repl(m):
-        full = clean_marks(strip_lead(m.group(1)))
-        short = short_title(full)
+    # Apply to every \caption{...} and alt={...}.
+    def cap_repl(full):
+        # full = "\caption{<body>}" (a caption or caption[...]{...}). Unwrap the
+        # body, clean it, then rebuild.
+        body = full
+        if body.startswith("\\caption"):
+            body = body[len("\\caption"):]
+            body = body[1:-1] if body.startswith("[") else body
+        if body.startswith("{") and body.endswith("}"):
+            body = body[1:-1]
+        body = clean_marks(strip_lead(body))
+        short = short_title(body)
         # Short caption goes into the bracket form so the List of Figures lists a
         # navigational title instead of the full paragraph (reviewer §8).
-        if short and short != full:
-            return "\\caption[" + short + "]{" + full + "}"
-        return "\\caption{" + full + "}"
-    tex = _re.sub(r"\\caption\{((?:[^{}]|\{[^{}]*\})*)\}", cap_repl, tex)
+        if short and short != body:
+            return "\\caption[" + short + "]{" + body + "}"
+        return "\\caption{" + body + "}"
+    def _balanced_sub(tex, prefix, repl):
+        """Replace every '<prefix>{...}' occurrence, matching the closing brace
+        at ANY nesting depth (the fixed-height regex above stops at two levels,
+        which silently truncates doubly-nested captions like \\textbf{\\emph{...}}).
+        repl receives the FULL '<prefix>{body}' text (so it may return a
+        \\caption[short]{long} form) and returns the replacement for that whole
+        span."""
+        out = []
+        i = 0
+        plen = len(prefix)
+        while True:
+            j = tex.find(prefix, i)
+            if j < 0:
+                out.append(tex[i:])
+                break
+            out.append(tex[i:j])
+            k = j + plen
+            # require an opening brace immediately after the prefix
+            if k >= len(tex) or tex[k] != "{":
+                out.append(tex[j:j + plen])
+                i = k
+                continue
+            depth = 0
+            c = k
+            for c in range(k, len(tex)):
+                ch = tex[c]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+            full = tex[j:c + 1]
+            out.append(repl(full))
+            i = c + 1
+        return "".join(out)
 
-    def alt_repl(m):
-        return "alt={" + clean_marks(strip_lead(m.group(1))) + "}"
-    tex = _re.sub(r"alt=\{((?:[^{}]|\{[^{}]*\})*)\}", alt_repl, tex)
+    tex = _balanced_sub(tex, r"\caption", cap_repl)
+
+    def alt_repl(full):
+        # full = "alt={...}"
+        body = full[len("alt="):]
+        if body.startswith("{") and body.endswith("}"):
+            body = body[1:-1]
+        return "alt={" + clean_marks(strip_lead(body)) + "}"
+    tex = _balanced_sub(tex, "alt=", alt_repl)
 
     if tex != orig:
         open(tex_path, "w", encoding="utf-8").write(tex)

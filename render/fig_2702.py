@@ -35,7 +35,7 @@ ROH = 0.84   # row height
 
 ax.text(4.0, 10.5, 'Where Should Intelligence Live?', fontsize=12.5,
         fontweight='bold', ha='center', color='#1a1a1a')
-ax.text(4.0, 10.05, 'The 2026 frontier question for an AI Solution Architect (Appendix A, Sec. 7)',
+ax.text(4.0, 10.05, 'The 2026 frontier question for an AI Solution Architect\n(Appendix A, "Where Should Intelligence Live?")',
         fontsize=8.6, ha='center', color='#555', style='italic')
 
 # upward arrow in the left margin (scope of placement, not superiority)

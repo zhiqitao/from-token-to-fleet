@@ -23,11 +23,18 @@ python3 render/latex/emit_book.py
 
 cd render/latex
 rm -f book.aux book.out book.toc book.lof book.log book.pdf book.bbl
+echo "== inject source revision (git SHA) =="
+GITSHA="$(git -C "$REPO" rev-parse HEAD)"
+# The @GITSHA@ placeholder lives in backmatter/sources.tex (an \input file),
+# NOT in book.tex, so substitute there and restore afterward to keep the repo clean.
+cp backmatter/sources.tex /tmp/sources.tex.bak
+sed -i "s|@GITSHA@|$GITSHA|g" backmatter/sources.tex
 echo "== lualatex passes =="
 for i in 1 2 3; do
   lualatex -interaction=nonstopmode -halt-on-error book.tex >/dev/null 2>&1 || {
     echo "lualatex pass $i FAILED"; exit 1; }
 done
+cp /tmp/sources.tex.bak backmatter/sources.tex
 echo "== fix_pdf_meta (page labels + linearize) =="
 cd "$REPO"
 python3 render/fix_pdf_meta.py render/latex/book.pdf \
