@@ -393,6 +393,33 @@ included, Little's Law raises in-flight concurrency from the misleading
 ``40 requests at 1 second'' approximation to roughly \textbf{344
 requests at 40 rps}, and the fleet must be sized to that.
 
+\textbf{The fleet is governed by the \emph{minimum} of several
+independent ceilings, not by KV alone (P2-05).} \texttt{C/W} --- and the
+KV-residency ceiling C that feeds it --- is a \emph{necessary}
+condition, not sufficient under mixed prefill/decode scheduling. An
+architect must take \texttt{min} of: (a) \textbf{KV-residency
+concurrency} C, (b) \textbf{prefill compute capacity} (the
+\textasciitilde19,800 tok/s/host prefill screen of Ch. 8), (c)
+\textbf{decode bandwidth/compute capacity} (the HBM-bound decode
+roofline), and (d) the \textbf{observed p95-TTFT/TPOT SLO goodput} under
+a load test. A host may hold 17.5 KV-resident requests but never
+\emph{serve} 17.5 at the quoted service time, because batch scheduling,
+prefill/decode interleaving, and tail latency couple the two.
+
+\emph{Small queueing counterexample.} Suppose a KV ceiling C = 17.5 and
+W = 8.6 s, so \texttt{C/W\ ≈\ 2.0\ req/s}. That is an \emph{average
+occupancy bound}. If a burst of arrivals is shorter than the
+service-time spread, or if the prefill of some requests monopolizes the
+GPU and stalls decode, the \emph{achieved} goodput can be well below 2.0
+req/s even though the host holds 17.5 slots. Conversely, with prefix
+caching and batch-friendly load, achieved can exceed the naive bound at
+higher batch. The upshot: \texttt{C/W} is a planning lower-bound screen
+on the same order, and the fleet SLO-passing count comes from the
+measured goodput at the target p95 --- not from \texttt{C/W}. State the
+line's assumptions (time-in-KV occupancy, overlap of phases, admission
+policy) explicitly in the sizing summary rather than presenting
+\texttt{C/W} as the achieved rate.
+
 \subsection{Load‑balancer overhead
 factor}\label{loadbalancer-overhead-factor}
 
