@@ -94,6 +94,12 @@ $$
 
 For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, the distribution of *T* depends on query complexity. Consistent with the mini-case telemetry in §8 (68% T=1, 25% T=2, 5% T=3, 2% fallback), the illustrative turn distribution here has median *T* = 1, 90th percentile *T* = 2, and 95th percentile *T* = 3 [ILLUSTRATIVE assumption, derived from the §8 distribution].
 
+**What α does and does not measure.** *α* measures **retained/accumulated task context** under the simplified turn model — the unique content that must be held (and, absent compaction, resent as context) as the conversation grows. It is **not** the total model-processed or API-billed token multiplier: if the model is invoked repeatedly on the growing prefix, that retained context may be counted in *multiple* input calls, and the per-call outputs must be counted separately. So α ≈ 1.27× at *T*=3 says the *context* is ~27% larger than single-shot — it does *not* say the task costs 1.27× the API spend or 1.27× the prefill FLOPs. Compute actual task tokens by summing the inputs and outputs of every model invocation, with cached-token accounting recorded separately:
+
+$$\text{task\_input} = \sum_i \text{input}(call_i), \qquad \text{task\_output} = \sum_i \text{output}(call_i)$$
+
+with `cached`, `uncached`, and `billed` token quantities recorded separately (a prefix-cache hit means a call's input is not re-processed from scratch, so billed/FLOP input differs from context-carried input). Example: a 3-call task where calls 2 and 3 reuse the call-1 prefix without caching has `task_input = 9,200 + 10,350 + 12,095 = 31,645` (uncached); with a perfect prefix cache it is bounded by the retained-context sizes instead. Concurrency/queueing and economics follow the call-trace totals, not α.
+
 ### Tool-call latency budget
 
 Crucially, the agentic layer adds latency **on top of** the base answer generation, not instead of it. We keep two terms rigidly separate:
@@ -123,7 +129,7 @@ $$
 \beta(T) = \frac{L_\text{base} + T\cdot L_\text{agent}}{L_\text{base}} \approx 1 + \frac{T \cdot 220\text{ ms}}{8.6\text{ s}}
 $$
 
-At *T* = 3, this is 1 + 660 ms / 8.6 s ≈ **1.08×** of the base generation — i.e. the agentic loop adds roughly 8% end-to-end latency, not "2–6× slower". The bound that actually matters for the architect is that the *added* orchestration overhead per turn is ~220 ms (and must be budgeted), while the *total* request time is dominated by the ~8.6 s generation that the canonical model already establishes.
+At *T* = 3, $\beta(3)$ is 1 + 660 ms / 8.6 s ≈ **1.08×**, i.e. the **orchestration-only** component adds roughly 8% — the agent loop is *not* "2–6× slower" in the orchestration sense. But $\beta$ measures only the incremental orchestration overhead, **not** the full agentic task slowdown. The full service time of a representative three-turn task grows from ~8.6 s (single-shot) to at least ~13.8 s (~1.6×) once the per-turn reasoning decode (~65 γ tokens/turn) and the longer grown-context prefill are counted — a full increase of ~5.2–5.6 s. So $\beta$ is $\beta_\text{orch}$ (orchestration-only), and the true task-level multiplier is $L_\text{task E2E}/L_\text{base} \approx 1.6$–$1.65\times$ at *T* = 3. The bound that actually matters for the architect is that the *added* orchestration overhead per turn is ~220 ms (and must be budgeted), while the *total* request time — and hence fleet sizing — is set by the ~13.8 s full service time, not the ~8.6 s single-shot generation.
 
 These derived quantities give the architect concrete numbers to set policies: cap *T* at 3 unless the quality gain is statistically significant, and allocate ~220 ms *per turn* in the orchestration-latency budget.
 
