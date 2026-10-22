@@ -80,7 +80,11 @@ ax.text(bx+0.3, (N1res+N4)/2, 'headroom', fontsize=8, color='#1e6b3a',
 
 ax.set_xlabel('time of day', fontsize=9)
 ax.set_ylabel('offered load / req·s⁻¹', fontsize=9)
-ax.set_title('Sizing a fleet of one model: burst peak, headroom, failover',
+# P2-04 (review): the 5.5-rps burst is a small illustrative example, NOT the
+# canonical 40-rps workload — make that explicit in the title so it is not
+# misread from a screenshot.
+ax.set_title('Sizing a fleet of one model (small illustrative ~5.5-rps burst, '
+             'NOT the canonical 40-rps workload): burst peak, headroom, failover',
              fontsize=10, fontweight='bold')
 # T-02 (review): the smooth curve is *offered-load capacity*, not a queueing
 # proof. Note rendered as two centered lines INSIDE the axes (top, empty region

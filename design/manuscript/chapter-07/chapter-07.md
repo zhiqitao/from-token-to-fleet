@@ -23,9 +23,9 @@ The KV cache is **per-request state that persists across autoregressive decode s
 
 ## 3. Worked Example
 
-We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **70B-class dense full-MHA reference model** (every query head carries its own K,V, so the per-token KV width equals the model's hidden dimension), FP16 weights (2 bytes per parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV cache size per token, total KV for the canonical context, and contrast with long-context variants. The per-token formula is general — KV/token = 2 × layers × n_KV-heads × head_dim × bytes — and the full-MHA special case (n_KV-heads × head_dim = hidden_dim) gives the ~2.62 MB/token conservative baseline used throughout; a GQA model would use a much smaller constant (see the sensitivity note, below).
+We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **canonical 80-layer, hidden-8192, full-MHA 70B reference model** (every query head carries its own K,V, so the per-token KV width equals the model's hidden dimension), FP16 weights (2 bytes per parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV cache size per token, total KV for the canonical context, and contrast with long-context variants. The per-token formula is general — KV/token = 2 × layers × n_KV-heads × head_dim × bytes — and the full-MHA special case (n_KV-heads × head_dim = hidden_dim) gives the ~2.62 MB/token conservative baseline used throughout; a GQA model would use a much smaller constant (see the sensitivity note, below).
 
-**Table 7-1** — KV cache size per token and per-context arithmetic for a 70B-class dense **full-MHA reference model** at FP16. *(All per-context KV totals, residency figures, and fit/non-fit verdicts below are [ILLUSTRATIVE][DERIVED] from the general per-token formula `2 × layers × n_KV-heads × head_dim × bytes` (MHA case here); model-card architecture constants are [1P: model card].)*
+**Table 7-1** — KV cache size per token and per-context arithmetic for the canonical 80-layer, hidden-8192, **full-MHA 70B reference** at FP16. *(All per-context KV totals, residency figures, and fit/non-fit verdicts below are [ILLUSTRATIVE][DERIVED] from the general per-token formula `2 × layers × n_KV-heads × head_dim × bytes` (MHA case here); model-card architecture constants are [1P: model card].)*
 
 | metric | value | derivation |
 |---|---|---|
@@ -75,7 +75,7 @@ $$
 
 The figure shows one group's geometry: **8 query heads funnel into a single shared K/V head.** Because GQA caches only one K/V per group (8 K/V per token) instead of one per query head (64 K/V per token), the per-token KV falls ~8× — from ~2.62 MB/token (full MHA) to ~0.33 MB/token. That is the takeaway: many query heads can share a few K/V heads, and the cache shrinks by exactly the 8:1 head ratio. Head count is the real dial: substitute the model's KV-head count into `2 × layers × KV_heads × head_dim × bytes`.
 
-**Table 7-2** — Inference residency vs. fine-tuning residency contrast for a 70B model.
+**Table 7-2** — Inference residency vs. fine-tuning residency contrast for the canonical 80-layer, hidden-8192, full-MHA 70B reference model.
 
 | scenario | memory resident | bytes per param | total (70B) | fits 8×H100 (640 GB) |
 |---|---|---|---|---|

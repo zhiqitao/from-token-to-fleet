@@ -6,10 +6,11 @@ import numpy as np
 # ---- fig-20-2001: Fleet capacity (rebuilt from the hand-authored vector PDF) ----
 # Two stacked panels, 6.1in wide (print column).
 #   TOP    = ANALYTICAL CAPACITY BOUND: ~2.0 req/s/host, no overhead (thin grey dashed).
-#   BOTTOM = DERIVED DEPLOYMENT THROUGHPUT: the ~2.0 req/s/host bound reduced by
+#   BOTTOM = MODELED OFFERED-LOAD-SERVED CURVE: the ~2.0 req/s/host bound reduced by
 #            ~95% scheduling efficiency and flattened at the canonical 40 rps peak
-#            once ~20 hosts are provisioned (thick blue solid). This is a derived
-#            construction (analytical bound x 0.95), not a measurement.
+#            once ~20 hosts are provisioned (thick blue solid). This is a modeled
+#            (derived) construction (analytical bound x 0.95) representing offered
+#            load that is served, NOT a measured deployment throughput.
 # The gap between the two is the scheduling + tail/queueing overhead.
 # Annotations are placed in CLEAR regions (not on the curves) with leader arrows.
 
@@ -36,8 +37,8 @@ ax1.grid(alpha=0.3)
 ax1.legend(fontsize=8.0, loc='upper left', frameon=False)
 ax1.tick_params(labelsize=8)
 
-# ---- BOTTOM: measured deployment throughput ----
-ax2.plot(hosts, measured, '-', color='#27408b', lw=2.8, label='derived deployment throughput (95% efficiency)')
+# ---- BOTTOM: modeled offered-load-served curve ----
+ax2.plot(hosts, measured, '-', color='#27408b', lw=2.8, label='modeled offered-load-served curve (95% efficiency)')
 ax2.plot(hosts, analytical, ':', color='#888', lw=1.2, label='analytical bound (ceiling)')
 # annotation 1: removed — the "~5 hosts -> ~9.5 req/s" data point is redundant
 # (the linear rise makes it obvious) and could not be placed without crossing the
@@ -46,12 +47,12 @@ ax2.plot(hosts, analytical, ':', color='#888', lw=1.2, label='analytical bound (
 # region (below the legend, above the rising curves: the grey line is y=2x, so at
 # x<15 it is at y<30, well below this text; the legend sits at y>100, well above).
 # The earlier (45,78) placement sat where the grey line (y=2x) crosses the text band.
-ax2.annotate('\u224820 hosts \u2192 reaches the 40 rps peak;\nderived curve plateaus (95% efficiency)',
+ax2.annotate('\u224820 hosts \u2192 reaches the 40 rps peak;\nmodeled curve plateaus (95% efficiency)',
              xy=(20, 40), xytext=(2.5, 62),
              fontsize=8.2, color='#1a1a1a', ha='left', va='center',
              arrowprops=dict(arrowstyle='->', color='#555', lw=0.9))
 ax2.set_ylabel('Fleet throughput (req/s)', fontsize=9)
-ax2.set_title('DERIVED DEPLOYMENT THROUGHPUT  (95% scheduling efficiency)', fontsize=9.5,
+ax2.set_title('MODELED OFFERED-LOAD-SERVED CURVE  (95% scheduling efficiency)', fontsize=9.5,
               fontweight='bold', color='#1a1a1a', loc='left')
 ax2.set_ylim(0, 125)
 ax2.grid(alpha=0.3)

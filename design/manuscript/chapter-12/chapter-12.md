@@ -1,5 +1,8 @@
 # Chapter 12 — Designing the AI System: From Constraints to Candidates
 
+
+Designing an AI system is constraint-driven generation, not menu-picking: you extract the hard constraints from a characterized workload (weight memory, KV-plus-weight residency, latency budget), then synthesize candidate architectures that satisfy them. The payoff is a bounded set of two to three candidates that each fail a distinct, inspectable gate — memory fit, throughput, or quality — which the measuring chapters then adjudicate.
+
 ## The Architect's Question
 Designing an AI system means producing candidate architectures from the substrate — memory, compute, communication, and parallelism — rather than selecting a canned stack. This chapter works through a synthesis method: given a characterized workload from the six-dimension framework (Ch. 4), generate two or three candidate architectures that each satisfy the hard constraints (memory fit, latency budget, economics), then carry them forward for evaluation in Chs. 14–16. The core thesis is that design is constraint-driven generation, not menu-picking. This distinguishes our approach from the abstract meta-method presented in Ch. 22, which operates at a level of generality that does not instantiate against concrete substrate constraints. In the language of the book's spine — the decision loop *constrain → synthesize → measure → decide → refine* — this chapter is the **synthesize** step: we turn a constraint-characterized workload into a bounded set of candidate architectures that then enter the measure/decide stages in Chs. 14–16.
 

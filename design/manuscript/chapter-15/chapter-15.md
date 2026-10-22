@@ -14,7 +14,7 @@ We model the serving request lifecycle as a pipeline of computational phases wit
 
 ## 3. Worked Example
 
-Canonical scenario: ~2,000 registered users, ~5% concurrent (100 users), ~10 rps average / ~40 rps peak, prompt ~9,200 input tokens + ~300 output, 70B-class dense FP16 model, 8×H100 host with 640 GB GPU memory.
+Canonical scenario: ~2,000 registered users, ~5% concurrent (100 users), ~10 rps average / ~40 rps peak, prompt ~9,200 input tokens + ~300 output, the canonical 80-layer, hidden-8192, full-MHA 70B reference model (a 70B-class dense FP16 model), 8×H100 host with 640 GB GPU memory.
 
 *Derived quantity 1 – concurrent users:* 2,000 ×0.05 = 100 users.
 

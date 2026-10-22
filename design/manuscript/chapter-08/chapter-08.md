@@ -26,7 +26,7 @@ FLOPs are like the distance a car can travel on a gallon of fuel: it tells us th
 
 ## 3. Worked Example: Canonical Scenario Arithmetic
 
-The canonical scenario (Ch 4, Table 4-3) is an enterprise Q&A system: 70B-class dense model, FP16 weights (~140 GB), 1 host with 8×H100-class GPUs (80 GB each), average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
+The canonical scenario (Ch 4, Table 4-3) is an enterprise Q&A system: the canonical 80-layer, hidden-8192, full-MHA 70B reference (a 70B-class dense model), FP16 weights (~140 GB), 1 host with 8×H100-class GPUs (80 GB each), average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
 
 *Scope.* "1 host with 8×H100" here is a **per-host / per-request** feasibility container (does one host meet one request's latency and memory SLO). It is **not** a claim that one host absorbs the 40 rps peak arrival rate — as Ch 17 derives, that peak puts in-flight concurrency λ·W ≈ 344 at the ~8.6 s service time, far above one host's KV-residency ceiling (C ≈ 17.5, conservative integer floor 17), so the *fleet* needs ~20 hosts. The compute/roofline arithmetic of this chapter answers the per-request and per-host-shard question; the fleet question is a separate multiplication that Ch 16–17 performs. We keep them distinct because each requires measuring against a different quantity (a latency budget vs an arrival rate).
 
@@ -86,7 +86,7 @@ $$
 \text{sustained} = \text{peak} \times \text{MFU} = 989 \text{ TFLOPS} \times 0.35 \approx 346 \text{ TFLOPS}
 $$
 
-[2°][DERIVED: peak × typical MFU — the MFU range is a secondary, empirical figure, so this sustained value inherits the provenance of its weakest input, not the first-party peak]
+[1P][2°][DERIVED: vendor peak (1P) × typical MFU (2°) — the MFU range is a secondary, empirical figure, so the sustained value inherits the provenance of its weakest input, the 2° MFU, while the peak is first-party]
 
 **Scope matters here.** The 346 TFLOPS figure is the sustained rate of a *single* H100, and the 2,471 tokens/s derived from it is therefore a **per-GPU** number. The canonical host is an *8×H100* node, so we must not multiply demand by a per-GPU rate as if it were per-node. Track the scope explicitly as we scale.
 
@@ -128,7 +128,7 @@ This rough sizing illustrates that prefill is FLOP-bound at this scale — the c
 
 <!-- Figure spec: mechanism-first roofline diagram; arithmetic intensity on x-axis, achievable FLOP/s on y-axis, ridge line where FLOP-bound meets byte-bound; label the prefill and decode operating points. -->
 
-For decode, the per-token FLOP cost is the same ~140 GFLOP, but the arithmetic intensity drops sharply. Each decoded token re-reads all 70B weights from HBM. A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB — one full pass reads **140 GB**, not 280 GB. (The naïve “2 ×70 ×10⁹ × 2 B ≈ 280 GB” double-counts the FP16 footprint: the leading “2” is already inside the 2-bytes-per-element, so writing 2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any KV/output-projection reads are a separate, smaller term on top, not a second full weight footprint.) The effective arithmetic intensity is therefore:
+For decode, the per-token FLOP cost is the same ~140 GFLOP, but the arithmetic intensity drops sharply. Each decoded token re-reads all 70B weights from HBM (a **batch-1-equivalent** weight-streaming read). A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB — one full pass reads **140 GB** (batch-1-equivalent), not 280 GB. (The naïve “2 ×70 ×10⁹ × 2 B ≈ 280 GB” double-counts the FP16 footprint: the leading “2” is already inside the 2-bytes-per-element, so writing 2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any KV/output-projection reads are a separate, smaller term on top, not a second full weight footprint.) The effective arithmetic intensity is therefore:
 
 $$
 \text{arithmetic intensity}_{\text{decode}} \approx \frac{140 \text{ GFLOP}}{140 \text{ GB}} \approx 1.0 \text{ FLOP/byte}
@@ -137,6 +137,8 @@ $$
 [DERIVED; a lower-bound bandwidth model — real kernels also read activations and KV, so measured intensity is typically below this and heavily dependent on fusion and cache residency]
 
 This is well below the H100 dense-FP16 ridge of ~295 FLOP/byte, meaning single-stream decode is overwhelmingly memory-bandwidth-bound. Throughput improves with batching because the weight-reread amortizes across tokens — at batch=32, the effective intensity rises toward the ridge, and TFLOP/s utilization increases accordingly. This is why continuous-batching systems (Orca, vLLM) prioritize batch growth: it is the primary lever for pushing decode arithmetic intensity toward the ridge.
+
+*Scope note on the single-device roofline here:* the 140 GB weight-read and the per-GPU ~3.35 TB/s HBM bandwidth are single-GPU quantities, so the ~1.0 FLOP/byte intensity and the "memory-bandwidth-bound" label above are a *per-kernel / single-device roofline* argument. It is **not** a verdict on the canonical 8×H100 host's actual bandwidth adequacy — under tensor parallelism the 140 GB weight matrix is sharded across GPUs, so each GPU streams only its own shard (~0.70 TB/s against its own ~3.35 TB/s, Ch 6). The classification (low-batch decode is bandwidth-bound) is shard-invariant because it follows from the low arithmetic intensity, not from the aggregate weight-read rate exceeding one GPU's bandwidth.
 
 ## 4. Measurement
 

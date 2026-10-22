@@ -36,7 +36,7 @@ ax.fill_between(req, managed_lo, managed_hi, color='#c0392b', alpha=0.12,
 ax.loglog(req, managed_lo, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, managed_hi, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, self_host, '-', color='#27408b', lw=2.0, label='self-host ~$148K/mo')
-ax.loglog(req, cloud_od, '--', color='#6f9e5f', lw=1.9, label='cloud ~$72K/mo')
+ax.loglog(req, cloud_od, '--', color='#6f9e5f', lw=1.9, label='cloud ~$73K/mo')
 ax.loglog(req, managed, '-', color='#c0392b', lw=2.0, label='managed $20.80/1K')
 
 ax.set_xlabel('Requests/month (log)', fontsize=9)
@@ -73,9 +73,15 @@ ax.legend(fontsize=8.8, loc='upper left', ncol=1, frameon=False,
 # Add explicit padding between the axes and its x-label so the label does not sit
 # inside the footnote band below.
 ax.set_xlabel('Requests/month (log)', fontsize=9, labelpad=6)
+# Primary in-figure qualification (P0-03): the cloud-scaled number is an elastic
+# LOWER BOUND under idealised elasticity and is NOT apples-to-apples with the
+# always-provisioned self-host fleet.
+fig.text(0.5, 0.955,
+         'ILLUSTRATIVE LOWER-BOUND \u2014 NOT APPLES-TO-APPLES (see Table 16-1 / Ch 16)',
+         fontsize=8.6, color='#8a3a12', ha='center', va='top', fontweight='bold')
 fig.text(0.11, 0.012,
          'Assumptions: self-host flat (~$148K/mo reserved, incl. ~$10K/mo staff);\n'
-         'cloud ~$72K/mo @ ~25% duty (~5 of ~20 hosts).\n'
+         'cloud ~$73K/mo @ ~25% duty (~5 of ~20 hosts, idealised elasticity).\n'
          'Sensitivity [ILLUSTRATIVE]: a $15–25/1K price band moves\n'
          'the break-even to ~5.9–9.9M req/mo.',
          fontsize=8.2, color='#555', ha='left', va='bottom')
