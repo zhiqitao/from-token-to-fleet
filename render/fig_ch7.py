@@ -27,11 +27,12 @@ ax.set_title('KV cache size vs context, by attention geometry (full-MHA vs GQA)'
 ax.axhline(640, color='#7f8c8d', ls=':', lw=1, label='8×H100 raw (640 GB)')
 ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB (640 − 140 w − 64 rt)')
 ax.scatter([9.2], [2.5*9.2], color='#c0392b', zorder=5, s=25)
-ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(18, 1.2),
-            arrowprops=dict(arrowstyle='->'), fontsize=8.5)
+ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(10.2, 70),
+            arrowprops=dict(arrowstyle='->', lw=0.8), fontsize=8.5)
 ax.scatter([9.2], [0.33*9.2], color='#27408b', zorder=5, s=25)
-ax.annotate('9.2K ≈ 3 GB (GQA) — 8× saving\nvs full-MHA bound (Ch. 7 attention note)', xy=(9.2, 0.33*9.2), xytext=(20, 0.07),
-            arrowprops=dict(arrowstyle='->', color='#27408b'), fontsize=8.5, color='#27408b')
+ax.annotate('9.2K ≈ 3 GB (GQA)\n8× saving (Ch. 7)', xy=(9.2, 0.33*9.2), xytext=(10.0, 0.9),
+            arrowprops=dict(arrowstyle='->', lw=0.8, color='#27408b'),
+            fontsize=8.5, color='#27408b')
 ax.legend(fontsize=8.5, loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=2, frameon=False)
 ax.grid(alpha=0.3, which='both')
 ax.set_xlim(0.8, 1600)
@@ -70,10 +71,21 @@ ax.axhline(80, color='#6f9e5f', ls='--', lw=1, label='1×H100 (80 GB)')
 ax.set_ylim(0, 1500)
 # red annotation sits directly above the red bar (x=1), just above its value
 # label (1150) and clear of the top legend band.
-ax.text(1, 1195, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8, color='#c0392b', ha='center')
-ax.annotate('QLoRA fits a single H100', xy=(2, 60), xytext=(2.4, 250),
-            fontsize=8.5, color='#3d6e35', arrowprops=dict(arrowstyle='->', color='#3d6e35'))
-ax.legend(fontsize=8, loc='upper center', ncol=2, frameon=False)
+# red annotation sits clearly ABOVE the red bar's value label (~1150) with a
+# white halo so the two never collide; keep it below the top legend band.
+ax.text(1, 1255, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or offload', fontsize=8,
+        color='#c0392b', ha='center', va='bottom',
+        bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.9))
+# green annotation centered ABOVE the QLoRA bar (inside the plot, not past the
+# right border), with a white halo and an arrow down to the bar.
+ax.annotate('QLoRA fits a single H100', xy=(2, 64), xytext=(2.0, 260),
+            fontsize=8.5, color='#3d6e35', ha='center',
+            bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.9),
+            arrowprops=dict(arrowstyle='->', color='#3d6e35'))
+# legend in the upper-LEFT (empty area above the short ~165 GB inference bar),
+# so the red annotation above the tall bar and the green note above QLoRA are
+# clear of it.
+ax.legend(fontsize=8, loc='upper left', ncol=1, frameon=False)
 ax.grid(alpha=0.3, axis='y')
 # reserve the bottom ~18% for the 5-line fig.text footnote (P0-04)
 plt.tight_layout(rect=(0, 0.18, 1, 1))

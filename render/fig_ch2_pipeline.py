@@ -216,10 +216,14 @@ ax.text(X_T - 12, _ry, 'read', color='#333333', fontsize=FSN,
 # ==================== append (decode transformer -> cache, up) ==============
 # The decode step writes its new K/V back to the cache (the caption's "appends
 # the new K/V").  Routed to the RIGHT of the read arrow (X_T + 26) so the two
-# cache operations are visually distinct; the corridor is clear of the green
-# initialize channel (which sits at gn_y, below the arrow's lower end).
+# cache operations are visually distinct.  BRIDGE the arrow around gn_y where
+# the green initialize line crosses it (same mechanism as the read arrow), so
+# the green line passes over cleanly rather than cutting the append stroke.
 X_APP = X_T + 26
-arrow(X_APP, dc['transformer'][3] + 2, X_APP, kc_bot - 2, C_AR, 2.0)
+ax.plot([X_APP, X_APP], [kc_bot - 4, gn_y + BR], color=C_AR, lw=2.0,
+        solid_capstyle='butt', zorder=3)
+ax.plot([X_APP, X_APP], [gn_y - BR, dc['transformer'][3] + 2], color=C_AR,
+        lw=2.0, solid_capstyle='butt', zorder=3)
 _ay = (dc['transformer'][3] + kc_bot) / 2
 ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
         fontweight='bold', ha='left', va='center')
@@ -227,9 +231,10 @@ ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
 # R-09: the single read/append pair is a *conceptual* per-step, per-layer
 # cache I/O, not one global read/append bracketing the whole transformer.
 # Placed in the clear strip right of the "append" label, above the green
-# initialize line (data coords ~x 295-382, y 137-160).
-ax.text(295, 149, 'conceptual per-step,\nper-layer cache I/O',
-        color='#555555', fontsize=8.0, style='italic',
+# initialize line (data coords ~x 295-382, y 137-160).  Darkened and moved
+# clear of the append label so it reads as a caption note, not a box label.
+ax.text(298, 149, 'conceptual per-step,\nper-layer cache I/O',
+        color='#404040', fontsize=8.0, style='italic',
         ha='left', va='center')
 
 # ==================== GREEN initialize ====================

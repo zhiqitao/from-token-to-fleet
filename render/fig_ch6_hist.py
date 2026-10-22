@@ -27,9 +27,9 @@ ytop = ax.get_ylim()[1]
 # (0.99 / 0.88 / 0.77 of ytop) so the boxes have comfortable vertical gaps; the
 # p99 and SLO labels sit on the top row to the right, clear of this green stack.
 leaders = [
-    (50, np.percentile(lat, 50), 0.99),
-    (90, np.percentile(lat, 90), 0.88),
-    (95, np.percentile(lat, 95), 0.77),
+    (50, np.percentile(lat, 50), 0.94),
+    (90, np.percentile(lat, 90), 0.85),
+    (95, np.percentile(lat, 95), 0.75),
 ]
 for p, v, dy_off in leaders:
     ax.axvline(v, color='#6f9e5f', ls='--', lw=1.3)
@@ -50,10 +50,10 @@ ax.axvline(2.0, color='#27408b', ls='-.', lw=2.2)
 # labeled; the mean is identified by the text box). p99 (1.33 s) and SLO (2.0 s)
 # sit to the right of the green cluster, so direct labels need no leaders and
 # cross nothing — this removes the "which line is p99 / which is SLO" ambiguity.
-ax.text(v99 + 0.03, ytop * 0.99, 'p99', fontsize=8.5, color='#c0392b',
+ax.text(v99 + 0.03, ytop * 0.94, 'p99', fontsize=8.5, color='#c0392b',
         fontweight='bold', va='center', ha='left',
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#c0392b', lw=0.5))
-ax.text(2.03, ytop * 0.99, 'SLO 2 s', fontsize=8.5, color='#27408b',
+ax.text(2.03, ytop * 0.94, 'SLO 2 s', fontsize=8.5, color='#27408b',
         fontweight='bold', va='center', ha='left',
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#27408b', lw=0.5))
 # Compact legend in the clear upper-right whitespace (the annotated lines all cluster

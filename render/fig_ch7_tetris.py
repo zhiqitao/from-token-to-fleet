@@ -43,12 +43,13 @@ for x, (label, kv) in zip(xs, ctxs):
     # KV value as a tag just ABOVE ITS OWN bar top (bars top out at 229/288/539,
     # so the tags stagger naturally and never collide with each other or the 640 line).
     # Wording says "KV" (not a bare number) so it is not misread as the bar total.
-    ax.text(x + bar_w/2, total + 12, f'KV {kv:.1f} GB'.replace('.0 GB', ' GB'),
+    ax.text(x, total + 12, f'KV {kv:.1f} GB'.replace('.0 GB', ' GB'),
             ha='center', va='bottom', fontsize=10.5, color='#c0392b', fontweight='bold',
-            zorder=8)
+            zorder=8,
+            bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.92))
     # context label below the bar
-    ax.text(x + bar_w/2, -40, label, ha='center', fontsize=10, fontweight='bold', zorder=8)
-    ax.text(x + bar_w/2, -80, f'= {total:.0f} GB used', ha='center', fontsize=9,
+    ax.text(x, -40, label, ha='center', fontsize=10, fontweight='bold', zorder=8)
+    ax.text(x, -80, f'= {total:.0f} GB used', ha='center', fontsize=9,
             color='#555', zorder=8)
 
 # 640 GB capacity line (the fixed ceiling — the thing KV approaches)

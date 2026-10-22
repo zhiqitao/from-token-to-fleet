@@ -61,7 +61,8 @@ ax.text(0.06, 0.10, 'memory-bound slope\n(≈ intensity × BW)',
         ha='left', va='center')
 # DERIVED / source tag in-plot (top-centre, clear of PER GPU at left and prefill ridge at right)
 ax.text(0.50, 0.965, 'ANALYTICAL [DERIVED]', transform=ax.transAxes,
-        fontsize=8, color='#8a5a00', ha='center', va='top')
+        fontsize=8, color='#8a5a00', ha='center', va='top',
+        bbox=dict(boxstyle='round,pad=0.16', fc='white', ec='none', alpha=0.9))
 
 # "PER GPU" stated plainly INSIDE the plotting area (top-left of the axes),
 # so the figure carries its own single-GPU qualification.

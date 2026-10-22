@@ -27,7 +27,9 @@ def h_of(tok): return tok * 0.00035
 
 fig, ax = plt.subplots(figsize=(6.1, 5.63))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
-ax.set_xlim(0, 12.8); ax.set_ylim(-0.6, 12.2); ax.axis('off')
+# ylim toped just above the column-name row so the legend sits close to the
+# bars (the old top was 12.2, leaving ~1/3 of the axes empty below the legend).
+ax.set_xlim(0, 12.8); ax.set_ylim(-0.6, 10.6); ax.axis('off')
 
 # distinct component styles: (fill, edge, hatch)
 ST = {

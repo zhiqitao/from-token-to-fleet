@@ -22,13 +22,13 @@ h = 0.55
 # Two-tier annotation per row, BOTH placed WELL inside the axes:
 #   1) fraction value JUST PAST the bar end (orange, bold)
 #   2) "{total}B/{active}B active" placed at a fixed x within the axes
-# Allocate the right third of the panel (x ∈ [axis_max*0.55, axis_max]) exclusively
-# for annotations. Bars themselves top out near frac_max ~= 6%; truncate the bar
-# plot x-axis at axis_max=7.0 but reserve the last 2.5 axis-units for labels.
-axis_max = 7.0
+# Allocate the right third of the panel exclusively for annotations.  Place the
+# FRACTION label immediately past each bar's end (so it never sits ON the bar),
+# and give the param note a roomy right-hand region whose left edge clears every
+# bar (GLM max frac ~5.6) even with the note's own width.
+axis_max = 11.0
 ax.set_xlim(0, axis_max)
-bar_label_x = axis_max * 0.55          # beyond this x, the param note lives
-param_label_x = axis_max * 0.99         # hard right margin for param note
+param_label_x = axis_max * 0.985         # hard right margin for param note
 
 bars = ax.barh(y, frac, height=h, color='#ff8c42', edgecolor='none')
 
@@ -36,12 +36,13 @@ for i_orig, i_rev in enumerate(range(len(names))):
     a = active_b[i_orig]
     t = total_b[i_orig]
     fr = frac[i_orig]
-    # Fraction
-    ax.text(bar_label_x, y[i_rev], f'{fr:.1f}%',
+    # Fraction — just past the bar end, white-boxed for contrast on any fill.
+    ax.text(fr + 0.25, y[i_rev], f'{fr:.1f}%',
             va='center', ha='left', fontsize=10.5, color='#b25a1e', fontweight='bold',
             bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.85))
     # Param note — anchored to right edge, ha='right' pulls it inward so it
-    # never bleeds past axis_max.
+    # never bleeds past axis_max; axis_max is wide enough that the note's left
+    # edge clears the longest bar (GLM ~5.6).
     ax.text(param_label_x, y[i_rev], f'{t}B/{a}B active',
             va='center', ha='right', fontsize=9.0, color='#555')
 

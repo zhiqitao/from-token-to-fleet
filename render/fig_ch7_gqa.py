@@ -55,10 +55,12 @@ ax.text(9.35, q_row_y0 + cell_h / 2.0, '⋯', fontsize=13, ha='center', va='cent
 ax.text(9.35, kv_top - 0.36, '⋯', fontsize=13, ha='center', va='center',
         color='#8a9aa5')
 
-# ---- minimal row labels (no per-cell / per-group text) ----
-ax.text(0.35, 5.75, 'query heads', fontsize=8.2, ha='left', va='center',
+# ---- minimal row labels (no per-cell / per-group text), vertically centred
+# on the row they name: query cells span 4.85..5.19 (centre ~5.02); the shared
+# K/V cells span 2.68..3.40 (centre ~3.04). ----
+ax.text(0.35, 5.02, 'query heads', fontsize=8.2, ha='left', va='center',
         color='#4a7fb5', fontweight='bold')
-ax.text(0.35, 2.35, 'shared K/V heads', fontsize=8.2, ha='left', va='center',
+ax.text(0.35, 3.04, 'shared K/V heads', fontsize=8.2, ha='left', va='center',
         color='#b3591f', fontweight='bold')
 
 # 8 : 1 ratio badge (kept short; the MB/token takeaway is in the caption)

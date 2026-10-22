@@ -89,7 +89,14 @@ def fix_wide_tables(tex_path):
         if not fracs:
             return blk
         total = sum(fracs)
-        scale = (0.88 / total) if total > 0.88 else 1.0
+        ncol = len(fracs)
+        # The p{} fracs sum to `total`, but every column also carries 2*\tabcolsep
+        # of inter-column padding, which is NOT in the fracs. A many-column table
+        # whose fracs sum to 0.88 still overflows (7 cols -> 14*6pt = 84pt padding).
+        # Reserve room: target content frac = 0.96 linewidth minus the padding.
+        pad_frac = (2 * ncol * 6.0) / 439.0
+        target = 0.96 - pad_frac
+        scale = (target / total) if total > target else 1.0
         def rep2(mm):
             return "p{%s\\linewidth}" % ("%.4f" % (float(mm.group(1)) * scale))
         return _re.sub(r"p\{([0-9.]+)\\linewidth\}", rep2, blk)

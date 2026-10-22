@@ -97,19 +97,21 @@ def draw_panel(x0, x1, title, subtitle, flash):
         ax.annotate('', xy=(axx, hb_cy+hbh/2), xytext=(axx, cb_cy-cbh/2),
                     arrowprops=dict(arrowstyle='<|-|>', lw=lw, color=color,
                                     shrinkA=0, shrinkB=0), annotation_clip=False)
-    # 'round-trips' label in the clear LEFT gutter (never crossed by arrows)
-    label(x0+30, (cb_cy+hb_cy)/2,
+    # 'round-trips' label in the clear LEFT gutter (never crossed by arrows).
+    # Anchor LEFT at x0+8 so the multi-line label stays fully inside the panel
+    # and never crosses the panel's left border / the inter-panel gutter.
+    label(x0+8, (cb_cy+hb_cy)/2,
           ('many HBM\nround-trips' if not flash else 'few HBM\nround-trips'),
-          C_TRAFFIC if not flash else '#2f6f4f', FS-1.0, weight='bold')
+          C_TRAFFIC if not flash else '#2f6f4f', FS-1.0, weight='bold', ha='left')
     # Q/K/V note in the clear LEFT gutter beside HBM (white on the orange HBM box
     # for contrast — the earlier brown-on-orange was low-contrast)
-    label(x0+30, hb_cy, 'Q/K/V', '#fff', FS-1.2, style='italic', weight='bold')
-    # caption of traffic reduction
+    label(x0+8, hb_cy, 'Q/K/V', '#fff', FS-1.2, style='italic', weight='bold', ha='left')
+    # caption of traffic reduction — placed clearly BELOW the panel's bottom edge
     if not flash:
         cap = ('O(L²) HBM traffic:\nevery query re-reads\nthe row-block')
     else:
         cap = ('O(L) memory (no L×L\nintermediate); HBM traffic\nreduced by SRAM size')
-    label((x0+x1)/2, panel_top-panel_h-12, cap,
+    label((x0+x1)/2, panel_top-panel_h-30, cap,
           C_TRAFFIC if not flash else '#2f6f4f', FS-1.1)
 
 draw_panel(p1x0, p1x1, 'BEFORE: naive / SDPA', 'intermediate written to HBM', False)

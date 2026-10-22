@@ -64,7 +64,7 @@ for k in range(1, 18):                      # 17 full slots + partial
 ax.plot([gb_to_x(0), gb_to_x(total)], [bar_y + bar_h + 0.12, bar_y + bar_h + 0.12],
         color='#7f8c8d', lw=1.0)
 ax.text(gb_to_x(total), bar_y + bar_h + 0.34, '640 GB pool', ha='right', va='center',
-        fontsize=8.0, color='#777777')
+        fontsize=8.5, color='#4a4a4a', fontweight='bold')
 
 # ---- the DOMINANT budget equation (large, centered) ----
 eq_y = 2.72

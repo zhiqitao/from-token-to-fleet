@@ -48,7 +48,7 @@ ax2.grid(alpha=0.3, axis='y')
 ax2.legend(fontsize=8.0, loc='upper center', bbox_to_anchor=(0.5, -0.42), ncol=1, frameon=False)
 ax2.tick_params(labelsize=8)
 # headroom so the tallest rotated value label (34.0 + its vertical extent) is not clipped at the top spine
-ax2.set_ylim(0, 44)
+ax2.set_ylim(0, 48)
 
 for ax in (ax1, ax2):
     ax.set_xticks(x)
