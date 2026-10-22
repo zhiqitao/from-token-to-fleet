@@ -45,26 +45,28 @@ def adr_card(y_top, h, title, accent):
                 fontsize=7.2, color='#444', style='italic')
     return row_h
 
-# OLD ADR (top): y 12.2 .. 20.6
-old_h = 8.4; old_top = 20.6
+# OLD ADR (top): y 12.5 .. 20.9  (raised to widen the inter-panel gap)
+old_h = 8.4; old_top = 20.9
 row_h = adr_card(old_top, old_h, 'ADR-001  (current)', '#1a3a6b')
 ax.text(x0+total+0.4-0.2, old_top-0.7, 'kept, not edited',
         fontsize=7.8, color='#888', ha='right', va='center', style='italic')
 
-# NEW ADR (bottom): y 1.4 .. 9.8  (clear gap 9.8..12.2 holds the arrow + label)
-new_h = 8.4; new_top = 9.8
+# NEW ADR (bottom): y 0.6 .. 9.0  (clear gap 9.0..12.5 holds the arrow + label)
+new_h = 8.4; new_top = 9.0
 adr_card(new_top, new_h, 'ADR-002  (new — supersedes ADR-001)', '#7b241c')
 
-# supersession arrow: from the old Consequences box (right edge) curving down
-# into the new Context box (right edge), through the gap between the cards.
-old_cons_mid = old_top - 1.4 - n*row_h + row_h/2   # middle of old Consequences box
-new_ctx_mid  = new_top - 1.4 - row_h + row_h/2     # middle of new Context box
-ax.add_patch(FancyArrowPatch((x0+w, old_cons_mid), (x0+w, new_ctx_mid),
-             connectionstyle='arc3,rad=-0.30', arrowstyle='-|>', mutation_scale=22,
+# supersession arrow: kept entirely inside the inter-panel gap, running from the
+# top card's bottom border down to the bottom card's top border (short connector,
+# inset a little so it never lies on top of either border). The arrowhead points
+# down into the new card.
+old_bottom = old_top - old_h           # top card bottom border (y)
+ax.add_patch(FancyArrowPatch((x0+w, old_bottom-0.2), (x0+w, new_top+0.2),
+             connectionstyle='arc3,rad=-0.25', arrowstyle='-|>', mutation_scale=22,
              lw=2.4, color='#c0392b', ls='dashed'))
-# label in the gap, in the empty right area (clear of both card headers)
-gap_mid = (old_cons_mid + new_ctx_mid) / 2
-ax.text(x0+w+1.0, gap_mid,
+# label in the gap, centred vertically between the two borders and placed to the
+# right of the arrow, so neither collides with the other or with the panel borders.
+gap_mid = (old_bottom + new_top) / 2
+ax.text(x0+w+2.45, gap_mid,
         'consequences of ADR-001\nbecome the context of ADR-002',
         fontsize=8.0, color='#c0392b', ha='left', va='center', fontweight='bold',
         bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='none', alpha=0.92))

@@ -73,8 +73,13 @@ for name, b in bw.items():
     ax.loglog(size, t*1000, color=c, ls=ls, marker=mk, markevery=30,
               lw=1.8, label=name, markersize=3.5)  # ms
 ax.axvline(140, color='#555', ls='--', lw=1.3)   # 140 GB = §9.3 worked-example payload (70B FP16 gradient all-reduce)
-ax.annotate('140 GB (Sec. 9.3: 70B FP16\ngradient all-reduce)', xy=(140, 2e4), xytext=(2.2, 6e4),
+ax.annotate('140 GB (Sec. 9.3: 70B FP16\ngradient all-reduce)', xy=(140, 9.8e4), xytext=(2.2, 6e4),
             arrowprops=dict(arrowstyle='->'), fontsize=8.5)
+# Arrow tips onto the RoCE 140 GB data point (1750*140/2.5 = 9.8e4 ms, the
+# Sec. 9.4 'RoCE ~98 s at 140 GB' worked-example value).  Tail sits above the
+# red dotted RoCE curve and the shaft stays above it until it lands on the
+# point, so the arrow no longer crosses the RoCE curve and its target is
+# unambiguous.
 ax.set_xlabel('Data volume (GB)', fontsize=9)
 ax.set_ylabel('All-reduce completion time (ms)', fontsize=9)
 ax.set_title('All-reduce time vs data volume,\nby interconnect tier', fontsize=9.5)

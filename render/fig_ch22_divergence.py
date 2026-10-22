@@ -66,7 +66,7 @@ ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=26)
 
 # ---- RIGHT panel: decode FLOPs per token (flat, context-independent) ----
 ax2.loglog(L / 1e3, decode / 1e15, color='#27408b', lw=3.4,
-           label='decode  2·N  (per token, PARAMETER term only)')
+           label='decode  2·N  (per token,\nPARAMETER term only)')
 ax2.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax2.set_ylabel('Decode compute (PFLOP / token)', fontsize=9.5)
 ax2.set_title('DECODE  (per token)', fontsize=10, fontweight='bold', color='#27408b')
@@ -77,7 +77,7 @@ ax2.yaxis.set_major_formatter(FuncFormatter(_logfmt))  # "10^e" at full tick siz
 ax2.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax2.grid(alpha=0.3, which='both')
 ax2.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
-ax2.text(1.2, 2.6e-5, '\u2248 1.4e-4 PFLOP/token\n(2\u00b7N parameter term, flat;\nNOT the full decode cost —\nfull decode adds KV attention,\nwhich grows with context)',
+ax2.text(0.82, 2.6e-5, '\u2248 1.4e-4 PFLOP/token\n(2\u00b7N parameter term, flat;\nNOT the full decode cost —\nfull decode adds KV attention,\nwhich grows with context)',
          fontsize=8.6, color='#27408b', fontweight='bold', va='center', ha='left')
 
 fig.text(0.5, 0.975, 'LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN',

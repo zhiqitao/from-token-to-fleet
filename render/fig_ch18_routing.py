@@ -23,6 +23,10 @@ SEG = 1.2           # gap between horizontal boxes (%) of label width
 def tw(s):
     return TextPath((0, 0), s, size=FS, prop=BOLD).get_extents().width
 
+def lh(s):
+    # half-width of a branch label text (labels are drawn at FS-0.2)
+    return TextPath((0, 0), s, size=FS-0.2, prop=BOLD).get_extents().width / 2
+
 def box(xc, yc, text, fc, ec, tc='white'):
     lines = text.split('\n')
     w = max(tw(ln) for ln in lines) * (1 + PADX)
@@ -110,13 +114,15 @@ def fan(drop_x, y_from, leaves, color, lab, lab_x, lab_y):
     BUS_Y = RES+44           # bus row, above all leaf-arrow tails
     # vertical from the gate down to the bus
     arrow(drop_x, y_from, drop_x, BUS_Y, color)
-    # horizontal distribution bus spanning the group
-    l = leaves[0][0]; r = leaves[-1][1]
-    ax.plot([drop_x, l], [BUS_Y, BUS_Y], color=color, lw=1.6)
-    ax.plot([r, drop_x], [BUS_Y, BUS_Y], color=color, lw=1.6)
+    # horizontal distribution bus: join the gate's drop point to the leaves' own
+    # drop columns (leaf centres), so the bus stays INSIDE the fed group and never
+    # runs out toward a neighbouring box (e.g. the fallthrough General target).
+    centers = [(x0+x1)/2 for (x0, x1) in leaves]
+    bx0 = min([drop_x] + centers)
+    bx1 = max([drop_x] + centers)
+    ax.plot([bx0, bx1], [BUS_Y, BUS_Y], color=color, lw=1.6)
     # one distinct down-arrow per leaf, all starting BELOW the bus (clean verticals)
-    for (x0, x1) in leaves:
-        cx = (x0+x1)/2
+    for cx in centers:
         ax.annotate('', xy=(cx, RES+16), xytext=(cx, BUS_Y-2),
                     arrowprops=dict(arrowstyle='-|>', lw=1.4, color=color, shrinkA=0, shrinkB=0))
     ax.text(lab_x, lab_y, lab, fontsize=FS-0.2, color=color, ha='center', fontweight='bold')
@@ -127,10 +133,23 @@ fth = (spine[3][0]+spine[3][1])/2
 spg = (spec[0][0]+spec[-1][1])/2
 gen_yes_x = (gen[0][1]+gen[1][0])/2
 gen_ft_x  = (gen[2][0]+gen[2][1])/2
-fan(sep, SP-14, spec, '#1e5a3a', 'yes \u2192 specialist', spg, 146)
-fan(spc, SP-14, gen[:2], '#1e5a3a', 'yes \u2192 frontier / small', gen_yes_x, 140)
-arrow(fth, SP-14, gen_ft_x, RES+16, '#444')
-ax.text(gen_ft_x, 126, 'fallthrough', fontsize=FS-0.2, color='#444', ha='center', fontweight='bold')
+# branch labels are all placed to the LEFT of their own gate's drop line and on
+# a single common row, so the yes/fallthrough annotations read consistently.
+LB_Y    = 146          # common branch-label row
+GAP_LB  = 6.0          # clearance between a label and its drop line
+fan(sep, SP-14, spec, '#1e5a3a', 'yes \u2192 specialist',
+    sep - lh('yes \u2192 specialist') - GAP_LB, LB_Y)
+fan(spc, SP-14, gen[:2], '#1e5a3a', 'yes \u2192 frontier / small',
+    spc - lh('yes \u2192 frontier / small') - GAP_LB, LB_Y)
+# fallthrough -> General: orthogonal connector (down, across, down) so it cannot
+# cross through its own 'fallthrough' label, and it clearly targets General only.
+EY = 156                                    # elbow row
+ax.plot([fth, fth], [SP-14, EY], color='#444', lw=1.8)
+ax.plot([fth, gen_ft_x], [EY, EY], color='#444', lw=1.8)
+ax.annotate('', xy=(gen_ft_x, RES+16), xytext=(gen_ft_x, EY),
+            arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#444', shrinkA=0, shrinkB=0))
+ax.text(gen_ft_x - lh('fallthrough') - GAP_LB, LB_Y, 'fallthrough',
+        fontsize=FS-0.2, color='#444', ha='center', fontweight='bold')
 
 # ---- bottom annotation ----
 ax.text(W/2, 26, 'only ONE model is selected per request (early exit on a match)',

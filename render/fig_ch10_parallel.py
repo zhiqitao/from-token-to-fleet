@@ -29,7 +29,7 @@ BLUE_F, BLUE_E   = '#d6e2f4', '#27408b'   # weights / memory
 ORAN_F, ORAN_E   = '#fbe3c8', '#c0761a'   # GPU / compute
 GREEN_F, GREEN_E = '#d8efdd', '#2e9e63'   # data / batch
 RED              = '#c0392b'              # communication
-INK, MUTE        = '#1a1a1a', '#666666'
+INK, MUTE        = '#1a1a1a', '#404040'
 
 # ---- print-size authoring (6.1in column) --------------------------------
 W_IN, H_IN = 6.1, 6.45

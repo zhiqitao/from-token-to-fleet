@@ -48,13 +48,19 @@ ax.axhline(N4, color='#3a6ea5', lw=1.8)
 ax.text(0.9, N4+0.20, 'N = 4 fleet capacity (~8.0)', fontsize=8, color='#27408b',
         ha='left', fontweight='bold')
 
-# Call-outs in clear whitespace.
+# Call-outs in clear whitespace. The burst label + pointer sit BELOW the
+# orange dotted N-1 line (y=6) and LEFT of the grey failover brace (x=9.7) so
+# neither crosses them; the pointer runs up to the peak from below. va='bottom'
+# keeps the text top clearly under y=6 and clear of the 'N-1 residual' label.
 ax.annotate('burst peak ~5.5 req/s',
-            xy=(6.3, peak+0.15), xytext=(6.8, 7.6),
-            fontsize=8, color='#c0392b', ha='left', fontweight='bold',
+            xy=(6.3, peak), xytext=(4.5, 4.4),
+            fontsize=8, color='#c0392b', ha='left', va='bottom',
+            fontweight='bold',
             arrowprops=dict(arrowstyle='->', color='#c0392b'))
+# Single-host note moved to the lower-left, pointing at the curve where the
+# one-host bound (~2.0) first falls far below the rising burst.
 ax.annotate('one host cannot meet\nthe burst on its own',
-            xy=(3.4, host_cap+0.05), xytext=(2.4, 3.9),
+            xy=(3.4, host_cap+0.05), xytext=(0.7, 2.75),
             fontsize=8, color='#555', ha='left', va='bottom',
             arrowprops=dict(arrowstyle='->', color='#555'))
 
@@ -77,12 +83,14 @@ ax.set_ylabel('offered load / req·s⁻¹', fontsize=9)
 ax.set_title('Sizing a fleet of one model: burst peak, headroom, failover',
              fontsize=10, fontweight='bold')
 # T-02 (review): the smooth curve is *offered-load capacity*, not a queueing
-# proof. Place the note INSIDE the axes (top, empty region) so bbox_inches='tight'
-# cannot clip it and it does not collide with the title.
-ax.text(0.5, 0.965, 'Offered-load capacity only \u2014 not a proof of p99 TTFT/TPOT;'
-        ' tail latency needs a measured queueing model (Ch 14)',
-        transform=ax.transAxes, fontsize=8.0, color='#444', ha='center', va='top',
-        style='italic', bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='none', alpha=0.85))
+# proof. Note rendered as two centered lines INSIDE the axes (top, empty region
+# above y=8) so bbox_inches='tight' cannot clip it and it stays clear of the
+# '12' tick and the top border. Font sized down so it fits the plot width.
+ax.text(0.5, 0.985,
+        'Offered-load capacity only \u2014 not a proof of p99 TTFT/TPOT;\n'
+        'tail latency needs a measured queueing model (Ch 14)',
+        transform=ax.transAxes, fontsize=7.0, color='#444', ha='center', va='top',
+        style='italic', bbox=dict(boxstyle='round,pad=0.20', fc='white', ec='none', alpha=0.85))
 ax.set_yticks([0, 2, 4, 6, 8, 10, 12])
 ax.grid(alpha=0.25, axis='y')
 ax.legend(handles=[Line2D([], [], color='#c0392b', lw=2),

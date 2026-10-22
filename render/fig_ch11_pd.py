@@ -29,7 +29,7 @@ ax.text(0.20, 0.76, 'PREFILL POOL', ha='center', va='center',
 for gx in [0.055, 0.135, 0.215, 0.295]:   # GPU glyphs
     ax.add_patch(FancyBboxPatch((gx, 0.34), 0.06, 0.10, boxstyle='round,pad=0.005',
                                 fc='#e67e22', ec='#a04000', lw=0.8))
-ax.text(0.20, 0.27, '8× H100 host', ha='center', va='center', fontsize=7.5, color='#888')
+ax.text(0.20, 0.27, '8× H100 host', ha='center', va='center', fontsize=7.5, color='#2b2b2b')
 
 # ---- Decode pool (right, large empty block) ----
 ax.add_patch(FancyBboxPatch((0.62, 0.18), 0.36, 0.66, boxstyle='round,pad=0.01',
@@ -39,7 +39,7 @@ ax.text(0.80, 0.76, 'DECODE POOL', ha='center', va='center',
 for gx in [0.655, 0.735, 0.815, 0.895]:   # GPU glyphs
     ax.add_patch(FancyBboxPatch((gx, 0.34), 0.06, 0.10, boxstyle='round,pad=0.005',
                                 fc='#2980b9', ec='#154360', lw=0.8))
-ax.text(0.80, 0.27, '8× H100 host', ha='center', va='center', fontsize=7.5, color='#888')
+ax.text(0.80, 0.27, '8× H100 host', ha='center', va='center', fontsize=7.5, color='#2b2b2b')
 
 # ---- Single bridging transfer line (prefill -> decode, one direction) ----
 ax.annotate('', xy=(0.62, 0.55), xytext=(0.38, 0.55),
