@@ -176,9 +176,10 @@ same-time prefill requests each pay the full 1.08 s prefill of the job
 ahead of them, so p95 TTFT drifts to \textasciitilde2.5 s. The
 \emph{average} says ``fine''; the \emph{p95} says ``we just violated our
 SLO.'' We hence log p50, p90, p95, and p99 independently and run the SLO
-against the percentile, never the mean. {[}2°{]} SLO-derived from the
-canonical scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}) latency budget; the arithmetic is
-the point, not a citation.
+against the percentile, never the mean.
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} author-chosen SLO budget from the
+canonical scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}); the arithmetic is the point, not a
+citation.
 
 \subsection{Goodput vs Raw Throughput}\label{goodput-vs-raw-throughput}
 
@@ -203,29 +204,36 @@ bandwidth-bound or compute-bound? We recall the arithmetic from \hyperref[chap:2
 \begin{itemize}
 \item
   \textbf{Decode is HBM-bandwidth-bound at low batch.} Generating one
-  token needs a full forward pass over the 70B weights = 140 GB (FP16)
-  of reads per token. Within a \textasciitilde25 ms TPOT budget that
-  demands 140 GB / 0.025 s ≈ \textbf{5.6 TB/s} of HBM bandwidth, against
-  an H100's \textasciitilde3.35 TB/s peak {[}1P{]}{[}FACT{]}. Two scope
-  notes keep this honest. First, 5.6 TB/s is the \textbf{aggregate}
-  model-wide weight-read rate for a hypothetical single-device
-  implementation; under tensor parallelism (the canonical 8×H100 host)
-  the 140 GB is sharded, so each GPU only needs \textasciitilde0.70 TB/s
-  against its own 3.35 TB/s --- the single-device 5.6\textgreater3.35
-  bound does not itself show a per-GPU bandwidth shortfall. Second, the
-  deeper and shard-invariant reason decode is \emph{memory-limited} is
-  its low arithmetic intensity (the ratio of FLOPs to bytes moved,
-  \textasciitilde1.0 FLOP/byte here) --- far below the
-  \textasciitilde295 FLOP/byte roofline ridge point that separates
-  memory-bound from compute-bound kernels (the roofline and its ridge
-  are developed in Ch 8; this chapter only needs the qualitative point
-  that a low intensity starves the compute units for weights). That is
-  what makes compute units starve for weights regardless of sharding. So
-  the honest statement is: decode is memory-bound because its intensity
-  is low and batching raises it, not merely because an aggregate 5.6
-  TB/s exceeds one GPU's 3.35 {[}ILLUSTRATIVE{]}{[}DERIVED{]}. (This is
-  an operating-point property, not an identity: at high batch decode
-  climbs the intensity slope and can become compute-bound.)
+  token needs a full forward pass over the 70B weights of the
+  \textbf{canonical 80-layer, hidden-8192, full-MHA 70B reference} = 140
+  GB (FP16) of reads per token --- a \textbf{batch-1-equivalent}
+  idealized weight-streaming read (one request's full weight pass), not
+  a measured bytes-physically-read figure. Within a \textasciitilde25 ms
+  TPOT budget that demands 140 GB / 0.025 s ≈ \textbf{5.6 TB/s}
+  (batch-1-equivalent) of HBM bandwidth, against an H100's
+  \textasciitilde3.35 TB/s peak {[}1P{]}{[}FACT{]}. \textbf{Scope
+  warning: this 5.6-vs-3.35 TB/s comparison is an \emph{illustrative
+  single-device roofline} argument, not the canonical 8×H100 host's
+  actual deployment verdict.} Two scope notes keep this honest. First,
+  5.6 TB/s is the \textbf{aggregate} model-wide weight-read rate for a
+  hypothetical single-device implementation; under tensor parallelism
+  (the canonical 8×H100 host) the 140 GB is sharded, so each GPU only
+  needs \textasciitilde0.70 TB/s against its own 3.35 TB/s --- the
+  single-device 5.6\textgreater3.35 bound does not itself show a per-GPU
+  bandwidth shortfall. Second, the deeper and shard-invariant reason
+  decode is \emph{memory-limited} is its low arithmetic intensity (the
+  ratio of FLOPs to bytes moved, \textasciitilde1.0 FLOP/byte here) ---
+  far below the \textasciitilde295 FLOP/byte roofline ridge point that
+  separates memory-bound from compute-bound kernels (the roofline and
+  its ridge are developed in Ch 8; this chapter only needs the
+  qualitative point that a low intensity starves the compute units for
+  weights). That is what makes compute units starve for weights
+  regardless of sharding. So the honest statement is: decode is
+  memory-bound because its intensity is low and batching raises it, not
+  merely because an aggregate 5.6 TB/s exceeds one GPU's 3.35
+  {[}ILLUSTRATIVE{]}{[}DERIVED{]}. (This is an operating-point property,
+  not an identity: at high batch decode climbs the intensity slope and
+  can become compute-bound.)
 \item
   \textbf{Prefill is compute-bound at the canonical long-prompt
   operating point.} The reason prefill lands on the compute plateau of
@@ -300,8 +308,9 @@ Prefill (9.2K input) & \textasciitilde1.19 PFLOPS (1.29 PFLOP ÷ 1.08 s)
 & \textasciitilde0.989 PFLOPS BF16 & compute-bound & high FLOP / MFU
 util, mid bandwidth \\
 Decode (per token) & \textasciitilde140 GB weight-read →
-\textasciitilde5.6 TB/s rate & \textasciitilde3.35 TB/s HBM &
-bandwidth-bound & high HBM util, low FLOP util \\
+\textasciitilde5.6 TB/s rate (batch-1-equivalent) & \textasciitilde3.35
+TB/s HBM (single-device) & bandwidth-bound & high HBM util, low FLOP
+util \\
 
 \label{tab:6.1}\end{longtable}
 
@@ -311,8 +320,12 @@ bandwidth-bound & high HBM util, low FLOP util \\
 arithmetic intensity, not from the demand-vs-capacity rate comparison:
 prefill \textasciitilde9,200 FLOP/byte ≫ ridge \textasciitilde295
 (compute-bound), decode \textasciitilde1.0 FLOP/byte ≪ ridge
-(bandwidth-bound). The 1.19 vs 0.989 PFLOPS rates are a secondary
-consistency check, not the basis of the verdict.)}
+(bandwidth-bound). The 1.19-vs-0.989 PFLOPS and 5.6-vs-3.35 TB/s rate
+comparisons are }illustrative single-device roofline* arguments (a
+hypothetical single-GPU rate against that GPU's own peak), not verdicts
+on the canonical 8×H100 host's bandwidth adequacy --- under tensor
+parallelism the 140 GB is sharded, so each GPU only needs
+\textasciitilde0.70 TB/s against its own \textasciitilde3.35 TB/s.)*
 
 \subsection{Reading Telemetry Into a
 Decision}\label{reading-telemetry-into-a-decision}

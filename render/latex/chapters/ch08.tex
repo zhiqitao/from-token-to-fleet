@@ -111,7 +111,8 @@ Arithmetic}\label{worked-example-canonical-scenario-arithmetic}
 
 
 The canonical scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}) is an enterprise Q\&A system:
-70B-class dense model, FP16 weights (\textasciitilde140 GB), 1 host with
+the canonical 80-layer, hidden-8192, full-MHA 70B reference (a 70B-class
+dense model), FP16 weights (\textasciitilde140 GB), 1 host with
 8×H100-class GPUs (80 GB each), average prompt 1,200 tokens + 8K
 retrieved context (\textasciitilde9.2K input), 300-token output, TTFT
 budget 1.2 s (retrieval \textasciitilde120 ms + prefill), TPOT budget
@@ -247,9 +248,10 @@ benchmark reports, derived from real kernel profiles{]}. At 35\% MFU:
 \text{sustained} = \text{peak} \times \text{MFU} = 989 \text{ TFLOPS} \times 0.35 \approx 346 \text{ TFLOPS}
 \]
 
-{[}2°{]}{[}DERIVED: peak × typical MFU --- the MFU range is a secondary,
-empirical figure, so this sustained value inherits the provenance of its
-weakest input, not the first-party peak{]}
+{[}1P{]}{[}2°{]}{[}DERIVED: vendor peak (1P) × typical MFU (2°) --- the
+MFU range is a secondary, empirical figure, so the sustained value
+inherits the provenance of its weakest input, the 2° MFU, while the peak
+is first-party{]}
 
 \textbf{Scope matters here.} The 346 TFLOPS figure is the sustained rate
 of a \emph{single} H100, and the 2,471 tokens/s derived from it is
@@ -332,13 +334,15 @@ is compute-bound; at low batch decode is memory-bound.}
 
 For decode, the per-token FLOP cost is the same \textasciitilde140
 GFLOP, but the arithmetic intensity drops sharply. Each decoded token
-re-reads all 70B weights from HBM. A 70B FP16 weight matrix is 70 ×10⁹ ×
-2 B = 140 GB --- one full pass reads \textbf{140 GB}, not 280 GB. (The
-naïve ``2 ×70 ×10⁹ × 2 B ≈ 280 GB'' double-counts the FP16 footprint:
-the leading ``2'' is already inside the 2-bytes-per-element, so writing
-2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any KV/output-projection
-reads are a separate, smaller term on top, not a second full weight
-footprint.) The effective arithmetic intensity is therefore:
+re-reads all 70B weights from HBM (a \textbf{batch-1-equivalent}
+weight-streaming read). A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140
+GB --- one full pass reads \textbf{140 GB} (batch-1-equivalent), not 280
+GB. (The naïve ``2 ×70 ×10⁹ × 2 B ≈ 280 GB'' double-counts the FP16
+footprint: the leading ``2'' is already inside the 2-bytes-per-element,
+so writing 2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any
+KV/output-projection reads are a separate, smaller term on top, not a
+second full weight footprint.) The effective arithmetic intensity is
+therefore:
 
 \[
 \text{arithmetic intensity}_{\text{decode}} \approx \frac{140 \text{ GFLOP}}{140 \text{ GB}} \approx 1.0 \text{ FLOP/byte}
@@ -356,6 +360,19 @@ intensity rises toward the ridge, and TFLOP/s utilization increases
 accordingly. This is why continuous-batching systems (Orca, vLLM)
 prioritize batch growth: it is the primary lever for pushing decode
 arithmetic intensity toward the ridge.
+
+\emph{Scope note on the single-device roofline here:} the 140 GB
+weight-read and the per-GPU \textasciitilde3.35 TB/s HBM bandwidth are
+single-GPU quantities, so the \textasciitilde1.0 FLOP/byte intensity and
+the ``memory-bandwidth-bound'' label above are a \emph{per-kernel /
+single-device roofline} argument. It is \textbf{not} a verdict on the
+canonical 8×H100 host's actual bandwidth adequacy --- under tensor
+parallelism the 140 GB weight matrix is sharded across GPUs, so each GPU
+streams only its own shard (\textasciitilde0.70 TB/s against its own
+\textasciitilde3.35 TB/s, Ch 6). The classification (low-batch decode is
+bandwidth-bound) is shard-invariant because it follows from the low
+arithmetic intensity, not from the aggregate weight-read rate exceeding
+one GPU's bandwidth.
 
 \ntsection{Measurement}\label{measurement}
 

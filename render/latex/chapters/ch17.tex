@@ -107,11 +107,11 @@ decode), Little's Law puts ≈ 40 × 8.6 ≈ \textbf{344 requests in flight},
 against a KV capacity of \textasciitilde17.5 per host (conservative
 integer floor 17). \textbf{A single host is not viable at peak even for
 the non-agentic canonical workload} --- the fleet needs roughly
-⌈344/17.5⌉ ≈ \textbf{20 hosts} at 40 rps (\textbf{29} at the 70\%
-utilization target), and more for growth to 100 rps. This flips the
-original conclusion: the fleet is not a distant luxury but a necessity
-at the canonical peak, driven by the product of service time (8.6 s) and
-arrival rate.
+⌈344/17.5⌉ ≈ \textbf{20 hosts} at 40 rps (\textbf{29 working hosts} at
+the 70\% utilization target, \textbf{30 total with N−1}), and more for
+growth to 100 rps. This flips the original conclusion: the fleet is not
+a distant luxury but a necessity at the canonical peak, driven by the
+product of service time (8.6 s) and arrival rate.
 
 \textbf{KV compression is the first lever.} Switching KV to FP8 (≈54\%
 of BF16, vLLM-measured {[}S6{]}) cuts the 9.5K max per-request KV to
@@ -251,12 +251,28 @@ host. (4) \textbf{\textasciitilde2.0 req/s} (Ch. 17/20) is the
 \emph{KV/service-time bound} on whole requests per host (C ÷ W), the
 quantity that sizes the fleet. The first three are token-rates at
 different batch/phase assumptions; the fourth is a request-rate bound.
-They reconcile because a request is \textasciitilde9,500 tokens: 2.0
-req/s × 9,500 ≈ 19,000 tok/s of \emph{total} token work per host, which
-sits between the single-stream floor (50) and the batched serving range
-(35--70K) --- the gap is exactly the batching/phase headroom. Use the
-token-rates for kernel and cost reasoning, and the request-rate for
-fleet sizing. {[}DERIVED{]}
+They reconcile only \emph{phase-by-phase}, never as one fungible
+``total'' rate. \textbf{Do not set a summed 19K tok/s against any
+single-phase capacity.} At \textasciitilde2.0 req/s the request workload
+decomposes into two components that hit the hardware differently:
+\textbf{18,400 input tokens/s (2.0 × 9,200 --- the prefill phase,
+compute-bound)} and \textbf{600 output tokens/s (2.0 × 300 --- the
+decode phase, bandwidth-bound)}. Compare the prefill component only
+against the \emph{prefill-only} capacities (\textasciitilde19,800 tok/s,
+item 2; \textasciitilde35--70K only if those figures are themselves
+phase-resolved) and the decode component only against decode-scale
+capacity --- never the summed \textasciitilde19,000 tok/s against a
+single-phase figure. The apparent near-equality of \textasciitilde19,000
+tok/s and \textasciitilde19,800 tok/s is a \textbf{numerical coincidence
+of units, not a physical equivalence}: the two sit in different phases
+with different arithmetic intensity and different cost (compute-bound
+prefill vs.~bandwidth-bound decode), so they cannot be added into one
+rate and compared to any single-phase number. Aggregate prefill + decode
+into a single ``total'' rate only after stating an explicit
+cost/phase-equivalence model (e.g., a weighted-FLOP or weighted-dollar
+basis). Use the token-rates for kernel and cost reasoning (keeping
+prefill and decode separate), and the request-rate for fleet sizing.
+{[}DERIVED{]}
 \end{quote}
 
 \textbf{Define the subsystem boundaries before applying Little's Law ---
@@ -343,9 +359,9 @@ overhead). At the canonical peak:
   At λ\_peak = 40 rps and W ≈ 8.6 s, in-flight concurrency ≈ 40 × 8.6 ≈
   \textbf{344 requests}. With C ≈ 17.5 per host (FP16 KV) at full
   utilization, H\_min ≈ 344/17.5 ≈ 19.7 → \textbf{\textasciitilde20
-  hosts} (\textbf{29} at the 70\% utilization target). This is the
-  honest fleet size and matches the throughput/latency analysis in
-  \hyperref[chap:20]{Chapter 20}.
+  hosts} (\textbf{29 working} at the 70\% utilization target, \textbf{30
+  total with N−1}). This is the honest fleet size and matches the
+  throughput/latency analysis in \hyperref[chap:20]{Chapter 20}.
 \item
   \textbf{The 25 ms/token in W is the TPOT \emph{budget}, not a measured
   per-step time.} The decode-bandwidth floor for the canonical 8×H100
@@ -628,6 +644,26 @@ residual capacity after one failure). Health‑check frequency and
 graceful drain procedures affect the real-world failover time, typically
 5--15 seconds.
 
+\textbf{Multi-region active-active availability is NOT priced in this
+chapter's arithmetic.} The canonical workload's stated SLA (Ch 4) is
+multi-region active-active at 99.9\% availability, but \textbf{every}
+host count in this chapter --- and the N−1 failover/redundancy model
+above --- prices a \textbf{single-region} deployment with \textbf{N−1
+single-host failover}, \textbf{not} multi-region active-active. These
+are \textbf{different provisioning problems}: N−1 single-host failover
+covers the loss of \emph{one host within a region}, whereas multi-region
+active-active must survive the loss of an entire \emph{region}, and
+therefore requires cross-region capacity duplication, region-failure
+tolerance, data locality and traffic routing, and consistent state/data
+replication. None of that is priced or validated here, and none of it is
+implied by the N−1 spare host. The canonical host counts (≈20 peak / 29
+working / 30 with N−1) and the cost arithmetic that hangs off them
+therefore \textbf{understate the cost of the canonical workload's own
+stated 99.9\% availability requirement} --- read them as
+\emph{single-region, N−1-only} numbers, and add a separate multi-region
+capacity + replication cost line before the availability SLA can be
+considered met.
+
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
 
@@ -814,6 +850,14 @@ columns. The 70\% utilization target and the λ, W values are
 ILLUSTRATIVE scenario inputs to be validated by a deployment benchmark
 (\hyperref[chap:14]{Chapter 14}) before committing hardware. H is a KV-residency lower bound
 --- the true answer is the max of this KV bound and the measured
-throughput bound.}
+throughput bound. \textbf{Planning-bound caveat:} the per-host figures
+that feed this table --- \textbf{\textasciitilde2.0 req/s/host} and
+\textbf{\textasciitilde19,800 prefill tok/s/host} (Ch 8, idealized) ---
+are }upper-order planning bounds* derived from the
+KV-residency/service-time model and the idealized prefill roofline,
+\textbf{not implied deployed rates}. \textbf{No p95/p99 performance
+guarantee has been shown} for any host count in these columns; the
+achieved p95/p99 tail latency and goodput must be measured on the target
+deployment (\hyperref[chap:14]{Chapter 14}) before any host count is treated as validated.*
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}

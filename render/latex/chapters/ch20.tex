@@ -101,14 +101,21 @@ interchangeable:
   \textasciitilde35,000--70,000 tokens/s range in \hyperref[chap:15]{Chapter 15}
   {[}ILLUSTRATIVE achievable range{]} --- distinct from the
   \textasciitilde19,800 tok/s \emph{prefill-only} ideal in \hyperref[chap:8]{Chapter 8} (8
-  × 2,471 at 35\% MFU), which counts prefill compute alone. Dividing the
-  total by the \textasciitilde9,500 tokens/request gives
-  \textasciitilde3.7 requests/s --- \textbf{but this is not achievable
-  here}, because it would require \textasciitilde3.7 × 8.6 ≈ 32
-  concurrent requests in flight, roughly double the host's KV-residency
-  ceiling (C ≈ 17.5, conservative integer floor 17, \hyperref[chap:17]{Chapter 17}). The
-  token-throughput figure is thus a non-binding upper edge for this
-  canonical workload.
+  × 2,471 at 35\% MFU), which counts prefill compute alone.
+  \textbf{These two are not directly comparable as single numbers:
+  \textasciitilde35,000 is a phase-mixed \emph{prefill+decode} total and
+  \textasciitilde19,800 is a \emph{prefill-only} figure. To compare them
+  you must first phase-resolve both, then compare prefill with prefill
+  (the presented workload's prefill leg is 2.0 req/s × 9,200 = 18,400
+  input tok/s) and decode with decode (2.0 × 300 = 600 output tok/s);
+  aggregating the two phases into one ``total'' rate requires an
+  explicit cost/phase-equivalence model.} Dividing the total by the
+  \textasciitilde9,500 tokens/request gives \textasciitilde3.7
+  requests/s --- \textbf{but this is not achievable here}, because it
+  would require \textasciitilde3.7 × 8.6 ≈ 32 concurrent requests in
+  flight, roughly double the host's KV-residency ceiling (C ≈ 17.5,
+  conservative integer floor 17, \hyperref[chap:17]{Chapter 17}). The token-throughput
+  figure is thus a non-binding upper edge for this canonical workload.
 \item
   \textbf{KV-residency / latency bound (Little's law).} The real ceiling
   is set by concurrency and service time together: a host holds
@@ -137,6 +144,14 @@ tensor-parallel communication, and the context distribution --- so C and
 W are not always independent constants. Treat \textasciitilde2.0 req/s
 as an upper-bound model, and require benchmarked goodput (\hyperref[chap:14]{Chapter 14})
 under the target arrival process for actual fleet sizing.
+\textbf{Planning-bound caveat:} like the \textasciitilde19,800 prefill
+tok/s/host figure (Ch. 8, idealized prefill only), the
+\textasciitilde2.0 req/s/host figure is an \emph{upper-order planning
+bound} --- model-derived, \textbf{not an implied deployed rate}.
+\textbf{No p95/p99 performance guarantee has been shown} for any of the
+host counts in this chapter; the p95/p99 tail latency and achieved
+goodput must be measured on the target deployment (\hyperref[chap:14]{Chapter 14}) before
+the 20-host sizing is treated as validated.
 
 \textbf{Fleet aggregate throughput (illustrative form).} Keeping the
 illustrative per-host rps = Q for the algebra, aggregate throughput is
@@ -433,11 +448,20 @@ bounded by KV residency per \hyperref[chap:17]{Chapter 17}):
   comfortably achievable. The architect's job here is to reject the
   impossible SLO and state what is actually controllable, rather than
   tune arithmetic until a 100-ms figure appears reachable.
+\item
+  \textbf{Planning-bound caveat (sizing tail).} The \textasciitilde2.0
+  req/s/host and \textasciitilde19,800 prefill tok/s/host figures used
+  here are \emph{upper-order planning bounds} --- model-derived,
+  \textbf{not implied deployed rates} --- and \textbf{no p95/p99
+  performance guarantee has been shown} for the 20/22-host sizing. The
+  host count is a KV-residency/service-time floor; the p95/p99 tail
+  latency and achieved goodput must be measured on the target deployment
+  (\hyperref[chap:14]{Chapter 14}) before committing hardware.
 \end{itemize}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Fleet capacity: the KV/service-time analytical bound vs derived deployment throughput, vs.~host count. TOP = ANALYTICAL CAPACITY BOUND (thin grey solid, \textasciitilde2.0 req/s/host --- the KV/service-time ceiling). BOTTOM = DERIVED DEPLOYMENT THROUGHPUT (thick blue solid): the \textasciitilde2.0 req/s/host bound reduced by \textasciitilde95\% scheduling efficiency and flattened at the canonical 40 rps peak once \textasciitilde20 hosts are provisioned. The plateau is the workload's demand ceiling (40 rps is the canonical peak arrival rate, not the fleet's capacity limit) --- the grey dotted bound keeps climbing past it, so the fleet still has headroom; the gap between the two is the scheduling + tail/queueing overhead. The blue curve is a derived construction (analytical bound × 0.95) and represents modeled served demand, not measured throughput --- it is not a benchmarked serving rate; the \textasciitilde2.0 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. A traceable service-time/concurrency derivation and an empirical validation gate (measured p95/p99 under the target workload, Ch 14) are required before the 5--20-host sizing is treated as validated. It drives the 5-20-host sizing reasoning of Chapters 15-20.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-20-2001.png}}
-\caption[Fleet capacity]{Fleet capacity: the KV/service-time analytical bound vs derived deployment throughput, vs.~host count. TOP = ANALYTICAL CAPACITY BOUND (thin grey solid, \textasciitilde2.0 req/s/host --- the KV/service-time ceiling). BOTTOM = DERIVED DEPLOYMENT THROUGHPUT (thick blue solid): the \textasciitilde2.0 req/s/host bound reduced by \textasciitilde95\% scheduling efficiency and flattened at the canonical 40 rps peak once \textasciitilde20 hosts are provisioned. The plateau is the \textbf{workload's demand ceiling} (40 rps is the canonical peak arrival rate, not the fleet's capacity limit) --- the grey dotted bound keeps climbing past it, so the fleet still has headroom; the gap between the two is the scheduling + tail/queueing overhead. The blue curve is a derived construction (analytical bound × 0.95) and represents \textbf{modeled served demand, not measured throughput} --- it is not a benchmarked serving rate; the \textasciitilde2.0 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. A traceable service-time/concurrency derivation and an empirical validation gate (measured p95/p99 under the target workload, Ch 14) are required before the 5--20-host sizing is treated as validated. It drives the 5-20-host sizing reasoning of Chapters 15-20.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Fleet capacity: the KV/service-time analytical bound vs modeled offered-load-served curve, vs.~host count. TOP = ANALYTICAL CAPACITY BOUND (thin grey solid, \textasciitilde2.0 req/s/host --- the KV/service-time ceiling). BOTTOM = MODELED OFFERED-LOAD-SERVED CURVE (thick blue solid): the \textasciitilde2.0 req/s/host bound reduced by \textasciitilde95\% scheduling efficiency and flattened at the canonical 40 rps peak once \textasciitilde20 hosts are provisioned. The plateau is the workload's demand ceiling (40 rps is the canonical peak arrival rate, not the fleet's capacity limit) --- the grey dotted bound keeps climbing past it, so the fleet still has headroom; the gap between the two is the scheduling + tail/queueing overhead. The blue curve is a derived construction (analytical bound × 0.95) and represents modeled served demand, not measured throughput --- it is not a benchmarked serving rate; the \textasciitilde2.0 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. A traceable service-time/concurrency derivation and an empirical validation gate (measured p95/p99 under the target workload, Ch 14) are required before the 5--20-host sizing is treated as validated. It drives the 5-20-host sizing reasoning of Chapters 15-20.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-20-2001.png}}
+\caption[Fleet capacity]{Fleet capacity: the KV/service-time analytical bound vs modeled offered-load-served curve, vs.~host count. TOP = ANALYTICAL CAPACITY BOUND (thin grey solid, \textasciitilde2.0 req/s/host --- the KV/service-time ceiling). BOTTOM = MODELED OFFERED-LOAD-SERVED CURVE (thick blue solid): the \textasciitilde2.0 req/s/host bound reduced by \textasciitilde95\% scheduling efficiency and flattened at the canonical 40 rps peak once \textasciitilde20 hosts are provisioned. The plateau is the \textbf{workload's demand ceiling} (40 rps is the canonical peak arrival rate, not the fleet's capacity limit) --- the grey dotted bound keeps climbing past it, so the fleet still has headroom; the gap between the two is the scheduling + tail/queueing overhead. The blue curve is a derived construction (analytical bound × 0.95) and represents \textbf{modeled served demand, not measured throughput} --- it is not a benchmarked serving rate; the \textasciitilde2.0 req/s line is the KV/service-time analytical bound, not a benchmarked serving throughput. A traceable service-time/concurrency derivation and an empirical validation gate (measured p95/p99 under the target workload, Ch 14) are required before the 5--20-host sizing is treated as validated. It drives the 5-20-host sizing reasoning of Chapters 15-20.}
 
 \label{fig:20.1}\end{figure}
