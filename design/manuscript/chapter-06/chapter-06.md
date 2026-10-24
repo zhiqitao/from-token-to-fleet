@@ -98,7 +98,7 @@ These habits answer the book's recurring question — *what would we actually me
 
 ## 5. Common Mistakes
 
-- **SLO-ing the average.** A 0.84 s mean hides a 5 s tail. SLO against p95/p99, and watch the outlier fraction, not the mean.
+- **SLO-ing the average.** A ~0.85 s mean (the figure's simulated stream; the two-point analytic approximation gives ~0.84 s — the figure's displayed value is used here) hides a 5 s tail. SLO against p95/p99, and watch the outlier fraction, not the mean.
 - **Optimizing raw throughput when the SLO windows it.** Bigger batches raise raw tokens/s but can push TTFT past its deadline, zeroing goodput. Optimize goodput.
 - **Jumping straight to "buy more GPUs."** A bandwidth-bound decode and a prefill-cost problem need different fixes; without the resource layer we guess.
 - **Treating hardware peak as a ceiling we can hit.** H100's 3.35 TB/s is the theoretical HBM peak; real memory-bound kernels realize a fraction of it. Design headroom against real utilization, not the spec sheet.
