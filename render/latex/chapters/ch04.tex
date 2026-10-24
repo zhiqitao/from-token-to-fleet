@@ -227,10 +227,13 @@ Derivation / Source
 Quality & \textgreater85\% factual accuracy
 {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} & Enterprise Q\&A benchmarks
 (author-chosen target) \\
-Traffic & 10 rps avg; 40 rps peak {[}ILLUSTRATIVE{]}{[}DERIVED{]} &
-2,000 users × 5\% concurrency = 100 in-flight; 100/10s = 10 rps
-(Little's Law on {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} inputs); peaks at
-20\% concurrency → 40 rps \\
+Traffic & 10 rps avg; 40 rps peak {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} &
+Deliberate traffic assumptions (\textasciitilde2,000 users × one request
+\textasciitilde every 200 s ≈ 10 rps; peak scaled). NOT derived by
+Little's Law from the active-user count --- Little's Law needs the
+average number of \emph{requests in} the system, not the active-people
+population. The derived \emph{execution occupancy} from these is L = λ×W
+≈ 10×8.6 ≈ 86 / \textasciitilde344 at 40 rps \\
 Token profile & 9,200 input tokens + 300 output tokens {[}canonical
 scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}){]} & 1,200 prompt + 8K context; 300‑token
 answer \\
@@ -444,8 +447,10 @@ model \\
 Attention architecture & full-MHA reference model (K/V width =
 hidden\_dim) & {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} (a real 70B may use
 GQA, \textasciitilde8x less KV; Ch 7) \\
-KV per token (FP16, MHA) & 2.62 MB & {[}2°{]}{[}DERIVED{]} from the
-general KV formula, MHA case \\
+KV per token (FP16, MHA) & 2.62 MB & {[}ILLUSTRATIVE{]}{[}DERIVED{]}
+from the general KV formula at the canonical 80-layer, hidden-8192
+full-MHA teaching geometry (2×80×8192×2 B); the geometry is a
+constructed reference, not a named vendor model \\
 KV per token (FP8, raw byte-halving) & 1.31 MB &
 {[}ILLUSTRATIVE{]}{[}DERIVED{]} (exactly 50\% of BF16; block/metadata
 overhead not vendor-measured --- fill via deployment benchmark) \\
@@ -459,7 +464,8 @@ ms) \\
 Decode (TPOT) & 25 ms/token & {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]}
 author-chosen per-token decode budget \\
 Host price (8×H100, on-demand) & \textasciitilde\$20/hr &
-{[}ILLUSTRATIVE{]} dated price snapshot \\
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} dated price snapshot (2026 on-demand
+\$2.50/GPU-hr × 8; not {[}1P{]} vendor spec, not a measured figure) \\
 
 \label{tab:4.4}\end{longtable}
 
@@ -1090,9 +1096,23 @@ ceiling; Operational → multi-region vs.~single-region deployment.}
   \textbf{KV cache scaling with longer contexts}: The canonical scenario
   uses \textasciitilde9.2 K input tokens. If retrieval quality degrades
   and context lengths grow to 32 K or 128 K, the KV cache memory per
-  request grows linearly, and the single‑host FP16 architecture would no
-  longer suffice without quantization or model parallelism. The
-  breakpoint is (to be verified) and workload‑dependent.
+  request grows linearly. \textbf{Be precise about what breaks.} A
+  single 32 K canonical request costs \textasciitilde84 GB of KV, which
+  --- with the \textasciitilde140 GB weights and \textasciitilde64 GB
+  runtime/workspace --- still fits the nominal 640 GB aggregate host
+  \emph{as a single request} (\textasciitilde288 GB total, well under
+  640 GB). What fails is not one-request fit but a particular
+  \textbf{concurrency/SLO requirement}: at the canonical
+  \textasciitilde40 rps peak and \textasciitilde8.6 s service time, the
+  in-flight occupancy (\textasciitilde344 requests) demands far more
+  than one host's aggregate KV budget once per-request KV grows to 32 K
+  or 128 K (at 128 K a single request alone needs \textasciitilde335 GB
+  of KV, leaving little for any concurrency). So state the exact
+  breakpoint in terms of the \textbf{maximum concurrent requests and the
+  per-rank/aggregate feasibility}, not as ``a 32 K or 128 K context no
+  longer fits.'' The specific breakpoint is workload‑ and SLO‑dependent
+  and must be checked per‑rank (Chapters 17, 20), not asserted as a
+  universal constant.
 \item
   \textbf{Impact of reranking on latency}: The TTFT budget assumes
   retrieval (\textasciitilde120 ms) plus prefill. If a late‑stage
@@ -1129,13 +1149,21 @@ concurrency, \textasciitilde10 rps, \textasciitilde9.2 K input + 300
 output tokens --- the architect projects the enterprise's actual
 headcount. If the company has 5,000 employees and expects 10\%
 concurrent activity during peak Q\&A periods (after a policy rollout),
-the concurrency rises to 500 users. With the same \textasciitilde10 s
-\emph{planning-round} request duration (the Little's-law basis used
-above, 100 concurrent ÷ 10 s ≈ 10 rps), throughput climbs to 500 ÷ 10 ≈
-\textbf{50 rps}. Using the canonical per-host bound from Chapters 15--20
-(a single 8×H100 host serves \textasciitilde2.0 req/s at full modeled
-utilization, i.e.~C/W ≈ 17.5 KV-resident requests ÷ 8.6 s), the fleet
-rounds to:
+that gives \textbf{500 active people} --- a \emph{population} measure,
+\textbf{not} 500 requests currently occupying the inference service. An
+arrival rate requires its own traffic assumption or observation. Suppose
+user research and demand modeling independently set the busy-period peak
+to \textbf{50 requests/s} (a declared scenario input at this growth
+scale, not a figure derived from the 500-user count --- Little's Law
+cannot convert an active-user population into an arrival rate without
+knowing in-flight request occupancy). With the illustrative
+\textasciitilde8.6 s engine response duration, Little's Law implies
+approximately 50 × 8.6 ≈ \textbf{430 requests in the system} across the
+fleet at that rate --- distinct from the 500 active people. It is the
+\emph{arrival rate}, not the user count, that sizes the fleet. Using the
+canonical per-host bound from Chapters 15--20 (a single 8×H100 host
+serves \textasciitilde2.0 req/s at full modeled utilization, i.e.~C/W ≈
+17.5 KV-resident requests ÷ 8.6 s), the fleet rounds to:
 
 \[
 n_\text{hosts} = \frac{50 \text{ rps}}{2.0 \text{ req/s/host}} \approx 25 \text{ hosts} \quad (\text{full utilization})

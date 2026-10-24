@@ -202,8 +202,8 @@ attention term that grows dominant at long context, matching \hyperref[chap:8]{C
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so the K/V tiles stream through on-chip memory once and the result is accumulated in place --- few HBM round-trips. The attention result is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim.)},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1502.png}}
-\caption[FlashAttention: the same math, far less HBM traffic]{FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so the K/V tiles stream through on-chip memory once and the result is accumulated in place --- few HBM round-trips. The attention \emph{result} is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim.)}
+\pandocbounded{\includegraphics[keepaspectratio,alt={FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so each K/V tile is read into on-chip memory once for that tile and the result is accumulated in place --- far fewer HBM round-trips. Scope of the ``read once'' claim: the tile-level on-chip reuse is per-tile; it is not a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size --- see the original I/O analysis in the FlashAttention papers). The attention result is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim. I/O bound: Tri Dao et al., ``FlashAttention,'' NeurIPS 2022, arXiv:2205.14135.)},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1502.pdf}}
+\caption[FlashAttention: the same math, far less HBM traffic]{FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so each K/V tile is read into on-chip memory once \emph{for that tile} and the result is accumulated in place --- far fewer HBM round-trips. \textbf{Scope of the ``read once'' claim:} the tile-level on-chip reuse is per-tile; it is \emph{not} a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size --- see the original I/O analysis in the FlashAttention papers). The attention \emph{result} is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim. I/O bound: Tri Dao et al., ``FlashAttention,'' NeurIPS 2022, arXiv:2205.14135.)}
 
 \label{fig:15.1}\end{figure}
 
@@ -242,15 +242,27 @@ sizes (1, 4, 16, 32) reveals the throughput‑latency knee. The
 the target stack, not vendor or published figures: beyond batch‑4 the
 p95 latency typically rises (implying a knee near batch 4) because
 kernel launch overhead is amortized but inter‑request token interleaving
-increases cache thrashing; FlashAttention‑2 shows roughly 150\,GB/s
-sustained for 9,500‑token contexts vs \textasciitilde400\,GB/s for SDPA
-(an HBM-traffic reduction, not a measured FLOP change), pointing to the
-memory‑bound nature of long‑context inference; and a 70B cold‑start KV
-warm‑up on 8×H100 is on the order of \textasciitilde2 s, with warm
-starts (reusing cached weights) an order of magnitude faster
-(\textasciitilde0.3\,s), showing cache residency is a first‑order
-latency factor independent of compute throughput. {[}ILLUSTRATIVE ---
-set these from the target host's profiler before quoting them as fact{]}
+increases cache thrashing. \textbf{On the FlashAttention ``traffic
+reduction'' claim, be precise about the units:} one often sees a
+FlashAttention‑class kernel reported at a \emph{different achieved HBM
+bandwidth} than a naive SDPA kernel (illustratively
+\textasciitilde150\,GB/s vs \textasciitilde400 GB/s for 9,500‑token
+contexts). That is a \emph{rate}, not a byte count. A bandwidth figure
+alone does not establish that fewer \emph{bytes/request} were
+transferred --- it only shows the kernel's achieved memory throughput.
+To claim a traffic reduction, compare the \textbf{bytes transferred per
+request} (or read/write transaction counters) under a \emph{matched}
+workload; the FlashAttention advantage shows up there as fewer
+materialized/intermediate bytes, not as a low raw bandwidth. \textbf{And
+separate the two cache concepts}: ``cold‑start KV warm‑up'' (populating
+the KV-cache blocks for a new context) is different from ``model‑weight
+loading'' (streaming the 140\,GB weights into HBM) and from CUDA/JIT
+kernel warm‑up. A 70B cold‑start that reuses cached weights is far
+faster than one that must load them from scratch --- but these are
+distinct effects, not one number. Set these illustrative figures from
+the target host's profiler before quoting them as fact. {[}ILLUSTRATIVE
+--- set these from the target host's profiler before quoting them as
+fact{]}
 
 \subsubsection{Goodput vs.~Batch Size: the Cache
 Lever}\label{goodput-vs.-batch-size-the-cache-lever}
@@ -427,30 +439,42 @@ eviction, compression, or a concurrency cap, even \textasciitilde17.5
 concurrent \emph{requests} would exhaust the host's canonical practical
 KV budget (\textasciitilde436 GB after weights + runtime), so 100
 concurrent full-context users require either multiple hosts, much
-shorter contexts, or KV compression (FP8/8-bit). Designers should
-implement length‑based eviction (drop the oldest/least‑recently‑used
-contexts) and KV quantization to cut the footprint (FP8 ≈2.62 →
-\textasciitilde1.31 MB/token --- exactly 50\% of BF16 by raw tensor
-byte-halving, the same FP8 constant used with §9 and Ch 7; vLLM's cited
-54\% {[}S6{]} is a decode inter-token-latency slope, a latency metric,
-not a memory ratio, and any allocator block/metadata overhead is not
-vendor-measured). \emph{Using scaled‑dot‑product attention without
-FlashAttention:} For long contexts (9,200+ tokens) the quadratic memory
-cost of SDPA (O(L²)) dominates the FLOP cost. FlashAttention fuses
-read‑write‑compute and reduces HBM traffic by \textasciitilde3--5×,
-raising effective arithmetic intensity. This is one of the
-highest-impact \emph{kernel-level} choices (it sits among prefix
-caching, KV-precision, batching, and P/D disaggregation as a major
-lever, not the single deciding one), and it pays off specifically when
-memory-bound; for moderate lengths (2,000--4,000 tokens) the HBM
-bandwidth reduction typically translates to a \textasciitilde1.3--1.8×
-throughput gain on H100 (illustrative --- bench the specific kernel on
-the target hardware). \emph{Neglecting kernel launch overhead:} In
-dynamic‑batching setups, each new token generation can trigger a kernel
-launch. Without continuous batching or token‑level fusion, the
-kernel-launch overhead (illustratively \textasciitilde10--20\,\% of GPU
-time on H100-class parts at this traffic) can artificially depress
-measured MFU.
+shorter contexts, or KV compression (FP8/8-bit). \textbf{But be precise
+about what ``evicting'' a context means, because it is not one action.}
+Three distinct mechanisms: (a) \emph{evicting an idle/inactive
+prefix-cache entry} (a cached prefix not currently in service) --- safe,
+because no active request depends on it and it can be recomputed on
+reuse; (b) \emph{offloading or recomputing the KV of an active request}
+whose context is still being generated --- this changes nothing about
+semantics but costs recompute or a transfer when the request resumes;
+and (c) \emph{deliberate sliding-window or context-truncation
+strategies} that drop older tokens of an \emph{active} request's context
+--- this \textbf{changes the model's effective context} (it alters what
+the attention can attend to) and is a semantics change, not merely a
+memory optimization. LRU of inactive cached prefixes is different from
+truncating active KV. Do not conflate them. \textbf{KV quantization} is
+a separate, orthogonal lever that cuts the per-token footprint without
+changing semantics (FP8 ≈2.62 → \textasciitilde1.31 MB/token --- exactly
+50\% of BF16 by raw tensor byte-halving, the same FP8 constant used with
+§9 and Ch 7; vLLM's cited 54\% {[}S6{]} is a decode inter-token-latency
+slope, a latency metric, not a memory ratio, and any allocator
+block/metadata overhead is not vendor-measured). \emph{Using
+scaled‑dot‑product attention without FlashAttention:} For long contexts
+(9,200+ tokens) the quadratic memory cost of SDPA (O(L²)) dominates the
+FLOP cost. FlashAttention fuses read‑write‑compute and reduces HBM
+traffic by \textasciitilde3--5×, raising effective arithmetic intensity.
+This is one of the highest-impact \emph{kernel-level} choices (it sits
+among prefix caching, KV-precision, batching, and P/D disaggregation as
+a major lever, not the single deciding one), and it pays off
+specifically when memory-bound; for moderate lengths (2,000--4,000
+tokens) the HBM bandwidth reduction typically translates to a
+\textasciitilde1.3--1.8× throughput gain on H100 (illustrative --- bench
+the specific kernel on the target hardware). \emph{Neglecting kernel
+launch overhead:} In dynamic‑batching setups, each new token generation
+can trigger a kernel launch. Without continuous batching or token‑level
+fusion, the kernel-launch overhead (illustratively
+\textasciitilde10--20\,\% of GPU time on H100-class parts at this
+traffic) can artificially depress measured MFU.
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
 
