@@ -64,5 +64,5 @@ ax.text(5.9, y-0.35, 'From a single model to a whole system \u2014 the spine of 
 
 plt.tight_layout()
 out = 'design/manuscript/chapter-27/figures/fig-27-2703.png'
-plt.savefig(out, dpi=200, bbox_inches='tight', pad_inches=0.08)
+plt.savefig(out, dpi=400, bbox_inches='tight', pad_inches=0.08)
 print('wrote A.3 vertical timeline')

@@ -18,6 +18,12 @@ Two panels, same attention computation:
            softmax is computed online and the attention result accumulated in
            on-chip memory -> the large intermediate never leaves the chip.
 
+SCOPE of the "read once" claim (added per review): the on-chip reuse is
+PER-TILE / per Q-block, NOT a guarantee that every K/V element is read exactly
+once globally across all query blocks.  I/O-optimal tiling reduces HBM
+transfers; it does not promise a single global K/V pass.  The figure text now
+states this explicitly.
+
 Consistent visual grammar: compute = blue, HBM = orange, on-chip = lighter blue,
 HBM traffic arrows = orange dashed (reduced in AFTER).
 
@@ -33,20 +39,23 @@ from matplotlib.font_manager import FontProperties
 BOLD = FontProperties(weight='bold')
 FS = 12.0
 W = 6.1 * 72
-Ht = 5.4 * 72
+Ht = 6.2 * 72          # taller than 5.4in so the below-panel annotations stack
+                        # without colliding with the green takeaway banner.
 
 def tw(s, fs=FS):
     return TextPath((0, 0), s, size=fs, prop=BOLD).get_extents().width
 
-fig, ax = plt.subplots(figsize=(6.1, 5.4))
+fig, ax = plt.subplots(figsize=(6.1, 6.2))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow (already 6.1in column)
 ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
 
 C_COMP='#27408b'; C_ONCHIP='#5b8ec9'; C_HBM='#e67e22'; C_TRAFFIC='#c0392b'
-C_TXT='#333'; C_TRAFFIC_LT='#e8a9a0'
+C_TXT='#333'; C_TRAFFIC_LT='#e8a9a0'; C_OK='#2f6f4f'; C_NOTE='#4a4a4a'
 
-def label(cx, cy, text, color=C_TXT, fs=FS-0.4, ha='center', weight='normal', style='normal'):
-    ax.text(cx, cy, text, ha=ha, va='center', fontsize=fs, color=color, fontweight=weight, style=style)
+def label(cx, cy, text, color=C_TXT, fs=FS-0.4, ha='center', weight='normal',
+          style='normal', va='center'):
+    ax.text(cx, cy, text, ha=ha, va=va, fontsize=fs, color=color,
+            fontweight=weight, style=style)
 
 label(W/2, Ht-10, 'FlashAttention: the same math, far less HBM traffic',
       '#1a1a1a', FS+1.0, weight='bold')
@@ -57,10 +66,11 @@ p1x0, p1x1 = 16, 16+pw
 p2x0, p2x1 = p1x1+20, W-16
 panel_top = Ht-34
 panel_h = 300
+panel_bottom = panel_top - panel_h
 
 def draw_panel(x0, x1, title, subtitle, flash):
     # panel box
-    ax.add_patch(FancyBboxPatch((x0, panel_top-panel_h), (x1-x0), panel_h,
+    ax.add_patch(FancyBboxPatch((x0, panel_bottom), (x1-x0), panel_h,
                   boxstyle='round,pad=0.02,rounding_size=2',
                   fc='#f7f7f7', ec='#ccc', lw=1.0, clip_on=False))
     label((x0+x1)/2, panel_top-12, title, '#1a1a1a', FS, weight='bold')
@@ -85,13 +95,14 @@ def draw_panel(x0, x1, title, subtitle, flash):
     n_arrows = 7 if not flash else 2
     lw = 1.4 if not flash else 1.1
     # arrows span only the RIGHT portion of the blocks, leaving a clear LEFT gutter
-    # for the round-trips + Q/K/V labels (so no shaft ever crosses them)
-    gutter = 70
+    # for the round-trips + Q/K/V labels (so no shaft ever crosses them). gutter
+    # is sized so the first shaft sits clear of the widest 'round-trips' text.
+    gutter = 92
     span_left = cb_cx - (cbw/2) + gutter
     span_right = cb_cx + (cbw/2) - 12
     # colour matches the panel's message: red = many round-trips (problem),
     # green = few round-trips (fix) — so arrow colour and label colour agree.
-    color = C_TRAFFIC if not flash else '#2f6f4f'
+    color = C_TRAFFIC if not flash else C_OK
     for i in range(n_arrows):
         axx = span_left + i*(span_right-span_left)/max(n_arrows-1, 1)
         ax.annotate('', xy=(axx, hb_cy+hbh/2), xytext=(axx, cb_cy-cbh/2),
@@ -102,27 +113,38 @@ def draw_panel(x0, x1, title, subtitle, flash):
     # and never crosses the panel's left border / the inter-panel gutter.
     label(x0+8, (cb_cy+hb_cy)/2,
           ('many HBM\nround-trips' if not flash else 'few HBM\nround-trips'),
-          C_TRAFFIC if not flash else '#2f6f4f', FS-1.0, weight='bold', ha='left')
-    # Q/K/V note in the clear LEFT gutter beside HBM (white on the orange HBM box
-    # for contrast — the earlier brown-on-orange was low-contrast)
-    label(x0+8, hb_cy, 'Q/K/V', '#fff', FS-1.2, style='italic', weight='bold', ha='left')
-    # caption of traffic reduction — placed clearly BELOW the panel's bottom edge
+          C_TRAFFIC if not flash else C_OK, FS-1.0, weight='bold', ha='left')
+    # Q/K/V note set fully ON the orange HBM box (white for contrast), anchored
+    # inside the box's left edge so the leading 'Q' is never clipped by the box
+    # or panel border.
+    label(x0+18, hb_cy, 'Q/K/V', '#fff', FS-1.2, style='italic', weight='bold', ha='left')
+    # caption of traffic reduction — BELOW the panel bottom edge (own vertical
+    # band; the takeaway banner sits lower still, so the two never intersect).
     if not flash:
-        cap = ('O(L²) HBM traffic:\nevery query re-reads\nthe row-block')
+        cap = ('O(L²) HBM traffic:\nevery query re-reads\nthe K/V row-block')
     else:
-        cap = ('O(L) memory (no L×L\nintermediate); HBM traffic\nreduced by SRAM size')
-    label((x0+x1)/2, panel_top-panel_h-30, cap,
-          C_TRAFFIC if not flash else '#2f6f4f', FS-1.1)
+        cap = ('K/V reused per tile —\nno single global K/V pass;\nno L×L intermediate at HBM')
+    label((x0+x1)/2, panel_bottom-8, cap,
+          C_TRAFFIC if not flash else C_OK, FS-1.2, va='top')
 
 draw_panel(p1x0, p1x1, 'BEFORE: naive / SDPA', 'intermediate written to HBM', False)
-draw_panel(p2x0, p2x1, 'AFTER: FlashAttention', 'tiled, stays on-chip', True)
+draw_panel(p2x0, p2x1, 'AFTER: FlashAttention', 'per-tile reuse, stays on-chip', True)
 
-# divider + takeaway banner
-banner_y = panel_top-panel_h-58
+# divider + takeaway banner (its own band, with a clear gap above and below)
+banner_y = panel_bottom - 58
 label(W/2, banner_y, 'same Q·Kᵀ·V math and same result —\nthe gain is fewer HBM round-trips, not cheaper attention',
-      '#2f6f4f', FS-0.2, weight='bold')
+      C_OK, FS-0.2, weight='bold', va='top')
+
+# scope footnote: qualify the 'read once' claim + cite the I/O bound.
+label(W/2, banner_y - 34,
+      'K/V on-chip reuse is per-tile (per Q-block), not a single global K/V pass.\n'
+      'I/O bound: FlashAttention — Tri Dao et al., arXiv:2205.14135.',
+      C_NOTE, FS-4.4, style='italic', va='top')
 
 plt.tight_layout(pad=0.2)
-plt.savefig('design/manuscript/chapter-15/figures/fig-15-1502.png', dpi=200)
+plt.savefig('design/manuscript/chapter-15/figures/fig-15-1502.png', dpi=400)
+import matplotlib as _mpl
+with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-15/figures/fig-15-1502.pdf', format='pdf', bbox_inches='tight')
 plt.close()
-print('wrote fig-15-1502 (FlashAttention before/after)')
+print('wrote fig-15-1502 (FlashAttention before/after) — PNG + PDF')

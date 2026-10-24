@@ -48,7 +48,7 @@ ax.text(20.9, 2.775, 'deployed', fontsize=8.5, color='#2f6f4f', fontweight='bold
 ax.text(11.0, 1.1, 'filter narrows the candidates (capability first), then survivors are\nmeasured on the real workload against the SLO gate.  [ILLUSTRATIVE][DERIVED]',
         fontsize=7.5, ha='center', color='#666')
 plt.tight_layout(pad=0.2)
-plt.savefig('design/manuscript/chapter-14/figures/fig-14-1401.png', dpi=200)
+plt.savefig('design/manuscript/chapter-14/figures/fig-14-1401.png', dpi=400)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-14/figures/fig-14-1401.pdf', format='pdf')

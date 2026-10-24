@@ -90,7 +90,7 @@ ax.text(W/2, fy - 40,
         'GLM-5.3-Flash: arXiv 2602.15763 (HF zai-org). Not yet independently verified.',
         fontsize=FS_R-0.8, ha='center', va='center', color='#777', fontstyle='italic')
 
-plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png', dpi=200)
+plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png', dpi=400)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.pdf', format='pdf')

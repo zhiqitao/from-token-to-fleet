@@ -22,11 +22,11 @@ C_fp16 = kv / kv_fp16_req          # ~17.51 -> integer floor 17
 
 fig, ax = plt.subplots(figsize=(6.1, 3.9))
 fig._hermes_print_sized = True
-ax.set_xlim(0, 10); ax.set_ylim(0, 6.6); ax.axis('off')
+ax.set_xlim(0, 10.9); ax.set_ylim(0, 6.6); ax.axis('off')
 ax.set_position((0, 0, 1, 1))
 
 # ---- title (short; explanation lives in the caption) ----
-ax.text(5.0, 6.28, 'Concurrency budget — one 8×H100 host',
+ax.text(5.45, 6.28, 'Concurrency budget — one 8×H100 host',
         fontsize=11.0, fontweight='bold', ha='center', va='center', color='#1a1a1a')
 
 # ---- region-band budget bar (0..640 GB mapped across the width) ----
@@ -68,12 +68,14 @@ ax.text(gb_to_x(total), bar_y + bar_h + 0.34, '640 GB pool', ha='right', va='cen
 
 # ---- the DOMINANT budget equation (large, centered) ----
 eq_y = 2.72
-ax.text(5.0, eq_y, 'in-flight  ≈  KV budget  ÷  KV per request',
+ax.text(5.45, eq_y, 'in-flight  ≈  KV budget  ÷  KV per request',
         fontsize=10.5, ha='center', va='center', color='#333333')
-ax.text(5.0, eq_y - 0.85,
+ax.text(5.45, eq_y - 0.85,
         f'≈  {kv:.0f} GB  ÷  {kv_fp16_req:.1f} GB  ≈  {C_fp16:.1f}   →   ~{int(C_fp16)} requests',
         fontsize=13.0, fontweight='bold', ha='center', va='center', color='#27408b')
 
-plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.png', dpi=150)
+plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.png', dpi=350)
+with matplotlib.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.pdf', format='pdf')
 plt.close()
 print('wrote fig-07-0704')

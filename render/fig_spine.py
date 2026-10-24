@@ -86,7 +86,7 @@ ax.text(x_left-1.2, (y_validate_mid+y_design_mid)/2, 're-derive', ha='right', va
 
 plt.tight_layout()
 plt.savefig('render/latex/assets/spine-decision-loop.png',
-            dpi=200, bbox_inches='tight', pad_inches=0.08)
+            dpi=400, bbox_inches='tight', pad_inches=0.08)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('render/latex/assets/spine-decision-loop.pdf', format='pdf',

@@ -78,7 +78,7 @@ ax.set_xlim(0, 6.2)
 ax.grid(alpha=0.2, axis='y')
 ax.tick_params(labelsize=9)
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-06/figures/fig-06-0602.png', dpi=150)
+plt.savefig('design/manuscript/chapter-06/figures/fig-06-0602.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-06/figures/fig-06-0602.pdf', format='pdf')

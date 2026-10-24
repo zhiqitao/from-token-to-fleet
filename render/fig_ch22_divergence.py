@@ -57,17 +57,18 @@ ax1.grid(alpha=0.3, which='both')
 ax1.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
 # Crossover: equality of linear (2*N*L) and quadratic (4*nl*L^2*d) terms:
 #   L* = N / (2*nl*d) = 70e9 / (2*80*8192) = 53,406 tokens  (P0-03 fix).
+# ONE concise arrow annotation at the crossover; the full explanation (incl. the
+# 9.2K / 32K / 128K ratios) lives in the figure caption, so the label stays short.
+# The label sits low in the clear lower-right whitespace (far below every curve),
+# left-anchored inward so it never clips the panel edge, and a short near-vertical
+# leader arrow points up to the crossover point, so the shaft stays clear of the
+# red/purple curves and of the orange total line and its band.
 Lstar = N / (2 * nl * d)
-ax1.annotate('quadratic overtakes linear\nat ~%.0fK' % (Lstar/1e3),
+ax1.annotate('quadratic overtakes\nlinear at ~%.0fK' % (Lstar/1e3),
              xy=(Lstar/1e3, (2*N*Lstar)/1e15),
-             xytext=(2.0, 2.2), fontsize=10.5, color='#8e44ad', fontweight='bold',
-             ha='left', va='bottom',
-             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#8e44ad'))
-# the 32K point is significant but NOT yet dominant (~60% of linear)
-ax1.annotate('32K: quadratic ~60% of linear\n'
-             '(not yet dominant)', xy=(32, (4*nl*(32e3**2)*d)/1e15),
-             xytext=(5.5, 0.5), fontsize=8.0, color='#8e44ad', ha='left', va='bottom',
-             arrowprops=dict(arrowstyle='->', lw=0.8, color='#8e44ad'))
+             xytext=(62.0, 0.6), fontsize=8.8, color='#8e44ad', fontweight='bold',
+             ha='right', va='center',
+             arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#8e44ad'))
 # canonical 9.2K point (Figure caption footnote refers to it)
 ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=26)
 
@@ -84,15 +85,15 @@ ax2.yaxis.set_major_formatter(FuncFormatter(_logfmt))  # "10^e" at full tick siz
 ax2.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax2.grid(alpha=0.3, which='both')
 ax2.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
-ax2.text(0.82, 2.6e-5, '\u2248 1.4e-4 PFLOP/token\n(2\u00b7N parameter term, flat;\nNOT the full decode cost —\nfull decode adds KV attention,\nwhich grows with context)',
-         fontsize=8.6, color='#27408b', fontweight='bold', va='center', ha='left')
+ax2.text(0.83, 3.2e-5, '2·N only — full decode\nadds KV attention',
+         fontsize=7.8, color='#27408b', fontweight='bold', va='center', ha='left')
 
 fig.text(0.5, 0.975, 'LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN',
          ha='center', va='top', fontsize=10, fontweight='bold', color='#7a0000',
          bbox=dict(boxstyle='round,pad=0.40', facecolor='#fff2f2', edgecolor='#c0392b', lw=2.0))
 
 plt.subplots_adjust(left=0.12, right=0.97, top=0.80, bottom=0.10, wspace=0.30)
-plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.png', dpi=150)
+plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.pdf', format='pdf')

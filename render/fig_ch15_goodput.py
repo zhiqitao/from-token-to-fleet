@@ -66,7 +66,7 @@ axb.text(0.99, 0.03, '[ILLUSTRATIVE]', transform=axb.transAxes, fontsize=8.0, co
 fig.suptitle('Prefix caching vs batching: two independent effects', fontsize=10.5, fontweight='bold')
 plt.tight_layout(rect=(0, 0, 1, 0.91))
 plt.savefig('design/manuscript/chapter-15/figures/fig-15-1501.png',
-            dpi=200, bbox_inches='tight', pad_inches=0.05)
+            dpi=400, bbox_inches='tight', pad_inches=0.05)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-15/figures/fig-15-1501.pdf', format='pdf')

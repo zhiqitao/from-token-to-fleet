@@ -95,7 +95,7 @@ ax.text(5.0, 0.35,
         ha='center', va='center', fontsize=8.0, color='#666')
 
 out = 'design/manuscript/chapter-13/figures/fig-13-1301.png'
-plt.savefig(out, dpi=170)
+plt.savefig(out, dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig(out[:-4] + '.pdf', format='pdf')

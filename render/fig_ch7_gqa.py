@@ -68,6 +68,6 @@ ax.text(5.0, 1.62, '8 query heads : 1 K/V head  (× 8 groups)',
         fontsize=8.8, ha='center', va='center', color='#333333',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f5f5f5', ec='#b9b9b9', lw=0.8))
 
-plt.savefig('design/manuscript/chapter-07/figures/fig-07-0703.png', dpi=150)
+plt.savefig('design/manuscript/chapter-07/figures/fig-07-0703.png', dpi=350)
 plt.close()
 print('wrote fig-07-0703')

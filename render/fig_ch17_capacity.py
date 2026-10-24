@@ -39,8 +39,13 @@ ax.plot(t, offered, color='#c0392b', lw=2.0, label='offered load (burst)')
 
 # Reference lines.
 ax.axhline(host_cap, color='#8a8a8a', ls='--', lw=1.4)
-ax.text(9.5, host_cap-0.22, 'one host\n~2.0 req/s', fontsize=8, color='#666',
-        ha='right', va='top')
+# Single-line direct label for the one-host bound, placed ABOVE the dashed
+# y=2 line at the RIGHT end of the axes, where the red burst curve has already
+# dropped away (t ends at x=10) -- so nothing crowds it and it sits fully inside
+# the axes. The old two-line form (va='top' at y=1.78) pushed its second line
+# BELOW the y=0 axis line and into the tick row: the base-region collision.
+ax.text(11.3, host_cap+0.30, 'one host ~2.0 req/s', fontsize=8, color='#666',
+        ha='right', va='bottom')
 ax.axhline(N1res, color='#e67e22', ls=':', lw=2.0)
 ax.text(0.9, N1res+0.20, 'N-1 residual (~6.0, 1 host drains)', fontsize=8,
         color='#b5590a', ha='left', fontweight='bold')
@@ -48,17 +53,19 @@ ax.axhline(N4, color='#3a6ea5', lw=1.8)
 ax.text(0.9, N4+0.20, 'N = 4 fleet capacity (~8.0)', fontsize=8, color='#27408b',
         ha='left', fontweight='bold')
 
-# Call-outs in clear whitespace. The burst label + pointer sit BELOW the
-# orange dotted N-1 line (y=6) and LEFT of the grey failover brace (x=9.7) so
-# neither crosses them; the pointer runs up to the peak from below. va='bottom'
-# keeps the text top clearly under y=6 and clear of the 'N-1 residual' label.
+# Burst-peak call-out. The old label (xytext=(4.5,4.4), ha='left') was ~3 units
+# wide and sat exactly where the hump rises, so the CURVE ran straight through
+# the text and its leader. Moved ABOVE the hump into the empty band between the
+# N-1 line (y=6) and the 'N = 4 capacity' label -- clear of the curve, of the
+# 'N-1 residual' label (which ends at x~5.4) and of the headroom/failover
+# labels (x >= 10) -- with a short leader dropping to the apex.
 ax.annotate('burst peak ~5.5 req/s',
-            xy=(6.3, peak), xytext=(4.5, 4.4),
-            fontsize=8, color='#c0392b', ha='left', va='bottom',
+            xy=(6.3, peak), xytext=(6.4, 6.85),
+            fontsize=8, color='#c0392b', ha='left', va='center',
             fontweight='bold',
-            arrowprops=dict(arrowstyle='->', color='#c0392b'))
-# Single-host note moved to the lower-left, pointing at the curve where the
-# one-host bound (~2.0) first falls far below the rising burst.
+            arrowprops=dict(arrowstyle='->', color='#c0392b', lw=1.2))
+# Single-host note in the lower-left, pointing at the curve where the one-host
+# bound (~2.0) first falls far below the rising burst.
 ax.annotate('one host cannot meet\nthe burst on its own',
             xy=(3.4, host_cap+0.05), xytext=(0.7, 2.75),
             fontsize=8, color='#555', ha='left', va='bottom',
@@ -103,9 +110,10 @@ ax.legend(handles=[Line2D([], [], color='#c0392b', lw=2),
                    Line2D([], [], color='#e67e22', ls=':', lw=2)],
           labels=['offered load (burst)', 'one host bound (~2.0)',
                   'N = 4 fleet capacity (~8.0)', 'N-1 residual (1 host drains)'],
-          fontsize=8.0, loc='lower center', bbox_to_anchor=(0.5, -0.52), ncol=2, frameon=False)
+          fontsize=8.0, loc='upper center', bbox_to_anchor=(0.5, -0.42),
+          ncol=2, frameon=False)
 plt.tight_layout(rect=(0, 0, 1, 0.93))
-plt.savefig('design/manuscript/chapter-17/figures/fig-17-1701.png', dpi=200,
+plt.savefig('design/manuscript/chapter-17/figures/fig-17-1701.png', dpi=400,
             bbox_inches='tight', pad_inches=0.05)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):

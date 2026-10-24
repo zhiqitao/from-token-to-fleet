@@ -58,6 +58,6 @@ ax.annotate('', xy=(0.80, 0.06), xytext=(0.80, 0.175),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#333'))
 
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-11/figures/fig-11-1103.png', dpi=150)
+plt.savefig('design/manuscript/chapter-11/figures/fig-11-1103.png', dpi=350)
 plt.close()
 print('fig-11-1103 done')

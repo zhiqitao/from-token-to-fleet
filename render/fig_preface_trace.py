@@ -79,7 +79,7 @@ ax.text(RX0 + RW/2, 0.62, 'each question → the chapter that answers it', fonts
         ha='center', color='#555', style='italic')
 
 plt.tight_layout()
-plt.savefig('render/latex/assets/preface-trace.png', dpi=200, bbox_inches='tight')
+plt.savefig('render/latex/assets/preface-trace.png', dpi=400, bbox_inches='tight')
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('render/latex/assets/preface-trace.pdf', format='pdf', bbox_inches='tight')

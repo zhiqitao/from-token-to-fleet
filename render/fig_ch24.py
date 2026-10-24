@@ -83,7 +83,7 @@ ax.text(13.5, 2.3, 'loop: findings from Green Team → next Red Team cycle (stro
         fontsize=9, ha='center', color='#a83232', fontweight='bold')
 
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-24/figures/fig-24-2401.png', dpi=200)
+plt.savefig('design/manuscript/chapter-24/figures/fig-24-2401.png', dpi=400)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-24/figures/fig-24-2401.pdf', format='pdf')

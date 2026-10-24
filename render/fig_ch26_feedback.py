@@ -28,18 +28,26 @@ def stage_text(x, y, lines, big, body_fs=8.2):
     ax.text(tx, ty - 0.55, '\n'.join(lines[1:]), ha='left', va='top', color='white',
             fontsize=body_fs, linespacing=1.4)
 
+
+def stage_text_small(x, y, lines, big, body_fs=7.6):
+    # variant for boxes whose footer is longer; uses a slightly smaller body font
+    tx = x + 0.5; ty = y + 2.0
+    ax.text(tx, ty, lines[0], ha='left', va='top', color='white', fontsize=big, fontweight='bold')
+    ax.text(tx, ty - 0.55, '\n'.join(lines[1:]), ha='left', va='top', color='white',
+            fontsize=body_fs, linespacing=1.45)
+
 BW = 7.4
 # Top row: FACT (left) -> DERIVED (right)
 box(0.8, 7.4, BW, 2.5, '#2980b9')
 stage_text(0.8, 7.4, ['1 · FACT',
                       'request rate ~2 rps',
                       'utilization 45%',
-                      'TTFT 320 ms'], big=9.8)
+                      'baseline TTFT p99 450 ms'], big=9.8)
 box(11.8, 7.4, BW, 2.5, '#16a085')
-stage_text(11.8, 7.4, ['2 · DERIVED',
-                       'sharding \u21d2',
-                       'decode bandwidth-bound',
-                       'TTFT p99 210 ms'], big=9.8)
+stage_text_small(11.8, 7.4, ['2 · DERIVED',
+                            'sharding \u21d2',
+                            'decode bandwidth-bound',
+                            'TTFT mean 180 · p99 250 ms'], big=9.8)
 
 # Bottom row: PATTERN (right, below DERIVED) so the flow turns clockwise
 box(11.8, 1.0, BW, 2.5, '#c0392b')
@@ -72,7 +80,7 @@ ax.text(3.9, 5.4, 'feedback', fontsize=8.5, ha='right', va='center', color='#a83
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-26/figures/fig-26-2601.png',
-            dpi=200, bbox_inches='tight', pad_inches=0.08)
+            dpi=400, bbox_inches='tight', pad_inches=0.08)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-26/figures/fig-26-2601.pdf', format='pdf', bbox_inches='tight')

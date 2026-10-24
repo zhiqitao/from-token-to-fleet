@@ -80,7 +80,7 @@ ax.text(bx + bw / 2, 0.165, '(a) \u00b7 (c)', ha='center', va='center',
         fontsize=8.4, color='#7b241c', fontweight='bold', zorder=3)
 
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-12/figures/fig-12-1201.png', dpi=150)
+plt.savefig('design/manuscript/chapter-12/figures/fig-12-1201.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-12/figures/fig-12-1201.pdf', format='pdf')

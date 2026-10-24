@@ -87,7 +87,7 @@ fig.text(0.11, 0.012,
          fontsize=8.2, color='#555', ha='left', va='bottom')
 
 plt.subplots_adjust(left=0.13, right=0.97, top=0.90, bottom=0.30)
-plt.savefig('design/manuscript/chapter-16/figures/fig-16-1601.png', dpi=150)
+plt.savefig('design/manuscript/chapter-16/figures/fig-16-1601.png', dpi=350)
 import matplotlib as _mpl
 with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-16/figures/fig-16-1601.pdf', format='pdf')

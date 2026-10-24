@@ -157,7 +157,7 @@ for _t in ax.texts:
               'x=[%.1f,%.1f]' % (_bb.x0, _bb.x1), 'col x=[%.1f,%.1f]' % (_axbb.x0, _axbb.x1))
 
 out_png = 'design/manuscript/chapter-10/figures/fig-10-1001.png'
-fig.savefig(out_png, dpi=200)
+fig.savefig(out_png, dpi=400)
 with matplotlib.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     fig.savefig('design/manuscript/chapter-10/figures/fig-10-1001.pdf', format='pdf')
 plt.close()

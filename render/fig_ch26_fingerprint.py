@@ -41,7 +41,7 @@ ax.grid(axis='y', alpha=0.3)
 ax.text(0.98, -0.13, 'per-axis 0-1 scale; compare within an axis, not across axes.', transform=ax.transAxes,
         fontsize=8.0, color='#555', va='top', ha='right')
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=170)
+plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.pdf', format='pdf')

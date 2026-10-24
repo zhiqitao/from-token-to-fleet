@@ -73,6 +73,6 @@ ax.text(x0+w+2.45, gap_mid,
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-25/figures/fig-25-2501.png',
-            dpi=200, bbox_inches='tight', pad_inches=0.08)
+            dpi=400, bbox_inches='tight', pad_inches=0.08)
 plt.close()
 print('wrote fig-25-2501 (ADR anatomy + supersession, full-height)')

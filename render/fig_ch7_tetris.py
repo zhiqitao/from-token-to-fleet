@@ -70,7 +70,7 @@ ax.text(0.2, -150, 'The baseline (weights + runtime) is fixed; only the KV cache
         fontsize=8.4, color='#555', zorder=8)
 
 fig.subplots_adjust(top=0.90, bottom=0.02, left=0.05, right=0.97)
-plt.savefig('design/manuscript/chapter-07/figures/fig-07-0705.png', dpi=150, bbox_inches='tight', pad_inches=0.05)
+plt.savefig('design/manuscript/chapter-07/figures/fig-07-0705.png', dpi=350, bbox_inches='tight', pad_inches=0.05)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-07/figures/fig-07-0705.pdf', format='pdf')

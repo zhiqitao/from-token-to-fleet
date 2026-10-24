@@ -109,6 +109,6 @@ label(gx-42, (gy0+gy1)/2, 'capacity grows\nspeed drops\ndistance grows', C_TEN, 
 label(W/2, 10, 'not every component shown — the gradient makes compute, bandwidth,\ncapacity and interconnect distinct constraints', '#555', FS-0.6)
 
 plt.tight_layout(pad=0.2)
-plt.savefig('design/manuscript/chapter-08/figures/fig-08-0802.png', dpi=200)
+plt.savefig('design/manuscript/chapter-08/figures/fig-08-0802.png', dpi=400)
 plt.close()
 print('wrote fig-08-0802')

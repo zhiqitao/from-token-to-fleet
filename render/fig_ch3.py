@@ -94,6 +94,6 @@ for axx in axes:
              ha='center', va='center', fontsize=8.0, color='#7a1f1f', style='italic')
 
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-03/figures/fig-03-0301.png', dpi=170)
+plt.savefig('design/manuscript/chapter-03/figures/fig-03-0301.png', dpi=350)
 plt.close()
 print('wrote fig-03-0301 (aligned dual panel; consistent resident/active channel)')

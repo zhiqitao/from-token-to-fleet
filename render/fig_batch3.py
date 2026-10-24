@@ -27,7 +27,7 @@ for i, (c, co) in enumerate(zip(cands, col)):
 ax.text(7, 4.4, 'Three candidate architectures synthesized from the same workload constraints (Ch12)',
         fontsize=12, fontweight='bold', ha='center')
 plt.tight_layout()
-plt.savefig(base % (12, 12, 12), dpi=150); plt.close()
+plt.savefig(base % (12, 12, 12), dpi=350); plt.close()
 print('Ch12 done')
 
 # ---- Ch15: goodput vs batch (prefix cache relaxes PREFILL, not decode) ----
@@ -47,7 +47,7 @@ ax.annotate('prefix cache removes prefill recompute\n(the decode bottleneck is u
 ax.legend(fontsize=9, loc='upper left')
 ax.grid(alpha=0.3)
 plt.tight_layout()
-plt.savefig(base % (15, 15, 15), dpi=150); plt.close()
+plt.savefig(base % (15, 15, 15), dpi=350); plt.close()
 print('Ch15 done')
 
 # ---- Ch17: fleet architecture (Archify-generated: render/archify/fleet-hierarchy.json) ----
@@ -94,7 +94,7 @@ for i in range(5):
     ax.annotate('', xy=(lx, 2.3), xytext=(lx, rail_y), arrowprops=dict(arrowstyle='-|>', lw=0.9, color='#8a8a8a'))
 ax.text(4.5, 3.1, 'capability → cost/SLO → fallthrough', fontsize=9, color='#555', ha='center', zorder=3)
 plt.tight_layout()
-plt.savefig(base % (18, 18, 18), dpi=150); plt.close()
+plt.savefig(base % (18, 18, 18), dpi=350); plt.close()
 print('Ch18 done')
 
 # ---- Ch19: agent loop state machine (Archify-generated: render/archify/agent-loop-lifecycle.json) ----
@@ -167,7 +167,7 @@ ax.annotate('\u224820 hosts \u2192 reaches the 40 rps peak;\nmeasured plateaus (
             xy=(20, measured[9]), xytext=(38, 55), fontsize=11.5, color='#c0392b',
             ha='center', arrowprops=dict(arrowstyle='-|>', color='#c0392b', lw=1.4))
 plt.subplots_adjust(left=0.13, right=0.96, top=0.93, bottom=0.08)
-plt.savefig(base % (20, 20, 20), dpi=150); plt.close()
+plt.savefig(base % (20, 20, 20), dpi=350); plt.close()
 print('Ch20 done')
 
 # ---- Ch22: prefill vs decode bottleneck divergence (9.2K marker + quadratic band) ----
@@ -196,7 +196,7 @@ ax.legend(fontsize=8.5)
 ax.grid(alpha=0.3)
 ax.set_ylim(0.01, 4)
 plt.tight_layout()
-plt.savefig(base % (22, 22, 22), dpi=150); plt.close()
+plt.savefig(base % (22, 22, 22), dpi=350); plt.close()
 print('Ch22 done')
 
 # ---- Ch24: red team / green team cycle ----
@@ -214,7 +214,7 @@ ax.annotate('', xy=(3.1, 3.3), xytext=(3.1, 4.4), arrowprops=dict(arrowstyle='-|
 ax.annotate('', xy=(3.1, 5.2), xytext=(2.6, 3.0), arrowprops=dict(arrowstyle='-|>', lw=1.2, color='#555', connectionstyle='arc3,rad=-0.3'))
 ax.text(5, 9.2, 'Ch24 — Red Team / Green Team cycle', fontsize=13, fontweight='bold', ha='center')
 plt.tight_layout()
-plt.savefig(base % (24, 24, 24), dpi=150); plt.close()
+plt.savefig(base % (24, 24, 24), dpi=350); plt.close()
 print('Ch24 done')
 
 # ---- Ch26: pattern application diagram ----
@@ -229,7 +229,7 @@ for i, p in enumerate(patterns):
 ax.text(7, 5.3, 'Ch26 — applying the pattern library to a new architecture problem', fontsize=12.5, fontweight='bold', ha='center')
 ax.text(7, 1.0, 'detect the situation → recall the pattern → apply with the ADR loop', fontsize=10, ha='center', color='#555')
 plt.tight_layout()
-plt.savefig(base % (26, 26, 26), dpi=150); plt.close()
+plt.savefig(base % (26, 26, 26), dpi=350); plt.close()
 print('Ch26 done')
 
 print('batch part 3 complete')

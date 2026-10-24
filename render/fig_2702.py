@@ -61,7 +61,7 @@ ax.text(4.0, 0.35, 'Model intelligence \u2260 system intelligence', fontsize=9.2
         bbox=dict(boxstyle='round,pad=0.35', fc='#fdecea', ec='#c0392b'))
 
 out = 'design/manuscript/chapter-27/figures/fig-27-2702.png'
-plt.savefig(out, dpi=150)
+plt.savefig(out, dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-27/figures/fig-27-2702.pdf')

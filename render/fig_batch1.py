@@ -41,7 +41,7 @@ for i, (d, c) in enumerate(zip(dims, cons)):
     ax.add_patch(FancyBboxPatch((6.5, y-0.42), 3.2, 0.84, boxstyle='round,pad=0.02', fc='#f5c99b', ec='none'))
     ax.text(8.1, y, c, ha='center', va='center', color='#7a3b00', fontsize=10.5)
 plt.tight_layout()
-plt.savefig(base % (4, 4, 4), dpi=150); plt.close()
+plt.savefig(base % (4, 4, 4), dpi=350); plt.close()
 print('Ch04 done')
 
 # ---- Ch05: Model selection flowchart ----
@@ -96,7 +96,7 @@ ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=2, f
 ax.grid(alpha=0.3, which='both')
 ax.set_xlim(0.005, 250); ax.set_ylim(1, 2e6)   # extend past the 200 tick so its label is not on the right border
 plt.tight_layout(rect=(0, 0.08, 1, 1))
-plt.savefig(base % (9, 9, 9), dpi=150); plt.close()
+plt.savefig(base % (9, 9, 9), dpi=350); plt.close()
 print('Ch09 done')
 
 # ---- Ch11: serving = four concerns, not a layer stack ----
@@ -133,7 +133,7 @@ card(0.045, 0.10, 0.415, 0.30, 'REUSE', GREEN, '#eafaf0')
 card(0.540, 0.10, 0.415, 0.30, 'RESOURCE\nSPECIALISATION', ORANGE, '#fdf3e0')
 
 plt.tight_layout()
-plt.savefig(base % (11, 11, 11), dpi=150); plt.close()
+plt.savefig(base % (11, 11, 11), dpi=350); plt.close()
 print('Ch11 done')
 
 print('batch part 1 complete')

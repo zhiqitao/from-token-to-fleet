@@ -104,6 +104,6 @@ ax.tick_params(axis='both', which='major', labelsize=8.4)
 ax.grid(True, which='major', axis='both', alpha=0.26, ls=':', lw=0.8, color='#888')
 
 plt.tight_layout(pad=0.6)
-plt.savefig('design/manuscript/chapter-02/figures/fig-02-0201.png', dpi=200)
+plt.savefig('design/manuscript/chapter-02/figures/fig-02-0201.png', dpi=400)
 plt.close()
 print('wrote fig-02-0201')

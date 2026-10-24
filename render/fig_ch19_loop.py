@@ -95,7 +95,7 @@ ax.text(5.0, 0.45, 'resolved \u2192 final answer; no resolution within the turn 
         ha='center', va='center', fontsize=8.0, color='#666')
 
 out = 'design/manuscript/chapter-19/figures/fig-19-1901.png'
-plt.savefig(out, dpi=170)
+plt.savefig(out, dpi=350)
 # vector sibling .pdf so the book embed prefers the crisp PDF (see md_to_latex
 # copy_figures guard: the .pdf must be at least as new as the .png). The default
 # matplotlib pdf.fonttype is 3 (Type3), which embeds text as glyph raster and the

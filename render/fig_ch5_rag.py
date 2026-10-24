@@ -99,7 +99,7 @@ for (cx, lab, land_x) in [(lg1_cx,'context', MID-58), (lg2_cx,'answer', MID+58)]
     edge_label((cx+land_x)/2, (leg_bot+dec_bot+BOX_H)/2 - 6, lab)
 
 plt.tight_layout(pad=0.2)
-plt.savefig('design/manuscript/chapter-05/figures/fig-05-0501.png', dpi=150)
+plt.savefig('design/manuscript/chapter-05/figures/fig-05-0501.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-05/figures/fig-05-0501.pdf', format='pdf')

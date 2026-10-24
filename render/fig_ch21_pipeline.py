@@ -93,7 +93,7 @@ ax.text(12.0, 0.25, '[ILLUSTRATIVE][DERIVED] Gates pass on measured throughput /
         fontsize=8.0, ha='center', color='#777')
 
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-21/figures/fig-21-2101.png', dpi=150)
+plt.savefig('design/manuscript/chapter-21/figures/fig-21-2101.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-21/figures/fig-21-2101.pdf')

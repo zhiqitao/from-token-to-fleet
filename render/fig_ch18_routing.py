@@ -158,6 +158,6 @@ ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback
         fontsize=FS-0.2, ha='center', color='#444')
 
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-18/figures/fig-18-1801.png', dpi=200)
+plt.savefig('design/manuscript/chapter-18/figures/fig-18-1801.png', dpi=400)
 plt.close()
 print('wrote fig-18-1801 (column-width wide cascade, sized boxes)')

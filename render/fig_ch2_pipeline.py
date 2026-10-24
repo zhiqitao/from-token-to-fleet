@@ -271,7 +271,7 @@ ax.text(prev[4] + 8, loop_chan - 14, 'loop', color=C_LOOP, fontsize=FSN,
         fontweight='bold', ha='left', va='center')
 
 plt.subplots_adjust(left=0.0, right=1.0, top=1.0, bottom=0.0)
-plt.savefig('design/manuscript/chapter-02/figures/fig-02-0202.png', dpi=200)
+plt.savefig('design/manuscript/chapter-02/figures/fig-02-0202.png', dpi=400)
 with matplotlib.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-02/figures/fig-02-0202.pdf',
                 format='pdf')

@@ -63,6 +63,6 @@ fig.text(0.5, 0.875, 'append-only illustrative model: context only ever accumula
          ha='center', va='top', fontsize=8.0, style='italic', color='#444')
 plt.tight_layout(rect=(0, 0.05, 1, 0.86))
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',
-            dpi=200, bbox_inches='tight', pad_inches=0.05)
+            dpi=400, bbox_inches='tight', pad_inches=0.05)
 plt.close()
 print('wrote fig-19-1902 (narrow, tight-bbox, append-only label + grayscale hatch split)')

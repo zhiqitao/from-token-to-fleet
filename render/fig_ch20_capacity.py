@@ -72,7 +72,7 @@ with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
                 bbox_inches='tight', pad_inches=0.05)
 # also emit a PNG (the build copies the .png when no sibling .pdf exists; keep both
 # in sync so a stale PNG can never shadow the new vector)
-plt.savefig('design/manuscript/chapter-20/figures/fig-20-2001.png', dpi=200,
+plt.savefig('design/manuscript/chapter-20/figures/fig-20-2001.png', dpi=400,
             bbox_inches='tight', pad_inches=0.05)
 plt.close()
 print('wrote fig-20-2001 (rebuilt; single modeled/analytical line, annotations off curves)')

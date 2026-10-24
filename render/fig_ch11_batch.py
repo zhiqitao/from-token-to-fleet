@@ -83,6 +83,6 @@ fig.text(0.5, 0.015,
          fontsize=8.0, color='#555', ha='center', va='bottom', style='italic')
 
 plt.tight_layout(rect=(0, 0.05, 1, 1))
-plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=150)
+plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=350)
 plt.close()
 print('wrote fig-11-1102')

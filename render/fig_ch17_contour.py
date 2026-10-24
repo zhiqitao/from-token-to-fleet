@@ -43,6 +43,6 @@ ax.set_ylim(10, 125)
 
 cb = fig.colorbar(cs16, ax=ax, label='hosts (FP16 KV)')
 plt.tight_layout()
-plt.savefig('design/manuscript/chapter-17/figures/fig-17-1702.png', dpi=150)
+plt.savefig('design/manuscript/chapter-17/figures/fig-17-1702.png', dpi=350)
 plt.close()
 print('wrote fig-17-1702')

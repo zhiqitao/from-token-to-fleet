@@ -96,6 +96,6 @@ ax.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in legen
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1903.png',
-            dpi=200, bbox_inches='tight', pad_inches=0.08)
+            dpi=400, bbox_inches='tight', pad_inches=0.08)
 plt.close()
 print('fig-19-1903 full-width redraw (distinct patterns, larger labels)')

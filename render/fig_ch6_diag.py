@@ -55,6 +55,6 @@ ax.text(5.0, 1.05, 'causation \u2193 (workload \u2192 serving)   |   diagnosis \
         ha='center', va='center', fontsize=8.2, color='#444')
 
 out = 'design/manuscript/chapter-06/figures/fig-06-0601.png'
-plt.savefig(out, dpi=170)
+plt.savefig(out, dpi=350)
 plt.close()
 print('wrote fig-06-0601 (diagnostic chain, matplotlib)')

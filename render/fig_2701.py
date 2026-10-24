@@ -72,7 +72,7 @@ fig.text(0.04, 0.005,
 # Tight layout reserves enough room for the y-tick labels and footer.
 plt.subplots_adjust(left=0.36, right=0.99, top=0.90, bottom=0.20)
 out = 'design/manuscript/chapter-27/figures/fig-27-2701.png'
-plt.savefig(out, dpi=150)
+plt.savefig(out, dpi=350)
 import matplotlib as _mpl
 with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-27/figures/fig-27-2701.pdf', format='pdf')

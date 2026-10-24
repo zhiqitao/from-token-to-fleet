@@ -96,7 +96,7 @@ ax.text(CX, top + 0.35, "the architect's decision loop (the book's spine)", font
         fontweight='bold', ha='center', color='#1a1a1a')
 
 plt.tight_layout(pad=0.2)
-plt.savefig('render/latex/assets/spine-decision-loop.png', dpi=200, bbox_inches='tight')
+plt.savefig('render/latex/assets/spine-decision-loop.png', dpi=400, bbox_inches='tight')
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('render/latex/assets/spine-decision-loop.pdf', format='pdf', bbox_inches='tight')

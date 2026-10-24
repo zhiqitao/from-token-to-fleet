@@ -26,7 +26,7 @@ for i, (s, x) in enumerate(zip(steps, xs)):
 ax.text(8, 0.8, 'Screen on capability first, then benchmark on the real workload\nagainst the SLO gate',
         fontsize=9, fontweight='bold', ha='center', color='#333')
 plt.tight_layout()
-plt.savefig(base % (14, 14, 14), dpi=150); plt.close()
+plt.savefig(base % (14, 14, 14), dpi=350); plt.close()
 print('Ch14 done')
 
 # ---- Ch16: TCO three delivery modes (regenerated from render/tco_calc.py) ----
@@ -64,7 +64,7 @@ ax.legend(fontsize=8, loc='upper left')
 ax.grid(alpha=0.3, which='both')
 ax.set_xlim(1e4, 1.2e8)
 plt.tight_layout()
-plt.savefig(base % (16, 16, 16), dpi=150); plt.close()
+plt.savefig(base % (16, 16, 16), dpi=350); plt.close()
 print('Ch16 done')
 
 # ---- Ch21: AI Factory promotion pipeline (evaluate-gate + rollback edge) ----
@@ -94,7 +94,7 @@ ax.text(7.5, 1.9, 'production feedback → data / evaluation (green, bottom); ro
 ax.text(7.5, 7.9, 'The AI Factory promotion pipeline (canary gate on promote, rollback path)',
         fontsize=12, fontweight='bold', ha='center')
 plt.tight_layout()
-plt.savefig(base % (21, 21, 21), dpi=150); plt.close()
+plt.savefig(base % (21, 21, 21), dpi=350); plt.close()
 print('Ch21 done')
 
 # ---- Ch23: from vague ask to architectural bounds (worked example, not a generic funnel) ----
@@ -133,7 +133,7 @@ ax.annotate('', xy=(5, 2.30), xytext=(5, 3.18),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#3d5a2f', mutation_scale=13))
 ax.text(5, 9.85, 'From a vague ask to architectural bounds (worked example)', fontsize=11.6, fontweight='bold', ha='center', color='#1a1a1a')
 plt.tight_layout()
-plt.savefig(base % (23, 23, 23), dpi=150); plt.close()
+plt.savefig(base % (23, 23, 23), dpi=350); plt.close()
 print('Ch23 done')
 
 # ---- Ch25: anatomy of an ADR ----
@@ -155,7 +155,7 @@ for i, (c, x, w) in enumerate(zip(comps, xs, bw)):
         ax.annotate('', xy=(x+w+0.35, 2.25), xytext=(x+w, 2.25), arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 ax.text(8, 0.6, 'An ADR supersedes an old one: the why is captured at decision time', fontsize=11, fontweight='bold', ha='center', color='#333')
 plt.tight_layout()
-plt.savefig(base % (25, 25, 25), dpi=150); plt.close()
+plt.savefig(base % (25, 25, 25), dpi=350); plt.close()
 print('Ch25 done')
 
 print('batch part 2 complete')
