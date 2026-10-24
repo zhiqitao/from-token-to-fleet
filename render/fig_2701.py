@@ -43,8 +43,14 @@ for i_orig, i_rev in enumerate(range(len(names))):
     # Param note — anchored to right edge, ha='right' pulls it inward so it
     # never bleeds past axis_max; axis_max is wide enough that the note's left
     # edge clears the longest bar (GLM ~5.6).
-    ax.text(param_label_x, y[i_rev], f'{t}B/{a}B active',
-            va='center', ha='right', fontsize=9.0, color='#555')
+    label = f'{t}B/{a}B active'
+    if 'Qwen' in names[i_orig]:
+        # P1-04: Qwen's denominator is the 125B BACKBONE only; n-gram (51B) and
+        # MTP (4B) are separate. Compact two-line label so it does not overlap
+        # the bar or the % value.
+        label = f'{t}B backbone/{a}B active\n(+51B n-gram, 4B MTP)'
+    ax.text(param_label_x, y[i_rev], label,
+            va='center', ha='right', fontsize=8.5, color='#555', linespacing=1.15)
 
 ax.set_yticks(y)
 ax.set_yticklabels(names, fontsize=10.5)

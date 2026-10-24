@@ -69,11 +69,12 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | Field | Value |
 > |---|---|
 > | Employees / registered users | ~2,000 |
-> | Concurrent users (typical) | ~100 active users (5% of 2,000) — *population measure; the in-flight request occupancy is the derived λ·W ≈86, NOT 100 simultaneous KV-resident requests (see §Arithmetic Walk-Through)* |
+> | Concurrent users (typical) | ~100 active users (5% of 2,000) — *population measure, NOT synonymous with in-flight inference requests; execution occupancy is derived separately below* |
 > | Concurrent users (peak)     | ~400 (20% of 2,000) |
-> | Mean request service time (planning) | ~10 s  *[ILLUSTRATIVE][ASSUMPTION — planning round; retrieval ~120ms + prefill ~1.08s + decode ~7.5s rounded to a comfortable planning figure. This is the stable-flow Little's Law dwell time, a modelling quantity, NOT a measured p95/p99; it is a planning fiction (see §2). "Concurrent users" is a *population* measure (active users); the in-flight *request* occupancy is the separate derived λ·W figure* |
-> | Average arrival rate | ~10 rps *[ILLUSTRATIVE][DERIVED — Little's Law L=100/W=10s on assumed [ILLUSTRATIVE][ASSUMPTION] inputs; NOT a second-hand measured value]* |
-> | Peak arrival rate    | ~40 rps *[ILLUSTRATIVE][DERIVED — Little's Law 400/10; same ASSUMPTION basis, not a measured arrival rate]* |
+> | Mean request service time (planning) | ~10 s  *[ILLUSTRATIVE][ASSUMPTION — planning round; retrieval ~120ms + prefill ~1.08s + decode ~7.5s rounded to a comfortable planning figure. This is the stable-flow Little's Law dwell time, a modelling quantity, NOT a measured p95/p99; it is a planning fiction]*, and the derived execution time W_exec ≈ 8.6 s (prefill + decode) used for occupancy/sizing |
+> | Average arrival rate | ~10 rps *[ILLUSTRATIVE][ASSUMPTION — a deliberate traffic assumption (2,000 users × one request ~every 200 s ≈ 10 rps), NOT derived by Little's Law from the 100-user population. Little's Law needs the average number of *requests in* the system, not the count of active people. The 10 rps is a scenario input]* |
+> | Peak arrival rate    | ~40 rps *[ILLUSTRATIVE][ASSUMPTION — the same behavior scaled to the burst/traffic spike; a scenario input, not a measured arrival rate]* |
+> | Execution occupancy (derived) | ~86 requests at 10 rps (W_exec ≈ 8.6 s); ~344 at 40 rps — *derived via Little's Law L_exec = λ × W_exec, a separate occupancy, NOT the 100 active-user population* |
 > | Prompt / query | 1,200 tokens |
 > | Retrieved context | 8,000 tokens |
 > | Total input | 9,200 tokens |
@@ -104,15 +105,16 @@ Every quantity below is either an assumed workload input, a vendor fact, a model
 
 | Quantity | Value | Status |
 |:--|:--|:--|
-| Registered users | 2,000 | [ILLUSTRATIVE][ASSUMPTION] workload input |
-| Active fraction | 5% (~100 in-flight requests) | [ILLUSTRATIVE][ASSUMPTION] |
-| Average / peak traffic | 10 rps / 40 rps | [ILLUSTRATIVE][DERIVED] from Little's Law on the [ILLUSTRATIVE][ASSUMPTION] concurrency + service-time inputs above |
+| Registered users | 2,000 | [ILLUSTRATIVE][ASSUMPTION] workload context |
+| Active fraction | 5% (~100 active users) | [ILLUSTRATIVE][ASSUMPTION] population measure, NOT in-flight request count |
+| Average / peak traffic | 10 rps / 40 rps | [ILLUSTRATIVE][ASSUMPTION] deliberate traffic inputs (2,000 users × ~1 request/200 s ≈ 10 rps; peak scaled). NOT derived by Little's Law from the 100-user population |
+| Execution occupancy | ~86 / ~344 requests (at W_exec ≈ 8.6 s) | [ILLUSTRATIVE][DERIVED] Little's Law L = λ × W_exec; a separate occupancy from the active-user population |
 | Input tokens | 9,200 (1,200 prompt + 8,000 retrieved) | [ILLUSTRATIVE][ASSUMPTION] |
 | Output tokens | 300 | [ILLUSTRATIVE][ASSUMPTION] |
 | Model parameters | 70B | [ILLUSTRATIVE][ASSUMPTION] reference model |
 | Attention architecture | full-MHA reference model (K/V width = hidden_dim) | [ILLUSTRATIVE][ASSUMPTION] (a real 70B may use GQA, ~8x less KV; Ch 7) |
 | KV per token (FP16, MHA) | 2.62 MB | [2°][DERIVED] from the general KV formula, MHA case |
-| KV per token (FP8, vLLM ~54%) | 1.42 MB | [1P][FACT] vLLM-measured |
+| KV per token (FP8, raw byte-halving) | 1.31 MB | [ILLUSTRATIVE][DERIVED] (exactly 50% of BF16; block/metadata overhead not vendor-measured — fill via deployment benchmark) |
 | H100 HBM per GPU | 80 GB | [1P][FACT] vendor |
 | H100 BF16 peak (dense, no sparsity) | ~0.989 PFLOPS | [1P][FACT] vendor |
 | Retrieval latency | 120 ms | [ILLUSTRATIVE][ASSUMPTION] |
@@ -134,21 +136,11 @@ $$
 
 2. **Request completion time** (service time $W$): the average end‑to‑end time from request submission to answer delivery. We deliberately keep TWO named values, and the distinction matters: a **planning round number of ~10 s** (retrieval ~120 ms + prefill ~1.08 s + decode ~7.5 s, rounded up to a comfortable planning figure) versus the **derived model-execution service time of ~8.6 s** (prefill 1.08 s + decode 7.5 s, without the retrieval/plumbing term) that the later fleet chapters use in Little's-law sizing. The two differ by the retrieval/pipelineroom and by rounding; they are not a numerical contradiction. Whichever we use, we must use it consistently — the canonical ledger pins the fleet-sizing service time at ~8.6 s (Chapter 8), and the ~10 s figure is the coarser planning-round headline.
 
-3. **Throughput via Little's Law**: Little's Law, $L = \lambda W$, relates average concurrency $L$, average arrival rate $\lambda$, and average time in system $W$. Rearranging to solve for throughput:
+3. **Arrival rate — a declared traffic assumption, NOT a Little's-law derivation from the active-user population**: Little's Law, $L = \lambda W$, relates the average number of *requests in the defined system* $L$, the arrival rate $\lambda$, and the mean time in system $W$. It cannot be applied to a count of *active people* — 100 recently-active users is not the same as 100 requests in the serving system. So the ~10 rps average is **declared as a scenario input** (≈ 2,000 registered users × one request ~every 200 s → ~10 rps), not solved for from the 100-user population.
 
-$$
-\lambda = \frac{L}{W} = \frac{100 \text{ concurrent}}{10 \text{ s}} = 10 \text{ rps}
-$$
+4. **Peak arrival rate**: ~40 rps is the same behavior scaled to a burst/traffic spike — again a declared scenario input, not a Little's-law derivation from a user count.
 
-4. **Peak throughput**: if concurrency spikes to $f = 0.20$ (i.e. 400 users) and the per‑request duration stays $W = 10$ s, Little's Law gives
-
-$$
-\lambda_{\text{peak}} = \frac{f_{\text{peak}} \cdot N}{W} = \frac{0.20 \times 2{,}000}{10} = 40 \text{ rps}
-$$
-
-This matches the canonical peak of ~40 rps.
-
-The derivation is explicit: the "~5% concurrently active" and "~10 rps average" are not independently asserted; they are linked by the 10 s average request duration. Change any one number and the others shift accordingly. This is the purpose of the exercise — not to produce a fixed set of gospel numbers, but to establish *how* the numbers connect, so the architect can recompute them when the requirement changes. **Read the 10 rps as an assumed/scenario input, not an empirically measured arrival rate.** Little's Law does not *empirically determine* arrival rate from a registered-user count — the 5% active fraction and the 10 s service time are both [ILLUSTRATIVE][ASSUMPTION] scenario inputs, and the 10 rps is computed from them. If the architect starts from a measured 10 rps instead, the relation runs the other way (it yields ~86 in-flight at W ≈ 8.6 s, not a user count). The point of the exercise is the *relation*, not a claim about how many users behave.
+The walk-through makes the *distinctions* explicit: the **~100 active users** are a population/activity measure, not a request-occupancy count; the **~10 rps average / ~40 rps peak** are declared traffic assumptions (scenario inputs), not derived from the user count; the **~86 / ~344 execution occupancy** is derived from those arrival rates via Little's Law (L = λ × W_exec, W_exec ≈ 8.6 s). The point of the exercise is to keep population, arrival rate, and occupancy separate, not to claim that a registered-user count empirically determines an arrival rate. Change any one assumption and the others shift accordingly; the architect recomputes them when the requirement changes. If the architect starts from a measured 10 rps instead, the relation runs the other way (it yields ~86 in-flight at W ≈ 8.6 s, not a user count).
 
 Before moving on, it is worth naming the four distinct quantities so they are not collapsed: **registered users** are the population; **concurrent users** are the activity state (those in flight at a moment); **arrival rate** (λ) is requests per unit time; and **service time** (W) is the end-to-end duration of a request. They are related by Little's Law, C = λW, but the architect must *estimate or measure* concurrency, arrival rate, and service time — none is a fixed property of the workload. Two further separations matter for KV planning and are easy to collapse, so we hold them apart here too:
 
@@ -251,7 +243,7 @@ The six‑dimension characterization directly dictates the architectural path fo
 
 - **Model selection**: A 70B FP16 dense model (140 GB weights) fits on a single host with 8×H100 (640 GB GPU memory). The model is large enough to answer factual enterprise questions without fine‑tuning, but the 140 GB footprint means KV cache for 9.2 K context adds ~20–30 GB of GPU memory per request at peak, leaving headroom but not abundance.
 - **Serving configuration**: One host is the baseline. Continuous batching (e.g. vLLM) is nearly mandatory to achieve the 1.2 s TTFT budget under 10 rps input‑heavy traffic; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s. The input‑heavy token profile (30× more input than output) makes continuous batching especially effective, as many requests share the same prefix from retrieved context.
-- **Memory planning**: KV cache for 9.2 K context on the canonical model — a 70B **full-MHA reference model** (every query head has its own K,V, so K/V width = hidden_dim = 8192) — is 2 × layers × hidden × bytes = 2,621,440 B ≈ 2.62 MB/token (Chapter 7), giving ≈9,200 ×2.62 MB ≈ 24.1 GB of initial KV per request. This is the MHA upper-bound baseline; a GQA model (8 KV heads, d_head=128) would carry only ~0.33 MB/token, ~8× less (Ch 7). At 10 concurrent full-context requests the MHA figure is ~241 GB of KV on top of the 140 GB weights — pressing against the 640 GB pool well before concurrency reaches 100. The architecture must therefore limit concurrency, quantize KV (FP8 → ~1.42 MB/token, ~13.4 GB/request at the 9.5K max), or use a GQA architecture. This is the same KV-residency discipline developed fully in Chapters 7 and 17.
+- **Memory planning**: KV cache for 9.2 K context on the canonical model — a 70B **full-MHA reference model** (every query head has its own K,V, so K/V width = hidden_dim = 8192) — is 2 × layers × hidden × bytes = 2,621,440 B ≈ 2.62 MB/token (Chapter 7), giving ≈9,200 ×2.62 MB ≈ 24.1 GB of initial KV per request. This is the MHA upper-bound baseline; a GQA model (8 KV heads, d_head=128) would carry only ~0.33 MB/token, ~8× less (Ch 7). At 10 concurrent full-context requests the MHA figure is ~241 GB of KV on top of the 140 GB weights — pressing against the 640 GB pool well before concurrency reaches 100. The architecture must therefore limit concurrency, quantize KV (FP8 → ~1.31 MB/token, ~12.45 GB/request at the 9.5K max), or use a GQA architecture. This is the same KV-residency discipline developed fully in Chapters 7 and 17.
 - **Economic feasibility**: At ~$20/hour per 8×H100 host and ~$0.012 per request (from $1.20/M input × 9.2 K + $2.00/M output × 0.3 K), the TCO is driven by the 9.2 K input tokens per request. If the input token count could be reduced to 2 K (e.g. via better retrieval or query expansion), cost per request drops to ~$0.003, and the same traffic fits within a much lower budget. This is the lever the architect pulls when TCO is the binding constraint.
 - **Operational topology**: Multi‑region deployment (active‑active) provides availability but doubles the infrastructure cost. If the 99.9% availability SLA is non‑negotiable, the architecture must absorb the 2× cost. If it is negotiable, a single-region with graceful-degrading fallback may suffice. The operational constraint thus directly sets the economic floor. **Caveat — this multi-region active-active topology and the `2× cost` here are UNPRICED / NOT VALIDATED in this book's TCO/fleet arithmetic (Ch 16–17), which prices a single-region N−1 deployment instead; multi-region active-active is a different provisioning problem (cross-region capacity duplication, region-failure tolerance, data locality and traffic routing, state/data replication) and must be costed separately before the 99.9% SLA is met — see the canonical-box availability-topology note.**
 

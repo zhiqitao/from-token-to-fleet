@@ -7,25 +7,26 @@ import numpy as np
 ctx = np.array([1, 4, 9.2, 32, 128])  # K tokens
 # canonical (Ch. 7, Table 7-1): full-MHA teaching bound 2.62 MB/token ~2.5 MB/token
 # real LLaMA-2-70B-class GQA (8 KV heads): 2*80*8*128*2 B = 0.33 MB/token (8x smaller)
-# FP8 uses the MEASURED operating constant ~1.42 MB/token (54% of BF16, NOT a naive 50%).
+# FP8 = raw tensor byte-halving (exactly 50% of BF16): 2,621,440/2 = 1,310,720 B = 1.31 MB/tok.
+# (The vLLM "54%" figure is a decode-inter-token-latency slope ratio, NOT a memory footprint.)
 kv_fp16 = 2.5 * ctx   # GB  (full-MHA FP16 bound)
-kv_fp8  = 1.42 * ctx  # GB  (full-MHA FP16 * 0.54 = measured FP8 operating constant, ~1.42 MB/tok)
+kv_fp8  = 1.31 * ctx  # GB  (full-MHA raw byte-halving = 50% of BF16, ~1.31 MB/tok)
 kv_gqa  = 0.33 * ctx  # GB  (real GQA 70B-class)
-kv_gqa8 = 0.33 * 0.54 * ctx  # GB  GQA + measured FP8 (~54% of GQA FP16)
+kv_gqa8 = 0.33 * 0.5 * ctx  # GB  GQA + raw FP8 byte-halving (~50% of GQA FP16)
 
 fig, ax = plt.subplots(figsize=(6.1, 4.6))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.plot(ctx, kv_fp16, '-o', color='#c0392b', label='full-MHA FP16 (bound, ~2.62 MB/tok)')
-ax.plot(ctx, kv_fp8, '-s', color='#e67e22', label='full-MHA FP8 (~1.42 MB/tok, 54% of BF16)')
+ax.plot(ctx, kv_fp8, '-s', color='#e67e22', label='full-MHA FP8 (raw byte-halving, 50%)')
 ax.plot(ctx, kv_gqa, '-^', color='#27408b', label='GQA FP16 (~0.33 MB/tok)')
-ax.plot(ctx, kv_gqa8, '-v', color='#6f9e5f', label='GQA FP8 (~0.18 MB/tok)')
+ax.plot(ctx, kv_gqa8, '-v', color='#6f9e5f', label='GQA FP8 (raw, ~0.17 MB/tok)')
 ax.set_xscale('log'); ax.set_yscale('log')
 ax.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax.set_ylabel('KV cache size (GB)', fontsize=9.5)
-ax.set_title('KV cache size vs context, by attention geometry (full-MHA vs GQA)')
+ax.set_title('KV cache size vs context, by attention geometry (full-MHA vs GQA)', fontsize=10)
 # KV budget ceiling: 640 total - 140 weights - ~64 runtime/NCCL = ~436 GB usable KV
 ax.axhline(640, color='#7f8c8d', ls=':', lw=1, label='8×H100 raw (640 GB)')
-ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB (640 − 140 w − 64 rt)')
+ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB')
 ax.scatter([9.2], [2.5*9.2], color='#c0392b', zorder=5, s=25)
 ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(10.2, 70),
             arrowprops=dict(arrowstyle='->', lw=0.8), fontsize=8.5)
@@ -33,11 +34,14 @@ ax.scatter([9.2], [0.33*9.2], color='#27408b', zorder=5, s=25)
 ax.annotate('9.2K ≈ 3 GB (GQA)\n8× saving (Ch. 7)', xy=(9.2, 0.33*9.2), xytext=(10.0, 0.9),
             arrowprops=dict(arrowstyle='->', lw=0.8, color='#27408b'),
             fontsize=8.5, color='#27408b')
-ax.legend(fontsize=8.5, loc='upper center', bbox_to_anchor=(0.5, -0.22), ncol=2, frameon=False)
+ax.legend(fontsize=7.5, loc='upper center', bbox_to_anchor=(0.5, -0.24), ncol=2, frameon=False)
 ax.grid(alpha=0.3, which='both')
 ax.set_xlim(0.8, 1600)
 ax.set_ylim(0.05, 2000)
-plt.tight_layout(rect=[0, 0.10, 1, 1])
+# FP8 relabel: raw tensor byte-halving (50% of BF16), NOT a vLLM-measured serving footprint.
+fig.text(0.5, 0.014, 'FP8 shown as raw tensor byte-halving (exactly 50% of BF16, ~1.31 MB/tok) — not a vLLM-measured serving footprint.',
+         fontsize=6.8, color='#555', ha='center', va='bottom')
+plt.tight_layout(rect=[0, 0.17, 1, 1])
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0701.png', dpi=150)
 plt.close()
 print('wrote fig-07-0701')

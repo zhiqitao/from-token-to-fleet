@@ -26,7 +26,7 @@ kv_9500 = gb(9500)
 res_9500 = weights + kv_9500
 pool = 436.0
 c16 = pool / kv_9500
-fp8_9500 = kv_9500 * 0.54
+fp8_9500 = kv_9500 * 0.50   # RAW byte-halving (exactly half of BF16)
 c8 = pool / fp8_9500
 
 print("=== CANONICAL DERIVED VALUES (decimal) ===")
@@ -34,11 +34,11 @@ print("CANONICAL MODEL = 70B FULL-MHA REFERENCE MODEL (hidden_dim=8192 wide K/V)
 print(f"KV/token FP16 (MHA) : {B/1e6:.2f} MB decimal (=2.5 MiB; {B} B)")
 print(f"  general formula   : 2 * n_layers * n_KV-heads * d_head * bytes; MHA case n_KV-heads*d_head=d_model")
 print(f"  GQA example       : n_KV-heads=8, d_head=128 -> {B_GQA/1e6:.3f} MB/token (~8x smaller)")
-print(f"KV/token FP8 (54%)  : {B*0.54/1e6:.2f} MB   (naive byte-halving = {B/2/1e6:.2f} MB theoretical)")
+print(f"KV/token FP8 raw     : {B/2/1e6:.2f} MB   (1 byte/element = exactly 50% of BF16; NOT a vLLM-measured 54% memory ratio)")
 print(f"KV  9,200 (initial) : {kv_9200:.1f} GB")
 print(f"KV  9,500 (max)      : {kv_9500:.1f} GB")
 print(f"residency 9,500 max  : {res_9500:.1f} GB  (~165)")
-print(f"FP8 KV @9,500 (54%)  : {fp8_9500:.1f} GB  (naive halving = {9500*B/2/1e9:.2f} GB)")
+print(f"FP8 KV @9,500 (raw)  : {fp8_9500:.2f} GB  (9500 x 1.31072 MB; byte-halving = 50% of BF16)")
 print(f"concurrency FP16     : {pool:.0f}/{kv_9500:.4f} = {c16:.2f} -> hard-fit floor {int(c16)} (NOT 18; {c16:.2f} cannot round up)")
 print(f"concurrency FP8      : {pool:.0f}/{fp8_9500:.4f} = {c8:.2f} -> hard-fit floor {int(c8)} (NOT 33; {c8:.2f})")
 print("OK: canonical values consistent (decimal convention).")

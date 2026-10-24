@@ -80,12 +80,12 @@ ax.text(bx+0.3, (N1res+N4)/2, 'headroom', fontsize=8, color='#1e6b3a',
 
 ax.set_xlabel('time of day', fontsize=9)
 ax.set_ylabel('offered load / req·s⁻¹', fontsize=9)
-# P2-04 (review): the 5.5-rps burst is a small illustrative example, NOT the
-# canonical 40-rps workload — make that explicit in the title so it is not
-# misread from a screenshot.
-ax.set_title('Sizing a fleet of one model (small illustrative ~5.5-rps burst, '
-             'NOT the canonical 40-rps workload): burst peak, headroom, failover',
-             fontsize=10, fontweight='bold')
+# P0-04 (review): the title must not be clipped at the printed column width.
+# Use a SHORT two-line title (the full qualifier lives in the caption), sized
+# so it always fits within the axes width at column scale.
+ax.set_title('Sizing a fleet of one model\n'
+             '(small illustrative ~5.5-rps burst, not the canonical 40-rps peak)',
+             fontsize=9.5, fontweight='bold')
 # T-02 (review): the smooth curve is *offered-load capacity*, not a queueing
 # proof. Note rendered as two centered lines INSIDE the axes (top, empty region
 # above y=8) so bbox_inches='tight' cannot clip it and it stays clear of the

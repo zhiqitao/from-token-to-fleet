@@ -70,7 +70,7 @@ The KV cache story is the surprising part. Recall from Chapter 1 (§KV cache as 
 
 Therefore, for a 70B-class model (dense or MoE) with 8K–9.2K input context:
 
-- **Dense 70B**: KV cache ~1.3 MB per token × 9,200 tokens ≈ 12 GB (at 8-bit, the naive byte-halving figure; the *measured* FP8 serving footprint — vLLM, the canonical 80-layer full-MHA geometry — is ~1.42 MB/token ≈ 54% of BF16 → ~13 GB, a specified configuration rather than a universal constant; see Ch 7) or ~24 GB (at FP16-relevant precision for the key/value storage pattern discussed in Ch. 7).
+- **Dense 70B**: KV cache ~1.31 MB per token × 9,200 tokens ≈ 12.06 GB (at 8-bit, the raw tensor byte-halving figure = 1.31 MB/token, exactly 50% of BF16; any block-allocation/metadata overhead is NOT vendor-measured here and must be filled by a deployment benchmark. The vLLM blog's '54%' is a decode-ITL latency slope, not a memory ratio. See Ch 7) or ~24 GB (at FP16-relevant precision for the key/value storage pattern discussed in Ch. 7).
 - **MoE 70B-equivalent**: The KV cache is *identical* in size, because attention still processes all 9,200 tokens densely. The fact that only 14B of 47B total parameters are active in the feed-forward layers does not reduce the number of keys/values emitted by the attention layers.
 
 In other words: MoE sparsity = compute sparsity (fewer FLOPs per token). MoE sparsity ≠ memory sparsity (KV cache still grows linearly with context length, same as dense). Only changing the attention mechanism itself (e.g., hybrid/linear attention, compressed latent attention, or KV offload) can stop the cache from growing. This distinction — compute-sparsity versus memory-sparsity — is one an architect has to get exactly right.

@@ -25,12 +25,18 @@
 #   - initial KV residency  = input tokens only (9,200)  -> 24.1 GB
 #   - max end-of-generation= input + output (9,500)     -> 24.9 GB  <-- use for residency/concurrency
 #
-# FP8 KV: use the vLLM-measured ~54% of BF16 ratio [1P S6], NOT naive byte-halving.
-#   FP8 @9.5K = 0.54 x 24.9 = 13.4 GB  -> 436/13.4 = ~33 concurrent.
-#   NOTE: naive byte-halving gives 2,621,440/2 = 1,310,720 B ~ 1.31 MB/token (1.25 MiB),
-#   ~12.4 GB @9,500. The manuscript uses the vLLM-measured 54% figure (1.42 MB, 13.4 GB)
-#   as the operating FP8 number because that is what the serving stack actually achieves;
-#   the naive 1.31 MB is the mathematical lower bound, not the shipped footprint.
+# FP8 KV: RAW TENSOR BYTE-HALVING, not a 54% memory coefficient.
+#   The vLLM FP8-KV blog (2026-04-22) reports a 54%-of-BF16 **decode ITL slope**
+#   (a LATENCY metric; Table 3, "FP8 slope (% of BF16)" for Llama-3.1-8B = 54%)
+#   and describes FP8 as halving KV *storage* in the usual tensor-level sense.
+#   It does NOT supply a measured "1.42 MB/token" memory footprint for the 80-layer
+#   hidden-8192 full-MHA geometry, and the blog's 54% is NOT a storage ratio.
+#   The book therefore uses the RAW TENSOR value: FP8 = 1 byte/element.
+#   FP8 @9.5K = 1.31072 MB/token x 9,500 = 12.452 GB  -> 436/12.452 = ~35 concurrent.
+#   Byte-halving is exactly 50% of BF16 (1310720/2621440). Any block-allocation /
+#   scale-offset / fragmentation overhead is NOT vendor-measured here and must be
+#   filled by a benchmark (see sources.tex measurement-status hierarchy).
+
 
 
 scenario:
@@ -79,14 +85,14 @@ latency_and_throughput:                # canonical service-time model (Ch 2, 8, 
   decode_s: 7.5                        # 300 output tokens x 25 ms
   service_time_s: 8.6                  # ttft + decode = 1.08 + 7.5 (Little's-law W)
   per_host_req_per_s_fp16: 2.0         # C/W = 17.5 / 8.6 = 2.03 (Little bound, FP16 KV; conservative)
-  per_host_req_per_s_fp8: 3.8          # C/W = 32.4 / 8.6 = 3.77 (FP8 KV)
+  per_host_req_per_s_fp8: 4.1          # C/W = 35.0 / 8.6 = 4.07 (FP8 KV, RAW byte-halving; was 3.8 at erroneous 32.4)
 
 fleet_size:                            # Ch 17/20; provision for PEAK
   conv_in_flight_peak: 344             # 40 rps x 8.6 s
   n_hosts_avg: 5                       # ceil(10 x 8.6 / 17.5) = ceil(4.91); matches prefill avg
   n_hosts_peak_fp16: 20                # ceil(40 x 8.6 / 17.5) = ceil(19.66); matches prefill peak
   n_hosts_peak_fp16_70pct: 29          # ceil(40 x 8.6 / (17.5 x 0.7)) = ceil(28.08) = 29 (NOT 28)
-  n_hosts_peak_fp8: 11                 # ceil(40 x 8.6 / 32.4)
+  n_hosts_peak_fp8: 10                 # ceil(40 x 8.6 / 35.0) = ceil(9.83) = 10 (RAW byte-halving; was 11 at the erroneous 1.42/32.4)
   note: "Fleet size is max(throughput, KV, SLO); peaking on 40 rps, 8.6 s service time. C=17.5
         (byte-accurate 436/24.9037=17.51; conservative integer hard-fit floor = 17, NOT 18)."
 
@@ -95,13 +101,13 @@ derived:                              # computed by render/canonical_calc.py (DE
   kv_9200_initial_gb: 24.1            # 9200 x 2.62 MB  (initial KV residency)
   kv_9500_max_gb: 24.9                # 9500 x 2.62 MB  (max end-of-generation KV)
   kv_300_output_gb: 0.8               # 300 x 2.62 MB
-  kv_fp8_9500_gb: 13.4                # 0.54 x 24.9  (vLLM FP8 ~54% of BF16)
+  kv_fp8_9500_gb: 12.5                   # RAW byte-halving: 1.31072 MB/token x 9,500 (NOT a vLLM-measured 54% memory ratio)
   inference_residency_9500_gb: 165    # 140 + 24.9  (=164.9 ~ 165; anchors)
   concurrency_fp16_9500: 17.5         # 436 / 24.9037 = 17.51 (NOT 18: a hard fit-ceiling
                                       #   cannot round up from 17.51; conservative integer floor = 17)
   concurrency_fp16_9500_floor: 17     # conservative integer "requests that fit" ceiling
-  concurrency_fp8_9500: 32.4          # 436 / 13.448 = 32.4 (NOT 33; floor = 32)
-  concurrency_fp8_9500_floor: 32
+  concurrency_fp8_9500: 35.0          # RAW byte-halving: 436 / 12.45184 = 35.015 (NOT 33; floor = 35)
+  concurrency_fp8_9500_floor: 35
   kv_gqa_variant_mb: 0.33             # H_kv=8, D_head=128 -> 1024: 2*80*1024*2/1e6
 
 

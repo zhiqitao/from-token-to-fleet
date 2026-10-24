@@ -41,7 +41,7 @@ $$
 KV = 2 \times n_\text{layers} \times d_\text{hidden} \times L \times \text{bytes-per-activation}
 $$
 
-where $L$ is the context length. For a 70B model with 8-bit KV caching, this is approximately 12 GB for 9.2K context (the byte-halving bound: 2.62 MB/token FP16 ÷ 2; the measured FP8 constant is ~1.42 MB/token → ~13.4 GB, Ch 7); at FP16 precision it is ~24 GB [ILLUSTRATIVE][DERIVED]. The architect should compute this for the exact context length of the workload, not assume a fixed value.
+where $L$ is the context length. For a 70B model with 8-bit KV caching, this is approximately 12.06 GB for 9.2K context (the raw tensor byte-halving bound: 2.62 MB/token FP16 ÷ 2 = 1.31 MB/token, exactly 50% of BF16; 9,200 × 1.31 MB ≈ 12.06 GB, Ch 7); at FP16 precision it is ~24.1 GB [ILLUSTRATIVE][DERIVED]. The architect should compute this for the exact context length of the workload, not assume a fixed value.
 3. **Throughput per device.** Tokens-per-second that a single device can sustain for prefill and decode, measured on the target hardware. This is the number that, multiplied by the number of devices in the candidate layout, must exceed the workload's tokens-per-second demand (92K input tokens/s average, 3K output tokens/s average, 368K input tokens/s peak, 12K output tokens/s peak). Vendors publish peak numbers; the architect should treat these as benchmarks to be verified by measuring on equivalent hardware.
 
 All three numbers must be confirmed before a candidate is carried forward ([1P] canonical (Ch 4, Table 4-3)). If any one fails, the candidate is returned to the synthesis step.

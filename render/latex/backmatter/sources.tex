@@ -54,10 +54,11 @@
 \midrule
 Host usable HBM (canonical) & $\sim$640\,GB (8\,$\times$\,H100) & advertised capacity; usable-vs-advertised reserve not rolled up\\
 Model weight bytes (70B, FP16) & $\sim$140\,GB & 2\,B/param, dense\\
-KV, raw per token (full-MHA, 8-bit/FP8) & $2 \times 80 \times 8192 = 1{,}310{,}720$\,B $= 1.25$\,MiB $= 1.31$\,MB & theoretical byte-halving; no block or metadata overhead\\
+KV, raw per token (full-MHA, 8-bit/FP8) & $2 \times 80 \times 8192 \times 1 = 1{,}310{,}720$\,B $= 1.25$\,MiB $= 1.31$\,MB & raw array, 1\,B/element; exactly 50\% of BF16 by byte-halving. No block/metadata overhead.\\
 KV, raw per token (full-MHA, BF16/FP16) & $2 \times 80 \times 8192 \times 2 = 2{,}621{,}440$\,B $= 2.5$\,MiB $= 2.62$\,MB & raw array; no block or overhead\\
 KV, allocated per request (FP16, canonical 9.5K) & $\sim$24.9\,GB & per-request allocated residency within the SLO\\
-KV, engine footprint per token (FP8) & $\sim$1.42\,MB & vLLM \emph{vendor-reported} amortized footprint as in the FP8-KV blog post \textsc{[S6]}: raw tensor + per-token scale/offset metadata + cache-block layout overhead, for the canonical 80-layer full-MHA geometry and that post's engine/block-size/allocator configuration. Engine-version, block-size, and dtype-specific; \emph{not} a universal FP8 rate, and not an author home-lab measurement. See \textsc{[S6]} and the reproducibility note.\\
+KV, allocated per request (FP8, canonical 9.5K) & $\sim$12.5\,GB & per-request allocated residency at the raw 1.31\,MB/token, byte-halving basis; \emph{not} a vendor-measured engine footprint. "Allocated" metadata/block overhead is \emph{not} yet measured (see status note). \emph{Do not treat the raw byte-halving as a measured resident footprint.}\\
+KV, observed ITL slope ratio (vLLM, \textsc{[S6]}) & FP8 $\approx$ 54\% of BF16 & \emph{decode inter-token-latency slope} ratio, a \emph{latency} metric from the vLLM FP8-KV blog \textsc{[S6]} (Llama-3.1-8B, Table~3). This is \emph{not} a memory/CV-size ratio and is \emph{not} used as a capacity coefficient in this book. See \textsc{[S6]}.\\
 \bottomrule
 \end{tabularx}
 
@@ -72,7 +73,7 @@ GQA KV reduction & $\sim$8$\times$ (one config) & geometry-dependent sensitivity
 \bottomrule
 \end{tabularx}
 
-\noindent\textbf{Reference-geometry convention.} Any isolated per-token KV or memory figure in this book (e.g.~\emph{`2.62\,MB/token'}, \emph{`$\sim$1.42\,MB/token'}, or a GB figure) refers to the \emph{canonical reference geometry} \textemdash\ full multi-head attention (MHA), 80 layers, hidden width 8192, BF16/FP16 \textemdash\ unless the surrounding text or caption names a different geometry. This is the deliberately pessimistic upper bound from Ch.~1/7. It is \emph{not} a typical 70B-model KV footprint: a real 70B model may use GQA, MLA, or hybrid attention, which reduce KV per token, so an architecture-specific figure must be derived for that model's own attention shape rather than inheriting the MHA number. A decimal GB/binary GiB distinction is stated wherever a precise mount depends on it; where only an order of magnitude matters, the base is given explicitly.
+\noindent\textbf{Reference-geometry convention.} Any isolated per-token KV or memory figure in this book (e.g.~\emph{`2.62\,MB/token'}, the raw FP8 \emph{`1.31\,MB/token'}, or a GB figure) refers to the \emph{canonical reference geometry} \textemdash\ full multi-head attention (MHA), 80 layers, hidden width 8192, BF16/FP16 \textemdash\ unless the surrounding text or caption names a different geometry. This is the deliberately pessimistic upper bound from Ch.~1/7. It is \emph{not} a typical 70B-model KV footprint: a real 70B model may use GQA, MLA, or hybrid attention, which reduce KV per token, so an architecture-specific figure must be derived for that model's own attention shape rather than inheriting the MHA number. A decimal GB/binary GiB distinction is stated wherever a precise mount depends on it; where only an order of magnitude matters, the base is given explicitly.
 
 \noindent Two conventions apply throughout. (1) ``KV raw per token'' always means the un-allocated array product, stated in base-2 (MiB) and base-10 (MB) as appropriate; ``KV allocated'' or ``measured footprint'' includes the metadata and cache-block overhead. Do not conflate them. (2) A precision adjective is always attached to its subject (``FP16 \emph{weights}'' vs ``FP8 \emph{KV}''), never implied. (3) An architecture-specific advantage (GQA $\sim$8$\times$, MLA, hybrid) is a sensitivity for that configuration only and is not inherited by a different model.
 
@@ -86,7 +87,8 @@ GQA KV reduction & $\sim$8$\times$ (one config) & geometry-dependent sensitivity
 Edition & First edition, 2026 (title page)\\
 Build identifier & \texttt{v20260913} (content edition, 2026-09-13)\\
 Evidence cutoff & 2026-08-30 (single cutoff; see Preface)\\
-Appendix addenda & one boxed 2026-09-27 post-snapshot observation (App.~A, \S6), outside the cutoff envelope\\
+Appendix addenda & one boxed 2026-09-27 post-snapshot observation (App.~A, \S6), outside the cutoff envelope; its own revision identifier is ``v20260913+addendum-20260927''\\
+Provenance record & content snapshot \texttt{v20260913}, addendum snapshot \texttt{addendum-20260927}, figure/code-generator revision (repository HEAD), and PDF render timestamp (PDF metadata) are all recorded; the post-cutoff addendum is separately labeled and is \emph{not} folded into the 2026-08-30 evidence-only snapshot\\
 Generation date & recorded in PDF metadata (the date this source was rendered to PDF)\\
 Source revision & repository commit \texttt{@GITSHA@} (full SHA; see the Preface release log)\\
 \bottomrule

@@ -55,12 +55,19 @@ ax1.yaxis.set_major_formatter(FuncFormatter(_logfmt))  # "10^e" at full tick siz
 ax1.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax1.grid(alpha=0.3, which='both')
 ax1.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
-ax1.annotate('quadratic dominates\nbeyond ~32K',
-             xy=(32, (2*N*32e3 + 4*nl*(32e3**2)*d)/1e15),
-             xytext=(1.7, 0.06), fontsize=10.5, color='#8e44ad', fontweight='bold',
+# Crossover: equality of linear (2*N*L) and quadratic (4*nl*L^2*d) terms:
+#   L* = N / (2*nl*d) = 70e9 / (2*80*8192) = 53,406 tokens  (P0-03 fix).
+Lstar = N / (2 * nl * d)
+ax1.annotate('quadratic overtakes linear\nat ~%.0fK' % (Lstar/1e3),
+             xy=(Lstar/1e3, (2*N*Lstar)/1e15),
+             xytext=(2.0, 2.2), fontsize=10.5, color='#8e44ad', fontweight='bold',
              ha='left', va='bottom',
-             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#8e44ad',
-                             connectionstyle='arc3,rad=-0.25'))
+             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#8e44ad'))
+# the 32K point is significant but NOT yet dominant (~60% of linear)
+ax1.annotate('32K: quadratic ~60% of linear\n'
+             '(not yet dominant)', xy=(32, (4*nl*(32e3**2)*d)/1e15),
+             xytext=(5.5, 0.5), fontsize=8.0, color='#8e44ad', ha='left', va='bottom',
+             arrowprops=dict(arrowstyle='->', lw=0.8, color='#8e44ad'))
 # canonical 9.2K point (Figure caption footnote refers to it)
 ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=26)
 

@@ -28,7 +28,7 @@ These mechanisms compose: continuous batching is the baseline, PagedAttention ma
 - **[S3] Prefix caching** — "Fast Inference from Transformers via Radix Attention" (SGLang, 2023) and vLLM Automatic Prefix Caching (APC). Caching shared-prefix KV.
 - **[S4] P/D disaggregation** — "Splitwise: Efficient Generative LLM Inference Using Phase Splitting" (ISCA 2024), "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving" (OSDI 2024), and Mooncake (KV-centric disaggregation, 2024).
 - **[S5] DFlash** — speculative-decoding system reporting >6× (up to 2.5× in its evaluated configuration) lossless acceleration.
-- **[S6] vLLM FP8-KV measurement** — vLLM's *vendor-reported* FP8 KV-cache residency at ≈54% of BF16 (the ~1.42 MB/token amortized serving footprint used in Chapters 7, 15, 17, 22, 25; distinct from the naive 50% byte-halving of ~1.31 MB/token raw tensor storage). This is a vendor figure, not an author home-lab measurement; the exact block size and reserved-vs-allocated accounting boundary are as stated in the vLLM blog post (References, [S6]).
+- **[S6] vLLM FP8-KV blog** — the vLLM FP8-KV blog post's '54%' figure is a decode inter-token-latency (ITL) slope, a LATENCY metric, not a memory/residency ratio. Any reference to it (Chapters 7, 15, 17, 22, 25) is a latency reference only. The KV memory footprint this book uses is the raw tensor byte-halving of ~1.31 MB/token (exactly 50% of BF16) [ILLUSTRATIVE][DERIVED]; any block-allocation/metadata overhead is NOT vendor-measured here and must be filled by a deployment benchmark.
 
 ## 2. Mental Model
 
@@ -117,7 +117,7 @@ The serving stack dictates the deployment choices:
 
 - **Baseline (canonical single-host):** continuous batching (vLLM/Orca) is near-mandatory to hold TTFT under 10 rps input-heavy load; PagedAttention ensures the ~24.1 GB-per-request KV pack fits; prefix caching is the highest-leverage optimization because the workload is repeated-context RAG. This matches the memory and compute conclusions of Ch4/Ch7 for the ~10 rps *average* baseline; at the ~40 rps peak the KV budget forces replication, which Chapter 17 sizes. [S1][S2][S3][1P]
 
-- **Scaling up:** those three carry the workload far before disaggregation is justified. FP8 KV (~54% of BF16 [S6][1P]) and KV offloading are memory levers available without restructuring.
+- **Scaling up:** those three carry the workload far before disaggregation is justified. FP8 KV (raw tensor byte-halving = 1.31 MB/token, exactly 50% of BF16) [ILLUSTRATIVE][DERIVED] and KV offloading are memory levers available without restructuring.
 
 - **Beyond a node:** when prefill FLOPs and decode bandwidth fight on one pool, P/D disaggregation (Splitwise/DistServe/Mooncake) is the architecture of choice, with Mooncake's KV-transfer engine moving caches between pools. [S4][1P]
 

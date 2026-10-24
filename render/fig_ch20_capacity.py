@@ -12,11 +12,13 @@ import numpy as np
 #            (derived) construction (analytical bound x 0.95) representing offered
 #            load that is served, NOT a measured deployment throughput.
 # The gap between the two is the scheduling + tail/queueing overhead.
+# Both series are MODELED / ANALYTICAL constructions (analytical bound, and the
+# bound reduced by a 95% scheduling efficiency factor) — NOT measured throughput.
 # Annotations are placed in CLEAR regions (not on the curves) with leader arrows.
 
 hosts = np.arange(0, 61)
 analytical = 2.0 * hosts
-measured = np.minimum(0.95 * 2.0 * hosts, 40.0)   # ~95% efficiency, capped at 40 rps
+modeled = np.minimum(0.95 * 2.0 * hosts, 40.0)   # ~95% efficiency, capped at 40 rps
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(6.1, 5.4), sharex=True)
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
@@ -38,21 +40,22 @@ ax1.legend(fontsize=8.0, loc='upper left', frameon=False)
 ax1.tick_params(labelsize=8)
 
 # ---- BOTTOM: modeled offered-load-served curve ----
-ax2.plot(hosts, measured, '-', color='#27408b', lw=2.8, label='modeled offered-load-served curve (95% efficiency)')
+ax2.plot(hosts, modeled, '-', color='#27408b', lw=2.8, label='modeled offered-load-served curve (95% efficiency)')
 ax2.plot(hosts, analytical, ':', color='#888', lw=1.2, label='analytical bound (ceiling)')
 # annotation 1: removed — the "~5 hosts -> ~9.5 req/s" data point is redundant
 # (the linear rise makes it obvious) and could not be placed without crossing the
 # rising blue curve. The upper annotation (annotation 2) carries the key point.
-# annotation 2: ~20 hosts -> reaches the 40 rps peak. Placed in the UPPER-LEFT clear
+# annotation 2: reaching the 40 rps peak. Placed in the UPPER-LEFT clear
 # region (below the legend, above the rising curves: the grey line is y=2x, so at
 # x<15 it is at y<30, well below this text; the legend sits at y>100, well above).
-# The earlier (45,78) placement sat where the grey line (y=2x) crosses the text band.
-ax2.annotate('\u224820 hosts \u2192 reaches the 40 rps peak;\nmodeled curve plateaus (95% efficiency)',
-             xy=(20, 40), xytext=(2.5, 62),
+# Both series are a single modeled/analytical construction (integer-slot ~2.0 req/s
+# host bound x a 95% efficiency factor) — NOT measured deployment throughput.
+ax2.annotate('≈20-22 hosts → reaches the 40 rps peak;\nsingle modeled/analytical line plateaus (95% efficiency)',
+             xy=(21, 40), xytext=(2.5, 62),
              fontsize=8.2, color='#1a1a1a', ha='left', va='center',
              arrowprops=dict(arrowstyle='->', color='#555', lw=0.9))
 ax2.set_ylabel('Fleet throughput (req/s)', fontsize=9)
-ax2.set_title('MODELED OFFERED-LOAD-SERVED CURVE  (95% scheduling efficiency)', fontsize=9.5,
+ax2.set_title('MODELED OFFERED-LOAD-SERVED CURVE  (single modeled/analytical line, 95% scheduling efficiency)', fontsize=8.8,
               fontweight='bold', color='#1a1a1a', loc='left')
 ax2.set_ylim(0, 125)
 ax2.grid(alpha=0.3)
@@ -72,4 +75,4 @@ with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
 plt.savefig('design/manuscript/chapter-20/figures/fig-20-2001.png', dpi=200,
             bbox_inches='tight', pad_inches=0.05)
 plt.close()
-print('wrote fig-20-2001 (rebuilt; annotations moved off the curves)')
+print('wrote fig-20-2001 (rebuilt; single modeled/analytical line, annotations off curves)')
