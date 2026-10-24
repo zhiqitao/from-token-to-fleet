@@ -113,10 +113,11 @@ growth to 100 rps. This flips the original conclusion: the fleet is not
 a distant luxury but a necessity at the canonical peak, driven by the
 product of service time (8.6 s) and arrival rate.
 
-\textbf{KV compression is the first lever.} Switching KV to FP8 (≈54\%
-of BF16, vLLM-measured {[}S6{]}) cuts the 9.5K max per-request KV to
-≈13.4 GB and raises C to ≈32.4 concurrent per host (436 ÷ 13.448 ≈ 32.4;
-conservative integer floor 32), roughly doubling headroom before buying
+\textbf{KV compression is the first lever.} Switching KV to FP8 (κ ≈
+1.31 MB/token, raw byte-halving --- exactly 50\% of BF16
+{[}ILLUSTRATIVE{]}{[}DERIVED{]}) cuts the 9.5K max per-request KV to
+≈12.45 GB and raises C to ≈35.0 concurrent per host (436 ÷ 12.45 ≈ 35.0;
+conservative integer floor 35), roughly doubling headroom before buying
 hardware. This is why the architect treats KV precision as a first-class
 capacity dial, not a cosmetic detail.
 
@@ -376,10 +377,11 @@ overhead). At the canonical peak:
   conservative choice; a measured per-step time from a \hyperref[chap:14]{Chapter 14}
   benchmark should replace it before committing hardware.
 \item
-  Switching to FP8 KV (κ ≈ 1.42 MB/token, 54\% of BF16, C ≈ 32.4 at T=0)
-  raises per-host concurrency to \textasciitilde32.4, cutting the fleet
-  to H\_min ≈ 344/32.4 ≈ 10.6 → \textbf{\textasciitilde11 hosts} (≈15 at
-  70\% util).
+  Switching to FP8 KV (κ ≈ 1.31 MB/token, raw byte-halving --- 50\% of
+  BF16, C ≈ 35.0 at T=0; conservative integer floor 35) raises per-host
+  concurrency, cutting the fleet to H\_min ≈ ⌈344/35.0⌉ = 10 at full
+  utilization → \textbf{15 working hosts} at the 70\% utilization target
+  (\textbf{16 total with N−1}).
 \end{itemize}
 
 \textbf{Separate the two questions explicitly} --- they are not
@@ -440,20 +442,24 @@ policy) explicitly in the sizing summary rather than presenting
 factor}\label{loadbalancer-overhead-factor}
 
 Let ρ be the effective throughput fraction after load‑balancer effects.
-Empirically, a well‑configured software LB (NGINX) achieves ρ ≈ 0.95,
-meaning total system throughput = ρ · N · throughput\_per\_host. A
-hardware L7 switch may achieve ρ ≈ 0.98. The overhead comes from:
+\textbf{These LB-efficiency values are
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} engineering thresholds, not universal
+vendor-independent constants} --- a well‑configured software LB (NGINX)
+typically achieves ρ ≈ 0.95, and a hardware L7 switch may achieve ρ ≈
+0.98, \emph{but both must be measured on the target topology, workload,
+and sample duration before being trusted}. The overhead comes from:
 health‑check traffic (\textasciitilde1\% of requests), session‑affinity
 hashing skew, and LB process CPU limits. The throughput\_per\_host
 itself must come from a benchmark on the actual workload
 (tokens/context/batch) --- it is an ILLUSTRATIVE proxy until measured.
 What is \emph{derivable} is the KV‑residency ceiling C from §17.3; the
-LB overhead multiplies the schedulable fraction of that ceiling. In the
-worked example, the fleet is currently sized by KV capacity (§17.3), not
-by a fabricated tokens/s number: at T=4, FP16-KV C≈13/host (436 GB ÷
-(12,960 × 2.62 MB ≈ 34.0 GB) ≈ 12.8) sets the ceiling, and adding a host
-raises aggregate schedulable concurrency by ρ·C, i.e.~\textasciitilde12
-concurrent at ρ=0.95.
+LB overhead multiplies the schedulable fraction of that ceiling, and the
+ρ value should be replaced by a measured figure from a load test before
+it is used as a capacity coefficient. In the worked example, the fleet
+is currently sized by KV capacity (§17.3), not by a fabricated tokens/s
+number: at T=4, FP16-KV C≈13/host (436 GB ÷ (12,960 × 2.62 MB ≈ 34.0 GB)
+≈ 12.8) sets the ceiling, and adding a host raises aggregate schedulable
+concurrency by ρ·C, i.e.~\textasciitilde12 concurrent at ρ=0.95.
 
 \subsection{Cross-host interconnect
 budget}\label{cross-host-interconnect-budget}
@@ -555,9 +561,15 @@ scenario a method rather than a template.
   \textbf{Over‑relying on sticky sessions without load‑balance
   analysis.} Sticky sessions simplify cross‑host communication but can
   create hot‑spot hosts if a few users generate disproportionate
-  traffic. Always measure the session‑affinity distribution; if the Gini
-  coefficient of per-host request counts exceeds 0.3, stateless routing
-  or session sharding is the appropriate response.
+  traffic. Always measure the session‑affinity distribution on the
+  actual workload. \textbf{A Gini coefficient exceeding 0.3 is an
+  {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} example threshold, not a universal
+  constant} --- the trigger to abandon sticky sessions depends on the
+  workload, the tail-latency SLO, and the failure domain. Establish the
+  skew threshold with a traffic replay/load test and tune it to the SLO,
+  not to a fixed 0.3; measure per-host queueing, p95/p99 latency, and
+  request drops to decide when stateless routing or session sharding is
+  the appropriate response.
 \item
   \textbf{Using raw rps to size the fleet.} Requests‑per‑second is
   necessary but not sufficient; the product of rps × average latency
@@ -594,9 +606,10 @@ as turns grow: C falls (more tokens → more KV per request) and W rises
 (more per‑turn latency), so in‑flight concurrency λ·W grows on both
 sides. For the canonical customer‑facing peak (40 rps, W≈8.6 s),
 in‑flight ≈ 344 and H ≈ ⌈344/17.5⌉ ≈ 20 hosts at full utilization
-(\textbf{29} at 70\% util) with FP16 KV; FP8 KV cuts that to
-\textasciitilde11 (≈15 at 70\%). The lesson is honest: the binding term
-is λ·W/C, and W must be the real service time, not a sub‑second target
+(\textbf{29} at 70\% util, \textbf{30 total with N−1}) with FP16 KV; FP8
+KV cuts that to \textbf{15 working hosts} (10 at full utilization;
+\textbf{16 total with N−1}). The lesson is honest: the binding term is
+λ·W/C, and W must be the real service time, not a sub‑second target
 latency. Size for the 95th‑percentile latency and token scenario, not
 the median, and treat KV precision as the cheapest way to shrink the
 fleet before adding hardware.
@@ -743,25 +756,27 @@ in‑flight counts and host totals as corresponding lower bounds. It is
 \(T \cdot L_\text{agent}\); the two are different quantities, and it is
 this full W that drives concurrency and fleet size, per \hyperref[chap:19]{Chapter 19}'s
 scope note.) So at the 100‑rps peak, in‑flight concurrency ≈ 100 × 13.8
-≈ 1,380 requests, not 200. Against C ≈ 13.8 per host, H = ⌈1,380/(13.8
-×0.7)⌉ ≈ \textbf{143 hosts} on FP16 KV (≈100 at full utilization). This
-is the honest arithmetic the service-time model produces --- the naive
-``1--5 hosts'' rps estimate is off by two orders of magnitude because it
-ignores both the decode duration and the added turn latency.
+≈ 1,380 requests, not 200. Against C ≈ 13.8 per host (conservative
+integer floor 13), H = ⌈1,380/(13 ×0.7)⌉ ≈ \textbf{152 hosts} on FP16 KV
+(≈107 at full utilization). This is the honest arithmetic the
+service-time model produces --- the naive ``1--5 hosts'' rps estimate is
+off by two orders of magnitude because it ignores both the decode
+duration and the added turn latency.
 
 \textbf{KV compression changes the answer.} Switching the KV cache to
-FP8 (κ ≈ 1.42 MB/token, 54\% of BF16) cuts per‑request KV at T=3 to
-\textasciitilde17.2 GB and raises C to ≈25.4 per host (436 ÷ 17.17 ≈
-25.4; conservative integer floor 25), giving H ≈ ⌈1,380/(25.4 ×0.7)⌉ ≈
-\textbf{78 hosts} (≈55 at full utilization). Combined with prompt/prefix
-caching (which can eliminate the repeated 9,200‑token base prompt from
-the KV per turn), the practical fleet lands well below the FP16 number.
-KV precision and prefix caching are the primary levers that make agentic
-fleets affordable, but even with both, an agentic 70B workload at 100
-rps is a \emph{multi‑dozen‑host} fleet, not a handful.
+FP8 (κ ≈ 1.31 MB/token, raw byte-halving --- 50\% of BF16) cuts
+per‑request KV at T=3 to \textasciitilde15.85 GB and raises C to ≈27.5
+per host (436 ÷ 15.85 ≈ 27.5; conservative integer floor 27), giving H ≈
+⌈1,380/(27 ×0.7)⌉ ≈ \textbf{74 working hosts} (≈52 at full utilization).
+Combined with prompt/prefix caching (which can eliminate the repeated
+9,200‑token base prompt from the KV per turn), the practical fleet lands
+well below the FP16 number. KV precision and prefix caching are the
+primary levers that make agentic fleets affordable, but even with both,
+an agentic 70B workload at 100 rps is a \emph{multi‑dozen‑host} fleet,
+not a handful.
 
 \textbf{Decision.} After the honest sizing, the team provisions on the
-order of \textasciitilde55--80 hosts (the FP8+prefix-cache range, to be
+order of \textasciitilde52--74 hosts (the FP8+prefix-cache range, to be
 validated by a \hyperref[chap:14]{Chapter 14} benchmark before committing hardware), runs
 NGINX as a software load balancer with consistent hashing for session
 affinity, and instruments each host with OpenTelemetry tracing.
@@ -816,44 +831,46 @@ in-flight @ non-agentic W=8.6s
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 in-flight @ agentic W=13.8s
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=0, FP16 (C×0.7 = 17.5×0.7 = 12.25)
+H @ T=0, FP16 (floor C=17; C×0.7 = 11.9)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=3 (95th), FP16 (C×0.7 = 13.8×0.7 = 9.66)
+H @ T=3 (95th), FP16 (floor C=13; C×0.7 = 9.1)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=3 (95th), FP8 (C×0.7 = 25.4×0.7 = 17.78)
+H @ T=3 (95th), FP8 (floor C=27; C×0.7 = 18.9)
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-40 rps (canonical peak) & 344 & 552 & ⌈344/12.25⌉ ≈ 29 & ⌈552/9.66⌉ ≈ 58
-& ⌈552/17.78⌉ ≈ 32 \\
-100 rps (growth) & 860 & 1,380 & ⌈860/12.25⌉ ≈ 71 & ⌈1380/9.66⌉ ≈ 143 &
-⌈1380/17.78⌉ ≈ 78 \\
-200 rps (2× growth) & 1,720 & 2,760 & ⌈1720/12.25⌉ ≈ 141 & ⌈2760/9.66⌉ ≈
-286 & ⌈2760/17.78⌉ ≈ 156 \\
+40 rps (canonical peak) & 344 & 552 & ⌈344/11.9⌉ ≈ 29 & ⌈552/9.1⌉ ≈ 61 &
+⌈552/18.9⌉ ≈ 30 \\
+100 rps (growth) & 860 & 1,380 & ⌈860/11.9⌉ ≈ 73 & ⌈1380/9.1⌉ ≈ 152 &
+⌈1380/18.9⌉ ≈ 74 \\
+200 rps (2× growth) & 1,720 & 2,760 & ⌈1720/11.9⌉ ≈ 145 & ⌈2760/9.1⌉ ≈
+304 & ⌈2760/18.9⌉ ≈ 147 \\
 \textbf{N-1 failover, 40 rps peak (survive one host loss)} & --- & --- &
-30 & 59 & 33 \\
+30 & 62 & 31 \\
 
 \label{tab:17.2}\end{longtable}
 
 \emph{The chapter sizes fleets at the \textbf{95th-percentile turn
 scenario (T=3)} per its own rule (``size for the 95th-percentile token
 scenario''), so the agentic columns use T=3 --- which is also what the
-§17.8 mini-case computes (\textasciitilde143 hosts at 100 rps). C is the
+§17.8 mini-case computes (\textasciitilde152 hosts at 100 rps). C is the
 KV-residency ceiling (derived): 17.5 concurrent full-context requests on
 FP16 at T=0 (conservative integer floor 17), 13.8 at T=3 (12,095 tokens
-× 2.62 MB ≈ 31.7 GB/request over 436 GB), and 25.4 on FP8 at T=3 (12,095
-× 1.42 MB ≈ 17.2 GB/request; the mini-case's ``≈78 hosts at FP8'' at 100
-rps). These are multiplied by the 0.7 utilization factor in the host
-columns. The 70\% utilization target and the λ, W values are
-ILLUSTRATIVE scenario inputs to be validated by a deployment benchmark
-(\hyperref[chap:14]{Chapter 14}) before committing hardware. H is a KV-residency lower bound
---- the true answer is the max of this KV bound and the measured
-throughput bound. \textbf{Planning-bound caveat:} the per-host figures
-that feed this table --- \textbf{\textasciitilde2.0 req/s/host} and
-\textbf{\textasciitilde19,800 prefill tok/s/host} (Ch 8, idealized) ---
-are }upper-order planning bounds* derived from the
+× 2.62 MB ≈ 31.7 GB/request over 436 GB; floor 13), and 27.5 on FP8 at
+T=3 (12,095 × 1.31 MB ≈ 15.85 GB/request; floor 27 --- the mini-case's
+``≈74 working hosts at FP8'' at 100 rps). Each C is floored to a
+whole-sequence slot count (17, 13, 27) before the 0.7 utilization factor
+is applied in the host columns (integer-slot convention, P1-01); the N−1
+failover row adds one spare host. The 70\% utilization target and the λ,
+W values are ILLUSTRATIVE scenario inputs to be validated by a
+deployment benchmark (\hyperref[chap:14]{Chapter 14}) before committing hardware. H is a
+KV-residency lower bound --- the true answer is the max of this KV bound
+and the measured throughput bound. \textbf{Planning-bound caveat:} the
+per-host figures that feed this table --- \textbf{\textasciitilde2.0
+req/s/host} and \textbf{\textasciitilde19,800 prefill tok/s/host} (Ch 8,
+idealized) --- are }upper-order planning bounds* derived from the
 KV-residency/service-time model and the idealized prefill roofline,
 \textbf{not implied deployed rates}. \textbf{No p95/p99 performance
 guarantee has been shown} for any host count in these columns; the

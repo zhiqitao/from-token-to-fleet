@@ -286,25 +286,31 @@ Value
 \endlastfoot
 Employees / registered users & \textasciitilde2,000 \\
 Concurrent users (typical) & \textasciitilde100 active users (5\% of
-2,000) --- \emph{population measure; the in-flight request occupancy is
-the derived λ·W ≈86, NOT 100 simultaneous KV-resident requests (see
-§Arithmetic Walk-Through)} \\
+2,000) --- \emph{population measure, NOT synonymous with in-flight
+inference requests; execution occupancy is derived separately below} \\
 Concurrent users (peak) & \textasciitilde400 (20\% of 2,000) \\
 Mean request service time (planning) & \textasciitilde10 s
 \emph{{[}ILLUSTRATIVE{]}{[}ASSUMPTION --- planning round; retrieval
 \textasciitilde120ms + prefill \textasciitilde1.08s + decode
 \textasciitilde7.5s rounded to a comfortable planning figure. This is
 the stable-flow Little's Law dwell time, a modelling quantity, NOT a
-measured p95/p99; it is a planning fiction (see §2). ``Concurrent
-users'' is a }population* measure (active users); the in-flight
-\emph{request} occupancy is the separate derived λ·W figure* \\
+measured p95/p99; it is a planning fiction{]}}, and the derived
+execution time W\_exec ≈ 8.6 s (prefill + decode) used for
+occupancy/sizing \\
 Average arrival rate & \textasciitilde10 rps
-\emph{{[}ILLUSTRATIVE{]}{[}DERIVED --- Little's Law L=100/W=10s on
-assumed {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} inputs; NOT a second-hand
-measured value{]}} \\
+\emph{{[}ILLUSTRATIVE{]}{[}ASSUMPTION --- a deliberate traffic
+assumption (2,000 users × one request \textasciitilde every 200 s ≈ 10
+rps), NOT derived by Little's Law from the 100-user population. Little's
+Law needs the average number of \emph{requests in} the system, not the
+count of active people. The 10 rps is a scenario input{]}} \\
 Peak arrival rate & \textasciitilde40 rps
-\emph{{[}ILLUSTRATIVE{]}{[}DERIVED --- Little's Law 400/10; same
-ASSUMPTION basis, not a measured arrival rate{]}} \\
+\emph{{[}ILLUSTRATIVE{]}{[}ASSUMPTION --- the same behavior scaled to
+the burst/traffic spike; a scenario input, not a measured arrival
+rate{]}} \\
+Execution occupancy (derived) & \textasciitilde86 requests at 10 rps
+(W\_exec ≈ 8.6 s); \textasciitilde344 at 40 rps --- \emph{derived via
+Little's Law L\_exec = λ × W\_exec, a separate occupancy, NOT the 100
+active-user population} \\
 Prompt / query & 1,200 tokens \\
 Retrieved context & 8,000 tokens \\
 Total input & 9,200 tokens \\
@@ -419,13 +425,17 @@ Status
 \bottomrule\noalign{}
 \endlastfoot
 Registered users & 2,000 & {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} workload
-input \\
-Active fraction & 5\% (\textasciitilde100 in-flight requests) &
-{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
+context \\
+Active fraction & 5\% (\textasciitilde100 active users) &
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} population measure, NOT in-flight
+request count \\
 Average / peak traffic & 10 rps / 40 rps &
-{[}ILLUSTRATIVE{]}{[}DERIVED{]} from Little's Law on the
-{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} concurrency + service-time inputs
-above \\
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} deliberate traffic inputs (2,000
+users × \textasciitilde1 request/200 s ≈ 10 rps; peak scaled). NOT
+derived by Little's Law from the 100-user population \\
+Execution occupancy & \textasciitilde86 / \textasciitilde344 requests
+(at W\_exec ≈ 8.6 s) & {[}ILLUSTRATIVE{]}{[}DERIVED{]} Little's Law L =
+λ × W\_exec; a separate occupancy from the active-user population \\
 Input tokens & 9,200 (1,200 prompt + 8,000 retrieved) &
 {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
 Output tokens & 300 & {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
@@ -436,8 +446,9 @@ hidden\_dim) & {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} (a real 70B may use
 GQA, \textasciitilde8x less KV; Ch 7) \\
 KV per token (FP16, MHA) & 2.62 MB & {[}2°{]}{[}DERIVED{]} from the
 general KV formula, MHA case \\
-KV per token (FP8, vLLM \textasciitilde54\%) & 1.42 MB &
-{[}1P{]}{[}FACT{]} vLLM-measured \\
+KV per token (FP8, raw byte-halving) & 1.31 MB &
+{[}ILLUSTRATIVE{]}{[}DERIVED{]} (exactly 50\% of BF16; block/metadata
+overhead not vendor-measured --- fill via deployment benchmark) \\
 H100 HBM per GPU & 80 GB & {[}1P{]}{[}FACT{]} vendor \\
 H100 BF16 peak (dense, no sparsity) & \textasciitilde0.989 PFLOPS &
 {[}1P{]}{[}FACT{]} vendor \\
@@ -500,47 +511,36 @@ C = f \cdot N = 0.05 \times 2{,}000 = 100 \text{ concurrent users}
   fleet-sizing service time at \textasciitilde8.6 s (\hyperref[chap:8]{Chapter 8}), and the
   \textasciitilde10 s figure is the coarser planning-round headline.
 \item
-  \textbf{Throughput via Little's Law}: Little's Law, \(L = \lambda W\),
-  relates average concurrency \(L\), average arrival rate \(\lambda\),
-  and average time in system \(W\). Rearranging to solve for throughput:
-\end{enumerate}
-
-\[
-\lambda = \frac{L}{W} = \frac{100 \text{ concurrent}}{10 \text{ s}} = 10 \text{ rps}
-\]
-
-\begin{enumerate}
-\def\labelenumi{\arabic{enumi}.}
-\setcounter{enumi}{3}
-\tightlist
+  \textbf{Arrival rate --- a declared traffic assumption, NOT a
+  Little's-law derivation from the active-user population}: Little's
+  Law, \(L = \lambda W\), relates the average number of \emph{requests
+  in the defined system} \(L\), the arrival rate \(\lambda\), and the
+  mean time in system \(W\). It cannot be applied to a count of
+  \emph{active people} --- 100 recently-active users is not the same as
+  100 requests in the serving system. So the \textasciitilde10 rps
+  average is \textbf{declared as a scenario input} (≈ 2,000 registered
+  users × one request \textasciitilde every 200 s → \textasciitilde10
+  rps), not solved for from the 100-user population.
 \item
-  \textbf{Peak throughput}: if concurrency spikes to \(f = 0.20\)
-  (i.e.~400 users) and the per‑request duration stays \(W = 10\) s,
-  Little's Law gives
+  \textbf{Peak arrival rate}: \textasciitilde40 rps is the same behavior
+  scaled to a burst/traffic spike --- again a declared scenario input,
+  not a Little's-law derivation from a user count.
 \end{enumerate}
 
-\[
-\lambda_{\text{peak}} = \frac{f_{\text{peak}} \cdot N}{W} = \frac{0.20 \times 2{,}000}{10} = 40 \text{ rps}
-\]
-
-This matches the canonical peak of \textasciitilde40 rps.
-
-The derivation is explicit: the ``\textasciitilde5\% concurrently
-active'' and ``\textasciitilde10 rps average'' are not independently
-asserted; they are linked by the 10 s average request duration. Change
-any one number and the others shift accordingly. This is the purpose of
-the exercise --- not to produce a fixed set of gospel numbers, but to
-establish \emph{how} the numbers connect, so the architect can recompute
-them when the requirement changes. \textbf{Read the 10 rps as an
-assumed/scenario input, not an empirically measured arrival rate.}
-Little's Law does not \emph{empirically determine} arrival rate from a
-registered-user count --- the 5\% active fraction and the 10 s service
-time are both {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} scenario inputs, and
-the 10 rps is computed from them. If the architect starts from a
-measured 10 rps instead, the relation runs the other way (it yields
-\textasciitilde86 in-flight at W ≈ 8.6 s, not a user count). The point
-of the exercise is the \emph{relation}, not a claim about how many users
-behave.
+The walk-through makes the \emph{distinctions} explicit: the
+\textbf{\textasciitilde100 active users} are a population/activity
+measure, not a request-occupancy count; the \textbf{\textasciitilde10
+rps average / \textasciitilde40 rps peak} are declared traffic
+assumptions (scenario inputs), not derived from the user count; the
+\textbf{\textasciitilde86 / \textasciitilde344 execution occupancy} is
+derived from those arrival rates via Little's Law (L = λ × W\_exec,
+W\_exec ≈ 8.6 s). The point of the exercise is to keep population,
+arrival rate, and occupancy separate, not to claim that a
+registered-user count empirically determines an arrival rate. Change any
+one assumption and the others shift accordingly; the architect
+recomputes them when the requirement changes. If the architect starts
+from a measured 10 rps instead, the relation runs the other way (it
+yields \textasciitilde86 in-flight at W ≈ 8.6 s, not a user count).
 
 Before moving on, it is worth naming the four distinct quantities so
 they are not collapsed: \textbf{registered users} are the population;
@@ -1045,7 +1045,7 @@ ceiling; Operational → multi-region vs.~single-region deployment.}
   \textasciitilde241 GB of KV on top of the 140 GB weights --- pressing
   against the 640 GB pool well before concurrency reaches 100. The
   architecture must therefore limit concurrency, quantize KV (FP8 →
-  \textasciitilde1.42 MB/token, \textasciitilde13.4 GB/request at the
+  \textasciitilde1.31 MB/token, \textasciitilde12.45 GB/request at the
   9.5K max), or use a GQA architecture. This is the same KV-residency
   discipline developed fully in Chapters 7 and 17.
 \item

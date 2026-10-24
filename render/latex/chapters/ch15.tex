@@ -430,16 +430,19 @@ concurrent full-context users require either multiple hosts, much
 shorter contexts, or KV compression (FP8/8-bit). Designers should
 implement length‑based eviction (drop the oldest/least‑recently‑used
 contexts) and KV quantization to cut the footprint (FP8 ≈2.62 →
-\textasciitilde1.42 MB/token, the 54\%-of-BF16 conversion used
-consistently with §9 and {[}S6{]}). \emph{Using scaled‑dot‑product
-attention without FlashAttention:} For long contexts (9,200+ tokens) the
-quadratic memory cost of SDPA (O(L²)) dominates the FLOP cost.
-FlashAttention fuses read‑write‑compute and reduces HBM traffic by
-\textasciitilde3--5×, raising effective arithmetic intensity. This is
-one of the highest-impact \emph{kernel-level} choices (it sits among
-prefix caching, KV-precision, batching, and P/D disaggregation as a
-major lever, not the single deciding one), and it pays off specifically
-when memory-bound; for moderate lengths (2,000--4,000 tokens) the HBM
+\textasciitilde1.31 MB/token --- exactly 50\% of BF16 by raw tensor
+byte-halving, the same FP8 constant used with §9 and Ch 7; vLLM's cited
+54\% {[}S6{]} is a decode inter-token-latency slope, a latency metric,
+not a memory ratio, and any allocator block/metadata overhead is not
+vendor-measured). \emph{Using scaled‑dot‑product attention without
+FlashAttention:} For long contexts (9,200+ tokens) the quadratic memory
+cost of SDPA (O(L²)) dominates the FLOP cost. FlashAttention fuses
+read‑write‑compute and reduces HBM traffic by \textasciitilde3--5×,
+raising effective arithmetic intensity. This is one of the
+highest-impact \emph{kernel-level} choices (it sits among prefix
+caching, KV-precision, batching, and P/D disaggregation as a major
+lever, not the single deciding one), and it pays off specifically when
+memory-bound; for moderate lengths (2,000--4,000 tokens) the HBM
 bandwidth reduction typically translates to a \textasciitilde1.3--1.8×
 throughput gain on H100 (illustrative --- bench the specific kernel on
 the target hardware). \emph{Neglecting kernel launch overhead:} In
@@ -459,13 +462,16 @@ transactions; (2) continuous batching, with the maximum chunk size
 chosen empirically from the measured goodput/latency knee (a chunk size
 of 8 tokens is an {[}ILLUSTRATIVE{]} configuration, not the
 recommendation --- the knee must be measured on the target stack); (3)
-KV cache management via FP8 KV quantization (≈2.62 → \textasciitilde1.42
-MB/token, at 54\% of BF16 {[}S6{]}, cutting a 9,500‑token per‑user KV to
-\textasciitilde13.4 GB) plus length‑based eviction, so that under the
-same \textasciitilde436 GB practical KV budget on‑host concurrency rises
-from \textasciitilde17.5 to \textasciitilde32.4 full‑context users.
-These choices together are expected to raise achieved token throughput
-from \textasciitilde8,000 tokens/s (raw, no flash, batch‑1) toward an
+KV cache management via FP8 KV quantization (≈2.62 → \textasciitilde1.31
+MB/token --- exactly 50\% of BF16 by raw tensor byte-halving, cutting a
+9,500‑token per‑user KV to \textasciitilde12.45 GB; vLLM's 54\% {[}S6{]}
+is a decode inter-token-latency slope, a latency metric, not a memory
+ratio, and any block/metadata overhead is not vendor-measured) plus
+length‑based eviction, so that under the same \textasciitilde436 GB
+practical KV budget on‑host concurrency rises from \textasciitilde17.5
+to \textasciitilde35.0 full‑context users (436 GB ÷ 12.45 GB). These
+choices together are expected to raise achieved token throughput from
+\textasciitilde8,000 tokens/s (raw, no flash, batch‑1) toward an
 illustrative \textasciitilde35,000--70,000 tokens/s {[}ILLUSTRATIVE
 achievable range{]} (with flash, continuous batch) --- the exact figure
 must come from the target benchmark --- while keeping the host's 640\,GB
