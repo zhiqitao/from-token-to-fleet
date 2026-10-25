@@ -19,11 +19,13 @@
 - **Automated figure inventory**: **0 rasters below 300 ppi**.
 - **Source-level consistency** (Pass B): clean (no Ch27, no stale FP8, no editor instruction).
 - **Figure vision pass** (all 46, via 6 sub-agent batches + targeted `vision_analyze`):
-  **4 genuine print-legibility defects found and fixed** — Fig 7.1 (label collision),
-  Fig 15.2 (`[ILLUSTRATIVE]` tag collision), Fig 14.1 (sub-8pt annotations). Rebuilt & re-scanned:
-  all figures >=8pt, 0 <300ppi, 0 out-of-page, Type3 0, regressions pass.
+  **11 genuine print-legibility defects found and fixed, all vision-verified in the built PDF**
+  (Fig 7.1, 8.1, 14.1, 15.2, 16.1, 17.1, 18.1, 19.2, 20.1, 22.1, A.3). Rebuilt & re-scanned at
+  **356 pages**: all vector figures >=8.0pt, 0 raster <300ppi, 0 out-of-page, Type3 0,
+  regressions pass, 48/48 independent checks.
 - **RELEASE_REPORT.md** written with an honest **NOT_READY** verdict (content closed; deployment
   goodput + physical-print + external vendor audit remain UNVERIFIED by design / external).
+- **Latest commit chain:** `33b66fc4` (fig redraws) → `aff0d50e` (rebuild, 356pp).
 
 ### Next exact action (for a subsequent run)
 Physical 100%-size print proof + independent vendor-source/citation audit; then a release decision.
