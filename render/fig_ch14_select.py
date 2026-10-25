@@ -16,7 +16,7 @@ ax.set_title('Select models: screen on capability, then benchmark on the workloa
 
 def cell(x, y, w, h, label, fc):
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.05', fc=fc, ec='#1a3a6b', lw=1.3))
-    ax.text(x+w/2, y+h/2, label, ha='center', va='center', fontsize=8.0, color='white', fontweight='bold')
+    ax.text(x+w/2, y+h/2, label, ha='center', va='center', fontsize=8.3, color='white', fontweight='bold')
 
 def stage(x, w, name, screen, fc1, fc2, conn='screen'):
     cell(x, 3.9, w, 1.15, name, fc1)
@@ -24,10 +24,12 @@ def stage(x, w, name, screen, fc1, fc2, conn='screen'):
     # vertical connector linking the state (top) to its process (bottom)
     ax.annotate('', xy=(x+w/2, 2.2+1.15), xytext=(x+w/2, 3.9),
                 arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#2f6f4f'))
-    # connector label in the CLEAR GAP between the two boxes (y 3.35..3.9), offset
-    # LEFT of the connector so it does not sit on the connector line or on the
-    # white box text inside the process box (which is at y<=3.35).
-    ax.text(x+w/2-1.55, 3.62, conn, fontsize=8.0, color='#2f6f4f', ha='center', va='center', fontweight='bold')
+    # connector label in the CLEAR GAP between the two boxes (y 3.35..3.9), RIGHT-ALIGNED
+    # so its right edge sits a fixed 0.55-unit gap LEFT of the connector line. Right-align
+    # (rather than a fixed centre offset) keeps that gap identical for every stage, so a
+    # long label like 'benchmark' can never run into the arrowhead, and the label never
+    # sits on the white box text inside the process box (y<=3.35).
+    ax.text(x+w/2-0.55, 3.62, conn, fontsize=8.3, color='#2f6f4f', ha='right', va='center', fontweight='bold')
 
 # Stage 1: candidates -> capability screen
 stage(0.9, 5.2, 'Candidate\nmodels', 'Capability\nMMLU/GSM8K', '#3a6ea5', '#e67e22', conn='screen')
@@ -45,8 +47,11 @@ ax.annotate('', xy=(20.6, 2.775), xytext=(18.7, 2.775),
             arrowprops=dict(arrowstyle='-|>', lw=2.2, color='#2f6f4f'))
 ax.text(20.9, 2.775, 'deployed', fontsize=8.5, color='#2f6f4f', fontweight='bold', ha='left', va='center')
 
-ax.text(11.0, 1.1, 'filter narrows the candidates (capability first), then survivors are\nmeasured on the real workload against the SLO gate.  [ILLUSTRATIVE][DERIVED]',
-        fontsize=8.0, ha='center', color='#666')
+# NOTE: the [ILLUSTRATIVE][DERIVED] tag lives in the figure CAPTION (chapter-14.md),
+# not in the diagram — keep it out of the drawn text.
+ax.text(11.0, 1.1, 'filter narrows the candidates (capability first), then survivors are\n'
+        'measured on the real workload against the SLO gate.',
+        fontsize=8.3, ha='center', color='#666')
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-14/figures/fig-14-1401.png', dpi=400)
 import matplotlib as mpl

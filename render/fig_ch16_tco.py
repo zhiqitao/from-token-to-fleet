@@ -31,13 +31,17 @@ managed_hi = api_hi * req
 
 fig, ax = plt.subplots(figsize=(6.1, 5.0))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
+# NOTE on '$': matplotlib parses '$...$' as mathtext, which DROPS spaces and turns
+# '*'/'-' into U+2217/U+2212 glyphs. Every literal dollar sign below is escaped as
+# '\\$' so the text renders verbatim (this is what mangled the assumptions footer
+# into '~148K/moreserved' with the '$' signs swallowed).
 ax.fill_between(req, managed_lo, managed_hi, color='#c0392b', alpha=0.12,
-                label='price band $15–25/1K [ILLUSTRATIVE]')
+                label='price band \\$15–25/1K [ILLUSTRATIVE]')
 ax.loglog(req, managed_lo, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, managed_hi, ':', color='#c0392b', lw=1.1, alpha=0.9)
-ax.loglog(req, self_host, '-', color='#27408b', lw=2.0, label='self-host ~$148K/mo')
-ax.loglog(req, cloud_od, '--', color='#6f9e5f', lw=1.9, label='cloud ~$73K/mo')
-ax.loglog(req, managed, '-', color='#c0392b', lw=2.0, label='managed $20.80/1K')
+ax.loglog(req, self_host, '-', color='#27408b', lw=2.0, label='self-host ~\\$148K/mo')
+ax.loglog(req, cloud_od, '--', color='#6f9e5f', lw=1.9, label='cloud ~\\$73K/mo')
+ax.loglog(req, managed, '-', color='#c0392b', lw=2.0, label='managed \\$20.80/1K')
 
 ax.set_xlabel('Requests/month (log)', fontsize=9)
 ax.set_ylabel('Cost/month (USD, log)', fontsize=9)
@@ -61,7 +65,7 @@ ax.plot([be_lo, be_hi], [148000, 148000], '-', lw=1.4, color='#c0392b', alpha=0.
 # ~2e4 there, self-host line is 1.48e5) so the box no longer overlaps the managed
 # curve or the 1e5 gridline. White bbox keeps chart lines from showing through.
 ax.text(9.5e7, 1.2e4,
-        f'break-even \u2248 {be/1e6:.1f}M req/mo @ $20.80/1K\n'
+        f'break-even \u2248 {be/1e6:.1f}M req/mo @ \\$20.80/1K\n'
         f'sensitivity \u2248 {be_lo/1e6:.1f}\u2013{be_hi/1e6:.1f}M [ILLUSTRATIVE]',
         fontsize=8.5, color='#c0392b', fontweight='bold', ha='right', va='bottom',
         bbox=dict(boxstyle='round,pad=0.30', fc='white', ec='#c0392b', lw=0.8))
@@ -87,9 +91,9 @@ fig.text(0.5, 0.945,
          'TCO break-even (~20-host fleet)',
          fontsize=9.5, color='black', ha='center', va='top')
 fig.text(0.11, 0.012,
-         'Assumptions: self-host flat (~$148K/mo reserved, incl. ~$10K/mo staff);\n'
-         'cloud ~$73K/mo @ ~25% duty (~5 of ~20 hosts, idealised elasticity).\n'
-         'Sensitivity [ILLUSTRATIVE]: a $15–25/1K price band moves\n'
+         'Assumptions: self-host flat (~\\$148K/mo reserved, incl. ~\\$10K/mo staff);\n'
+         'cloud ~\\$73K/mo @ ~25% duty (~5 of ~20 hosts, idealised elasticity).\n'
+         'Sensitivity [ILLUSTRATIVE]: a \\$15–25/1K price band moves\n'
          'the break-even to ~5.9–9.9M req/mo.',
          fontsize=8.2, color='#555', ha='left', va='bottom')
 

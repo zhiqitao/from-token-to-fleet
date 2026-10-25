@@ -30,7 +30,7 @@ for (name, sub, fc, ec, y) in levels:
     ax.add_patch(FancyBboxPatch((xc-bw/2, y-bh/2), bw, bh, boxstyle='round,pad=0.02,rounding_size=0.3',
                                 fc=fc, ec=ec, lw=1.4))
     ax.text(xc, y+0.22, name, ha='center', va='center', fontsize=FS, fontweight='bold', color='#1a1a1a')
-    ax.text(xc, y-0.34, sub, ha='center', va='center', fontsize=7.8, color='#3a5a3a')
+    ax.text(xc, y-0.34, sub, ha='center', va='center', fontsize=8.4, color='#3a5a3a')
 
 # ---- CAUSATION rail: solid-green, arrows point DOWN (workload -> serving) ----
 x_c = xc - bw/2 + 0.15
@@ -45,16 +45,20 @@ for y_top, y_bot in [(6.4, 4.3), (4.3, 2.2)]:
                 arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#c0392b', ls='--', shrinkA=0, shrinkB=0))
 
 # inline direction cues beside each rail (so the reading order is explicit, not legend-only)
-ax.text(x_c-0.35, 5.35, 'causation', fontsize=8.0, ha='right', va='center', color='#1e8449', fontweight='bold',
+ax.text(x_c-0.35, 5.35, 'causation', fontsize=8.4, ha='right', va='center', color='#1e8449', fontweight='bold',
         rotation=90)
-ax.text(x_d+0.35, 5.35, 'diagnosis', fontsize=8.0, ha='left', va='center', color='#c0392b', fontweight='bold',
+ax.text(x_d+0.35, 5.35, 'diagnosis', fontsize=8.4, ha='left', va='center', color='#c0392b', fontweight='bold',
         rotation=90)
 
 # legend
-ax.text(5.0, 1.05, 'causation \u2193 (workload \u2192 serving)   |   diagnosis \u2191 (serving \u2192 workload)',
-        ha='center', va='center', fontsize=8.2, color='#444')
+ax.text(5.0, 1.05, 'causation ↓ (workload → serving)   |   diagnosis ↑ (serving → workload)',
+        ha='center', va='center', fontsize=8.4, color='#444')
 
 out = 'design/manuscript/chapter-06/figures/fig-06-0601.png'
 plt.savefig(out, dpi=350)
+# PDF sibling (Type42 fonts) — what LaTeX typesets / measure_fig.py checks.
+import matplotlib as _mpl
+with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-06/figures/fig-06-0601.pdf', format='pdf')
 plt.close()
 print('wrote fig-06-0601 (diagnostic chain, matplotlib)')
