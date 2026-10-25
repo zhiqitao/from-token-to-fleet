@@ -26,21 +26,25 @@ ax.set_xticks(x)
 ax.set_xticklabels(dims, fontsize=9.2, rotation=0, ha='center')
 ax.tick_params(axis='x', length=0, pad=6)
 ax.set_ylabel('Normalised intensity (0-1)', fontsize=9)
-# raise the top so the legend has its own clear band INSIDE the plot (above the
-# tallest bar, 0.95) — the earlier bbox_to_anchor=(0.5,1.01) put it OUTSIDE the
-# axes, on the same line as the title, so the two collided.
-ax.set_ylim(0, 1.45)
+# Loop-2 MODERATE: the axis title AND the in-figure note both state a 0-1
+# scale, but the limit was 1.45, so the ticks ran 0.0..1.4 and the top ~30 %
+# was empty headroom beyond the stated range.  Cap at 1.0 so the ticks stop at
+# 1.0 and match the caption / axis title.
+ax.set_ylim(0, 1)
 # title: the internal "confirm against real telemetry" note is dropped from the
 # published title (it belongs in the caption, not the figure heading)
 ax.set_title('Workload fingerprints on six axes (grouped bars, not radar)', fontsize=10)
-# legend in its own band at the TOP INSIDE the plot (clear of the title above and
-# the bars below)
-ax.legend(fontsize=8.2, loc='upper center', ncol=3, frameon=False,
-          bbox_to_anchor=(0.5, 0.99), columnspacing=1.2, handlelength=1.4)
+# legend: with the limit at 1.0 it can no longer sit INSIDE the top band (the
+# tallest bar is 0.95), so it moves BELOW the axis, under the x tick labels,
+# drawn in figure coordinates inside a reserved band so it cannot clip.
 ax.grid(axis='y', alpha=0.3)
-ax.text(0.98, -0.13, 'per-axis 0-1 scale; compare within an axis, not across axes.', transform=ax.transAxes,
-        fontsize=8.0, color='#555', va='top', ha='right')
 plt.tight_layout()
+plt.subplots_adjust(bottom=0.30)   # reserve the band for legend + scale note
+fig.legend(handles=[b1, b2, b3], labels=[b.get_label() for b in (b1, b2, b3)],
+           fontsize=8.2, loc='upper center', ncol=3, frameon=False,
+           bbox_to_anchor=(0.5, 0.175), columnspacing=1.2, handlelength=1.4)
+fig.text(0.98, 0.03, 'per-axis 0-1 scale; compare within an axis, not across axes.',
+         fontsize=8.0, color='#555', va='bottom', ha='right')
 plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):

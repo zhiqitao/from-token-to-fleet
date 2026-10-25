@@ -39,12 +39,14 @@ The critical insight for capacity planning is that each cycle incurs a fixed ove
 Take a user query routed to an agentic RQA pipeline. The pipeline’s default policy is a maximum of 4 turns; if the model has not terminated by then, the system returns a fallback answer “I’m sorry, I couldn’t find a definitive answer within the allowed reasoning steps.” (**Scope note on the turn cap.** This worked example uses a *default* cap of 4 to illustrate the binding worst case and the token-amplification curve out to T=4. The *recommended operational* policy — deployed in the §8 mini-case and used for fleet sizing in Chapter 17 — caps turns at 3, per the §4 guidance and the 95th-percentile sizing rule; the 2% of requests that exceed the limit fall back to single-shot. Table 19-1's "T=4 (over cap)" column is therefore an *out-of-policy bounding* case, not an in-policy turn count.)
 
 **Turn 0 (initial prompt)**:
+
 - Input: 9,200 tokens (user query + retrieved passages)
 - Model emits a tool-call: `search(query="relevant concepts")`
 - System routes the call to the search backend, returns top-5 passages (≈ 800 tokens of snippets)
 - Total tokens after Turn 0: 9,200 + 800 = 10,000
 
 **Turn 1**:
+
 - Input: 10,000 tokens (history + new passages)
 - Model emits a second tool-call: `db_query(sql="SELECT ... WHERE condition")`
 - Latency: 85 ms (local PostgreSQL on H100 host)
@@ -52,12 +54,14 @@ Take a user query routed to an agentic RQA pipeline. The pipeline’s default po
 - Total tokens after Turn 1: 10,000 + 350 = 10,350
 
 **Turn 2**:
+
 - Input: 10,350 tokens
 - Model decides to synthesize: emits a final answer
 - Output: 300 tokens
 - Conversation ends
 
 **Token accounting**:
+
 - Base single-shot: 9,200 input + 300 output = 9,500 tokens
 - Agentic: 10,350 input + 300 output = 10,650 tokens
 - Amplification factor: 10,650 / 9,500 ≈ 1.12×
@@ -148,7 +152,7 @@ These derived quantities give the architect concrete numbers to set policies: ca
 
 ## 5. Common Mistakes
 
-1. **Unbounded or miscalibrated turn limits.** Setting the maximum number of agent turns too high for the task leads to runaway token consumption and latency spikes. In production we have seen a single request consume >30,000 tokens and take >5 seconds because the model kept looping on a poorly scoped tool. The right cap is task-calibrated, not a universal number: measure the distribution of useful completion turns, loop-failure turns, and marginal value per turn for your workload, then set the cap where marginal value drops off (the canonical policy caps at 3, with a 2% fallback to single-shot — §4, §8). A cap of 10 may be too many for one workflow and too few for another; the number is a policy parameter, not a constant.
+1. **Unbounded or miscalibrated turn limits.** Setting the maximum number of agent turns too high for the task leads to runaway token consumption and latency spikes. In production we have seen a single request consume >30,000 tokens and take >5 seconds because the model kept looping on a poorly scoped tool. The right cap is task-calibrated, not a universal number: measure the distribution of useful completion turns, loop-failure turns, and marginal value per turn for the workload, then set the cap where marginal value drops off (the canonical policy caps at 3, with a 2% fallback to single-shot — §4, §8). A cap of 10 may be too many for one workflow and too few for another; the number is a policy parameter, not a constant.
 
 2. **Neglecting token accounting per turn.** Many architects track only the initial input tokens and forget that each retrieval or tool call adds context that persists for all subsequent turns. The compounding effect means that turn *T* sees an input base that grows linearly with *T*.
 
@@ -220,7 +224,7 @@ Despite the quantified arithmetic above, several questions remain open and would
 
 **Architectural actions.** The team sets the turn limit to 3, instruments each turn's token and orchestration latency, and adds a context cache for the search tool. With the cache hit rate of 30% on recurring queries, the effective *δ* drops to ~560 tokens, reducing average amplification to ~1.09× (about a 9% token overhead); the median added orchestration overhead is still T=1 → ~220 ms. The claim "meets an SLA of <1 s" must be scoped carefully: the *added agent-orchestration* latency is comfortably under 1 s, but the **end-to-end** request is ~9 s because of the base generation. The architect therefore scopes the <1 s SLA to orchestration overhead *excluding* final generation, and treats end-to-end as bounded by the ~8.6 s base.
 
-**Lesson.** The agentic layer added ~12% token overhead and ~220 ms of orchestration latency on the median (on top of an ~8.6 s base generation), but improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement]. The trade-off was acceptable — the added overhead is small relative to the base generation — and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
+**Lesson.** The agentic layer added an expected ~12% token overhead (distribution-weighted, §8) and, at the median T = 1, ~220 ms of orchestration latency (on top of an ~8.6 s base generation), but improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE SCENARIO RESULT, not a reported production measurement]. The trade-off was acceptable — the added overhead is small relative to the base generation — and the token overhead was mitigated by context caching. The architect's key decisions were: (a) capping turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
 
 ---
 

@@ -38,10 +38,12 @@
 \item \textbf{KV cache} — the keys/values of past tokens retained so attention need not recompute.
 \item \textbf{KV quantization} — reducing the \emph{bytes} per K/V element (e.g. FP16 $\to$ FP8), not the number of K/V entries; the canonical raw byte-halving is 2.62 $\to$ 1.31 MB/token (exactly 50\%), a raw-array figure that is \emph{not} a vendor-measured engine footprint, and the vLLM FP8-KV blog's 54\% is a decode-ITL \emph{latency slope}, not a memory ratio (Ch 2, 6, 7; S6).
 \item \textbf{KV offloading} — moving some KV state out of GPU HBM (to host DRAM/SSD), trading capacity against transfer latency; it does \emph{not} shrink the state itself (that is quantization), and the cited 2--22$\times$ TTFT range is a particular warm-cache reuse benchmark, not a generic cold-cache improvement (Ch 2, 6; S7).
-\item \textbf{GQA} — grouped-query attention; \textbf{MQA} — multi-query attention; \textbf{MHA} — multi-head attention.
+\item \textbf{GQA} — grouped-query attention; \textbf{MQA} — multi-query attention; \textbf{MHA} — multi-head attention; \textbf{MLA} — multi-head latent attention: a compressed per-token KV (K/V stored in a low-rank latent space), so KV per token still grows with context but at fewer bytes/token than full MHA (Ch 1, 8; App.~A).
 \item \textbf{APC / RadixAttention / prefix cache} — caching of shared prompt prefixes to avoid recomputation.
 \item \textbf{prompt caching} — the broader system/provider term; the book uses it to mean \emph{reusing the KV of a shared prompt prefix across requests}, so it is \emph{not} a separate mechanism from prefix caching above (Ch 2) — the provider-facing name for the same reuse, kept as its own entry because providers document and bill it as a feature.
 \item \textbf{cache hit / miss} — a cache \emph{hit} serves a request (or a shared prefix) from cached state without recomputing it; a \emph{miss} must be computed (or re-prefilled); the hit ratio (hits $\div$ requests) is the FACT that the prefix- and semantic-cache arithmetic starts from (Ch 15, 19, 26).
+\item \textbf{TTL} — time-to-live: how long a cached entry stays valid before it must be refreshed or evicted; the semantic response cache uses a 5-min TTL, and its hit ratio is measured at TTL=T (Ch 26).
+\item \textbf{LRU} — least-recently-used: the eviction policy that discards the least recently used cache entry first (Ch 26, Table 26-2).
 \item \textbf{HBM} — high-bandwidth memory: the large, relatively slow-capacity memory attached to a GPU (distinct from fast on-chip SRAM).
 \item \textbf{arithmetic intensity} — FLOPs moved per byte read from memory (FLOP/byte); the quantity that determines whether a kernel is compute-bound or memory-bound.
 \item \textbf{MoE} — mixture of experts: a sparse model that routes each token to a subset of expert layers, cutting compute-per-token without reducing the parameter count or (necessarily) the KV cache.
@@ -61,6 +63,10 @@
 \item \textbf{PUE} — power usage effectiveness: total facility power over IT equipment power.
 \item \textbf{ADR} — architecture decision record: a short write-up of a design choice and its rationale.
 \item \textbf{RAG} — retrieval-augmented generation: augment generation with retrieved context.
+\item \textbf{PIES} — prompt-injection exposure surface: the count of distinct prompt-pattern classes an adversary can submit through all user-facing entry points, with ``distinct'' fixed by an author-chosen normalized-edit-distance threshold stated before any number appears; a local, author-defined operational proxy for one deployment, not a standardized or portable security metric (Ch 24).
+\item \textbf{NED / normalized Levenshtein (normalized edit distance, NLE)} — string distance scaled to [0,1] by the longer string's length; it is the deduplication criterion behind PIES (two probe patterns count as the same class within NLE $\le$ 0.25) (Ch 24).
+\item \textbf{MTTR} — mean time to recover from a bad release: mean time to detect + roll back; the factory loop's core reliability number (Ch 21).
+\item \textbf{FAISS} — a vector-similarity index library for nearest-neighbor embedding retrieval; the RAG corpus-policy example moves the retrieval index from a pure FAISS index to a provenance-aware store (Ch 24).
 \end{itemize}
 
 \noindent\textbf{Notation used in the arithmetic}
@@ -68,6 +74,7 @@
 \item \textbf{PFLOP} — peta-FLOPs; \textbf{FLOP/param} — floating-point operations per parameter per forward pass (≈2 for a matmul).
 \item \textbf{roofline} — a capacity model that plots achievable performance (FLOP/s) against arithmetic intensity; a kernel sits on a bandwidth-bound line below the ridge point and a compute-bound plateau above it. The \emph{ridge point} is the arithmetic intensity at which a machine transitions from memory-bound to compute-bound (peak FLOP/s ÷ peak bandwidth).
 \item \textbf{GB vs GiB} — decimal vs binary units: 1\,GB = $10^9$, 1\,GiB = $2^{30}$. The book uses decimal GB unless stated.
+\item \textbf{CDF} — cumulative distribution function: $F(x)$ is the probability a draw is at most $x$; the capstone's two-point latency model gives $F(50)=0.35$ and $F(250)=1.0$, which separates the 180\,ms mean from the 250\,ms p99 (Ch 26).
 \item \textbf{tokens/s} — throughput in tokens per second; \textbf{token/request} — average tokens per request (a workload property).
 \item \textbf{κ (kappa)} — per-token KV cache footprint in bytes/token (e.g. ≈2.62 MB/token FP16 for the canonical full-MHA 70B; $\kappa = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes}$). Used in the KV-residency and concurrency arithmetic (Ch 7, 17).
 \item \textbf{ρ (rho)} — the effective throughput fraction after load-balancer and scheduling effects (the fraction of theoretical peak a host actually sustains under the chosen LB/fleet configuration); used with the capacity formula (Ch 17).

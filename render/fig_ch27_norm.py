@@ -9,10 +9,20 @@ from matplotlib.font_manager import FontProperties
 # every label in one small box, superimposing name / reference / KV row / 100% / ~X%
 # at print size.
 #
-# New encoding: a HORIZONTAL per-family comparison grid. One row per model family,
+# Encoding: a HORIZONTAL per-model comparison grid. One row per REPORTED model,
 # each element in its own x cell so nothing shares coordinates:
-#   model family | its own baseline | KV/token 100%->~X% | FLOP/token 100%->~Y%
+#   reported model | its own baseline | KV/token 100%->~X% | FLOP/token 100%->~Y%
 # The separate 'own baseline' column makes explicit there is no shared scale.
+#
+# Loop-2 fixes carried here (the .md caption is corrected separately):
+#   * Row scheme: the figure shows DeepSeek V4's two variants as two rows (one
+#     family) and has no rows for Kimi K3 / Qwen3.8-Flash-Next, so "one row per
+#     model family" was false.  The figure now states its own scheme in-figure:
+#     one row per reported model, with the two families that publish no
+#     predecessor-relative baseline named as having no row.
+#   * Caption gap: the old 7.4in canvas carried ~101pt of blank BELOW the last
+#     footnote -- that blank is the ~1.5in white band between the figure body
+#     and its caption.  The canvas is now sized to the content plus a small PAD.
 
 BOLD = FontProperties(weight='bold')
 
@@ -22,8 +32,16 @@ rows = [
     ("GLM-5.3-Flash",     "vs prior GLM-5", "reported 2026-02", 23, 33, "#6f9e5f"),
 ]
 
-W, H = 6.1 * 72, 7.4 * 72
+W = 6.1 * 72
 FS_H, FS_F, FS_C, FS_R = 10.0, 9.6, 9.0, 8.8
+
+# ---- vertical layout: every y is an offset from the title baseline T ----
+# (data coords, y up).  Canvas height = content span + PAD top and bottom.
+PAD = 8.0
+TOP_OFF = 7.8      # ink reaches this far ABOVE T (title ascender)
+BOT_OFF = 399.0    # ink reaches this far BELOW T (last footnote descender)
+H = PAD + TOP_OFF + BOT_OFF + PAD      # 422.8pt = 5.87in (was 7.4in)
+T = H - PAD - TOP_OFF
 
 fig, ax = plt.subplots(figsize=(W/72, H/72))
 fig._hermes_print_sized = True
@@ -31,32 +49,37 @@ ax.set_xlim(0, W); ax.set_ylim(0, H); ax.axis('off')
 fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
 # ---- explicit column x-centres (data coords) ----
-c_name = 92        # family name (left-anchored from ~12)
+c_name = 92        # reported model (left-anchored from ~12)
 c_base = 202       # own baseline
 c_kv   = 284       # KV/token "100% -> ~X%" cluster centre
 c_flop = 382       # FLOP/token cluster centre
 h_kv   = 36        # half span of the 100%/arrow/~X% cluster
 
-# ---- vertical centering: compute the content block and center it in the canvas ----
 pitch = 60
-block_height = 125 + 3 * pitch + 22      # title (top) .. footnote2 (bottom)
-T = (H + block_height) / 2              # title y
 
 # ---- title / warning ----
 ax.text(W/2, T, 'KV & FLOP per token: % remaining', fontsize=FS_H+1.6,
         fontweight='bold', ha='center', va='center', color='#1a1a1a')
 ax.text(W/2, T - 16, 'vs each model\'s own predecessor',
         fontsize=FS_H-1.8, ha='center', va='center', color='#333')
-ax.text(W/2, T - 46,
+ax.text(W/2, T - 44,
         'NOT A CROSS-MODEL PERFORMANCE RANKING',
         fontsize=FS_R-0.2, ha='center', va='center', color='#c0392b', fontweight='bold')
-ax.text(W/2, T - 46 - 18,
+ax.text(W/2, T - 62,
         "Each figure is relative to that model's OWN stated baseline — no shared scale",
         fontsize=FS_R-0.6, ha='center', va='center', color='#c0392b')
 
+# ---- row-scheme note (Loop-2): the grid is one row per REPORTED model ----
+ax.text(W/2, T - 84,
+        "One row per reported model — DeepSeek V4's two variants listed separately.",
+        fontsize=FS_R-0.6, ha='center', va='center', color='#333')
+ax.text(W/2, T - 102,
+        'No row for Kimi K3 / Qwen3.8-Flash-Next: no predecessor-relative baseline reported.',
+        fontsize=FS_R-0.6, ha='center', va='center', color='#333')
+
 # ---- column headers ----
-hy = T - 56
-ax.text(c_name, hy, 'model family', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
+hy = T - 126
+ax.text(c_name, hy, 'reported model', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
 ax.text(c_base, hy, 'own baseline', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
 ax.text(c_kv,   hy, 'KV / token',   fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
 ax.text(c_flop, hy, 'FLOP / token', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
@@ -64,7 +87,7 @@ ax.text(c_flop, hy, 'FLOP / token', fontsize=FS_H, fontweight='bold', ha='center
 sep_y = hy - 13
 ax.plot([12, W-12], [sep_y, sep_y], color='#999', lw=1.0)
 
-# ---- one row per family ----
+# ---- one row per reported model ----
 row0 = sep_y - 20
 for r, (name, base, date, kv, flop, col) in enumerate(rows):
     ry = row0 - r * pitch
@@ -84,7 +107,6 @@ fy = row0 - len(rows)*pitch - 16
 ax.text(W/2, fy,
         "Values are % REMAINING (7% remaining = 93% reduction)",
         fontsize=FS_R-0.2, ha='center', va='center', color='#555')
-# NOTE: replaced by cleaner two-line footnote below to avoid horizontal clipping.
 ax.text(W/2, fy - 20,
         'Value source: vendor-reported [1P] \u2014 DeepSeek V4: arXiv 2606.19348',
         fontsize=FS_R-0.8, ha='center', va='center', color='#777', fontstyle='italic')
@@ -97,4 +119,4 @@ import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.pdf', format='pdf')
 plt.close()
-print('wrote fig-27-2704 (horizontal per-family grid; own-baseline column)')
+print('wrote fig-27-2704 (one row per reported model; own-baseline column)')

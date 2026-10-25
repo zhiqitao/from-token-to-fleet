@@ -11,7 +11,7 @@
 3. **Qwen3.8-Flash-Next** (§3) — Alibaba Qwen; Gated DeltaNet + QSA; N-gram embedding split.
 4. **GLM-5.3-Flash** (§4) — Z.ai; first natively multimodal GLM-5; sparse+linear attention.
 
-Every other vendor/model mention in this appendix is either (a) a **sub-model / variant of one of these four families** (e.g. DeepSeek-V4-Flash, DeepSeek-V4-Pro) — named only to clarify a family member, never as an additional family — or (b) a **post-snapshot item explicitly outside the four-family comparison** (the single 2026-09-27 Ornith-1.5-397B observation in A.6, boxed as such). Neither is part of the four-family comparison, its comparative figures, or its First-hand Sources list; read them as subfamilies or out-of-scope side notes, never as a fifth/family in the comparison.
+Every other vendor/model mention in this appendix is either (a) a **sub-model / variant of one of these four families** (e.g. DeepSeek-V4-Flash, DeepSeek-V4-Pro) — named only to clarify a family member, never as an additional family — or (b) a **post-snapshot item explicitly outside the four-family comparison** (the single 2026-09-27 Ornith-1.5-397B observation in A.6, boxed as such). Neither is part of the four-family comparison, its comparative figures, or its First-hand Sources list; read them as subfamilies or out-of-scope side notes, never as a fifth family in the comparison.
 
 ## The Signal in One Paragraph
 
@@ -41,12 +41,14 @@ This appendix surveys vendor-reported material, so we are careful to separate th
 
 When we write "a number of frontier models converge" or "one could argue MoE is a larger architectural innovation," read those as **Interpretation / Hypothesis** — defensible reads of the frontier signal, not independent measurements. Vendor numbers stay tagged [1P] and flagged verify-on-own-hardware; our reads sit one register lower and should be read with the same skepticism we ask of any vendor claim. The practical rule: *if it's a percentage from a report, it's Observed [1P]; if it's a claim about what the industry trend means, it's ours — treat it as analysis, tune it against the reader's real workload.*
 
-**Mapping onto the book's evidence taxonomy.** These three reader-friendly layers are an on-ramp to, not a replacement for, the two-axis taxonomy used throughout the book (provenance [1P]/[2°]/[LAB]/[ILLUSTRATIVE] × status [FACT]/[DERIVED]/[ASSUMPTION]/[HYPOTHESIS]/[UNRESOLVED]):
+**Mapping onto the book's evidence taxonomy.** These three reader-friendly layers are an on-ramp to, not a replacement for, the three-axis taxonomy used throughout the book (provenance × epistemic status × measurement status): Axis 1 provenance [1P]/[2°]/[LAB]/[ILLUSTRATIVE] × Axis 2 status [FACT]/[DERIVED]/[ASSUMPTION]/[HYPOTHESIS]/[UNRESOLVED], with Axis 3 riding along.
+
 - **Observed** ↔ [1P] · [FACT] — the vendor's stated claim, a fact *about the claim*.
 - **Interpretation** ↔ [DERIVED] — the book's own analysis, a derivation from the evidence. (Where the book's taxonomy would label it [ILLUSTRATIVE], note that; the appendix uses "interpretation" only as plain prose for a derived read, never a separate sanctioned status.)
 - **Hypothesis** ↔ [HYPOTHESIS] — a testable prediction, exactly the taxonomy's [HYPOTHESIS].
+- **Measurement status** ↔ Axis 3 — ANALYTICAL / ILLUSTRATIVE / MODELED / MEASURED (or [UNMEASURED] where the stage is not yet determined): how far the number has climbed the measurement-status hierarchy, defined in the Sources, Method, and Reproducibility chapter.
 
-The appendix's labels are the human-friendly framing; the two-axis labels are the precise book-wide convention. They should never conflict.
+The appendix's labels are the human-friendly framing; the three-axis labels are the precise book-wide convention. They should never conflict.
 
 **This is a dated field guide, not an evergreen ranking.** The four-family comparison is a snapshot as of the 2026-08-30 cutoff (with the single 2026-09-27 boxed observation, A.6). A later edition re-verifies the vendor reports and *may* change the families, numbers, or the comparison; the ranking here is not a permanent verdict. **Reproduction status** is recorded per family in the First-hand Sources list (A.10): each entry carries its source URL/identifier, the version and release date where known, and the verification status (whether the claim is vendor-reported [1P] pending independent check, or independently verified). Where a number has not been independently validated, it is flagged — do not treat a model-card figure as an audited measurement. The vendor-fact / author-interpretation / hypothesis layers above, plus the per-family reproduction status, are the four columns a reader needs; a `sources.csv` manifest (source URL, accessed date, model variant, reported baseline, verification status) accompanies the repository's `render/` material for the fast-changing Appendix A claims.
 
