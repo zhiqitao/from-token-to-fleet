@@ -27,7 +27,7 @@ def stage(x, w, name, screen, fc1, fc2, conn='screen'):
     # connector label in the CLEAR GAP between the two boxes (y 3.35..3.9), offset
     # LEFT of the connector so it does not sit on the connector line or on the
     # white box text inside the process box (which is at y<=3.35).
-    ax.text(x+w/2-1.55, 3.62, conn, fontsize=7.6, color='#2f6f4f', ha='center', va='center', fontweight='bold')
+    ax.text(x+w/2-1.55, 3.62, conn, fontsize=8.0, color='#2f6f4f', ha='center', va='center', fontweight='bold')
 
 # Stage 1: candidates -> capability screen
 stage(0.9, 5.2, 'Candidate\nmodels', 'Capability\nMMLU/GSM8K', '#3a6ea5', '#e67e22', conn='screen')
@@ -46,7 +46,7 @@ ax.annotate('', xy=(20.6, 2.775), xytext=(18.7, 2.775),
 ax.text(20.9, 2.775, 'deployed', fontsize=8.5, color='#2f6f4f', fontweight='bold', ha='left', va='center')
 
 ax.text(11.0, 1.1, 'filter narrows the candidates (capability first), then survivors are\nmeasured on the real workload against the SLO gate.  [ILLUSTRATIVE][DERIVED]',
-        fontsize=7.5, ha='center', color='#666')
+        fontsize=8.0, ha='center', color='#666')
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-14/figures/fig-14-1401.png', dpi=400)
 import matplotlib as mpl

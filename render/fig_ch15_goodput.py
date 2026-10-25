@@ -44,7 +44,6 @@ axa.set_ylim(0, 110)
 axa.set_xlim(0.9, 90)
 axa.tick_params(labelsize=10)
 axa.xaxis.set_major_formatter(FuncFormatter(_logfmt))
-axa.text(0.99, 0.03, '[ILLUSTRATIVE]', transform=axa.transAxes, fontsize=8.0, color='#8a3a12', ha='right')
 
 # Panel (b): decode goodput
 axb.plot(batch, goodput, '-o', color='#27408b', lw=1.8)
@@ -61,9 +60,10 @@ axb.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 axb.axvline(16, color='#c0392b', ls='--', lw=1.1)
 axb.text(1.7, 90, 'goodput\nplateau (~b16):\nthroughput gain\nflattens; tail\nlatency keeps rising',
          fontsize=8.0, color='#c0392b', va='top')
-axb.text(0.99, 0.03, '[ILLUSTRATIVE]', transform=axb.transAxes, fontsize=8.0, color='#8a3a12', ha='right')
 
 fig.suptitle('Prefix caching vs batching: two independent effects', fontsize=10.5, fontweight='bold')
+# single figure-level [ILLUSTRATIVE] footer, clear of both panels' legends/lines
+fig.text(0.5, 0.02, '[ILLUSTRATIVE]', ha='center', fontsize=8.0, color='#8a3a12')
 plt.tight_layout(rect=(0, 0, 1, 0.91))
 plt.savefig('design/manuscript/chapter-15/figures/fig-15-1501.png',
             dpi=400, bbox_inches='tight', pad_inches=0.05)
