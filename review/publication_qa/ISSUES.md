@@ -23,6 +23,22 @@ Notable confirmed closures:
 | P1-09 (r14,r15) | P1 | Fig A.2 '% remaining vs predecessor' (7% remaining = 93% reduction) | CLOSED/VERIFIED |
 | F18 (r14,r15) | P1 | All figure rasters >= 300 ppi at 6.1in placement (scan confirms 0 <300) | CLOSED/VERIFIED |
 
+## Figure fixes (this QA run — all VERIFIED)
+
+| id | severity | defect | state |
+|---|---|---|---|
+| Fig 7.1 | P1 | "query heads"/"shared K/V heads" side labels collided with cells/in-box K/V | VERIFIED (centered group labels) |
+| Fig 8.1 | P1 | two-line title poked above box top; border cut through title (HBM/green boxes) | VERIFIED (lowered name y-centre) |
+| Fig 14.1 | P1 | sub-8pt annotations (7.6/7.5) | VERIFIED (8.0pt) |
+| Fig 15.2 | P1 | per-panel `[ILLUSTRATIVE]` tag collided w/ legend border + full-height line | VERIFIED (single footer) |
+| Fig 16.1 | P1 | header title / subtitle overlap | VERIFIED (fig.text gap) |
+| Fig 17.1 | P1 | 7.0pt caveat + "failover" grazed by N-1 line | VERIFIED (8.0pt + moved label) |
+| Fig 18.1 | P1 | "…specialistyes…" merge + "small" struck/truncated by arrow | VERIFIED (renderer-measured anchor, split to 2 lines) |
+| Fig 19.2 | P1 | sub-8pt effective (over-wide 6.52in bbox → ×0.936 downscale) | VERIFIED (8.6pt, nat 6.027in) |
+| Fig 20.1 | P1 | sub-8pt effective (7.60in → ×0.803) + dotted line crossed annotation | VERIFIED (8.6pt + white bbox) |
+| Fig 22.1 | P1 | 7.8pt note + annotation on-curve | VERIFIED (8.2pt + moved to whitespace) |
+| Fig A.3 | P2 | raster-only, font unconfirmable | VERIFIED (9.26–9.59pt effective; vector .pdf generated) |
+
 ## Open / under vision
 
 The current pass is independently verifying that the BUILT PDF's 46 figures and 355 pages

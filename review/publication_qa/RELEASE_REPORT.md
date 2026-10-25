@@ -2,9 +2,9 @@
 
 **Run:** publication-quality autopilot (DeepSeek V4 Flash Vision Exp)
 **Date:** 2026-10-24
-**Proof:** `render/build/from-token-to-fleet-v20260913.pdf` — **355 pages**, 46 figures
-**Source HEAD (final):** `ea61fe7a309048d9ef7bc92652e55d151a9f9e08`
-**Proof SHA-256 (final):** `fd1859ed85bbeb61fc7a423a53f85a07489b30845c1cf42d57347c837d3552a6`
+**Proof:** `render/build/from-token-to-fleet-v20260913.pdf` — **356 pages**, 46 figures
+**Source HEAD (final):** `de83c044` (QA manifest commit; build records `aff0d50e`)
+**Proof SHA-256 (final):** `f2fc9c896874d11754c6d40532b68a2ae72aaa6005096604ac3b57bb47f61c1f`
 
 ---
 
@@ -47,14 +47,30 @@ analytical, and absence of detected errors is not proof of flawlessness.
    (a)'s legend border and panel (b)'s full-height dashed line. Replaced with a single
    figure-level `[ILLUSTRATIVE]` footer. Vision-verified clean; 8.0pt min in build.
 3. **Fig 14.1** (model selection gate): two sub-8pt annotations (7.6 / 7.5pt) bumped to 8.0pt.
-   Verified 8.0pt min in build.
-4. (Checked, no change) Fig 19.2 sub-8pt report was a false alarm — measured 9.96pt in build;
-   Fig 20.1 footer measured 9.96pt (false alarm vs reported 6.4pt — the report measured a
-   different scale).
-
-BTW: the build changed pages 355 (from the reviewer's 352) because the 15th-review content
-fixes added the matched-TCO table, feasibility check, and expanded notes — consistent, not a
-regression.
+4. **Fig 16.1** (TCO break-even): the brown bold header title and black subtitle overlapped
+   (set_title pinned the subtitle to the axes top edge). Converted both to explicit `fig.text`
+   with a controlled 10px gap. Vision-verified clean.
+5. **Fig 17.1**: 7.0pt italic caveat bumped to 8.0pt (with linespacing/bbox pad to avoid a new
+   overlap); "failover" label moved down 0.75 units so the N-1 line no longer grazes it.
+6. **Fig 18.1** (routing cascade): the two "yes →" branch labels merged into "…specialistyes…"
+   and "small" was struck/truncated by an arrow. Root cause: `TextPath` half-width undershoots
+   the rendered glyph width. Re-anchored every branch label by its renderer-measured right edge
+   and split "yes → frontier / small" onto two lines. Vision-verified clean in the build.
+7. **Fig 22.1**: 7.8pt note bumped to 8.2pt; "quadratic overtakes / ~53K" annotation moved into
+   the clear whitespace band above all curves. Vision-verified clean.
+8. **Fig 19.2** (agent-turns trend): root cause was an over-wide natural bbox (6.52in) making
+   `\maxwidth` downscale to 6.1in (×0.936), shrinking every label to ~7.5pt. Fixed by raising
+   small fonts to 8.6pt and reducing the natural width to 6.027in (scale 1.00). Also resolved a
+   pre-existing x-label↔legend collision and a subtitle↔title overlap.
+9. **Fig 20.1**: root cause was the same over-wide bbox (7.60in → ×0.803 downscale, ~6.4pt
+   effective). Shortened the ax2 title to bring natural width to 5.878in (scale 1.00) and raised
+   small fonts to 8.6pt. Also added a white bbox behind the lower-panel annotation so the dotted
+   ceiling line no longer crosses the glyphs. Vision-verified clean.
+10. **Fig A.3**: confirmed fonts are 9.26–9.59pt effective (placed at 6.10in, up-scaled ×1.09);
+    generated the missing vector `.pdf` (type-42 TrueType) so it typesets as vector.
+11. **Fig 8.1** (memory hierarchy): the two-line name in the orange HBM box (and green boxes)
+    poked ~4pt above its box top, so the top border cut through the title. Lowered the name's
+    y-centre (y+h*0.26 → y+h*0.14) and reduced FS. Vision-verified all 7 boxes clean.
 
 ## What remains UNVERIFIED / outside this run (honest)
 
