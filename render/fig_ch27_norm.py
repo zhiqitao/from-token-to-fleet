@@ -43,12 +43,14 @@ block_height = 125 + 3 * pitch + 22      # title (top) .. footnote2 (bottom)
 T = (H + block_height) / 2              # title y
 
 # ---- title / warning ----
-ax.text(W/2, T, 'Vendor-reported KV / FLOP reduction', fontsize=FS_H+1.6,
+ax.text(W/2, T, 'KV & FLOP per token: % remaining', fontsize=FS_H+1.6,
         fontweight='bold', ha='center', va='center', color='#1a1a1a')
-ax.text(W/2, T - 24,
+ax.text(W/2, T - 16, 'vs each model\'s own predecessor',
+        fontsize=FS_H-1.8, ha='center', va='center', color='#333')
+ax.text(W/2, T - 46,
         'NOT A CROSS-MODEL PERFORMANCE RANKING',
         fontsize=FS_R-0.2, ha='center', va='center', color='#c0392b', fontweight='bold')
-ax.text(W/2, T - 24 - 20,
+ax.text(W/2, T - 46 - 18,
         "Each figure is relative to that model's OWN stated baseline — no shared scale",
         fontsize=FS_R-0.6, ha='center', va='center', color='#c0392b')
 
@@ -80,7 +82,7 @@ for r, (name, base, date, kv, flop, col) in enumerate(rows):
 # ---- footnote ----
 fy = row0 - len(rows)*pitch - 16
 ax.text(W/2, fy,
-        "Each reduction is relative to the model's OWN stated predecessor",
+        "Values are % REMAINING (7% remaining = 93% reduction)",
         fontsize=FS_R-0.2, ha='center', va='center', color='#555')
 # NOTE: replaced by cleaner two-line footnote below to avoid horizontal clipping.
 ax.text(W/2, fy - 20,
