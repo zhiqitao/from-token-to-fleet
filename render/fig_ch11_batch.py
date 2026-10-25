@@ -21,7 +21,10 @@ for i in range(4):
     ax.add_patch(Rectangle((x0, 4 - 0.7*i - 0.55), x1 - x0, 0.6, fc='#f5c6c6', ec='#c0392b', ls=':', lw=0.8))
 tasks = [(0, 1.8, 0), (0, 2.6, 1), (0, 1.5, 2), (0, 3.0, 3)]
 for (x0, w, s) in tasks:
-    ax.add_patch(Rectangle((x0, 4 - 0.7*s - 0.55), w, 0.6, fc=colors[s], ec='none', alpha=0.9))
+    # all in-flight sequences use the single 'sequence in flight' blue so the
+    # legend's colour mapping holds (a per-task colour would invent categories
+    # the legend does not define); the pink dashed outline marks the idle slot.
+    ax.add_patch(Rectangle((x0, 4 - 0.7*s - 0.55), w, 0.6, fc='#3a6ea5', ec='none', alpha=0.9))
 # 'idle (bubble)' label right-aligned INSIDE the pink box's right edge (x1=9.9),
 # so it no longer spills past the dotted border.
 ax.text(9.75, 4 - 0.7*2 - 0.25, 'idle (bubble)', fontsize=8.0, color='#c0392b', ha='right', va='center', fontweight='bold')
@@ -34,7 +37,12 @@ ax.add_patch(Rectangle((0.2, 0.4), 4.6, 0.6, fc='#bbb', ec='none', alpha=0.6))
 ax.text(2.5, 0.7, 'next batch waits', fontsize=8.5, color='#333', ha='center', va='center', fontweight='bold')
 ax.annotate('', xy=(2.5, 1.0), xytext=(2.5, 0.7),
             arrowprops=dict(arrowstyle='-', lw=0.7, color='#555'))
-ax.text(5.0, 0.1, 'GPU slots idle (pink) when a\nsequence finishes early', fontsize=8.2, color='#c0392b', ha='center')
+ax.text(5.0, 0.30, 'GPU slots idle (pink) when a\nsequence finishes early', fontsize=8.2, color='#c0392b', ha='center')
+# time-axis arrow on the discrete panel too (matching the continuous panel and
+# the caption's 'the horizontal axis is time'), so the left panel's direction
+# is not left implicit. Kept at the very bottom, clear of the red caption above.
+ax.annotate('', xy=(9.85, 0.12), xytext=(0.1, 0.12), arrowprops=dict(arrowstyle='-|>', lw=1.3, color='#555'))
+ax.text(5.0, 0.02, 'time  (decode steps / iterations)', fontsize=8.5, color='#555', ha='center', va='bottom')
 
 # ---------- continuous (right) ----------
 ax = axes[1]
@@ -45,10 +53,14 @@ ctasks = [(0, 2.0, 0, False), (0.6, 2.4, 1, False), (1.0, 1.6, 2, False), (1.4, 
           (5.0, 1.9, 0, True), (5.9, 2.0, 1, True)]
 for (x0, w, s, backfill) in ctasks:
     y = 0.5 + (s % 4) * 0.7
-    col = '#2e8b57' if backfill else colors[s % 5]
-    lw_e = 1.6 if backfill else 0
-    ec = '#1e6b42' if backfill else 'none'
-    ax.add_patch(Rectangle((x0, y), w, 0.6, fc=col, ec=ec, lw=lw_e, alpha=0.95 if backfill else 0.9))
+    # in-flight sequences all use the single 'sequence in flight' blue (region
+    # separation is positional); backfill (new sequence) is green with a hatch
+    # so it also separates in grayscale, not by colour alone.
+    if backfill:
+        col = '#2e8b57'; ec = '#1e6b42'; lw_e = 1.6; hatch = '//'
+    else:
+        col = '#3a6ea5'; ec = 'none'; lw_e = 0; hatch = None
+    ax.add_patch(Rectangle((x0, y), w, 0.6, fc=col, ec=ec, lw=lw_e, hatch=hatch, alpha=0.9))
 # time arrow: points RIGHT (time = the horizontal axis, per the caption "the
 # horizontal axis is time"); the earlier vertical arrow contradicted the
 # caption and the discrete panel's horizontal time direction (v8 review).
@@ -61,8 +73,8 @@ ax.text(5.0, 0.02, 'time  (decode steps / iterations)', fontsize=8.5, color='#55
 from matplotlib.patches import Patch
 fig.legend(handles=[
     Patch(fc='#f5c6c6', ec='#c0392b', ls=':', label='idle slot (bubble)'),
-    Patch(fc=colors[0], label='sequence in flight'),
-    Patch(fc='#2e8b57', ec='#1e6b42', label='new sequence (backfill)'),
+    Patch(fc='#3a6ea5', label='sequence in flight'),
+    Patch(fc='#2e8b57', ec='#1e6b42', hatch='//', label='new sequence (backfill)'),
 ], loc='upper center', bbox_to_anchor=(0.5, 1.0), fontsize=8.2, frameon=False, ncol=3,
    handlelength=1.2, columnspacing=1.2)
 # annotation in the clear top-right band (above the top slot row, which ends at

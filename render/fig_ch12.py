@@ -20,9 +20,10 @@ ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
 X0, W = 0.04, 0.92
 CX = X0 + W / 2
 
-def box(x, y, w, h, fc, ec, lw=1.6):
+def box(x, y, w, h, fc, ec, lw=1.6, hatch=None):
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0,rounding_size=0.02',
-                                fc=fc, ec=ec, lw=lw, zorder=2))
+                                fc=fc, ec=ec, lw=lw, zorder=2,
+                                hatch=hatch if hatch else None))
 
 def divider(y):
     ax.plot([X0, X0 + W], [y, y], color='#bbbbbb', lw=1.1, zorder=3)
@@ -58,7 +59,6 @@ stagelabel(CX, 0.510, '\u2462  CANDIDATES', '#145a32')
 ax.text(CX, 0.435, '(a) 8\u00d7H100 + prefix cache \u00b7 (b) P/D 2-pool \u00b7 (c) KV-quant 7B',
         ha='center', va='center', fontsize=8.2, color='#1e8449', zorder=3)
 divider(0.323)
-downarrow(0.323, 0.290)
 
 # ---- Stage 4 OUTCOME — SURVIVORS vs REJECTED (one stage, two halves) ----
 # (a) fails the capacity gate (a monolithic 8xH100 cannot add prefill hosts);
@@ -74,10 +74,25 @@ ax.text(sx + sw / 2, 0.125, '(b) needs a ~5-host prefill pool', ha='center', va=
         fontsize=8.0, color='#145a32', zorder=3)
 bx = sx + sw + 0.04
 bw = W - sw - 0.04
-box(bx, 0.090, bw, 0.200, '#fdecea', '#c0392b')
+box(bx, 0.090, bw, 0.200, '#fdecea', '#c0392b', hatch='//')
 stagelabel(bx + bw / 2, 0.245, '\u2717  REJECTED', '#7b241c')
 ax.text(bx + bw / 2, 0.165, '(a) \u00b7 (c)', ha='center', va='center',
         fontsize=8.4, color='#7b241c', fontweight='bold', zorder=3)
+
+# branch from CANDIDATES into BOTH outcome halves: a short central drop, a
+# horizontal bus, then a vertical arrow into each box top, so the
+# survivors-vs-rejected split is explicit (the old single arrow reached only
+# OUTCOME and left the REJECTED path disembodied).
+_bus_y = 0.305
+_cx_out = sx + sw / 2
+_cx_rej = bx + bw / 2
+ax.annotate('', xy=(CX, _bus_y), xytext=(CX, 0.323),
+            arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555'))
+ax.plot([_cx_out, _cx_rej], [_bus_y, _bus_y], color='#555', lw=1.6, zorder=3)
+ax.annotate('', xy=(_cx_out, 0.290), xytext=(_cx_out, _bus_y),
+            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
+ax.annotate('', xy=(_cx_rej, 0.290), xytext=(_cx_rej, _bus_y),
+            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-12/figures/fig-12-1201.png', dpi=350)
