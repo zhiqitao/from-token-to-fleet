@@ -28,20 +28,20 @@ The durable mental model: **total parameters set the ceiling; active parameters 
 
 We now carry concrete arithmetic using the canonical enterprise Q&A scenario (canonical scenario (Ch 4, Table 4-3): ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is labeled (to be verified).
 
-### Dense 70B model (canonical teaching model, [ILLUSTRATIVE][ASSUMPTION])
+### Dense 70B model (canonical teaching model, [canonical scenario][ASSUMPTION])
 
-The 70B dense full-MHA model below is a *constructed teaching reference* (the canonical scenario, Ch 4 Table 4-3), not a named vendor model — so its geometry is [ILLUSTRATIVE][ASSUMPTION] and its arithmetic is [ILLUSTRATIVE][DERIVED]. Reserve [1P] for a named, traceable first-party model specification.
+The 70B dense full-MHA model below is a *constructed teaching reference* (the canonical scenario, Ch 4 Table 4-3), not a named vendor model — so its geometry is [canonical scenario][ASSUMPTION] and its arithmetic is [canonical scenario][DERIVED]. Reserve [1P] for a named, traceable first-party model specification.
 
 | Metric | Value | Derivation |
 |---|---|---|
-| Total parameters | 70B | canonical scenario (Ch 4, Table 4-3) [ILLUSTRATIVE][ASSUMPTION] reference model |
-| FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [ILLUSTRATIVE][DERIVED] |
-| Active parameters per token | 70B | All parameters active for every token (dense) [ILLUSTRATIVE][DERIVED] |
-| FLOPs per forward pass (approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [ILLUSTRATIVE][DERIVED] |
+| Total parameters | 70B | canonical scenario (Ch 4, Table 4-3) [canonical scenario][ASSUMPTION] reference model |
+| FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [canonical scenario][DERIVED] |
+| Active parameters per token | 70B | All parameters active for every token (dense) [canonical scenario][DERIVED] |
+| FLOPs per forward pass (approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [canonical scenario][DERIVED] |
 
 **Table 3-1 — Dense 70B model parameter arithmetic (worked example, not reference).**
 
-### MoE model representative (Mixtral 8x7B class, [2°])
+### MoE model representative (Mixtral 8x7B class, [ILLUSTRATIVE][ASSUMPTION])
 
 We contrast with a representative MoE model in the Mixtral lineage. The exact parameter split is not always published in vendor model cards; the numbers below are plausibility-checked and flagged.
 
@@ -160,7 +160,7 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 
 | metric | dense 70B | MoE (8×7B class) | derivation |
 |---|---|---|---|
-| total parameters | 70B | ~47B | [2°] expert split |
+| total parameters | 70B | ~47B | [ILLUSTRATIVE][ASSUMPTION] expert split |
 | active params per token | 70B | ~14B | top-2 from 8 ≈ 2/8 = 25% of expert mass [ILLUSTRATIVE][DERIVED] |
 | active/total fraction | 100% | ~30% | 14B ÷ 47B ≈ 29.8% [ILLUSTRATIVE][DERIVED] |
 | FP16 residency (total) | 140 GB | ~94 GB | 70B × 2 / 47B × 2 |
@@ -169,7 +169,7 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 | FLOPs per forward pass | ~0.14T | ~0.028T | 70B × 2 / 14B × 2 |
 | compute ratio vs dense 70B | 1× | ~0.20× (~5× less) | (14B × 2) ÷ (70B × 2) = 28B ÷ 140B [ILLUSTRATIVE][DERIVED] |
 
-*All figures trace to the canonical scenario (Ch 4, Table 4-3); the MoE column is a [2°] worked variant, not a measurement claim.*
+*All figures trace to the canonical scenario (Ch 4, Table 4-3); the MoE column is an [ILLUSTRATIVE][ASSUMPTION] worked variant, not a measurement claim.*
 
 ---
 *Next chapter: Chapter 4 — The Anatomy of an AI Workload, which characterizes the enterprise Q&A RAG workload across the six dimensions (quality, traffic, token profile, latency, economic, operational constraints) and uses the same continuous mini-case scenario.*

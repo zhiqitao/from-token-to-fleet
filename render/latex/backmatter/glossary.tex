@@ -5,11 +5,20 @@
 \label{chap:glossary}
 \markboth{Glossary}{Glossary}
 
+\noindent\textbf{Model fundamentals}
+\begin{itemize}\tightlist
+\item \textbf{tokenization / tokenizer} — splitting text into the model's vocabulary of integer IDs; a token is whatever the model's \emph{tokenizer} decided to carve the text into (learned BPE-style merges), so token counts are tokenizer-dependent — run the model's own tokenizer on representative traffic rather than a characters-per-token rule of thumb (Ch 1).
+\item \textbf{embedding} — the lookup that maps each discrete token ID to the dense vector the model actually operates on; the pipeline is text $\to$ tokenizer $\to$ IDs $\to$ embedding $\to$ attention $\to$ KV cache (Ch 1).
+\item \textbf{attention} — the mechanism that compares each token's query (Q) against every prior key (K) and blends the values (V) by those scores; a processed token's K/V never change, which is why they are cached (the KV cache) rather than recomputed each step (Ch 2).
+\item \textbf{logits} — the model's raw, unnormalized per-vocabulary scores at a generation step; the sampler turns them into the next token (Ch 2).
+\end{itemize}
+
 \noindent\textbf{Inference and serving}
 \begin{itemize}\tightlist
 \item \textbf{TTFT} — time to first token: latency from request to the first output token (prefill-dominated).
 \item \textbf{TPOT} — time per output token: steady-state decode latency per token.
 \item \textbf{ITL} — inter-token latency: the decode phase's per-token lag; the book treats TPOT (steady-state) and ITL (per-token, incl. any measured inter-token gap) as the same canonical per-token metric and writes them ``TPOT/ITL.'' Where a measurement distinguishes them, treat ITL as the per-token value that includes any queueing/scheduling gap between emitted tokens, i.e. a tail-sensitive complement to bounded TPOT.
+\item \textbf{tail latency} — latency at the high percentiles of the distribution (p95/p99), set by the slowest requests rather than the typical one; the SLOs in this book are written against the tail (TTFT/TPOT p95/p99), so a median that meets its budget says nothing about the tail (Ch 20).
 \item \textbf{prefill} — the pass that processes the prompt tokens and builds the KV cache/state. Often the compute-bound pass in high-arithmetic-intensity regimes, but the compute- vs bandwidth-bound classification is a function of model, sequence length, batch, kernel, and device operating point (\S8, \S8.2). Long-context and large-batch regimes can shift where it sits on the roofline.
 \item \textbf{decode} — the autoregressive pass that generates the output one token at a time from the built state. Often memory-bandwidth-bound at low batch (small arithmetic intensity per emitted token), but not invariably so; large-batch and bandwidth-friendly regimes can move it. Refer to the operating-point discussion in \S8 for the conditional, not unconditional, classification.
 \item \textbf{goodput} — useful throughput: throughput that meets the latency/quality bar, discounting failures.
@@ -21,13 +30,18 @@
 \item \textbf{speculative decoding} — a draft model proposes a candidate sequence that the target model verifies in parallel, accepting matching tokens to raise effective throughput at the cost of draft + verification compute.
 \item \textbf{MFU} — model FLOPs utilization: achieved FLOPs as a fraction of hardware peak.
 \item \textbf{RPS / QPS} — requests per second / queries per second: a \emph{rate} of incoming work, the primary input to a capacity model.
+\item \textbf{concurrency} — the number of requests \emph{in flight} (being served) at the same time; distinct from \emph{concurrent users}, which is a population measure, and related to the arrival rate by Little's law (in-flight $\approx \lambda W$) (Ch 17, 20).
 \end{itemize}
 
 \noindent\textbf{Memory and attention}
 \begin{itemize}\tightlist
 \item \textbf{KV cache} — the keys/values of past tokens retained so attention need not recompute.
+\item \textbf{KV quantization} — reducing the \emph{bytes} per K/V element (e.g. FP16 $\to$ FP8), not the number of K/V entries; the canonical raw byte-halving is 2.62 $\to$ 1.31 MB/token (exactly 50\%), a raw-array figure that is \emph{not} a vendor-measured engine footprint, and the vLLM FP8-KV blog's 54\% is a decode-ITL \emph{latency slope}, not a memory ratio (Ch 2, 6, 7; S6).
+\item \textbf{KV offloading} — moving some KV state out of GPU HBM (to host DRAM/SSD), trading capacity against transfer latency; it does \emph{not} shrink the state itself (that is quantization), and the cited 2--22$\times$ TTFT range is a particular warm-cache reuse benchmark, not a generic cold-cache improvement (Ch 2, 6; S7).
 \item \textbf{GQA} — grouped-query attention; \textbf{MQA} — multi-query attention; \textbf{MHA} — multi-head attention.
 \item \textbf{APC / RadixAttention / prefix cache} — caching of shared prompt prefixes to avoid recomputation.
+\item \textbf{prompt caching} — the broader system/provider term; the book uses it to mean \emph{reusing the KV of a shared prompt prefix across requests}, so it is \emph{not} a separate mechanism from prefix caching above (Ch 2) — the provider-facing name for the same reuse, kept as its own entry because providers document and bill it as a feature.
+\item \textbf{cache hit / miss} — a cache \emph{hit} serves a request (or a shared prefix) from cached state without recomputing it; a \emph{miss} must be computed (or re-prefilled); the hit ratio (hits $\div$ requests) is the FACT that the prefix- and semantic-cache arithmetic starts from (Ch 15, 19, 26).
 \item \textbf{HBM} — high-bandwidth memory: the large, relatively slow-capacity memory attached to a GPU (distinct from fast on-chip SRAM).
 \item \textbf{arithmetic intensity} — FLOPs moved per byte read from memory (FLOP/byte); the quantity that determines whether a kernel is compute-bound or memory-bound.
 \item \textbf{MoE} — mixture of experts: a sparse model that routes each token to a subset of expert layers, cutting compute-per-token without reducing the parameter count or (necessarily) the KV cache.
@@ -36,7 +50,7 @@
 \noindent\textbf{Parallelism and flows}
 \begin{itemize}\tightlist
 \item \textbf{TP} — tensor parallelism; \textbf{PP} — pipeline parallelism; \textbf{DP} — data parallelism; \textbf{EP} — expert parallelism; \textbf{FSDP} — fully sharded data parallelism (shards the model weights, gradients and optimizer state across ranks, reducing per-rank memory vs full-replica DP); \textbf{CP} — context parallelism (shards the sequence dimension across ranks when a single context is too long for one rank).
-\item \textbf{TPOT/TTFT} scheduling terms above; \textbf{all-reduce} — the collective that \emph{aggregates} (e.g. sums) a tensor across ranks so every rank ends with the same reduced value; used to share gradients, activations, or states.
+\item \textbf{all-reduce} — the collective that \emph{aggregates} (e.g. sums) a tensor across ranks so every rank ends with the same reduced value; used to share gradients, activations, or states.
 \item \textbf{RQO} — Reasoned Quality Optimization: a structured process that optimizes a quality metric (e.g. answer relevance) by iterating over prompts, retrieval, and model choices, rather than treating quality as a fixed model property (Ch 25 §6).
 \end{itemize}
 

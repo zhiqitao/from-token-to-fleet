@@ -2,7 +2,7 @@
 
 ## The Architect's Question
 
-After this chapter we should be able to answer the architect's fundamental constraint question: *does the model and its context fit in the memory floor before we ask whether it can compute or communicate?* We will build the arithmetic for the KV cache from first principles, reconcile it with the canonical ~1.3 MB/token figure from Chapter 1, and contrast inference residency (weights + KV) with fine-tuning residency (weights + gradients + optimizer states). The goal is to make "does it fit?" a concrete, quantified check — not a back-of-the-envelope guess. Throughout, the arithmetic anchors to the canonical enterprise-Q&A RAG scenario (Ch 4, Table 4-3): ~10 rps average / ~40 rps peak traffic served by a 70B FP16 model on an 8×H100 host. KV cache per-token figures are given at the referenced precision throughout: ~1.3 MB/token at **8-bit** (this is Chapter 1's reference figure), ~2.5 MB/token (2.62 MB exact) at **FP16** — and the canonical scenario's KV constant is the **FP16** 2.62 MB/token figure, not the 8-bit ~1.3 MB/token number.
+After this chapter we should be able to answer the architect's fundamental constraint question: *does the model and its context fit in the memory floor before we ask whether it can compute or communicate?* We will build the arithmetic for the KV cache from first principles, reconcile it with the canonical ~1.3 MB/token figure from Chapter 1, and contrast inference residency (weights + KV) with fine-tuning residency (weights + gradients + optimizer states). The goal is to make "does it fit?" a concrete, quantified check — not a back-of-the-envelope guess. Throughout, the arithmetic anchors to the canonical enterprise-Q&A RAG scenario (Ch 4, Table 4-3): ~10 rps average / ~40 rps peak traffic served by a 70B **FP16** model on an 8×H100 host. KV cache per-token figures are given at the referenced precision throughout: ~1.3 MB/token at **8-bit** (this is Chapter 1's reference figure), ~2.5 MB/token (2.62 MB exact) at **FP16** — and the canonical scenario's KV constant is the **FP16** 2.62 MB/token figure, not the 8-bit ~1.3 MB/token number.
 
 ## 1. Concept
 
@@ -39,11 +39,11 @@ We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **canoni
 | 9.2K input KV cache (initial) | 9,200 ×2.62 MB ≈ 24.1 GB | 9,200 ×2,621,440 B; initial KV residency |
 | 300 output KV cache | 300 ×2.62 MB ≈ 0.8 GB | 300 ×2,621,440 B |
 | total inference KV (9.5K max) | ≈ 24.9 GB | 9,500 × 2,621,440 B ≈ 24.9 GB |
-| 32K input KV cache | 32,000 ×2.62 MB ≈ 83.8 GB | long-context variant |
+| 32K input KV cache | 32,000 ×2.62 MB ≈ 83.9 GB | 32,000 ×2,621,440 B; long-context variant |
 | 128K input KV cache | 128,000 ×2.62 MB ≈ 335.4 GB | aggressive long-context variant |
 | 70B FP16 weights | 70B × 2 B = 140 GB | [1P: DERIVED from 70B × 2 bytes] |
 | inference residency (weights + KV, 9.5K max) | ≈ 165 GB | 140 + 24.9 GB |
-| inference residency (weights + KV, 32K) | ≈ 224 GB | 140 + 83.8 GB |
+| inference residency (weights + KV, 32K) | ≈ 224 GB | 140 + 83.9 GB |
 | inference residency (weights + KV, 128K) | ≈ 475 GB | 140 + 335.4 GB |
 | 2×H100 total VRAM | 2 ×80 GB = 160 GB | [1P: NVIDIA H100 spec] |
 | 8×H100 total VRAM | 8 ×80 GB = 640 GB | [1P: NVIDIA H100 spec] |
@@ -83,9 +83,9 @@ The figure shows one group's geometry: **8 query heads funnel into a single shar
 | fine-tuning (weights + gradients + optimizer) | weights + gradients + optimizer states | Adam: ~16 B/param (m + v + ΔW) | ~1,120 GB | no |
 | fine-tuning (weights + gradients, FP16) | weights + gradients FP16 | 4 B/param (weights FP16 2 B + gradients FP16 2 B) | ~280 GB | yes |
 | fine-tuning (QLoRA, 4-bit base + LoRA) | quantized base + LoRA adapters | NF4: nominal 4-bit (~0.5 B/param) + quantization metadata; adds adapters/gradients/optimizer/activations | ~50–70 GB | yes |
-| inference with FP8 KV | weights FP16 + KV FP8 | KV: ~50% of BF16 (raw byte-halving) | ~12.45 GB KV @ 9.5K | yes |
+| inference with FP8 KV | weights FP16 + KV FP8 | KV: ~50% of BF16 (raw byte-halving) | ~152 GB (9.5K; 140 + 12.45; KV alone 12.45 GB) | yes |
 
-*Inference residency = weights + KV cache; the KV footprint scales with context length. Fine-tuning residency adds optimizer states (Adam m, v, and master weights), which for 70B at ~16 bytes/param totals ~1,120 GB — roughly 1.75× the 640 GB of 8×H100. This contrast is the architect's central takeaway: inference is memory-limited by weights + KV, while fine-tuning is memory-limited by weights + gradients + optimizer, a substantially higher floor. Note the ~1,120 GB is the **parameter/optimizer floor** (weights + gradients + Adam m/v/master), which is fixed by model size and precision. The **actual training peak** is higher and is *not* inferable from that floor alone: it also includes activation memory (scales with batch size × sequence length × hidden dim, and is the dominant term for long-context or large-batch runs), temporary kernel workspace, allocator fragmentation, and checkpointing buffers. A host that fits the 1,120 GB floor can still fail to fit a given training run if its activation peak exceeds the remaining HBM — so the fit verdict for training must be checked against the measured peak for the specific batch/sequence configuration, not the parameter floor. (QLoRA's ~50–70 GB figure is likewise a floor: it holds the 4-bit base + adapters + a small optimizer, and its activation peak still depends on the run's batch and sequence length.)*
+*Inference residency = weights + KV cache; the KV footprint scales with context length. Fine-tuning residency adds optimizer states (Adam m, v, and master weights), which for 70B at ~16 bytes/param totals ~1,120 GB — roughly 1.75× the 640 GB of 8×H100. This contrast is the architect's central takeaway: inference is memory-limited by weights + KV, while fine-tuning is memory-limited by weights + gradients + optimizer, a substantially higher floor. Note the ~1,120 GB is the **parameter/optimizer floor** (weights + gradients + Adam m/v/master), which is fixed by model size and precision. The **actual training peak** is higher and is not inferable from that floor alone: it also includes activation memory (scales with batch size × sequence length × hidden dim, and is the dominant term for long-context or large-batch runs), temporary kernel workspace, allocator fragmentation, and checkpointing buffers. A host that fits the 1,120 GB floor can still fail to fit a given training run if its activation peak exceeds the remaining HBM — so the fit verdict for training must be checked against the measured peak for the specific batch/sequence configuration, not the parameter floor. (QLoRA's ~50–70 GB figure is likewise a floor: it holds the 4-bit base + adapters + a small optimizer, and its activation peak still depends on the run's batch and sequence length.)*
 
 ## 4. Measurement
 

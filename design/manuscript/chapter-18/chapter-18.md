@@ -46,7 +46,7 @@ The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200�
 
 | Model | VRAM (model precision) | VRAM (8-bit) | VRAM (4-bit) | # fit on 8×H100 |
 |------|-------------|--------------|--------------|-----------------|
-| 70B dense FP16 | 140 GB | — | — | 1 (weights + KV fit in the 640 GB pool; ~2 GPUs hold the weights) |
+| 70B dense FP16 | 140 GB | — | — | 1 (140 GB weights across the 8-GPU pool, ~17.5 GB/GPU under TP; with KV, the full 640 GB pool is used) |
 | 70B dense 8-bit | — | ~70 GB | — | 1 (weights alone fit on 1×H100, leaving 7 GPUs; with the canonical KV budget the 8×H100 pool still holds weights + KV) |
 | 70B MoE FP16 (2/16 experts) | 140 GB | — | — | 1 (same as dense FP16; weights + KV fit in the 640 GB pool) |
 | 70B MoE 8-bit (2 active) | — | ~70 GB | — | 1 |
@@ -103,7 +103,7 @@ The latency and capacity must also reconcile with the canonical workload's KV re
 
 ### 3.5. Consolidation vs. separation decision
 
-- **Consolidate** when: workload profile overlap >70%, latency tolerance ≥300 ms, and cost differential >30%. *Verified*: our scenario consolidates 70% of traffic to 8-bit, saving ~$11.16/hr ($23.75 − $12.59, the §18.3.3 derived figure).
+- **Consolidate** when: workload profile overlap ≥70%, latency tolerance ≥300 ms, and cost differential >30%. *Verified*: our scenario sits exactly at the threshold — it consolidates ~70% of traffic to 8-bit (at the ≥70% boundary, not above it), saving ~$11.16/hr ($23.75 − $12.59, the §18.3.3 derived figure).
 - **Keep separate** when: (a) security/classification policies require isolation, (b) workloads have bimodal latency needs (some ≤50 ms, others batch-tolerant), or (c) model versioning cadence differs (e.g., frequent fine-tuning on one family, stable other).
 
 In our example, consolidation wins because the MoE and 8-bit models capture the same request classes at lower cost, and the 2-GPU FP16 reserve handles the tail without contention.
@@ -156,23 +156,23 @@ The fleet operator becomes a *cost‑latency steward* rather than a single-model
 - **Tier 2 (70B 8-bit dense):** Handles 15% of queries (order status, policy look-up). Runs on 1×H100. Cost: $0.0015/token, latency ~250 ms.
 - **Tier 3 (70B FP16):** Handles 5% of queries (complex escalations, multilingual). Runs on 2 GPUs reserved. Cost: $0.003/token, latency ~120 ms.
 
-**Arithmetic:** A small pilot deployment serving ~1,000 registered users at a modest, deliberately low volume — **5,000 tokens/hour** (each request averaging ~250 tokens gives roughly 20 requests/hour, a very light load chosen to make the per-token routing economics concrete rather than to model a busy fleet; the traffic rate is not what drives this arithmetic, the per-token volume is). Hourly tokens: ~4,500 in + 500 out = 5,000. *(Scope note: these tier per-token rates are illustrative scenario values on a per-token basis, distinct from — and not directly comparable to — the per-1M-token ledger in §18.3.2; the mini-case uses them to demonstrate the routing economics, and a real deployment would price from the §18.3.2 per-1M basis.)*
+**Arithmetic:** A small pilot deployment serving ~1,000 registered users at a modest, deliberately low volume — **5,000 tokens/hour** (each request averaging ~250 tokens gives roughly 20 requests/hour, a very light load chosen to make the per-token routing economics concrete rather than to model a busy fleet; the traffic rate is not what drives this arithmetic, the per-token volume is). Hourly tokens: ~4,500 in + 500 out = 5,000. *(Scope note: these tier per-token rates are illustrative scenario values that **differ from the §18.3.2 per-1M ledger** — they are not the ledger's $1.25 (8-bit) / $2.50 (FP16) / $0.15 (4-bit) per-1M rates converted, and the 4-bit tier's ~600 ms latency differs from the ledger's 800 ms. They are on a per-token basis, distinct from — and not directly comparable to — the per-1M-token ledger; the mini-case uses them to demonstrate the routing economics, and a real deployment would price from the §18.3.2 per-1M basis.)*
 
 - Tier 1 processes 4,000 tokens/hr → $0.80
 - Tier 2 processes 750 tokens/hr → $1.13
 - Tier 3 processes 250 tokens/hr → $0.75
-- **Total hourly cost: $2.68** → **$1,930 / month**.
+- **Total hourly cost: $2.68** → **$1,956 / month** (× 730 hr).
 
-**Check the SLO before the cost claim.** If we had used a single 70B FP16 model: 5,000 tokens/hr × $0.003 = $15/hr → $10,800 / month. The three-tier split looks like an $8,870 / month (≈82%) saving — but the SLO gates the cost claim, and here it fails. **Tier 1 (the cheapest, 4-bit GGUF on CPU, ~600 ms) serves 80% of queries, so the p95 per-request latency is ~600 ms, which violates the 500 ms SLA for the dominant tier.** The split saves cost by routing the bulk to a slow-but-cheap model — precisely the mean-vs-tail trap: the *average* latency looks fine, yet the majority tier misses the deadline. The $8,870 / month saving is therefore *conditional* on first making Tier 1 feasible.
+**Check the SLO before the cost claim.** If we had used a single 70B FP16 model: 5,000 tokens/hr × $0.003 = $15/hr → $10,950 / month (× 730 hr). The three-tier split looks like an $8,994 / month (≈82%) saving — but the SLO gates the cost claim, and here it fails. **Tier 1 (the cheapest, 4-bit GGUF on CPU, ~600 ms) serves 80% of queries, so the p95 per-request latency is ~600 ms, which violates the 500 ms SLA for the dominant tier.** The split saves cost by routing the bulk to a slow-but-cheap model — precisely the mean-vs-tail trap: the *average* latency looks fine, yet the majority tier misses the deadline. The $8,994 / month saving is therefore *conditional* on first making Tier 1 feasible.
 
 **Recalculated cost after substituting a feasible Tier 1.** Replace the 4-bit GGUF (CPU, ~600 ms) with 8-bit quantization on a GPU (~250 ms, $0.0015/token — the same rate as Tier 2, which is also 8-bit on 1×H100). The 80% of queries now route at $0.0015/token:
 
 - Tier 1 (8-bit on GPU) processes 4,000 tokens/hr → $6.00
 - Tier 2 (70B 8-bit dense) processes 750 tokens/hr → $1.13
 - Tier 3 (70B FP16) processes 250 tokens/hr → $0.75
-- **Total hourly cost: $7.88** → **$5,750 / month**.
+- **Total hourly cost: $7.88** → **$5,752 / month** (× 730 hr).
 
-The p95 is now ~250 ms (all tiers under 500 ms), so the SLO is met. The saving narrows from $8,870 / month (82%) to **$5,050 / month (≈47%)** — still a clear win, but the SLO-constrained figure, not the raw 82%, is the honest number. The correct order is: check the SLO, then size the cost. The routing arithmetic shows the *economic* win; the SLO check is what keeps it honest, and it must come first.
+The p95 is now ~250 ms (all tiers under 500 ms), so the SLO is met. The saving narrows from $8,994 / month (≈82%) to **$5,198 / month (≈47%)** — still a clear win, but the SLO-constrained figure, not the raw 82%, is the honest number. The correct order is: check the SLO, then size the cost. The routing arithmetic shows the *economic* win; the SLO check is what keeps it honest, and it must come first.
 
 The key enabler was the router's feature gate: queries mentioning "multilingual" or "technical specification" were auto‑escalated to Tier 3; the rest flowed to Tier 1 or Tier 2 automatically.
 

@@ -79,16 +79,16 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 | metric | value | derivation |
 |---|---|---|
 | Model params | 70B | canonical scenario (Ch 4, Table 4-3) |
-| Model weight bytes (FP16) | 140 GB | 2 bytes × 70B params [ILLUSTRATIVE][DERIVED] |
-| Decode: weight-read per token | 140 GB | Auto-regressive, batch-1-equivalent: one read of all weights per generated token before batching/amortization [ILLUSTRATIVE][DERIVED] |
-| Decode: required bandwidth (TPOT ~25 ms) | 5.6 TB/s | 140 GB / 0.025 s (batch-1-equivalent weight-streaming model, before amortization) [DERIVED] |
+| Model weight bytes (FP16) | 140 GB | 2 bytes × 70B params [canonical scenario][DERIVED] |
+| Decode: weight-read per token | 140 GB | Auto-regressive, batch-1-equivalent: one read of all weights per generated token before batching/amortization [canonical scenario][DERIVED] |
+| Decode: required bandwidth (TPOT ~25 ms) | 5.6 TB/s | 140 GB / 0.025 s (batch-1-equivalent weight-streaming model, before amortization) [canonical scenario][DERIVED] |
 | H100 HBM3 peak bandwidth | 3.35 TB/s | NVIDIA H100 specs [1P][FACT] |
-| Decode: bandwidth verdict | bandwidth-bound | 5.6 > 3.35 → under the batch-1-equivalent model, a single H100 cannot meet the demand; batching/amortization change this (see later chapters) [ILLUSTRATIVE][DERIVED] |
-| Prefill: input tokens | 9,200 | 1,200 prompt + 8K context [ILLUSTRATIVE][DERIVED] |
-| Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 ×70e9 ×9.2e3 ≈ 1.29 ×10^15 [DERIVED] |
+| Decode: bandwidth verdict | bandwidth-bound | 5.6 > 3.35 → under the batch-1-equivalent model, a single H100 cannot meet the demand; batching/amortization change this (see later chapters) [canonical scenario][DERIVED] |
+| Prefill: input tokens | 9,200 | 1,200 prompt + 8K context [canonical scenario][DERIVED] |
+| Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 ×70e9 ×9.2e3 ≈ 1.29 ×10^15 [canonical scenario][DERIVED] |
 | H100 BF16 dense compute | 989 TFLOPS | NVIDIA H100 BF16 tensor-core peak [1P][FACT] |
-| Prefill: regime verdict | compute-bound regime | arithmetic intensity ~9.2K FLOP/byte > ridge ~295 → on the compute-bound side of the roofline [DERIVED] |
-| Prefill: single-H100 capacity | insufficient for real-time prefill | 1.29 PFLOP / ~1.08 s ≈ 1.19 PFLOPS demand > 0.989 PFLOPS H100 peak → one H100 cannot meet the TTFT deadline under this analytical model [DERIVED] |
+| Prefill: regime verdict | compute-bound regime | arithmetic intensity ~9.2K FLOP/byte > ridge ~295 → on the compute-bound side of the roofline [canonical scenario][DERIVED] |
+| Prefill: single-H100 capacity | insufficient for real-time prefill | 1.29 PFLOP / ~1.08 s ≈ 1.19 PFLOPS demand > 0.989 PFLOPS H100 peak → one H100 cannot meet the TTFT deadline under this analytical model [canonical scenario][DERIVED] |
 
 ![Fig 2.2 — Prefill and decode on the roofline ridge. Low-batch decode (streaming weights per token) lands at ~1 FLOP/byte — the memory-bound side; long-prompt prefill lands at high intensity — the compute-bound side. These are operating points, not fixed identities: batch, context, precision, kernel and hardware all move a point across the ridge. [ILLUSTRATIVE conceptual, roofline developed in Ch 8]](figures/fig-02-0201.png)
 
@@ -102,7 +102,7 @@ $$
 B_\text{req} = \frac{W}{\tau} = \frac{140 \text{ GB}}{0.025 \text{ s}} = 5{,}600 \text{ GB/s} = 5.6 \text{ TB/s}
 $$
 
-[ILLUSTRATIVE][DERIVED]. A single NVIDIA H100 HBM3 delivers ~3.35 TB/s peak bandwidth [1P][FACT]. Since $5.6 > 3.35$, under this batch-1-equivalent weight-streaming model one H100 cannot supply the required *aggregate* weight-read rate — the decode phase is HBM-bandwidth-bound [ILLUSTRATIVE][DERIVED]. Read this as an *aggregate lower-bound illustration*, not as the literal bandwidth requirement of a single H100 in a realistic 8×H100 configuration (where the model and its traffic are sharded, so each GPU streams only its shard against its own 3.35 TB/s, plus communication overhead). This is a statement about the *specified* single-request, ~25 ms/token model, not about all possible 70B serving: batching, weight-read amortization, and precision changes (later chapters) fundamentally alter the per-request bandwidth demand. Within the model, meeting that latency target calls for multi-GPU scaling or bandwidth-increasing topologies (e.g. NVLink-connected nodes).
+[canonical scenario][DERIVED]. A single NVIDIA H100 HBM3 delivers ~3.35 TB/s peak bandwidth [1P][FACT]. Since $5.6 > 3.35$, under this batch-1-equivalent weight-streaming model one H100 cannot supply the required *aggregate* weight-read rate — the decode phase is HBM-bandwidth-bound [canonical scenario][DERIVED]. Read this as an *aggregate lower-bound illustration*, not as the literal bandwidth requirement of a single H100 in a realistic 8×H100 configuration (where the model and its traffic are sharded, so each GPU streams only its shard against its own 3.35 TB/s, plus communication overhead). This is a statement about the *specified* single-request, ~25 ms/token model, not about all possible 70B serving: batching, weight-read amortization, and precision changes (later chapters) fundamentally alter the per-request bandwidth demand. Within the model, meeting that latency target calls for multi-GPU scaling or bandwidth-increasing topologies (e.g. NVLink-connected nodes).
 
 - **Prefill FLOPs.** The prefill pass computes attention over the 9.2K input tokens and produces the first output token. The *parameterized-linear* FLOP floor for a dense transformer forward pass is well approximated as $2 \times \text{params} \times \text{tokens}$ (the factor of 2 accounts for multiply-add per parameter per token). Call this what it is: **the parameterized-linear FLOP floor, $2NL$, excluding explicit attention-score/value aggregation and other non-matmul overhead.** The full-attention component is *not* captured by $2NL$ — it grows ~quadratically with sequence length (Ch 22), so for a 9.2K-token prefill $2NL$ is a lower bound on total compute, not the whole story. Thus:
 
@@ -110,13 +110,13 @@ $$
 \text{prefill FLOPs} = 2 \times N \times L = 2 \times 70 \times 10^9 \times 9.2 \times 10^3 \approx 1.288 \times 10^{15} \approx 1.29 \text{ PFLOP}
 $$
 
-[ILLUSTRATIVE][DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-core peak, without sparsity) [1P][FACT], which is 0.989 PFLOPS. (Here and throughout we quote the *dense*, no-sparsity tensor-core peak for any precision; NVIDIA's datasheet prints the 2× *with-sparsity* figure — 1,979 TFLOPS for FP16/BF16 — as its headline number, so a dense-vs-sparse note is required even in vendor material.) The required rate against the ~1.08 s prefill budget is
+[canonical scenario][DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-core peak, without sparsity) [1P][FACT], which is 0.989 PFLOPS. (Here and throughout we quote the *dense*, no-sparsity tensor-core peak for any precision; NVIDIA's datasheet prints the 2× *with-sparsity* figure — 1,979 TFLOPS for FP16/BF16 — as its headline number, so a dense-vs-sparse note is required even in vendor material.) The required rate against the ~1.08 s prefill budget is
 
 $$
 \text{rate} = \frac{1.29 \text{ PFLOP}}{1.08 \text{ s}} \approx 1.19 \text{ PFLOPS}
 $$
 
-Crossing $1.19 > 0.989$ — **even before accounting for attention overhead, kernel inefficiency, and sub-100% MFU, this first-order lower bound already exceeds the H100's theoretical peak.** Therefore one H100 cannot satisfy the stated prefill budget under these assumptions; the prefill phase is compute-bound [ILLUSTRATIVE][DERIVED]. Note the direction of this argument: exceeding the *theoretical peak* proves the target is impossible on a single H100 under the stated model, but it does **not** imply any rate below the peak is achievable — real kernels land well under MFU 100%. Meeting the latency SLO therefore calls for multiple GPUs (model parallelism or data parallelism) or more efficient attention implementations.
+Crossing $1.19 > 0.989$ — **even before accounting for attention overhead, kernel inefficiency, and sub-100% MFU, this first-order lower bound already exceeds the H100's theoretical peak.** Therefore one H100 cannot satisfy the stated prefill budget under these assumptions; the prefill phase is compute-bound [canonical scenario][DERIVED]. Note the direction of this argument: exceeding the *theoretical peak* proves the target is impossible on a single H100 under the stated model, but it does **not** imply any rate below the peak is achievable — real kernels land well under MFU 100%. Meeting the latency SLO therefore calls for multiple GPUs (model parallelism or data parallelism) or more efficient attention implementations.
 
 ## 4. Measurement
 
