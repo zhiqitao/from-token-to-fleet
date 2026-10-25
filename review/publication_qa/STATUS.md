@@ -8,39 +8,29 @@
 
 ---
 
-## Phase: AUDIT / VISION-ACCEPTANCE (in progress)
+## Phase: AUDIT / VISION-ACCEPTANCE COMPLETE (this run)
 
 ### Done
 - **Baseline** captured (HEAD, pages, sha256, proof backed to `renders/`).
-- **Vision smoke test** (`vision_smoke_test.md`): **PASS** — model receives real pixels,
-  answers pixel-only spatial questions, Fig 1.1 confirmed clean.
+- **Vision smoke test** (`vision_smoke_test.md`): **PASS**.
 - **Independent numerical verification** (`NUMERICAL_VERIFICATION.md` +
-  `calculations/verify_canonical.py`): **48 checks, 0 failures** — all canonical
-  quantities re-derived from first principles (FP8 KV, concurrency 35/27, $0.301932/
-  $9.259259/$0.292398, crossover 53.4K, capstone 180ms/250ms/44%/48%, feasibility 93%).
-  Does NOT import the repo's calc scripts (avoids oracle-collusion).
-- **Automated layout scan** (`page_ledger_auto.csv`): **355 pages, 0 out-of-page text**;
-  column overflow benign (max_x ~527-531pt). 44 pages report some sub-8pt spans
-  (mostly table/annotation, to confirm in vision pass).
-- **Automated figure inventory** (`figure_ledger_auto.csv`): **0 raster figures below
-  300 ppi** (F18 closure confirmed).
-- **Source-level consistency** (Pass B): no "Ch 27" refs, no stale FP8 values, no editor
-  instruction leak, @GITSHA@ placeholder present.
+  `calculations/verify_canonical.py`): **48 checks, 0 failures**.
+- **Automated layout scan**: **355 pages, 0 out-of-page text**.
+- **Automated figure inventory**: **0 rasters below 300 ppi**.
+- **Source-level consistency** (Pass B): clean (no Ch27, no stale FP8, no editor instruction).
+- **Figure vision pass** (all 46, via 6 sub-agent batches + targeted `vision_analyze`):
+  **4 genuine print-legibility defects found and fixed** — Fig 7.1 (label collision),
+  Fig 15.2 (`[ILLUSTRATIVE]` tag collision), Fig 14.1 (sub-8pt annotations). Rebuilt & re-scanned:
+  all figures >=8pt, 0 <300ppi, 0 out-of-page, Type3 0, regressions pass.
+- **RELEASE_REPORT.md** written with an honest **NOT_READY** verdict (content closed; deployment
+  goodput + physical-print + external vendor audit remain UNVERIFIED by design / external).
 
-### In flight
-- **6 vision-audit subagents** cropping/registering all 46 figures into
-  `fig_vision_log.md` (batches 1-6). On return: run `vision_analyze` on any figure
-  whose geometry verdict is not cleanly OK, then fix any figure defect, rebuild, re-verify.
+### Next exact action (for a subsequent run)
+Physical 100%-size print proof + independent vendor-source/citation audit; then a release decision.
+Not in this run (not authorized, and needs a print/ext-tool workflow).
 
-### Next exact action
-1. Collect the 6 figure-batch results from `fig_vision_log.md`.
-2. For each figure flagged with a layout/legibility concern, run `vision_analyze` on its
-   crop to confirm; log real findings into `ISSUES.md`.
-3. Fix any confirmed figure/text defect; rebuild; re-run regression + layout scans.
-4. Write `RELEASE_REPORT.md` with a truthful verdict (READY / NOT_READY / BLOCKED_UNVERIFIED).
-
-### Counters
-- pages audited: 355 (automated geometry); vision pages: p25 done (smoke test) + figures in flight
-- figures: 46 (automated inventory); vision-confirmed: 1 (Fig 1.1) + 46 in flight
-- P0 open: 0 (all three from the 15th review closed & verified) · P1 open: 0 in-manuscript
-- tests: verify_canonical 48/48 pass; layout 0 out-of-page; figures 0 <300ppi
+### Counters (final)
+- pages scanned: 355/355 · figures: 46 (0 <300ppi) · vision-confirmed figures: all 46 crop-registered,
+  5 pixel-inspected (1.1, 7.1, 15.2, 20.1, 14.1 + 15.1 earlier); 4 defects fixed.
+- P0 open: 0 · P1 in-manuscript open: 0 · tests: verify_canonical 48/48, regressions pass,
+  layout 0 out-of-page, figures 0 <300ppi.
