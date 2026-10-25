@@ -97,10 +97,10 @@ ax.set_title('Prefill and decode: two regimes split by the roofline ridge',
 ax.xaxis.set_major_locator(mtick.LogLocator(base=10.0))
 ax.xaxis.set_major_formatter(mtick.FuncFormatter(lambda v, p: '%g' % round(v)))
 ax.yaxis.set_major_locator(mtick.LogLocator(base=10.0))
-ax.yaxis.set_major_formatter(mtick.LogFormatterSciNotation())
+ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda v, p: '%g' % round(v)))
 ax.xaxis.set_minor_formatter(mtick.NullFormatter())
 ax.yaxis.set_minor_formatter(mtick.NullFormatter())
-ax.tick_params(axis='both', which='major', labelsize=8.4)
+ax.tick_params(axis='both', which='major', labelsize=9.0)
 ax.grid(True, which='major', axis='both', alpha=0.26, ls=':', lw=0.8, color='#888')
 
 plt.tight_layout(pad=0.6)
