@@ -70,7 +70,7 @@ for name, role, c in levels:
     if nl == 2:
         # two-line name centered in upper 60% of box; role in lower part.
         # name at FS-1.0 so the 3 text lines (2 name + 1 role) fit inside the box.
-        label(colA_cx, y+h*0.26, name, '#ffffff', FS-1.0, weight='bold', style='normal')
+        label(colA_cx, y+h*0.14, name, '#ffffff', FS-1.2, weight='bold', style='normal')
         label(colA_cx, y-h*0.30, role, '#ffffff', FS-0.9)
     else:
         label(colA_cx, y+h*0.24, name, '#ffffff', FS, weight='bold')

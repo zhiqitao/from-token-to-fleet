@@ -41,7 +41,6 @@ ax.loglog(req, managed, '-', color='#c0392b', lw=2.0, label='managed $20.80/1K')
 
 ax.set_xlabel('Requests/month (log)', fontsize=9)
 ax.set_ylabel('Cost/month (USD, log)', fontsize=9)
-ax.set_title('TCO break-even (~20-host fleet)', fontsize=9.5)
 ax.set_xlim(1e4, 1e8); ax.set_ylim(1e3, 1e7)
 ax.grid(alpha=0.3, which='both')
 ax.xaxis.set_major_formatter(_mt.FuncFormatter(lambda v, p: '1e%g' % round(math.log10(v)) if v > 0 else ''))
@@ -76,9 +75,17 @@ ax.set_xlabel('Requests/month (log)', fontsize=9, labelpad=6)
 # Primary in-figure qualification (P0-03): the cloud-scaled number is an elastic
 # LOWER BOUND under idealised elasticity and is NOT apples-to-apples with the
 # always-provisioned self-host fleet.
-fig.text(0.5, 0.955,
+# Header vertical layout: brown title lifted to y=0.99, subtitle drawn as an
+# explicit fig.text at y=0.945 so the two header lines are separated by a clear
+# ~9px box-gap (was overlapping ~4px: brown bottom y=478 vs subtitle top y=469).
+# The earlier ax.set_title pinned the subtitle to the axes top, forcing the stack
+# too tight; moving both to fig.text (va='top', stepped y) gives control.
+fig.text(0.5, 0.99,
          'ILLUSTRATIVE LOWER-BOUND \u2014 NOT APPLES-TO-APPLES (see Table 16-1 / Ch 16)',
          fontsize=8.6, color='#8a3a12', ha='center', va='top', fontweight='bold')
+fig.text(0.5, 0.945,
+         'TCO break-even (~20-host fleet)',
+         fontsize=9.5, color='black', ha='center', va='top')
 fig.text(0.11, 0.012,
          'Assumptions: self-host flat (~$148K/mo reserved, incl. ~$10K/mo staff);\n'
          'cloud ~$73K/mo @ ~25% duty (~5 of ~20 hosts, idealised elasticity).\n'

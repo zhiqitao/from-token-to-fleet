@@ -133,14 +133,35 @@ fth = (spine[3][0]+spine[3][1])/2
 spg = (spec[0][0]+spec[-1][1])/2
 gen_yes_x = (gen[0][1]+gen[1][0])/2
 gen_ft_x  = (gen[2][0]+gen[2][1])/2
-# branch labels are all placed to the LEFT of their own gate's drop line and on
-# a single common row, so the yes/fallthrough annotations read consistently.
+# branch labels are anchored by their RIGHT edge GAP_LB left of their own gate's
+# drop line, on a single common row, so the yes/fallthrough annotations read
+# consistently and no label can ever be struck by its own drop line.  Placement
+# uses the RENDERED text width (the TextPath estimate undershoots the drawn
+# glyphs, which pushed a centred label past its drop line and made the two 'yes'
+# labels touch: '...specialistyes...' and struck 'small').
 LB_Y    = 146          # common branch-label row
-GAP_LB  = 6.0          # clearance between a label and its drop line
+GAP_LB  = 8.0          # clearance between a label's right edge and its drop line
+_renderer = fig.canvas.get_renderer()
+def rtext_w(s):
+    t = ax.text(0, 0, s, fontsize=FS-0.2, fontweight='bold')
+    bb = t.get_window_extent(renderer=_renderer)
+    t.remove()
+    inv = ax.transData.inverted()
+    x0, _ = inv.transform((bb.x0, bb.y0))
+    x1, _ = inv.transform((bb.x1, bb.y1))
+    return x1 - x0
+def label_cx(drop_x, text):
+    # centre so the widest line's right edge sits GAP_LB left of the drop line
+    width = max(rtext_w(ln) for ln in text.split('\n'))
+    return drop_x - GAP_LB - width/2
+
 fan(sep, SP-14, spec, '#1e5a3a', 'yes \u2192 specialist',
-    sep - lh('yes \u2192 specialist') - GAP_LB, LB_Y)
-fan(spc, SP-14, gen[:2], '#1e5a3a', 'yes \u2192 frontier / small',
-    spc - lh('yes \u2192 frontier / small') - GAP_LB, LB_Y)
+    label_cx(sep, 'yes \u2192 specialist'), LB_Y)
+# The Cost/SLO 'yes' label annotates both Frontier and Small gen; split it to two
+# lines so its widest line fits the gap between the two gate drop lines (a single
+# line is wider than that gap, so it was struck by one of the drop lines).
+fan(spc, SP-14, gen[:2], '#1e5a3a', 'yes \u2192\nfrontier / small',
+    label_cx(spc, 'yes \u2192\nfrontier / small'), LB_Y)
 # fallthrough -> General: orthogonal connector (down, across, down) so it cannot
 # cross through its own 'fallthrough' label, and it clearly targets General only.
 EY = 156                                    # elbow row
@@ -148,7 +169,7 @@ ax.plot([fth, fth], [SP-14, EY], color='#444', lw=1.8)
 ax.plot([fth, gen_ft_x], [EY, EY], color='#444', lw=1.8)
 ax.annotate('', xy=(gen_ft_x, RES+16), xytext=(gen_ft_x, EY),
             arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#444', shrinkA=0, shrinkB=0))
-ax.text(gen_ft_x - lh('fallthrough') - GAP_LB, LB_Y, 'fallthrough',
+ax.text(label_cx(gen_ft_x, 'fallthrough'), LB_Y, 'fallthrough',
         fontsize=FS-0.2, color='#444', ha='center', fontweight='bold')
 
 # ---- bottom annotation ----

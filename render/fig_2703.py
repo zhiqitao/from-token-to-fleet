@@ -65,4 +65,11 @@ ax.text(5.9, y-0.35, 'From a single model to a whole system \u2014 the spine of 
 plt.tight_layout()
 out = 'design/manuscript/chapter-27/figures/fig-27-2703.png'
 plt.savefig(out, dpi=400, bbox_inches='tight', pad_inches=0.08)
-print('wrote A.3 vertical timeline')
+# Ship a vector sibling (matching fig-27-2701/2702/2704) so the figure can be
+# typeset from the .pdf.  pdf.fonttype=42 embeds the text as selectable
+# TrueType glyphs (real text, not outlines).
+import matplotlib as mpl
+with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-27/figures/fig-27-2703.pdf',
+                format='pdf', bbox_inches='tight', pad_inches=0.08)
+print('wrote A.3 vertical timeline (png + pdf)')

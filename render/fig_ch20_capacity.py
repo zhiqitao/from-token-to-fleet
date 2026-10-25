@@ -36,8 +36,8 @@ ax1.set_title('ANALYTICAL CAPACITY BOUND  (no overhead)', fontsize=9.5,
               fontweight='bold', color='#555', loc='left')
 ax1.set_ylim(0, 125)
 ax1.grid(alpha=0.3)
-ax1.legend(fontsize=8.0, loc='upper left', frameon=False)
-ax1.tick_params(labelsize=8)
+ax1.legend(fontsize=8.6, loc='upper left', frameon=False)
+ax1.tick_params(labelsize=8.6)
 
 # ---- BOTTOM: modeled offered-load-served curve ----
 ax2.plot(hosts, modeled, '-', color='#27408b', lw=2.8, label='modeled offered-load-served curve (95% efficiency)')
@@ -52,15 +52,22 @@ ax2.plot(hosts, analytical, ':', color='#888', lw=1.2, label='analytical bound (
 # host bound x a 95% efficiency factor) — NOT measured deployment throughput.
 ax2.annotate('≈20-22 hosts → reaches the 40 rps peak;\nsingle modeled/analytical line plateaus (95% efficiency)',
              xy=(21, 40), xytext=(2.5, 62),
-             fontsize=8.2, color='#1a1a1a', ha='left', va='center',
+             fontsize=8.6, color='#1a1a1a', ha='left', va='center',
+             bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.9),
              arrowprops=dict(arrowstyle='->', color='#555', lw=0.9))
 ax2.set_ylabel('Fleet throughput (req/s)', fontsize=9)
-ax2.set_title('MODELED OFFERED-LOAD-SERVED CURVE  (single modeled/analytical line, 95% scheduling efficiency)', fontsize=8.8,
+# Title shortened so it stays inside the print column (the old run-on title
+# with "(single modeled/analytical line, 95% scheduling efficiency)" overflowed
+# the axes to ~7.5in, forcing \maxwidth to downscale this figure to 6.1in and
+# shrinking every label below the 8pt print minimum). The "single
+# modeled/analytical line" + "95% efficiency" descriptors remain in annotation 2
+# and the legend, so no meaning is lost.
+ax2.set_title('MODELED OFFERED-LOAD-SERVED CURVE  (single modeled/analytical line)', fontsize=8.8,
               fontweight='bold', color='#1a1a1a', loc='left')
 ax2.set_ylim(0, 125)
 ax2.grid(alpha=0.3)
-ax2.legend(fontsize=8.0, loc='upper left', frameon=False)
-ax2.tick_params(labelsize=8)
+ax2.legend(fontsize=8.6, loc='upper left', frameon=False)
+ax2.tick_params(labelsize=8.6)
 
 ax2.set_xlabel('Host count', fontsize=9)
 fig.text(0.5, 0.005, '[ILLUSTRATIVE][DERIVED]', ha='center', fontsize=9, color='#444')

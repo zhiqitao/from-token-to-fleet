@@ -59,14 +59,15 @@ ax1.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
 #   L* = N / (2*nl*d) = 70e9 / (2*80*8192) = 53,406 tokens  (P0-03 fix).
 # ONE concise arrow annotation at the crossover; the full explanation (incl. the
 # 9.2K / 32K / 128K ratios) lives in the figure caption, so the label stays short.
-# The label sits low in the clear lower-right whitespace (far below every curve),
-# left-anchored inward so it never clips the panel edge, and a short near-vertical
-# leader arrow points up to the crossover point, so the shaft stays clear of the
-# red/purple curves and of the orange total line and its band.
+# The label sits in the clear horizontal whitespace band between the curves
+# (max y = total(68K) ~= 21.6) and the legend (bottom edge y ~= 124). At y=45 the
+# text box spans data y ~= 27.8..72.9, wholly above every curve and below the
+# legend, so it never obscures a curve. Anchored ha='right' at x=68 so it stays
+# inside the panel; a short near-vertical leader arrow drops to the crossover.
 Lstar = N / (2 * nl * d)
 ax1.annotate('quadratic overtakes\nlinear at ~%.0fK' % (Lstar/1e3),
              xy=(Lstar/1e3, (2*N*Lstar)/1e15),
-             xytext=(62.0, 0.6), fontsize=8.8, color='#8e44ad', fontweight='bold',
+             xytext=(68.0, 45.0), fontsize=8.8, color='#8e44ad', fontweight='bold',
              ha='right', va='center',
              arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#8e44ad'))
 # canonical 9.2K point (Figure caption footnote refers to it)
@@ -86,7 +87,7 @@ ax2.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax2.grid(alpha=0.3, which='both')
 ax2.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
 ax2.text(0.83, 3.2e-5, '2·N only — full decode\nadds KV attention',
-         fontsize=7.8, color='#27408b', fontweight='bold', va='center', ha='left')
+         fontsize=8.2, color='#27408b', fontweight='bold', va='center', ha='left')
 
 fig.text(0.5, 0.975, 'LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN',
          ha='center', va='top', fontsize=10, fontweight='bold', color='#7a0000',

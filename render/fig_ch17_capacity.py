@@ -80,7 +80,7 @@ ax.axhspan(N1res, N4, color='#2c7a4b', alpha=0.16)   # headroom band (visible)
 bx = 9.7
 ax.plot([bx, bx], [peak, N4], color='#555', lw=1.2)   # brace
 ax.plot([bx-0.15, bx+0.15], [N1res, N1res], color='#555', lw=1.2)  # tick at N-1
-ax.text(bx+0.3, (peak+N1res)/2, 'failover', fontsize=8, color='#27408b',
+ax.text(bx+0.3, peak - 0.50, 'failover', fontsize=8, color='#27408b',
         ha='left', va='center', fontweight='bold')
 ax.text(bx+0.3, (N1res+N4)/2, 'headroom', fontsize=8, color='#1e6b3a',
         ha='left', va='center', fontweight='bold')
@@ -100,8 +100,9 @@ ax.set_title('Sizing a fleet of one model\n'
 ax.text(0.5, 0.985,
         'Offered-load capacity only \u2014 not a proof of p99 TTFT/TPOT;\n'
         'tail latency needs a measured queueing model (Ch 14)',
-        transform=ax.transAxes, fontsize=7.0, color='#444', ha='center', va='top',
-        style='italic', bbox=dict(boxstyle='round,pad=0.20', fc='white', ec='none', alpha=0.85))
+        transform=ax.transAxes, fontsize=8.0, color='#444', ha='center', va='top',
+        style='italic', linespacing=1.00,
+        bbox=dict(boxstyle='round,pad=0.10', fc='white', ec='none', alpha=0.85))
 ax.set_yticks([0, 2, 4, 6, 8, 10, 12])
 ax.grid(alpha=0.25, axis='y')
 ax.legend(handles=[Line2D([], [], color='#c0392b', lw=2),
