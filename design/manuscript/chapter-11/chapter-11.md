@@ -1,7 +1,7 @@
 # Chapter 11 — Serving: From Model in Memory to Requests in Flight
 
 
-Serving is a short stack of composable mechanisms — continuous batching, paged/blocked KV cache, prefix caching, and prefill/decode disaggregation — that turn a static in-memory model into a live multi-request system. The architecture choices that matter are which of these you adopt and how they share the host's KV budget, because the latency SLO is met by the batch and cache strategy rather than by the model alone.
+Serving is a short stack of composable mechanisms — continuous batching, paged/blocked KV cache, prefix caching, and prefill/decode disaggregation — that turn a static in-memory model into a live multi-request system. The architecture choices that matter are which of these are adopted and how they share the host's KV budget, because the latency SLO is met by the batch and cache strategy rather than by the model alone.
 
 ## The Architect's Question
 
