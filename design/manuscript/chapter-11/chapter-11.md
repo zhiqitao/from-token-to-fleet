@@ -21,7 +21,7 @@ The serving stack is a small set of mechanisms, invented roughly in order:
 
 These mechanisms compose: continuous batching is the baseline, PagedAttention makes it memory-efficient, prefix caching makes it cheaper, and P/D disaggregation makes it scale.
 
-**Source keys [S1]–[S6].** The bracketed keys used throughout this book (and in the evidence taxonomy of Chapter 26) point to the primary sources below. Each is a [1P] first-party or peer-reviewed source; the book's derived numbers cite the key plus a [DERIVED] tag.
+**Source keys [S1]–[S6].** The bracketed keys used throughout this book (and in the evidence taxonomy of the Sources, Method, and Reproducibility chapter) point to the primary sources below. Each is a [1P] first-party or peer-reviewed source; the book's derived numbers cite the key plus a [DERIVED] tag.
 
 - **[S1] Orca** — Yu et al., "Orca: A Distributed Serving System for Transformer-Based Generative Models," OSDI 2022. Continuous (iteration-level) batching.
 - **[S2] PagedAttention / vLLM** — Kwon et al., "Efficient Memory Management for Large Language Model Serving with PagedAttention," SOSP 2023. Block-based KV cache.
