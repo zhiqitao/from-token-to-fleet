@@ -7,7 +7,7 @@ count. Convergence = a pass that returns 0 new findings across ALL chapter halve
 
 | Pass | Date | Reviewers | New findings (C/M/Mod/Min) | Artifact | State |
 |------|------|-----------|---------------------------|----------|-------|
-| Loop1 2026-10-25 | ch1-6+front, ch7-12, ch13-18, ch19-27+bm | 5 C / 13 M / ... | loop1_findings_*.md | REVIEWED; fixes in flight |
+| Loop1 | 2026-10-25 | ch1-6+front, ch7-12, ch13-18, ch19-27+bm | 5 C / 15 M / 62 Mod / 64 Min (~146) | loop1_findings_*.md | **FIXED; rebuild running** |
 | Loop2 | — | — | — | pending |
 | Loop3 | — | — | — | pending |
 | Loop4 | — | — | — | pending |
