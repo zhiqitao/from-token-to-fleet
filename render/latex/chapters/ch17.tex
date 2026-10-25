@@ -57,8 +57,8 @@ hosts.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Sizing a fleet of one model by burst peak, headroom, and failover: offered load rises to a \textasciitilde5.5 req/s burst that a single host (\textasciitilde2.0 req/s analytical planning bound) cannot meet; a 4-host fleet (\textasciitilde8.0 req/s at the analytical bound) is sized ABOVE the burst, and after one host drains the N-1 = 3 residual (\textasciitilde6.0 req/s) still clears it. The 5.5 req/s burst is a small illustrative example of the sizing method; the canonical 40 rps peak is sized the same way to ≈20 hosts (Ch. 17-20). Queueing-model note: the \textasciitilde2.0 req/s/host is a service-rate (capacity) bound, not a queueing result --- it assumes a deterministic service time of \textasciitilde0.5 s/request (the canonical \textasciitilde8.6 s end-to-end divided by the \textasciitilde17 concurrent slots a host holds) and an M/M/c-style queue where the burst is the offered load. The N+1 failover assumption is that one host can drain (maintenance/failure) while the remaining N-1 still clear the burst; this is a capacity argument, not a proof of p99 TTFT/TPOT --- the actual tail latency under the burst depends on the service-time distribution and queue length, which must be measured (Ch 14).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-17-1701.pdf}}
-\caption[Sizing a fleet of one model by burst peak, headroom, and failover]{Sizing a fleet of one model by burst peak, headroom, and failover: offered load rises to a \textasciitilde5.5 req/s burst that a single host (\textasciitilde2.0 req/s analytical planning bound) cannot meet; a 4-host fleet (\textasciitilde8.0 req/s at the analytical bound) is sized ABOVE the burst, and after one host drains the N-1 = 3 residual (\textasciitilde6.0 req/s) still clears it. The 5.5 req/s burst is a small illustrative example of the sizing method; the canonical 40 rps peak is sized the same way to ≈20 hosts (Ch. 17-20). \textbf{Queueing-model note:} the \textasciitilde2.0 req/s/host is a \emph{service-rate} (capacity) bound, not a queueing result --- it assumes a deterministic service time of \textasciitilde0.5 s/request (the canonical \textasciitilde8.6 s end-to-end divided by the \textasciitilde17 concurrent slots a host holds) and an M/M/c-style queue where the burst is the offered load. The N+1 failover assumption is that one host can drain (maintenance/failure) while the remaining N-1 still clear the burst; this is a \emph{capacity} argument, not a proof of p99 TTFT/TPOT --- the actual tail latency under the burst depends on the service-time distribution and queue length, which must be measured (Ch 14).}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Sizing a fleet by burst peak, headroom, and failover: a \textasciitilde5.5 req/s burst a single host (\textasciitilde2.0 req/s analytical bound) cannot meet, so a 4-host fleet (\textasciitilde8.0 req/s) is sized ABOVE it and the N-1 = 3 residual (\textasciitilde6.0 req/s) still clears it. Scope: the burst is a small illustrative example; the canonical 40 rps peak is sized the same way to ≈20 hosts (Ch. 17-20). Queueing-model note: the \textasciitilde2.0 req/s/host is a service-rate (capacity) bound, not a queueing result, and N+1 failover is a capacity argument, not a proof of p99 TTFT/TPOT --- tail latency must be measured (Ch 14).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-17-1701.pdf}}
+\caption[Sizing a fleet by burst peak, headroom, and failover]{Sizing a fleet by burst peak, headroom, and failover: a \textasciitilde5.5 req/s burst a single host (\textasciitilde2.0 req/s analytical bound) cannot meet, so a 4-host fleet (\textasciitilde8.0 req/s) is sized ABOVE it and the N-1 = 3 residual (\textasciitilde6.0 req/s) still clears it. \textbf{Scope:} the burst is a small illustrative example; the canonical 40 rps peak is sized the same way to ≈20 hosts (Ch. 17-20). \textbf{Queueing-model note:} the \textasciitilde2.0 req/s/host is a \emph{service-rate} (capacity) bound, not a queueing result, and N+1 failover is a \emph{capacity} argument, not a proof of p99 TTFT/TPOT --- tail latency must be measured (Ch 14).}
 
 \label{fig:17.1}\end{figure}
 
@@ -437,6 +437,46 @@ measured goodput at the target p95 --- not from \texttt{C/W}. State the
 line's assumptions (time-in-KV occupancy, overlap of phases, admission
 policy) explicitly in the sizing summary rather than presenting
 \texttt{C/W} as the achieved rate.
+
+\subsection{Simultaneous feasibility check (prefill + decode
+coexistence)}\label{simultaneous-feasibility-check-prefill-decode-coexistence}
+
+The \textasciitilde2.0 req/s/host ceiling assumes prefill and decode run
+on the same host at the same time. We check the prefill leg against the
+hardware.
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{(a) Prefill demand at 2 req/s.} 2.0 req/s × 9,200 input tokens
+  = \textbf{18,400 input tokens/s per host} (2.0 × 9,200; the prefill
+  leg of the \textasciitilde2.0 req/s decomposition in the
+  reconciliation box above).
+\item
+  \textbf{(b) Idealized prefill ceiling.} 8 × 0.989 PF/s × 35\% / (2 ×
+  70e9) ≈ \textbf{19,780 tokens/s} (\hyperref[chap:8]{Chapter 8}, 35\% MFU, prefill-only).
+\item
+  \textbf{(c) The ratio.} 18,400 ÷ 19,780 ≈ \textbf{93\%}. Prefill must
+  run at \textasciitilde93\% of the idealized prefill ceiling.
+\end{itemize}
+
+This result is \textbf{{[}ANALYTICAL{]}}. It is a prefill-load check,
+not a measured rate. The \textasciitilde93\% leaves very little
+headroom. The host must also run decode. Prefill and decode coexist on
+the same hardware. Batch scheduling, prefill/decode interleaving, and
+interference consume the same compute. The idealized ceiling assumes no
+decode interference. The achieved MFU is below the 35\% ideal. The real
+headroom is smaller than \textasciitilde93\%.
+
+Therefore the \textasciitilde2.0 req/s/host figure is an
+\textbf{analytical upper bound}. It is \textbf{NOT a claim that a host
+serves 2 req/s at SLO}.
+
+Before treating 2 req/s/host as deployable, measure the p95 TTFT, p95
+TPOT, and SLO-goodput on a representative host. Bring a measured p95
+TTFT/TPOT and SLO-goodput (\hyperref[chap:14]{Chapter 14}) before treating 2 req/s/host as a
+deployable service rate. Until then, the sizing in this chapter is a
+planning bound.
 
 \subsection{Load‑balancer overhead
 factor}\label{loadbalancer-overhead-factor}

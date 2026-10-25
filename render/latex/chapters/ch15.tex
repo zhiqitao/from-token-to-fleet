@@ -169,18 +169,23 @@ layers is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 = 2,621,440 B ≈
 2.62 MB/token (2.5 MiB; canonical value from \hyperref[chap:7]{Chapter 7}) --- not the 32
 KB that a single-layer calculation would suggest. For a 9,500-token
 context, one user's KV cache is therefore ≈9,500 ×2.62 MB ≈ 24.9 GB, not
-\textasciitilde304 MB. Across 100 concurrent users, total KV cache
-≈2,490 GB --- which \textbf{does not} fit in the 640 GB GPU pool; using
-the canonical practical KV budget (640 GB − 140 GB weights −
-\textasciitilde64 GB runtime/workspace ≈ 436 GB), only ≈17.5 concurrent
-\emph{requests} (9,500-token KV each) fit on-host for KV (436 GB ÷
-24.9037 GB; conservative integer floor 17), before also reserving weight
-residency. This is a decisive, order-of-magnitude correction to the
-intuitive picture: long-context KV is a first-order memory constraint,
-and the architect sizes concurrency by KV capacity, not by the small
-per-layer number. Doubling context to 19,000 tokens pushes per-user KV
-to \textasciitilde47 GB and halves on-host concurrency to
-\textasciitilde9. The canonical unit-check rule
+\textasciitilde304 MB. For the canonical workload's \textasciitilde86
+average in-flight requests at 10 rps (L\_exec = λ × W\_exec ≈ 10 × 8.6;
+see Ch 4 --- note \textasciitilde86 is the \emph{request occupancy},
+distinct from the \textasciitilde100 \emph{active-user} population), the
+total KV cache would be ≈86 × 24.9 GB ≈ 2,140 GB --- which \textbf{does
+not} fit the 640 GB GPU pool; using the canonical practical KV budget
+(640 GB − 140 GB weights − \textasciitilde64 GB runtime/workspace ≈ 436
+GB), only ≈17.5 concurrent \emph{requests} (9,500-token KV each) fit
+on-host for KV (436 GB ÷ 24.9037 GB; conservative integer floor 17 (P1:
+aggregate bound; per-rank and fragmentation must be checked
+separately)), before also reserving weight residency. This is a
+decisive, order-of-magnitude correction to the intuitive picture:
+long-context KV is a first-order memory constraint, and the architect
+sizes concurrency by KV capacity, not by the small per-layer number.
+Doubling context to 19,000 tokens pushes per-user KV to
+\textasciitilde47 GB and halves on-host concurrency to \textasciitilde9.
+The canonical unit-check rule
 (quantity/unit/formula/substitution/result/sanity) catches this class of
 error: if 9,500 tokens × \textasciitilde2.5 MB/token ≈ 24 GB does not
 reconcile with the intended \textasciitilde304 MB, the unit layer-count
@@ -269,8 +274,8 @@ Lever}\label{goodput-vs.-batch-size-the-cache-lever}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Prefix caching and batching affect different serving phases: caching reduces prefill work; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks: left = prefill work per repeated prompt vs prefix-cache hit rate (lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Units are relative, normalized to the no-cache / batch-1 baseline. {[}ASSUMPTION{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1501.pdf}}
-\caption[Prefix caching and batching affect different serving phases]{Prefix caching and batching affect different serving phases: caching reduces prefill work; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks: left = prefill work per repeated prompt vs prefix-cache hit rate (lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Units are relative, normalized to the no-cache / batch-1 baseline. {[}ASSUMPTION{]}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Prefix caching and batching act on different serving phases: caching reduces prefill work per repeated prompt; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks --- left = prefill work vs prefix-cache hit rate (lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Units are relative, normalized to the no-cache / batch-1 baseline. {[}ASSUMPTION{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1501.pdf}}
+\caption[Prefix caching and batching act on different serving phases]{Prefix caching and batching act on different serving phases: caching reduces prefill work per repeated prompt; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks --- left = prefill work vs prefix-cache hit rate (lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Units are relative, normalized to the no-cache / batch-1 baseline. {[}ASSUMPTION{]}}
 
 \label{fig:15.2}\end{figure}
 
