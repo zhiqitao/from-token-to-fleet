@@ -27,13 +27,13 @@ Just as important, we benchmark the **workload, not the model in the abstract.**
 
 ### Designing a Deployment Benchmark for the Canonical Workload
 
-We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (canonical scenario (Ch 4, Table 4-3)): ~10 rps average / 40 rps peak, ~9,200 input tokens (1,200 query + 8K retrieved) + ~300 output, TTFT budget 1.2 s, TPOT ~25 ms/token. [canonical scenario (Ch 4, Table 4-3)]
+We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (canonical scenario (Ch 4, Table 4-3)): ~10 rps average / 40 rps peak, ~9,200 input tokens (1,200 query + 8K retrieved) + ~300 output, TTFT budget (median ≤ 1.2 s, p95 ≤ 2 s), TPOT ~25 ms/token. [canonical scenario (Ch 4, Table 4-3)]
 
 **Step 1 — representative queries.** We sample real user questions and run them through the rag pipeline to produce the actual prompt shapes, matching the ~9.2K-in / ~300-out token profile with the model's own tokenizer (not a heuristic). [2°]
 
 **Step 2 — sweep the offered load, do NOT test a single point.** The analytical concurrency figure (C ≈ 17.5, ~2.0 req/s) is a *starting hypothesis*, not the answer. We sweep the offered load/concurrency across a range and measure the tail at each point, so the benchmark finds the SLO-satisfying operating regime instead of validating the model at the point the model selected. Run a load series (e.g. 2, 4, 8, 12, 16, 20, 24, 28 concurrent at the canonical ~9.2K-in/~300-out profile, scaled to a host's achievable concurrency) and record, at each level:
 
-- **TTFT** p50/p95/p99 (must be ≤ 1.2 s median, ≤ 2 s p95).
+- **TTFT** p50/p95/p99 (must be median ≤ 1.2 s, p95 ≤ 2 s).
 - **TPOT** p50/p95 (≤ ~25 ms median).
 - **Goodput** — tokens/s that meet the SLO (Ch6), not raw throughput.
 - **KV cache utilization** and prefix-cache hit ratio (to validate the serving choices of Ch11).
@@ -91,4 +91,4 @@ The benchmark is not a one-time event; it is the recurring production validation
 
 ## 8. End-of-Chapter Mini-Case: Capability Screen vs. Deployment Benchmark
 
-A team of skeptical engineers tells the architect: "The new model tops MMLU, we should just deploy it." Applying this chapter, the architect separates the claims. Yes, the model passes the capability screen for retrieval-QA quality. But the architect refuses to stop there: they build a deployment benchmark reproducing the canonical workload — real prompts at ~9.2K in / ~300 out, 40 rps concurrency, the 1.2 s/25 ms SLO — and measure the new model on the existing hardware. The result: the leaderboard-topping model's tokenizer produces more tokens for the representative prompt corpus (a larger token count for the same text) and it has slower prefill, driving p95 TTFT to 2.6 s — breaching the SLO that the incumbent 70B met at 1.9 s. The team does not deploy the leaderboard winner. The architect's discipline — screen with capability, select with deployment — prevented a service degradation that a single MMLU score would have caused. The benchmark, done right, did not rank models; it predicted experience and saved the service.
+A team of skeptical engineers tells the architect: "The new model tops MMLU, we should just deploy it." Applying this chapter, the architect separates the claims. Yes, the model passes the capability screen for retrieval-QA quality. But the architect refuses to stop there: they build a deployment benchmark reproducing the canonical workload — real prompts at ~9.2K in / ~300 out, 40 rps concurrency, the SLO (TTFT median ≤ 1.2 s, p95 ≤ 2 s; TPOT ~25 ms) — and measure the new model on the existing hardware. The result: the leaderboard-topping model's tokenizer produces more tokens for the representative prompt corpus (a larger token count for the same text) and it has slower prefill, driving p95 TTFT to 2.6 s — breaching the SLO that the incumbent 70B met at 1.9 s. The team does not deploy the leaderboard winner. The architect's discipline — screen with capability, select with deployment — prevented a service degradation that a single MMLU score would have caused. The benchmark, done right, did not rank models; it predicted experience and saved the service.

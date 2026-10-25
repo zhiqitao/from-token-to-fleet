@@ -134,7 +134,7 @@ The parallelism strategy is forced by the binding constraint, and that constrain
 
 - **The canonical answer**: for the book's ~70B/8×H100 scenario, no parallelism is required at the baseline; parallelism becomes the tool when the model or workload outgrows one node. The architect escalates through TP (in-node) → PP (cross-node) → DP (replicating a fitting model) in that order.
 
-**The five parallelization strategies (plus the serving-only P/D disaggregation) and what each splits.** This is consolidated in Table 10-1 above — reading across a row gives one strategy's full trade-off (what it splits, what it replicates, what it communicates, when it fits); reading down a column shows how each axis varies across strategies.
+Table 10-1 above consolidates the five parallelization strategies (plus the serving-only P/D disaggregation): reading across a row gives one strategy's full trade-off (what it splits, what it replicates, what it communicates, when it fits), and reading down a column shows how each axis varies across strategies. (Fig 10.1 illustrates the three canonical patterns — TP, PP, DP — side by side; the table adds the specialist EP and CP rows.)
 
 <!-- Figure spec: mechanism-first diagram; model shown as weight-matrix + layer-stack + batch; arrows show TP slicing weights, PP stacking stages, DP replicating with all-reduce, EP sharding experts, CP splitting sequence; annotate comm cost + use-case per strategy. -->
 
