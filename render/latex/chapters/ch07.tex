@@ -11,12 +11,13 @@ goal is to make ``does it fit?'' a concrete, quantified check --- not a
 back-of-the-envelope guess. Throughout, the arithmetic anchors to the
 canonical enterprise-Q\&A RAG scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}):
 \textasciitilde10 rps average / \textasciitilde40 rps peak traffic
-served by a 70B FP16 model on an 8×H100 host. KV cache per-token figures
-are given at the referenced precision throughout: \textasciitilde1.3
-MB/token at \textbf{8-bit} (this is \hyperref[chap:1]{Chapter 1}'s reference figure),
-\textasciitilde2.5 MB/token (2.62 MB exact) at \textbf{FP16} --- and the
-canonical scenario's KV constant is the \textbf{FP16} 2.62 MB/token
-figure, not the 8-bit \textasciitilde1.3 MB/token number.
+served by a 70B \textbf{FP16} model on an 8×H100 host. KV cache
+per-token figures are given at the referenced precision throughout:
+\textasciitilde1.3 MB/token at \textbf{8-bit} (this is \hyperref[chap:1]{Chapter 1}'s
+reference figure), \textasciitilde2.5 MB/token (2.62 MB exact) at
+\textbf{FP16} --- and the canonical scenario's KV constant is the
+\textbf{FP16} 2.62 MB/token figure, not the 8-bit \textasciitilde1.3
+MB/token number.
 
 \ntsection{Concept}\label{concept}
 
@@ -170,14 +171,15 @@ metadata overhead is NOT vendor-measured (see §3) \\
 300 output KV cache & 300 ×2.62 MB ≈ 0.8 GB & 300 ×2,621,440 B \\
 total inference KV (9.5K max) & ≈ 24.9 GB & 9,500 × 2,621,440 B ≈ 24.9
 GB \\
-32K input KV cache & 32,000 ×2.62 MB ≈ 83.8 GB & long-context variant \\
+32K input KV cache & 32,000 ×2.62 MB ≈ 83.9 GB & 32,000 ×2,621,440 B;
+long-context variant \\
 128K input KV cache & 128,000 ×2.62 MB ≈ 335.4 GB & aggressive
 long-context variant \\
 70B FP16 weights & 70B × 2 B = 140 GB & {[}1P: DERIVED from 70B × 2
 bytes{]} \\
 inference residency (weights + KV, 9.5K max) & ≈ 165 GB & 140 + 24.9
 GB \\
-inference residency (weights + KV, 32K) & ≈ 224 GB & 140 + 83.8 GB \\
+inference residency (weights + KV, 32K) & ≈ 224 GB & 140 + 83.9 GB \\
 inference residency (weights + KV, 128K) & ≈ 475 GB & 140 + 335.4 GB \\
 2×H100 total VRAM & 2 ×80 GB = 160 GB & {[}1P: NVIDIA H100 spec{]} \\
 8×H100 total VRAM & 8 ×80 GB = 640 GB & {[}1P: NVIDIA H100 spec{]} \\
@@ -292,7 +294,8 @@ fine-tuning (QLoRA, 4-bit base + LoRA) & quantized base + LoRA adapters
 metadata; adds adapters/gradients/optimizer/activations &
 \textasciitilde50--70 GB & yes \\
 inference with FP8 KV & weights FP16 + KV FP8 & KV: \textasciitilde50\%
-of BF16 (raw byte-halving) & \textasciitilde12.45 GB KV @ 9.5K & yes \\
+of BF16 (raw byte-halving) & \textasciitilde152 GB (9.5K; 140 + 12.45;
+KV alone 12.45 GB) & yes \\
 
 \label{tab:7.2}\end{longtable}
 
@@ -305,7 +308,7 @@ is memory-limited by weights + KV, while fine-tuning is memory-limited
 by weights + gradients + optimizer, a substantially higher floor. Note
 the \textasciitilde1,120 GB is the \textbf{parameter/optimizer floor}
 (weights + gradients + Adam m/v/master), which is fixed by model size
-and precision. The \textbf{actual training peak} is higher and is }not*
+and precision. The \textbf{actual training peak} is higher and is not
 inferable from that floor alone: it also includes activation memory
 (scales with batch size × sequence length × hidden dim, and is the
 dominant term for long-context or large-batch runs), temporary kernel
@@ -316,7 +319,7 @@ for training must be checked against the measured peak for the specific
 batch/sequence configuration, not the parameter floor. (QLoRA's
 \textasciitilde50--70 GB figure is likewise a floor: it holds the 4-bit
 base + adapters + a small optimizer, and its activation peak still
-depends on the run's batch and sequence length.)*
+depends on the run's batch and sequence length.)}
 
 \ntsection{Measurement}\label{measurement}
 
@@ -546,14 +549,14 @@ keeps inference and training on separate memory-planning tracks.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): parameter count does not determine KV size --- KV per token is set by the attention shape (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. Scope: FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde165 GB at 9.5K. The FP8 value is raw byte-halving (50\% of BF16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0701.png}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): parameter count does not determine KV size --- KV per token is set by the attention shape (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. Scope: FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde165 GB at 9.5K. The FP8 value is raw byte-halving (50\% of BF16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0701.pdf}}
 \caption[KV cache size vs context length, canonical 80-layer reference geometry]{KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): \textbf{parameter count does not determine KV size} --- KV per token is set by the \emph{attention shape} (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. \textbf{Scope:} FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde165 GB at 9.5K. The FP8 value is raw byte-halving (50\% of BF16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}).}
 
 \label{fig:7.2}\end{figure}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Inference vs fine-tuning memory floor. The same 70B model serves in \textasciitilde165 GB (weights + KV, max 9.5K) but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA fits \textasciitilde50--70 GB on a single GPU.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0702.png}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Inference vs fine-tuning memory floor. The same 70B model serves in \textasciitilde165 GB (weights + KV, max 9.5K) but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA fits \textasciitilde50--70 GB on a single GPU.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0702.pdf}}
 \caption[Inference vs fine-tuning memory floor]{Inference vs fine-tuning memory floor. The same 70B model serves in \textasciitilde165 GB (weights + KV, max 9.5K) but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA fits \textasciitilde50--70 GB on a single GPU.}
 
 \label{fig:7.3}\end{figure}

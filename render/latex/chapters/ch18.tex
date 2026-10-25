@@ -131,8 +131,9 @@ VRAM (4-bit)
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-70B dense FP16 & 140\,GB & --- & --- & 1 (weights + KV fit in the 640 GB
-pool; \textasciitilde2 GPUs hold the weights) \\
+70B dense FP16 & 140\,GB & --- & --- & 1 (140 GB weights across the
+8-GPU pool, \textasciitilde17.5 GB/GPU under TP; with KV, the full 640
+GB pool is used) \\
 70B dense 8-bit & --- & \textasciitilde70\,GB & --- & 1 (weights alone
 fit on 1×H100, leaving 7 GPUs; with the canonical KV budget the 8×H100
 pool still holds weights + KV) \\
@@ -301,11 +302,12 @@ decision}\label{consolidation-vs.-separation-decision}
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Consolidate} when: workload profile overlap \textgreater70\%,
-  latency tolerance ≥300\,ms, and cost differential \textgreater30\%.
-  \emph{Verified}: our scenario consolidates 70\% of traffic to 8-bit,
-  saving \textasciitilde\$11.16/hr (\$23.75 − \$12.59, the §18.3.3
-  derived figure).
+  \textbf{Consolidate} when: workload profile overlap ≥70\%, latency
+  tolerance ≥300\,ms, and cost differential \textgreater30\%.
+  \emph{Verified}: our scenario sits exactly at the threshold --- it
+  consolidates \textasciitilde70\% of traffic to 8-bit (at the ≥70\%
+  boundary, not above it), saving \textasciitilde\$11.16/hr (\$23.75 −
+  \$12.59, the §18.3.3 derived figure).
 \item
   \textbf{Keep separate} when: (a) security/classification policies
   require isolation, (b) workloads have bimodal latency needs (some
@@ -473,11 +475,14 @@ load chosen to make the per-token routing economics concrete rather than
 to model a busy fleet; the traffic rate is not what drives this
 arithmetic, the per-token volume is). Hourly tokens:
 \textasciitilde4,500 in + 500 out = 5,000. \emph{(Scope note: these tier
-per-token rates are illustrative scenario values on a per-token basis,
-distinct from --- and not directly comparable to --- the per-1M-token
-ledger in §18.3.2; the mini-case uses them to demonstrate the routing
-economics, and a real deployment would price from the §18.3.2 per-1M
-basis.)}
+per-token rates are illustrative scenario values that \textbf{differ
+from the §18.3.2 per-1M ledger} --- they are not the ledger's \$1.25
+(8-bit) / \$2.50 (FP16) / \$0.15 (4-bit) per-1M rates converted, and the
+4-bit tier's \textasciitilde600 ms latency differs from the ledger's 800
+ms. They are on a per-token basis, distinct from --- and not directly
+comparable to --- the per-1M-token ledger; the mini-case uses them to
+demonstrate the routing economics, and a real deployment would price
+from the §18.3.2 per-1M basis.)}
 
 \begin{itemize}
 \tightlist
@@ -488,20 +493,22 @@ basis.)}
 \item
   Tier\,3 processes 250 tokens/hr → \$0.75
 \item
-  \textbf{Total hourly cost: \$2.68} → \textbf{\$1,930 / month}.
+  \textbf{Total hourly cost: \$2.68} → \textbf{\$1,956 / month} (× 730
+  hr).
 \end{itemize}
 
 \textbf{Check the SLO before the cost claim.} If we had used a single
-70B FP16 model: 5,000 tokens/hr × \$0.003 = \$15/hr → \$10,800 / month.
-The three-tier split looks like an \$8,870 / month (≈82\%) saving ---
-but the SLO gates the cost claim, and here it fails. \textbf{Tier 1 (the
-cheapest, 4-bit GGUF on CPU, \textasciitilde600 ms) serves 80\% of
-queries, so the p95 per-request latency is \textasciitilde600 ms, which
-violates the 500 ms SLA for the dominant tier.} The split saves cost by
-routing the bulk to a slow-but-cheap model --- precisely the
-mean-vs-tail trap: the \emph{average} latency looks fine, yet the
-majority tier misses the deadline. The \$8,870 / month saving is
-therefore \emph{conditional} on first making Tier 1 feasible.
+70B FP16 model: 5,000 tokens/hr × \$0.003 = \$15/hr → \$10,950 / month
+(× 730 hr). The three-tier split looks like an \$8,994 / month (≈82\%)
+saving --- but the SLO gates the cost claim, and here it fails.
+\textbf{Tier 1 (the cheapest, 4-bit GGUF on CPU, \textasciitilde600 ms)
+serves 80\% of queries, so the p95 per-request latency is
+\textasciitilde600 ms, which violates the 500 ms SLA for the dominant
+tier.} The split saves cost by routing the bulk to a slow-but-cheap
+model --- precisely the mean-vs-tail trap: the \emph{average} latency
+looks fine, yet the majority tier misses the deadline. The \$8,994 /
+month saving is therefore \emph{conditional} on first making Tier 1
+feasible.
 
 \textbf{Recalculated cost after substituting a feasible Tier 1.} Replace
 the 4-bit GGUF (CPU, \textasciitilde600 ms) with 8-bit quantization on a
@@ -518,12 +525,13 @@ which is also 8-bit on 1×H100). The 80\% of queries now route at
 \item
   Tier 3 (70B FP16) processes 250 tokens/hr → \$0.75
 \item
-  \textbf{Total hourly cost: \$7.88} → \textbf{\$5,750 / month}.
+  \textbf{Total hourly cost: \$7.88} → \textbf{\$5,752 / month} (× 730
+  hr).
 \end{itemize}
 
 The p95 is now \textasciitilde250 ms (all tiers under 500 ms), so the
-SLO is met. The saving narrows from \$8,870 / month (82\%) to
-\textbf{\$5,050 / month (≈47\%)} --- still a clear win, but the
+SLO is met. The saving narrows from \$8,994 / month (≈82\%) to
+\textbf{\$5,198 / month (≈47\%)} --- still a clear win, but the
 SLO-constrained figure, not the raw 82\%, is the honest number. The
 correct order is: check the SLO, then size the cost. The routing
 arithmetic shows the \emph{economic} win; the SLO check is what keeps it
