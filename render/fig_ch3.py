@@ -12,7 +12,7 @@ from matplotlib.patches import Rectangle
 # height / row pitch), so the grids and the annotation rows register row-for-row.
 # 'resident' vs 'active' is encoded by a consistent fill cue (grey=resident,
 # coloured=active) in BOTH panels, not colour+text on one side only.
-fig, axes = plt.subplots(1, 2, figsize=(6.1, 7.2))
+fig, axes = plt.subplots(1, 2, figsize=(6.1, 6.0))
 fig._hermes_print_sized = True
 
 # ---- shared grid spec: identical in both panels ----
@@ -35,7 +35,7 @@ def cell_top(r):
 
 
 def panel_setup(ax, title, color):
-    ax.set_xlim(0, 10); ax.set_ylim(0, 19); ax.axis('off')
+    ax.set_xlim(0, 10); ax.set_ylim(2.6, 19); ax.axis('off')
     ax.text(5, 18.3, title, fontsize=11.5, fontweight='bold', ha='center', color=color)
 
 
