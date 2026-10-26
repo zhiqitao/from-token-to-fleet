@@ -26,9 +26,12 @@ ax.add_patch(FancyBboxPatch((0.02, 0.18), 0.36, 0.66, boxstyle='round,pad=0.01',
                             fc='#fdecea', ec='#c0392b', lw=2.4))
 ax.text(0.20, 0.76, 'PREFILL POOL', ha='center', va='center',
         fontsize=11.5, color='#c0392b', fontweight='bold')
-for gx in [0.055, 0.135, 0.215, 0.295]:   # GPU glyphs
-    ax.add_patch(FancyBboxPatch((gx, 0.34), 0.06, 0.10, boxstyle='round,pad=0.005',
-                                fc='#e67e22', ec='#a04000', lw=0.8))
+# Loop-5: the pools are labelled "8× H100 host", so draw EIGHT GPU glyphs, not four
+# (2 rows of 4 keeps each glyph at its original size and stays inside the pool box).
+for gx in [0.055, 0.135, 0.215, 0.295]:   # GPU glyphs (row 1 of 2)
+    for gy in [0.52, 0.36]:                # 2 x 4 = 8 glyphs = the 8-GPU host
+        ax.add_patch(FancyBboxPatch((gx, gy), 0.06, 0.10, boxstyle='round,pad=0.005',
+                                    fc='#e67e22', ec='#a04000', lw=0.8))
 ax.text(0.20, 0.27, '8× H100 host', ha='center', va='center', fontsize=7.5, color='#2b2b2b')
 
 # ---- Decode pool (right, large empty block) ----
@@ -36,9 +39,10 @@ ax.add_patch(FancyBboxPatch((0.62, 0.18), 0.36, 0.66, boxstyle='round,pad=0.01',
                             fc='#eaf2f8', ec='#27408b', lw=2.4))
 ax.text(0.80, 0.76, 'DECODE POOL', ha='center', va='center',
         fontsize=11.5, color='#27408b', fontweight='bold')
-for gx in [0.655, 0.735, 0.815, 0.895]:   # GPU glyphs
-    ax.add_patch(FancyBboxPatch((gx, 0.34), 0.06, 0.10, boxstyle='round,pad=0.005',
-                                fc='#2980b9', ec='#154360', lw=0.8))
+for gx in [0.655, 0.735, 0.815, 0.895]:   # GPU glyphs (row 1 of 2)
+    for gy in [0.52, 0.36]:                # 2 x 4 = 8 glyphs = the 8-GPU host
+        ax.add_patch(FancyBboxPatch((gx, gy), 0.06, 0.10, boxstyle='round,pad=0.005',
+                                    fc='#2980b9', ec='#154360', lw=0.8))
 ax.text(0.80, 0.27, '8× H100 host', ha='center', va='center', fontsize=7.5, color='#2b2b2b')
 
 # ---- Single bridging transfer line (prefill -> decode, one direction) ----

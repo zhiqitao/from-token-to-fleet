@@ -58,13 +58,16 @@ print('fig-05-0501: Archify-rendered asset; matplotlib generator retired')
 # ~40 GB/s and RoCE2 ~2.5 GB/s (multi-node effective, incl. coding + contention) — NOT the
 # nominal per-port peak, which is ~50 GB/s for both IB and RoCE (Table 9-1). Using effective
 # values reconciles the figure with §9.4 (IB ~6.1 s, RoCE ~98 s at 140 GB).
+# Loop-5 F3: the 1.8 TB/s curve is NOT the H100 in-node tier (Table 9-1 = 900 GB/s); it is
+# §9.7's next-generation figure ("toward 1.8 TB/s aggregate") / NVLink 5-class.  The legend
+# entry now says so in-figure, so a reader cannot size an H100 host from the top curve.
 size = np.logspace(-2, np.log10(300), 240)      # GB (cover past the 140 GB weight footprint)
-bw = {'NVSwitch (1.8 TB/s)': 1800, 'NVLink (0.9 TB/s)': 900,
+bw = {'next-gen NVSwitch (1.8 TB/s, §9.7 — not H100)': 1800, 'NVLink (0.9 TB/s)': 900,
       'InfiniBand HDR (eff. ~40 GB/s)': 40, 'RoCE 25GbE (eff. ~2.5 GB/s)': 2.5}
 data_per_byte = 1.75   # ring all-reduce moves ~2(N-1)/N * V; for N=8 nodes it is 1.75 (matches §9.4 worked example)
 fig, ax = plt.subplots(figsize=(6.1, 4.7))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
-cols = {'NVSwitch (1.8 TB/s)': ('#27408b', '-', 'o'),
+cols = {'next-gen NVSwitch (1.8 TB/s, §9.7 — not H100)': ('#27408b', '-', 'o'),
         'NVLink (0.9 TB/s)': ('#3a6ea5', '--', 's'),
         'InfiniBand HDR (eff. ~40 GB/s)': ('#e67e22', '-.', '^'),
         'RoCE 25GbE (eff. ~2.5 GB/s)': ('#c0392b', ':', 'D')}

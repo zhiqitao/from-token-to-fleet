@@ -34,9 +34,12 @@ def cell_top(r):
     return TOP - r * ROW_P
 
 
-def panel_setup(ax, title, color):
+def panel_setup(ax, title, color, tx=5.0):
     ax.set_xlim(0, 10); ax.set_ylim(2.6, 19); ax.axis('off')
-    ax.text(5, 18.3, title, fontsize=11.5, fontweight='bold', ha='center', color=color)
+    # Loop-5 N3: the title must sit over ITS OWN grid.  The dense grid spans
+    # 0.8..8.9 (centre 4.85 ~ 5) but the MoE grid spans 0.8..7.0 (centre 3.9),
+    # so the right panel passes its grid centre explicitly.
+    ax.text(tx, 18.3, title, fontsize=11.5, fontweight='bold', ha='center', color=color)
 
 
 def legend_row(ax, y, fc, ec, text, tcolor):
@@ -62,7 +65,7 @@ ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', h
 
 # ================= RIGHT: MoE (8 experts, top-2 active) =================
 ax = axes[1]
-panel_setup(ax, 'MoE (8 experts)', '#e67e22')
+panel_setup(ax, 'MoE (8 experts)', '#e67e22', tx=3.9)   # centred over the 0.8..7.0 expert grid
 # 8 experts in a 3-col x 3-row arrangement (last cell of row 3 empty), same cell grid
 expert_cells = [(r, c) for r in range(3) for c in range(3)][:8]   # 8 experts, not 9
 activated = {(0, 0), (1, 0)}   # E1 (row0,col0), E4 (row1,col0)

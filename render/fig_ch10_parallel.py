@@ -142,9 +142,31 @@ txt(30.5, yC + 5.1, 'gradients ↔ all-reduce (training only)', size=8.5, color=
 txt(3.0, yC + 2.3, 'inference: independent replicas, no sync  ·  throughput scales linearly',
     size=8.5, color=MUTE, ha='left')
 
-# ---- shared colour legend (redundant channel: label text, not hue alone) ----
-txt(30.5, 1.6, 'blue = weights · orange = GPU · green = data · red = comms',
-    size=8.5, color=MUTE)
+# ---- shared colour key: hue PLUS a redundant non-hue channel ------------------
+# Loop-5 F16 / §25: the old key was a single grey text line mapping hue -> role, so
+# in grayscale (blue~green, red~orange) it carried nothing.  Each key entry now pairs
+# its hue with a FILL PATTERN and a role label, so the key still resolves without colour.
+KEY = [(BLUE_F, BLUE_E, '///', 'weights (blue)'),
+       (ORAN_F, ORAN_E, '\\', 'GPU (orange)'),
+       (GREEN_F, GREEN_E, 'xxx', 'data (green)'),
+       ('#fdecea', RED, '...', 'comms (red)')]
+fig.canvas.draw()
+_ren0 = fig.canvas.get_renderer()
+_PT_PER_UNIT = W_IN * 72.0 / X          # 6.1in / 61 units = 7.2 pt per data unit
+_SW, _GAP, _ITEM_GAP = 1.3, 0.5, 2.4    # swatch width, swatch->label gap, item gap
+_widths = []
+for _fc, _ec, _h, _lab in KEY:
+    _t = ax.text(0, -50, _lab, size=8.5, color=INK)
+    _widths.append(_t.get_window_extent(_ren0).width / _PT_PER_UNIT)
+    _t.remove()
+_total = sum(_widths) + len(KEY) * (_SW + _GAP) + (len(KEY) - 1) * _ITEM_GAP
+_x = (X - _total) / 2.0
+for (_fc, _ec, _h, _lab), _wu in zip(KEY, _widths):
+    ax.add_patch(FancyBboxPatch((_x, 1.6 - 0.45), _SW, 0.9,
+                                boxstyle='round,pad=0.02,rounding_size=0.15',
+                                fc=_fc, ec=_ec, lw=1.0, hatch=_h, zorder=4))
+    txt(_x + _SW + _GAP, 1.6, _lab, size=8.5, color=INK, ha='left')
+    _x += _SW + _GAP + _wu + _ITEM_GAP
 
 # ---- guard: no text may run outside the 6.1in column ------------------------
 fig.canvas.draw()

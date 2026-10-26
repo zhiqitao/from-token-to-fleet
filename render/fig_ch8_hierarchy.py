@@ -87,7 +87,9 @@ ops = [
     'attention tiling / fusion',
     'recent tiles',
     'model weights + KV cache',
-    'TP/PP communication',
+    # Loop-5 F17(a): TP/PP are expanded only 18-21 pages later, so spell them out
+    # in-figure at first use (two lines keep the column-B width unchanged).
+    'tensor/pipeline-parallel\n(TP/PP) communication',
     'P/D KV transfer',
 ]
 label(colB_x, top+h/2+10, 'what runs here →', '#333', FS-0.7, ha='left', weight='bold')
@@ -99,8 +101,12 @@ for t in ops:
 # column C: gradient (far right)
 gy0=ys[-1][0]; gy1=top
 gx=colC_x+52
-label(gx, gy1-2, 'small · fast\n· close', '#555', FS-0.5, ha='center')
-label(gx, gy0+2, 'large · slow\n· far', '#555', FS-0.5, ha='center')
+# Loop-5 F17(b): the old two-line form broke as "small · fast" / "· close", leaving an
+# orphaned leading middle-dot on line 2.  Non-breaking spaces bind each "· word" so the
+# label stays ONE line with no dangling dot; one size step down keeps it inside the
+# right-hand column (measured: 10pt line spans x 336..452 data, axes right edge 453).
+label(gx, gy1-2, 'small\u00a0·\u00a0fast\u00a0·\u00a0close', '#555', FS-1.5, ha='center')
+label(gx, gy0+2, 'large\u00a0·\u00a0slow\u00a0·\u00a0far', '#555', FS-1.5, ha='center')
 ax.annotate('', xy=(gx, gy0), xytext=(gx, gy1),
             arrowprops=dict(arrowstyle='<|-|>', lw=1.6, color=C_TEN, shrinkA=14, shrinkB=14))
 label(gx-42, (gy0+gy1)/2, 'capacity grows\nspeed drops\ndistance grows', C_TEN, FS-1.0, ha='center', weight='bold')

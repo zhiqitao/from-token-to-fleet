@@ -67,9 +67,12 @@ for i, (q, ch) in enumerate(steps):
     yb = 9.4 - i*(ph+pgap) - ph
     ax.add_patch(FancyBboxPatch((RX0, yb), RW, ph, boxstyle='round,pad=0.02,rounding_size=0.18',
                                 fc='#fdecea', ec='#c0392b', lw=1.6))
-    ax.text(RX0 + 0.35, yb + ph/2, q, fontsize=9.5, fontweight='bold', ha='left',
+    # Loop-5 N2: box 6's "?" touched "Ch16/22/25" (measured gap 0.4pt in the PDF).
+    # Question 9.5 -> 9.0pt and side padding 0.35 -> 0.25 units buys ~10pt of gap
+    # in every box; 9.0pt is still above the 8pt on-page floor.
+    ax.text(RX0 + 0.25, yb + ph/2, q, fontsize=9.0, fontweight='bold', ha='left',
             va='center', color='#7b241c')
-    ax.text(RX0 + RW - 0.35, yb + ph/2, ch, fontsize=8.5, ha='right', va='center', color='#a53226')
+    ax.text(RX0 + RW - 0.25, yb + ph/2, ch, fontsize=8.5, ha='right', va='center', color='#a53226')
     if i < 5:
         # arrow in the right margin pointing DOWN: token -> cost -> ... (top-to-bottom,
         # matching the stated "token -> cost -> KV -> ..." trace direction)
