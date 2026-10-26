@@ -245,10 +245,13 @@ def fix_label_atomicity(tex_path):
     # A single SHORT label token: one {[}TOKEN{]} whose content is word-like
     # (letters, digits, space, hyphen, degree sign) and <= 34 chars — e.g.
     # [ILLUSTRATIVE], [ASSUMPTION], [DERIVED], [canonical scenario], [1P], [2°].
+    # Pandoc emits 'canonical scenario' as ONE pair '{[}canonical scenario{]}'
+    # with an embedded breakable space, so it must be matched (and atomicised)
+    # as a whole; hence the first char accepts lowercase and digits too.
     # Long prose-bearing tags like '[DERIVED: 2 × N × L …]' contain ':' / '×'
     # and other punctuation, so they do NOT match here and stay breakable as
     # ordinary prose (wrapping at their internal spaces), never over-running.
-    tag = r"\{\[\}[A-Z\u00b0][A-Za-z0-9\u00b0 \-]{0,34}\{\]\}"
+    tag = r"\{\[\}[A-Za-z0-9\u00b0][A-Za-z0-9\u00b0 \-]{0,34}\{\]\}"
     # Wrap each tag in its own \\mbox (atomic), and separate consecutive tags
     # with a zero-width breakable glue so a pair like
     # [ILLUSTRATIVE][ASSUMPTION] can wrap between tokens in a narrow table cell
