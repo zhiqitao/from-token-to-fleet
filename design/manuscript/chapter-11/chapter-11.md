@@ -1,15 +1,15 @@
 # Chapter 11 — Serving: From Model in Memory to Requests in Flight
 
 
-Serving is a short stack of composable mechanisms — continuous batching, paged/blocked KV cache, prefix caching, and prefill/decode disaggregation — that turn a static in-memory model into a live multi-request system. The architecture choices that matter are which of these are adopted and how they share the host's KV budget, because the latency SLO is met by the batch and cache strategy rather than by the model alone.
+Serving is a small set of composable mechanisms — continuous batching, paged/blocked KV cache, prefix caching, and prefill/decode disaggregation — that turn a static in-memory model into a live multi-request system. The architecture choices that matter are which of these are adopted and how they share the host's KV budget, because the latency SLO is met by the batch and cache strategy rather than by the model alone.
 
 ## The Architect's Question
 
-After this chapter we should be able to answer the operational half of deployment: *the model is in memory and the requests are arriving at ~10 per second — how do we actually serve them without violating our latency SLO?* We will develop the serving stack that turns a static model into a live, multi-request system: how requests are batched, how KV cache memory is managed, how repeated prefixes are reused, and when to split prefill from decode onto separate pools. After this chapter, serving is not a black box — it is a sequence of explicit architectural choices, each with a measurable consequence.
+After this chapter we should be able to answer the operational half of deployment: *the model is in memory and the requests are arriving at ~10 per second — how do we actually serve them without violating our latency SLO?* We will develop the serving mechanisms that turn a static model into a live, multi-request system: how requests are batched, how KV cache memory is managed, how repeated prefixes are reused, and when to split prefill from decode onto separate pools. After this chapter, serving is not a black box — it is a sequence of explicit architectural choices, each with a measurable consequence.
 
 ## 1. Concept
 
-The serving stack is a small set of mechanisms, invented roughly in order:
+Serving is a small set of mechanisms, invented roughly in order:
 
 1. **Batching** — running multiple requests through the model together to amortize the weight reads. The key modern advance is **continuous (iteration-level) batching** introduced by **Orca (OSDI 2022)**: instead of waiting for an entire batch to finish, the scheduler admits and evicts requests at every decoding step, filling the GPU's idle slots as soon as they free up. [S1][1P]
 
@@ -27,8 +27,8 @@ These mechanisms compose: continuous batching is the baseline, PagedAttention ma
 - **[S2] PagedAttention / vLLM** — Kwon et al., "Efficient Memory Management for Large Language Model Serving with PagedAttention," SOSP 2023. Block-based KV cache.
 - **[S3] Prefix caching** — "Fast Inference from Transformers via Radix Attention" (SGLang, 2023) and vLLM Automatic Prefix Caching (APC). Caching shared-prefix KV.
 - **[S4] P/D disaggregation** — "Splitwise: Efficient Generative LLM Inference Using Phase Splitting" (ISCA 2024), "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving" (OSDI 2024), and Mooncake (KV-centric disaggregation, 2024).
-- **[S5] DFlash** — speculative-decoding system reporting >6× (up to 2.5× in its evaluated configuration) lossless acceleration.
-- **[S6] vLLM FP8-KV blog** — the vLLM FP8-KV blog post's '54%' figure is a decode inter-token-latency (ITL) slope, a LATENCY metric, not a memory/residency ratio. Any reference to it (Chapters 7, 15, 17, 22, 25) is a latency reference only. The KV memory footprint this book uses is the raw tensor byte-halving of ~1.31 MB/token (exactly 50% of BF16) [ILLUSTRATIVE][DERIVED]; any block-allocation/metadata overhead is NOT vendor-measured here and must be filled by a deployment benchmark.
+- **[S5] DFlash** — Chen et al., "DFlash: Block Diffusion for Flash Speculative Decoding," ICML 2026 (PMLR v306; arXiv:2602.06036). Speculative-decoding system reporting >6× lossless acceleration over autoregressive decoding (up to 6.1× on Qwen3-8B) and up to 2.5× faster than the prior state of the art, EAGLE-3.
+- **[S6] vLLM FP8-KV blog** — the vLLM FP8-KV blog post's '54%' figure is a decode inter-token-latency (ITL) slope, a LATENCY metric, not a memory/residency ratio. Any reference to it (Chapters 1, 3, 6, 7, 15, 22 and Appendix A) is a latency reference only. The KV memory footprint this book uses is the raw tensor byte-halving of ~1.31 MB/token (exactly 50% of BF16) [ILLUSTRATIVE][DERIVED]; any block-allocation/metadata overhead is NOT vendor-measured here and must be filled by a deployment benchmark.
 
 ## 2. Mental Model
 
@@ -45,7 +45,7 @@ The mental model is a **resource budget**: a request arrives, consumes some FLOP
 
 ### The Canonical Workload in a Serving System
 
-Recall the canonical enterprise-Q&A RAG workload (canonical scenario (Ch 4, Table 4-3)): ~10 rps average, ~40 rps peak; each request carries ~9,200 input tokens and ~300 output tokens; TTFT budget 1.2 s, TPOT ~25 ms/token. [canonical scenario (Ch 4, Table 4-3)]
+Recall the canonical enterprise-Q&A RAG workload (Ch 4, Table 4-3): ~10 rps average, ~40 rps peak; each request carries ~9,200 input tokens and ~300 output tokens; TTFT budget 1.2 s, TPOT ~25 ms/token. [ASSUMPTION]
 
 ### Discrete Batching Wastes the GPU
 
@@ -59,11 +59,9 @@ Naive **discrete (static) batching** accumulates requests until a batch fills, t
 
 **Continuous batching (Orca [S1][1P])** eliminates the batch boundary: at every decode step the scheduler accepts any new prefill-ready request and evicts any finished one, so decode slots never sit idle. In the canonical stream, a 300-token decode at ~25 ms/token occupies a slot for ~7.5 s; while a long decode runs, the freed FLOPs are continuously refilled by new short requests. The utilization gain is the difference between spiky discrete batches and a continuously-fed pipeline. Rather than stipulate a single percent, the mechanism makes the GPU the steady bottleneck instead of the scheduler. [ILLUSTRATIVE][DERIVED]
 
-![Fig 11.1 — Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is **time (decode steps / iterations)**; each vertical column is one iteration boundary at which the scheduler admits new requests and evicts finished ones. In the top (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the bottom (continuous) panel freed slots are refilled every step. The diagram is a **decode-only** illustration (all shown requests are in the per-token decode phase); a real serving stack also interleaves prefill of newly-arrived requests into the same steps, which is the mixed prefill/decode scheduling developed in Ch 11 §4 and Ch 15. [ILLUSTRATIVE conceptual]](figures/fig-11-1102.png)
+![Fig 11.1 — Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is **time (decode steps / iterations)**; each row is one decode step, and in the continuous panel the step boundaries are staggered across rows as the scheduler admits new requests and evicts finished ones. In the top (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the bottom (continuous) panel freed slots are refilled every step. The diagram is a **decode-only** illustration (all shown requests are in the per-token decode phase); a real serving system also interleaves prefill of newly-arrived requests into the same steps, which is the mixed prefill/decode scheduling developed in §11.4 and Ch 15. [ILLUSTRATIVE conceptual]](figures/fig-11-1102.png)
 
 *Discrete batching runs each batch to completion, leaving GPU slots idle as sequences finish early; continuous batching admits and evicts requests at every decode step, backfilling freed slots. (Illustrative, after Orca, OSDI 2022.)*
-
-The heart of the chapter's serving story made visual. Discrete (static) batching lets slots sit idle whenever a sequence finishes early inside the batch; continuous (iteration-level) batching backfills a freed slot immediately, so the GPU — not the scheduler — is the steady bottleneck. This is the difference between spiky, latency-wasting batches and a continuously-fed decode pipeline.
 
 ### PagedAttention: Killing the Fragmentation Tax
 
@@ -75,17 +73,17 @@ The RAG request's 8K retrieved-context tokens are largely shared across queries 
 
 ### When to Disaggregate: Prefill and Decode Want Different Pools
 
-Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (5.6 TB/s aggregate single-device demand vs 3.35 TB/s per GPU; under the canonical 8×H100 host the 140 GB is sharded to ~0.70 TB/s per GPU, and the shard-invariant cause is the low ~1.0 FLOP/byte intensity, Ch 6) [1P][DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported >525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
+Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (the whole-model weight-read rate of ~5.6 TB/s if served by one device vs 3.35 TB/s per GPU; under the canonical 8×H100 host it is sharded to ~0.70 TB/s per GPU, and the shard-invariant cause is the low ~1.0 FLOP/byte intensity, Ch 6) [1P][DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported >525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
 
 #### Table 11-1 — Serving techniques at a glance
 
 | Technique | Mechanism | Primary resource traded | When it matters | Source |
 |---|---|---|---|---|
-| Discrete batching | Lock batch to completion | — (wastes) | baseline only | [1P] |
-| Continuous batching (Orca) | Admit/evict at each decode step | compute+bandwidth util | high concurrency | S1 [1P] |
-| PagedAttention / vLLM | Block-based KV pages | memory capacity | many concurrent requests | S2 [1P] |
-| Prefix caching (RadixAttention/APC) | Cache shared-prefix KV | prefill FLOPs + memory | repeated-context RAG | S3 [1P] |
-| P/D disaggregation | Split prefill/decode pools + KV transfer | both at scale | workload outgrows a node | S4 [1P] |
+| Discrete batching | Lock batch to completion | — (wastes) | baseline only | — |
+| Continuous batching (Orca) | Admit/evict at each decode step | compute+bandwidth util | high concurrency | [S1][1P] |
+| PagedAttention / vLLM | Block-based KV pages | memory capacity | many concurrent requests | [S2][1P] |
+| Prefix caching (RadixAttention/APC) | Cache shared-prefix KV | prefill FLOPs + memory | repeated-context RAG | [S3][1P] |
+| P/D disaggregation | Split prefill/decode pools + KV transfer | both at scale | workload outgrows a node | [S4][1P] |
 
 ## 4. Measurement
 
@@ -109,13 +107,13 @@ Good serving telemetry answers "are we meeting the SLO while keeping the GPU bus
 
 - **Choosing P/D disaggregation too early.** Splitting pools adds fabric + orchestration; for a single host it is overhead without the resource conflict that motivates it.
 
-- **Believing speculative decoding (DFlash reports >6× / up to 2.5× in its evaluated config [S5][1P]) is a serving baseline.** These are paper-reported results under the paper's evaluation setup, not portable serving-speed figures. Speculative decoding is an optimization for bandwidth-bound decode, not a requirement, and must be validated on the workload.
+- **Believing speculative decoding (DFlash reports >6× lossless acceleration, up to 2.5× faster than EAGLE-3 [S5][1P]) is a serving baseline.** These are paper-reported results under the paper's evaluation setup, not portable serving-speed figures. Speculative decoding is an optimization for bandwidth-bound decode, not a requirement, and must be validated on the workload.
 
 ## 6. Architecture Consequence
 
-The serving stack dictates the deployment choices:
+The serving mechanisms dictate the deployment choices:
 
-- **Baseline (canonical single-host):** continuous batching (vLLM/Orca) is near-mandatory to hold TTFT under 10 rps input-heavy load; PagedAttention ensures the ~24.1 GB-per-request KV pack fits; prefix caching is the highest-leverage optimization because the workload is repeated-context RAG. This matches the memory and compute conclusions of Ch4/Ch7 for the ~10 rps *average* baseline; at the ~40 rps peak the KV budget forces replication, which Chapter 17 sizes. [S1][S2][S3][1P]
+- **Baseline (canonical single-host):** continuous batching (vLLM/Orca) is near-mandatory to hold TTFT under the SLO (1.2 s, p95 ≤ 2 s) at 10 rps input-heavy load; PagedAttention ensures the ~24.1 GB-per-request KV pack fits; prefix caching is the highest-leverage optimization because the workload is repeated-context RAG. This matches the memory and compute conclusions of Ch4/Ch7 for the ~10 rps *average* baseline; at the ~40 rps peak the KV budget forces replication, which Chapter 17 sizes. [S1][S2][S3][1P]
 
 - **Scaling up:** those three carry the workload far before disaggregation is justified. FP8 KV (raw tensor byte-halving = 1.31 MB/token, exactly 50% of BF16) [ILLUSTRATIVE][DERIVED] and KV offloading are memory levers available without restructuring.
 
@@ -123,22 +121,24 @@ The serving stack dictates the deployment choices:
 
 ![Fig 11.2 — Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation). A concrete serving design that chooses one mechanism per concern: **request scheduling** = continuous (Orca-style) batching; **state management** = PagedAttention (fixed-size KV pages); **reuse** = prefix caching of shared context; **resource specialisation** = P/D disaggregation (separate prefill and decode pools). The four are independent dials — a system can combine any mechanism with any other — and the canonical 8×H100 host uses all four together. [ILLUSTRATIVE conceptual]](figures/fig-11-1101.png)
 
-*Four orthogonal concerns all act on the request stream in parallel; none is stacked on another. **Request scheduling** runs continuous (admit/evict-each-step) batching, trading latency ↔ utilization. **State management** keeps the KV cache in fixed pages (PagedAttention), trading memory capacity → concurrency. **Reuse** prefix-caches the KV of shared context, skipping re-prefill FLOPs. **Resource specialisation** splits prefill and decode into two pools, matching two compute/memory regimes to two pools.*
+*The design lever is what each concern trades: **request scheduling** exchanges latency for utilization, **state management** exchanges memory capacity for concurrency, **reuse** avoids re-prefill FLOPs, and **resource specialisation** matches two compute/memory regimes to two pools.*
 
 <!-- Figure spec: mechanism-first serving-flow diagram; request stream → scheduler → KV page table (+ prefix cache) → optional prefill pool / decode pool split → output; annotate the resource each stage trades. -->
 
-![Fig 11.3 — P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer. The KV-transfer arrow is the load-bearing cost: it moves the per-request KV state (e.g. ~35 GB for a ~13K-token context at 2.62 MB/token, §9.5) over the interconnect, and the disaggregation is only worth it when the prefill/decode specialization benefit **exceeds** the KV-transfer time plus the orchestration overhead of routing requests between two pools. Illustrative: at 900 GB/s NVLink that ~35 GB transfer is ~0.04 s, which is small against the ~1.08 s prefill it enables, so the inequality holds on-node; over a 40 GB/s fabric it is ~0.9 s, which can erase the benefit — the transfer cost is the term that decides whether P/D disaggregation pays. [ILLUSTRATIVE][DERIVED]](figures/fig-11-1103.png)
+![Fig 11.3 — P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer. The KV-transfer arrow is the load-bearing cost: it moves the per-request KV state (e.g. ~35 GB for a ~13K-token context at 2.62 MB/token, §9.8) over the interconnect, and the disaggregation is only worth it when the prefill/decode specialization benefit **exceeds** the KV-transfer time plus the orchestration overhead of routing requests between two pools. Illustrative: at NVLink's 450 GB/s per direction (§9.2) that ~35 GB transfer is ~0.08 s, which is small against the ~1.08 s prefill it enables, so the inequality holds on-node; over a 40 GB/s fabric it is ~0.9 s, which can erase the benefit — the transfer cost is the term that decides whether P/D disaggregation pays. [ILLUSTRATIVE][DERIVED]](figures/fig-11-1103.png)
 
-*P/D disaggregation topology. Left: a prefill-optimized pool (FLOP-facing), which handles the long prompt at once. Right: a decode-optimized pool (HBM-facing), which reads the steady token-by-token generation. Once, a fabric bridge moves the prompt KV cache from prefill to decode: prefill writes the prompt KV, then decode reads it and keeps appending per generated token — the KV moves once, then stays (ownership splits). The split exists because the two stages want opposite resources under load — prefill needs compute capacity (~1.19 PFLOPS required vs 0.989 peak single-H100), decode needs HBM bandwidth (5.6 TB/s aggregate single-device demand vs 3.35 TB/s per GPU; sharded to ~0.70 TB/s per GPU under the canonical 8×H100 host, Ch 6) [1P][DERIVED].*
+*The KV moves once per request, then stays local (ownership splits); the split itself exists because the two stages want opposite resources under load — prefill needs compute capacity (~1.19 PFLOPS required vs 0.989 peak single-H100), while decode needs HBM bandwidth (the whole-model weight-read rate of ~5.6 TB/s if served by one device vs 3.35 TB/s per GPU, sharded to ~0.70 TB/s per GPU under the canonical 8×H100 host, Ch 6) [1P][DERIVED].*
 
-### The Serving Stack, Not the Product Catalog
+### The Mechanisms, Not the Product Catalog
 
-The mechanisms above are what matter; the engines are just implementations of them. This comparison is organized by *architectural capability* so it transfers across specific products and versions. **It is explicitly time-sensitive** — capabilities, supported models, and features change fast, and these rows must be re-verified against each engine's current first-party documentation before any deployment decision. Treat it as a map of *which mechanism to look for*, not a ranking.
+The mechanisms above are what matter; the engines are just implementations of them. This comparison is organized by *architectural capability* so it transfers across specific products and versions. **It is explicitly time-sensitive** — capabilities, supported models, and features change fast, and these rows must be re-verified against each engine's current first-party documentation before any deployment decision. The table is a map of *which mechanism to look for*, not a ranking.
 
-| capability | vLLM | SGLang | TensorRT-LLM | llama.cpp | typical architectural note |
+#### Table 11-2 — Serving engines by architectural capability (time-sensitive)
+
+| capability | vLLM | SGLang | TensorRT-LLM | llama.cpp | architectural note |
 |---|---|---|---|---|---|
 | scheduler model | continuous batching | continuous + RadixAttention | batch orchestration (TRT engine) | single/multi-stream | which batching algorithm, not which vendor |
-| KV-memory management | PagedAttention | RadixAttention (page + prefix tree) | KV re-compute/offload on engine | custom KV store | how KV is allocated/fragmented |
+| KV-memory management | PagedAttention | RadixAttention (page + prefix tree) | KV re-compute/off-load on engine | custom KV store | how KV is allocated/fragmented |
 | prefix caching | auto prefix | Radix prefix tree | some cache | limited | how much re-prefill is avoided |
 | quantization support | broad (GPTQ/AWQ/FP8) | broad | tight NVIDIA-precision (FP8/INT8/INT4) | GGUF (K-quants) | what precision the kernels are tuned for |
 | parallelism | TP/PP/DP | TP/PP/DP | TP/PP/DP (NVIDIA-optimized) | limited / CPU+GPU | how the model is split |
