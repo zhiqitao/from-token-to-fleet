@@ -242,14 +242,21 @@ def fix_label_atomicity(tex_path):
     # non-breaking space so that ONE tag stays on one line.
     tex = _re.sub(r"\{\[\}canonical\{\]\}\s+\{\[\}scenario\{\]\}",
                   r"\{\[\}canonical\{\]\}~\{\[\}scenario\{\]\}", tex)
-    # A single tag token: one {[}TOKEN{]} (possibly with inner prose).
-    tag = r"\{\[\}(?:[A-Z\u00b0][^\[\]{}]*?)\{\]\}"
+    # A single SHORT label token: one {[}TOKEN{]} whose content is word-like
+    # (letters, digits, space, hyphen, degree sign) and <= 34 chars — e.g.
+    # [ILLUSTRATIVE], [ASSUMPTION], [DERIVED], [canonical scenario], [1P], [2°].
+    # Long prose-bearing tags like '[DERIVED: 2 × N × L …]' contain ':' / '×'
+    # and other punctuation, so they do NOT match here and stay breakable as
+    # ordinary prose (wrapping at their internal spaces), never over-running.
+    tag = r"\{\[\}[A-Z\u00b0][A-Za-z0-9\u00b0 \-]{0,34}\{\]\}"
     # Wrap each tag in its own \\mbox (atomic), and separate consecutive tags
-    # with a breakable space so a pair can wrap between tokens in a narrow cell
-    # rather than either hyphenating mid-token or over-running the right edge.
+    # with a zero-width breakable glue so a pair like
+    # [ILLUSTRATIVE][ASSUMPTION] can wrap between tokens in a narrow table cell
+    # (each token stays whole) with NO visible gap in body prose; when the pair
+    # fits on a line the 0pt glue contributes nothing.
     def repl_run(m):
         tokens = _re.findall(tag, m.group(0))
-        return " ".join(r"\mbox{" + tk + "}" for tk in tokens)
+        return r"\hspace{0pt}".join(r"\mbox{" + tk + "}" for tk in tokens)
     tex = _re.sub(r"(?<!\\)(?:%s)+" % tag, repl_run, tex)
     if tex != orig:
         open(tex_path, "w", encoding="utf-8").write(tex)
