@@ -20,9 +20,9 @@ fig._hermes_print_sized = True
 ax.set_xlim(0, 10); ax.set_ylim(0, 7.8); ax.axis('off')
 
 levels = [
-    ('Workload metrics', 'tokens/s · context · response-time', '#e7f5ec', '#1e8449', 6.4),
-    ('Resource metrics', 'GPU util · memory · bandwidth', '#e7f5ec', '#1e8449', 4.3),
-    ('Serving metrics', 'TTFT · TPOT · goodput · KV', '#e7f5ec', '#1e8449', 2.2),
+    ('Workload metrics', 'rps · token profile · concurrency', '#e7f5ec', '#1e8449', 6.4),
+    ('Resource metrics', 'GPU util · memory · bandwidth · KV cache', '#e7f5ec', '#1e8449', 4.3),
+    ('Serving metrics', 'TTFT · TPOT · goodput', '#e7f5ec', '#1e8449', 2.2),
 ]
 bw, bh = 7.4, 1.4
 xc = 5.0
@@ -50,8 +50,9 @@ ax.text(x_c-0.35, 5.35, 'causation', fontsize=8.4, ha='right', va='center', colo
 ax.text(x_d+0.35, 5.35, 'diagnosis', fontsize=8.4, ha='left', va='center', color='#c0392b', fontweight='bold',
         rotation=90)
 
-# legend
-ax.text(5.0, 1.05, 'causation ↓ (workload → serving)   |   diagnosis ↑ (serving → workload)',
+# Legend — the metric chain is three layers; a workload metric never maps directly
+# to a serving metric, it passes through the resource layer (§6.1).
+ax.text(5.0, 1.05, 'causation ↓ (workload → resource → serving)   |   diagnosis ↑ (serving → resource → workload)',
         ha='center', va='center', fontsize=8.4, color='#444')
 
 out = 'design/manuscript/chapter-06/figures/fig-06-0601.png'
