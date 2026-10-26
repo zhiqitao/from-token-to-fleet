@@ -28,12 +28,12 @@ One detail the figure makes explicit is *when* a token's K/V enters the cache. T
 
 | term | what it is | what it is **not** |
 |---|---|---|
-| **KV cache** | the stored K and V tensors per token per layer, saved so decode does not recompute the prefix | an *optimization* over a shared prefix |
-| **PagedAttention** | a memory-*allocation* scheme for the KV cache (splits it into fixed-size pages, cuts fragmentation/waste) | a way to *reduce* the amount of KV state |
-| **prefix caching / KV reuse** | reusing *already-computed* K/V for a shared prefix, to skip re-prefilling it | the same as caching the KV of a *single* request's own decode |
+| **KV cache** | the stored K and V tensors per token per layer, saved so decode does not recompute the prefix | not an *optimization* over a shared prefix |
+| **PagedAttention** | a memory-*allocation* scheme for the KV cache (splits it into fixed-size pages, cuts fragmentation/waste) | not a way to *reduce* the amount of KV state |
+| **prefix caching / KV reuse** | reusing *already-computed* K/V for a shared prefix, to skip re-prefilling it | not the same as caching the KV of a *single* request's own decode |
 | **prompt caching** | broader system/provider term; the book uses it to mean *reusing the KV of a shared prompt prefix across requests* | not a separate mechanism from prefix caching in this book's usage |
-| **KV quantization** | reducing the *bytes* per K/V element (e.g. FP16→FP8) | reducing the *number* of key/value entries |
-| **KV offloading** | moving some KV state out of GPU HBM (to host DRAM/SSD), trading capacity against transfer latency | shrinking the state itself |
+| **KV quantization** | reducing the *bytes* per K/V element (e.g. FP16→FP8) | not reducing the *number* of key/value entries |
+| **KV offloading** | moving some KV state out of GPU HBM (to host DRAM/SSD), trading capacity against transfer latency | not shrinking the state itself |
 
 The short version: the **KV cache** is *the state*; **PagedAttention** manages *where that state lives* on the device; **prefix caching** avoids *computing it twice* for a shared prefix; **quantization** shrinks *each element*; **offloading** moves *some of it elsewhere*. Each attacks a different constraint (capacity, fragmentation, redundant compute, byte count, residency), and each has its own trade-off — later chapters put numbers on them.
 
@@ -61,9 +61,9 @@ Every chapter is one link of that chain, and each *deepens* the same mental mode
 
 Inference is two fundamentally different physical processes, distinguished by what limits them.
 
-**In the canonical operating point — a long prompt with high arithmetic intensity — prefill is compute-bound.** It is like turning on a massive industrial fire hose to fill a reservoir. The burst of flow is enormous, and the time it takes is limited entirely by the raw horsepower of the pump (compute/FLOPs) pushing the water. The pipe is wide open, but the motor is working at its absolute limit. (This is an operating-point property, not a fixed identity: a low-intensity prefill or a tiny prompt could shift it toward the bandwidth side — Ch. 8 makes the dependence on model × workload × kernel × hardware explicit.)
+**In the canonical operating point — a long prompt with high arithmetic intensity — prefill is compute-bound.** It is like a massive industrial fire hose drawing one enormous burst of water out of a reservoir: the flow is huge, and the time it takes is limited entirely by the raw horsepower of the pump (compute/FLOPs) pushing the water. The pipe is wide open, but the motor is working at its absolute limit — and the burst delivers the first glass of water, the first token. (This is an operating-point property, not a fixed identity: a low-intensity prefill or a tiny prompt could shift it toward the bandwidth side — Ch. 8 makes the dependence on model × workload × kernel × hardware explicit.)
 
-**In the canonical operating point — low batch — decode is bandwidth-bound.** It is like trying to empty a 140,000-liter swimming pool (140 GB) through a standard garden hose every 25 milliseconds just to produce a single glass of water. The pump (compute) is more than powerful enough, but the diameter of the hose (HBM bandwidth) physically cannot move that volume of water in that time frame. (Again an operating-point property, not an identity: at high batch decode can become compute-bound.)
+**In the canonical operating point — low batch — decode is bandwidth-bound.** It is like pushing the water of that same 140,000-liter reservoir (140 GB) through a standard garden hose: the whole volume must flow every 25 milliseconds just to deliver one glass of water — one generated token. The pump (compute) is more than powerful enough, but the diameter of the hose (HBM bandwidth) physically cannot move that volume of water in that time frame. (Again an operating-point property, not an identity: at high batch decode can become compute-bound.)
 
 When we ask "is this workload compute-bound or bandwidth-bound?" the answer depends entirely on which physical constraint we are hitting: the horsepower of the engine, or the diameter of the pipe.
 
@@ -120,7 +120,7 @@ With $1.19 > 0.989$, **even before accounting for attention overhead, kernel ine
 
 ## 4. Measurement
 
-How do we know whether a given workload is prefill-bound or decode-bound in practice? Three practical measurements:
+How do we know whether a given workload is prefill-dominant or decode-dominant in practice? Three practical measurements:
 
 1. **Divide the TTFT into retrieval + prefill.** Measure the retrieval latency (vector search, document fetch) separately from the prefill latency (prompt processing). In the canonical scenario, retrieval takes ~120 ms, leaving ~1.08 s for prefill on a 9.2K-token prompt. If prefill exceeds this budget, the bottleneck is compute or memory, not retrieval.
 

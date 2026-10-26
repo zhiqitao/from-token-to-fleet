@@ -207,4 +207,4 @@ The recommendation is therefore: profile first (MEASURE, do not assume), and onl
 
 ***
 
-*Prefill PFLOP also grows with context: 2 ×70B × L tokens, from 2K to 32K. This is the one-time compute cost of loading a long context; sustained throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point it is ~1.29 PFLOP (Table 8-1).*
+*Prefill PFLOP also grows with context: 2 ×70B × L tokens scales linearly — ~0.29 PFLOP at 2K → ~4.6 PFLOP at 32K — so the longer the window, the larger the one-time compute cost of loading it. Sustained throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point the prefill is ~1.29 PFLOP (Table 8-1).*
