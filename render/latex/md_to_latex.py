@@ -226,22 +226,31 @@ def fix_label_atomicity(tex_path):
     mid-token across a line break (soft hyphen), e.g. '[ILLUSTRA- TIVE]'. A tag
     is an identifier and must stay whole, and '[canonical scenario]' must not
     break at its internal space either. Pandoc escapes the brackets as
-    '{[}TOKEN{]}' / '{[}canonical{]} {[}scenario{]}'. Wrap each whole tag in
-    \\mbox (LaTeX will not hyphenate or break inside it) and join the pair's
-    internal space with a non-breaking '~'.
+    '{[}TOKEN{]}' / '{[}canonical{]} {[}scenario{]}'.
+
+    Each single tag is wrapped in its own \\mbox (LaTeX will not hyphenate or
+    break inside it). Consecutive tags (a pair like [ILLUSTRATIVE][ASSUMPTION])
+    are joined by a *breakable* space, so in a narrow table column the pair
+    wraps onto two lines with each token whole (no mid-token hyphen, no
+    margin overflow). The canonical-scenario pair is instead joined by a
+    non-breaking '~' because it is ONE tag and must stay on one line.
     """
     import re as _re
     tex = open(tex_path, encoding="utf-8").read()
     orig = tex
-    # A single tag: one or more {[}TOKEN{]}, possibly with inner prose, in one
-    # contiguous run (no spaces between the closing and next opening bracket).
-    tag = r"\{\[\}(?:[A-Z\u00b0][^\[\]{}]*?)\{\]\}"
-    # Wrap runs of adjacent escaped-bracket tags so they all stay together.
-    tex = _re.sub(r"(?<!\\)(%s)+" % tag, lambda m: r"\mbox{" + m.group(0) + "}", tex)
-    # Join 'canonical' and 'scenario' inside a bracket pair with a non-breaking
-    # space so the pair does not split at its internal space.
+    # Join 'canonical' and 'scenario' inside a single bracket pair with a
+    # non-breaking space so that ONE tag stays on one line.
     tex = _re.sub(r"\{\[\}canonical\{\]\}\s+\{\[\}scenario\{\]\}",
                   r"\{\[\}canonical\{\]\}~\{\[\}scenario\{\]\}", tex)
+    # A single tag token: one {[}TOKEN{]} (possibly with inner prose).
+    tag = r"\{\[\}(?:[A-Z\u00b0][^\[\]{}]*?)\{\]\}"
+    # Wrap each tag in its own \\mbox (atomic), and separate consecutive tags
+    # with a breakable space so a pair can wrap between tokens in a narrow cell
+    # rather than either hyphenating mid-token or over-running the right edge.
+    def repl_run(m):
+        tokens = _re.findall(tag, m.group(0))
+        return " ".join(r"\mbox{" + tk + "}" for tk in tokens)
+    tex = _re.sub(r"(?<!\\)(?:%s)+" % tag, repl_run, tex)
     if tex != orig:
         open(tex_path, "w", encoding="utf-8").write(tex)
     return tex.count(r"\mbox{")
