@@ -98,7 +98,8 @@ Rack/cluster & InfiniBand HDR/NDR & 200/400 Gb/s ≈ 25/50 GB/s per port &
 \emph{(Hierarchy: bandwidth drops \textasciitilde2--3 orders of
 magnitude from HBM to the cluster fabric --- the reason the
 interconnect, not the GPU, often binds at scale. Figures are established
-hardware specs {[}1P{]}{[}FACT{]}.)}
+hardware specs {[}1P{]}{[}FACT{]}, except where a row is tagged
+otherwise.)}
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -106,12 +107,12 @@ hardware specs {[}1P{]}{[}FACT{]}.)}
 The interconnect is best read as a series of concentric rings. The GPU
 sits at the center, reachable fastest via PCIe. One ring out is the
 node: GPUs on the same server are joined by NVLink and NVSwitch, forming
-a high-radix, low-latency mesh. The next ring out is the rack: 10--20
-GbE or 100/200/400 GbE RoCE connects nodes. The outermost ring is the
-cluster or data center: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s)
-stitches racks into a single logical network. A well-designed deployment
-keeps the heavy collectives (all-reduce, reduce-scatter) on the inner
-rings and reserves the outer rings for less volume or latency-tolerant
+a high-radix, low-latency mesh. The next ring out is the rack:
+100/200/400 GbE RoCE connects nodes. The outermost ring is the cluster
+or data center: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s) stitches
+racks into a single logical network. A well-designed deployment keeps
+the heavy collectives (all-reduce, reduce-scatter) on the inner rings
+and reserves the outer rings for less volume or latency-tolerant
 traffic.
 
 The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink
@@ -302,12 +303,12 @@ to a crowded cluster.
   Ethernet. If the communication time is acceptable on RoCE2, the
   cheaper fabric may be the better architectural choice.
 \item
-  \textbf{Overlooking protocol overhead.} RoCE and InfiniBand use
-  different line coding (64b/66b for modern Ethernet and InfiniBand) and
-  header sizes. An NDR 400 Gb/s InfiniBand link delivers a
-  \textasciitilde380 Gb/s class useful payload; a 200 Gb/s RoCE2 link
-  delivers \textasciitilde180 Gb/s. The difference matters when we are
-  computing per-second throughput for a fixed data volume.
+  \textbf{Overlooking protocol overhead.} RoCE and InfiniBand use the
+  same 64b/66b line coding but differ in framing and header sizes. An
+  NDR 400 Gb/s InfiniBand link delivers a \textasciitilde380 Gb/s class
+  useful payload; a 200 Gb/s RoCE2 link delivers \textasciitilde180
+  Gb/s. The difference matters when we are computing per-second
+  throughput for a fixed data volume.
 \end{itemize}
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
@@ -423,5 +424,19 @@ exchanges are tens of MB and free within NVLink; cross-node weight/KV
 shuttling is 35× more expensive and avoided unless the fleet genuinely
 spans hosts. The design is now grounded in bandwidth and the
 \emph{specific} parallelism scheme, not in vague notions of ``scale.''
+
+\emph{Scope note.} This conclusion decides the communication
+\textbf{scheme}, not the fleet size, and it is stated for the canonical
+workload (\textasciitilde10/40 rps, Ch 4, \hyperref[tab:4.2]{Table 4-2}) that the rest of
+the book's arithmetic uses --- not for the 10,000-concurrent-user figure
+in the setup, whose 200 tokens/s-per-user numbers are not used anywhere
+in the reasoning above. At that stated scale the fallback condition in
+the sentence above is met on arrival: one 8×H100 host holds only C ≈
+17.5 concurrent full-context requests (Ch 17), so 10,000 concurrent
+users exceed a single host's capacity by \textasciitilde570× (10,000 ÷
+17.5 ≈ 570 hosts regardless of fabric) --- a \hyperref[chap:17]{Chapter 17} capacity
+question, not a fabric question. The single-host-versus-RoCE choice
+above is what governs the canonical scale, where per-step TP activation
+exchanges stay tens of MB inside NVLink.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}

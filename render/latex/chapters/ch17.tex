@@ -1,7 +1,7 @@
 \section*{The Architect's Question}\label{the-architects-question}
 
 Having established the single-host serving model --- a 70B FP16 model on
-8×H100 serving the canonical workload (Ch 4, \hyperref[tab:4.3]{Table 4-3}) at
+8×H100 serving the canonical workload (Ch 4, \hyperref[tab:4.2]{Table 4-2}) at
 \textasciitilde10 rps average / \textasciitilde40 rps peak --- the
 natural next question is: when does one host cease to suffice, and how
 do we scale to a fleet? This chapter answers the architect's question:
@@ -78,7 +78,7 @@ load balance).
 \ntsection{Worked Example}\label{worked-example}
 
 
-We continue from the canonical scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}):
+We continue from the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}):
 \textasciitilde10 rps average / \textasciitilde40 rps peak, prompt
 \textasciitilde9,200 input tokens + \textasciitilde300 output, 70B-class
 dense FP16 model, 8×H100 host with 640\,GB GPU memory. A single 8×H100
@@ -206,7 +206,7 @@ production traffic patterns.
 \subsection{Per-host throughput and KV cache
 budget}\label{per-host-throughput-and-kv-cache-budget}
 
-Let H be the number of hosts, λ the incoming rps peak, T the random
+Let N be the number of hosts, λ the incoming rps peak, T the random
 variable for agent turn count with distribution P(T), δ = 800 tokens per
 turn of retrieved context, γ = 65 tokens of model-generated reasoning
 per turn, and O\_final = 300 final output tokens. The per-request token
@@ -365,7 +365,7 @@ concurrency by roughly the ratio of service time to target latency (here
 \textasciitilde8.6×). The minimum number of hosts is
 
 \[
-H_\text{min} = \left\lceil \frac{\lambda_\text{peak} \cdot W}{C} \cdot \frac{1}{u} \right\rceil
+N_\text{min} = \left\lceil \frac{\lambda_\text{peak} \cdot W}{C} \cdot \frac{1}{u} \right\rceil
 \]
 
 where \(u\) is the utilization target and \(W\) is the \textbf{full
@@ -383,10 +383,10 @@ overhead). At the canonical peak:
 \item
   At λ\_peak = 40 rps and W ≈ 8.6 s, in-flight concurrency ≈ 40 × 8.6 ≈
   \textbf{344 requests}. With C ≈ 17.5 per host (FP16 KV) at full
-  utilization, H\_min ≈ 344/17.5 ≈ 19.7 → \textbf{\textasciitilde20
-  hosts} (\textbf{29 working} at the 70\% utilization target, \textbf{30
-  total with N−1}). This is the honest fleet size and matches the
-  throughput/latency analysis in \hyperref[chap:20]{Chapter 20}.
+  utilization, the minimum N ≈ 344/17.5 ≈ 19.7 →
+  \textbf{\textasciitilde20 hosts} (\textbf{29 working} at the 70\%
+  utilization target, \textbf{30 total with N−1}). This is the honest
+  fleet size and matches the throughput/latency analysis in \hyperref[chap:20]{Chapter 20}.
 \item
   \textbf{The 25 ms/token in W is the TPOT \emph{budget}, not a measured
   per-step time.} The decode-bandwidth floor for the canonical 8×H100
@@ -403,9 +403,9 @@ overhead). At the canonical peak:
 \item
   Switching to FP8 KV (κ ≈ 1.31 MB/token, raw byte-halving --- 50\% of
   BF16, C ≈ 35.0 at T=0; conservative integer floor 35) raises per-host
-  concurrency, cutting the fleet to H\_min ≈ ⌈344/35.0⌉ = 10 at full
-  utilization → \textbf{15 working hosts} at the 70\% utilization target
-  (\textbf{16 total with N−1}).
+  concurrency, cutting the fleet to a minimum N ≈ ⌈344/35.0⌉ = 10 at
+  full utilization → \textbf{15 working hosts} at the 70\% utilization
+  target (\textbf{16 total with N−1}).
 \end{itemize}
 
 \textbf{Separate the two questions explicitly} --- they are not
@@ -418,13 +418,13 @@ error:
 \item
   \textbf{KV-only concurrency sizing} (does one host's KV budget hold
   the in-flight requests?):
-  \(H_{KV} = \lceil \lambda W / (C \cdot u) \rceil\). This uses C
+  \(N_{KV} = \lceil \lambda W / (C \cdot u) \rceil\). This uses C
   (KV-residency ceiling) and the full service time W.
 \item
   \textbf{Full service-capacity sizing} (does the fleet's aggregate
   request rate clear the peak?): the same quantity when C/W is the
   per-host service rate ---
-  i.e.~\(H = \lceil \lambda / (\rho \cdot (C/W)) \rceil\). Because
+  i.e.~\(N = \lceil \lambda / (\rho \cdot (C/W)) \rceil\). Because
   Little's Law ties concurrency, service time and arrival rate, these
   two views coincide: \(\lambda W / C = \lambda / (C/W)\).
 \end{enumerate}
@@ -597,12 +597,12 @@ even below the KV screen.} A document-analysis workload is the opposite
 pole: \textasciitilde128K-token input, \textasciitilde50-token output,
 but a low rate (say 2 rps). Here the per-request KV is enormous --- 128K
 tokens against the canonical κ is \textasciitilde335 GB, which consumes
-most of a single host's KV budget (\textasciitilde436 GB) before
-weights. Because even one request nearly fills the host, the fleet is
-sized almost one-request-per-host despite the low rate. Here memory is
-not just a ceiling --- it is the \emph{dominant} term, and the canonical
-brief-context C/W shorthand (which assumes many small requests share a
-host) does not apply at all.
+most of the host's \textasciitilde436 GB KV budget (already net of the
+140 GB weights). Because even one request nearly fills the host, the
+fleet is sized almost one-request-per-host despite the low rate. Here
+memory is not just a ceiling --- it is the \emph{dominant} term, and the
+canonical brief-context C/W shorthand (which assumes many small requests
+share a host) does not apply at all.
 
 \textbf{The transferable lesson.} In the canonical regime the host is
 KV-bound and sized by λ·W/C; in counter-scenario A it is bandwidth-bound
@@ -664,14 +664,15 @@ Transitioning from one host to a fleet reshapes every layer of the
 system.
 
 \textbf{GPU fleet sizing.} The number of hosts N must satisfy the
-service‑time‑augmented capacity formula H = ⌈ λ\_peak · W / (C ·
-util\_target) ⌉, where C depends on the agentic turn distribution and W
-is the full per‑request service time (which rises with turns --- each
-turn adds retrieval latency and generated tokens). Two effects compound
-as turns grow: C falls (more tokens → more KV per request) and W rises
-(more per‑turn latency), so in‑flight concurrency λ·W grows on both
-sides. For the canonical customer‑facing peak (40 rps, W≈8.6 s),
-in‑flight ≈ 344 and H ≈ ⌈344/17.5⌉ ≈ 20 hosts at full utilization
+service‑time‑augmented capacity formula N = ⌈ λ\_peak · W / (C ·
+util\_target) ⌉ (the minimum N --- the provisioned fleet adds one spare
+on top, the N−1 rule), where C depends on the agentic turn distribution
+and W is the full per‑request service time (which rises with turns ---
+each turn adds retrieval latency and generated tokens). Two effects
+compound as turns grow: C falls (more tokens → more KV per request) and
+W rises (more per‑turn latency), so in‑flight concurrency λ·W grows on
+both sides. For the canonical customer‑facing peak (40 rps, W≈8.6 s),
+in‑flight ≈ 344 and N ≈ ⌈344/17.5⌉ ≈ 20 hosts at full utilization
 (\textbf{29} at 70\% util, \textbf{30 total with N−1}) with FP16 KV; FP8
 KV cuts that to \textbf{15 working hosts} (10 at full utilization;
 \textbf{16 total with N−1}). The lesson is honest: the binding term is
@@ -723,24 +724,14 @@ capacity after one failure). Health‑check frequency and graceful drain
 procedures affect the real-world failover time, typically 5--15 seconds.
 
 \textbf{Multi-region active-active availability is NOT priced in this
-chapter's arithmetic.} The canonical workload's stated SLA (Ch 4) is
-multi-region active-active at 99.9\% availability, but \textbf{every}
-host count in this chapter --- and the N−1 failover/redundancy model
-above --- prices a \textbf{single-region} deployment with \textbf{N−1
-single-host failover}, \textbf{not} multi-region active-active. These
-are \textbf{different provisioning problems}: N−1 single-host failover
-covers the loss of \emph{one host within a region}, whereas multi-region
-active-active must survive the loss of an entire \emph{region}, and
-therefore requires cross-region capacity duplication, region-failure
-tolerance, data locality and traffic routing, and consistent state/data
-replication. None of that is priced or validated here, and none of it is
-implied by the N−1 spare host. The canonical host counts (≈20 peak / 29
-working / 30 with N−1) and the cost arithmetic that hangs off them
-therefore \textbf{understate the cost of the canonical workload's own
-stated 99.9\% availability requirement} --- read them as
-\emph{single-region, N−1-only} numbers, and add a separate multi-region
-capacity + replication cost line before the availability SLA can be
-considered met.
+chapter's arithmetic.} The multi-region caveat of Ch16 §16.3 applies
+verbatim to these host counts: every host count here --- and the N−1
+failover/redundancy model above --- is a \textbf{single-region,
+N−1-only} number (≈20 peak / 29 working / 30 with N−1), so the counts
+and the sizing arithmetic that hangs off them \textbf{understate the
+cost of the canonical workload's own stated 99.9\% availability
+requirement}. Add a separate multi-region capacity + replication cost
+line before the availability SLA can be considered met.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -810,20 +801,20 @@ scale to \textasciitilde1.42 s) + (\textasciitilde495 generated tokens ×
 per‑turn tool + retrieval latency; \hyperref[chap:19]{Chapter 19}'s \texttt{T·L\_agent} ≈
 660 ms is the same class of overhead at a different per-turn rate (Ch19:
 220 ms/turn → 660 ms at T=3; this case uses \textasciitilde133 ms/turn →
-\textasciitilde0.4 s) --- adopt one rate). (This W is the full agentic
-service time --- decode of all generated tokens plus the grown‑context
-prefill. Because the prefill is held at the canonical 9.2K
-representative rather than the full 12,095‑token context (which would
-scale it to \textasciitilde1.42 s and give W ≈ 14.2 s), treat this
-\textasciitilde13.8 s as a \textbf{lower bound} on the agentic service
-time, and the resulting in‑flight counts and host totals as
-corresponding lower bounds. It is \emph{not} the incremental
-orchestration‑overhead figure of \textasciitilde660 ms at T=3 that
-\hyperref[chap:19]{Chapter 19} reports as its \(T \cdot L_\text{agent}\); the two are
-different quantities, and it is this full W that drives concurrency and
-fleet size, per \hyperref[chap:19]{Chapter 19}'s scope note.) So at the 100‑rps peak,
+\textasciitilde0.4 s) --- a single model should use one rate
+consistently). (This W is the full agentic service time --- decode of
+all generated tokens plus the grown‑context prefill. Because the prefill
+is held at the canonical 9.2K representative rather than the full
+12,095‑token context (which would scale it to \textasciitilde1.42 s and
+give W ≈ 14.2 s), treat this \textasciitilde13.8 s as a \textbf{lower
+bound} on the agentic service time, and the resulting in‑flight counts
+and host totals as corresponding lower bounds. It is \emph{not} the
+incremental orchestration‑overhead figure of \textasciitilde660 ms at
+T=3 that \hyperref[chap:19]{Chapter 19} reports as its \(T \cdot L_\text{agent}\); the two
+are different quantities, and it is this full W that drives concurrency
+and fleet size, per \hyperref[chap:19]{Chapter 19}'s scope note.) So at the 100‑rps peak,
 in‑flight concurrency ≈ 100 × 13.8 ≈ 1,380 requests, not 200. Against C
-≈ 13.8 per host (conservative integer floor 13), H = ⌈1,380/(13 ×0.7)⌉ ≈
+≈ 13.8 per host (conservative integer floor 13), N = ⌈1,380/(13 ×0.7)⌉ ≈
 \textbf{152 hosts} on FP16 KV (≈107 at full utilization). This is the
 honest arithmetic the service-time model produces --- the naive ``1--5
 hosts'' rps estimate is off by \textasciitilde30--150× (one-and-a-half
@@ -833,7 +824,7 @@ and the added turn latency.
 \textbf{KV compression changes the answer.} Switching the KV cache to
 FP8 (κ ≈ 1.31 MB/token, raw byte-halving --- 50\% of BF16) cuts
 per‑request KV at T=3 to \textasciitilde15.85 GB and raises C to ≈27.5
-per host (436 ÷ 15.85 ≈ 27.5; conservative integer floor 27), giving H ≈
+per host (436 ÷ 15.85 ≈ 27.5; conservative integer floor 27), giving N ≈
 ⌈1,380/(27 ×0.7)⌉ ≈ \textbf{74 working hosts} (≈52 at full utilization).
 Combined with prompt/prefix caching (which can eliminate the repeated
 9,200‑token base prompt from the KV per turn), the practical fleet lands
@@ -853,10 +844,13 @@ be re‑run at this fleet size: B\_min = φ·N·D/t\_net = 0.05 × 52--74 ×
 2×B\_min ≈ 10.4--14.8 Gbps exceeds the existing 10 Gbps intra‑rack
 network --- the rack is at/over budget at both ends of the host range.
 Verify φ and D from telemetry and budget ≥20 Gbps per rack, or shard the
-fleet across racks. Monthly GPU‑utilization metrics should run in the
-55--70\% band against the KV‑residency ceiling, and the SLO must be
-validated by a deployment benchmark (\hyperref[chap:14]{Chapter 14}) --- end‑to‑end latency
-including agentic overhead is an ILLUSTRATIVE target until measured.
+fleet across racks. Monthly GPU‑utilization metrics should sit at or
+below the 70\% utilization target against the KV‑residency ceiling ---
+≈68\% at the sizing traffic on the 74‑host end (1,380/(74×27.5)),
+whereas the 52‑host full‑utilization end runs ≈96\% at the same traffic
+and carries no headroom --- and the SLO must be validated by a
+deployment benchmark (\hyperref[chap:14]{Chapter 14}) --- end‑to‑end latency including
+agentic overhead is an ILLUSTRATIVE target until measured.
 
 \textbf{Lesson.} The fleet decision is driven by KV‑residency capacity
 vs.~\textbf{service‑time‑scaled concurrency} (λ·W) --- not by raw rps,
@@ -865,7 +859,7 @@ compute I(T) for the expected turn distribution, (2) derive per‑host
 concurrent capacity C from the \emph{canonical} per‑token KV (2 × layers
 × hidden × bytes), (3) convert peak rps into concurrency via λ·W using
 the \textbf{full service time} (prefill + decode of all generated tokens
-+ per‑turn tool latency), (4) compute H = ⌈λ·W/(C·util\_target)⌉, (5)
++ per‑turn tool latency), (4) compute N = ⌈λ·W/(C·util\_target)⌉, (5)
 apply the cheapest capacity levers first --- KV precision (FP8), prefix
 caching, attention architecture (GQA/MQA) --- before buying hosts, and
 (6) validate throughput and latency with a benchmark, not an assumption.
@@ -878,7 +872,7 @@ doubles.
 \textbf{\hyperref[tab:17.1]{Table 17-1}: Fleet sizing matrix --- KV-residency ceiling and
 minimum hosts (canonical FP16 KV, W = full service time).}
 
-Minimum hosts H = ⌈λ·W / (C·u)⌉ at a 70\% utilization ceiling, where the
+Minimum hosts N = ⌈λ·W / (C·u)⌉ at a 70\% utilization ceiling, where the
 in-flight concurrency \textbf{must} use the full per-request service
 time W --- not a sub-second target latency. Two service times apply: W ≈
 8.6 s for the non-agentic canonical request (1.08 s prefill + 7.5 s
@@ -902,11 +896,11 @@ in-flight @ non-agentic W=8.6s
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 in-flight @ agentic W=13.8s
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=0, FP16 (floor C=17; C×0.7 = 11.9)
+N @ T=0, FP16 (floor C=17; C×0.7 = 11.9)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=3 (95th), FP16 (floor C=13; C×0.7 = 9.1)
+N @ T=3 (95th), FP16 (floor C=13; C×0.7 = 9.1)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-H @ T=3 (95th), FP8 (floor C=27; C×0.7 = 18.9)
+N @ T=3 (95th), FP8 (floor C=27; C×0.7 = 18.9)
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
@@ -936,7 +930,7 @@ whole-sequence slot count (17, 13, 27) before the 0.7 utilization factor
 is applied in the host columns (integer-slot convention); the N−1
 failover row adds one spare host. The 70\% utilization target and the λ,
 W values are ILLUSTRATIVE scenario inputs to be validated by a
-deployment benchmark (\hyperref[chap:14]{Chapter 14}) before committing hardware. H is a
+deployment benchmark (\hyperref[chap:14]{Chapter 14}) before committing hardware. N is a
 KV-residency lower bound --- the true answer is the max of this KV bound
 and the measured throughput bound. \textbf{Planning-bound caveat:} the
 per-host figures that feed this table --- \textbf{\textasciitilde2.0

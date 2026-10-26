@@ -13,8 +13,9 @@ and adjusted post-deployment.
 \ntsection{Concept}\label{concept}
 
 
-The Solution Architect's Toolkit is organized around three axes of
-concern: scalability, reliability, and observability. Rather than
+The Solution Architect's Toolkit answers three concerns --- scalability,
+reliability, and observability --- and is organized as pattern templates
+plus measurement rather than as three separate taxonomies. Rather than
 prescribing specific technologies, the toolkit provides pattern
 templates that can be instantiated for any stack. The Patterns Library
 complements this by cataloging recurring structural solutions ---
@@ -67,7 +68,7 @@ a first-party source is a vendor or paper author's figure, which must be
 re-verified against the current source or re-measured on the architect's
 own hardware before it is treated as a validated deployment result. Note
 that the canonical 70B teaching model is \emph{not} a {[}1P{]} model:
-being constructed (Ch 4, \hyperref[tab:4.3]{Table 4-3}) it carries
+being constructed (Ch 4, \hyperref[tab:4.2]{Table 4-2}) it carries
 {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]}, reserving {[}1P{]} for named,
 traceable first-party specifications.
 
@@ -139,18 +140,18 @@ rather than a ceiling.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Workload fingerprints on the six axes. Provenance note: the six axes are subjective normalized scores (0--1) derived from the canonical scenario's characterized workload (Ch 4), not empirically measured quantities --- the bars are a visualization of the characterization, not a benchmark. The raw inputs (traffic, token profile, SLO, quality, ops, TCO) are the Ch 4 six-axis characterization of the canonical scenario, and the normalization mapping (each axis's 0--1 profile, rescaled to the same intensity scale as the y-axis) is carried in the figure's generator script (render/fig\_ch26\_fingerprint.py); the archetypes are reference points, not measured clusters.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2602.pdf}}
-\caption[Workload fingerprints on the six axes]{Workload fingerprints on the six axes. \textbf{Provenance note:} the six axes are \emph{subjective normalized} scores (0--1) derived from the canonical scenario's characterized workload (Ch 4), not empirically measured quantities --- the bars are a visualization of the characterization, not a benchmark. The raw inputs (traffic, token profile, SLO, quality, ops, TCO) are the Ch 4 six-axis characterization of the canonical scenario, and the normalization mapping (each axis's 0--1 profile, rescaled to the same intensity scale as the y-axis) is carried in the figure's generator script (\texttt{render/fig\_ch26\_fingerprint.py}); the archetypes are reference points, not measured clusters.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Workload fingerprints on the six axes. Provenance note: the six axes are subjective normalized scores (0--1) derived from the canonical scenario's characterized workload (Ch 4), not empirically measured quantities --- the bars are a visualization of the characterization, not a benchmark. The raw inputs (traffic, token profile, SLO, quality, ops, TCO) are the Ch 4 six-axis characterization of the canonical scenario, and each bar is an authored 0--1 intensity score for that family on that axis --- there is no min--max rescaling of measured data. In axis order (context length, traffic, quality required, cost sensitive, latency sensitive, output tokens) the scores are long-context RAG Q\&A 0.95 / 0.20 / 0.70 / 0.55 / 0.40 / 0.45, chat 0.35 / 0.95 / 0.50 / 0.75 / 0.90 / 0.55, batch 0.55 / 0.60 / 0.30 / 0.85 / 0.35 / 0.90 --- the same table is carried in the figure's generator script (render/fig\_ch26\_fingerprint.py); the archetypes are reference points, not measured clusters.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2602.pdf}}
+\caption[Workload fingerprints on the six axes]{Workload fingerprints on the six axes. \textbf{Provenance note:} the six axes are \emph{subjective normalized} scores (0--1) derived from the canonical scenario's characterized workload (Ch 4), not empirically measured quantities --- the bars are a visualization of the characterization, not a benchmark. The raw inputs (traffic, token profile, SLO, quality, ops, TCO) are the Ch 4 six-axis characterization of the canonical scenario, and each bar is an \emph{authored} 0--1 intensity score for that family on that axis --- there is no min--max rescaling of measured data. In axis order (context length, traffic, quality required, cost sensitive, latency sensitive, output tokens) the scores are long-context RAG Q\&A 0.95 / 0.20 / 0.70 / 0.55 / 0.40 / 0.45, chat 0.35 / 0.95 / 0.50 / 0.75 / 0.90 / 0.55, batch 0.55 / 0.60 / 0.30 / 0.85 / 0.35 / 0.90 --- the same table is carried in the figure's generator script (\texttt{render/fig\_ch26\_fingerprint.py}); the archetypes are reference points, not measured clusters.}
 
 \label{fig:26.1}\end{figure}
 
 The \hyperref[chap:4]{Chapter 4} six-axis characterization rendered as a fingerprint. The
-workload families from the §4.1 workload-to-strategy matrix sit in
+workload families from the §26.2.1 workload-to-strategy matrix sit in
 distinct regions: RAG Q\&A is quality- and context-heavy with short
 outputs; chat is traffic- and latency-sensitive with long outputs; batch
 inference is cost-sensitive and latency-tolerant. Reading a new
 workload's fingerprint against this front-end is the first move before
-consulting the §4.1 matrix.
+consulting the §26.2.1 matrix.
 
 \ntsection{Worked Example --- Capstone
 Scenario}\label{worked-example-capstone-scenario}
@@ -177,54 +178,78 @@ established in Parts I--V --- Ch 4's workload, Ch 7/15's KV and memory
 figures, Ch 17's fleet sizing --- recalled here rather than re-derived,
 and this capstone shows how the toolkit's patterns compose them.)
 
-\textbf{Pattern A --- Inference Sharding (FACT: model FLOPs / GPU memory
-per token).} The 70B model at FP16 requires \textasciitilde140 GB of
-weights. Following the canonical setup, one serving host is an 8×H100 80
-GB node, which dedicates \textasciitilde140 GB to weights and leaves the
-rest of the 640 GB pool for KV cache and runtime. With tensor
-parallelism across the 8 H100s, a single host serves the model and can
-hold \textasciitilde17.5 concurrent 9,500-token requests within the
-canonical \textasciitilde436 GB KV budget from \hyperref[chap:15]{Chapter 15}. DERIVED: with
-the 8-way tensor parallelism across the node, decode latency is
+\textbf{Pattern A --- Inference Sharding.} {[}canonical
+scenario{]}{[}FACT{]} --- model FLOPs / GPU memory per token. The 70B
+model at FP16 requires \textasciitilde140 GB of weights
+{[}ILLUSTRATIVE{]}{[}DERIVED{]} --- 70 × 10⁹ parameters × 2 B/parameter
+= 140 GB, the footprint Ch 22 and §25.4 also derive. Following the
+canonical setup, one serving host is an 8×H100 80 GB node, which
+dedicates \textasciitilde140 GB to weights and leaves the rest of the
+640 GB pool for KV cache and runtime. With tensor parallelism across the
+8 H100s, a single host serves the model and can hold \textasciitilde17.5
+concurrent 9,500-token requests within the canonical \textasciitilde436
+GB KV budget from \hyperref[chap:15]{Chapter 15}. {[}canonical scenario{]}{[}DERIVED{]} ---
+with the 8-way tensor parallelism across the node, decode latency is
 bandwidth-bound, so per-token throughput scales with the node's
 aggregate memory bandwidth rather than 8× the single-GPU rate.
-HYPOTHESIS: adding a second host and load-balancing requests across two
-replicas yields \textless{} 5\% additional per-request latency
-improvement because the bottleneck is concurrency/KV residency, not
-per-host throughput.
+{[}canonical scenario{]}{[}HYPOTHESIS{]} --- adding a second host and
+load-balancing requests across two replicas yields \textless{} 5\%
+additional per-request latency improvement because the bottleneck is
+concurrency/KV residency, not per-host throughput.
 
-\textbf{Pattern B --- Semantic Response Cache (ILLUSTRATIVE ASSUMPTION:
-40\% of queries repeat within 5-min windows, a scenario input to be
-measured on real traffic).} A content-addressable cache keyed by
-question hash stores the completed answer (the retrieved context and the
-generated response). DERIVED: cache hit ratio of 40\% reduces the number
-of requests that reach the LLM engine by 40\%, directly lowering
+\textbf{Pattern B --- Semantic Response Cache.}
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} --- 35\% of queries repeat within
+5-min windows (a scenario input to be measured on real traffic). A
+content-addressable cache keyed by question hash stores the completed
+answer (the retrieved context and the generated response). {[}canonical
+scenario{]}{[}DERIVED{]} --- a cache hit ratio of 35\% reduces the
+number of requests that reach the LLM engine by 35\%, directly lowering
 generation compute and operational cost; the embedding/retrieval step is
-also skipped for cache hits. HYPOTHESIS: expanding the cache TTL from 5
-to 15 minutes increases hit ratio to \textasciitilde55\% with negligible
-staleness risk, because user questions in a support session repeat
-within the same session.
+also skipped for cache hits. {[}canonical scenario{]}{[}HYPOTHESIS{]}
+--- expanding the cache TTL from 5 to 15 minutes increases hit ratio to
+\textasciitilde55\% with negligible staleness risk, because user
+questions in a support session repeat within the same session.
 
-\textbf{Pattern C --- Circuit Breaker (ILLUSTRATIVE ASSUMPTION:
-model-service latency p99 degrades past the 800 ms SLO under concurrent
-load; downstream network jitter p99 = 120 ms --- scenario inputs to be
-measured).} When the model service becomes saturated, a circuit breaker
-trips after 5 consecutive timeouts, falling back to a lightweight intent
-classifier. ILLUSTRATIVE SCENARIO RESULT: circuit breaker activation
+\textbf{Pattern C --- Circuit Breaker.}
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} --- model-service latency p99
+degrades past the 800 ms SLO under concurrent load; downstream network
+jitter p99 = 120 ms (scenario inputs to be measured). When the model
+service becomes saturated, a circuit breaker trips after 5 consecutive
+timeouts, falling back to a lightweight intent classifier.
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} --- circuit breaker activation
 reduces tail latency for remaining requests by 35\% because the system
-sheds load before the model queue fills. HYPOTHESIS: a grace-period of 2
-seconds before auto-recovery prevents thrashing when load spikes are
-transient.
+sheds load before the model queue fills. {[}canonical
+scenario{]}{[}HYPOTHESIS{]} --- a grace-period of 2 seconds before
+auto-recovery prevents thrashing when load spikes are transient.
 
 \textbf{Capstone Execution.} The architect instruments all three
 scenario quantities, observes the derived quantities in real time, and
 validates each HYPOTHESIS against measured traffic. The result: one
-8×H100 serving host + 40\% semantic response cache + circuit breaker
-yields an illustrative 680 ms p99 latency at 40\% lower generation cost
-versus an uncached, unsharded baseline (scenario outcome, not a measured
-benchmark). The Pattern-Measurement-Feedback Loop confirms the
+8×H100 serving host + a 35\% semantic response cache + circuit breaker
+yields an illustrative \textbf{p99 TTFT ≈ 250 ms at \textasciitilde48\%
+lower generation cost} versus the \textasciitilde450 ms uncached,
+unsharded baseline --- the single capstone configuration, derived step
+by step in §26.8 and recorded as \hyperref[tab:26.2]{Table 26-2} (scenario outcome, not a
+measured benchmark). The Pattern-Measurement-Feedback Loop confirms the
 hypothesis that caching + load shedding is net positive, and the
 architect documents the configuration as a reusable pattern instance.
+
+\textbf{Alternatives considered.} Two obvious alternatives were rejected
+against the canonical constraints. \emph{Prefix caching alone} reuses
+prefill compute behind an exact-prefix match but still generates the
+answer, so the 35\% repeat population keeps paying full decode --- it
+does not skip the generation the semantic cache skips. \emph{A second
+serving host with load balancing} is rejected because the bottleneck is
+concurrency/KV residency, not per-host throughput: Pattern A's own
+hypothesis puts the gain at \textless{} 5\% per request, so a second
+host doubles the fleet for single-digit improvement. \emph{Deeper
+continuous batching on the single host instead of sharding} raises
+throughput by lengthening the in-flight queue, adding queueing delay
+exactly where the p99 TTFT SLO binds (Ch 8's decode economics; Ch 15's
+congestion check). Sharding + semantic cache + circuit breaker wins
+because it attacks the baseline's own terms --- model compute
+(sharding), the retrieval step (cache hits), and tail queueing (circuit
+breaker) --- that each rejected option leaves in place.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -347,31 +372,39 @@ it.
 \textasciitilde2 rps (within the \textasciitilde2.0 req/s per‑host
 analytical planning ceiling), GPU utilization 45\%, per-query latency
 breakdown for a \emph{baseline} (uncached) request: model compute 320
-ms, I/O 80 ms, cache-miss 50 ms --- the components sum to a
-\textbf{\textasciitilde450 ms baseline TTFT}, which the capstone uses
-directly as the baseline \textbf{p99} scenario value (a scenario input,
-not a derived quantile of a distributed sample; a real baseline p99 must
-come from a measured latency distribution). Note the component values
-are \emph{representative worst-case} estimates for a baseline request,
-and the \textasciitilde450 ms is therefore the baseline TTFT figure used
+ms, I/O 80 ms, retrieval 50 ms --- the RAG retrieval step every request
+pays. The baseline has \textbf{no cache installed}, so there is no
+cache-\emph{miss} path in it; the 50 ms is plain retrieval, and Pattern
+B's hit path later covers the same ground (retrieval + lookup) without
+the engine. These components sum to a \textbf{\textasciitilde450 ms
+baseline TTFT}, which the capstone uses directly as the baseline
+\textbf{p99} scenario value (a scenario input, not a derived quantile of
+a distributed sample; a real baseline p99 must come from a measured
+latency distribution). Note the component values are
+\emph{representative worst-case} estimates for a baseline request, and
+the \textasciitilde450 ms is therefore the baseline TTFT figure used
 throughout; the per-query values are not a p99 of a separate measured
-distribution.
+distribution. Because the 50 ms retrieval term is part of the baseline,
+the headline \textbf{−44\%} is measured against the full 450 ms path;
+excluding that term entirely (a 400 ms baseline) would report (400 −
+250) / 400 = \textbf{37.5\%} instead.
 
 \textbf{Step 2 --- Pattern Apply.} The architect applies Pattern A
 (inference sharding across an 8×H100 node) and Pattern B (semantic
-response cache with 5-min TTL). DERIVED: sharding distributes the model
-across the node so decode lands in the bandwidth-bound regime; cache hit
-ratio 35\% reduces the number of requests that reach the model engine
-from \textasciitilde2.0 rps to \textasciitilde1.3 rps (2.0 × (1 − 0.35)
-= 1.3). The TTFT and cost figures below are \emph{scenario estimates}
-for this illustrative configuration, not measured values. \textbf{A
-weighted average of component latency values is a mean, not a quantile,
-so the capstone separates the two.} Under the transparent two-point
-model --- a cache hit returns at a fixed \textasciitilde50 ms (retrieval
-+ cache lookup, no LLM prefill), and a cache miss is served by the
-engine at \textasciitilde250 ms (a scenario value after the 35\% lower
-arrival rate has settled the prefill queue) --- the pooled latency has
-the CDF \(F(50)=0.35\), \(F(250)=1.0\). Its \textbf{mean} is
+response cache with 5-min TTL). {[}canonical scenario{]}{[}DERIVED{]}
+--- sharding distributes the model across the node so decode lands in
+the bandwidth-bound regime; cache hit ratio 35\% reduces the number of
+requests that reach the model engine from \textasciitilde2.0 rps to
+\textasciitilde1.3 rps (2.0 × (1 − 0.35) = 1.3). The TTFT and cost
+figures below are \emph{scenario estimates} for this illustrative
+configuration, not measured values. \textbf{A weighted average of
+component latency values is a mean, not a quantile, so the capstone
+separates the two.} Under the transparent two-point model --- a cache
+hit returns at a fixed \textasciitilde50 ms (retrieval + cache lookup,
+no LLM prefill), and a cache miss is served by the engine at
+\textasciitilde250 ms (a scenario value after the 35\% lower arrival
+rate has settled the prefill queue) --- the pooled latency has the CDF
+\(F(50)=0.35\), \(F(250)=1.0\). Its \textbf{mean} is
 \(0.35\times50 + 0.65\times250 = 180\) ms, but its \textbf{p99 is 250
 ms} (because the 0.99 quantile falls in the miss population:
 \(0.35 < 0.99 \le 1.0\)). So \textbf{mean TTFT ≈ 180 ms}. \textbf{p99
@@ -392,12 +425,13 @@ independent --- they compound on the same request path, so they must not
 be added as if separable. The reproducible two-point model that yields
 these numbers is \texttt{render/capstone\_calc.py}.
 
-\textbf{Step 3 --- Validate.} HYPOTHESIS: ``sharding + caching will keep
-TTFT p99 \textless{} 300 ms at 3× user growth.'' Suppose a staged load
-test at 3,000 users reports TTFT p99 = 285 ms and cost per query down
-48\% --- in this scenario these are illustrative values to show how a
-hypothesis is tested, not a real experiment the book ran. The hypothesis
-is accepted only on a genuine load test's numbers.
+\textbf{Step 3 --- Validate.} {[}canonical scenario{]}{[}HYPOTHESIS{]}
+--- ``sharding + caching will keep TTFT p99 \textless{} 300 ms at 3×
+user growth.'' Suppose a staged load test at 3,000 users reports TTFT
+p99 = 285 ms and cost per query down 48\% --- in this scenario these are
+illustrative values to show how a hypothesis is tested, not a real
+experiment the book ran. The hypothesis is accepted only on a genuine
+load test's numbers.
 
 \textbf{Step 4 --- Document.} The pattern instance --- 8×H100 shard +
 semantic response cache + circuit breaker with 2-s grace period --- is
@@ -431,30 +465,33 @@ Semantic Response Cache & LRU, TTL 5 min & hit ratio \textgreater{} 30\%
 & 35\% \\
 Circuit Breaker & trip after 5 timeouts, 2s grace & fallback rate
 \textless{} 10\% & 7\% \\
-Cost & \$ per query & \textless{} \$0.015 & \$0.009 \\
+Cost & \$ per query & \textless{} \$0.015 & \$0.003 \\
 
 \label{tab:26.3}\end{longtable}
 
-\emph{The \$0.009/query is this capstone scenario's DERIVED per-query
-cost at the 35\% semantic-cache hit ratio (35\% of queries served from
-cache at near-zero marginal cost, 65\% at the sharded self-host rate).
-It is a scenario value, not the canonical \$0.0057/1K (Ch 16) or the
-hosted-API \$0.012/1K (Ch 4) --- the capstone's 3,000-user, 35\%-cache
-configuration is a distinct illustrative scenario, as §26.3 states.
-\textbf{Provenance note: the ``Modeled example'' column is a worked-out
-illustrative instance, not gathered telemetry.} The values in it (68\%
-GPU util, 35\% hit ratio, 7\% fallback, \$0.009/query) are scenario
-outputs chosen to illustrate how the pattern library is applied and
-validated; they are \emph{not} FACTs measured on a deployed system. In a
-real deployment, each value must come from a recorded load test (a
-genuine FACT target), and the warning that it is not-yet-measured must
-be carried into the same cell. Use a blank instrumentation template to
-record the real FACTs separately.}
+\emph{The \$0.003/query is this capstone scenario's DERIVED per-query
+cost at the 35\% semantic-cache hit ratio, computed from the canonical
+self-host rate: \$0.0057/request (\$5.7 per 1,000 requests, Ch 16) ×
+0.65 (the 65\% of queries that still reach the engine) × 0.80 (the
+\textasciitilde20\% lower per-token cost of the sharded engine) ≈
+\$0.003/request --- the same 0.52 cost fraction as the §26.8 −48\%
+decomposition. For a different basis, the hosted-API cost is
+\$0.012/request (≈\$11.6 per 1,000 requests, Ch 4); per Ch 4's basis
+note, the two cost bases are not interchangeable. \textbf{Provenance
+note: the ``Modeled example'' column is a worked-out illustrative
+instance, not gathered telemetry.} The values in it (68\% GPU util, 35\%
+hit ratio, 7\% fallback, \$0.003/query) are scenario outputs chosen to
+illustrate how the pattern library is applied and validated; they are
+\emph{not} FACTs measured on a deployed system. In a real deployment,
+each value must come from a recorded load test (a genuine FACT target),
+and the warning that it is not-yet-measured must be carried into the
+same cell. Use a blank instrumentation template to record the real FACTs
+separately.}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone scenario, closing on FACT → DERIVED → PATTERN. Takeaway: the three patterns compose to mean TTFT \textasciitilde180 ms and p99 TTFT \textasciitilde250 ms (−44\% vs the \textasciitilde450 ms uncached baseline, not a blended average) at \textasciitilde48\% lower generation cost per query. Scope: full arithmetic in §26.3; a weighted average of component latencies is a mean, not a quantile --- under the hit-50 ms / miss-250 ms model p99 = 250 ms. Keyed note: the \textasciitilde48\% excludes a separately-priced retrieval-skip saving (earlier \textasciitilde55\%); the Pattern-B config (§26.2, 40\% cache, \textasciitilde680 ms) is a distinct scenario.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2601.pdf}}
-\caption[Pattern Application Diagram]{Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone scenario, closing on FACT → DERIVED → PATTERN. \textbf{Takeaway:} the three patterns compose to mean TTFT \textasciitilde180 ms and p99 TTFT \textasciitilde250 ms (−44\% vs the \textasciitilde450 ms uncached baseline, not a blended average) at \textasciitilde48\% lower generation cost per query. \textbf{Scope:} full arithmetic in §26.3; a weighted average of component latencies is a \textbf{mean, not a quantile} --- under the hit-50 ms / miss-250 ms model p99 = 250 ms. \textbf{Keyed note:} the \textasciitilde48\% excludes a separately-priced retrieval-skip saving (earlier \textasciitilde55\%); the Pattern-B config (§26.2, 40\% cache, \textasciitilde680 ms) is a distinct scenario.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone scenario, closing on FACT → DERIVED → PATTERN. Takeaway: the three patterns compose to mean TTFT \textasciitilde180 ms and p99 TTFT \textasciitilde250 ms (−44\% vs the \textasciitilde450 ms uncached baseline, not a blended average) at \textasciitilde48\% lower generation cost per query. Scope: full arithmetic in §26.8; a weighted average of component latencies is a mean, not a quantile --- under the hit-50 ms / miss-250 ms model p99 = 250 ms. Keyed note: the \textasciitilde48\% excludes a separately-priced retrieval-skip saving (earlier \textasciitilde55\%); the capstone runs one configuration --- 35\% cache, p99 TTFT \textasciitilde250 ms --- stated identically in §26.3, §26.8, and \hyperref[tab:26.2]{Table 26-2}. conceptual},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2601.pdf}}
+\caption[Pattern Application Diagram]{Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone scenario, closing on FACT → DERIVED → PATTERN. \textbf{Takeaway:} the three patterns compose to mean TTFT \textasciitilde180 ms and p99 TTFT \textasciitilde250 ms (−44\% vs the \textasciitilde450 ms uncached baseline, not a blended average) at \textasciitilde48\% lower generation cost per query. \textbf{Scope:} full arithmetic in §26.8; a weighted average of component latencies is a \textbf{mean, not a quantile} --- under the hit-50 ms / miss-250 ms model p99 = 250 ms. \textbf{Keyed note:} the \textasciitilde48\% excludes a separately-priced retrieval-skip saving (earlier \textasciitilde55\%); the capstone runs one configuration --- 35\% cache, p99 TTFT \textasciitilde250 ms --- stated identically in §26.3, §26.8, and \hyperref[tab:26.2]{Table 26-2}. conceptual}
 
 \label{fig:26.2}\end{figure}
 
