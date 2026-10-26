@@ -184,6 +184,41 @@ def fix_urls(tex_path):
     return False
 
 
+def bind_figure_descriptions(tex_path):
+    """Move the italic description paragraph that follows a figure float into
+    the float, so caption + figure + description stay on the same page.
+
+    Pandoc emits each image as \\begin{figure}...\\caption...\\end{figure} and
+    the description paragraph that follows it in the .md as a separate
+    \\emph{...} paragraph in the main text flow. Because the figure is a float
+    and the description is not, the float can advance to the next page while
+    the description stays behind (Loop-2/3 finding: 'every figure's trailing
+    italic description lands on the page before its figure'). Binding the
+    description inside the figure environment (after the \\label) keeps the two
+    together, since the whole float then moves as one unit.
+
+    Heuristic: after each \\end{figure}, if the immediately following text is a
+    single \\emph{...} paragraph, move it inside, before \\end{figure}. Only do
+    this for a leading-\\emph block (the .md description convention); ordinary
+    narrative paragraphs that happen to follow a figure are left in the text.
+    """
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    # Pattern: an \\end{figure} followed by an \\emph{...} paragraph, with any
+    # number of blank lines between. Capture the description body.
+    pat = _re.compile(
+        r"(\\end\{figure\})\s*\n(\s*\\emph\{((?:[^{}]|\{[^{}]*\})*)\}\s*\n)"
+    )
+    def repl(m):
+        endfig, emphpack, emphbody = m.groups()
+        # Insert the description inside the float, right before \\end{figure}.
+        return f"\\emph{{{emphbody}}}\n\n{endfig}"
+    new, n = pat.subn(repl, tex)
+    if n:
+        open(tex_path, "w", encoding="utf-8").write(new)
+    return n
+
+
 def short_title(full):
     """Derive a concise navigational title from a (possibly long) figure caption.
 
@@ -568,6 +603,7 @@ def convert(mapping):
         fix_urls(out)
         fix_crossrefs(out, n)
         fix_captions(out)
+        bind_figure_descriptions(out)
         fix_minicase_toc(out)
         built[n] = (chapters[n]["title"], out)
     return built
