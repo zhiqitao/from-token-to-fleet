@@ -81,6 +81,9 @@ The architect generates three candidates using the method from §12.3. Candidate
 The architect does **not** discard Candidate (c) by parameter counting alone: it is provisionally moved to the quality-gate evaluation (Chapter 14) to measure whether a 7B-class model actually meets the workload's capability/quality threshold on its evaluation set. Its memory and economics are trivially favorable; its fate turns on that measured gate. Because candidate (c) is strongly suspected to fail the quality gate **[HYPOTHESIS]**, it is not a finalist; the finalists are Candidates (a) and (b), and the near-term decision falls between them. The decision between Candidates (a) and (b) hinges on whether the doubled hardware cost of Candidate (b) is justified by its operational flexibility (e.g., independent scaling of prefill and decode pools, fault isolation). The architect presents both candidates, together with the honest throughput arithmetic of Chapter 8 (no canonical single host meets the full prefill demand alone), to the stakeholder as the decision foundation.
 
 * * *
+
+Fig 12.1 draws the synthesis: three conditional candidates, each with its own open gate.
+
 ![Fig 12.1 — Candidate architecture synthesis, constraint-first: three **conditional candidates**, each with its own open validation gate (not a settled verdict), all tested against the same MEM/THR/QUAL gates (memory fit · throughput at the SLO · quality). **Scope:** canonical workload (~2,000 users, ~10/40 rps, 9.2K-in/300-out); per-candidate verdicts in Table 12-1 / §12.3. [ILLUSTRATIVE conceptual] — no candidate is deployment-validated; each must measure its gate (throughput for a/b, quality for c) at the target load (Chs. 14–17).](figures/fig-12-1201.png)
 
 ### Table 12-1 — Candidate architectures scored against the three gates (memory fit · throughput at the SLO · quality)

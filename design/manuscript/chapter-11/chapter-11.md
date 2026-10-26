@@ -73,7 +73,7 @@ The RAG request's 8K retrieved-context tokens are largely shared across queries 
 
 ### When to Disaggregate: Prefill and Decode Want Different Pools
 
-Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (the whole-model weight-read rate of ~5.6 TB/s if served by one device vs 3.35 TB/s per GPU; under the canonical 8×H100 host it is sharded to ~0.70 TB/s per GPU, and the shard-invariant cause is the low ~1.0 FLOP/byte intensity, Ch 6) [1P][DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported >525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
+Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (the whole-model weight-read rate of ~5.6 TB/s if served by one device vs 3.35 TB/s per GPU; under the canonical 8×H100 host it is sharded to ~0.70 TB/s per GPU, and the shard-invariant cause is the low ~1.0 FLOP/byte intensity, Ch 6) [1P][DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported up to 525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
 
 #### Table 11-1 — Serving techniques at a glance
 
@@ -82,7 +82,7 @@ Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS 
 | Discrete batching | Lock batch to completion | — (wastes) | baseline only | — |
 | Continuous batching (Orca) | Admit/evict at each decode step | compute+bandwidth util | high concurrency | [S1][1P] |
 | PagedAttention / vLLM | Block-based KV pages | memory capacity | many concurrent requests | [S2][1P] |
-| Prefix caching (RadixAttention/APC) | Cache shared-prefix KV | prefill FLOPs + memory | repeated-context RAG | [S3][1P] |
+| Prefix caching (RadixAttention/APC) | Cache shared-prefix KV | prefill FLOPs + memory | repeated-context RAG | [S3][1P] |
 | P/D disaggregation | Split prefill/decode pools + KV transfer | both at scale | workload outgrows a node | [S4][1P] |
 
 ## 4. Measurement
