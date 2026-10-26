@@ -47,7 +47,7 @@ Three realistic options, each with documented properties:
 
 [HYPOTHESIS]: *within a given embedding family or a controlled dimensionality experiment*, reducing the embedding dimension may trade retrieval quality for lower storage and compute — e.g. a 384‑dim variant of the same model family can cost roughly half the FLOPs and index storage of a 768‑dim one. **Dimension alone is not a cross‑model quality metric**: a 1024‑dim embedding model is not intrinsically better than a 768‑dim one merely because its vector has more dimensions; retrieval quality depends on model architecture, training objective/data, corpus/query distribution, normalization, and retrieval strategy. Any observed quality‑vs‑dimension relationship (reports range from a few to ~15% MAP difference) is domain‑ and corpus‑specific and must be validated on the target corpus.
 
-[ILLUSTRATIVE][DERIVED]: for a 1 M‑chunk corpus (a Ch 5‑local illustrative input, not part of Table 4‑3), the index storage for a $D$‑dim float32 vector corpus is $\text{bytes} = n_\text{chunks} \times D \times 4$. For 768‑dim: $1{\times}10^6 \times 768 \times 4 = 3.07$ GB; for 384‑dim: $1{\times}10^6 \times 384 \times 4 = 1.54$ GB; a difference of ~1.5 GB. At 10× the corpus (10 M chunks), that difference grows to ~15 GB. Small relative to a 140 GB base model, but not negligible at large corpus scale: storage is a persistent footprint that scales with corpus size, not a one‑time cost that vanishes.
+[ILLUSTRATIVE][DERIVED]: for a 1 M‑chunk corpus (a Ch 5‑local illustrative input, not part of Table 4‑2), the index storage for a $D$‑dim float32 vector corpus is $\text{bytes} = n_\text{chunks} \times D \times 4$. For 768‑dim: $1{\times}10^6 \times 768 \times 4 = 3.07$ GB; for 384‑dim: $1{\times}10^6 \times 384 \times 4 = 1.54$ GB; a difference of ~1.5 GB. At 10× the corpus (10 M chunks), that difference grows to ~15 GB. Small relative to a 140 GB base model, but not negligible at large corpus scale: storage is a persistent footprint that scales with corpus size, not a one‑time cost that vanishes.
 
 [HYPOTHESIS]: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2×FLOP cost — a workload‑specific tradeoff, not a universal rule.
 
@@ -152,7 +152,7 @@ This consequence feeds directly into the fine-tuning-for-specific-workloads patt
 
 [HYPOTHESIS]: guardrail latency (PII redaction, refusal checking) on generated 300‑token outputs, ~2–8 ms/request on CPU in the illustrative scenario; measure on the target stack (the figure depends on the guardrail implementation and hardware).
 
-Each of these flags is an open empirical question a team should resolve against its own target workload — promoted to [1P][DERIVED] or [2°][DERIVED], dropped, or demoted into the "What We Still Don't Know" section — rather than left as an untested assumption.
+Each of these flags is an open empirical question a team should resolve against its own target workload — resolved by measurement into [1P][FACT] or [2°][FACT], promoted to [1P][DERIVED] or [2°][DERIVED] where the resolution is arithmetic, or dropped — rather than left as an untested assumption.
 
 ## 8. End-of-Chapter Mini-Case: Choosing the Model for the Enterprise Q&A
 
