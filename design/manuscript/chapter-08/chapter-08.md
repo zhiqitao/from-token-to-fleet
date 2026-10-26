@@ -28,7 +28,7 @@ FLOPs are like the distance a car can travel on a gallon of fuel: it tells us th
 
 The canonical scenario (Ch 4, Table 4-3) is an enterprise Q&A system: the canonical 80-layer, hidden-8192, full-MHA 70B reference (a 70B-class dense model), FP16 weights (~140 GB), 1 host with 8×H100-class GPUs (80 GB each), average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
 
-*Scope.* "1 host with 8×H100" here is a **per-host / per-request** feasibility container (does one host meet one request's latency and memory SLO). It is **not** a claim that one host absorbs the 40 rps peak arrival rate — as Ch 17 derives, that peak puts in-flight concurrency λ·W ≈ 344 at the ~8.6 s service time, far above one host's KV-residency ceiling (C ≈ 17.5, conservative integer floor 17), so the *fleet* needs ~20 hosts. The compute/roofline arithmetic of this chapter answers the per-request and per-host-shard question; the fleet question is a separate multiplication that Ch 16–17 performs. We keep them distinct because each requires measuring against a different quantity (a latency budget vs an arrival rate).
+*Scope.* "1 host with 8×H100" here is a **per-host / per-request** feasibility container (does one host meet one request's latency and memory SLO). It is **not** a claim that one host absorbs the 40 rps peak arrival rate — as Ch 17 derives, that peak puts in-flight concurrency λ·W ≈ 344 at the ~8.6 s service time, far above one host's KV-residency ceiling (C ≈ 17.5, conservative integer floor 17), so the *fleet* needs ~20 hosts. The compute/roofline arithmetic of this chapter answers the per-request and per-host-shard question; the fleet question is a separate multiplication that Ch 17 performs (with the cost basis in Ch 16). We keep them distinct because each requires measuring against a different quantity (a latency budget vs an arrival rate).
 
 ### FLOPs per token
 
@@ -62,7 +62,7 @@ $$
 
 [DERIVED]
 
-**Table 8-1** — Per-token FLOP cost and prefill PFLOP for the canonical 70B workload. *(Per-token FLOP and prefill PFLOP computations are [ILLUSTRATIVE][DERIVED] from 2 × params × tokens; hardware peaks [1P: vendor datasheet] or [1P][FACT]; the 30–40% MFU range is [2°: industry benchmarks]; the ~295 FLOP/byte ridge is [2°][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s.)*
+**Table 8-1** — Per-token FLOP cost, prefill PFLOP, and the derived prefill and roofline rates for the canonical 70B workload. *(Per-token FLOP and prefill PFLOP computations are [ILLUSTRATIVE][DERIVED] from 2 × params × tokens; hardware peaks [1P: vendor datasheet] or [1P][FACT]; the 30–40% MFU range is [2°: industry benchmarks]; the ~295 FLOP/byte ridge is [2°][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s.)*
 
 | metric | value | derivation |
 |---|---|---|
@@ -76,11 +76,11 @@ $$
 | H100 ridge point (dense FP16) | ~295 FLOP/byte | 989 ÷ 3.35 [DERIVED: peak TFLOPS ÷ HBM bandwidth] |
 
 *All figures trace to the canonical scenario (Ch 4, Table 4-3) and validated sources; none are measurement claims.*
-This is the prefill compute demand. An 8×H100 node can sustain some fraction of this at MFU (mixed-precision FLOP utilization), which we estimate next.
+This is the prefill compute demand. An 8×H100 node can sustain some fraction of this at MFU (model FLOPs utilization), which we estimate next.
 
 ### Sustained vs. peak: H100 MFU
 
-NVIDIA H100 SXM5 lists ~1,979 TFLOPS FP16 Tensor Core peak "with sparsity" and ~989 TFLOPS FP16 peak without sparsity [1P: NVIDIA H100 datasheet]. In practice, sustained mixed-precision FLOP utilization (MFU) for a well-tuned transformer workload typically runs at 30–40% of peak on H100 [2°: industry benchmark reports, derived from real kernel profiles]. At 35% MFU:
+NVIDIA H100 SXM5 lists ~1,979 TFLOPS FP16 Tensor Core peak "with sparsity" and ~989 TFLOPS FP16 peak without sparsity [1P: NVIDIA H100 datasheet]. In practice, sustained model FLOPs utilization (MFU) for a well-tuned transformer workload typically runs at 30–40% of peak on H100 [2°: industry benchmark reports, derived from real kernel profiles]. At 35% MFU:
 
 $$
 \text{sustained} = \text{peak} \times \text{MFU} = 989 \text{ TFLOPS} \times 0.35 \approx 346 \text{ TFLOPS}
@@ -114,7 +114,7 @@ $$
 
 [DERIVED: token demand ÷ per-host prefill throughput; **idealized aggregate**]
 
-At the peak 40 rps (368,000 tokens/s) the same arithmetic gives ~18.6 → **~19–20 hosts**. This aligns — independently — with the KV-residency / Little's-Law fleet sizing derived in Chapters 15–20 (~20 hosts at peak), which is a useful cross-check that the two fundamentally different constraints (prefill FLOP throughput vs. KV residency/service time) point at the same order of fleet.
+At the peak 40 rps (368,000 tokens/s) the same arithmetic gives ~18.6 → **~19–20 hosts**. This aligns — independently — with the KV-residency / Little's-Law fleet sizing derived in Chapter 17, with the cost basis in Chapter 16 (~20 hosts at peak), which is a useful cross-check that the two fundamentally different constraints (prefill FLOP throughput vs. KV residency/service time) point at the same order of fleet.
 
 **Honest boundary on both numbers.** The per-GPU `2,471 tokens/s` is itself an *analytical* figure at an assumed 35% MFU — not a measured throughput. The `8×` aggregate (`~19,800`/host) is a **theoretical first-order estimate** that assumes perfect tensor-parallel scaleout: it does **not** account for TP communication, per-rank load imbalance, kernel inefficiency under a given batch, or scheduling/system overhead. It is an upper-bound analysis value, not a servable goodput. Actual reachable prefill throughput must come from benchmark goodput under the target workload (Chapter 14). Treat both numbers as scope-disciplined *models*, never as measured capacity.
 
@@ -128,6 +128,8 @@ This rough sizing illustrates that prefill is FLOP-bound at this scale — the c
 
 <!-- Figure spec: mechanism-first roofline diagram; arithmetic intensity on x-axis, achievable FLOP/s on y-axis, ridge line where FLOP-bound meets byte-bound; label the prefill and decode operating points. -->
 
+*Reading the roofline (summary of Fig 8.2): the dense-FP16 ridge at ~295 FLOP/byte (H100: 989 TFLOPS ÷ 3.35 TB/s) separates the compute-bound region (right) from the memory-bound region (left). Prefill sits far above the ridge — its arithmetic intensity is set by the sequence length (weights read once, reused across all tokens), so it is compute-bound; decode at batch=1 sits at the far left of the chart (~1 FLOP/byte, ~295× below the ridge) and is memory-bound. Batching and quantization shift kernels rightward toward the ridge; the distinction between the two phases is the single most important reading of this chart.*
+
 For decode, the per-token FLOP cost is the same ~140 GFLOP, but the arithmetic intensity drops sharply. Each decoded token re-reads all 70B weights from HBM (a **batch-1-equivalent** weight-streaming read). A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB — one full pass reads **140 GB** (batch-1-equivalent), not 280 GB. (The naïve “2 ×70 ×10⁹ × 2 B ≈ 280 GB” double-counts the FP16 footprint: the leading “2” is already inside the 2-bytes-per-element, so writing 2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any KV/output-projection reads are a separate, smaller term on top, not a second full weight footprint.) The effective arithmetic intensity is therefore:
 
 $$
@@ -136,7 +138,7 @@ $$
 
 [DERIVED; a lower-bound bandwidth model — real kernels also read activations and KV, so measured intensity is typically below this and heavily dependent on fusion and cache residency]
 
-This is well below the H100 dense-FP16 ridge of ~295 FLOP/byte, meaning single-stream decode is overwhelmingly memory-bandwidth-bound. Throughput improves with batching because the weight-reread amortizes across tokens — at batch=32, the effective intensity rises toward the ridge, and TFLOP/s utilization increases accordingly. This is why continuous-batching systems (Orca, vLLM) prioritize batch growth: it is the primary lever for pushing decode arithmetic intensity toward the ridge.
+This is well below the H100 dense-FP16 ridge of ~295 FLOP/byte, meaning single-stream decode is overwhelmingly memory-bandwidth-bound. Throughput improves with batching because the weight-reread amortizes across tokens — decode intensity ≈ batch size, so at batch=32 the effective intensity is ~32 FLOP/byte, still ~9× below the 295 ridge (compute-bound decode needs batch ≈ 295, or quantized weights, which halve bytes and double intensity), and TFLOP/s utilization increases accordingly. This is why continuous-batching systems (Orca, vLLM) prioritize batch growth: it is the primary lever for pushing decode arithmetic intensity toward the ridge.
 
 *Scope note on the single-device roofline here:* the 140 GB weight-read and the per-GPU ~3.35 TB/s HBM bandwidth are single-GPU quantities, so the ~1.0 FLOP/byte intensity and the "memory-bandwidth-bound" label above are a *per-kernel / single-device roofline* argument. It is **not** a verdict on the canonical 8×H100 host's actual bandwidth adequacy — under tensor parallelism the 140 GB weight matrix is sharded across GPUs, so each GPU streams only its own shard (~0.70 TB/s against its own ~3.35 TB/s, Ch 6). The classification (low-batch decode is bandwidth-bound) is shard-invariant because it follows from the low arithmetic intensity, not from the aggregate weight-read rate exceeding one GPU's bandwidth.
 
@@ -168,9 +170,9 @@ The compute arithmetic and roofline have direct consequences for system design:
 
 - **If prefill is FLOP-bound** (as it is for 70B+ models with long contexts), the primary optimization is batching — larger prefill batches do **not** remove the per-request attention work (each sequence still has its own attention computation); they *improve accelerator utilization* by forming larger matrix operations, amortizing weight and execution overhead across requests, and raising achieved FLOP/s. The relevant lever is the achieved efficiency (MFU) of the prefill kernel, not a change to the per-request FLOP count. System design should therefore provision for batchable prefill (continuous batching, Orca, vLLM continuous batching) as the first-order throughput lever.
 
-- **If decode is memory-bound** (single-stream, low batch), the primary optimization is batching — even modest batch sizes (8–16) raise arithmetic intensity toward the ridge, improving TFLOP/s utilization. KV cache quantization (FP8, int8) also reduces bytes per token, raising effective intensity. P/D disaggregation (prefill on GPUs, decode on a separate pool) can rebalance: prefill’s FLOP demand is served by compute-optimized GPUs, while decode’s bandwidth demand is served by wide-memory GPUs or even CPU offload.
+- **If decode is memory-bound** (single-stream, low batch), the primary optimization is batching — decode arithmetic intensity ≈ batch size, so even modest batch sizes (8–16) raise it to ~8–16 FLOP/byte (batch 16 → ~16, still ~18× below the 295 ridge), improving TFLOP/s utilization without reaching compute-bound; compute-bound decode needs batch ≈ 295, or quantized weights, which halve bytes and double intensity. KV cache quantization (FP8, int8) also reduces bytes per token, raising effective intensity. P/D disaggregation (prefill on GPUs, decode on a separate pool) can rebalance: prefill’s FLOP demand is served by compute-optimized GPUs, while decode’s bandwidth demand is served by wide-memory GPUs or even CPU offload.
 
-- **If the ridge point is exceeded** (e.g. H200 with 4.8 TB/s HBM3e and ~1.98 PFLOPS *dense* FP8 — not the sparsity-inclusive ~4 PFLOPS, which this book never uses as a baseline (§8.5) — giving a ~412 FLOP/byte ridge in FP8), the same workload may shift from memory-bound to compute-bound, changing the optimal hardware choice. This is why the H200 represents an inflection point where inference and training hardware lines begin to converge [1P: NVIDIA H200 SXM datasheet].
+- **If the workload's intensity crosses the hardware ridge** (e.g. a workload at ~250 FLOP/byte is memory-bound on H100's ~295 ridge but compute-bound on H200, whose FP16 ridge is ~206 FLOP/byte — 989 TFLOPS ÷ 4.8 TB/s — from its higher HBM3e bandwidth), the same workload may shift from memory-bound to compute-bound, changing the optimal hardware choice. The shift comes from the *lower* ridge, not from precision: a higher ridge moves the boundary right and makes compute-bound harder (H200's ~412 FLOP/byte ridge in *dense* FP8 — ~1.98 PFLOPS ÷ 4.8 TB/s, never the sparsity-inclusive ~4 PFLOPS (§8.5) — would do the opposite), and precision scaling moves intensity and ridge together (bytes halve → intensity doubles; peak doubles → ridge doubles), so FP8 alone does not change the classification. This is why the H200 represents an inflection point where inference and training hardware lines begin to converge [1P: NVIDIA H200 SXM datasheet].
 
 In practice, the architect measures arithmetic intensity for the target workload and precision, locates the kernel on the roofline chart, and then selects hardware and batching strategy accordingly. The roofline is the diagnostic; the architecture decision follows.
 
@@ -204,7 +206,5 @@ The architect measures MFU to choose among these. If the prefill kernel is runni
 The recommendation is therefore: profile first (MEASURE, do not assume), and only then pick the intervention. Batching helps when prefill is occupancy-limited; kernel fusion helps when GEMMs are under-saturated; attention-term control and disaggregation help when the bottleneck is the quadratic attention term or the compute/bandwidth mismatch between phases. The workload's true roofline position, not an assumed "memory-bound prefill," dictates the fix.
 
 ***
-
-*Reading the roofline (summary of Fig 8.2): the dense-FP16 ridge at ~295 FLOP/byte (H100: 989 TFLOPS ÷ 3.35 TB/s) separates the compute-bound region (right) from the memory-bound region (left). Prefill sits far above the ridge — its arithmetic intensity is set by the sequence length (weights read once, reused across all tokens), so it is compute-bound; decode at batch=1 sits just below the ridge (~1 FLOP/byte) and is memory-bound. Batching and quantization shift kernels rightward toward the ridge; the distinction between the two phases is the single most important reading of this chart.*
 
 *Prefill PFLOP also grows with context: 2 ×70B × L tokens, from 2K to 32K. This is the one-time compute cost of loading a long context; sustained throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point it is ~1.29 PFLOP (Table 8-1).*

@@ -13,7 +13,7 @@ The residency floor has two distinct regimes. For inference, the floor is weight
 We keep two terms rigidly distinct in this chapter, and the distinction is the antidote to "does it fit?" mistakes:
 
 - **Residency floor** = weights + KV. This is the minimum memory the model's parameters and active KV tensors must *occupy* for a single request. It is what the numbers in this chapter quote (~140 GB weights + ~24.9 GB KV ≈ 165 GB at 9.5K max).
-- **Practical host requirement** = weights + KV + runtime/workspace + safety margin. Deploying a model on a GPU requires additional VRAM for CUDA kernels, activation buffers, NCCL communication, a warmup/KV-allocation safety pool, and (on a multi-GPU host) tensor- or pipeline-parallel copies. On the canonical 8×H100 host this runtime/workspace term is ~64 GB, turning the ~165 GB residency floor into a larger *deployment* footprint. [ILLUSTRATIVE][ASSUMPTION] The ~64 GB is a planning reserve, not a measured constant; a representative split is ~8 GB CUDA context/driver + ~16 GB activation buffers (batch + intermediate tensors) + ~8 GB NCCL communication buffers (tensor-parallel all-reduce staging) + ~32 GB warmup/KV-allocation safety pool. The exact value must come from a deployment benchmark on the target stack (Chapter 14); the 436 GB KV budget (640 − 140 − 64) shifts by the same amount if the measured reserve differs.
+- **Practical host requirement** = weights + KV + runtime/workspace + safety margin. Deploying a model on a GPU requires additional VRAM for CUDA kernels, activation buffers, NCCL (NVIDIA Collective Communications Library) communication, a warmup/KV-allocation safety pool, and (on a multi-GPU host) tensor- or pipeline-parallel copies. On the canonical 8×H100 host this runtime/workspace term is ~64 GB, turning the ~165 GB residency floor into a larger *deployment* footprint. [ILLUSTRATIVE][ASSUMPTION] The ~64 GB is a planning reserve, not a measured constant; a representative split is ~8 GB CUDA context/driver + ~16 GB activation buffers (batch + intermediate tensors) + ~8 GB NCCL communication buffers (tensor-parallel all-reduce staging) + ~32 GB warmup/KV-allocation safety pool. The exact value must come from a deployment benchmark on the target stack (Chapter 14); the 436 GB KV budget (640 − 140 − 64) shifts by the same amount if the measured reserve differs.
 
 When the text says a workload "fits" or "does not fit," we are always talking about the residency floor first; the practical host requirement is a superset that must be checked before committing hardware. Conflating the two is exactly what produces a "165 GB fits in 160 GB" error.
 
@@ -23,7 +23,7 @@ The KV cache is **per-request state that persists across autoregressive decode s
 
 ## 3. Worked Example
 
-We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **canonical 80-layer, hidden-8192, full-MHA 70B reference model** (every query head carries its own K,V, so the per-token KV width equals the model's hidden dimension), FP16 weights (2 bytes per parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV cache size per token, total KV for the canonical context, and contrast with long-context variants. The per-token formula is general — KV/token = 2 × layers × n_KV-heads × head_dim × bytes — and the full-MHA special case (n_KV-heads × head_dim = hidden_dim) gives the ~2.62 MB/token conservative baseline used throughout; a GQA model would use a much smaller constant (see the sensitivity note, below).
+We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **canonical 80-layer, hidden-8192, full-MHA 70B reference model** (every query head carries its own K,V, so the per-token KV width equals the model's hidden dimension), FP16 weights (2 bytes per parameter), 8 ×GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV cache size per token, total KV for the canonical context, and contrast with long-context variants. The per-token formula is general — KV/token = 2 × layers × n_KV-heads × head_dim × bytes — and the full-MHA special case (n_KV-heads × head_dim = hidden_dim) gives the ~2.62 MB/token conservative baseline used throughout; a grouped-query attention (GQA) model would use a much smaller constant (see the sensitivity note, below).
 
 **Table 7-1** — KV cache size per token and per-context arithmetic for the canonical 80-layer, hidden-8192, **full-MHA 70B reference** at FP16. *(All per-context KV totals, residency figures, and fit/non-fit verdicts below are [ILLUSTRATIVE][DERIVED] from the general per-token formula `2 × layers × n_KV-heads × head_dim × bytes` (MHA case here); model-card architecture constants are [1P: model card].)*
 
@@ -40,11 +40,11 @@ We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **canoni
 | 300 output KV cache | 300 ×2.62 MB ≈ 0.8 GB | 300 ×2,621,440 B |
 | total inference KV (9.5K max) | ≈ 24.9 GB | 9,500 × 2,621,440 B ≈ 24.9 GB |
 | 32K input KV cache | 32,000 ×2.62 MB ≈ 83.9 GB | 32,000 ×2,621,440 B; long-context variant |
-| 128K input KV cache | 128,000 ×2.62 MB ≈ 335.4 GB | aggressive long-context variant |
+| 128K input KV cache | 128,000 ×2.62 MB ≈ 335.5 GB | 128,000 ×2,621,440 B; aggressive long-context variant |
 | 70B FP16 weights | 70B × 2 B = 140 GB | [1P: DERIVED from 70B × 2 bytes] |
 | inference residency (weights + KV, 9.5K max) | ≈ 165 GB | 140 + 24.9 GB |
 | inference residency (weights + KV, 32K) | ≈ 224 GB | 140 + 83.9 GB |
-| inference residency (weights + KV, 128K) | ≈ 475 GB | 140 + 335.4 GB |
+| inference residency (weights + KV, 128K) | ≈ 475 GB | 140 + 335.5 GB |
 | 2×H100 total VRAM | 2 ×80 GB = 160 GB | [1P: NVIDIA H100 spec] |
 | 8×H100 total VRAM | 8 ×80 GB = 640 GB | [1P: NVIDIA H100 spec] |
 | 3×H100 total VRAM | 3 ×80 GB = 240 GB | [DERIVED] 165 GB < 240 GB |
@@ -52,12 +52,12 @@ We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **canoni
 | fits 8×H100 at 9.2K? | yes | 164.1 GB < 640 GB |
 | fits 3×H100 at 9.2K? | yes | 164.1 GB < 240 GB |
 | fits 8×H100 at 32K? | yes | 224.0 GB < 640 GB |
-| fits 8×H100 at 128K? | yes, barely | 475.0 GB < 640 GB |
+| fits 8×H100 at 128K? | yes, barely | 475.5 GB < 640 GB |
 | fits 1×H100 at 9.2K? | no | 164.1 GB > 80 GB; needs ≥3×H100 by aggregate capacity |
 
 *Note on “does it fit?”: this residency check answers a single-request question — does ONE request’s weights + KV fit in the pool? It says nothing yet about how many such requests fit concurrently. For that, an architect must subtract the runtime/activation/workspace floor (~64 GB on the 8×H100 host) from the 640 GB pool before sizing KV. We compute that concurrent capacity — the ~436 GB KV budget and ~17.5 requests/host (byte-accurate 17.51; conservative integer floor 17) — in Chapter 17. Keep the two numbers separate: the ~500 GB headroom (Ch. 4/7, single-request) and the ~436 GB KV budget (Ch. 17, concurrency) answer different questions.*
 
-*Attention-family sensitivity note.* The ~2.62 MB/token (2.5 MiB) figure is the **full-MHA** (multi-head attention) upper bound: KV-heads = query-heads = hidden_dim, i.e.
+*Attention-family sensitivity note.* The ~2.62 MB/token (2.5 MiB) figure is the **full-MHA** (multi-head attention) upper bound: n_KV-heads = n_query-heads, and n_KV-heads × head_dim = hidden_dim, i.e.
 
 $$
 KV_{\text{MHA per-token}} = 2 \times n_\text{layers} \times d_\text{hidden} \times B
@@ -77,7 +77,7 @@ The figure shows one group's geometry: **8 query heads funnel into a single shar
 
 **Table 7-2** — Inference residency vs. fine-tuning residency contrast for the canonical 80-layer, hidden-8192, full-MHA 70B reference model.
 
-| scenario | memory resident | bytes per param | total (70B) | fits 8×H100 (640 GB) |
+| scenario | memory resident | bytes per param | total (70B) | fits 8×H100 |
 |---|---|---|---|---|
 | inference (weights + KV, 9.2K input) | weights + KV cache | FP16: 2 B; KV adds ~2.62 MB/token | ~164.1 GB (9.2K; 140 + 24.1) | yes |
 | fine-tuning (weights + gradients + optimizer) | weights + gradients + optimizer states | Adam: ~16 B/param (m + v + ΔW) | ~1,120 GB | no |
@@ -109,7 +109,7 @@ $$
 
 - **Assuming KV cache size scales sub-linearly.** The KV cache grows linearly with context length. Doubling the context from 9.2K to 18.4K doubles the KV memory, all else equal. There is no automatic compression unless the attention mechanism itself is hybrid or sparse.
 
-- **Using the 8-bit KV figure (~1.3 MB/token) at FP16.** Chapter 1's ~1.3 MB/token is explicitly at 8-bit precision. At FP16, the per-token KV cost is ~2× that, ≈2.5 MB/token. Mixing the two figures produces wrong residency calls.
+- **Using the 8-bit KV figure (~1.3 MB/token) at FP16.** Chapter 1's ~1.3 MB/token is explicitly at 8-bit precision. At FP16, the per-token KV cost is ~2× that, ≈2.62 MB/token (2.5 MiB — §7.4). Mixing the two figures produces wrong residency calls.
 
 - **Ignoring the weight + KV residency contrast.** Quoting only the weight footprint (140 GB for 70B FP16) and claiming it fits on one H100 (80 GB) is a category error. Weights alone exceed one H100; KV must be added.
 
@@ -133,11 +133,11 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 ## 7. What We Still Don't Know
 
-- Exact per-token KV cache size for non-LLaMA architectures (e.g., models with head_dim ≠ 128 or 256, or attention implementations that store additional per-head state). The `2 × layers × hidden_dim × bytes` formula assumes the standard LLaMA/llama-style key/value layout; architectures with grouped-query attention (GQA) or multi-query attention (MQA) may have fewer key/value entries per layer, changing the constant factor.
+- Per-model KV state beyond K/V — the additional per-head state and per-layer scale/offset metadata some attention implementations store alongside keys and values. The `2 × layers × n_KV-heads × head_dim × bytes` formula prices the K/V entries themselves (§7.3 covers GQA/MQA exactly by substituting the model card's KV-head count), but the extra per-token bytes an implementation adds on top of K/V are not derived in this chapter and must be established per architecture and serving stack.
 
 - Quality loss from aggressive KV quantization (2-bit KIVI, or sub-4-bit schemes) at very long context lengths (128K+, MoE experts). The primary sources anchor FP8 KV ≈50% of BF16 (raw byte-halving) at near-zero quality loss, but 2-bit asymmetric patterns and their interaction with RoPE and sliding-window layers are not fully mapped.
 
-- Whether per-request KV caching can be partially offloaded to CPU DRAM during decode without TTFT impact, beyond the vLLM KV Offloading Connector's 2–22×TTFT reduction range which is highly prompt-size-dependent. The community is converging on tiered KV storage (GPU resident hot set + CPU/DRAM cold set), but the latency trade-offs at concurrency > 1 are not yet primary-anchored.
+- Whether per-request KV caching can be partially offloaded to CPU DRAM during decode without TTFT impact, beyond the vLLM KV Offloading Connector's 2–22× TTFT reduction range [S7][1P][FACT], which is highly prompt-size-dependent. The community is converging on tiered KV storage (GPU resident hot set + CPU/DRAM cold set), but the latency trade-offs at concurrency > 1 are not yet primary-anchored.
 
 - **Frontier 2026 has begun re-engineering the KV constant factor, not just quantizing it.** All four 2026-class open architectures attack KV cache size at the attention layer itself, on top of the per-token footprint this chapter derives: DeepSeek-V4's hybrid CSA+HCA reports KV cache at only ~10% (Pro) / ~7% (Flash) of DeepSeek-V3.2 at 1M-token context [1P: arXiv 2606.19348]; GLM-5.3-Flash's sparse+linear hybrid reports ~4.4×KV reduction [1P: HF zai-org/GLM-5.3-Flash]; Kimi K3's Kimi Delta Attention + Attention Residuals targets information flow across long sequences [1P: arXiv 2607.24653]; Qwen3.8-Flash-Next combines Gated DeltaNet (compress history) with Qwen Sparse Attention (micro-block indexing) for long-context cost [1P: HF Qwen/Qwen3.8-Flash-Next]. For the architect this is a decisive shift: the KV arithmetic in this chapter (per-token × context) is *not* a fixed constant across model generations — a 2026 hybrid-attention model can hold dramatically more context per byte of KV than the canonical 70B/8×H100 framing assumed. Size the host against the *specific* model's KV scheme, not a universal constant.
 
