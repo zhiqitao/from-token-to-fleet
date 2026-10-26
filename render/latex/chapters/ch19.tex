@@ -547,23 +547,19 @@ why agentic depth is a fleet-sizing problem.
 \pandocbounded{\includegraphics[keepaspectratio,alt={Input/output tokens and KV cache per request across agent turns (I₀ + T·δ + T·γ + O\_final; 9,200 input + 300 output + 800 + 65 per turn), FP16 KV rising from 24.9 GB single-shot to 34.0 GB at 4 turns. This chart quantifies the growth --- the total token and KV numbers as turns accumulate. (Companion \hyperref[fig:19.3]{Fig 19.3} shows the mechanism of why it grows.)},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-19-1902.png}}
 \caption[Input/output tokens and KV cache per request across agent turns]{Input/output tokens and KV cache per request across agent turns (I₀ + T·δ + T·γ + O\_final; 9,200 input + 300 output + 800 + 65 per turn), FP16 KV rising from 24.9 GB single-shot to 34.0 GB at 4 turns. This chart quantifies the growth --- the total token and KV numbers as turns accumulate. (Companion \hyperref[fig:19.3]{Fig 19.3} shows the mechanism of why it grows.)}
 
-\label{fig:19.2}\end{figure}
-
-\emph{Why agentic depth is a fleet-sizing problem. Both the token count
+\label{fig:19.2}\emph{Why agentic depth is a fleet-sizing problem. Both the token count
 and the FP16 KV cache grow linearly with turns; four turns take a
 request from \textasciitilde24.9 GB to \textasciitilde34.0 GB of KV ---
 a 36\% jump on an already-large footprint, which is exactly why a fleet
 (Ch17), prefix caching, or FP8 KV pay for themselves on agentic
 workloads.}
 
-\begin{figure}
+\end{figure}\begin{figure}
 \centering
 \pandocbounded{\includegraphics[keepaspectratio,alt={The agentic context block grows every turn: initial prompt I₀ (9.2K input) plus a fixed output O\_final (300) plus tool output (δ) + reasoning (γ) appended each turn, FP16 KV footprint rising 24.9 → 34.0 GB (max-KV, end-of-request). This schematic shows the mechanism --- the initial prompt plus the fixed output and cumulative tool-output and reasoning blocks (matching \hyperref[fig:19.2]{Fig 19.2}'s decomposition). Policy caveat: this depicts a strict append-only agent context. Real production systems may compact, truncate, cache, summarize, or reconstruct the prompt between turns, so the monotonic growth shown here is a worst-case / illustrative policy, not a universal model of agent memory. A production stack that compacts or summarizes context can hold the KV footprint flat or even shrink it across turns.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-19-1903.png}}
 \caption[The agentic context block grows every turn]{The agentic context block grows every turn: initial prompt I₀ (9.2K input) plus a fixed output O\_final (300) plus tool output (δ) + reasoning (γ) appended each turn, FP16 KV footprint rising 24.9 → 34.0 GB (max-KV, end-of-request). This schematic shows the mechanism --- the initial prompt plus the fixed output and cumulative tool-output and reasoning blocks (matching \hyperref[fig:19.2]{Fig 19.2}'s decomposition). \textbf{Policy caveat: this depicts a \emph{strict append-only} agent context.} Real production systems may compact, truncate, cache, summarize, or reconstruct the prompt between turns, so the monotonic growth shown here is a \emph{worst-case / illustrative policy}, not a universal model of agent memory. A production stack that compacts or summarizes context can hold the KV footprint flat or even shrink it across turns.}
 
-\label{fig:19.3}\end{figure}
-
-\emph{Agentic context accumulation as a memory sequence. Each turn
+\label{fig:19.3}\emph{Agentic context accumulation as a memory sequence. Each turn
 appends retrieved context (δ ≈ 800 tokens) plus generated reasoning (γ ≈
 65 tokens) to a context that persists across every later turn; the FP16
 KV block therefore grows from \textasciitilde24.9 GB (single-shot) to
@@ -571,7 +567,7 @@ KV block therefore grows from \textasciitilde24.9 GB (single-shot) to
 purely by cumulative context, not by extra requests. This is the
 mechanism behind the fleet-sizing argument in \hyperref[fig:19.2]{Fig 19.2}.}
 
-\textbf{Task economics.} The deepest shift an agentic workload imposes
+\end{figure}\textbf{Task economics.} The deepest shift an agentic workload imposes
 is a change in \emph{what the architect optimizes}. For conventional
 inference, the unit of cost is the token: the architect optimizes token
 economics --- cost per token, latency per token, KV per token. For an
@@ -674,44 +670,66 @@ adds δ≈800 tokens of retrieved context plus γ≈65 tokens of
 model-generated reasoning, i.e.~≈865 tokens/turn). The guardrail budget
 caps total input at 13,000 tokens.
 
-\textbf{Measurement results.} Telemetry over 30 days shows: - 68\% of
-requests terminate in 1 turn - 25\% terminate in 2 turns - 5\% terminate
-in 3 turns - 2\% exceed the turn limit and fall back to single-shot
+\textbf{Measurement results.} Telemetry over 30 days shows:
+
+\begin{itemize}
+\tightlist
+\item
+  68\% of requests terminate in 1 turn
+\item
+  25\% terminate in 2 turns
+\item
+  5\% terminate in 3 turns
+\item
+  2\% exceed the turn limit and fall back to single-shot
+\end{itemize}
 
 \textbf{Token and latency impact (added orchestration overhead).} Using
 the chapter's per-turn convention (each turn adds δ=800 retrieved + γ=65
 reasoning = 865 tokens), and treating the 2\% fallback as single-shot
 (zero added turns), the expected input tokens across the distribution
-are: - Expected input tokens: 0.68×(9,200+865) + 0.25×(9,200+1,730) +
-0.05×(9,200+2,595) + 0.02×9,200 ≈ 6,844 + 2,733 + 590 + 184 ≈
-\textbf{10,350 tokens} (expected total incl.~300-token output ≈ 10,650).
-- Amplification \emph{α}: 10,650 / 9,500 ≈ \textbf{1.12×} --- about a
-\textbf{12\%} token overhead. (The 2\% fallback is explicitly included
-here at zero added turns: it adds no agent tokens, so its contribution
-to the expectation is 2\% × 0 = 0, which the weighted sum above keeps.)
-- Added agent-orchestration overhead (per-turn step + tool): 220
-ms/turn. Because 68\% terminate in one turn, the \textbf{median turns is
-T=1}, so the median added overhead is \textbf{1 × 220 ms ≈ 220 ms}; the
-\textbf{90th-percentile} is T=2 (cumulative 93\% by T≤2) → \textbf{440
-ms}; and the \textbf{95th-percentile} is T=3 (cumulative 98\% by T≤3) →
-\textbf{660 ms} --- \emph{not} T≈4, since the scenario caps turns at 3
-and the 2\% fallback is modelled as an immediate single-shot fallback,
-not a fourth attempted turn. \textbf{Percentile conditioning (P2-07):}
-these percentiles are computed over the \textbf{non-fallback
-(completed-turn) request distribution} --- they are \emph{conditional on
-a completed agent run}. The 2\% fallback is treated as a
-high-tail/failure category that incurs \emph{zero added turns}
-(single-shot), so it is excluded from the percentile claims (it sits
-above the p98 tail and does not add to the p90/p95 values). If instead
-the fallback is defined to incur timeout delay or additional recovery
-work, it must be included as an unconditional request-level percentile
-(with its added latency counted), which raises the true tail. State
-which convention is in use; the two give different p95 values. On top of
-the \textasciitilde8.6 s base answer generation, L\_E2E ≈ 8.6 s + 0.22 s
-≈ \textasciitilde8.8 s at the median. - Total end-to-end: the request is
-dominated by the \textasciitilde8.6 s base generation (Ch 8), not the
-added orchestration; the \textasciitilde220--660 ms figures are the
-\emph{added} agent/tool overhead, not the complete request latency.
+are:
+
+\begin{itemize}
+\tightlist
+\item
+  Expected input tokens: 0.68×(9,200+865) + 0.25×(9,200+1,730) +
+  0.05×(9,200+2,595) + 0.02×9,200 ≈ 6,844 + 2,733 + 590 + 184 ≈
+  \textbf{10,350 tokens} (expected total incl.~300-token output ≈
+  10,650).
+\item
+  Amplification \emph{α}: 10,650 / 9,500 ≈ \textbf{1.12×} --- about a
+  \textbf{12\%} token overhead. (The 2\% fallback is explicitly included
+  here at zero added turns: it adds no agent tokens, so its contribution
+  to the expectation is 2\% × 0 = 0, which the weighted sum above
+  keeps.)
+\item
+  Added agent-orchestration overhead (per-turn step + tool): 220
+  ms/turn. Because 68\% terminate in one turn, the \textbf{median turns
+  is T=1}, so the median added overhead is \textbf{1 × 220 ms ≈ 220 ms};
+  the \textbf{90th-percentile} is T=2 (cumulative 93\% by T≤2) →
+  \textbf{440 ms}; and the \textbf{95th-percentile} is T=3 (cumulative
+  98\% by T≤3) → \textbf{660 ms} --- \emph{not} T≈4, since the scenario
+  caps turns at 3 and the 2\% fallback is modelled as an immediate
+  single-shot fallback, not a fourth attempted turn. \textbf{Percentile
+  conditioning (P2-07):} these percentiles are computed over the
+  \textbf{non-fallback (completed-turn) request distribution} --- they
+  are \emph{conditional on a completed agent run}. The 2\% fallback is
+  treated as a high-tail/failure category that incurs \emph{zero added
+  turns} (single-shot), so it is excluded from the percentile claims (it
+  sits above the p98 tail and does not add to the p90/p95 values). If
+  instead the fallback is defined to incur timeout delay or additional
+  recovery work, it must be included as an unconditional request-level
+  percentile (with its added latency counted), which raises the true
+  tail. State which convention is in use; the two give different p95
+  values. On top of the \textasciitilde8.6 s base answer generation,
+  L\_E2E ≈ 8.6 s + 0.22 s ≈ \textasciitilde8.8 s at the median.
+\item
+  Total end-to-end: the request is dominated by the \textasciitilde8.6 s
+  base generation (Ch 8), not the added orchestration; the
+  \textasciitilde220--660 ms figures are the \emph{added} agent/tool
+  overhead, not the complete request latency.
+\end{itemize}
 
 \textbf{Architectural actions.} The team sets the turn limit to 3,
 instruments each turn's token and orchestration latency, and adds a

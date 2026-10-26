@@ -99,9 +99,9 @@ derived numbers cite the key plus a {[}DERIVED{]} tag.
   \textbf{{[}S6{]} vLLM FP8-KV blog} --- the vLLM FP8-KV blog post's
   `54\%' figure is a decode inter-token-latency (ITL) slope, a LATENCY
   metric, not a memory/residency ratio. Any reference to it (Chapters 1,
-  3, 6, 7, 15, 22 and Appendix A) is a latency reference only. The KV
-  memory footprint this book uses is the raw tensor byte-halving of
-  \textasciitilde1.31 MB/token (exactly 50\% of BF16)
+  3, 6, 7, 15, 22, Appendix A and the glossary) is a latency reference
+  only. The KV memory footprint this book uses is the raw tensor
+  byte-halving of \textasciitilde1.31 MB/token (exactly 50\% of BF16)
   {[}ILLUSTRATIVE{]}{[}DERIVED{]}; any block-allocation/metadata
   overhead is NOT vendor-measured here and must be filled by a
   deployment benchmark.
@@ -193,14 +193,12 @@ instead of the scheduler. {[}ILLUSTRATIVE{]}{[}DERIVED{]}
 \pandocbounded{\includegraphics[keepaspectratio,alt={Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is time (decode steps / iterations); each row is one decode step, and in the continuous panel the step boundaries are staggered across rows as the scheduler admits new requests and evicts finished ones. In the top (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the bottom (continuous) panel freed slots are refilled every step. The diagram is a decode-only illustration (all shown requests are in the per-token decode phase); a real serving system also interleaves prefill of newly-arrived requests into the same steps, which is the mixed prefill/decode scheduling developed in §11.4 and Ch 15.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1102.pdf}}
 \caption[Discrete vs continuous batching (Orca-style slot diagram)]{Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is \textbf{time (decode steps / iterations)}; each row is one decode step, and in the continuous panel the step boundaries are staggered across rows as the scheduler admits new requests and evicts finished ones. In the top (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the bottom (continuous) panel freed slots are refilled every step. The diagram is a \textbf{decode-only} illustration (all shown requests are in the per-token decode phase); a real serving system also interleaves prefill of newly-arrived requests into the same steps, which is the mixed prefill/decode scheduling developed in §11.4 and Ch 15.}
 
-\label{fig:11.1}\end{figure}
-
-\emph{Discrete batching runs each batch to completion, leaving GPU slots
+\label{fig:11.1}\emph{Discrete batching runs each batch to completion, leaving GPU slots
 idle as sequences finish early; continuous batching admits and evicts
 requests at every decode step, backfilling freed slots. (Illustrative,
 after Orca, OSDI 2022.)}
 
-\subsection{PagedAttention: Killing the Fragmentation
+\end{figure}\subsection{PagedAttention: Killing the Fragmentation
 Tax}\label{pagedattention-killing-the-fragmentation-tax}
 
 In re-packaged (naive) serving, each request's KV cache for 9.2K input
@@ -374,22 +372,18 @@ The serving mechanisms dictate the deployment choices:
 \pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation). A concrete serving design that chooses one mechanism per concern: request scheduling = continuous (Orca-style) batching; state management = PagedAttention (fixed-size KV pages); reuse = prefix caching of shared context; resource specialisation = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- a system can combine any mechanism with any other --- and the canonical 8×H100 host uses all four together.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1101.pdf}}
 \caption[Serving is four orthogonal concerns, not a stack]{Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation). A concrete serving design that chooses one mechanism per concern: \textbf{request scheduling} = continuous (Orca-style) batching; \textbf{state management} = PagedAttention (fixed-size KV pages); \textbf{reuse} = prefix caching of shared context; \textbf{resource specialisation} = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- a system can combine any mechanism with any other --- and the canonical 8×H100 host uses all four together.}
 
-\label{fig:11.2}\end{figure}
-
-\emph{The design lever is what each concern trades: \textbf{request
+\label{fig:11.2}\emph{The design lever is what each concern trades: \textbf{request
 scheduling} exchanges latency for utilization, \textbf{state management}
 exchanges memory capacity for concurrency, \textbf{reuse} avoids
 re-prefill FLOPs, and \textbf{resource specialisation} matches two
 compute/memory regimes to two pools.}
 
-\begin{figure}
+\end{figure}\begin{figure}
 \centering
 \pandocbounded{\includegraphics[keepaspectratio,alt={P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer. The KV-transfer arrow is the load-bearing cost: it moves the per-request KV state (e.g.~\textasciitilde35 GB for a \textasciitilde13K-token context at 2.62 MB/token, §9.8) over the interconnect, and the disaggregation is only worth it when the prefill/decode specialization benefit exceeds the KV-transfer time plus the orchestration overhead of routing requests between two pools. Illustrative: at NVLink's 450 GB/s per direction (§9.2) that \textasciitilde35 GB transfer is \textasciitilde0.08 s, which is small against the \textasciitilde1.08 s prefill it enables, so the inequality holds on-node; over a 40 GB/s fabric it is \textasciitilde0.9 s, which can erase the benefit --- the transfer cost is the term that decides whether P/D disaggregation pays.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1103.png}}
 \caption[P/D disaggregation topology]{P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer. The KV-transfer arrow is the load-bearing cost: it moves the per-request KV state (e.g.~\textasciitilde35 GB for a \textasciitilde13K-token context at 2.62 MB/token, §9.8) over the interconnect, and the disaggregation is only worth it when the prefill/decode specialization benefit \textbf{exceeds} the KV-transfer time plus the orchestration overhead of routing requests between two pools. Illustrative: at NVLink's 450 GB/s per direction (§9.2) that \textasciitilde35 GB transfer is \textasciitilde0.08 s, which is small against the \textasciitilde1.08 s prefill it enables, so the inequality holds on-node; over a 40 GB/s fabric it is \textasciitilde0.9 s, which can erase the benefit --- the transfer cost is the term that decides whether P/D disaggregation pays.}
 
-\label{fig:11.3}\end{figure}
-
-\emph{The KV moves once per request, then stays local (ownership
+\label{fig:11.3}\emph{The KV moves once per request, then stays local (ownership
 splits); the split itself exists because the two stages want opposite
 resources under load --- prefill needs compute capacity
 (\textasciitilde1.19 PFLOPS required vs 0.989 peak single-H100), while
@@ -398,7 +392,7 @@ decode needs HBM bandwidth (the whole-model weight-read rate of
 sharded to \textasciitilde0.70 TB/s per GPU under the canonical 8×H100
 host, Ch 6) {[}1P{]}{[}DERIVED{]}.}
 
-\subsection{The Mechanisms, Not the Product
+\end{figure}\subsection{The Mechanisms, Not the Product
 Catalog}\label{the-mechanisms-not-the-product-catalog}
 
 The mechanisms above are what matter; the engines are just
@@ -478,21 +472,26 @@ the mechanism Z we need; benchmark it against the alternative (Ch. 14).}
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
 
+As of 2026-08, several questions remain open, each flagged
+\textbf{{[}HYPOTHESIS{]}} or \textbf{{[}TODO: measure on target
+cluster{]}}:
+
 \begin{itemize}
 \tightlist
 \item
   \textbf{Portable end-to-end goodput across real enterprise RAG} ---
   Mooncake's 525\%/75\% {[}S4{]}{[}1P{]} and DFlash's \textgreater6×
   {[}S5{]}{[}1P{]} are strong anchors but are workload-specific; general
-  rules are (a hypothesis).
+  rules remain an open hypothesis \textbf{{[}HYPOTHESIS{]}}.
 \item
   \textbf{Prefix-cache hit rates in mixed traffic} --- the real
   reduction in prefill FLOPs from RadixAttention/APC for a given
-  document-distribution is (to be verified).
+  document-distribution remains a hypothesis \textbf{{[}HYPOTHESIS{]}}.
 \item
   \textbf{KV-transfer cost at scale} --- Mooncake's engine moves KV to
   CPU/DRAM/SSD {[}S4{]}{[}1P{]}, but the exact latency/bandwidth
-  crossover where disaggregation wins is (to be verified).
+  crossover where disaggregation wins is unmeasured \textbf{{[}TODO:
+  measure on target cluster{]}}.
 \end{itemize}
 
 \section{End-of-Chapter Mini-Case: Which Serving Mechanism to Reach

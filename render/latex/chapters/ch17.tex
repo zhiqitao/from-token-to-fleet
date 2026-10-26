@@ -131,25 +131,44 @@ T=3). Each turn adds \textasciitilde800 tokens of retrieved context
 (delta) and \textasciitilde65 tokens of model-generated reasoning
 (gamma), so the effective per-request token count is \[
 I(T) = I_0 + T(\delta + \gamma) + O_\text{final} = 9{,}200 + T \times 865 + 300
-\] - Median (T=1):
-\(I(1) = 9{,}200 + 1 \times 800 + 1 \times 65 + 300 = 10{,}365\) tokens
-- 95th percentile (T=3):
-\(I(3) = 9{,}200 + 3 \times 800 + 3 \times 65 + 300 = 12{,}095\) tokens
-- Hypothetical extension (T=4, \emph{if the turn limit were not
-enforced} --- per Ch19 the \textgreater2\% that exceed the limit fall
-back to single-shot, so no request actually reaches T=4):
-\(I(4) = 9{,}200 + 4 \times 800 + 4 \times 65 + 300 = 12{,}960\) tokens
+\]
+
+\begin{itemize}
+\tightlist
+\item
+  Median (T=1):
+  \(I(1) = 9{,}200 + 1 \times 800 + 1 \times 65 + 300 = 10{,}365\)
+  tokens
+\item
+  95th percentile (T=3):
+  \(I(3) = 9{,}200 + 3 \times 800 + 3 \times 65 + 300 = 12{,}095\)
+  tokens
+\item
+  Hypothetical extension (T=4, \emph{if the turn limit were not
+  enforced} --- per Ch19 the \textgreater2\% that exceed the limit fall
+  back to single-shot, so no request actually reaches T=4):
+  \(I(4) = 9{,}200 + 4 \times 800 + 4 \times 65 + 300 = 12{,}960\)
+  tokens
+\end{itemize}
 
 The KV cache per request rises proportionally, and per-host concurrency
-capacity follows from the Ch17 formula \(C = M_{kv}/(I(T)\kappa)\): - at
-T=1 (median):
-\(10{,}365 \times 2.62 \text{ MB} \approx 27.2 \text{ GB/request} \Rightarrow C \approx 16\)
-concurrent (floor 16) - at T=3 (95th):
-\(12{,}095 \times 2.62 \text{ MB} \approx 31.7 \text{ GB/request} \Rightarrow C \approx 13.8\)
-concurrent (floor 13) - at T=4 (hypothetical extension, turn limit not
-enforced):
-\(12{,}960 \times 2.62 \text{ MB} \approx 34.0 \text{ GB/request} \Rightarrow C \approx 12.8\)
-concurrent (floor 12)
+capacity follows from the Ch17 formula \(C = M_{kv}/(I(T)\kappa)\):
+
+\begin{itemize}
+\tightlist
+\item
+  at T=1 (median):
+  \(10{,}365 \times 2.62 \text{ MB} \approx 27.2 \text{ GB/request} \Rightarrow C \approx 16\)
+  concurrent (floor 16)
+\item
+  at T=3 (95th):
+  \(12{,}095 \times 2.62 \text{ MB} \approx 31.7 \text{ GB/request} \Rightarrow C \approx 13.8\)
+  concurrent (floor 13)
+\item
+  at T=4 (hypothetical extension, turn limit not enforced):
+  \(12{,}960 \times 2.62 \text{ MB} \approx 34.0 \text{ GB/request} \Rightarrow C \approx 12.8\)
+  concurrent (floor 12)
+\end{itemize}
 
 Even the \emph{median} agentic request already drops a single host below
 the peak in-flight demand (C ≈ 16 \textless{} 344 at 40 rps, or 860 at
@@ -789,26 +808,27 @@ scale to \textasciitilde1.42 s) + (\textasciitilde495 generated tokens ×
 \textasciitilde0.4 s of per‑turn tool/retrieval latency ≈
 \textbf{\textasciitilde13.8 s} (the tool/turn term here combines the
 per‑turn tool + retrieval latency; \hyperref[chap:19]{Chapter 19}'s \texttt{T·L\_agent} ≈
-660 ms is the same additive orchestration overhead expressed per the
-turn distribution). (This W is the full agentic service time --- decode
-of all generated tokens plus the grown‑context prefill. Because the
-prefill is held at the canonical 9.2K representative rather than the
-full 12,095‑token context (which would scale it to \textasciitilde1.42 s
-and give W ≈ 14.2 s), treat this \textasciitilde13.8 s as a
-\textbf{lower bound} on the agentic service time, and the resulting
-in‑flight counts and host totals as corresponding lower bounds. It is
-\emph{not} the incremental orchestration‑overhead figure of
-\textasciitilde660 ms at T=3 that \hyperref[chap:19]{Chapter 19} reports as its
-\(T \cdot L_\text{agent}\); the two are different quantities, and it is
-this full W that drives concurrency and fleet size, per \hyperref[chap:19]{Chapter 19}'s
-scope note.) So at the 100‑rps peak, in‑flight concurrency ≈ 100 × 13.8
-≈ 1,380 requests, not 200. Against C ≈ 13.8 per host (conservative
-integer floor 13), H = ⌈1,380/(13 ×0.7)⌉ ≈ \textbf{152 hosts} on FP16 KV
-(≈107 at full utilization). This is the honest arithmetic the
-service-time model produces --- the naive ``1--5 hosts'' rps estimate is
-off by \textasciitilde30--150× (one-and-a-half to two orders of
-magnitude) because it ignores both the decode duration and the added
-turn latency.
+660 ms is the same class of overhead at a different per-turn rate (Ch19:
+220 ms/turn → 660 ms at T=3; this case uses \textasciitilde133 ms/turn →
+\textasciitilde0.4 s) --- adopt one rate). (This W is the full agentic
+service time --- decode of all generated tokens plus the grown‑context
+prefill. Because the prefill is held at the canonical 9.2K
+representative rather than the full 12,095‑token context (which would
+scale it to \textasciitilde1.42 s and give W ≈ 14.2 s), treat this
+\textasciitilde13.8 s as a \textbf{lower bound} on the agentic service
+time, and the resulting in‑flight counts and host totals as
+corresponding lower bounds. It is \emph{not} the incremental
+orchestration‑overhead figure of \textasciitilde660 ms at T=3 that
+\hyperref[chap:19]{Chapter 19} reports as its \(T \cdot L_\text{agent}\); the two are
+different quantities, and it is this full W that drives concurrency and
+fleet size, per \hyperref[chap:19]{Chapter 19}'s scope note.) So at the 100‑rps peak,
+in‑flight concurrency ≈ 100 × 13.8 ≈ 1,380 requests, not 200. Against C
+≈ 13.8 per host (conservative integer floor 13), H = ⌈1,380/(13 ×0.7)⌉ ≈
+\textbf{152 hosts} on FP16 KV (≈107 at full utilization). This is the
+honest arithmetic the service-time model produces --- the naive ``1--5
+hosts'' rps estimate is off by \textasciitilde30--150× (one-and-a-half
+to two orders of magnitude) because it ignores both the decode duration
+and the added turn latency.
 
 \textbf{KV compression changes the answer.} Switching the KV cache to
 FP8 (κ ≈ 1.31 MB/token, raw byte-halving --- 50\% of BF16) cuts
@@ -834,7 +854,7 @@ be re‑run at this fleet size: B\_min = φ·N·D/t\_net = 0.05 × 52--74 ×
 network --- the rack is at/over budget at both ends of the host range.
 Verify φ and D from telemetry and budget ≥20 Gbps per rack, or shard the
 fleet across racks. Monthly GPU‑utilization metrics should run in the
-55--70\% band against the KV‑residency ceiling, and the SLA must be
+55--70\% band against the KV‑residency ceiling, and the SLO must be
 validated by a deployment benchmark (\hyperref[chap:14]{Chapter 14}) --- end‑to‑end latency
 including agentic overhead is an ILLUSTRATIVE target until measured.
 
@@ -921,11 +941,11 @@ KV-residency lower bound --- the true answer is the max of this KV bound
 and the measured throughput bound. \textbf{Planning-bound caveat:} the
 per-host figures that feed this table --- \textbf{\textasciitilde2.0
 req/s/host} and \textbf{\textasciitilde19,800 prefill tok/s/host} (Ch 8,
-idealized) --- are }upper-order planning bounds* derived from the
+idealized) --- are upper-order planning bounds derived from the
 KV-residency/service-time model and the idealized prefill roofline,
 \textbf{not implied deployed rates}. \textbf{No p95/p99 performance
 guarantee has been shown} for any host count in these columns; the
 achieved p95/p99 tail latency and goodput must be measured on the target
-deployment (\hyperref[chap:14]{Chapter 14}) before any host count is treated as validated.*
+deployment (\hyperref[chap:14]{Chapter 14}) before any host count is treated as validated.}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}

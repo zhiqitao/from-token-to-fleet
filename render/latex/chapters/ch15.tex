@@ -59,7 +59,7 @@ memory traffic. This reuse effect is difficult to quantify without
 workload profiling, but it is a first‑order consideration in
 multi‑tenant serving. The model also captures the interaction between
 sequence length and memory cost: attention quadraticities (O(L²) FLOPs
-and O(L²) memory per head once the QK\^{}T/softmax score matrix is
+and O(L²) memory per head once the (QK\^{}\{T\})/softmax score matrix is
 materialized) mean that long contexts (9,000+ tokens) disproportionately
 strain both compute and HBM bandwidth, making kernel choice
 (FlashAttention vs.~SDPA) one of the first \emph{kernel‑level}
@@ -198,14 +198,14 @@ for 9,200‑token prompts. Note the 2P/token figure above approximates the
 \emph{parameterized dense‑matmul} work per token (2 × parameters); it
 does \textbf{not} capture all sequence‑length‑dependent attention work,
 which is accounted for separately here. Attention is two matmuls per
-token per head --- Q·K\^{}T then ·V --- each a multiply‑accumulate of
-L²·d, so in FLOPs (2 per MAC) the per‑layer cost is ≈ 4 × L² × d\_model,
-where L=9,200 and d\_model=8,192. That is 4 × 9,200² × 8,192 ≈ 2.8 ×
-10¹² FLOPs per layer (the full 64 heads; the per‑head figure 4 × 9,200²
-× 128 ≈ 4.3 × 10¹⁰ must be multiplied by the number of heads, not quoted
-alone). Across 80 layers that is ≈ 2.2 × 10¹⁴ FLOPs --- the quadratic
-attention term that grows dominant at long context, matching \hyperref[chap:8]{Chapter 8}'s
-4·n\_layers·L²·d formula: the attention term is ≈17\% of the
+token per head --- Q·(K\^{}\{T\}) then ·V --- each a multiply‑accumulate
+of L²·d, so in FLOPs (2 per MAC) the per‑layer cost is ≈ 4 × L² ×
+d\_model, where L=9,200 and d\_model=8,192. That is 4 × 9,200² × 8,192 ≈
+2.8 × 10¹² FLOPs per layer (the full 64 heads; the per‑head figure 4 ×
+9,200² × 128 ≈ 4.3 × 10¹⁰ must be multiplied by the number of heads, not
+quoted alone). Across 80 layers that is ≈ 2.2 × 10¹⁴ FLOPs --- the
+quadratic attention term that grows dominant at long context, matching
+\hyperref[chap:8]{Chapter 8}'s 4·n\_layers·L²·d formula: the attention term is ≈17\% of the
 parameter-matmul FLOPs (≈15\% of total forward FLOPs) at 9.2K (\hyperref[fig:22.1]{Fig 22.1}).
 
 \begin{figure}
@@ -213,27 +213,26 @@ parameter-matmul FLOPs (≈15\% of total forward FLOPs) at 9.2K (\hyperref[fig:2
 \pandocbounded{\includegraphics[keepaspectratio,alt={FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so each K/V tile is read into on-chip memory once for that tile and the result is accumulated in place --- far fewer HBM round-trips. Scope of the ``read once'' claim: the tile-level on-chip reuse is per-tile; it is not a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size --- see the original I/O analysis in the FlashAttention papers). The attention result is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim. I/O bound: Tri Dao et al., ``FlashAttention,'' NeurIPS 2022, arXiv:2205.14135.)},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1502.pdf}}
 \caption[FlashAttention: the same math, far less HBM traffic]{FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so each K/V tile is read into on-chip memory once \emph{for that tile} and the result is accumulated in place --- far fewer HBM round-trips. \textbf{Scope of the ``read once'' claim:} the tile-level on-chip reuse is per-tile; it is \emph{not} a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size --- see the original I/O analysis in the FlashAttention papers). The attention \emph{result} is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim. I/O bound: Tri Dao et al., ``FlashAttention,'' NeurIPS 2022, arXiv:2205.14135.)}
 
-\label{fig:15.1}\end{figure}
+\label{fig:15.1}\emph{Read the figure as an I/O story, not a speed-up number.}
 
-\emph{Read the figure as an I/O story, not a speed-up number.}
-FlashAttention is \textbf{not} ``faster attention'' in the sense that it
-does less arithmetic. It computes the exact same Q·K\^{}T, softmax, ·V
-sequence. What changes is \emph{where the intermediate lives}: a naive
-kernel writes the L×L attention matrix to HBM and reads it back, so the
-materialized intermediate itself is O(L²) in memory; FlashAttention
-avoids materializing that full L×L matrix in HBM and instead tiles the
-computation so each tile stays in on-chip registers/shared memory with
-the softmax done online --- substantially reducing HBM reads/writes
-through tiled on-chip computation (the precise I/O complexity is more
-nuanced than a clean quadratic-to-linear swap, but the
-materialized-intermediate traffic is what drops). Because the arithmetic
-intensity --- FLOP/byte --- rises (same FLOPs, far fewer bytes moved),
-the kernel moves \emph{up} the hardware ladder of \hyperref[fig:8.1]{Fig 8.1} toward the
-compute-bound region, even though the model and the math are unchanged.
-That is the whole reason the speed-up is workload-dependent: it is
-largest for long contexts where the O(L²) intermediate dominates, and
-negligible for short ones where HBM traffic is already small. It is also
-why the improvement should be \emph{measured} (Ch. 14) rather than
+\end{figure}FlashAttention is \textbf{not} ``faster attention'' in the sense that it
+does less arithmetic. It computes the exact same Q·(K\^{}\{T\}),
+softmax, ·V sequence. What changes is \emph{where the intermediate
+lives}: a naive kernel writes the L×L attention matrix to HBM and reads
+it back, so the materialized intermediate itself is O(L²) in memory;
+FlashAttention avoids materializing that full L×L matrix in HBM and
+instead tiles the computation so each tile stays in on-chip
+registers/shared memory with the softmax done online --- substantially
+reducing HBM reads/writes through tiled on-chip computation (the precise
+I/O complexity is more nuanced than a clean quadratic-to-linear swap,
+but the materialized-intermediate traffic is what drops). Because the
+arithmetic intensity --- FLOP/byte --- rises (same FLOPs, far fewer
+bytes moved), the kernel moves \emph{up} the hardware ladder of \hyperref[fig:8.1]{Fig 8.1}
+toward the compute-bound region, even though the model and the math are
+unchanged. That is the whole reason the speed-up is workload-dependent:
+it is largest for long contexts where the O(L²) intermediate dominates,
+and negligible for short ones where HBM traffic is already small. It is
+also why the improvement should be \emph{measured} (Ch. 14) rather than
 quoted from a published ``2--3×'' figure that was never portable.
 
 \ntsection{Measurement}\label{measurement}
@@ -439,7 +438,7 @@ tail requests wait for larger chunks to fill. The designer must balance
 batch‑size‑driven arithmetic gain against tail‑latency penalty. A
 practical illustrative rule of thumb: choose the smallest batch size
 that keeps MFU above \textasciitilde25\,\% while keeping p95 latency
-under the SLA target (the 25\,\% threshold and the knee are scenario
+under the SLO target (the 25\,\% threshold and the knee are scenario
 values --- measure them on the target workload). \emph{Ignoring KV cache
 growth:} A 70B model with 9,500‑token contexts consumes ≈24.9 GB of KV
 per user (≈2.62 MB/token × 9,500, max end-of-generation). Without cache
@@ -543,7 +542,10 @@ Win}\label{end-of-chapter-mini-case-the-second-host-a-kernelbatching-gain-not-a-
 A new deployment adds 500 registered users (traffic rises to
 \textasciitilde12.5/50 rps at the same 5\,\% concurrency profile). The
 team provisions a second 8×H100 host and (in this worked example) runs
-the benchmark with continuous batching and FlashAttention‑2. p95 TTFT
+the benchmark with continuous batching and FlashAttention‑2. the p95
+queueing/scheduling delay ahead of prefill --- not TTFT, which at this
+profile is dominated by the canonical \textasciitilde1.08 s prefill
+(Chapters 4/8; \hyperref[chap:14]{Chapter 14} measures p95 TTFT at 1.9 s for this stack) ---
 drops from 320\,ms (single host, batch‑1) to 140\,ms (dual host,
 continuous batch), and token throughput rises from 8,000 to 70,000
 tokens/s. The MFU stabilizes at 38\,\%. These are {[}ILLUSTRATIVE
