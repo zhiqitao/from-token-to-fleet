@@ -59,7 +59,7 @@ memory traffic. This reuse effect is difficult to quantify without
 workload profiling, but it is a first‑order consideration in
 multi‑tenant serving. The model also captures the interaction between
 sequence length and memory cost: attention quadraticities (O(L²) FLOPs
-and O(L²) memory per head once the (QK\^{}\{T\})/softmax score matrix is
+and O(L²) memory per head once the \(QK^{T}\)/softmax score matrix is
 materialized) mean that long contexts (9,000+ tokens) disproportionately
 strain both compute and HBM bandwidth, making kernel choice
 (FlashAttention vs.~SDPA) one of the first \emph{kernel‑level}
@@ -198,14 +198,14 @@ for 9,200‑token prompts. Note the 2P/token figure above approximates the
 \emph{parameterized dense‑matmul} work per token (2 × parameters); it
 does \textbf{not} capture all sequence‑length‑dependent attention work,
 which is accounted for separately here. Attention is two matmuls per
-token per head --- Q·(K\^{}\{T\}) then ·V --- each a multiply‑accumulate
-of L²·d, so in FLOPs (2 per MAC) the per‑layer cost is ≈ 4 × L² ×
-d\_model, where L=9,200 and d\_model=8,192. That is 4 × 9,200² × 8,192 ≈
-2.8 × 10¹² FLOPs per layer (the full 64 heads; the per‑head figure 4 ×
-9,200² × 128 ≈ 4.3 × 10¹⁰ must be multiplied by the number of heads, not
-quoted alone). Across 80 layers that is ≈ 2.2 × 10¹⁴ FLOPs --- the
-quadratic attention term that grows dominant at long context, matching
-\hyperref[chap:8]{Chapter 8}'s 4·n\_layers·L²·d formula: the attention term is ≈17\% of the
+token per head --- Q·\(K^{T}\) then ·V --- each a multiply‑accumulate of
+L²·d, so in FLOPs (2 per MAC) the per‑layer cost is ≈ 4 × L² × d\_model,
+where L=9,200 and d\_model=8,192. That is 4 × 9,200² × 8,192 ≈ 2.8 ×
+10¹² FLOPs per layer (the full 64 heads; the per‑head figure 4 × 9,200²
+× 128 ≈ 4.3 × 10¹⁰ must be multiplied by the number of heads, not quoted
+alone). Across 80 layers that is ≈ 2.2 × 10¹⁴ FLOPs --- the quadratic
+attention term that grows dominant at long context, matching \hyperref[chap:8]{Chapter 8}'s
+4·n\_layers·L²·d formula: the attention term is ≈17\% of the
 parameter-matmul FLOPs (≈15\% of total forward FLOPs) at 9.2K (\hyperref[fig:22.1]{Fig 22.1}).
 
 \begin{figure}
@@ -216,10 +216,10 @@ parameter-matmul FLOPs (≈15\% of total forward FLOPs) at 9.2K (\hyperref[fig:2
 \label{fig:15.1}\emph{Read the figure as an I/O story, not a speed-up number.}
 
 \end{figure}FlashAttention is \textbf{not} ``faster attention'' in the sense that it
-does less arithmetic. It computes the exact same Q·(K\^{}\{T\}),
-softmax, ·V sequence. What changes is \emph{where the intermediate
-lives}: a naive kernel writes the L×L attention matrix to HBM and reads
-it back, so the materialized intermediate itself is O(L²) in memory;
+does less arithmetic. It computes the exact same Q·\(K^{T}\), softmax,
+·V sequence. What changes is \emph{where the intermediate lives}: a
+naive kernel writes the L×L attention matrix to HBM and reads it back,
+so the materialized intermediate itself is O(L²) in memory;
 FlashAttention avoids materializing that full L×L matrix in HBM and
 instead tiles the computation so each tile stays in on-chip
 registers/shared memory with the softmax done online --- substantially
