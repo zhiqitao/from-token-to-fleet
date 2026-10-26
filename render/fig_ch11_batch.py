@@ -91,10 +91,13 @@ ax.text(5.0, 0.35, 'new sequences (green) snap into freed slots', fontsize=8.2, 
 # scheduling. Figure-level so it spans both panels, below the time axis.
 fig.text(0.5, 0.015,
          'Decode-only illustration: every shown request is in the per-token decode phase.\n'
-         'A real stack also interleaves prefill of new requests into the same steps (Ch 11 Sec. 4, Ch 15).',
+         'A real system also interleaves prefill of new requests into the same steps (§11.4, Ch 15).',
          fontsize=8.0, color='#555', ha='center', va='bottom', style='italic')
 
 plt.tight_layout(rect=(0, 0.05, 1, 1))
 plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=350)
+import matplotlib as mpl
+with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.pdf', format='pdf')
 plt.close()
 print('wrote fig-11-1102')
