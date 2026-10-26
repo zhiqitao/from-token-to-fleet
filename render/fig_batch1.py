@@ -1,6 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import matplotlib as _mpl
 _mpl.rcParams['axes.formatter.use_mathtext']=False
@@ -87,6 +88,12 @@ ax.set_title('All-reduce time vs data volume,\nby interconnect tier', fontsize=9
 ax.text(0.99, 0.94, 'ANALYTICAL [DERIVED]\n(t = 1.75·V/B, N=8 ring, effective B)', transform=ax.transAxes,
         fontsize=8, color='#8a5a00', ha='right', va='top')
 ax.tick_params(labelsize=10)
+# Loop-2 review: the default log formatter draws the y tick exponents as
+# mathtext superscripts = 0.7 x 10pt = 7.0pt on page (sub-8pt floor).  Plain
+# decimal labels keep every glyph at the full 10pt tick size - same fix as
+# Fig 2.2 (render/fig_ch2_roofline.py).
+ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, p: '%g' % round(v)))
+ax.yaxis.set_minor_formatter(mticker.NullFormatter())
 # x-axis labelled tick covering the 140 GB weight-footprint reference
 ax.set_xticks([0.01, 0.1, 1, 10, 100, 200])
 ax.set_xticklabels(['0.01', '0.1', '1', '10', '100', '200'])

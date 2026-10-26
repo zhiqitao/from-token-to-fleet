@@ -34,7 +34,15 @@ ax.set_title('KV cache size vs context, by attention geometry (full-MHA vs GQA)'
 ax.axhline(640, color='#7f8c8d', ls=':', lw=1, label='8×H100 raw (640 GB)')
 ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB')
 ax.scatter([9.2], [2.5*9.2], color='#c0392b', zorder=5, s=25)
-ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(10.2, 70),
+# Loop-2 review (N1): at xytext=(10.2, 70) the label sat just above the red
+# FP16 curve and its right end crossed the line (measured: 0.0 pt clearance,
+# arrow shaft 0.1 pt) - same-colour annotation-on-curve.  In log-log space the
+# red curve climbs 1 decade per decade, so a 122pt-wide label can only clear it
+# (and the 436 GB rule) by moving into the open upper-LEFT band, above every
+# curve and below the KV-budget rule.  Measured clearances: label 9.7 pt off the
+# red curve, 10.1 pt off the 436 GB rule, 19.1 pt inside the left frame; the
+# leader drops onto the 9.2K point from above and crosses no curve.
+ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(1.2, 107),
             arrowprops=dict(arrowstyle='->', lw=0.8), fontsize=8.5)
 ax.scatter([9.2], [0.33*9.2], color='#27408b', zorder=5, s=25)
 # v9 review: this tag sat ON the GQA FP16/FP8 markers at 9.2K and used the same
@@ -111,7 +119,11 @@ ax.text(1, 1255, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or o
 # green annotation centered ABOVE the QLoRA bar (inside the plot, not past the
 # right border), with a white halo and an arrow down to the bar.  Raised to 300
 # so its shaft clears the relocated '~60 GB' tag (top ~242) with >9pt of air.
-ax.annotate('QLoRA fits a single H100', xy=(2, 64), xytext=(2.0, 300),
+# Loop-2 review: centred on x=2 the label's right edge (incl. its white halo)
+# came within 0.5 pt of the right spine - it read as clipping.  Inset to x=1.9
+# (still above the QLoRA bar, still 23 pt right of the red bar) for 13.3 pt of
+# halo clearance to the frame.
+ax.annotate('QLoRA fits a single H100', xy=(2, 64), xytext=(1.9, 300),
             fontsize=8.5, color='#3d6e35', ha='center',
             bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.9),
             arrowprops=dict(arrowstyle='->', color='#3d6e35'))
