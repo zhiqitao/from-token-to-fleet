@@ -219,6 +219,34 @@ def bind_figure_descriptions(tex_path):
     return n
 
 
+def fix_label_atomicity(tex_path):
+    """Keep bracket evidence-tag tokens from hyphen-breaking across a line.
+
+    Loop-5 finding: bracketed labels like [ILLUSTRATIVE], [ASSUMPTION] split
+    mid-token across a line break (soft hyphen), e.g. '[ILLUSTRA- TIVE]'. A tag
+    is an identifier and must stay whole, and '[canonical scenario]' must not
+    break at its internal space either. Pandoc escapes the brackets as
+    '{[}TOKEN{]}' / '{[}canonical{]} {[}scenario{]}'. Wrap each whole tag in
+    \\mbox (LaTeX will not hyphenate or break inside it) and join the pair's
+    internal space with a non-breaking '~'.
+    """
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    orig = tex
+    # A single tag: one or more {[}TOKEN{]}, possibly with inner prose, in one
+    # contiguous run (no spaces between the closing and next opening bracket).
+    tag = r"\{\[\}(?:[A-Z\u00b0][^\[\]{}]*?)\{\]\}"
+    # Wrap runs of adjacent escaped-bracket tags so they all stay together.
+    tex = _re.sub(r"(?<!\\)(%s)+" % tag, lambda m: r"\mbox{" + m.group(0) + "}", tex)
+    # Join 'canonical' and 'scenario' inside a bracket pair with a non-breaking
+    # space so the pair does not split at its internal space.
+    tex = _re.sub(r"\{\[\}canonical\{\]\}\s+\{\[\}scenario\{\]\}",
+                  r"\{\[\}canonical\{\]\}~\{\[\}scenario\{\]\}", tex)
+    if tex != orig:
+        open(tex_path, "w", encoding="utf-8").write(tex)
+    return tex.count(r"\mbox{")
+
+
 def short_title(full):
     """Derive a concise navigational title from a (possibly long) figure caption.
 
@@ -607,6 +635,7 @@ def convert(mapping):
         fix_crossrefs(out, n)
         fix_captions(out)
         bind_figure_descriptions(out)
+        fix_label_atomicity(out)
         fix_minicase_toc(out)
         built[n] = (chapters[n]["title"], out)
     return built
