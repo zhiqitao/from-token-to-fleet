@@ -41,10 +41,11 @@ ax.axvline(r200, color='#c0392b', ls=':', lw=1.2)
 ax.plot([r100], [peak*0.35], marker='o', color='#27408b', ms=6, ls='none', zorder=6)
 ax.plot([r200], [peak*0.10], marker='^', color='#c0392b', ms=7, ls='none', zorder=6)
 # Ridge labels — opaque white bbox backing so the ridge axvline + major gridlines
-# never show through the digit glyphs.
-ax.text(r100, peak*0.42, f'ridge ≈ {r100:.0f}', fontsize=8.5, color='#27408b', ha='center',
+# never show through the digit glyphs; also offset horizontally off the dotted
+# line so the line runs beside rather than through the label (Loop-5 F5).
+ax.text(r100*1.06, peak*0.42, f'ridge ≈ {r100:.0f}', fontsize=8.5, color='#27408b', ha='left',
         bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none'))
-ax.text(r200*0.97, peak*0.05, f'ridge ≈ {r200:.0f}', fontsize=8.5, color='#c0392b', ha='center',
+ax.text(r200*0.90, peak*0.05, f'ridge ≈ {r200:.0f}', fontsize=8.5, color='#c0392b', ha='right',
         bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none'))
 
 # Lift grid-line alpha to lower visibility (still informative but won't compete with labels)
@@ -58,11 +59,12 @@ ax.text(0.985, 0.36, 'compute plateau\n= 989 TFLOPS',
         ha='right', va='center')
 ax.text(0.06, 0.10, 'memory-bound slope\n(≈ intensity × BW)',
         transform=ax.transAxes, fontsize=8.5, color='#e67e22',
-        ha='left', va='center')
+        ha='left', va='center',
+        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.92))
 # DERIVED / source tag in-plot (top-centre, clear of PER GPU at left and prefill ridge at right)
 ax.text(0.50, 0.965, 'ANALYTICAL [DERIVED]', transform=ax.transAxes,
         fontsize=8, color='#8a5a00', ha='center', va='top',
-        bbox=dict(boxstyle='round,pad=0.16', fc='white', ec='none', alpha=0.9))
+        bbox=dict(boxstyle='round,pad=0.16', fc='white', ec='none', alpha=0.92))
 
 # "PER GPU" stated plainly INSIDE the plotting area (top-left of the axes),
 # so the figure carries its own single-GPU qualification.
@@ -87,8 +89,10 @@ ax.text(9200, 989*0.55, 'prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', fontsiz
         color=colors['prefill'], ha='center', va='top')
 # decode batch=1: label to the LEFT of its marker (ha='right') so the centered text
 # no longer spans the (0.5, 1.7) dot and obscures "batch"
-ax.text(0.42, 1.65, 'decode\nbatch=1', fontsize=9, color=colors['decode'], ha='right', va='center')
-ax.text(11, 30, 'decode batched', fontsize=9, color=colors['decode'], ha='left')
+ax.text(0.42, 1.65, 'decode\nbatch=1', fontsize=9, color=colors['decode'], ha='right', va='center',
+        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.92))
+ax.text(11, 30, 'decode batched', fontsize=9, color=colors['decode'], ha='left',
+        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.92))
 
 # continuous-batching arrow: decode batch=1 -> decode batched, up the slope
 ax.annotate('', xy=(8, 27), xytext=(0.6, 1.8),
