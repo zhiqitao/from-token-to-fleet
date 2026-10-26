@@ -150,11 +150,11 @@ The columns read as *knobs on a common set of mechanisms*, not as "which engine 
 
 ## 7. What We Still Don't Know
 
-As of 2026-08, several questions remain open, each flagged **[HYPOTHESIS]** or **[TODO: measure on target cluster]**:
+As of 2026-08, several questions remain open, each flagged **[HYPOTHESIS]** or **[UNRESOLVED]** (measure on the target cluster):
 
 - **Portable end-to-end goodput across real enterprise RAG** — Mooncake's 525%/75% [S4][1P] and DFlash's >6× [S5][1P] are strong anchors but are workload-specific; general rules remain an open hypothesis **[HYPOTHESIS]**.
 - **Prefix-cache hit rates in mixed traffic** — the real reduction in prefill FLOPs from RadixAttention/APC for a given document-distribution remains a hypothesis **[HYPOTHESIS]**.
-- **KV-transfer cost at scale** — Mooncake's engine moves KV to CPU/DRAM/SSD [S4][1P], but the exact latency/bandwidth crossover where disaggregation wins is unmeasured **[TODO: measure on target cluster]**.
+- **KV-transfer cost at scale** — Mooncake's engine moves KV to CPU/DRAM/SSD [S4][1P], but the exact latency/bandwidth crossover where disaggregation wins is unmeasured **[UNRESOLVED] — measure on the target cluster**.
 
 ## 8. End-of-Chapter Mini-Case: Which Serving Mechanism to Reach For
 
