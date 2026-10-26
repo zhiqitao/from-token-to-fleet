@@ -152,24 +152,24 @@ enforced):
 concurrent (floor 12)
 
 Even the \emph{median} agentic request already drops a single host below
-the 40-concurrent peak demand (C≈16 \textless{} the in-flight
-concurrency needed at peak), so the fleet is required under almost any
-agentic assumption. \textbf{Scaling forecast (service-time-aware).}
-Because the canonical workload's service time is \textasciitilde8.6 s
---- not a \textasciitilde1 s latency --- the in-flight concurrency at
-the 40 rps peak is λ\_peak × W ≈ 40 × 8.6 ≈ \textbf{344 requests}, not
-40. With FP16 KV (baseline C≈17.5, conservative integer floor 17), the
-fleet needs ⌈344/17.5⌉ ≈ \textbf{20 hosts} at full utilization
-(\textbf{29} at the 70\% utilization target). Agentic turns make this
-strictly worse: each additional turn adds \textasciitilde800 tokens of
-context (lowering C) and more generated tokens (raising W), so the
-agentic T=3 case needs a larger fleet still (C≈13.8 in the
-95th-percentile case and a longer W). The load balancer distributes λ/N
-rps per host and λ·W/N concurrent per host, and each host's per-host KV
-usage must stay comfortably under its C. This is the fleet point: hosts
-are added because \emph{concurrency in flight × KV-per-request} exceeds
-a single host's residency --- and concurrency in flight must be computed
-from the full service time, not a target latency.
+the peak in-flight demand (C ≈ 16 \textless{} 344 at 40 rps, or 860 at
+100 rps), so the fleet is required under almost any agentic assumption.
+\textbf{Scaling forecast (service-time-aware).} Because the canonical
+workload's service time is \textasciitilde8.6 s --- not a
+\textasciitilde1 s latency --- the in-flight concurrency at the 40 rps
+peak is λ\_peak × W ≈ 40 × 8.6 ≈ \textbf{344 requests}, not 40. With
+FP16 KV (baseline C≈17.5, conservative integer floor 17), the fleet
+needs ⌈344/17.5⌉ ≈ \textbf{20 hosts} at full utilization (\textbf{29} at
+the 70\% utilization target). Agentic turns make this strictly worse:
+each additional turn adds \textasciitilde800 tokens of context (lowering
+C) and more generated tokens (raising W), so the agentic T=3 case needs
+a larger fleet still (C≈13.8 in the 95th-percentile case and a longer
+W). The load balancer distributes λ/N rps per host and λ·W/N concurrent
+per host, and each host's per-host KV usage must stay comfortably under
+its C. This is the fleet point: hosts are added because
+\emph{concurrency in flight × KV-per-request} exceeds a single host's
+residency --- and concurrency in flight must be computed from the full
+service time, not a target latency.
 
 \textbf{Cross-host communication.} In the canonical scenario, requests
 are independent --- no user session spans multiple hosts. If an agentic
@@ -206,13 +206,13 @@ C = \frac{M_{kv}}{I(T) \cdot \kappa}
 
 where M\_kv is the KV‑available memory --- the portion of on‑host HBM
 left for KV after weights and runtime --- and
-\(\kappa = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes} \approx 2.5\)
-MB/token is the per‑token KV footprint (\hyperref[chap:7]{Chapter 7} canonical; κ includes
-all layers --- omitting the layer factor understates KV memory by orders
-of magnitude). For the canonical host, M\_kv = 640 GB − 140 GB (FP16
-weights) − \textasciitilde64 GB (runtime/activations/workspace/NCCL) ≈
-436 GB. Dividing memory by bytes (not the byte‑divided‑by‑bytes collapse
-that trips unit analysis):
+\(\kappa = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes} \approx 2.62\)
+MB/token (2.5 MiB) is the per‑token KV footprint (\hyperref[chap:7]{Chapter 7} canonical; κ
+includes all layers --- omitting the layer factor understates KV memory
+by orders of magnitude). For the canonical host, M\_kv = 640 GB − 140 GB
+(FP16 weights) − \textasciitilde64 GB
+(runtime/activations/workspace/NCCL) ≈ 436 GB. Dividing memory by bytes
+(not the byte‑divided‑by‑bytes collapse that trips unit analysis):
 
 \begin{itemize}
 \tightlist
@@ -262,7 +262,8 @@ single-phase capacity.} At \textasciitilde2.0 req/s the request workload
 decomposes into two components that hit the hardware differently:
 \textbf{18,400 input tokens/s (2.0 × 9,200 --- the prefill phase,
 compute-bound)} and \textbf{600 output tokens/s (2.0 × 300 --- the
-decode phase, bandwidth-bound)}. Compare the prefill component only
+decode phase, bandwidth-bound)} --- both first-order regime labels; see
+Ch15/Ch8 for the scope conditions. Compare the prefill component only
 against the \emph{prefill-only} capacities (\textasciitilde19,800 tok/s,
 item 2; \textasciitilde35--70K only if those figures are themselves
 phase-resolved) and the decode component only against decode-scale
@@ -286,7 +287,7 @@ count differs from the number of sequences actually occupying
 accelerator resources, because a request passes through several
 subsystems with different residency times and different occupants:
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2127\linewidth}
   >{\raggedright\arraybackslash}p{0.2127\linewidth}
@@ -335,7 +336,7 @@ backlog changes the resident count --- state that scope, and never quote
 C/W as a measured end-to-end goodput.
 
 If the peak traffic λ\_peak = 40 rps, Little's Law gives the number of
-requests \emph{in flight} as λ\_peak × L, where \textbf{L must be the
+requests \emph{in flight} as λ\_peak × W, where \textbf{W must be the
 full per-request service time} --- for this canonical workload that is
 \textasciitilde8.6 s (1.08 s prefill + \textasciitilde7.5 s decode of
 300 output tokens at \textasciitilde25 ms/token, \hyperref[chap:8]{Chapter 8}), NOT a
@@ -416,7 +417,7 @@ included, Little's Law raises in-flight concurrency from the misleading
 requests at 40 rps}, and the fleet must be sized to that.
 
 \textbf{The fleet is governed by the \emph{minimum} of several
-independent ceilings, not by KV alone (P2-05).} \texttt{C/W} --- and the
+independent ceilings, not by KV alone.} \texttt{C/W} --- and the
 KV-residency ceiling C that feeds it --- is a \emph{necessary}
 condition, not sufficient under mixed prefill/decode scheduling. An
 architect must take \texttt{min} of: (a) \textbf{KV-residency
@@ -501,32 +502,34 @@ LB overhead multiplies the schedulable fraction of that ceiling, and the
 ρ value should be replaced by a measured figure from a load test before
 it is used as a capacity coefficient. In the worked example, the fleet
 is currently sized by KV capacity (§17.3), not by a fabricated tokens/s
-number: at T=4, FP16-KV C≈13/host (436 GB ÷ (12,960 × 2.62 MB ≈ 34.0 GB)
-≈ 12.8) sets the ceiling, and adding a host raises aggregate schedulable
-concurrency by ρ·C, i.e.~\textasciitilde12 concurrent at ρ=0.95.
+number: at T=3 (the 95th-percentile sizing point, per the chapter's own
+rule), FP16-KV C ≈ 13.8/host (436 GB ÷ (12,095 × 2.62 MB ≈ 31.7 GB) ≈
+13.8; conservative integer floor 13) sets the ceiling, and adding a host
+raises aggregate schedulable concurrency by ρ·C, i.e.~\textasciitilde13
+concurrent at ρ=0.95 (13.8 × 0.95 ≈ 13.1).
 
 \subsection{Cross-host interconnect
 budget}\label{cross-host-interconnect-budget}
 
 If a fraction φ of requests require cross-host data (e.g., distributed
 retrieval, shared vector index), each such request incurs an additional
-network round‑trip latency λ\_net and moves data volume D over the
+network round‑trip latency t\_net and moves data volume D over the
 host‑to‑host network. Two distinct bandwidth quantities must be
 separated: the \textbf{per‑request burst} a single cross‑host request
 draws during its round trip, and the \textbf{fleet aggregate} average
 across all hosts. Assuming an intra‑rack 10\,Gbps Ethernet backbone:
 
 \[
-B_\text{per-req} = \frac{D}{\lambda_\text{net}} = 5\text{ MB} / 0.02\text{ s} = 250\text{ MB/s} \approx 2\text{ Gbps}
+B_\text{per-req} = \frac{D}{t_\text{net}} = 5\text{ MB} / 0.02\text{ s} = 250\text{ MB/s} \approx 2\text{ Gbps}
 \]
 
-For D = 5\,MB (top‑5 retrieval snippets), λ\_net = 20\,ms (typical rack
+For D = 5\,MB (top‑5 retrieval snippets), t\_net = 20\,ms (typical rack
 latency), the per‑request burst is \(B_\text{per-req} = 5 / 0.02 = 250\)
 MB/s ≈ 2\,Gbps, while the fleet aggregate --- the expected number of
 concurrent cross‑host requests (φ\,·\,N) times that burst --- is
 
 \[
-B_\text{agg} = \varphi \cdot N \cdot \frac{D}{\lambda_\text{net}} = 0.1 \times 4 \times 250\text{ MB/s} = 100\text{ MB/s} = 0.8\text{ Gbps}
+B_\text{agg} = \varphi \cdot N \cdot \frac{D}{t_\text{net}} = 0.1 \times 4 \times 250\text{ MB/s} = 100\text{ MB/s} = 0.8\text{ Gbps}
 \]
 
 Both are far inside the 10\,Gbps link, so the base case appears benign
@@ -630,8 +633,8 @@ scenario a method rather than a template.
   \textbf{Failing to model latency tail under spike traffic.} GPU
   inference time is not constant; under sustained high load, kernel‑mode
   preemption, memory fragmentation, and concurrent kernel launches can
-  increase per‑token latency by 20--50\%. The linear model L =
-  λ\_inference + λ\_tool is a lower bound; the architect should add a
+  increase per‑token latency by 20--50\%. The linear model t =
+  t\_inference + t\_tool is a lower bound; the architect should add a
   20\% safety margin.
 \end{enumerate}
 
@@ -669,18 +672,18 @@ stateless → software LB with consistent hashing.
 \textbf{Cross-host data infrastructure.} If any request type requires
 cross‑host communication (distributed retrieval, multi‑model
 orchestration, state sync), a dedicated backend network must be
-provisioned. The minimum bandwidth is B\_min = φ · N · D / λ\_net (the
-fleet aggregate derived in §17.3 --- the expected concurrent cross-host
-requests times the per-request burst D / λ\_net), and the fabric should
-provide at least 2×B\_min for headroom. In the canonical scenario with φ
-= 0.1, N = 4, D = 5\,MB, λ\_net = 20\,ms, B\_min ≈ 0.8\,Gbps (0.1 × 4 ×
-5 MB / 0.02 s = 100 MB/s), so a 10\,Gbps intra-rack network has ample
-headroom for the aggregate; but as §17.3 notes, the per-request burst
-itself (D / λ\_net = 250 MB/s ≈ 2\,Gbps in the base case) must also fit
-a single link once a request is in flight, which is the binding
-constraint when φ or D grows. But the architect should instrument φ and
-D from production telemetry and revisit the bandwidth provisioning
-quarterly.
+provisioned. The minimum bandwidth is B\_min = φ · N · D / t\_net (the
+fleet aggregate derived in §17.4.4 --- the expected concurrent
+cross-host requests times the per-request burst D / t\_net), and the
+fabric should provide at least 2×B\_min for headroom. In the canonical
+scenario with φ = 0.1, N = 4, D = 5\,MB, t\_net = 20\,ms, B\_min ≈
+0.8\,Gbps (0.1 × 4 × 5 MB / 0.02 s = 100 MB/s), so a 10\,Gbps intra-rack
+network has ample headroom for the aggregate; but as §17.4.4 notes, the
+per-request burst itself (D / t\_net = 250 MB/s ≈ 2\,Gbps in the base
+case) must also fit a single link once a request is in flight, which is
+the binding constraint when φ or D grows. But the architect should
+instrument φ and D from production telemetry and revisit the bandwidth
+provisioning quarterly.
 
 \textbf{Observability across the fleet.} With N hosts, tracing a request
 end‑to‑end requires correlating the LB routing decision, the selected
@@ -693,13 +696,12 @@ per‑host concurrency exceeds 80\% of C, when LB error rate exceeds
 
 \textbf{Failover and redundancy.} With N ≥ 2, the fleet provides
 automatic failover: if one host crashes, the LB routes its traffic to
-the remaining N−1 hosts, reducing capacity by \textasciitilde1/(N−1).
-For N = 4, a single‑host loss reduces capacity from 100\% to 75\%
-(assuming equal load distribution). The architect must decide whether
-this is acceptable or whether N must be larger (e.g., N = 6 for 83\%
-residual capacity after one failure). Health‑check frequency and
-graceful drain procedures affect the real-world failover time, typically
-5--15 seconds.
+the remaining N−1 hosts, reducing capacity by 1/N (N to N−1 hosts). For
+N = 4, a single‑host loss reduces capacity from 100\% to 75\% (assuming
+equal load distribution). The architect must decide whether this is
+acceptable or whether N must be larger (e.g., N = 6 for 83\% residual
+capacity after one failure). Health‑check frequency and graceful drain
+procedures affect the real-world failover time, typically 5--15 seconds.
 
 \textbf{Multi-region active-active availability is NOT priced in this
 chapter's arithmetic.} The canonical workload's stated SLA (Ch 4) is
@@ -804,8 +806,9 @@ scope note.) So at the 100‑rps peak, in‑flight concurrency ≈ 100 × 13.8
 integer floor 13), H = ⌈1,380/(13 ×0.7)⌉ ≈ \textbf{152 hosts} on FP16 KV
 (≈107 at full utilization). This is the honest arithmetic the
 service-time model produces --- the naive ``1--5 hosts'' rps estimate is
-off by two orders of magnitude because it ignores both the decode
-duration and the added turn latency.
+off by \textasciitilde30--150× (one-and-a-half to two orders of
+magnitude) because it ignores both the decode duration and the added
+turn latency.
 
 \textbf{KV compression changes the answer.} Switching the KV cache to
 FP8 (κ ≈ 1.31 MB/token, raw byte-halving --- 50\% of BF16) cuts
@@ -824,12 +827,16 @@ order of \textasciitilde52--74 hosts (the FP8+prefix-cache range, to be
 validated by a \hyperref[chap:14]{Chapter 14} benchmark before committing hardware), runs
 NGINX as a software load balancer with consistent hashing for session
 affinity, and instruments each host with OpenTelemetry tracing.
-Cross‑host communication is minimal (φ ≈ 0.05), so the existing 10 Gbps
-intra‑rack network suffices. Monthly GPU‑utilization metrics should run
-in the 55--70\% band against the KV‑residency ceiling, and the SLA must
-be validated by a deployment benchmark (\hyperref[chap:14]{Chapter 14}) --- end‑to‑end
-latency including agentic overhead is an ILLUSTRATIVE target until
-measured.
+Cross‑host communication is minimal (φ ≈ 0.05), but the §17.6 rule must
+be re‑run at this fleet size: B\_min = φ·N·D/t\_net = 0.05 × 52--74 ×
+250 MB/s ≈ 5.2--7.4 Gbps, and with the 2×B\_min headroom rule (§17.6)
+2×B\_min ≈ 10.4--14.8 Gbps exceeds the existing 10 Gbps intra‑rack
+network --- the rack is at/over budget at both ends of the host range.
+Verify φ and D from telemetry and budget ≥20 Gbps per rack, or shard the
+fleet across racks. Monthly GPU‑utilization metrics should run in the
+55--70\% band against the KV‑residency ceiling, and the SLA must be
+validated by a deployment benchmark (\hyperref[chap:14]{Chapter 14}) --- end‑to‑end latency
+including agentic overhead is an ILLUSTRATIVE target until measured.
 
 \textbf{Lesson.} The fleet decision is driven by KV‑residency capacity
 vs.~\textbf{service‑time‑scaled concurrency} (λ·W) --- not by raw rps,
@@ -859,7 +866,7 @@ decode), and W ≈ 13.8 s for the T=3 (95th-percentile) agentic request
 (the mini-case's service-time-aware figure). These are the in-flight
 counts the chapter derives in §17.3/§17.4.
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.1327\linewidth}
   >{\raggedright\arraybackslash}p{0.1327\linewidth}
@@ -906,7 +913,7 @@ FP16 at T=0 (conservative integer floor 17), 13.8 at T=3 (12,095 tokens
 T=3 (12,095 × 1.31 MB ≈ 15.85 GB/request; floor 27 --- the mini-case's
 ``≈74 working hosts at FP8'' at 100 rps). Each C is floored to a
 whole-sequence slot count (17, 13, 27) before the 0.7 utilization factor
-is applied in the host columns (integer-slot convention, P1-01); the N−1
+is applied in the host columns (integer-slot convention); the N−1
 failover row adds one spare host. The 70\% utilization target and the λ,
 W values are ILLUSTRATIVE scenario inputs to be validated by a
 deployment benchmark (\hyperref[chap:14]{Chapter 14}) before committing hardware. H is a

@@ -12,8 +12,8 @@ and how quantitatively?''
 \ntsection{Concept}\label{concept}
 
 
-Model selection surfaces across five selection surfaces that are each
-derived from the workload characterization (Ch 4, \hyperref[tab:4.3]{Table 4-3}):
+Model selection proceeds across five surfaces, each derived from the
+workload characterization (Ch 4, \hyperref[tab:4.3]{Table 4-3}):
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -60,10 +60,12 @@ Model selection is really \textbf{system design, not model picking}. The
 workload is the architect's input; the model is a component that must
 satisfy the workload's constraints. If the workload is input-heavy (9.2K
 average input, 300-token output, \textasciitilde30× more input than
-output), the system is memory‑bound and prefill‑dominated. If the
-workload were output‑heavy, it would be decode‑bound. The mental model
-holds both profiles in view: the same ``which model?'' question produces
-opposite answers depending on the token profile.
+output), the system is memory‑capacity‑bound (KV residency) and
+prefill‑dominated --- prefill itself sits in the compute‑bound regime
+(Ch 2). If the workload were output‑heavy, it would be
+decode‑bandwidth‑bound. The mental model holds both profiles in view:
+the same ``which model?'' question produces opposite answers depending
+on the token profile.
 
 A useful image for the full pipeline:
 
@@ -103,7 +105,7 @@ workload demands.
 
 Three realistic options, each with documented properties:
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2087\linewidth}
   >{\raggedright\arraybackslash}p{0.0464\linewidth}
@@ -149,8 +151,9 @@ observed quality‑vs‑dimension relationship (reports range from a few to
 \textasciitilde15\% MAP difference) is domain‑ and corpus‑specific and
 must be validated on the target corpus.
 
-{[}canonical scenario{]}{[}DERIVED{]}: for a 1\,M‑chunk corpus, the
-index storage for a \(D\)‑dim float32 vector corpus is
+{[}ILLUSTRATIVE{]}{[}DERIVED{]}: for a 1\,M‑chunk corpus (a Ch 5‑local
+illustrative input, not part of Table 4‑3), the index storage for a
+\(D\)‑dim float32 vector corpus is
 \(\text{bytes} = n_\text{chunks} \times D \times 4\). For 768‑dim:
 \(1{\times}10^6 \times 768 \times 4 = 3.07\) GB; for 384‑dim:
 \(1{\times}10^6 \times 384 \times 4 = 1.54\) GB; a difference of
@@ -175,7 +178,7 @@ option in the table above).
 \textbf{\hyperref[tab:5.1]{Table 5-1}} --- Model-selection decision: embedding vs generation
 model
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
@@ -280,8 +283,12 @@ the single-stream assumption, not as the host's economic optimum.
 {[}ILLUSTRATIVE{]}{[}DERIVED{]}
 \end{quote}
 
-{[}canonical scenario{]}{[}DERIVED{]}: tokens/s per dollar with prefill
-included. The same 9,000 tokens per dollar-hour figure is a combined
+{[}ILLUSTRATIVE{]}{[}DERIVED{]}: tokens/s per dollar with prefill
+included. (Mixed-input convention: when a derivation mixes a canonical
+price with an illustrative rate, the result carries the non-canonical
+provenance --- here the 50 tok/s rate input is
+{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} while the \$20/hr price is
+canonical.) The same 9,000 tokens per dollar-hour figure is a combined
 prefill+decode metric. Because this workload is input‑heavy (9.2K input
 vs 300 output tokens), the prefill leg consumes
 \textbf{\textasciitilde97\% of the tokens} per request (9,200 ÷ 9,500)
@@ -305,33 +312,51 @@ model}\label{c-basemodel-rag-guardrails-vs-finetuned-model}
 
 The architect must choose between two paradigms:
 
-\textbf{Paradigm 1 --- Base model + RAG + guardrails:} - The base 70B
-model receives the retrieved 9.2K context via prompt injection. -
-Guardrails (PII redaction, style enforcement, refusal filtering) are
-applied as post‑generation or prefix‑check layers. - No model weights
-are trained on domain data; the knowledge source is the vector database.
+\textbf{Paradigm 1 --- Base model + RAG + guardrails:}
 
-\textbf{Paradigm 2 --- Fine‑tuned model on domain‑specific Q‑A pairs:} -
-The base model is fine‑tuned (full or LoRA) on thousands of
-question‑answer pairs reflecting the enterprise's terminology and
-reasoning patterns. - Inference uses the fine‑tuned weights without a
-retrieval step, or with a much shorter retrieved context. Fine‑tuning is
-\textbf{not} a dependable substitute for retrieval when the requirement
-is factual corpus access, freshness, attribution, or precise enterprise
-knowledge --- fine‑tuning distills \emph{behavior, style, task patterns,
-format, and tool‑use policy}, not a guarantee that arbitrary facts are
-recalled faithfully. Whether it reduces retrieval dependence for a
-\emph{particular} task is an empirical question to be measured on that
-task's evaluation set. - Additional costs: training compute, storage of
-fine‑tuned weights, and reduced flexibility for new topics.
+\begin{itemize}
+\tightlist
+\item
+  The base 70B model receives the retrieved 9.2K context via prompt
+  injection.
+\item
+  Guardrails (PII redaction, style enforcement, refusal filtering) are
+  applied as post‑generation or prefix‑check layers.
+\item
+  No model weights are trained on domain data; the knowledge source is
+  the vector database.
+\end{itemize}
 
-(\href{for\%20the\%20canonical\%202,000‑user\%20workload\%20with\%20~10\%20rps\%20average,\%20the\%20incremental\%20per‑request\%20compute\%20cost\%20of\%20768‑dim\%20vs\%20384‑dim\%20embeddings\%20is\%20~0.8\%20ms\%20on\%20a\%20single\%20CPU\%20core,\%20well\%20within\%20the\%20~120\%20ms\%20retrieval\%20budget.\%20The\%20decision\%20hinges\%20on\%20whether\%20the\%20~15\%\%20retrieval\%20quality\%20gain\%20translates\%20into\%20sufficient\%20answer‑quality\%20improvement\%20to\%20justify\%20the\%202×FLOP\%20cost\%20—\%20a\%20workload‑specific\%20tradeoff,\%20not\%20a\%20universal\%20rule.}{HYPOTHESIS},
-{[}ILLUSTRATIVE{]} --- not a reference measurement): for the canonical
-workload, a well‑designed RAG + guardrails pipeline \emph{may} approach
-a fine‑tuned model's answer quality on in‑domain queries. This is
-\textbf{task‑, model‑, data‑, and evaluation‑dependent} --- it is not
-derivable from the architecture alone. The two mechanisms do different
-work: \textbf{RAG} supplies external, mutable knowledge (grounding,
+\textbf{Paradigm 2 --- Fine‑tuned model on domain‑specific Q‑A pairs:}
+
+\begin{itemize}
+\tightlist
+\item
+  The base model is fine‑tuned (full-parameter, or low‑rank adaptation
+  (LoRA)) on thousands of question‑answer pairs reflecting the
+  enterprise's terminology and reasoning patterns.
+\item
+  Inference uses the fine‑tuned weights without a retrieval step, or
+  with a much shorter retrieved context. Fine‑tuning is \textbf{not} a
+  dependable substitute for retrieval when the requirement is factual
+  corpus access, freshness, attribution, or precise enterprise knowledge
+  --- fine‑tuning distills \emph{behavior, style, task patterns, format,
+  and tool‑use policy}, not a guarantee that arbitrary facts are
+  recalled faithfully. Whether it reduces retrieval dependence for a
+  \emph{particular} task is an empirical question to be measured on that
+  task's evaluation set.
+\item
+  Additional costs: training compute, storage of fine‑tuned weights, and
+  reduced flexibility for new topics.
+\end{itemize}
+
+(\href{for\%20the\%20canonical\%202,000‑user\%20workload\%20with\%20~10\%20rps\%20average,\%20the\%20incremental\%20per‑request\%20compute\%20cost\%20of\%20768‑dim\%20vs\%20384‑dim\%20embeddings\%20is\%20~0.8\%20ms\%20on\%20a\%20single\%20CPU\%20core,\%20well\%20within\%20the\%20~120\%20ms\%20retrieval\%20budget.\%20The\%20decision\%20hinges\%20on\%20whether\%20the\%20~15\%\%20retrieval\%20quality\%20gain\%20translates\%20into\%20sufficient\%20answer‑quality\%20improvement\%20to\%20justify\%20the\%202×FLOP\%20cost\%20—\%20a\%20workload‑specific\%20tradeoff,\%20not\%20a\%20universal\%20rule.}{ILLUSTRATIVE}
+--- not a reference measurement): for the canonical workload, a
+well‑designed RAG + guardrails pipeline \emph{may} approach a fine‑tuned
+model's answer quality on in‑domain queries. This is \textbf{task‑,
+model‑, data‑, and evaluation‑dependent} --- it is not derivable from
+the architecture alone. The two mechanisms do different work:
+\textbf{RAG} supplies external, mutable knowledge (grounding,
 provenance, freshness); \textbf{fine‑tuning} shapes behavior, style,
 domain reasoning patterns, format, and tool‑use policy. Either or both
 can improve answer quality, and they can be combined. Whether
@@ -502,7 +527,7 @@ quality drop‑off from 768 to 1024 dim varies by corpus genre (legal
 vs.~engineering vs.~creative), and no public study quantifies this
 domain‑dependence.
 
-\href{for\%20the\%20canonical\%202,000‑user\%20workload\%20with\%20~10\%20rps\%20average,\%20the\%20incremental\%20per‑request\%20compute\%20cost\%20of\%20768‑dim\%20vs\%20384‑dim\%20embeddings\%20is\%20~0.8\%20ms\%20on\%20a\%20single\%20CPU\%20core,\%20well\%20within\%20the\%20~120\%20ms\%20retrieval\%20budget.\%20The\%20decision\%20hinges\%20on\%20whether\%20the\%20~15\%\%20retrieval\%20quality\%20gain\%20translates\%20into\%20sufficient\%20answer‑quality\%20improvement\%20to\%20justify\%20the\%202×FLOP\%20cost\%20—\%20a\%20workload‑specific\%20tradeoff,\%20not\%20a\%20universal\%20rule.}{HYPOTHESIS}
+\href{for\%20the\%20canonical\%202,000‑user\%20workload\%20with\%20~10\%20rps\%20average,\%20the\%20incremental\%20per‑request\%20compute\%20cost\%20of\%20768‑dim\%20vs\%20384‑dim\%20embeddings\%20is\%20~0.8\%20ms\%20on\%20a\%20single\%20CPU\%20core,\%20well\%20within\%20the\%20~120\%20ms\%20retrieval\%20budget.\%20The\%20decision\%20hinges\%20on\%20whether\%20the\%20~15\%\%20retrieval\%20quality\%20gain\%20translates\%20into\%20sufficient\%20answer‑quality\%20improvement\%20to\%20justify\%20the\%202×FLOP\%20cost\%20—\%20a\%20workload‑specific\%20tradeoff,\%20not\%20a\%20universal\%20rule.}{HYPOTHESIS}:
 the break‑even point between RAG + guardrails and fine‑tuned models as a
 function of query volume and domain specialization is \textbf{model‑ and
 domain‑dependent}: it is set by the \(Q^*\) equation above (training +
@@ -518,9 +543,9 @@ illustrative scenario; measure on the target stack (the figure depends
 on the guardrail implementation and hardware).
 
 Each of these flags is an open empirical question a team should resolve
-against its own target workload --- promoted to {[}1P{]} or {[}2°{]}
-DERIVED, dropped, or demoted into the ``What We Still Don't Know''
-section --- rather than left as an untested assumption.
+against its own target workload --- promoted to {[}1P{]}{[}DERIVED{]} or
+{[}2°{]}{[}DERIVED{]}, dropped, or demoted into the ``What We Still
+Don't Know'' section --- rather than left as an untested assumption.
 
 \section{End-of-Chapter Mini-Case: Choosing the Model for the Enterprise
 Q\&A}\label{end-of-chapter-mini-case-choosing-the-model-for-the-enterprise-qa}
@@ -565,10 +590,11 @@ the architect can immediately check the consequences:
 
 The architect now has a concrete model shortlist: 768‑dim
 all‑mpnet‑base‑v2 for the retrieval leg, and the 70B FP16 base model for
-the generation leg, served on 8×H100 with vLLM continuous batching. No
-fine‑tuning is needed at this scale. The architecture decision record
-(to be written in \hyperref[chap:25]{Chapter 25}) will reference this characterization and
-the selection surfaces that drove it.
+the generation leg (dense --- the MoE challenger from Ch 3 was rejected
+on residency and KV grounds), served on 8×H100 with vLLM continuous
+batching. No fine‑tuning is needed at this scale. The architecture
+decision record (to be written in \hyperref[chap:25]{Chapter 25}) will reference this
+characterization and the selection surfaces that drove it.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 

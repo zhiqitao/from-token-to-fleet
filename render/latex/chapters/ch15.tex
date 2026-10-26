@@ -59,7 +59,7 @@ memory traffic. This reuse effect is difficult to quantify without
 workload profiling, but it is a first‑order consideration in
 multi‑tenant serving. The model also captures the interaction between
 sequence length and memory cost: attention quadraticities (O(L²) FLOPs
-and O(L²) memory per head once the QKᵀ/softmax score matrix is
+and O(L²) memory per head once the QK\^{}T/softmax score matrix is
 materialized) mean that long contexts (9,000+ tokens) disproportionately
 strain both compute and HBM bandwidth, making kernel choice
 (FlashAttention vs.~SDPA) one of the first \emph{kernel‑level}
@@ -129,7 +129,7 @@ important architectural signal: a single 8×H100 host cannot prefill the
 peak arrival rate on the naive dense-FLOP model, so prefill either needs
 to be spread across burst headroom, handled by prompt/prefix caching,
 disaggregated (P/D separation), or absorbed by queueing headroom at
-off-peak. What it must \textbf{not} be called is ``MFU = 6.4'': MFU
+off-peak. What it must \textbf{not} be called is ``MFU = 6.5'': MFU
 (Model FLOPs Utilization) is by definition achieved realities divided by
 peak --- a utilization ratio that \textbf{cannot exceed 1.0}. Presenting
 a ratio above 1 for a utilization metric is a unit/modeling error. The
@@ -145,21 +145,21 @@ i.e.~\textasciitilde21\,\% --- again a groundable number, not a
 ceiling-defying one; the actual achieved value must come from the target
 serving benchmark). The architectural conclusion, that there is no
 single bottleneck for the whole request, stands --- and it must be
-argued phase by phase: at the canonical peak, prefill shows a
-\emph{workload capacity deficit} aggregate compute demand (it needs more
-FLOPs/s than the host can supply, and leans on caching/queueing), decode
-is primarily memory-bandwidth constrained, and maximum concurrency is
-constrained by KV residency; each is established from arithmetic
-intensity and the roofline (\hyperref[chap:8]{Chapter 8}), never from an impossible ``MFU
-\textgreater{} 1,'' and none of them is the same statement as ``the
-prefill kernel is compute-bound.'' The \textasciitilde6.5× figure is a
-\textbf{lower-bound impossibility check} (the host cannot meet peak on
-the naive dense model), not a fleet-sizing estimate: the real fleet
-count comes from the achieved prefill tokens/s under the actual latency
-SLO and representative traffic mix (Ch 17/20), and it is sensitive to
-cache-hit rate, input-length distribution, batch schedule, and
-sustainable efficiency --- the 6.5× only says ``more than one host is
-required,'' not ``how many.''
+argued phase by phase. At the canonical peak, prefill shows a
+\emph{workload capacity deficit} --- aggregate compute demand above the
+host's peak (it needs more FLOPs/s than the host can supply, and leans
+on caching/queueing). Decode is primarily memory-bandwidth constrained,
+and maximum concurrency is constrained by KV residency. Each phase is
+established from arithmetic intensity and the roofline (\hyperref[chap:8]{Chapter 8}),
+never from an impossible ``MFU \textgreater{} 1.'' None of them is the
+same statement as ``the prefill kernel is compute-bound.'' The
+\textasciitilde6.5× figure is a \textbf{lower-bound impossibility check}
+(the host cannot meet peak on the naive dense model), not a fleet-sizing
+estimate: the real fleet count comes from the achieved prefill tokens/s
+under the actual latency SLO and representative traffic mix (Ch 17/20),
+and it is sensitive to cache-hit rate, input-length distribution, batch
+schedule, and sustainable efficiency --- the 6.5× only says ``more than
+one host is required,'' not ``how many.''
 
 \emph{KV cache memory footprint:} The KV cache grows linearly with
 cached context and layers; it must never be computed per-layer and then
@@ -217,7 +217,7 @@ parameter-matmul FLOPs (≈15\% of total forward FLOPs) at 9.2K (\hyperref[fig:2
 
 \emph{Read the figure as an I/O story, not a speed-up number.}
 FlashAttention is \textbf{not} ``faster attention'' in the sense that it
-does less arithmetic. It computes the exact same Q·Kᵀ, softmax, ·V
+does less arithmetic. It computes the exact same Q·K\^{}T, softmax, ·V
 sequence. What changes is \emph{where the intermediate lives}: a naive
 kernel writes the L×L attention matrix to HBM and reads it back, so the
 materialized intermediate itself is O(L²) in memory; FlashAttention
@@ -299,7 +299,7 @@ fashion. \textbf{Every mechanism below is a hypothesis to benchmark, not
 a guaranteed win} --- each trades one resource for another, and whether
 it helps depends on the measured workload and hardware (Ch. 14).
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.1327\linewidth}
   >{\raggedright\arraybackslash}p{0.1327\linewidth}
@@ -470,19 +470,20 @@ block/metadata overhead is not vendor-measured). \emph{Using
 scaled‑dot‑product attention without FlashAttention:} For long contexts
 (9,200+ tokens) the quadratic memory cost of SDPA (O(L²)) dominates the
 FLOP cost. FlashAttention fuses read‑write‑compute and reduces HBM
-traffic by \textasciitilde3--5×, raising effective arithmetic intensity.
-This is one of the highest-impact \emph{kernel-level} choices (it sits
-among prefix caching, KV-precision, batching, and P/D disaggregation as
-a major lever, not the single deciding one), and it pays off
-specifically when memory-bound; for moderate lengths (2,000--4,000
-tokens) the HBM bandwidth reduction typically translates to a
-\textasciitilde1.3--1.8× throughput gain on H100 (illustrative --- bench
-the specific kernel on the target hardware). \emph{Neglecting kernel
-launch overhead:} In dynamic‑batching setups, each new token generation
-can trigger a kernel launch. Without continuous batching or token‑level
-fusion, the kernel-launch overhead (illustratively
-\textasciitilde10--20\,\% of GPU time on H100-class parts at this
-traffic) can artificially depress measured MFU.
+traffic by \textasciitilde3--5× ({[}ILLUSTRATIVE{]} --- kernel- and
+length-dependent; measure bytes/request on the target stack), raising
+effective arithmetic intensity. This is one of the highest-impact
+\emph{kernel-level} choices (it sits among prefix caching, KV-precision,
+batching, and P/D disaggregation as a major lever, not the single
+deciding one), and it pays off specifically when memory-bound; for
+moderate lengths (2,000--4,000 tokens) the HBM bandwidth reduction
+typically translates to a \textasciitilde1.3--1.8× throughput gain on
+H100 (illustrative --- bench the specific kernel on the target
+hardware). \emph{Neglecting kernel launch overhead:} In dynamic‑batching
+setups, each new token generation can trigger a kernel launch. Without
+continuous batching or token‑level fusion, the kernel-launch overhead
+(illustratively \textasciitilde10--20\,\% of GPU time on H100-class
+parts at this traffic) can artificially depress measured MFU.
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
 
@@ -539,18 +540,20 @@ between GPUs during tenant rotation is an open question.
 Gain, Not a Capacity
 Win}\label{end-of-chapter-mini-case-the-second-host-a-kernelbatching-gain-not-a-capacity-win}
 
-A new deployment adds 500 registered users with the same traffic profile
-(5\,\% concurrency, 10/40 rps). The team provisions a second 8×H100 host
-and (in this worked example) runs the benchmark with continuous batching
-and FlashAttention‑2. p95 latency drops from 320\,ms (single host,
-batch‑1) to 140\,ms (dual host, continuous batch), and token throughput
-rises from 8,000 to 70,000 tokens/s. The MFU stabilizes at 38\,\%. These
-are {[}ILLUSTRATIVE SCENARIO RESULT{]} values --- an illustrative
-benchmark outcome, not a home-lab measurement; the exact figures must
-come from a deployment benchmark on the target hardware/stack (\hyperref[chap:14]{Chapter 14}). The remaining question is whether the cross‑host request routing
-layer can maintain affinity KV cache residency, avoiding cache warm‑up
-penalties on re‑requests. The ∼20\,\% affinity throughput gain and the
-∼2.1 s cold-start warm-up cost are themselves {[}ILLUSTRATIVE SCENARIO
+A new deployment adds 500 registered users (traffic rises to
+\textasciitilde12.5/50 rps at the same 5\,\% concurrency profile). The
+team provisions a second 8×H100 host and (in this worked example) runs
+the benchmark with continuous batching and FlashAttention‑2. p95 TTFT
+drops from 320\,ms (single host, batch‑1) to 140\,ms (dual host,
+continuous batch), and token throughput rises from 8,000 to 70,000
+tokens/s. The MFU stabilizes at 38\,\%. These are {[}ILLUSTRATIVE
+SCENARIO RESULT{]} values --- an illustrative benchmark outcome, not a
+home-lab measurement; the exact figures must come from a deployment
+benchmark on the target hardware/stack (\hyperref[chap:14]{Chapter 14}). The remaining
+question is whether the cross‑host request routing layer can maintain
+affinity KV cache residency, avoiding cache warm‑up penalties on
+re‑requests. The ∼20\,\% affinity throughput gain and the ∼2.1 s
+cold-start warm-up cost are themselves {[}ILLUSTRATIVE SCENARIO
 RESULT{]} values, not measured results.
 
 \emph{Do not read the 8.75× throughput jump as a capacity-side win.} It
@@ -567,7 +570,7 @@ mini-case's aggregate number.
 
 \textbf{\hyperref[tab:15.1]{Table 15-1}} --- Performance Regime Summary
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.0586\linewidth}
   >{\raggedright\arraybackslash}p{0.0952\linewidth}
@@ -614,9 +617,9 @@ concurrency (17/86/344) is what must be compared against a host's
 concurrent‑request ceiling. KV‑Cache/User uses the canonical
 \textasciitilde2.62 MB/token × 9,500 ≈ 24.9 GB. MFU is an
 {[}ILLUSTRATIVE{]} regime label for teaching shape, not an achieved-MFU
-measurement: the 12/38/52 \% values mark the }congestion level* of each
+measurement: the 12/38/52 \% values mark the congestion level of each
 regime (light/typical/peak), and the peak 52 \% is a demand-side label
 that exceeds the \textasciitilde30--40 \% sustained H100 FP16 MFU of
 \hyperref[chap:8]{Chapter 8} --- it is not a claim that a real kernel reaches 52 \%
 utilization. The bottleneck column reflects the roofline logic of
-\hyperref[chap:8]{Chapter 8}.*
+\hyperref[chap:8]{Chapter 8}.}

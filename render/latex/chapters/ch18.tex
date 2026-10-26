@@ -22,7 +22,8 @@ request through a single 70B FP16 model on 8×H100, we layer:
 \item
   \textbf{Dense FP16} (baseline, high-quality)
 \item
-  \textbf{Dense 4-bit GGUF} (low-latency, edge-friendly)
+  \textbf{Dense 4-bit GGUF} (lowest cost, edge-friendly; highest latency
+  --- see §18.3.2)
 \item
   \textbf{MoE sparse} (selective activation, higher throughput per GPU)
 \item
@@ -59,9 +60,9 @@ The fleet operates as a \emph{cost-aware load balancer} with three
 decision layers:
 
 \textbf{\hyperref[tab:18.1]{Table 18-1}} --- Fleet routing decision hierarchy: capability
-filter → cost--latency optimization → fallthrough.
+filter → cost/SLO gate → fallthrough.
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2026\linewidth}
   >{\raggedright\arraybackslash}p{0.3377\linewidth}
@@ -81,9 +82,9 @@ Decision
 \textbf{Capability filter} & Does any model in the fleet meet the
 request's feature requirements? & Eliminate models that lack the feature
 (e.g., context window too small, no tool-use). \\
-\textbf{Cost--latency optimization} & Among remaining models, which
-minimizes weighted cost = α·token\_cost + β·latency\_cost? & Route to
-the cheapest suitable model; adjust α,β per deployment mode (interactive
+\textbf{Cost/SLO gate} & Among remaining models, which minimizes
+weighted cost = α·token\_cost + β·latency\_cost? & Route to the cheapest
+suitable model; adjust α,β per deployment mode (interactive
 vs.~batch). \\
 \textbf{Fallthrough} & If all suitable models are at capacity, what is
 the next-best alternative? & Queue, degrade quantization, or escalate to
@@ -93,7 +94,10 @@ the next tier. \\
 
 The weighting (α,β) is deployment-context dependent. A chat UI tolerates
 \textasciitilde200\,ms/token; a batch ETL job tolerates
-\textasciitilde2\,s/token but demands lower token cost.
+\textasciitilde2\,s/token but demands lower token cost. These are
+per-request service-latency thresholds for the short-prompt routing
+scenario, not the canonical TTFT/TPOT SLO (Ch 4); the canonical TPOT
+budget is \textasciitilde25 ms.
 
 \ntsection{Worked Example}\label{worked-example}
 
@@ -108,7 +112,7 @@ equivalent).
 
 \subsection{Hardware capacity mapping}\label{hardware-capacity-mapping}
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.0772\linewidth}
   >{\raggedright\arraybackslash}p{0.1672\linewidth}
@@ -165,7 +169,7 @@ With 8×H100 (640\,GB), we can simultaneously run:
 \subsection{Per-token cost (example numbers, Q4 2026
 pricing)}\label{per-token-cost-example-numbers-q4-2026-pricing}
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.0851\linewidth}
   >{\raggedright\arraybackslash}p{0.2674\linewidth}
@@ -256,8 +260,7 @@ tokens at \$2.50).
 
 \textbf{Monthly savings} ≈ (\$23.75 − \$12.59) × 730\,hr ≈
 \textbf{\$8,147 / month} (≈ 47\% reduction) with comparable quality
-because the 8-bit model meets quality thresholds for \textgreater90\% of
-requests.
+because the 8-bit model meets quality thresholds for ≥90\% of requests.
 
 \subsection{Latency check}\label{latency-check}
 
@@ -324,7 +327,7 @@ reserve handles the tail without contention.
 
 To operate a mixed fleet we measure four cross-cutting metrics:
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.1576\linewidth}
   >{\raggedright\arraybackslash}p{0.3602\linewidth}
@@ -351,7 +354,7 @@ Detects saturation; informs capacity adds vs.~routing tweaks. \\
 target model (not fallback) & Ensures the routing function R() is
 well-calibrated; low accuracy means feature gaps or cost model drift. \\
 \textbf{Latency p95 per model} & p95 of token-level latency per model &
-Guarantee SLA per tier; fleet p95 must be computed from the combined
+Guarantee SLO per tier; fleet p95 must be computed from the combined
 routed-request latency distribution --- per-model p95 values cannot in
 general be averaged (percentiles are not linearly composable). \\
 
@@ -415,8 +418,8 @@ A mixed-model fleet changes the architecture in three ways:
 \item
   \textbf{Billing/telemetry pipeline} -- each request's cost and latency
   are tagged with model\_id, enabling downstream dashboards and alerting
-  (e.g., ``cost per token rising above \$0.0025 for 3 consecutive
-  hours'').
+  (e.g., ``cost per token rising above \$0.0025 (on the §18.8 mini-case
+  per-token basis) for 3 consecutive hours'').
 \end{enumerate}
 
 The fleet operator becomes a \emph{cost‑latency steward} rather than a
@@ -503,7 +506,7 @@ from the §18.3.2 per-1M basis.)}
 saving --- but the SLO gates the cost claim, and here it fails.
 \textbf{Tier 1 (the cheapest, 4-bit GGUF on CPU, \textasciitilde600 ms)
 serves 80\% of queries, so the p95 per-request latency is
-\textasciitilde600 ms, which violates the 500 ms SLA for the dominant
+\textasciitilde600 ms, which violates the 500 ms SLO for the dominant
 tier.} The split saves cost by routing the bulk to a slow-but-cheap
 model --- precisely the mean-vs-tail trap: the \emph{average} latency
 looks fine, yet the majority tier misses the deadline. The \$8,994 /
@@ -543,17 +546,17 @@ Tier\,3; the rest flowed to Tier\,1 or Tier\,2 automatically.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the specialist, general and fallback model families as leaves},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-18-1801.png}}
-\caption[Model-routing decision tree]{Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the specialist, general and fallback model families as leaves}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general and fallback model families as leaves},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-18-1801.pdf}}
+\caption[Model-routing decision tree]{Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general and fallback model families as leaves}
 
 \label{fig:18.1}\end{figure}
 
 \emph{The routing decision chain. A request first passes a capability
 filter (is there a specialized model that can serve it?), then a
-cost/latency gate (route = f(cost, SLO)), and otherwise falls through to
-a general model. Each specialized family is a leaf the router can
-dispatch to. This converts the raw cost arithmetic above into the
-operational routing shape an architect operates daily.}
+cost/SLO gate (route = f(cost, SLO)), and otherwise falls through to a
+general model. Each specialized family is a leaf the router can dispatch
+to. This converts the raw cost arithmetic above into the operational
+routing shape an architect operates daily.}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 

@@ -70,7 +70,7 @@ These are the typical bottlenecks, and confusing them is the most common
 architectural misstep. But neither is a universal physical law: the
 characterization is an operating-point property of model × workload ×
 kernel × hardware (batch size, attention length, and kernel fusion all
-shift it), and the roofline framework in Ch 8 is what tells you which
+shift it), and the roofline framework in Ch 8 is what identifies which
 regime a given kernel actually sits in.
 
 One detail the figure makes explicit is \emph{when} a token's K/V enters
@@ -88,8 +88,8 @@ K/V therefore enters the cache on the step in which it is the
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The canonical end-to-end inference pipeline, in three bands. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT/ITL; each step reads the cached K/V, appends the new K/V, and samples the next token. The green initialize path seeds the loop with the first sampled token. The three bands and the single PERSISTENT KV CACHE box are conceptual groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0202.pdf}}
-\caption[The canonical end-to-end inference pipeline, in three bands]{The canonical end-to-end inference pipeline, in three bands. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT/ITL; each step reads the cached K/V, appends the new K/V, and samples the next token. The green \emph{initialize} path seeds the loop with the first sampled token. The three bands and the single PERSISTENT KV CACHE box are \emph{conceptual} groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The canonical end-to-end inference pipeline, in three bands. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT/ITL (time per output token / inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The green initialize path seeds the loop with the first sampled token. The three bands and the single PERSISTENT KV CACHE box are conceptual groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0202.pdf}}
+\caption[The canonical end-to-end inference pipeline, in three bands]{The canonical end-to-end inference pipeline, in three bands. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT/ITL (time per output token / inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The green \emph{initialize} path seeds the loop with the first sampled token. The three bands and the single PERSISTENT KV CACHE box are \emph{conceptual} groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object.}
 
 \label{fig:2.1}\end{figure}
 
@@ -119,16 +119,17 @@ redundant work. So decode does not recompute the prefix's K/V --- it
 an optimization bolted on, but the direct consequence of \emph{which}
 projections are reusable and which (the query) is always new. It is also
 why KV memory grows with sequence length (one K and one V per token, per
-layer) and why attention implementation and precision (GQA/MQA,
-FlashAttention, KV quantization) change an architecture problem that is
-really a memory problem. Ch. 3 and Ch. 7 do the arithmetic; this figure
-is where the causal thread starts.
+layer), why attention architecture and precision (GQA/MQA, KV
+quantization) change the bytes-per-token of what is really a memory
+problem, and why kernel choices like FlashAttention change the traffic,
+not the footprint. Ch. 3 and Ch. 7 do the arithmetic; this figure is
+where the causal thread starts.
 
 \textbf{A vocabulary note that prevents a common conflation.} Several
 terms sound like the same thing but are \emph{not} interchangeable, and
 the chapter will use them precisely:
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
@@ -182,7 +183,7 @@ surfaces four of them, and the metric chapter (Ch. 6) and the design
 chapter (Ch. 12) build on the same set. The book will use these names
 consistently:
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2127\linewidth}
   >{\raggedright\arraybackslash}p{0.2127\linewidth}
@@ -285,9 +286,12 @@ horsepower of the engine, or the diameter of the pipe.
 \textbf{Figure convention (used throughout the book).} Arrows in the
 diagrams carry different meanings by context, and the reader should not
 assume one universal reading: a \textbf{data-flow} arrow (\hyperref[fig:2.1]{Fig 2.1}, 11.3)
-shows tokens or activations moving; a \textbf{dependency} arrow (\hyperref[fig:4.1]{Fig 4.1}) shows ``must be decided before''; a \textbf{causation} arrow (\hyperref[fig:6.1]{Fig 6.1}) shows ``drives / causes''; and a \textbf{conceptual-association}
-arrow (App. A.4) shows ``relates to.'' Where a figure's arrows are
-ambiguous, the caption states the intended reading.
+shows tokens or activations moving; a \textbf{dependency} arrow shows
+``must be decided before''; an \textbf{influence} arrow (\hyperref[fig:4.1]{Fig 4.1}) shows
+``constrains/informs''; a \textbf{causation} arrow (\hyperref[fig:6.1]{Fig 6.1}) shows
+``drives / causes''; and a \textbf{conceptual-association} arrow (App.
+A.4) shows ``relates to.'' Where a figure's arrows are ambiguous, the
+caption states the intended reading.
 
 \ntsection{Worked Example}\label{worked-example}
 
@@ -321,7 +325,7 @@ host and sizing a fleet.
 example, not
 reference)}\label{table-2-1-decode-bandwidth-and-prefill-flops-worked-example-not-reference}
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
@@ -381,15 +385,15 @@ this analytical model {[}canonical scenario{]}{[}DERIVED{]} \\
 \textbf{Regime:} arithmetic intensity places the canonical prefill point
 \textasciitilde9.2K FLOP/byte, well to the right of the
 \textasciitilde295 ridge --- so prefill sits in the compute-bound
-}regime\emph{; decode at \textasciitilde1 FLOP/byte sits in the
-memory-bound }regime\emph{. (2) \textbf{Capacity:} the stated TTFT
-deadline implies \textasciitilde1.19 PFLOPS demand, exceeding the
-compared single-H100 theoretical peak (0.989 PFLOPS) --- so one H100 is
-}insufficient* under that analytical deadline model. The regime
-classification and the capacity shortfall are independent: a workload
-can be compute-bound in regime yet still fit on the device, and vice
-versa. (Analytical bounds --- not a benchmark: these are first-order
-model checks, not a measurement of actual serving throughput.)*
+regime; decode at \textasciitilde1 FLOP/byte sits in the memory-bound
+regime. (2) \textbf{Capacity:} the stated TTFT deadline implies
+\textasciitilde1.19 PFLOPS demand, exceeding the compared single-H100
+theoretical peak (0.989 PFLOPS) --- so one H100 is insufficient under
+that analytical deadline model. The regime classification and the
+capacity shortfall are independent: a workload can be compute-bound in
+regime yet still fit on the device, and vice versa. (Analytical bounds
+--- not a benchmark: these are first-order model checks, not a
+measurement of actual serving throughput.)}
 
 \textbf{Worked example arithmetic details:}
 
@@ -476,18 +480,20 @@ rate against the \textasciitilde1.08 s prefill budget is
 \text{rate} = \frac{1.29 \text{ PFLOP}}{1.08 \text{ s}} \approx 1.19 \text{ PFLOPS}
 \]
 
-Crossing \(1.19 > 0.989\) --- \textbf{even before accounting for
-attention overhead, kernel inefficiency, and sub-100\% MFU, this
-first-order lower bound already exceeds the H100's theoretical peak.}
-Therefore one H100 cannot satisfy the stated prefill budget under these
-assumptions; the prefill phase is compute-bound {[}canonical
-scenario{]}{[}DERIVED{]}. Note the direction of this argument: exceeding
-the \emph{theoretical peak} proves the target is impossible on a single
-H100 under the stated model, but it does \textbf{not} imply any rate
-below the peak is achievable --- real kernels land well under MFU 100\%.
-Meeting the latency SLO therefore calls for multiple GPUs (model
-parallelism or data parallelism) or more efficient attention
-implementations.
+With \(1.19 > 0.989\), \textbf{even before accounting for attention
+overhead, kernel inefficiency, and sub-100\% model FLOPs utilization
+(MFU), this first-order lower bound already exceeds the H100's
+theoretical peak.} Therefore one H100 cannot satisfy the stated prefill
+budget under these assumptions. The prefill phase is compute-bound for
+the separate reason given in \hyperref[tab:2.1]{Table 2-1}: arithmetic intensity
+\textasciitilde9.2K FLOP/byte \textgreater{} ridge \textasciitilde295
+{[}canonical scenario{]}{[}DERIVED{]}. Note the direction of this
+argument: exceeding the \emph{theoretical peak} proves the target is
+impossible on a single H100 under the stated model, but it does
+\textbf{not} imply any rate below the peak is achievable --- real
+kernels land well under MFU 100\%. Meeting the latency SLO therefore
+calls for multiple GPUs (model parallelism or data parallelism) or more
+efficient attention implementations.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -545,7 +551,7 @@ the wrong optimization lever.
   under-provisioning compute for a compute-bound one.
 \item
   \textbf{Assuming one H100 suffices for 70B inference.} The arithmetic
-  in Section 3 shows that a single H100 cannot meet the decode bandwidth
+  in §2.3 shows that a single H100 cannot meet the decode bandwidth
   demand (5.6 TB/s vs 3.35 TB/s) nor the prefill compute demand (1.19
   PFLOPS required vs 0.989 PFLOPS peak, from 1.29 PFLOP / 1.08 s).
   Attributing 70B serveability to a single GPU ignores the opposite
@@ -645,8 +651,8 @@ worth benchmarking, not a concluded win.) This is the central theme of
   \textasciitilde5.3 TB/s. How these compare to the 5.6 TB/s decode
   demand shifts the GPU count equation but does not change the
   fundamental bandwidth-bound vs compute-bound classification.
-  {[}ILLUSTRATIVE{]}{[}DERIVED{]} --- vendor-published numbers, verify
-  against the specific generation in use.
+  {[}1P{]}{[}FACT{]} --- vendor-published specifications as of the
+  2026-08-30 cutoff; verify against the specific generation in use.
 \item
   \textbf{Effect of quantization on decode bandwidth vs prefill FLOPs.}
   Int4 or FP8 quantization reduces the weight bytes (e.g., 70B at FP8 =

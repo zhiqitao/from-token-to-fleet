@@ -50,18 +50,17 @@ under the specified tokenizer (the detokenizer inverts the encoding),
 but the \emph{segmentation} does not correspond cleanly to words or
 semantics: the characters of \texttt{architecture} and
 \texttt{architect} may or may not share a token depending on corpus
-frequency, and the boundaries are wherever the merged-pair statistics
-happened to land, not where a grammarian would put them. The
-encode/decode round-trip is usually lossless for the byte-level mapping,
-but the \emph{token boundaries} are not semantically meaningful. Second,
-token counts are \textbf{not proportional to character counts in any
-fixed way}.{[}2°{]} A high-frequency English word is often one token
-({[}1P{]} verifiable on most vendor tokenizer demos --- e.g.~common
-words like \emph{the}, \emph{we}, \emph{run} render as single tokens); a
-rare technical term, a long digit string, or dense code is frequently
-several. The ``one token ≈ 4 characters'' rule of thumb is for rough
-estimation of general-English prose, never a law --- we confirm against
-the model's own tokenizer before pricing anything.
+frequency. The encode/decode round-trip is usually lossless for the
+byte-level mapping, but the \emph{token boundaries} are not semantically
+meaningful. Second, token counts are \textbf{not proportional to
+character counts in any fixed way}. {[}2°{]}{[}FACT{]} A high-frequency
+English word is often one token ({[}1P{]}{[}FACT{]} verifiable on most
+vendor tokenizer demos --- e.g.~common words like \emph{the}, \emph{we},
+\emph{run} render as single tokens); a rare technical term, a long digit
+string, or dense code is frequently several. The ``one token ≈ 4
+characters'' rule of thumb is for rough estimation of general-English
+prose, never a law --- we confirm against the model's own tokenizer
+before pricing anything.
 
 \subsection{Context window}\label{context-window}
 
@@ -76,27 +75,28 @@ support positional-scaling or provider-side context extension, so the
 \emph{model's} positional capability and the \emph{serving stack's}
 configured cap can differ; the distinction is developed in Ch 7 and Ch
 22.) Current-gen models commonly ship windows ranging from roughly 8K up
-to a million-plus tokens, varying by model and vendor ({[}2°{]} vendor
-model cards, e.g.~128K/1M+ windows as of 2026); the advertised number is
-a fixed, checkable property of the model we choose --- verify it on the
-card, never assume it from the family name. Note there are three related
-but distinct limits: the \emph{model-advertised maximum} (the card's
-window), the \emph{engine-configured maximum} (what the serving stack is
-set to allow, which can be lower to bound memory), and the
-\emph{request-level available input budget} (the advertised window minus
-the reserved generation budget and any positional-scaling or
-provider-API cap). The context window is one of the first numbers we
-will be quoted, and one of the easiest to overcommit against. But it is
-a \emph{configured maximum}, not a per-request charge: a 9.2K request in
-a 128K window is computed, cached, and billed on the \textasciitilde9.2K
-tokens actually used, not on the full 128K. What the window \emph{does}
-bound is the worst case --- the memory a single request could reserve
-and the admission capacity the engine must hold --- and some engines
-reserve or pre-allocate against that maximum (a policy choice that
-varies by engine), while others allocate only for the tokens actually
-processed. So the window sets the ceiling on reservation and admission,
-not the floor on per-request cost; the cost tracks the tokens actually
-cached and billed (developed in Ch 7 and Ch 16).
+to a million-plus tokens, varying by model and vendor
+({[}2°{]}{[}FACT{]} vendor model cards, e.g.~128K/1M+ windows as of
+2026); the advertised number is a fixed, checkable property of the model
+we choose --- verify it on the card, never assume it from the family
+name. Note there are three related but distinct limits: the
+\emph{model-advertised maximum} (the card's window), the
+\emph{engine-configured maximum} (what the serving stack is set to
+allow, which can be lower to bound memory), and the \emph{request-level
+available input budget} (the advertised window minus the reserved
+generation budget and any positional-scaling or provider-API cap). The
+context window is one of the first numbers we will be quoted, and one of
+the easiest to overcommit against. But it is a \emph{configured
+maximum}, not a per-request charge: a 9.2K request in a 128K window is
+computed, cached, and billed on the \textasciitilde9.2K tokens actually
+used, not on the full 128K. What the window \emph{does} bound is the
+worst case --- the memory a single request could reserve and the
+admission capacity the engine must hold --- and some engines reserve or
+pre-allocate against that maximum (a policy choice that varies by
+engine), while others allocate only for the tokens actually processed.
+So the window sets the ceiling on reservation and admission, not the
+floor on per-request cost; the cost tracks the tokens actually cached
+and billed (developed in Ch 7 and Ch 16).
 
 \subsection{Embeddings}\label{embeddings}
 
@@ -217,23 +217,24 @@ here and must be filled by a deployment benchmark. The vLLM FP8-KV blog
 post's often-quoted `54\%' is a decode inter-token-latency (ITL) slope,
 not a memory ratio, so it is not a memory-footprint coefficient here. At
 9.2K tokens the raw byte-halving figure gives \textasciitilde12.06 GB
-(not \textasciitilde13.4 GB). A different engine or a
-GQA/hybrid-attention model has a different per-token footprint, so
-re-derive it for the target stack (the geometry and the ``do not
-generalize'' caveat are in Ch. 7). {[}ILLUSTRATIVE{]}{[}DERIVED{]}
-Either way, a long context (say 32K tokens) alone can be tens of GB of
-memory. A first non-obvious architectural lesson hides here: \emph{MoE
-expert sparsity alone does not reduce per-token KV state.} A
-Mixture-of-Experts model activates only a fraction of its neurons per
-token, which saves compute, but the attention layers still process every
-token densely and emit a key/value per token --- so MoE shrinks
-compute-per-token, not memory-per-context. What actually determines KV
-memory is the \emph{attention architecture and cache policy}, not the
-expert count: GQA/MQA shrink the per-token K/V width,
-hybrid/linear/compressed-latent attention change how much context is
-retained, sliding-window caps some layers' retained context, and
-quantization (FP8) reduces the bytes per element without stopping the
-linear growth. This is a controlled comparison --- it holds the
+(not \textasciitilde13.4 GB --- the figure one gets by assuming
+\textasciitilde11\% block/metadata overhead on top of the raw tensor
+bytes). A different engine or a GQA/hybrid-attention model has a
+different per-token footprint, so re-derive it for the target stack (the
+geometry and the ``do not generalize'' caveat are in Ch. 7).
+{[}ILLUSTRATIVE{]}{[}DERIVED{]} Either way, a long context (say 32K
+tokens) alone can be tens of GB of memory. A first non-obvious
+architectural lesson hides here: \emph{MoE expert sparsity alone does
+not reduce per-token KV state.} A Mixture-of-Experts model activates
+only a fraction of its neurons per token, which saves compute, but the
+attention layers still process every token densely and emit a key/value
+per token --- so MoE shrinks compute-per-token, not memory-per-context.
+What actually determines KV memory is the \emph{attention architecture
+and cache policy}, not the expert count: GQA/MQA shrink the per-token
+K/V width, hybrid/linear/compressed-latent attention change how much
+context is retained, sliding-window caps some layers' retained context,
+and quantization (FP8) reduces the bytes per element without stopping
+the linear growth. This is a controlled comparison --- it holds the
 attention geometry, context length, and cache dtype fixed; an MoE model
 that also uses GQA or a different attention mechanism can have a much
 smaller KV footprint than a dense full-MHA baseline. The distinction ---
@@ -246,8 +247,8 @@ arithmetic against the canonical scenario.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The KV cache: every decoded token adds one K/V per layer per head. This is a single-layer detail view (one layer's K/V heads); the multi-layer, multi-head overview and the full token-travel pipeline are in \hyperref[fig:1.2]{Fig 1.2} and \hyperref[fig:2.1]{Fig 2.1}. Read the per-head structure here, and the cross-layer accumulation in \hyperref[fig:2.1]{Fig 2.1}.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-kv-cache.png}}
-\caption[The KV cache: every decoded token adds one K/V per layer per head]{The KV cache: every decoded token adds one K/V per layer per head. This is a \textbf{single-layer detail} view (one layer's K/V heads); the multi-layer, multi-head overview and the full token-travel pipeline are in \hyperref[fig:1.2]{Fig 1.2} and \hyperref[fig:2.1]{Fig 2.1}. Read the per-head structure here, and the cross-layer accumulation in \hyperref[fig:2.1]{Fig 2.1}.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The KV cache: every decoded token adds one K/V per layer per head. This is a single-layer detail view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄); the full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the multi-layer overview in \hyperref[fig:2.1]{Fig 2.1}, where the cross-layer accumulation is shown.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-kv-cache.png}}
+\caption[The KV cache: every decoded token adds one K/V per layer per head]{The KV cache: every decoded token adds one K/V per layer per head. This is a \textbf{single-layer detail} view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄); the full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the multi-layer overview in \hyperref[fig:2.1]{Fig 2.1}, where the cross-layer accumulation is shown.}
 
 \label{fig:1.1}\end{figure}
 
@@ -279,13 +280,12 @@ A useful image for the full pipeline:
 \emph{How a token travels. The token is the interface between a human's
 request and the machine's arithmetic: carved by the tokenizer, embedded
 into a vector, attended against past context, and remembered in the KV
-cache. This is a }conceptual abstraction* of one forward pass, not the
+cache. This is a conceptual abstraction of one forward pass, not the
 full transformer: each layer also runs MLP/projection, normalization,
-and residual paths, and the K/V are produced \emph{within every
-applicable layer} (not after a single ``attention'' stage) --- the full
+and residual paths, and the caption's caveats apply --- the full
 mechanism inventory is Ch. 3, the arithmetic Ch. 7. (Concept; the
 iterative autoregressive loop and the read-side of the persistent KV
-state are shown in \hyperref[fig:2.1]{Fig 2.1}.)*
+state are shown in \hyperref[fig:2.1]{Fig 2.1}.)}
 
 \begin{quote}
 Text → \textbf{tokenizer} → discrete IDs → \textbf{embedding} → vectors
@@ -339,7 +339,7 @@ system ingests:
 \textbf{\hyperref[tab:1.1]{Table 1-1}} --- Token throughput of the canonical workload
 (worked example, not reference).
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
@@ -380,11 +380,12 @@ conclusion token counts alone establish. Decode's serial nature,
 per-step weight reads, batching, cache residency, and the latency SLO
 can still dominate capacity economics even on an input-heavy workload;
 the token mix is the first signal, and the measured per-phase
-utilization and goodput (Ch 7, Ch 8, Ch 14) are what confirm it. We will
-not act on it here; \hyperref[chap:7]{Chapter 7} (Memory) and \hyperref[chap:8]{Chapter 8} (Compute) do. The
-point of the worked example in this chapter is to fix \emph{the unit}:
-every one of those numbers is a statement about tokens, and we can now
-say it without translating from words or pages.
+utilization and goodput (throughput that meets the SLO; Ch 7, Ch 8, Ch
+14) are what confirm it. We will not act on it here; \hyperref[chap:7]{Chapter 7} (Memory)
+and \hyperref[chap:8]{Chapter 8} (Compute) do. The point of the worked example in this
+chapter is to fix \emph{the unit}: every one of those numbers is a
+statement about tokens, and we can now say it without translating from
+words or pages.
 
 \ntsection{Measurement}\label{measurement}
 

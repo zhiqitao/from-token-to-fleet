@@ -3,10 +3,10 @@
 After this chapter we should be able to walk into a running inference
 system, read its metrics, and answer a deceptively hard question:
 \emph{is this system meeting its obligations, and if not, which lever do
-we pull?} Most serving teams instrument the wrong thing --- model
-capability and offline quality --- and then are blind when a real
-workload misbehaves. This chapter builds the metric hierarchy that turns
-raw telemetry into architecture decisions: what to log, what each number
+we pull?} Teams commonly instrument the wrong thing --- model capability
+and offline quality --- and then are blind when a real workload
+misbehaves. This chapter builds the metric hierarchy that turns raw
+telemetry into architecture decisions: what to log, what each number
 means, how to read a latency \emph{distribution} instead of a mean, and
 how to tell bandwidth-bound from compute-bound purely from the counters.
 After this chapter, ``the system felt slow'' becomes a falsifiable,
@@ -108,18 +108,18 @@ stacks them top to bottom. The two orderings are different and both
 intentional.)
 
 When something breaks, we read upward: a p95 TTFT breach (serving)
-forces us to look at the token profile (workload: did context length
-grow?) and then the resource layer (resource: is prefill queuing because
-we're FLOP-bound?). The causal direction follows the system, not the
-diagnosis: the workload generates resource demand, and the resource
+forces us to look at the resource layer first (resource: is prefill
+queuing because we're FLOP-bound?) and then the token profile (workload:
+did context length grow?). The causal direction follows the system, not
+the diagnosis: the workload generates resource demand, and the resource
 supply shapes serving behavior --- so when numbers are healthy, the
 chain confirms our architecture was right.
 
-The mental model also inculcates \textbf{one number naming many
-different things}. ``Throughput'' without a qualifier is meaningless: is
-it requests per second, tokens per second, or \emph{goodput} --- tokens
-per second that arrived before the SLO deadline? We commit to always
-qualifying.
+The mental model also warns against \textbf{one number standing in for
+many different things}. ``Throughput'' without a qualifier is
+meaningless: is it requests per second, tokens per second, or
+\emph{goodput} --- tokens per second that arrived before the SLO
+deadline? We commit to always qualifying.
 
 \ntsection{Worked Example}\label{worked-example}
 
@@ -155,8 +155,8 @@ SLO line), not just one percentile.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Request-latency distribution: p50/p90/p95/p99 and the mean},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0602.pdf}}
-\caption{Request-latency distribution: p50/p90/p95/p99 and the mean}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Request-latency distribution: p50/p90/p95/p99, with the mean in the legend},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0602.pdf}}
+\caption{Request-latency distribution: p50/p90/p95/p99, with the mean in the legend}
 
 \label{fig:6.2}\end{figure}
 
@@ -176,10 +176,9 @@ same-time prefill requests each pay the full 1.08 s prefill of the job
 ahead of them, so p95 TTFT drifts to \textasciitilde2.5 s. The
 \emph{average} says ``fine''; the \emph{p95} says ``we just violated our
 SLO.'' We hence log p50, p90, p95, and p99 independently and run the SLO
-against the percentile, never the mean.
-{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} author-chosen SLO budget from the
-canonical scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}); the arithmetic is the point, not a
-citation.
+against the percentile, never the mean. {[}canonical
+scenario{]}{[}ASSUMPTION{]} author-chosen SLO budget from the canonical
+scenario (Ch 4, \hyperref[tab:4.3]{Table 4-3}); the arithmetic is the point, not a citation.
 
 \subsection{Goodput vs Raw Throughput}\label{goodput-vs-raw-throughput}
 
@@ -231,9 +230,9 @@ bandwidth-bound or compute-bound? We recall the arithmetic from \hyperref[chap:2
   regardless of sharding. So the honest statement is: decode is
   memory-bound because its intensity is low and batching raises it, not
   merely because an aggregate 5.6 TB/s exceeds one GPU's 3.35
-  {[}ILLUSTRATIVE{]}{[}DERIVED{]}. (This is an operating-point property,
-  not an identity: at high batch decode climbs the intensity slope and
-  can become compute-bound.)
+  {[}canonical scenario{]}{[}DERIVED{]}. (This is an operating-point
+  property, not an identity: at high batch decode climbs the intensity
+  slope and can become compute-bound.)
 \item
   \textbf{Prefill is compute-bound at the canonical long-prompt
   operating point.} The reason prefill lands on the compute plateau of
@@ -255,7 +254,7 @@ bandwidth-bound or compute-bound? We recall the arithmetic from \hyperref[chap:2
   deadline, not about the kernel's roofline regime. Prefill being
   \emph{compute-bound} (rather than bandwidth-bound) follows from its
   high arithmetic intensity, not from the 1.19-vs-0.989 comparison.
-  {[}1P{]}{[}DERIVED{]}
+  {[}canonical scenario{]}{[}DERIVED{]}
 \end{itemize}
 
 At the resource layer, the tell is utilization: a decode kernel pinned
@@ -265,23 +264,24 @@ utilization is compute-bound. \textbf{The same hardware, the same model
 --- the boundary flips between prefill and decode.} This is precisely
 why Splitwise/DistServe (and Mooncake's KV-centric disaggregation) split
 prefill from decode onto different pools: the bottleneck-regime
-difference justifies it. {[}S4{]}{[}1P{]} \emph{These percentages are
-\textbf{hypothetical telemetry signatures} used to illustrate how to
-read utilization --- not a measured benchmark find from any trace. They
-are representative operating-point values (a low-intensity decode kernel
-at high HBM-utilization/low FLOP-utilization, a high-intensity prefill
-kernel at high FLOP-utilization), useful to classify a kernel's regime;
-an actual deployment's percentages come from its own counters, and a
-real utilization reading (observed vs.~theoretical peak vs.~required
-minimum) must be distinguished from these example values. See Ch 8 for
-the underlying intensity/roofline arithmetic that shows why these
-regimes occur.}
+difference justifies it. {[}S4{]}{[}1P{]}{[}FACT{]} \emph{These
+percentages are \textbf{hypothetical telemetry signatures} used to
+illustrate how to read utilization --- not a measured benchmark find
+from any trace. They are representative operating-point values (a
+low-intensity decode kernel at high HBM-utilization/low
+FLOP-utilization, a high-intensity prefill kernel at high
+FLOP-utilization), useful to classify a kernel's regime; an actual
+deployment's percentages come from its own counters, and a real
+utilization reading (observed vs.~theoretical peak vs.~required minimum)
+must be distinguished from these example values. See Ch 8 for the
+underlying intensity/roofline arithmetic that shows why these regimes
+occur.}
 
 \subsubsection{Table 6-1 --- Detecting the bottleneck regime from
 resource
 telemetry}\label{table-6-1-detecting-the-bottleneck-regime-from-resource-telemetry}
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.1647\linewidth}
   >{\raggedright\arraybackslash}p{0.1647\linewidth}
@@ -305,8 +305,9 @@ Resource tell
 \bottomrule\noalign{}
 \endlastfoot
 Prefill (9.2K input) & \textasciitilde1.19 PFLOPS (1.29 PFLOP ÷ 1.08 s)
-& \textasciitilde0.989 PFLOPS BF16 & compute-bound & high FLOP / MFU
-util, mid bandwidth \\
+& \textasciitilde0.989 PFLOPS BF16 & compute-bound (from intensity
+\textasciitilde9.2K FLOP/byte ≫ ridge \textasciitilde295, not this rate
+comparison) & high FLOP / MFU util, mid bandwidth \\
 Decode (per token) & \textasciitilde140 GB weight-read →
 \textasciitilde5.6 TB/s rate (batch-1-equivalent) & \textasciitilde3.35
 TB/s HBM (single-device) & bandwidth-bound & high HBM util, low FLOP
@@ -314,18 +315,18 @@ util \\
 
 \label{tab:6.1}\end{longtable}
 
-\emph{(All figures {[}1P{]}{[}FACT{]} hardware /
-{[}ILLUSTRATIVE{]}{[}DERIVED{]} arithmetic traced to canonical scenario
-(Ch 4, \hyperref[tab:4.3]{Table 4-3}) and \hyperref[chap:2]{Chapter 2}. The regime verdict follows from
-arithmetic intensity, not from the demand-vs-capacity rate comparison:
-prefill \textasciitilde9,200 FLOP/byte ≫ ridge \textasciitilde295
+\emph{(All figures {[}1P{]}{[}FACT{]} hardware / {[}canonical
+scenario{]}{[}DERIVED{]} arithmetic traced to the canonical scenario (Ch
+4, \hyperref[tab:4.3]{Table 4-3}) and \hyperref[chap:2]{Chapter 2}. The regime verdict follows from arithmetic
+intensity, not from the demand-vs-capacity rate comparison: prefill
+\textasciitilde9,200 FLOP/byte ≫ ridge \textasciitilde295
 (compute-bound), decode \textasciitilde1.0 FLOP/byte ≪ ridge
 (bandwidth-bound). The 1.19-vs-0.989 PFLOPS and 5.6-vs-3.35 TB/s rate
-comparisons are }illustrative single-device roofline* arguments (a
+comparisons are illustrative single-device roofline arguments (a
 hypothetical single-GPU rate against that GPU's own peak), not verdicts
 on the canonical 8×H100 host's bandwidth adequacy --- under tensor
 parallelism the 140 GB is sharded, so each GPU only needs
-\textasciitilde0.70 TB/s against its own \textasciitilde3.35 TB/s.)*
+\textasciitilde0.70 TB/s against its own \textasciitilde3.35 TB/s.)}
 
 \subsection{Reading Telemetry Into a
 Decision}\label{reading-telemetry-into-a-decision}
@@ -339,8 +340,8 @@ each \textasciitilde1.29 PFLOP saturating FLOPs. The decision: enable
 prefix / RadixAttention-style caching (SGLang) or Automatic Prefix
 Caching (vLLM) so shared retrieved-context prefixes are reused instead
 of re-prefilled, cutting effective prefill FLOPs and TTFT.
-{[}S3{]}{[}1P{]} Prefix caching is a compute-saving move, not a latency
-tuning --- and the telemetry told us that.
+{[}S3{]}{[}1P{]}{[}FACT{]} Prefix caching is a compute-saving move, not
+a latency tuning --- and the telemetry told us that.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -413,31 +414,31 @@ workload:
   \textbf{Bandwidth-bound decode + compute-bound prefill ⇒ P/D
   disaggregation} (Splitwise/DistServe/Mooncake) is the remedy at scale,
   because squeezing both regimes from one resource pool fights itself.
-  {[}S4{]}{[}1P{]}
+  {[}S4{]}{[}1P{]}{[}FACT{]}
 \item
   \textbf{Repeat-prefix RAG ⇒ enable prefix caching}
   (RadixAttention/APC), which turns repeated 9.2K prefills into cached
   lookups and defends the p95 TTFT against the 40 rps peaks.
-  {[}S3{]}{[}1P{]}
+  {[}S3{]}{[}1P{]}{[}FACT{]}
 \item
   \textbf{KV cache pressure ⇒ quantize or offload KV.} FP8 KV = raw
   tensor byte-halving = 1.31 MB/token (exactly 50\% of BF16)
-  {[}ILLUSTRATIVE{]}{[}DERIVED{]}; any block-allocation/metadata
+  {[}canonical scenario{]}{[}DERIVED{]}; any block-allocation/metadata
   overhead is NOT vendor-measured here and must be filled by a
   deployment benchmark. (The vLLM FP8-KV blog's `54\%' is a decode-ITL
   latency slope, not a memory ratio.) And vLLM KV-offloading (its own
-  2026-01-08 blog {[}S7{]}{[}1P{]}) cuts TTFT by 2--22× in a particular
-  warm-cache-hit/reuse benchmark, not a generic cold-cache improvement
-  --- both are memory-layer fixes the telemetry would call for when KV
-  occupancy nears capacity.
+  2026-01-08 blog {[}S7{]}{[}1P{]}{[}FACT{]}) cuts TTFT by 2--22× in a
+  particular warm-cache-hit/reuse benchmark, not a generic cold-cache
+  improvement --- both are memory-layer fixes the telemetry would call
+  for when KV occupancy nears capacity.
 \item
   \textbf{Speculative decoding where decode bandwidth is the wall} ---
   DFlash \emph{reports} over 6× lossless acceleration, up to 2.5× over
-  EAGLE-3, in its paper's evaluated configurations {[}S5{]}{[}1P{]} ---
-  because it reduces weight reads per accepted token. These are
-  paper-reported results, not portable serving-speed figures: treat them
-  as performance claims to re-measure on the target workload, not as a
-  guaranteed speedup.
+  EAGLE-3, in its paper's evaluated configurations
+  {[}S5{]}{[}1P{]}{[}FACT{]} --- because it reduces weight reads per
+  accepted token. These are paper-reported results, not portable
+  serving-speed figures: treat them as performance claims to re-measure
+  on the target workload, not as a guaranteed speedup.
 \end{itemize}
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
@@ -449,9 +450,9 @@ workload:
   \textbf{Goodput in production is rarely published.} The research
   corpus gives strong qualitative and some quantitative anchors
   (Mooncake 525\% simulated throughput / 75\% more requests
-  {[}S4{]}{[}1P{]}, DFlash \textgreater6× {[}S5{]}{[}1P{]}), but
-  portable end-to-end goodput figures across real enterprise RAG
-  workloads remain (a hypothesis).
+  {[}S4{]}{[}1P{]}{[}FACT{]}, DFlash \textgreater6×
+  {[}S5{]}{[}1P{]}{[}FACT{]}), but portable end-to-end goodput figures
+  across real enterprise RAG workloads remain (a hypothesis).
 \item
   \textbf{Prefix-cache hit rates in mixed workloads} are
   workload-dependent; the actual reduction in prefill FLOPs from

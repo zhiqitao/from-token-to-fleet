@@ -72,14 +72,15 @@ is the antidote to ``does it fit?'' mistakes:
 \item
   \textbf{Practical host requirement} = weights + KV + runtime/workspace
   + safety margin. Deploying a model on a GPU requires additional VRAM
-  for CUDA kernels, activation buffers, NCCL communication, a
-  warmup/KV-allocation safety pool, and (on a multi-GPU host) tensor- or
-  pipeline-parallel copies. On the canonical 8×H100 host this
-  runtime/workspace term is \textasciitilde64 GB, turning the
-  \textasciitilde165 GB residency floor into a larger \emph{deployment}
-  footprint. {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} The \textasciitilde64 GB
-  is a planning reserve, not a measured constant; a representative split
-  is \textasciitilde8 GB CUDA context/driver + \textasciitilde16 GB
+  for CUDA kernels, activation buffers, NCCL (NVIDIA Collective
+  Communications Library) communication, a warmup/KV-allocation safety
+  pool, and (on a multi-GPU host) tensor- or pipeline-parallel copies.
+  On the canonical 8×H100 host this runtime/workspace term is
+  \textasciitilde64 GB, turning the \textasciitilde165 GB residency
+  floor into a larger \emph{deployment} footprint.
+  {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} The \textasciitilde64 GB is a
+  planning reserve, not a measured constant; a representative split is
+  \textasciitilde8 GB CUDA context/driver + \textasciitilde16 GB
   activation buffers (batch + intermediate tensors) + \textasciitilde8
   GB NCCL communication buffers (tensor-parallel all-reduce staging) +
   \textasciitilde32 GB warmup/KV-allocation safety pool. The exact value
@@ -123,8 +124,9 @@ the canonical context, and contrast with long-context variants. The
 per-token formula is general --- KV/token = 2 × layers × n\_KV-heads ×
 head\_dim × bytes --- and the full-MHA special case (n\_KV-heads ×
 head\_dim = hidden\_dim) gives the \textasciitilde2.62 MB/token
-conservative baseline used throughout; a GQA model would use a much
-smaller constant (see the sensitivity note, below).
+conservative baseline used throughout; a grouped-query attention (GQA)
+model would use a much smaller constant (see the sensitivity note,
+below).
 
 \textbf{\hyperref[tab:7.1]{Table 7-1}} --- KV cache size per token and per-context
 arithmetic for the canonical 80-layer, hidden-8192, \textbf{full-MHA 70B
@@ -134,7 +136,7 @@ the general per-token formula
 \texttt{2\ ×\ layers\ ×\ n\_KV-heads\ ×\ head\_dim\ ×\ bytes} (MHA case
 here); model-card architecture constants are {[}1P: model card{]}.)}
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
   >{\raggedright\arraybackslash}p{0.2927\linewidth}
@@ -173,14 +175,14 @@ total inference KV (9.5K max) & ≈ 24.9 GB & 9,500 × 2,621,440 B ≈ 24.9
 GB \\
 32K input KV cache & 32,000 ×2.62 MB ≈ 83.9 GB & 32,000 ×2,621,440 B;
 long-context variant \\
-128K input KV cache & 128,000 ×2.62 MB ≈ 335.4 GB & aggressive
-long-context variant \\
+128K input KV cache & 128,000 ×2.62 MB ≈ 335.5 GB & 128,000 ×2,621,440
+B; aggressive long-context variant \\
 70B FP16 weights & 70B × 2 B = 140 GB & {[}1P: DERIVED from 70B × 2
 bytes{]} \\
 inference residency (weights + KV, 9.5K max) & ≈ 165 GB & 140 + 24.9
 GB \\
 inference residency (weights + KV, 32K) & ≈ 224 GB & 140 + 83.9 GB \\
-inference residency (weights + KV, 128K) & ≈ 475 GB & 140 + 335.4 GB \\
+inference residency (weights + KV, 128K) & ≈ 475 GB & 140 + 335.5 GB \\
 2×H100 total VRAM & 2 ×80 GB = 160 GB & {[}1P: NVIDIA H100 spec{]} \\
 8×H100 total VRAM & 8 ×80 GB = 640 GB & {[}1P: NVIDIA H100 spec{]} \\
 3×H100 total VRAM & 3 ×80 GB = 240 GB & {[}DERIVED{]} 165 GB \textless{}
@@ -191,7 +193,7 @@ more GPUs) \\
 fits 8×H100 at 9.2K? & yes & 164.1 GB \textless{} 640 GB \\
 fits 3×H100 at 9.2K? & yes & 164.1 GB \textless{} 240 GB \\
 fits 8×H100 at 32K? & yes & 224.0 GB \textless{} 640 GB \\
-fits 8×H100 at 128K? & yes, barely & 475.0 GB \textless{} 640 GB \\
+fits 8×H100 at 128K? & yes, barely & 475.5 GB \textless{} 640 GB \\
 fits 1×H100 at 9.2K? & no & 164.1 GB \textgreater{} 80 GB; needs ≥3×H100
 by aggregate capacity \\
 
@@ -211,7 +213,8 @@ concurrency) answer different questions.}
 
 \emph{Attention-family sensitivity note.} The \textasciitilde2.62
 MB/token (2.5 MiB) figure is the \textbf{full-MHA} (multi-head
-attention) upper bound: KV-heads = query-heads = hidden\_dim, i.e.
+attention) upper bound: n\_KV-heads = n\_query-heads, and n\_KV-heads ×
+head\_dim = hidden\_dim, i.e.
 
 \[
 KV_{\text{MHA per-token}} = 2 \times n_\text{layers} \times d_\text{hidden} \times B
@@ -257,7 +260,7 @@ substitute the model's KV-head count into
 contrast for the canonical 80-layer, hidden-8192, full-MHA 70B reference
 model.
 
-\nopagebreak[4]
+\nopagebreak[4]\needspace{9\baselineskip}
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{0.1647\linewidth}
   >{\raggedright\arraybackslash}p{0.1647\linewidth}
@@ -274,7 +277,7 @@ bytes per param
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 total (70B)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-fits 8×H100 (640 GB)
+fits 8×H100
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
@@ -411,7 +414,8 @@ MB/token (2 × 100 × 12288 × 2 B ≈ 4.915e6 B).
   \textbf{Using the 8-bit KV figure (\textasciitilde1.3 MB/token) at
   FP16.} \hyperref[chap:1]{Chapter 1}'s \textasciitilde1.3 MB/token is explicitly at 8-bit
   precision. At FP16, the per-token KV cost is \textasciitilde2× that,
-  ≈2.5 MB/token. Mixing the two figures produces wrong residency calls.
+  ≈2.62 MB/token (2.5 MiB --- §7.4). Mixing the two figures produces
+  wrong residency calls.
 \item
   \textbf{Ignoring the weight + KV residency contrast.} Quoting only the
   weight footprint (140 GB for 70B FP16) and claiming it fits on one
@@ -493,13 +497,14 @@ keeps inference and training on separate memory-planning tracks.
 
 \begin{itemize}
 \item
-  Exact per-token KV cache size for non-LLaMA architectures (e.g.,
-  models with head\_dim ≠ 128 or 256, or attention implementations that
-  store additional per-head state). The
-  \texttt{2\ ×\ layers\ ×\ hidden\_dim\ ×\ bytes} formula assumes the
-  standard LLaMA/llama-style key/value layout; architectures with
-  grouped-query attention (GQA) or multi-query attention (MQA) may have
-  fewer key/value entries per layer, changing the constant factor.
+  Per-model KV state beyond K/V --- the additional per-head state and
+  per-layer scale/offset metadata some attention implementations store
+  alongside keys and values. The
+  \texttt{2\ ×\ layers\ ×\ n\_KV-heads\ ×\ head\_dim\ ×\ bytes} formula
+  prices the K/V entries themselves (§7.3 covers GQA/MQA exactly by
+  substituting the model card's KV-head count), but the extra per-token
+  bytes an implementation adds on top of K/V are not derived in this
+  chapter and must be established per architecture and serving stack.
 \item
   Quality loss from aggressive KV quantization (2-bit KIVI, or sub-4-bit
   schemes) at very long context lengths (128K+, MoE experts). The
@@ -509,10 +514,10 @@ keeps inference and training on separate memory-planning tracks.
 \item
   Whether per-request KV caching can be partially offloaded to CPU DRAM
   during decode without TTFT impact, beyond the vLLM KV Offloading
-  Connector's 2--22×TTFT reduction range which is highly
-  prompt-size-dependent. The community is converging on tiered KV
-  storage (GPU resident hot set + CPU/DRAM cold set), but the latency
-  trade-offs at concurrency \textgreater{} 1 are not yet
+  Connector's 2--22× TTFT reduction range {[}S7{]}{[}1P{]}{[}FACT{]},
+  which is highly prompt-size-dependent. The community is converging on
+  tiered KV storage (GPU resident hot set + CPU/DRAM cold set), but the
+  latency trade-offs at concurrency \textgreater{} 1 are not yet
   primary-anchored.
 \item
   \textbf{Frontier 2026 has begun re-engineering the KV constant factor,
