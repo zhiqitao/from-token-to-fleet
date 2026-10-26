@@ -26,17 +26,17 @@ The durable mental model: **total parameters set the ceiling; active parameters 
 
 ## 3. Worked Example
 
-We now carry concrete arithmetic using the canonical enterprise Q&A scenario (Ch 4, Table 4-3: ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is flagged [UNRESOLVED].
+We now carry concrete arithmetic using the canonical enterprise Q&A scenario (Ch 4, Table 4-2: ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is flagged [UNRESOLVED].
 
 ### Dense 70B model (canonical teaching model, [canonical scenario][ASSUMPTION])
 
-The 70B dense full-MHA model below is a *constructed teaching reference* (the canonical scenario, Ch 4 Table 4-3), not a named vendor model — so its geometry is [canonical scenario][ASSUMPTION] and its arithmetic is [canonical scenario][DERIVED]. Reserve [1P] for a named, traceable first-party model specification.
+The 70B dense full-MHA model below is a *constructed teaching reference* (the canonical scenario, Ch 4 Table 4-2), not a named vendor model — so its geometry is [canonical scenario][ASSUMPTION] and its arithmetic is [canonical scenario][DERIVED]. Reserve [1P] for a named, traceable first-party model specification.
 
 **Table 3-1 — Dense 70B model parameter arithmetic (worked example, not reference).**
 
 | Metric | Value | Derivation |
 |---|---|---|
-| Total parameters | 70B | canonical scenario (Ch 4, Table 4-3) [canonical scenario][ASSUMPTION] reference model |
+| Total parameters | 70B | canonical scenario (Ch 4, Table 4-2) [canonical scenario][ASSUMPTION] reference model |
 | FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [canonical scenario][DERIVED] |
 | Active parameters per token | 70B | All parameters active for every token (dense) [canonical scenario][DERIVED] |
 | FLOPs per forward pass (approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [canonical scenario][DERIVED] |
@@ -169,9 +169,9 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 | FLOPs per forward pass | ~0.14T | ~0.028T | 70B × 2 / 14B × 2 |
 | compute ratio vs dense 70B | 1× | ~0.20× (~5× less) | (14B × 2) ÷ (70B × 2) = 28B ÷ 140B [ILLUSTRATIVE][DERIVED] |
 
-*All figures trace to the canonical scenario (Ch 4, Table 4-3); the MoE column is an [ILLUSTRATIVE][ASSUMPTION] worked variant, not a measurement claim.*
+*All figures trace to the canonical scenario (Ch 4, Table 4-2); the MoE column is an [ILLUSTRATIVE][ASSUMPTION] worked variant, not a measurement claim.*
 
 ---
 *Next chapter: Chapter 4 — The Anatomy of an AI Workload, which characterizes the enterprise Q&A RAG workload across the six dimensions (quality, traffic, token profile, latency, economic, operational constraints) and uses the same continuous mini-case scenario.*
 
-*Canonical scenario citation: all numerical values in this chapter that trace to the canonical enterprise Q&A RAG workload are drawn from the fixed reference set in Ch 4 (Table 4-3). The dense 70B numbers carry [canonical scenario] provenance with the per-row [ASSUMPTION]/[DERIVED] split; MoE numbers carry [ILLUSTRATIVE] provenance with the same split — plausibility-checked variants.*
+*Canonical scenario citation: all numerical values in this chapter that trace to the canonical enterprise Q&A RAG workload are drawn from the fixed reference set in Ch 4 (Table 4-2). The dense 70B numbers carry [canonical scenario] provenance with the per-row [ASSUMPTION]/[DERIVED] split; MoE numbers carry [ILLUSTRATIVE] provenance with the same split — plausibility-checked variants.*

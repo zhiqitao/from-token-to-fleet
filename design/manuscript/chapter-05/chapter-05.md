@@ -6,7 +6,7 @@ After this chapter we should be able to reason about model selection as a **cons
 
 ## 1. Concept
 
-Model selection proceeds across five surfaces, each derived from the workload characterization (Ch 4, Table 4-3):
+Model selection proceeds across five surfaces, each derived from the workload characterization (Ch 4, Table 4-2):
 
 1. **Capability / quality needed** — does the workload require multi-step reasoning, tool use, or modality handling? A workload that needs chain-of-thought reasoning needs a different model class than one that only needs fact retrieval.
 2. **Latency / compute budget** — can the system meet TTFT and TPOT SLOs with the candidate model on the target hardware? This surface determines whether we need a dense 70B, a distilled 13B, or a MoE variant.
@@ -28,7 +28,7 @@ The arrow from workload to selection surfaces is the one the architect must keep
 
 ## 3. Worked Example — Embedding‑Model vs Generation‑Model Selection for the Canonical RAG Workload
 
-Per the canonical workload (Ch 4, Table 4-3): the enterprise Q&A RAG tool — input-heavy, ~9.2K input (1,200 prompt + 8K retrieved) + 300-token output; 70B-class dense FP16 model (~140 GB) on one 8×H100 host. TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT ~25 ms/token; p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
+Per the canonical workload (Ch 4, Table 4-2): the enterprise Q&A RAG tool — input-heavy, ~9.2K input (1,200 prompt + 8K retrieved) + 300-token output; 70B-class dense FP16 model (~140 GB) on one 8×H100 host. TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT ~25 ms/token; p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.
 
 We walk the two‑model selection for this workload.
 
@@ -70,7 +70,7 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 #### Real‑derived arithmetic for the 70B candidate
 
-[canonical scenario][DERIVED]: a 70B-class parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (the 70B is the constructed canonical teaching geometry, Ch 4 Table 4-3; the 140 GB is derived from it, not a vendor-published model card). [1P][FACT]: 8×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory (real hardware spec).
+[canonical scenario][DERIVED]: a 70B-class parameter model at FP16 occupies 70B × 2 bytes = ~140 GB (the 70B is the constructed canonical teaching geometry, Ch 4 Table 4-2; the 140 GB is derived from it, not a vendor-published model card). [1P][FACT]: 8×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory (real hardware spec).
 
 [canonical scenario][DERIVED] KV cache cost per token at FP16: for a Llama‑style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.62 MB/token (FP16; = 2.5 MiB) (key + value across all layers). For the canonical 9.2K input: 9,200 ×2.62 MB ≈ 24.1 GB of KV cache (initial residency).
 
@@ -158,7 +158,7 @@ Each of these flags is an open empirical question a team should resolve against 
 
 *(Continuous scenario: the enterprise Q&A architect must now pick the model given the Ch. 4 characterization.)*
 
-An architect is assembled for a design review of the enterprise Q&A tool described in Chapter 4 — the canonical workload (Ch 4, Table 4-3). The team has agreed on the retrieval architecture: vector search with embeddings, 768‑dim all‑mpnet‑base‑v2, late‑max retrieval over a 1 M‑chunk corpus.
+An architect is assembled for a design review of the enterprise Q&A tool described in Chapter 4 — the canonical workload (Ch 4, Table 4-2). The team has agreed on the retrieval architecture: vector search with embeddings, 768‑dim all‑mpnet‑base‑v2, late‑max retrieval over a 1 M‑chunk corpus.
 
 From the unit-and-token work of Ch 1 alone (Ch 5's selection surfaces), the architect can immediately check the consequences:
 

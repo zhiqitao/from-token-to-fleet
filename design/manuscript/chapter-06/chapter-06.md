@@ -10,7 +10,7 @@ After this chapter we should be able to walk into a running inference system, re
 
 Not all numbers are equal. We organize serving telemetry into three layers, each answering a different question and each consumed by a different role:
 
-1. **Workload metrics** — what the system is being *asked* to do. Requests per second (rps), the token profile (input length, output length, context length), and concurrency. These are the independent variables; we do not control them, we characterize them. For the canonical enterprise-Q&A RAG workload these are fixed by canonical scenario (Ch 4, Table 4-3): ~10 rps average with ~40 rps peaks, ~9,200 input + ~300 output tokens per request, TTFT 1.2 s / TPOT ~25 ms.
+1. **Workload metrics** — what the system is being *asked* to do. Requests per second (rps), the token profile (input length, output length, context length), and concurrency. These are the independent variables; we do not control them, we characterize them. For the canonical enterprise-Q&A RAG workload these are fixed by canonical scenario (Ch 4, Table 4-2): ~10 rps average with ~40 rps peaks, ~9,200 input + ~300 output tokens per request, TTFT 1.2 s / TPOT ~25 ms.
 
 2. **Serving metrics** — how *well* the system performs under that workload. Time-to-first-token (TTFT), time-per-output-token (TPOT), inter-token latency, and **goodput** (tokens produced that actually meet the SLO). These are the dependent variables; they are what the SLO is written against.
 
@@ -55,7 +55,7 @@ $$
 
 Why the mean is not a signal. The same request stream of 99% @ 0.8 s + 1% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s; the figure's exact simulated stream mean ≈ 0.85 s — the 0.84 is the two-point analytic approximation), yet p99 paints a very different picture under a 2 s SLO. Log the distribution; SLO against the percentile.
 
-Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s) with a p95 ≤ 2 s. Suppose a flash crowd (the ~40 rps peak) causes prefill requests to queue. If on average the batch is well-behaved, p50 TTFT might sit at ~1.0 s. But the jobs that arrive behind 3 same-time prefill requests each pay the full 1.08 s prefill of the job ahead of them, so p95 TTFT drifts to ~2.5 s. The *average* says "fine"; the *p95* says "we just violated our SLO." We hence log p50, p90, p95, and p99 independently and run the SLO against the percentile, never the mean. [canonical scenario][ASSUMPTION] author-chosen SLO budget from the canonical scenario (Ch 4, Table 4-3); the arithmetic is the point, not a citation.
+Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s) with a p95 ≤ 2 s. Suppose a flash crowd (the ~40 rps peak) causes prefill requests to queue. If on average the batch is well-behaved, p50 TTFT might sit at ~1.0 s. But the jobs that arrive behind 3 same-time prefill requests each pay the full 1.08 s prefill of the job ahead of them, so p95 TTFT drifts to ~2.5 s. The *average* says "fine"; the *p95* says "we just violated our SLO." We hence log p50, p90, p95, and p99 independently and run the SLO against the percentile, never the mean. [canonical scenario][ASSUMPTION] author-chosen SLO budget from the canonical scenario (Ch 4, Table 4-2); the arithmetic is the point, not a citation.
 
 ### Goodput vs Raw Throughput
 
@@ -80,7 +80,7 @@ At the resource layer, the tell is utilization: a decode kernel pinned at ~95% o
 | Prefill (9.2K input) | ~1.19 PFLOPS (1.29 PFLOP ÷ 1.08 s) | ~0.989 PFLOPS BF16 | compute-bound (from intensity ~9.2K FLOP/byte ≫ ridge ~295, not this rate comparison) | high FLOP / MFU util, mid bandwidth |
 | Decode (per token) | ~140 GB weight-read → ~5.6 TB/s rate (batch-1-equivalent) | ~3.35 TB/s HBM (single-device) | bandwidth-bound | high HBM util, low FLOP util |
 
-*(All figures [1P][FACT] hardware / [canonical scenario][DERIVED] arithmetic traced to the canonical scenario (Ch 4, Table 4-3) and Chapter 2. The regime verdict follows from arithmetic intensity, not from the demand-vs-capacity rate comparison: prefill ~9,200 FLOP/byte ≫ ridge ~295 (compute-bound), decode ~1.0 FLOP/byte ≪ ridge (bandwidth-bound). The 1.19-vs-0.989 PFLOPS and 5.6-vs-3.35 TB/s rate comparisons are illustrative single-device roofline arguments (a hypothetical single-GPU rate against that GPU's own peak), not verdicts on the canonical 8×H100 host's bandwidth adequacy — under tensor parallelism the 140 GB is sharded, so each GPU only needs ~0.70 TB/s against its own ~3.35 TB/s.)*
+*(All figures [1P][FACT] hardware / [canonical scenario][DERIVED] arithmetic traced to the canonical scenario (Ch 4, Table 4-2) and Chapter 2. The regime verdict follows from arithmetic intensity, not from the demand-vs-capacity rate comparison: prefill ~9,200 FLOP/byte ≫ ridge ~295 (compute-bound), decode ~1.0 FLOP/byte ≪ ridge (bandwidth-bound). The 1.19-vs-0.989 PFLOPS and 5.6-vs-3.35 TB/s rate comparisons are illustrative single-device roofline arguments (a hypothetical single-GPU rate against that GPU's own peak), not verdicts on the canonical 8×H100 host's bandwidth adequacy — under tensor parallelism the 140 GB is sharded, so each GPU only needs ~0.70 TB/s against its own ~3.35 TB/s.)*
 
 ### Reading Telemetry Into a Decision
 

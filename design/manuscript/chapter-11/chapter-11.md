@@ -45,7 +45,7 @@ The mental model is a **resource budget**: a request arrives, consumes some FLOP
 
 ### The Canonical Workload in a Serving System
 
-Recall the canonical enterprise-Q&A RAG workload (Ch 4, Table 4-3): ~10 rps average, ~40 rps peak; each request carries ~9,200 input tokens and ~300 output tokens; TTFT budget 1.2 s, TPOT ~25 ms/token. [ASSUMPTION]
+Recall the canonical enterprise-Q&A RAG workload (Ch 4, Table 4-2): ~10 rps average, ~40 rps peak; each request carries ~9,200 input tokens and ~300 output tokens; TTFT budget 1.2 s, TPOT ~25 ms/token. [ASSUMPTION]
 
 ### Discrete Batching Wastes the GPU
 

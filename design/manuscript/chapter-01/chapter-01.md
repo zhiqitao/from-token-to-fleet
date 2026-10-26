@@ -68,7 +68,7 @@ We do not need to hold all of this as a practitioner. The durable mental model i
 
 ## 3. Worked Example
 
-The canonical scenario (Ch 4, Table 4-3 — the one set of numbers every chapter cites) is an enterprise Q&A system: ~2,000 registered users, ~10 requests/s average, prompt of ~1,200 tokens plus ~8K retrieved context (~9.2K input), ~300-token output, on a 70B-class dense model. We reuse those numbers everywhere, so let us read one concrete property off them here.
+The canonical scenario (Ch 4, Table 4-2 — the one set of numbers every chapter cites) is an enterprise Q&A system: ~2,000 registered users, ~10 requests/s average, prompt of ~1,200 tokens plus ~8K retrieved context (~9.2K input), ~300-token output, on a 70B-class dense model. We reuse those numbers everywhere, so let us read one concrete property off them here.
 
 *Worked example, not reference.* If average request is ~9.2K input + ~300 output ≈ **9.5K tokens** per request, and traffic is ~10 req/s, then the system ingests:
 
@@ -80,14 +80,14 @@ The canonical scenario (Ch 4, Table 4-3 — the one set of numbers every chapter
 
 | metric | value | derivation |
 |---|---|---|
-| input tokens / request | ~9,200 | canonical scenario (Ch 4, Table 4-3) (1,200 prompt + 8K context) |
-| output tokens / request | ~300 | canonical scenario (Ch 4, Table 4-3) |
+| input tokens / request | ~9,200 | canonical scenario (Ch 4, Table 4-2) (1,200 prompt + 8K context) |
+| output tokens / request | ~300 | canonical scenario (Ch 4, Table 4-2) |
 | input / output ratio | ~30× | 9,200 ÷ 300 [canonical scenario][DERIVED] |
 | input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [canonical scenario][DERIVED] |
 | input tokens/s @ peak 40 rps | ~368k | 9,200 ×40 [canonical scenario][DERIVED] |
 | output tokens/s @ 10 rps | ~3,000 | 300 ×10 [canonical scenario][DERIVED] |
 
-*(All figures trace to the canonical scenario (Ch 4, Table 4-3); none are measurement claims.)*
+*(All figures trace to the canonical scenario (Ch 4, Table 4-2); none are measurement claims.)*
 
 This ratio — input-heavy — is a *hypothesis* that memory (KV cache) and prefill dominate this system's cost rather than decode, not a conclusion token counts alone establish. Decode's serial nature, per-step weight reads, batching, cache residency, and the latency SLO can still dominate capacity economics even on an input-heavy workload; the token mix is the first signal, and the measured per-phase utilization and goodput (throughput that meets the SLO; Ch 7, Ch 8, Ch 14) are what confirm it. We will not act on it here; Chapter 7 (Memory) and Chapter 8 (Compute) do. The point of the worked example in this chapter is to fix *the unit*: every one of those numbers is a statement about tokens, and we can now say it without translating from words or pages.
 
