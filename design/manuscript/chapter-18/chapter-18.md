@@ -11,7 +11,7 @@ This chapter answers that question with real arithmetic, routing logic, and oper
 A mixed-model fleet treats each model family as a resource with distinct cost, latency, and capability profiles. Rather than running every request through a single 70B FP16 model on 8×H100, we layer:
 
 - **Dense FP16** (baseline, high-quality)
-- **Dense 4-bit GGUF** (low-latency, edge-friendly)
+- **Dense 4-bit GGUF** (lowest cost, edge-friendly; highest latency — see §18.3.2)
 - **MoE sparse** (selective activation, higher throughput per GPU)
 - **Quantized variants** (4-bit/8-bit trade-offs)
 
@@ -28,15 +28,15 @@ Key design principles:
 
 The fleet operates as a *cost-aware load balancer* with three decision layers:
 
-**Table 18-1** — Fleet routing decision hierarchy: capability filter → cost–latency optimization → fallthrough.
+**Table 18-1** — Fleet routing decision hierarchy: capability filter → cost/SLO gate → fallthrough.
 
 | Layer | Question | Decision |
 |------|----------|----------|
 | **Capability filter** | Does any model in the fleet meet the request's feature requirements? | Eliminate models that lack the feature (e.g., context window too small, no tool-use). |
-| **Cost–latency optimization** | Among remaining models, which minimizes weighted cost = α·token_cost + β·latency_cost? | Route to the cheapest suitable model; adjust α,β per deployment mode (interactive vs. batch). |
+| **Cost/SLO gate** | Among remaining models, which minimizes weighted cost = α·token_cost + β·latency_cost? | Route to the cheapest suitable model; adjust α,β per deployment mode (interactive vs. batch). |
 | **Fallthrough** | If all suitable models are at capacity, what is the next-best alternative? | Queue, degrade quantization, or escalate to the next tier. |
 
-The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200 ms/token; a batch ETL job tolerates ~2 s/token but demands lower token cost.
+The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200 ms/token; a batch ETL job tolerates ~2 s/token but demands lower token cost. These are per-request service-latency thresholds for the short-prompt routing scenario, not the canonical TTFT/TPOT SLO (Ch 4); the canonical TPOT budget is ~25 ms.
 
 ## 3. Worked Example
 
@@ -85,7 +85,7 @@ For 1,000 requests/hour (≈0.28 rps — a light illustrative load; the arithmet
 
 **Mixed-fleet hourly cost** = $8.31 + $1.90 + $2.38 = **$12.59 / hour** vs. $23.75 / hour for single-FP16 (all 9.5M tokens at $2.50).
 
-**Monthly savings** ≈ ($23.75 − $12.59) × 730 hr ≈ **$8,147 / month** (≈ 47% reduction) with comparable quality because the 8-bit model meets quality thresholds for >90% of requests.
+**Monthly savings** ≈ ($23.75 − $12.59) × 730 hr ≈ **$8,147 / month** (≈ 47% reduction) with comparable quality because the 8-bit model meets quality thresholds for ≥90% of requests.
 
 ### 3.4. Latency check
 
@@ -117,7 +117,7 @@ To operate a mixed fleet we measure four cross-cutting metrics:
 | **Weighted average cost/token** | Σ(tokens_i × cost_i) / Σ(tokens_i) across all models | Directly tracks fleet economics; target under the §18.3.2 per-1M basis (e.g. < $2.50/1M for the FP16 tier) for competitive SaaS. |
 | **Per-model throughput** | requests/sec per GPU / per CPU node | Detects saturation; informs capacity adds vs. routing tweaks. |
 | **Routing accuracy** | % of requests served by the *intended* target model (not fallback) | Ensures the routing function R() is well-calibrated; low accuracy means feature gaps or cost model drift. |
-| **Latency p95 per model** | p95 of token-level latency per model | Guarantee SLA per tier; fleet p95 must be computed from the combined routed-request latency distribution — per-model p95 values cannot in general be averaged (percentiles are not linearly composable). |
+| **Latency p95 per model** | p95 of token-level latency per model | Guarantee SLO per tier; fleet p95 must be computed from the combined routed-request latency distribution — per-model p95 values cannot in general be averaged (percentiles are not linearly composable). |
 
 Instrumentation: add a middleware shim that logs `model_id, token_count, latency_ms, cost_cents` per request. Export to Prometheus + Grafana for real-time dashboards.
 
@@ -137,7 +137,7 @@ A mixed-model fleet changes the architecture in three ways:
 
 1. **Router shim** (HTTP middleware or gRPC interceptor) sits between the user API and the model execution layer. It evaluates feature requirements, reads current capacity, and selects model_id.
 2. **Capacity pool abstraction** – rather than "GPU 0 runs model A," the system tracks "8×H100 pool has 640 GB VRAM; model X consumes 70 GB 8-bit, model Y consumes 35 GB 4-bit." The pool manager auto‑balances placements.
-3. **Billing/telemetry pipeline** – each request's cost and latency are tagged with model_id, enabling downstream dashboards and alerting (e.g., "cost per token rising above $0.0025 for 3 consecutive hours").
+3. **Billing/telemetry pipeline** – each request's cost and latency are tagged with model_id, enabling downstream dashboards and alerting (e.g., "cost per token rising above $0.0025 (on the §18.8 mini-case per-token basis) for 3 consecutive hours").
 
 The fleet operator becomes a *cost‑latency steward* rather than a single-model optimizer.
 
@@ -163,7 +163,7 @@ The fleet operator becomes a *cost‑latency steward* rather than a single-model
 - Tier 3 processes 250 tokens/hr → $0.75
 - **Total hourly cost: $2.68** → **$1,956 / month** (× 730 hr).
 
-**Check the SLO before the cost claim.** If we had used a single 70B FP16 model: 5,000 tokens/hr × $0.003 = $15/hr → $10,950 / month (× 730 hr). The three-tier split looks like an $8,994 / month (≈82%) saving — but the SLO gates the cost claim, and here it fails. **Tier 1 (the cheapest, 4-bit GGUF on CPU, ~600 ms) serves 80% of queries, so the p95 per-request latency is ~600 ms, which violates the 500 ms SLA for the dominant tier.** The split saves cost by routing the bulk to a slow-but-cheap model — precisely the mean-vs-tail trap: the *average* latency looks fine, yet the majority tier misses the deadline. The $8,994 / month saving is therefore *conditional* on first making Tier 1 feasible.
+**Check the SLO before the cost claim.** If we had used a single 70B FP16 model: 5,000 tokens/hr × $0.003 = $15/hr → $10,950 / month (× 730 hr). The three-tier split looks like an $8,994 / month (≈82%) saving — but the SLO gates the cost claim, and here it fails. **Tier 1 (the cheapest, 4-bit GGUF on CPU, ~600 ms) serves 80% of queries, so the p95 per-request latency is ~600 ms, which violates the 500 ms SLO for the dominant tier.** The split saves cost by routing the bulk to a slow-but-cheap model — precisely the mean-vs-tail trap: the *average* latency looks fine, yet the majority tier misses the deadline. The $8,994 / month saving is therefore *conditional* on first making Tier 1 feasible.
 
 **Recalculated cost after substituting a feasible Tier 1.** Replace the 4-bit GGUF (CPU, ~600 ms) with 8-bit quantization on a GPU (~250 ms, $0.0015/token — the same rate as Tier 2, which is also 8-bit on 1×H100). The 80% of queries now route at $0.0015/token:
 
@@ -176,9 +176,9 @@ The p95 is now ~250 ms (all tiers under 500 ms), so the SLO is met. The saving n
 
 The key enabler was the router's feature gate: queries mentioning "multilingual" or "technical specification" were auto‑escalated to Tier 3; the rest flowed to Tier 1 or Tier 2 automatically.
 
-![Fig 18.1 — Model-routing decision tree: capability filter → cost/latency gate → fallthrough, with the specialist, general and fallback model families as leaves [ILLUSTRATIVE conceptual]](figures/fig-18-1801.png)
+![Fig 18.1 — Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general and fallback model families as leaves [ILLUSTRATIVE conceptual][DERIVED]](figures/fig-18-1801.png)
 
-*The routing decision chain. A request first passes a capability filter (is there a specialized model that can serve it?), then a cost/latency gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialized family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
+*The routing decision chain. A request first passes a capability filter (is there a specialized model that can serve it?), then a cost/SLO gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialized family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
 
 ---
 *Evidence labels: [1P] price observations from public cloud provider pricing pages (Q4 2026); [2°] derived per-token cost arithmetic; (to be verified) latency measurements from local GGUF benchmarks on reference hardware.*

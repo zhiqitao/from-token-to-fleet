@@ -61,7 +61,7 @@ If the workload must run fully on-site without data leaving a facility, and the 
 | Tier | GPUs | Interconnect | Model range | Typical latency | When to use |
 |---|---|---|---|---|---|
 | Local / edge | 1 | — | ≤7-13B dense | low (on-device) | privacy, offline, connectivity |
-| Server | 1-8 | NVLink/NVSwitch | ≤~70-180B dense | ~1.2 s TTFT, p95 ≤ 2 s (canonical, Ch 4) | most single-tenant enterprise |
+| Server | 1-8 | NVLink/NVSwitch | ≤~70-180B dense | median ≤1.2 s TTFT, p95 ≤2 s (canonical, Ch 4) | most single-tenant enterprise |
 | Cluster | tens-hundreds | InfiniBand/Eth | any that needs splitting | depends | model > node, or traffic > host goodput |
 | Hyperscale fleet | dedicated | high-bandwidth fabric | MoE+, specialized | extreme-scale economics | multi-tenant, largest scale |
 

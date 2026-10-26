@@ -65,7 +65,7 @@ def hflow(defs, y, xstart, gap):
 spine_defs = [
     ('Request', '#27408b', '#1a3a6b'),
     ('Capability filter', '#e67e22', '#b35900'),
-    ('Cost / SLO gate', '#e67e22', '#b35900'),
+    ('Cost/SLO gate', '#e67e22', '#b35900'),
     ('Fallthrough', '#e67e22', '#b35900'),
 ]
 spine_w = sum(max(tw(l) for l in d[0].split('\n'))*(1+PADX) for d in spine_defs) + GAP*(len(spine_defs)-1)
@@ -175,10 +175,15 @@ ax.text(label_cx(gen_ft_x, 'fallthrough'), LB_Y, 'fallthrough',
 # ---- bottom annotation ----
 ax.text(W/2, 26, 'only ONE model is selected per request (early exit on a match)',
         fontsize=FS-0.2, ha='center', color='#444')
-ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback. [ILLUSTRATIVE][DERIVED]',
+# NOTE: the [ILLUSTRATIVE][DERIVED] tag lives in the figure CAPTION (chapter-18.md),
+# not in the diagram — keep it out of the drawn text.
+ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback.',
         fontsize=FS-0.2, ha='center', color='#444')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-18/figures/fig-18-1801.png', dpi=400)
+import matplotlib as mpl
+with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-18/figures/fig-18-1801.pdf', format='pdf')
 plt.close()
 print('wrote fig-18-1801 (column-width wide cascade, sized boxes)')
