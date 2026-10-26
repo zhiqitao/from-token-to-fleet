@@ -30,7 +30,7 @@ The factory's shape is a **pipeline with decisions**: data in → train/fine-tun
 
 ### The Economics of Promotion Gating for the Canonical Workload
 
-We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [canonical scenario (Ch 4, Table 4-2)]
+We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [canonical scenario] (Ch 4, Table 4-2)
 
 **Setup.** Suppose a new model candidate claims better retrieval-QA quality but no one has measured its serving behavior. Two adoption paths:
 
@@ -73,9 +73,9 @@ The factory is only as trustworthy as its gates. We measure four things continuo
 
 The AI Factory is the operational backbone that makes the book's whole loop durable. Every architectural decision recomputes through it: model selection (Ch3/5) feeds the evaluation gate, serving choices (Ch11) determine canary mechanics, benchmarking (Ch14) becomes the recurring gate, TCO (Ch16) sets how much gating overhead is affordable, and fleet operations (Ch17-20) provide the rollout/rollback surfaces. Without the factory, each chapter's decision is a one-off; with it, they compound into a system that gets better and safer every cycle.
 
-![Fig 21.1 — The AI Factory promotion pipeline. Each stage has an explicit **promotion gate** (a measurable artifact that must pass before the next stage begins): (1) *build* → gate: unit tests + static analysis pass; (2) *integrate* → gate: integration tests + contract checks pass; (3) *staging* → gate: load test at 1× production + SLO p95 met; (4) *canary* → gate: 5% traffic, error rate < threshold, SLO p99 met; (5) *production* → gate: full rollout, monitoring armed. **Failure paths:** any gate failure rolls back to the previous stage (not to build); a canary failure halts the rollout and pages the owner. **Ownership:** each stage has a named owner (build = model team, integrate = platform team, staging/canary/production = SRE). The gates are the mechanism that makes "promotion" a decision, not a hope. [ILLUSTRATIVE conceptual]](figures/fig-21-2101.png)
+![Fig 21.1 — The AI Factory promotion pipeline, showing the *model lifecycle* layer named in the chapter opener (the model lifecycle, the serving pipeline, and the operations loop). Each stage has an explicit **promotion gate** (a measured metric that must PASS before the next stage begins): (1) *Data* → gate: src valid; (2) *Train* → gate: cost ok; (3) *Eval* → gate: qual ok; (4) *Canary* → gate: health ok; (5) *Observe* → gate: TTFT ok; (6) *Promote* → gate: cost ok; (7) *Serve* — the loop's output, no gate of its own. **Failure path:** any gate FAIL rolls back to the last-known-good and re-validates. **Feedback loop:** production feedback → data/evaluation, each cycle re-gated. Every promotion is a PASS/FAIL decision on a measured metric, not a hand-off — the gates are the mechanism that makes "promotion" a decision, not a hope. [ILLUSTRATIVE] conceptual](figures/fig-21-2101.png)
 
-*The model lifecycle: data → evaluate gate → canary → promote/rollback, with an observation feedback loop.*
+*The model lifecycle: data → train → eval → canary → observe → promote → serve, every transition re-gated PASS/FAIL with rollback to last-known-good, and a production feedback loop back to data/evaluation.*
 
 <!-- Figure spec: mechanism-first flowchart; stages data/train/evaluate-canary-observe-promote-rollback-serve; a decision diamond at the gate; a dashed feedback arrow from production back to data/evaluation. -->
 
