@@ -35,7 +35,7 @@ We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-3): a **canoni
 | KV cache per token per layer | 2 × hidden_dim × bytes | one key + one value per layer |
 | KV cache per token (FP16) | 2 ×80 ×8192 ×2 B ≈ 2.62 MB | = 2,560 KB = 2.5 MiB; exact decimal 2.62 MB |
 | KV cache per token (8-bit) | 2 ×80 ×8192 ×1 B ≈ 1.3 MB | = 1,310,720 B = 1.25 MiB; reconciles with Ch.1 |
-| KV cache per token (FP8) | 1.31 MB | = 1,310,720 B = 1.25 MiB; raw tensor byte-halving, exactly 50% of BF16; any block-layout/scale-offset metadata overhead is NOT vendor-measured (see §3) |
+| KV cache per token (FP8) | 1.31 MB | = 1,310,720 B = 1.25 MiB; raw tensor byte-halving, exactly 50% of BF16; any block-layout/scale-offset metadata overhead is NOT vendor-measured (see §7.4) |
 | 9.2K input KV cache (initial) | 9,200 ×2.62 MB ≈ 24.1 GB | 9,200 ×2,621,440 B; initial KV residency |
 | 300 output KV cache | 300 ×2.62 MB ≈ 0.8 GB | 300 ×2,621,440 B |
 | total inference KV (9.5K max) | ≈ 24.9 GB | 9,500 × 2,621,440 B ≈ 24.9 GB |

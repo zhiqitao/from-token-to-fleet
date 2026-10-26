@@ -85,7 +85,7 @@ The architect does **not** discard Candidate (c) by parameter counting alone: it
 
 ### Table 12-1 — Candidate architectures with constraint-satisfaction columns
 
-| candidate | memory: weights + KV | host layout | throughput | SLO | verdict |
+| candidate | memory: weights+KV | host layout | throughput | SLO | verdict |
 |---|---|---|---|---|---|
 | (a) 8×H100 + prefix caching | 140 + 24 = **164 GB** | 1 ×8×H100 | prefill ~19.8K (idealized; ~28K w/ prefix cache **[HYPOTHESIS]**) · decode BW-bound | ✓ memory 164 < 640 GB · ✓ TTFT SLO (≤1.2 s budget, p95 ≤2 s) | **conditional finalist** — ✗ single-host capacity: needs ~5 hosts (per-request-latency baseline only) |
 | (b) P/D-disaggregated | 140 + 24 = **164 GB** per pool | 2 ×8×H100 (baseline) | prefill pool ~19.8K/host — same as (a); per-host prefill throughput unchanged by disaggregation | ✓ memory per host · ✓ phase-split enables independent scaling | **conditional finalist** — ✗ throughput at a single prefill host (~19.8K ≪ ~92K); prefill pool must itself scale to ~5 hosts (92K ÷ 19.8K ≈ 4.65) + decode pool; ~2× capex + fabric |

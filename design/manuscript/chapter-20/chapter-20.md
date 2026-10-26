@@ -62,7 +62,7 @@ To validate fleet-level optimization claims, three core metrics should be measur
 | **Scheduling overhead** | Fraction of per-query time spent in dispatcher, not compute | < 5% |
 | **Utilization variance** | Standard deviation of per-host query rate as a fraction of mean | < 0.2 |
 
-*Note: end-to-end median/p99 latency is deliberately **not** a fleet-level target for this canonical 9.5K-token workload — a request takes ~8.6 s in service (1.08 s prefill + ~7.5 s decode), so an *end-to-end* <100 ms p99 is infeasible (see the mini-case). The table therefore qualifies these as scheduler-added (dispatch) latency targets only.*
+_Note: end-to-end median/p99 latency is deliberately **not** a fleet-level target for this canonical 9.5K-token workload — a request takes ~8.6 s in service (1.08 s prefill + ~7.5 s decode), so an *end-to-end* <100 ms p99 is infeasible (see the mini-case). The table therefore qualifies these as scheduler-added (dispatch) latency targets only._
 
 Measurement methodology: use a distributed load generator (e.g., Locust or a custom gRPC-driven pump) that sends queries at the target rps while instrumenting each host's internal metrics—GPU occupancy, kernel launch time, scheduler dispatch timestamp, and queue depth. Aggregate these via a time-series database (InfluxDB or Prometheus) and compute the above metrics over sliding 1-minute windows.
 

@@ -28,7 +28,7 @@ These mechanisms compose: continuous batching is the baseline, PagedAttention ma
 - **[S3] Prefix caching** — "Fast Inference from Transformers via Radix Attention" (SGLang, 2023) and vLLM Automatic Prefix Caching (APC). Caching shared-prefix KV.
 - **[S4] P/D disaggregation** — "Splitwise: Efficient Generative LLM Inference Using Phase Splitting" (ISCA 2024), "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving" (OSDI 2024), and Mooncake (KV-centric disaggregation, 2024).
 - **[S5] DFlash** — Chen et al., "DFlash: Block Diffusion for Flash Speculative Decoding," ICML 2026 (PMLR v306; arXiv:2602.06036). Speculative-decoding system reporting >6× lossless acceleration over autoregressive decoding (up to 6.1× on Qwen3-8B) and up to 2.5× faster than the prior state of the art, EAGLE-3.
-- **[S6] vLLM FP8-KV blog** — the vLLM FP8-KV blog post's '54%' figure is a decode inter-token-latency (ITL) slope, a LATENCY metric, not a memory/residency ratio. Any reference to it (Chapters 1, 3, 6, 7, 15, 22 and Appendix A) is a latency reference only. The KV memory footprint this book uses is the raw tensor byte-halving of ~1.31 MB/token (exactly 50% of BF16) [ILLUSTRATIVE][DERIVED]; any block-allocation/metadata overhead is NOT vendor-measured here and must be filled by a deployment benchmark.
+- **[S6] vLLM FP8-KV blog** — the vLLM FP8-KV blog post's '54%' figure is a decode inter-token-latency (ITL) slope, a LATENCY metric, not a memory/residency ratio. Any reference to it (Chapters 1, 3, 6, 7, 15, 22, Appendix A and the glossary) is a latency reference only. The KV memory footprint this book uses is the raw tensor byte-halving of ~1.31 MB/token (exactly 50% of BF16) [ILLUSTRATIVE][DERIVED]; any block-allocation/metadata overhead is NOT vendor-measured here and must be filled by a deployment benchmark.
 
 ## 2. Mental Model
 
@@ -150,9 +150,11 @@ The columns read as *knobs on a common set of mechanisms*, not as "which engine 
 
 ## 7. What We Still Don't Know
 
-- **Portable end-to-end goodput across real enterprise RAG** — Mooncake's 525%/75% [S4][1P] and DFlash's >6× [S5][1P] are strong anchors but are workload-specific; general rules are (a hypothesis).
-- **Prefix-cache hit rates in mixed traffic** — the real reduction in prefill FLOPs from RadixAttention/APC for a given document-distribution is (to be verified).
-- **KV-transfer cost at scale** — Mooncake's engine moves KV to CPU/DRAM/SSD [S4][1P], but the exact latency/bandwidth crossover where disaggregation wins is (to be verified).
+As of 2026-08, several questions remain open, each flagged **[HYPOTHESIS]** or **[TODO: measure on target cluster]**:
+
+- **Portable end-to-end goodput across real enterprise RAG** — Mooncake's 525%/75% [S4][1P] and DFlash's >6× [S5][1P] are strong anchors but are workload-specific; general rules remain an open hypothesis **[HYPOTHESIS]**.
+- **Prefix-cache hit rates in mixed traffic** — the real reduction in prefill FLOPs from RadixAttention/APC for a given document-distribution remains a hypothesis **[HYPOTHESIS]**.
+- **KV-transfer cost at scale** — Mooncake's engine moves KV to CPU/DRAM/SSD [S4][1P], but the exact latency/bandwidth crossover where disaggregation wins is unmeasured **[TODO: measure on target cluster]**.
 
 ## 8. End-of-Chapter Mini-Case: Which Serving Mechanism to Reach For
 

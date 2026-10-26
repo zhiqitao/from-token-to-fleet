@@ -26,7 +26,7 @@ The durable mental model: **total parameters set the ceiling; active parameters 
 
 ## 3. Worked Example
 
-We now carry concrete arithmetic using the canonical enterprise Q&A scenario (Ch 4, Table 4-3: ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is labeled (to be verified).
+We now carry concrete arithmetic using the canonical enterprise Q&A scenario (Ch 4, Table 4-3: ~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model's exact spec is not first-party verified, it is flagged [UNRESOLVED].
 
 ### Dense 70B model (canonical teaching model, [canonical scenario][ASSUMPTION])
 
@@ -52,8 +52,8 @@ We contrast with a representative MoE model in the Mixtral lineage. The exact pa
 | Total parameters (across 8 experts) | ~47B | ~5.7B per expert × 8 ≈ 45.6B + always-on attention/shared + embeddings ≈ 47B (per-expert rounded to ~6B) [ILLUSTRATIVE][DERIVED] |
 | Active parameters per token (top-2 routing) | ~14B | 2 routed FFN experts + always-on attention/shared weights ≈ 14B (~30% of the ~47B total; ~25% counting expert-FFN mass alone) [ILLUSTRATIVE][DERIVED] |
 | Active/total fraction | ~30% | 14B ÷ 47B ≈ 29.8% (≈25–30% for top-2-from-8) [ILLUSTRATIVE][DERIVED] |
-| FP16 active weight-read per token | ~28 GB | 14B × 2 bytes = 28 GB read per token (compute/bandwidth; does NOT set residency) (derived — verify the input) |
-| FLOPs per forward pass (approx.) | ~0.028T | 14B active × 2 FLOP/param = 28B (derived — verify the input) |
+| FP16 active weight-read per token | ~28 GB | 14B × 2 bytes = 28 GB read per token (compute/bandwidth; does NOT set residency) [ILLUSTRATIVE][DERIVED] |
+| FLOPs per forward pass (approx.) | ~0.028T | 14B active × 2 FLOP/param = 28B [ILLUSTRATIVE][DERIVED] |
 | Compute ratio vs dense 70B | ~0.20× (~5× less) | (14B × 2) ÷ (70B × 2) = 28 GFLOP ÷ 140 GFLOP [ILLUSTRATIVE][DERIVED] |
 
 ### Why MoE saves compute but not KV cache memory
@@ -70,7 +70,7 @@ The KV cache story is the surprising part. Recall from Chapter 1 (KV cache as a 
 
 Therefore, for a 70B-class model (dense or MoE) with 8K–9.2K input context:
 
-- **Dense 70B**: KV cache ~1.31 MB per token × 9,200 tokens ≈ 12.06 GB (at 8-bit, the raw tensor byte-halving figure = 1.31 MB/token, exactly 50% of BF16 — the block-overhead and '54%' ITL-slope caveats are stated once in Ch 1; see Ch 7) or ~24 GB (at FP16-relevant precision for the key/value storage pattern discussed in Ch. 7).
+- **Dense 70B**: KV cache ~1.31 MB per token × 9,200 tokens ≈ 12.06 GB (at 8-bit, the raw tensor byte-halving figure = 1.31 MB/token, exactly 50% of BF16 — the block-overhead and '54%' ITL-slope caveats are stated once in Ch 1; see Ch 7) or ~24 GB (at FP16 precision for the key/value storage pattern discussed in Ch. 7).
 - **MoE 70B-equivalent**: The KV cache is *identical* in size, because attention still processes all 9,200 tokens densely. The fact that only 14B of 47B total parameters are active in the feed-forward layers does not reduce the number of keys/values emitted by the attention layers.
 
 In other words: MoE sparsity = compute sparsity (fewer FLOPs per token). MoE sparsity ≠ memory sparsity (KV cache still grows linearly with context length, same as dense). Only changing the attention mechanism itself (e.g., hybrid/linear attention, compressed latent attention, or KV offload) can stop the cache from growing. This distinction — compute-sparsity versus memory-sparsity — is one an architect has to get exactly right.
@@ -133,30 +133,30 @@ Knowing whether a model is dense or MoE, and whether the quoted parameter count 
 
 ## 7. What We Still Don't Know
 
-As of 2026-08, several questions remain open and are flagged (to be verified):
+As of 2026-08, several questions remain open and are flagged [UNRESOLVED]:
 
-- **Exact active-fraction per token for commercial MoE models.** Model cards rarely publish the precise top-k routing distribution under real workloads. We know the architectural top-k (e.g., top-2 from 8 experts), but the actual fraction of active parameters may vary with prompt content, token position, and expert availability. (a hypothesis awaiting verification)
-- **Whether router latency offsets MoE compute savings.** The cost of computing routing scores and dispatching to experts is not always included in published FLOP counts. On some hardware the routing overhead can be significant enough to narrow the compute gap between MoE and dense. (a hypothesis awaiting verification)
-- **KV cache behavior under MoE with expert swapping.** When experts do not fit on a single GPU and must be swapped (offloaded), does the KV cache interact with the swapping mechanism in ways that change its effective size or access pattern? This has not been systematically characterized. (a hypothesis awaiting verification)
+- **Exact active-fraction per token for commercial MoE models.** Model cards rarely publish the precise top-k routing distribution under real workloads. We know the architectural top-k (e.g., top-2 from 8 experts), but the actual fraction of active parameters may vary with prompt content, token position, and expert availability.
+- **Whether router latency offsets MoE compute savings.** The cost of computing routing scores and dispatching to experts is not always included in published FLOP counts. On some hardware the routing overhead can be significant enough to narrow the compute gap between MoE and dense.
+- **KV cache behavior under MoE with expert swapping.** When experts do not fit on a single GPU and must be swapped (offloaded), does the KV cache interact with the swapping mechanism in ways that change its effective size or access pattern? This has not been systematically characterized.
 
 These flags exist because home-lab measurements are not reference per the evidence taxonomy; each is an open empirical question a team should validate against its own target workload, not a claim the handbook has settled.
 
 ## 8. End-of-Chapter Mini-Case: Total vs. Active Parameters, and the KV Constant
 
-*(Continuous scenario — this is its first appearance, chaining from the enterprise Q&A thread.)*
+*(Continuous scenario — chained from the enterprise Q&A thread.)*
 
 An architect is fleshing out the design of the internal Q&A tool described in Chapter 1's mini-case. The team's standing decision from Chapter 2 is the dense 70B model; a MoE model with 8 experts (roughly 47B total params, ~14B active per token) is the challenger under consideration. They ask: "If we go MoE, can we cut our GPU memory budget?"
 
 From the model-understanding chapter, the architect can answer: Active-compute memory yes — only ~14B of the ~47B total is active per token, so ~28 GB of *active* weight footprint is read per token vs. 140 GB for a dense 70B. But *resident* memory is a different question. An MoE model normally keeps its **full expert set resident** — the non-active experts still occupy HBM unless we explicitly use expert offload/swapping (Ch 3 §3.6, Ch. 18), which itself costs bandwidth. So MoE reduces compute per token, and it gives us the *option* to offload some experts to shrink residency, but it does **not** automatically reduce the weight-residency floor. And KV cache memory no — the attention layers still process every token densely, so the cache budget for a 9.2K-context input is the same regardless of whether the model is dense or MoE. We still need to provision for ~12 GB of KV cache (at 8-bit) or ~24 GB (at the precision pattern discussed in Ch. 7) per request, and we'll also need expert-routing infrastructure on top of that.
 
-The architect's decision therefore hinges on whether the compute savings from MoE (fewer FLOPs per token, potentially lower \$/token) outweigh the added routing complexity and the fact that KV cache memory is unchanged. On that accounting the MoE challenger fails: it does not cut the memory budget the team asked about, and it would add routing infrastructure — including a GPU dedicated to the routing dispatcher — on top. The team therefore keeps the Chapter 2 decision, the dense 70B model, and provisions the KV cache budget at the dense-model rate.
+The architect's decision therefore hinges on whether the compute savings from MoE (fewer FLOPs per token, potentially lower \$/token) outweigh the added routing complexity and the fact that KV cache memory is unchanged. On that accounting the MoE challenger fails: it does not cut the memory budget the team asked about, and it would add routing infrastructure — including a GPU dedicated to the routing dispatcher [ILLUSTRATIVE][ASSUMPTION], not a vendor-published requirement — on top. The team therefore keeps the Chapter 2 decision, the dense 70B model, and provisions the KV cache budget at the dense-model rate.
 
 * * *
-![Fig 3.1 — Dense vs MoE parameter allocation and KV cache behavior. Controlled comparison: same 70B-equivalent class, same attention geometry, same context and cache dtype — so the KV footprint is identical and only the active-compute fraction differs. An MoE model that also uses GQA or a different attention mechanism is a different comparison (Ch. 7). [ILLUSTRATIVE][DERIVED]](figures/fig-03-0301.png)
+![Fig 3.1 — Dense vs MoE parameter allocation and KV cache behavior. Controlled comparison: same attention geometry, same context and cache dtype — so the KV footprint is identical — while weight residency (140 GB dense vs ~94 GB for the ~47B MoE challenger) and the active-compute fraction (~100% vs ~30%) both differ. Schematic, not to scale. An MoE model that also uses GQA or a different attention mechanism is a different comparison (Ch. 7). [ILLUSTRATIVE][DERIVED]](figures/fig-03-0301.png)
 
 *Parameter-activation contrast. A dense 70B activates all 70B parameters per token (residency ≈ 140 GB, KV grows linearly with context). An 8-expert MoE still stores its full expert set as resident weights (not shown to scale), but only the top-2 (~14B) are active per token (active compute footprint ≈ 28 GB). KV cache growth with context is identical to dense — attention still processes every token.*
 
-**Table 3-3** — Parameter and KV cache arithmetic for the canonical workload
+**Table 3-3** — Parameter and KV cache arithmetic: dense 70B vs MoE (8×7B class)
 
 | metric | dense 70B | MoE (8×7B class) | derivation |
 |---|---|---|---|
@@ -174,4 +174,4 @@ The architect's decision therefore hinges on whether the compute savings from Mo
 ---
 *Next chapter: Chapter 4 — The Anatomy of an AI Workload, which characterizes the enterprise Q&A RAG workload across the six dimensions (quality, traffic, token profile, latency, economic, operational constraints) and uses the same continuous mini-case scenario.*
 
-*Canonical scenario citation: all numerical values in this chapter that trace to the canonical enterprise Q&A RAG workload are drawn from the fixed reference set in Ch 4 (Table 4-3). The dense 70B numbers are [canonical scenario][ASSUMPTION/DERIVED]; MoE numbers are [ILLUSTRATIVE][ASSUMPTION/DERIVED] plausibility-checked variants.*
+*Canonical scenario citation: all numerical values in this chapter that trace to the canonical enterprise Q&A RAG workload are drawn from the fixed reference set in Ch 4 (Table 4-3). The dense 70B numbers carry [canonical scenario] provenance with the per-row [ASSUMPTION]/[DERIVED] split; MoE numbers carry [ILLUSTRATIVE] provenance with the same split — plausibility-checked variants.*

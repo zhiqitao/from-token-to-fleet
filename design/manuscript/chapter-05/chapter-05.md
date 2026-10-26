@@ -62,7 +62,7 @@ Three realistic options, each with documented properties:
 | Embedding model size | ~110M parameters | all‑mpnet‑base‑v2 [1P][FACT] |
 | Per-request context/KV cost at 9.2K input | ~24.1 GB (FP16 KV cache, initial) | 70B FP16, 80 layers, 9.2K context [canonical scenario][DERIVED] |
 | Tokens per dollar-hour (generation, runtime) | 9,000 tokens per dollar‑hour | 50 tok/s × 3600 s/hr ÷ $20/hr [ILLUSTRATIVE][DERIVED] |
-| Verdict | Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16 on 8×H100 | Selection surfaces (§1) |
+| Verdict | Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16 on 8×H100 | Selection surfaces (§5.1) |
 
 ### (b) Generation‑model selection for the answer leg
 
@@ -103,7 +103,7 @@ The architect must choose between two paradigms:
 ([ILLUSTRATIVE][HYPOTHESIS] — not a reference measurement): for the canonical workload, a well‑designed RAG + guardrails pipeline *may* approach a fine‑tuned model's answer quality on in‑domain queries. This is **task‑, model‑, data‑, and evaluation‑dependent** — it is not derivable from the architecture alone. The two mechanisms do different work: **RAG** supplies external, mutable knowledge (grounding, provenance, freshness); **fine‑tuning** shapes behavior, style, domain reasoning patterns, format, and tool‑use policy. Either or both can improve answer quality, and they can be combined. Whether fine‑tuning reduces retrieval dependence for this workload must be established by measuring answer quality on the actual evaluation set. The economic comparison should be framed **parametrically**, not with a single number, because the break‑even depends on the quality uplift (domain‑specific) and the query volume (workload‑specific). The decision variable is the break‑even query volume $Q^*$ where the annualized cost of fine‑tuning, divided by its quality advantage, crosses the RAG baseline:
 
 $$
-Q^*\; \propto\; \frac{C_\text{train} + C_\text{weights-extra}}{\Delta Q \cdot \text{value per corrected query}}
+Q^*\; =\; \frac{C_\text{train} + C_\text{weights-extra}}{\Delta Q \cdot \text{value per corrected query}}
 $$
 
 where $C_\text{train}$ is the one‑time training compute, $C_\text{weights-extra}$ is the incremental storage/carry cost, and $\Delta Q$ is the (domain‑specific, must‑be‑measured) quality uplift in corrected answers per query. Below $Q^*$, RAG + guardrails is economically dominant because the fine‑tuning cost is spread over too few queries to be repaid; above it, fine‑tuning may recover its upfront cost through quality gain. [Scenario structure, not a single claimed break‑even volume; the exact $C_\text{train}$, $C_\text{weights-extra}$, and $\Delta Q$ are workload‑ and domain‑specific and should be measured, not assumed.]
@@ -114,7 +114,7 @@ Fine‑tuning does **not** make the model smaller — pruning is a separate oper
 
 ## 4. Measurement
 
-How does an architect measure the workload dimensions that drive model selection? The token-counting habits of Ch 1 §4 apply unchanged; the three things the *selection* view adds are:
+How does an architect measure the workload dimensions that drive model selection? The token-counting habits of Ch 1 §1.4 apply unchanged; the three things the *selection* view adds are:
 
 1. **Measure the token split on real employee queries, not the heuristic.** Run the model's own tokenizer on representative prompts from the target domain — the "4 chars ≈ 1 token" heuristic is for estimation only. For the canonical workload, measure the exact prompt+context token count on real employee queries before fixing the model, because the ~30× input-to-output ratio is the single biggest driver of this system's cost structure (Ch 4).
 2. **Quantify the output size, since that drives decode cost and per-request latency.** The output token count determines decode bandwidth and p95 TPOT; a large-output paradigm (e.g. long-form generation) changes the model-selection calculus versus a short-output Q&A system.
@@ -130,9 +130,9 @@ These checks let model selection be made on measured workload dimensions rather 
 
 - **Quoting context window as free capacity.** The 128K or 1M token window is an upper bound, not a recommendation. Using even 9.2K of a 128K window still costs for the length actually used. The cost is proportional to the *used* length, not the *available* length.
 
-- **Assuming embedding dimension is a free parameter.** Increasing embedding dimensionality *within a given model family or controlled configuration* can improve retrieval fidelity, but dimensionality alone does not predict quality across different embedding models. Higher dimension also raises FLOP cost, index storage, and per‑query latency, so the architect must balance these against the workload's quality requirements rather than treat dimension as a cost‑free or universally-better knob (see the caveat in §3).
+- **Assuming embedding dimension is a free parameter.** Increasing embedding dimensionality *within a given model family or controlled configuration* can improve retrieval fidelity, but dimensionality alone does not predict quality across different embedding models. Higher dimension also raises FLOP cost, index storage, and per‑query latency, so the architect must balance these against the workload's quality requirements rather than treat dimension as a cost‑free or universally-better knob (see the caveat in §5.3).
 
-- **Over‑engineering the fine‑tuning path.** Fine‑tuning adds training compute and model/checkpoint‑management cost; depending on the adaptation and serving method, it may also add inference or operational overhead (e.g. a LoRA adapter applied dynamically at serve time can introduce overhead, whereas a merged/fully‑fine‑tuned model of identical architecture need not change the inference shape). The break‑even analysis (the parametric $Q^*$ in §3) shows that for most enterprise RAG workloads, the RAG + guardrails paradigm dominates on TCO. Fine‑tuning should be a deliberate choice triggered by a sustained query volume, not a default.
+- **Over‑engineering the fine‑tuning path.** Fine‑tuning adds training compute and model/checkpoint‑management cost; depending on the adaptation and serving method, it may also add inference or operational overhead (e.g. a LoRA adapter applied dynamically at serve time can introduce overhead, whereas a merged/fully‑fine‑tuned model of identical architecture need not change the inference shape). The break‑even analysis (the parametric $Q^*$ in §5.3) shows that for most enterprise RAG workloads, the RAG + guardrails paradigm dominates on TCO. Fine‑tuning should be a deliberate choice triggered by a sustained query volume, not a default.
 
 ## 6. Architecture Consequence
 
@@ -171,7 +171,7 @@ The architect now has a concrete model shortlist: 768‑dim all‑mpnet‑base�
 
 ---
 
-![Fig 5.1 — Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision. The five surfaces are the *model-selection* dimensions; they are deliberately distinct from the **end-to-end evaluation gates** (retrieval quality, reranking, embedding recall, grounding, and final answer quality) that a RAG system must also pass — those gates are measured on the target corpus (Ch 5 §4) and are not shown here because this figure is a selection map, not an evaluation pipeline. [ILLUSTRATIVE conceptual]](figures/fig-05-0501.png)
+![Fig 5.1 — Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision. The five surfaces are the *model-selection* dimensions; they are deliberately distinct from the **end-to-end evaluation gates** (retrieval quality, reranking, embedding recall, grounding, and final answer quality) that a RAG system must also pass — those gates are measured on the target corpus (§5.4) and are not shown here because this figure is a selection map, not an evaluation pipeline. [ILLUSTRATIVE conceptual]](figures/fig-05-0501.png)
 
 
 ---
