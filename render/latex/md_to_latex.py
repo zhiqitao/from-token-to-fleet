@@ -301,8 +301,11 @@ def fix_captions(tex_path):
         # Pandoc escapes a literal '[' as '{[}' and ']' as '{]}' in the .tex,
         # so the escaped form is e.g. '{[}ILLUSTRATIVE{]}' / '{[}DERIVED from 1P: …{]}'
         # (the inner text carries no braces). Strip that form first.
-        t = _re.sub(r"\{\[\}(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^{}]*\{\]\}", "", t)
-        t = _re.sub(r"\[\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\]", "", t)
+        # A tag often carries a trailing gloss word that belongs with it
+        # (e.g. "[ILLUSTRATIVE] conceptual" or "[ILLUSTRATIVE] — Ch 19 arithmetic"):
+        # consume that gloss too so a caption never ends in an orphaned word.
+        t = _re.sub(r"\{\[\}(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^{}]*\{\]\}\s*(?:conceptual|model|ladder|—[^,.;]*)?", "", t)
+        t = _re.sub(r"\[\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\]\s*(?:conceptual|model|ladder|—[^,.;]*)?", "", t)
         # Drop a stray leading backslash that can remain from a stripped
         # '\hyperref[...]{Fig X.Y} --- ' prefix (an undefined-control-sequence
         # whose first char silently drops the caption's leading word).  Only
