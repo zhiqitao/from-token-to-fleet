@@ -89,18 +89,18 @@ X_R = W - 8                        # green descent / turn-out column
 
 # ---------------- vertical budget (y = 0 at bottom, up) ----------------
 loop_chan = 26                    # grey loop channel
-dc_title  = loop_chan + 26        # DECODE label (below the rail)
-dc_rail   = dc_title + 42         # decode rail centre
+dc_rail   = 94                    # decode rail centre (loop spacing unchanged)
 dc_bot    = dc_rail - BH / 2 - 10
 dc_top    = dc_rail + BH / 2 + 10
-green_chan = dc_top + 14          # green initialize channel (read corridor)
+dc_title  = dc_top + 18           # DECODE label - ABOVE its band, aligned with PREFILL
+green_chan = dc_title + 16         # green initialize channel (read corridor)
 kc_bot    = green_chan + 34       # cache band bottom
 kc_top    = kc_bot + 56           # cache band top
 pf_bot    = kc_top + 46           # populate corridor
 pf_rail   = pf_bot + BH / 2 + 10
 pf_top    = pf_rail + BH / 2 + 10
-pf_title  = pf_top + 20           # PREFILL label (above the rail)
-Ht = pf_title + 16
+pf_title  = pf_top + 18           # PREFILL label (above the rail)
+Ht = pf_title + 14
 
 fig, ax = plt.subplots(figsize=(6.1, Ht / 72))
 fig._hermes_print_sized = True
@@ -108,8 +108,8 @@ ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
 ax.set_aspect('auto')
 
 
-def label(cx, cy, s, color='#333333', fs=FS, weight='normal'):
-    ax.text(cx, cy, s, ha='center', va='center', fontsize=fs, color=color,
+def label(cx, cy, s, color='#333333', fs=FS, weight='normal', ha='center'):
+    ax.text(cx, cy, s, ha=ha, va='center', fontsize=fs, color=color,
             fontweight=weight)
 
 
@@ -164,7 +164,7 @@ def layout_row(names, cy, fills):
 
 # ==================== PREFILL ====================
 band(LM, pf_bot, X_BANDR, pf_top)
-label(W / 2, pf_title, 'PREFILL', '#333333', FST, weight='bold')
+label(LM + 2, pf_title, 'PREFILL', '#333333', FST, weight='bold', ha='left')
 pf_names = ['prompt', 'token + position', 'transformer',
             'logits + sampling', 'first token']
 pf = layout_row(pf_names, pf_rail, [C_BOX, C_BOX, C_TRANS, C_BOX, C_TOK])
@@ -188,7 +188,7 @@ ax.text(X_T - 12, _py, 'populate', color='#333333', fontsize=FSN,
 
 # ==================== DECODE ====================
 band(LM, dc_bot, X_BANDR, dc_top)
-label(W / 2, dc_title, 'DECODE', '#333333', FST, weight='bold')
+label(LM + 2, dc_title, 'DECODE', '#333333', FST, weight='bold', ha='left')
 dc_names = ['previous token', 'token + position', 'transformer',
             'logits + sampling', 'next token']
 dc = layout_row(dc_names, dc_rail, [C_TOK, C_BOX, C_TRANS, C_BOX, C_TOK])
@@ -220,11 +220,11 @@ ax.text(X_T - 12, _ry, 'read', color='#333333', fontsize=FSN,
 # the green initialize line crosses it (same mechanism as the read arrow), so
 # the green line passes over cleanly rather than cutting the append stroke.
 X_APP = X_T + 26
-ax.plot([X_APP, X_APP], [kc_bot - 4, gn_y + BR], color=C_AR, lw=2.0,
-        solid_capstyle='butt', zorder=3)
+# Upper segment carries the arrowhead: append points INTO the cache (decode -> KV).
+arrow(X_APP, gn_y + BR, X_APP, kc_bot - 2, C_AR, 2.0)
 ax.plot([X_APP, X_APP], [gn_y - BR, dc['transformer'][3] + 2], color=C_AR,
         lw=2.0, solid_capstyle='butt', zorder=3)
-_ay = (dc['transformer'][3] + kc_bot) / 2
+_ay = (gn_y + BR + kc_bot) / 2
 ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
         fontweight='bold', ha='left', va='center')
 
@@ -233,7 +233,7 @@ ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
 # Placed in the clear strip right of the "append" label, above the green
 # initialize line (data coords ~x 295-382, y 137-160).  Darkened and moved
 # clear of the append label so it reads as a caption note, not a box label.
-ax.text(298, 149, 'conceptual per-step,\nper-layer cache I/O',
+ax.text(298, 136, 'conceptual per-step,\nper-layer cache I/O',
         color='#404040', fontsize=8.0, style='italic',
         ha='left', va='center')
 

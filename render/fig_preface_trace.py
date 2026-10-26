@@ -56,12 +56,12 @@ RX0, RW = 11.2, 8.2
 ax.text(RX0 + RW/2, 9.9, 'B · QUESTION-BY-QUESTION', fontsize=10,
         fontweight='bold', ha='center', color='#c0392b')
 steps = [
-    ('token → cost', 'Ch1'),
+    ('token → cost?', 'Ch4'),
     ('fits host? → KV', 'Ch3/7'),
     ('which phase binds?', 'Ch2/8'),
     ('1 host or fleet?', 'Ch17'),
-    ('who serves it?', 'Ch18'),
-    ('is it the right call?', 'Ch21/26'),
+    ('who serves it?', 'Ch10/11/20'),
+    ('is it the right call?', 'Ch16/22/25'),
 ]
 for i, (q, ch) in enumerate(steps):
     yb = 9.4 - i*(ph+pgap) - ph
