@@ -62,8 +62,9 @@ axb.text(1.7, 90, 'goodput\nplateau (~b16):\nthroughput gain\nflattens; tail\nla
          fontsize=8.0, color='#c0392b', va='top')
 
 fig.suptitle('Prefix caching vs batching: two independent effects', fontsize=10.5, fontweight='bold')
-# single figure-level [ILLUSTRATIVE] footer, clear of both panels' legends/lines
-fig.text(0.5, 0.02, '[ILLUSTRATIVE]', ha='center', fontsize=8.0, color='#8a3a12')
+# In-figure [ILLUSTRATIVE] footer removed (Loop-3): bracketed taxonomy tags
+# inside a graphic read as metadata leakage; the .md caption already carries
+# the figure's evidence label.
 plt.tight_layout(rect=(0, 0, 1, 0.91))
 plt.savefig('design/manuscript/chapter-15/figures/fig-15-1501.png',
             dpi=400, bbox_inches='tight', pad_inches=0.05)

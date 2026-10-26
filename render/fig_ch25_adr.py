@@ -42,14 +42,14 @@ def adr_card(y_top, h, title, accent):
         ax.text(x0+0.3, ry+row_h/2+0.30, name, ha='left', va='center',
                 fontsize=8.6, fontweight='bold', color='#1a3a6b')
         ax.text(x0+0.3, ry+row_h/2-0.32, hint, ha='left', va='center',
-                fontsize=7.2, color='#444', style='italic')
+                fontsize=8.0, color='#444', style='italic')  # Loop-3: was 7.2pt, below the 8pt on-page floor
     return row_h
 
 # OLD ADR (top): y 12.5 .. 20.9  (raised to widen the inter-panel gap)
 old_h = 8.4; old_top = 20.9
 row_h = adr_card(old_top, old_h, 'ADR-001  (current)', '#1a3a6b')
 ax.text(x0+total+0.4-0.2, old_top-0.7, 'kept, not edited',
-        fontsize=7.8, color='#888', ha='right', va='center', style='italic')
+        fontsize=8.0, color='#888', ha='right', va='center', style='italic')  # Loop-3: was 7.8pt, below the 8pt on-page floor
 
 # NEW ADR (bottom): y 0.6 .. 9.0  (clear gap 9.0..12.5 holds the arrow + label)
 new_h = 8.4; new_top = 9.0

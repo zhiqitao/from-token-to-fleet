@@ -92,7 +92,12 @@ ax.tick_params(labelsize=10)
 # mathtext superscripts = 0.7 x 10pt = 7.0pt on page (sub-8pt floor).  Plain
 # decimal labels keep every glyph at the full 10pt tick size - same fix as
 # Fig 2.2 (render/fig_ch2_roofline.py).
-ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, p: '%g' % round(v)))
+# Loop-3 review: '%g' switches to machine notation at 7 significant digits, so
+# the 10^6 top tick rendered as '1e+06' while every lower tick was plain
+# (1, 10, ... 100000) - mixed formats on one axis.  '%.0f' prints the same
+# ticks as plain whole numbers ('1000000'), no scientific notation anywhere,
+# still at the full 10pt tick size (>= 8pt floor).
+ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, p: '%.0f' % v))
 ax.yaxis.set_minor_formatter(mticker.NullFormatter())
 # x-axis labelled tick covering the 140 GB weight-footprint reference
 ax.set_xticks([0.01, 0.1, 1, 10, 100, 200])

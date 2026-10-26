@@ -24,8 +24,12 @@ Geometry carries the meaning:
     box, runs down the right margin, left along a channel just above the decode
     rail, and drops into the TOP of the 'previous token' box.
   * GREY "loop"        : starts at the BOTTOM-MIDPOINT of the 'next token' box,
-    runs below the decode rail, and rises into the BOTTOM of 'previous token' --
-    so the two feedback arrows land on OPPOSITE edges of the same input box.
+    runs below the decode rail, and rises into the BOTTOM of 'previous token'
+    with a terminal arrowhead -- so the two feedback arrows land on OPPOSITE
+    edges of the same input box.
+  * The green channel's crossings of read/append carry small junction dots, and
+    the append write path lands 1pt inside the transformer top (joined at its
+    source).
 
 Monochrome except for the channel-redundant green/grey pair: green = initialize,
 grey = loop.  No icons, no extra line weights, no under-size type.
@@ -222,11 +226,21 @@ ax.text(X_T - 12, _ry, 'read', color='#333333', fontsize=FSN,
 X_APP = X_T + 26
 # Upper segment carries the arrowhead: append points INTO the cache (decode -> KV).
 arrow(X_APP, gn_y + BR, X_APP, kc_bot - 2, C_AR, 2.0)
-ax.plot([X_APP, X_APP], [gn_y - BR, dc['transformer'][3] + 2], color=C_AR,
+# Lower segment runs from the green channel down to 1pt INSIDE the transformer
+# box top edge (Loop-3 D-7: the flat end used to stop 2pt short with a visible
+# gap, so the write path never touched the transformer it originates from).
+ax.plot([X_APP, X_APP], [gn_y - BR, dc['transformer'][3] - 1], color=C_AR,
         lw=2.0, solid_capstyle='butt', zorder=3)
 _ay = (gn_y + BR + kc_bot) / 2
 ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
         fontweight='bold', ha='left', va='center')
+
+# Junction dots where the green initialize channel crosses the read and append
+# lines (Loop-3 D-7): the crossings are bridged so green passes over, and a
+# small node at each crossing marks it as a deliberate junction rather than a
+# stray overlap.  Dot sits above the green stroke (zorder 6 > 5).
+for _jx in (X_T, X_APP):
+    ax.plot([_jx], [gn_y], marker='o', ms=5.2, mfc=C_AR, mec=C_AR, zorder=6)
 
 # R-09: the single read/append pair is a *conceptual* per-step, per-layer
 # cache I/O, not one global read/append bracketing the whole transformer.
@@ -262,11 +276,18 @@ ax.text(X_R - 4, gn_y + 8, 'initialize', color=C_GN, fontsize=FSN,
 
 # ==================== GREY loop ====================
 nt = dc['next token']
+# FancyArrowPatch with a `path` does not render the -|> head (same as the
+# green initialize path above): the body is drawn plain and an explicit
+# arrowhead annotate is added at the terminal so the loop-back visibly
+# enters the BOTTOM of the previous-token box (Loop-3 D-7).
 rv = [(nt[4], nt[2]), (nt[4], loop_chan), (prev[4], loop_chan),
-      (prev[4], prev[2])]
+      (prev[4], prev[2] + 1)]
 rc = [_Path.MOVETO, _Path.LINETO, _Path.LINETO, _Path.LINETO]
-ax.add_patch(FancyArrowPatch(path=_Path(rv, rc), arrowstyle='-|>', lw=1.6,
+ax.add_patch(FancyArrowPatch(path=_Path(rv, rc), arrowstyle='-', lw=1.6,
              color=C_LOOP, shrinkA=0, shrinkB=0, clip_on=False, zorder=2))
+ax.annotate('', xy=(prev[4], prev[2] + 1), xytext=(prev[4], prev[2] - 11),
+            arrowprops=dict(arrowstyle='-|>', lw=1.6, color=C_LOOP,
+                            shrinkA=0, shrinkB=0), zorder=5)
 ax.text(prev[4] + 8, loop_chan - 14, 'loop', color=C_LOOP, fontsize=FSN,
         fontweight='bold', ha='left', va='center')
 

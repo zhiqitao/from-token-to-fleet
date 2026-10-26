@@ -27,16 +27,20 @@ for (x0, w, s) in tasks:
     ax.add_patch(Rectangle((x0, 4 - 0.7*s - 0.55), w, 0.6, fc='#3a6ea5', ec='none', alpha=0.9))
 # 'idle (bubble)' label right-aligned INSIDE the pink box's right edge (x1=9.9),
 # so it no longer spills past the dotted border.
+# Loop-3 review: the leader carries a real arrowhead ('->') so it reads as a
+# directed pointer at the idle region, matching the right panel's leader.
 ax.text(9.75, 4 - 0.7*2 - 0.25, 'idle (bubble)', fontsize=8.0, color='#c0392b', ha='right', va='center', fontweight='bold')
 ax.annotate('', xy=(7.7, 4 - 0.7*2 - 0.55), xytext=(8.9, 4 - 0.7*2 - 0.25),
-            arrowprops=dict(arrowstyle='-', lw=0.7, color='#c0392b'))
+            arrowprops=dict(arrowstyle='->', lw=0.7, color='#c0392b'))
 # 'next batch waits': widen the grey box (0.2..4.8, centre 2.5) and shrink the
 # label so the text is fully contained/centred (was wider than the box, so
 # 'next'/'waits' spilled past both ends).
 ax.add_patch(Rectangle((0.2, 0.4), 4.6, 0.6, fc='#bbb', ec='none', alpha=0.6))
 ax.text(2.5, 0.7, 'next batch waits', fontsize=8.5, color='#333', ha='center', va='center', fontweight='bold')
+# Loop-3 review: this connector is a leader from the label to the box edge, so
+# it gets an arrowhead too ('->') - an arrowless tick read as rendering debris.
 ax.annotate('', xy=(2.5, 1.0), xytext=(2.5, 0.7),
-            arrowprops=dict(arrowstyle='-', lw=0.7, color='#555'))
+            arrowprops=dict(arrowstyle='->', lw=0.7, color='#555'))
 ax.text(5.0, 0.30, 'GPU slots idle (pink) when a\nsequence finishes early', fontsize=8.2, color='#c0392b', ha='center')
 # time-axis arrow on the discrete panel too (matching the continuous panel and
 # the caption's 'the horizontal axis is time'), so the left panel's direction
