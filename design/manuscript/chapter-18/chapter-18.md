@@ -22,7 +22,7 @@ Key design principles:
 1. **Cost-per-token** is the primary unit of comparison across quantizations.
 2. **Latency-per-token** determines interactive vs. batch placement.
 3. **Capability gaps** (context window, tool-use, multilingual) dictate minimum model tiers.
-4. **Consolidation** saves CapEx when overlap in workload profiles is high; **separation** preserves isolation when workloads have divergent SLA or security needs.
+4. **Consolidation** saves capex when overlap in workload profiles is high; **separation** preserves isolation when workloads have divergent SLA or security needs.
 
 ## 2. Mental Model
 
@@ -54,11 +54,14 @@ The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200�
 
 *(Each row's footprint is its own model's size at the named precision — put the number in that precision's column. A dash means that precision does not apply to the row's naming.)*
 
-With 8×H100 (640 GB), we can simultaneously run:
+With 8×H100 (640 GB), we can simultaneously run the weights of:
 
+- **One 70B dense FP16** (140 GB)
 - **One 70B 8-bit dense** (70 GB)
+- **One 70B MoE 8-bit** (~70 GB)
 - **Two 70B 4-bit GGUF** (≈70 GB total)
-- **Remaining ~500 GB** can host smaller specialized models (e.g., 22B, 8B) for classification or routing.
+
+That is ~350 GB of weights, leaving ~290 GB for KV cache and for smaller specialized models (e.g., 22B, 8B) for classification or routing. KV, not weights, is the binding term: as the FP16 row above notes, that tier's KV alone uses the full 640 GB pool, so this co-residency holds only while the resident tiers' combined KV fits.
 
 ### 3.2. Per-token cost (example numbers, Q4 2026 pricing)
 
@@ -106,7 +109,7 @@ The latency and capacity must also reconcile with the canonical workload's KV re
 - **Consolidate** when: workload profile overlap ≥70%, latency tolerance ≥300 ms, and cost differential >30%. *Verified*: our scenario sits exactly at the threshold — it consolidates ~70% of traffic to 8-bit (at the ≥70% boundary, not above it), saving ~$11.16/hr ($23.75 − $12.59, the §18.3.3 derived figure).
 - **Keep separate** when: (a) security/classification policies require isolation, (b) workloads have bimodal latency needs (some ≤50 ms, others batch-tolerant), or (c) model versioning cadence differs (e.g., frequent fine-tuning on one family, stable other).
 
-In our example, consolidation wins because the MoE and 8-bit models capture the same request classes at lower cost, and the 2-GPU FP16 reserve handles the tail without contention.
+In our example, consolidation wins because the MoE and 8-bit models capture the same request classes at lower cost, and the FP16 tier handles the tail without contention. The FP16 tier has no separate reserve in this worked example: per §18.3.1 it shares the 640 GB pool — 140 GB of weights plus KV — and at the canonical 9.5K profile it cannot be a 2-GPU reserve, because a 2-GPU shard holds 160 GB − 140 GB = 20 GB of KV headroom against the 24.9 GB that one 9,500-token request needs (κ = 2.62 MB/token, Ch 17). Two reserved GPUs suffice only for the ~250-token support queries of §18.8, not for the canonical 9.5K request.
 
 ## 4. Measurement
 
@@ -127,7 +130,7 @@ Instrumentation: add a middleware shim that logs `model_id, token_count, latency
 
 1. **Treating quantization as free.** 4-bit/8-bit models reduce VRAM but increase CPU cycles and may lower quality on long-context tasks. Always measure the quality hit before routing en masse.
 2. **One-size-fits-all routing.** A static rule ("always use 8-bit") fails when workload mix shifts (e.g., seasonal increase in multilingual queries that need FP16 precision). Use a dynamic router with feature-gate checks.
-3. **Ignoring capital amortization.** FP16 on 8×H100 has high upfront cost; spreading that cost across a mixed fleet improves effective cost/token. Don't forget to annualize GPU CapEx in the per-token math.
+3. **Ignoring capital amortization.** FP16 on 8×H100 has high upfront cost; spreading that cost across a mixed fleet improves effective cost/token. Don't forget to annualize GPU capex in the per-token math.
 4. **Over-provisioning the top tier.** Keeping a full FP16 GPU idle "just in case" is expensive. Keep just enough capacity for the tail (≈10% of peak rps) and route the rest.
 5. **No fallthrough plan.** If the preferred model is at capacity, the router must have a next‑best alternative ready; otherwise requests time out or queue indefinitely.
 
