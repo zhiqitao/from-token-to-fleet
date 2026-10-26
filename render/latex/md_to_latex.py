@@ -425,16 +425,13 @@ def fix_crossrefs(tex_path, chnum):
         k[0] += 1
         body, end = m.groups()
         lab = f"tab:{chnum}.{k[0]}"
-        # \\nopagebreak[4] + \\needspace before the longtable keeps the bold
-        # "Table N-M —" caption paragraph (which sits immediately above) on the
-        # same page as the table's first row; otherwise a page break can land
-        # between the caption and the table (e.g. Table 5-1, Table 24-1). A
-        # plain \\nopagebreak is too weak when a float (figure) sits between the
-        # caption and the table: it lets the caption stay behind while the
-        # figure and table advance. \\needspace\\{...\\} reserves enough vertical
-        # space so the caption + table move to the next page together. Reserve
-        # ~12 lines (caption + a few table rows) as a conservative bound.
-        return f"\\nopagebreak[4]\\needspace{{9\\baselineskip}}\n{body}\n\\label{{{lab}}}{end}"
+        # \\\\nopagebreak[4] before the longtable keeps the bold "Table N-M —"
+        # caption paragraph (which sits immediately above) on the same page as
+        # the table's first row. (A \\needspace prefix was tried and caused a
+        # longtable header-duplication artifact on tables that break across a
+        # page - head emitted on the same page twice with a blank gap - so it is
+        # removed; \\nopagebreak[4] alone is the safe form.)
+        return f"\\nopagebreak[4]\n{body}\n\\label{{{lab}}}{end}"
     tex = tab_pat.sub(tab_repl, tex)
 
     # 3) Body refs -> \\hyperref. Stash caption/alt definitions first so a
