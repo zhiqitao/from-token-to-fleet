@@ -84,8 +84,8 @@ job is deciding which dimension to split first, and in which mode
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits, what is replicated, and what communicates. Communication-specificity note: the TP collective is algorithm-dependent --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on microbatch scheduling (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count); substitute the actual collective and schedule for the target stack.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-10-1001.pdf}}
-\caption[Three parallelism patterns, one per panel]{Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits, what is replicated, and what communicates. \textbf{Communication-specificity note:} the TP collective is \emph{algorithm-dependent} --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on \emph{microbatch scheduling} (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count); substitute the actual collective and schedule for the target stack.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits, what is replicated, and what communicates. Communication-specificity note: the TP collective is algorithm-dependent --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on microbatch scheduling (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count); substitute the actual collective and schedule for the target stack. Grayscale note: each box's text label carries its role, so the in-figure color key (blue = weights · orange = GPU · green = data · red = comms) is redundant, not load-bearing.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-10-1001.pdf}}
+\caption[Three parallelism patterns, one per panel]{Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits, what is replicated, and what communicates. \textbf{Communication-specificity note:} the TP collective is \emph{algorithm-dependent} --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on \emph{microbatch scheduling} (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count); substitute the actual collective and schedule for the target stack. \textbf{Grayscale note:} each box's text label carries its role, so the in-figure color key (blue = weights · orange = GPU · green = data · red = comms) is redundant, not load-bearing.}
 
 \label{fig:10.1}\end{figure}
 
@@ -152,10 +152,10 @@ Fits when
 \bottomrule\noalign{}
 \endlastfoot
 Tensor (TP) & a layer's weights within a GPU group & activations &
-partial sums → all-reduce (every layer, over NVLink) & model exceeds one
+partial sums →~all-reduce (every layer, over NVLink) & model exceeds one
 GPU, fits a node \\
 Pipeline (PP) & the layer stack into stages & hidden states & hidden
-states → P2P (stage boundaries only) & model spans nodes \\
+states →~P2P (stage boundaries only) & model spans nodes \\
 Data (DP) & the data batch & model + optimizer & gradients → all-reduce
 (per step) & model fits one GPU, need throughput (the canonical 70B is
 140 GB \textgreater{} 80 GB per GPU, so it does not fit one GPU --- DP
@@ -177,8 +177,8 @@ trades.)}
 H100}\label{why-the-canonical-70b-doesnt-fit-one-h100}
 
 The canonical model is 70B FP16 dense = 140 GB of weights
-{[}ILLUSTRATIVE{]}{[}DERIVED{]} (reality check: 70 ×10⁹ params × 2
-bytes). A single H100 has 80 GB of HBM {[}1P{]}{[}FACT{]}. The
+\mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}} (reality check: 70 ×10⁹ params × 2
+bytes). A single H100 has 80 GB of HBM {[}1P{]}\mbox{{[}FACT{]}}. The
 arithmetic is immediate:
 
 \begin{itemize}
@@ -195,7 +195,7 @@ We need at least \(140 / 80 \approx 1.75\) → \textbf{≥ 2 GPUs just to
 hold the weights} (and that's before KV cache, which adds
 \textasciitilde2.62 MB/token at FP16 (2.5 MiB) --- the 9.2K-token
 canonical prompt needs \textasciitilde24.1 GB more (initial KV)).
-{[}ILLUSTRATIVE{]}{[}DERIVED{]}
+\mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}}
 
 The canonical 8×H100 host (640 GB total) fits the weights + KV
 comfortably, which is why the single-host baseline in earlier chapters
@@ -212,11 +212,12 @@ of the layer's output across the TP group} --- a per-token, per-layer
 exchange over NVLink. For the canonical 70B with \textasciitilde80
 layers, that is \textasciitilde80 × tokens × output-size of
 communication per forward pass. The all-reduce communication cost per
-layer, per token is
+forward pass is
 \(T_\text{tp} = \text{tokens} \times n_\text{layers} \times \text{output-size} / B_\text{eff}\).
 TP is only viable where the interconnect is very fast: on-node NVLink
-(900 GB/s) keeps the sync cheap; over slow Ethernet it would drown.
-{[}1P{]}{[}FACT{]} (vendor datasheet){[}1P{]}{[}DERIVED{]}
+(900 GB/s) keeps the sync cheap; over slow Ethernet it would drown. The
+900 GB/s operand is {[}1P{]}\mbox{{[}FACT{]}} (vendor datasheet); the computed
+\(T_\text{tp}\) is \mbox{{[}DERIVED{]}}.
 
 \subsection{Pipeline Parallelism: Splitting Layers, Accepting
 Bubbles}\label{pipeline-parallelism-splitting-layers-accepting-bubbles}
@@ -250,7 +251,7 @@ with \(m = 32\),
 
 The lesson: PP is communication-light (each stage only moves activation
 boundaries across the fabric) but always pays a bubble that grows with
-stage count. {[}ILLUSTRATIVE{]}{[}DERIVED{]}
+stage count. \mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}}
 
 \subsection{Data Parallelism: Replicating, Then Syncing
 Gradients}\label{data-parallelism-replicating-then-syncing-gradients}
@@ -274,7 +275,7 @@ GB/s (single 200Gb/s link) that is \texttt{490\ /\ 25\ ≈\ 19.6\ s} per
 step --- far too slow if the step takes \textasciitilde1 s. At node
 NVLink 900 GB/s it is \texttt{490/900\ ≈\ 0.54\ s}. The sync cost, not
 compute, often caps DP at small scale unless the interconnect is fast.
-{[}1P{]}{[}DERIVED{]}
+{[}1P{]}\mbox{{[}DERIVED{]}}
 
 \ntsection{Measurement}\label{measurement}
 
@@ -371,8 +372,8 @@ EP and CP rows.)
 \item
   \textbf{Optimal split for very large MoE or long-context models} is
   workload- and interconnect-dependent; the exact NVLink-vs-fabric
-  crossover for a given model is unmeasured {[}TODO: measure on target
-  cluster{]}.
+  crossover for a given model is unmeasured \mbox{{[}UNRESOLVED{]}} --- measure
+  on the target cluster.
 \item
   \textbf{2026 MoE scaling has moved the specialist/EP frontier.} Kimi
   K3 activates just 16 of 896 routed experts per token (2.8T total /
@@ -390,12 +391,12 @@ EP and CP rows.)
 \item
   \textbf{Communication-overlap efficiency} in real kernels is hard to
   predict from spec; sustained all-reduce throughput is a
-  \textbf{{[}HYPOTHESIS{]}} until measured on the target cluster.
+  \textbf{\mbox{{[}HYPOTHESIS{]}}} until measured on the target cluster.
 \item
   \textbf{The right parallelism for mixed prefill/decode (P/D
   disaggregated) serving} --- where the prefill pool and decode pool may
   want different splits --- is an active research area and a
-  \textbf{{[}HYPOTHESIS{]}} for this book.
+  \textbf{\mbox{{[}HYPOTHESIS{]}}} for this book.
 \end{itemize}
 
 \section{End-of-Chapter Mini-Case: Diagnosing Why the Grown 400B MoE Is

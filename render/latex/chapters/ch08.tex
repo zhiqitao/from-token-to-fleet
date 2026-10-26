@@ -88,8 +88,8 @@ should profile memory bandwidth or compute throughput.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel communication crosses the GPU interconnect. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- each is a different level of this ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.png}}
-\caption[Where inference computation and data movement actually live]{Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel communication crosses the GPU interconnect. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- each is a different level of this ladder. \textbf{Schematic note:} the vertical ordering is a \emph{relative} speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- each is a different level of this ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.png}}
+\caption[Where inference computation and data movement actually live]{Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- each is a different level of this ladder. \textbf{Schematic note:} the vertical ordering is a \emph{relative} speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern.}
 
 \label{fig:8.1}\end{figure}
 
@@ -140,9 +140,9 @@ count is approximately:
 \text{FLOP/}_{\text{token}} \approx 2 \times N = 2 \times 70 \times 10^9 \approx 140 \text{ GFLOP/token}
 \]
 
-{[}DERIVED: 2 FLOPs/parameter × 70 ×10⁹ params; standard dense-forward
+\mbox{{[}DERIVED: 2 FLOPs/parameter × 70 ×10⁹ params; standard dense-forward
 arithmetic, which is the same 2×N rule that gives, e.g., a 175B dense
-model 2 × 175 × 10⁹ ≈ 0.35 TFLOP/token{]}
+model 2 × 175 × 10⁹ ≈ 0.35 TFLOP/token{]}}
 
 This applies to both prefill and decode: each token that enters the
 forward pass costs \textasciitilde140 GFLOP. The distinction between
@@ -159,9 +159,9 @@ For a single request with 9.2K input tokens, the prefill FLOP cost is:
 \text{prefill FLOPs} \approx 2 \times N \times L = 2 \times 70 \times 10^9 \times 9.2 \times 10^3 \approx 1.29 \text{ PFLOP}
 \]
 
-{[}DERIVED: 2 × N × L where N=70B, L=9,200; the figure is large because
+\mbox{{[}DERIVED: 2 × N × L where N=70B, L=9,200; the figure is large because
 the full context is attended to, but it is a one-time cost per request,
-not a sustained rate{]}
+not a sustained rate{]}}
 
 \emph{Accuracy of the 2 ×N × L approximation.} This linear prefill count
 omits the quadratic attention term,
@@ -180,15 +180,15 @@ At 10 requests/s, the sustained prefill throughput demand is:
 \text{prefill demand} = 1.29 \times 10^{15} \text{ FLOP} \times 10 \text{ rps} \approx 12.9 \text{ PFLOP/s}
 \]
 
-{[}DERIVED{]}
+\mbox{{[}DERIVED{]}}
 
 \textbf{\hyperref[tab:8.1]{Table 8-1}} --- Per-token FLOP cost, prefill PFLOP, and the
 derived prefill and roofline rates for the canonical 70B workload.
 \emph{(Per-token FLOP and prefill PFLOP computations are
-{[}ILLUSTRATIVE{]}{[}DERIVED{]} from 2 × params × tokens; hardware peaks
-{[}1P: vendor datasheet{]} or {[}1P{]}{[}FACT{]}; the 30--40\% MFU range
+\mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}} from 2 × params × tokens; hardware peaks
+{[}1P: vendor datasheet{]} or {[}1P{]}\mbox{{[}FACT{]}}; the 30--40\% MFU range
 is {[}2°: industry benchmarks{]}; the \textasciitilde295 FLOP/byte ridge
-is {[}2°{]}{[}DERIVED{]} = 989 TFLOPS ÷ 3.35 TB/s.)}
+is {[}2°{]}\mbox{{[}DERIVED{]}} = 989 TFLOPS ÷~3.35 TB/s.)}
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -208,13 +208,13 @@ derivation
 \bottomrule\noalign{}
 \endlastfoot
 per-token FLOPs (forward) & \textasciitilde140 GFLOP/token & 2 ×70B
-params {[}DERIVED; standard dense-forward arithmetic --- the same 2×N
-rule gives 175B ≈ 0.35 TFLOP/token{]} \\
+params \mbox{{[}DERIVED; standard dense-forward arithmetic --- the same 2×N
+rule gives 175B ≈ 0.35 TFLOP/token{]}} \\
 prefill FLOPs for 9.2K input (linear only) & \textasciitilde1.29 PFLOP &
 2 ×70 ×10⁹ × 9.2 ×10³ {[}DERIVED; \textbf{parameterized-linear term ---
 excludes the quadratic attention term}, see Ch 22{]} \\
 sustained prefill demand @ 10 rps & \textasciitilde12.9 PFLOP/s & 1.29
-PFLOP × 10 {[}DERIVED{]} \\
+PFLOP × 10 \mbox{{[}DERIVED{]}} \\
 H100 peak FP16 TFLOPS & \textasciitilde989 TFLOPS {[}1P: NVIDIA H100
 datasheet{]} & NVIDIA H100 SXM5 datasheet, without sparsity \\
 H100 sustained MFU (typical) & 30--40\% {[}2°: industry benchmarks{]} &
@@ -225,7 +225,7 @@ prefill throughput per host (8×H100) & \textasciitilde19,800 tokens/s &
 8 × 2,471 {[}DERIVED; \textbf{idealized aggregate, before TP/system
 loss}{]} \\
 H100 ridge point (dense FP16) & \textasciitilde295 FLOP/byte & 989 ÷
-3.35 {[}DERIVED: peak TFLOPS ÷ HBM bandwidth{]} \\
+3.35 \mbox{{[}DERIVED: peak TFLOPS ÷ HBM bandwidth{]}} \\
 
 \label{tab:8.1}\end{longtable}
 
@@ -248,10 +248,10 @@ derived from real kernel profiles{]}. At 35\% MFU:
 \text{sustained} = \text{peak} \times \text{MFU} = 989 \text{ TFLOPS} \times 0.35 \approx 346 \text{ TFLOPS}
 \]
 
-{[}1P{]}{[}2°{]}{[}DERIVED: vendor peak (1P) × typical MFU (2°) --- the
+{[}1P{]}{[}2°{]}\mbox{{[}DERIVED: vendor peak (1P) × typical MFU (2°) --- the
 MFU range is a secondary, empirical figure, so the sustained value
 inherits the provenance of its weakest input, the 2° MFU, while the peak
-is first-party{]}
+is first-party{]}}
 
 \textbf{Scope matters here.} The 346 TFLOPS figure is the sustained rate
 of a \emph{single} H100, and the 2,471 tokens/s derived from it is
@@ -357,9 +357,9 @@ therefore:
 \text{arithmetic intensity}_{\text{decode}} \approx \frac{140 \text{ GFLOP}}{140 \text{ GB}} \approx 1.0 \text{ FLOP/byte}
 \]
 
-{[}DERIVED; a lower-bound bandwidth model --- real kernels also read
+\mbox{{[}DERIVED; a lower-bound bandwidth model --- real kernels also read
 activations and KV, so measured intensity is typically below this and
-heavily dependent on fusion and cache residency{]}
+heavily dependent on fusion and cache residency{]}}
 
 This is well below the H100 dense-FP16 ridge of \textasciitilde295
 FLOP/byte, meaning single-stream decode is overwhelmingly
@@ -410,9 +410,11 @@ Three measurable quantities anchor compute sizing:
   Compare to the hardware ridge point (H100 dense FP16:
   \textasciitilde295 FLOP/byte; H200: \textasciitilde989 TFLOPS ÷ 4.8
   TB/s ≈ 206 FLOP/byte --- H200 keeps H100's GH100 die and its dense
-  FP16 peak, trading a bigger/faster HBM3e for bandwidth; GB200 BF16:
-  much higher due to NVFP4). If intensity is below the ridge, the kernel
-  is memory-bound; above, compute-bound.
+  FP16 peak, trading a bigger/faster HBM3e for bandwidth; GB200: higher
+  on both terms (faster dense BF16 peak and \textasciitilde8 TB/s HBM),
+  so its BF16 ridge is higher, and its NVFP4 ridge higher again). If
+  intensity is below the ridge, the kernel is memory-bound; above,
+  compute-bound.
 \end{enumerate}
 
 \ntsection{Common Mistakes}\label{common-mistakes}
@@ -590,10 +592,10 @@ rather than assuming memory. The profile separates four candidates:
 \item
   \textbf{Attention / memory constrained (within prefill)} --- the
   quadratic attention term, not the linear weights, grows with context;
-  at 32K+ contexts this term dominates prefill cost (the
-  4·n\_layers·L²·d term, \hyperref[fig:22.1]{Fig 22.1}), so the fix is to reduce the
-  attention term (flash-attention, sparse/linear attention), not to
-  batch harder.
+  at 128K+ contexts this term dominates prefill cost (at 32K it is
+  already \textasciitilde+60\% --- the 4·n\_layers·L²·d term, \hyperref[fig:22.1]{Fig 22.1}),
+  so the fix is to reduce the attention term (flash-attention,
+  sparse/linear attention), not to batch harder.
 \end{itemize}
 
 The architect measures MFU to choose among these. If the prefill kernel

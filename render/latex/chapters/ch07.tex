@@ -33,11 +33,14 @@ the lifetime of a request --- it is always resident, always consuming
 HBM bandwidth for every re-read. The architect must therefore size two
 distinct memory loads: the static weight footprint and the dynamic KV
 footprint that varies with prompt length. Quantization (FP8, FP4, 2-bit
-asymmetric) reduces both, but the KV cache is the one component that
-does not shrink as aggressively as weights --- per-block scale/offset
-metadata and per-token variation mean the memory reduction is typically
-40--50\% rather than the 2×--4× seen in weight-only quantization. The
-residency floor is therefore set by weights + KV (+ activations, in
+asymmetric) reduces both, but the KV cache is the one component whose
+reduction must be quoted per precision, not as a uniform factor: FP8 KV
+realizes \textasciitilde50\% in serving today (raw byte-halving), while
+4-bit KV's raw bound is a full 4× (2.62 → 0.66 MB/token at this
+chapter's geometry) --- realized savings land between, once per-block
+scale/offset metadata and per-token variation are counted --- rather
+than the single 2×--4× that weight-only quantization applies to weights.
+The residency floor is therefore set by weights + KV (+ activations, in
 fine-tuning), and the architect's first question is whether this sum
 fits on the target GPUs. This is why ``does it fit?'' is the architect's
 primary gate: before we ask whether the model can compute or
@@ -54,8 +57,8 @@ gradients + optimizer states, because every parameter update requires
 its own momentum and velocity vectors (Adam) or per-parameter scaling
 (LAMB/RMSProp). The contrast between these two floors --- inference
 \textasciitilde164.1 GB for a 70B model at FP16 with 9.2K input (140 +
-24.1; the 9.5K-max is 164.9 ≈ 165 GB) {[}ILLUSTRATIVE{]}{[}DERIVED{]},
-fine-tuning exceeding 1 TB {[}ILLUSTRATIVE{]}{[}DERIVED{]} --- is the
+24.1; the 9.5K-max is 164.9 ≈ 165 GB) \mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}},
+fine-tuning exceeding 1 TB \mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}} --- is the
 architect's central memory-takeaway.
 
 We keep two terms rigidly distinct in this chapter, and the distinction
@@ -78,7 +81,7 @@ is the antidote to ``does it fit?'' mistakes:
   On the canonical 8×H100 host this runtime/workspace term is
   \textasciitilde64 GB, turning the \textasciitilde165 GB residency
   floor into a larger \emph{deployment} footprint.
-  {[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} The \textasciitilde64 GB is a
+  \mbox{{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]}} The \textasciitilde64 GB is a
   planning reserve, not a measured constant; a representative split is
   \textasciitilde8 GB CUDA context/driver + \textasciitilde16 GB
   activation buffers (batch + intermediate tensors) + \textasciitilde8
@@ -131,9 +134,9 @@ below).
 \textbf{\hyperref[tab:7.1]{Table 7-1}} --- KV cache size per token and per-context
 arithmetic for the canonical 80-layer, hidden-8192, \textbf{full-MHA 70B
 reference} at FP16. \emph{(All per-context KV totals, residency figures,
-and fit/non-fit verdicts below are {[}ILLUSTRATIVE{]}{[}DERIVED{]} from
+and fit/non-fit verdicts below are \mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}} from
 the general per-token formula
-\texttt{2\ ×\ layers\ ×\ n\_KV-heads\ ×\ head\_dim\ ×\ bytes} (MHA case
+\texttt{2\ ×~layers\ ×~n\_KV-heads\ ×~head\_dim\ ×~bytes} (MHA case
 here); model-card architecture constants are {[}1P: model card{]}.)}
 
 \nopagebreak[4]
@@ -154,9 +157,9 @@ derivation
 \bottomrule\noalign{}
 \endlastfoot
 layers & 80 & canonical 70B full-MHA teaching model
-{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
+\mbox{{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]}} \\
 hidden\_dim & 8192 & canonical 70B full-MHA teaching model
-{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]} \\
+\mbox{{[}ILLUSTRATIVE{]}{[}ASSUMPTION{]}} \\
 bytes per parameter (FP16) & 2 & FP16 = 2 bytes/param {[}1P: NVIDIA H100
 spec{]} \\
 KV cache per token per layer & 2 × hidden\_dim × bytes & one key + one
@@ -185,7 +188,7 @@ inference residency (weights + KV, 32K) & ≈ 224 GB & 140 + 83.9 GB \\
 inference residency (weights + KV, 128K) & ≈ 475 GB & 140 + 335.5 GB \\
 2×H100 total VRAM & 2 ×80 GB = 160 GB & {[}1P: NVIDIA H100 spec{]} \\
 8×H100 total VRAM & 8 ×80 GB = 640 GB & {[}1P: NVIDIA H100 spec{]} \\
-3×H100 total VRAM & 3 ×80 GB = 240 GB & {[}DERIVED{]} 165 GB \textless{}
+3×H100 total VRAM & 3 ×80 GB = 240 GB & \mbox{{[}DERIVED{]}} 165 GB \textless{}
 240 GB \\
 fits 2×H100 at 9.2K? & no, 164.1 GB \textgreater{} 160 GB & does not fit
 in 2×H100; needs ≥3×H100 by aggregate capacity (or lower precision /
@@ -422,12 +425,16 @@ MB/token (2 × 100 × 12288 × 2 B ≈ 4.915e6 B).
   H100 (80 GB) is a category error. Weights alone exceed one H100; KV
   must be added.
 \item
-  \textbf{Treating quantization as a uniform 2×--4× reducer.} KV cache
-  quantization (FP8 ≈50\% of BF16, raw byte-halving) gives a
-  \textasciitilde50\% reduction, not 2× or 4×. (The vLLM ``54\%'' figure
-  is a decode inter-token-latency slope ratio, not a memory ratio.)
-  Weight quantization gives the larger reductions; do not apply the same
-  expectation to the KV cache.
+  \textbf{Quoting one KV-quant reduction for every precision.} KV cache
+  quantization must be read per bit width: FP8 KV ≈50\% of BF16 (raw
+  byte-halving) is what serving stacks realize today, while 4-bit KV's
+  raw bound is a full 4× (2.62 → 0.66 MB/token here; 0.52 → 0.13 for a
+  7B, §12.3) --- realized savings land between, once block/scale
+  metadata is counted. (The vLLM ``54\%'' figure is a decode
+  inter-token-latency slope ratio, not a memory ratio.) Weight-only
+  quantization's 2×--4× applies to weights; do not transfer an
+  expectation across precisions or across tensors without naming the bit
+  width.
 \item
   \textbf{Overlooking the fine-tuning residency floor.} Full fine-tuning
   of 70B requires \textasciitilde1.12 TB with Adam optimizer states ---
@@ -464,7 +471,7 @@ enterprise-Q\&A workload:
   justified by basic capacity alone --- three 80 GB GPUs already clear
   the 165 GB residency floor; the 8×H100 host is chosen for compute,
   bandwidth, topology, concurrency, implementation constraints, and
-  headroom. {[}ILLUSTRATIVE{]}{[}DERIVED{]}
+  headroom. \mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}}
 \item
   \textbf{KV cache quantization buys back memory, not compute.} FP8 KV ≈
   50\% of BF16 (raw byte-halving), dropping the 9.5K max residency from
@@ -478,14 +485,14 @@ enterprise-Q\&A workload:
   gradients 140 GB + Adam m/v/master states 840 GB) --- roughly 1.75×
   the 8×H100 host. This is why the architect separates the serving fleet
   from the training fleet: the memory floors differ by an order of
-  magnitude. {[}ILLUSTRATIVE{]}{[}DERIVED{]}
+  magnitude. \mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}}
 \item
   \textbf{Context length is the largest controllable KV lever.} Doubling
   context from 9.2K to 18.4K doubles KV (\textasciitilde24.1 GB →
   \textasciitilde48 GB); 128K context drives KV to \textasciitilde335
   GB, which forces quantization or model parallelism. The architecture
   must set a context-length ceiling to keep the served model within host
-  memory. {[}ILLUSTRATIVE{]}{[}DERIVED{]}
+  memory. \mbox{{[}ILLUSTRATIVE{]}{[}DERIVED{]}}
 \end{itemize}
 
 In short: the architect sizes the host by weights + KV at the longest
@@ -514,7 +521,7 @@ keeps inference and training on separate memory-planning tracks.
 \item
   Whether per-request KV caching can be partially offloaded to CPU DRAM
   during decode without TTFT impact, beyond the vLLM KV Offloading
-  Connector's 2--22× TTFT reduction range {[}S7{]}{[}1P{]}{[}FACT{]},
+  Connector's 2--22× TTFT reduction range \mbox{{[}S7{]}}{[}1P{]}\mbox{{[}FACT{]}},
   which is highly prompt-size-dependent. The community is converging on
   tiered KV storage (GPU resident hot set + CPU/DRAM cold set), but the
   latency trade-offs at concurrency \textgreater{} 1 are not yet
@@ -550,12 +557,10 @@ keeps inference and training on separate memory-planning tracks.
   (e.g., number of experts per layer) needs per-model validation.
 \end{itemize}
 
-\subsubsection{Figures}\label{figures}
-
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): parameter count does not determine KV size --- KV per token is set by the attention shape (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. Scope: FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde165 GB at 9.5K. The FP8 value is raw byte-halving (50\% of BF16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0701.pdf}}
-\caption[KV cache size vs context length, canonical 80-layer reference geometry]{KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): \textbf{parameter count does not determine KV size} --- KV per token is set by the \emph{attention shape} (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. \textbf{Scope:} FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde165 GB at 9.5K. The FP8 value is raw byte-halving (50\% of BF16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}).}
+\pandocbounded{\includegraphics[keepaspectratio,alt={KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): parameter count does not determine KV size --- KV per token is set by the attention shape (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. Scope: FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 KV footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde24.9 GB at 9.5K (total weights+KV residency then \textasciitilde165 GB, §7.1). The FP8 value is raw byte-halving (50\% of BF16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0701.pdf}}
+\caption[KV cache size vs context length, canonical 80-layer reference geometry]{KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): \textbf{parameter count does not determine KV size} --- KV per token is set by the \emph{attention shape} (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. \textbf{Scope:} FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 KV footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde24.9 GB at 9.5K (total weights+KV residency then \textasciitilde165 GB, §7.1). The FP8 value is raw byte-halving (50\% of BF16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}).}
 
 \label{fig:7.2}\end{figure}
 

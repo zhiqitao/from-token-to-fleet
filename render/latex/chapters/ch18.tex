@@ -48,7 +48,7 @@ Key design principles:
   \textbf{Capability gaps} (context window, tool-use, multilingual)
   dictate minimum model tiers.
 \item
-  \textbf{Consolidation} saves CapEx when overlap in workload profiles
+  \textbf{Consolidation} saves capex when overlap in workload profiles
   is high; \textbf{separation} preserves isolation when workloads have
   divergent SLA or security needs.
 \end{enumerate}
@@ -158,18 +158,26 @@ copies) \\
 precision --- put the number in that precision's column. A dash means
 that precision does not apply to the row's naming.)}
 
-With 8×H100 (640\,GB), we can simultaneously run:
+With 8×H100 (640\,GB), we can simultaneously run the weights of:
 
 \begin{itemize}
 \tightlist
 \item
+  \textbf{One 70B dense FP16} (140\,GB)
+\item
   \textbf{One 70B 8-bit dense} (70\,GB)
 \item
-  \textbf{Two 70B 4-bit GGUF} (≈70\,GB total)
+  \textbf{One 70B MoE 8-bit} (\textasciitilde70\,GB)
 \item
-  \textbf{Remaining \textasciitilde500\,GB} can host smaller specialized
-  models (e.g., 22B, 8B) for classification or routing.
+  \textbf{Two 70B 4-bit GGUF} (≈70\,GB total)
 \end{itemize}
+
+That is \textasciitilde350\,GB of weights, leaving
+\textasciitilde290\,GB for KV cache and for smaller specialized models
+(e.g., 22B, 8B) for classification or routing. KV, not weights, is the
+binding term: as the FP16 row above notes, that tier's KV alone uses the
+full 640\,GB pool, so this co-residency holds only while the resident
+tiers' combined KV fits.
 
 \subsection{Per-token cost (example numbers, Q4 2026
 pricing)}\label{per-token-cost-example-numbers-q4-2026-pricing}
@@ -300,7 +308,7 @@ The latency and capacity must also reconcile with the canonical
 workload's KV residency (\hyperref[chap:17]{Chapter 17}): routing 70\% of requests to an
 8-bit model on 1×H100 changes the per-host KV ceiling accordingly, and
 the fleet host count is set by the model each tier runs on. These are
-{[}ILLUSTRATIVE{]} pricing and latency figures for Q4 2026; the
+\mbox{{[}ILLUSTRATIVE{]}} pricing and latency figures for Q4 2026; the
 architect re-runs the same arithmetic with measured per-model
 cost/latency from a deployment benchmark (\hyperref[chap:14]{Chapter 14}).
 
@@ -324,8 +332,15 @@ decision}\label{consolidation-vs.-separation-decision}
 \end{itemize}
 
 In our example, consolidation wins because the MoE and 8-bit models
-capture the same request classes at lower cost, and the 2-GPU FP16
-reserve handles the tail without contention.
+capture the same request classes at lower cost, and the FP16 tier
+handles the tail without contention. The FP16 tier has no separate
+reserve in this worked example: per §18.3.1 it shares the 640\,GB pool
+--- 140\,GB of weights plus KV --- and at the canonical 9.5K profile it
+cannot be a 2-GPU reserve, because a 2-GPU shard holds 160\,GB − 140\,GB
+= 20\,GB of KV headroom against the 24.9\,GB that one 9,500-token
+request needs (κ = 2.62\,MB/token, Ch 17). Two reserved GPUs suffice
+only for the \textasciitilde250-token support queries of §18.8, not for
+the canonical 9.5K request.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -391,7 +406,7 @@ above, then update daily as actual token counts and cloud prices shift.
 \item
   \textbf{Ignoring capital amortization.} FP16 on 8×H100 has high
   upfront cost; spreading that cost across a mixed fleet improves
-  effective cost/token. Don't forget to annualize GPU CapEx in the
+  effective cost/token. Don't forget to annualize GPU capex in the
   per-token math.
 \item
   \textbf{Over-provisioning the top tier.} Keeping a full FP16 GPU idle
@@ -565,5 +580,5 @@ routing shape an architect operates daily.}
 
 \emph{Evidence labels: {[}1P{]} price observations from public cloud
 provider pricing pages (Q4\,2026); {[}2°{]} derived per-token cost
-arithmetic; {[}UNRESOLVED{]} latency measurements from local GGUF
+arithmetic; \mbox{{[}UNRESOLVED{]}} latency measurements from local GGUF
 benchmarks on reference hardware.}
