@@ -73,7 +73,7 @@ At the resource layer, the tell is utilization: a decode kernel pinned at ~95% o
 
 \needspace{250pt}
 
-**Table 6-1** — Detecting the bottleneck regime from resource telemetry
+#### Table 6-1 — Detecting the bottleneck regime from resource telemetry
 
 | Phase | Demand | H100 capacity | Verdict | Resource tell |
 |---|---|---|---|---|

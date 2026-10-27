@@ -56,7 +56,7 @@ Now suppose the workload's demand grows to ~100 rps average (a 10×). Recompute 
 
 If the workload must run fully on-site without data leaving a facility, and the model can be distilled to a 7-13B capable of the Q&A task, the **local/edge** tier applies: a single GPU runs the distilled model at reduced (but acceptable) accuracy for privacy. The tier choice traded capability for the operational constraint (privacy). [ILLUSTRATIVE][DERIVED]
 
-**Table 13-1** — Reference architecture archetypes
+#### Table 13-1 — Reference architecture archetypes
 
 | Tier | GPUs | Interconnect | Model range | Typical latency | When to use |
 |---|---|---|---|---|---|

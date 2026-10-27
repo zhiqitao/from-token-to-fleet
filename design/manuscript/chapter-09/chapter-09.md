@@ -16,7 +16,7 @@ The collective operations that dominate multi-node training and inference are:
 
 The bandwidth each collective consumes depends on three factors: the data volume (bytes), the number of participating nodes (N), and the interconnect's effective bandwidth in the presence of contention. A 70B FP16 model is 140 GB, and its FP16 gradient is the same size — the §9.3 worked example all-reduces that 140 GB gradient tensor. An all-reduce of a 140 GB tensor across 8 GPUs on a single node moves 140 GB over NVLink; across 8 nodes connected by InfiniBand it moves 140 GB (or more, depending on the algorithm) over the fabric. The same 140 GB over a 25 Gb/s Ethernet link (≈ 2.5 GB/s practical-effective) takes ≈ 56 s — about 350× the ≈ 0.16 s over a 900 GB/s NVLink (§9.2, §9.3).
 
-**Table 9-1** — The interconnect hierarchy
+#### Table 9-1 — The interconnect hierarchy
 
 | Layer | Example | Bandwidth | Latency | Cost | [source] |
 |---|---|---|---|---|---|
