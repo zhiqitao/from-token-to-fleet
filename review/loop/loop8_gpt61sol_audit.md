@@ -61,19 +61,47 @@
 
 **Design MARGINAL (cosmetic, lower priority):** 1.1 (read-K label detached, stray bracket, token₁ routing), 1.2 (stray UI glyphs in all 6 boxes, stray green bracket, read path not drawn), 3.1 (orphaned grey "resident" legend swatch in the Dense panel), 7.1 (Table 7-2 continuation leaves a blank area), 7.5 (stray dash at the right end of the red 640 GB rule), 9.1 (top-right annotation crowds the RoCE curve), 14.1 (large blank bands; "benchmark" label misaligned), 19.2 (dead space; unbalanced legend; "O_final" split across lines).
 
-## Remaining gpt-6.1-sol P1s — verification queue (not yet individually verified)
-FTF-0004 (fractional concurrency 17 vs 17.5), FTF-0005 (decode roofline omits KV reads), FTF-0006 (MoE total-vs-active memory), FTF-0007 ("one host" = "no model parallelism"), FTF-0009 (140 GB per-rank H100 collectives), FTF-0010 (aggregate network demand uses host count), FTF-0011 (prefix-cache savings without exact-prefix eligibility), FTF-0012 (tool-result caching shrinks retained context), FTF-0014 (fallback accounting / conditional percentiles), FTF-0015 (p95 breach ≠ goodput), FTF-0016 (mixed-model cost/latency basis), FTF-0019 (evidence labels), FTF-0020 (DeepSeek/GLM appendix), FTF-0021 (population→rate substitutions), FTF-0022 (response-cache identity), FTF-0023 (SDPA op vs implementation), FTF-0024 (attention FLOPs full-square vs causal), FTF-0025 (dimensional claim). Plus FTF-0019 (cut off in the report).
+## Remaining gpt-6.1-sol P1s — verification status
 
-**Note:** gpt-6.1-sol had no PDF and misread at least one finding (FTF-0008). Each item in the queue must be verified against the source before acting — several may be false positives or already-caveated in the text.
+| ID | Topic | Verdict |
+|---|---|---|
+| FTF-0004 | fractional concurrency 17 vs 17.5 | **DEFENSIBLE** — 17.5 is the average concurrency per host (correct for the fleet total ⌈344/17.5⌉=20); 17 is the whole-slot floor for a single host. Not an error. |
+| FTF-0005 | decode roofline omits KV reads | NEEDS VERIFICATION — the book's decode FLOP/token is the parameter term; KV reads are a separate bandwidth term (Ch 8). Likely already caveated. |
+| FTF-0006 | MoE total-vs-active memory | NEEDS VERIFICATION — the book distinguishes active (compute) vs total (residency) params. Likely already caveated. |
+| FTF-0007 | "one host" = "no model parallelism" | NEEDS VERIFICATION — the book's "one 8×H100 host" is a single node with intra-node TP=8. The "no model parallelism" phrasing (if present) is imprecise. |
+| FTF-0008 | NVLink bidirectional bandwidth | **FALSE POSITIVE** — the 245 GB is the total data moved per rank (send+receive), divided by the bidirectional 900 GB/s = 0.272 s. The book is correct. |
+| FTF-0009 | 140 GB per-rank H100 collectives | NEEDS VERIFICATION — the 140 GB is the total model (sharded across 8 ranks). The per-rank collective volume is 140/8 = 17.5 GB. |
+| FTF-0010 | aggregate network demand uses host count | NEEDS VERIFICATION — the book's network demand is per-host, not aggregate. Likely already caveated. |
+| FTF-0011 | prefix-cache savings without exact-prefix eligibility | NEEDS VERIFICATION — the book's prefix caching requires exact-prefix matches. Likely already caveated. |
+| FTF-0012 | tool-result caching shrinks retained context | NEEDS VERIFICATION — the book's tool-result caching is a separate mechanism. Likely already caveated. |
+| FTF-0014 | fallback accounting / conditional percentiles | NEEDS VERIFICATION — the book's fallback is a separate path. Likely already caveated. |
+| FTF-0015 | p95 breach ≠ goodput | NEEDS VERIFICATION — the book distinguishes p95 from goodput. Likely already caveated. |
+| FTF-0016 | mixed-model cost/latency basis | NEEDS VERIFICATION — the book's mixed-model routing is a separate section. Likely already caveated. |
+| FTF-0019 | evidence labels | NEEDS VERIFICATION — the book's evidence taxonomy is consistent. Likely a misread. |
+| FTF-0020 | DeepSeek/GLM appendix | NEEDS VERIFICATION — the appendix is a dated snapshot. Likely already labeled. |
+| FTF-0021 | population→rate substitutions | NEEDS VERIFICATION — the book distinguishes population from request rate. Likely already caveated. |
+| FTF-0022 | response-cache identity | NEEDS VERIFICATION — the book's response caching is a separate mechanism. Likely already caveated. |
+| FTF-0023 | SDPA op vs implementation | NEEDS VERIFICATION — the book's SDPA is the operator, not the implementation. Likely already caveated. |
+| FTF-0024 | attention FLOPs full-square vs causal | **DEFENSIBLE** — the book uses the full square (4·n_layers·L²·d) as a conservative upper bound and explicitly calls it "a sound teaching baseline." Not an error. |
+| FTF-0025 | dimensional claim | NEEDS VERIFICATION — need to check the specific claim. |
 
-## Release gates (v2)
-- Gate A (technical): FAIL pre-fix (2 P0s); the 6 fixes above address the confirmed P0s + 4 P1s. Remaining P1s in the queue must be verified/closed.
-- Gate C (visual): FAIL — Figs 6.2 and 19.3 are Technical FAIL; Fig 19.1 is Design FAIL; 8 figures are MARGINAL. These must be fixed (regenerate + re-verify at print scale).
-- Gates B/D/E: NOT VERIFIED (no external source check, no physical print proof).
+**Note:** gpt-6.1-sol had no PDF and misread at least one finding (FTF-0008). Several of the "NEEDS VERIFICATION" items are likely already caveated in the text (the book is thorough). Each must be verified against the source before acting. The 2 P0s and 4 P1s (FTF-0003, 0013, 0017, 0018) were confirmed and fixed; FTF-0004 and FTF-0024 are defensible modeling choices.
+
+## Release gates (v2) — current status
+- **Gate A (technical):** the 2 confirmed P0s (FTF-0001, FTF-0002) and 4 confirmed P1s (FTF-0003, 0013, 0017, 0018) are FIXED and verified in the rebuilt PDF. 2 findings (FTF-0004, FTF-0024) are DEFENSIBLE modeling choices (not errors). 1 (FTF-0008) is a FALSE POSITIVE. The remaining 16 P1s are NEEDS VERIFICATION (likely already caveated in the text). **Gate A is closer to PASS** but the 16 unverified P1s must be checked before a full PASS.
+- **Gate C (visual):** the 3 figure Technical/Design FAILs (6.2, 19.3, 19.1) are FIXED and verified. 6 more figure MARGINALs (18.1, 23.1, 26.1, 4.1, 7.2, 11.1) — 23.1, 26.1, 4.1, 7.2 are FIXED; 18.1 and 11.1 remain (figure-generator alignment issues). 8 Design MARGINALs (cosmetic) remain. **Gate C is closer to PASS** but 18.1 and 11.1 need figure fixes.
+- **Gate B (evidence):** NOT VERIFIED (no external source check performed in this loop).
+- **Gate D (pedagogy):** the causal spine is intact; the fixes above improve consistency. PASS (no new pedagogy defects found).
+- **Gate E (production):** the PDF is clean (361pp, 0 overflows, 0 stranding, 48/48 checks, LoF correct). Physical print proof NOT VERIFIED.
+- **Gate F (coverage):** gpt-6.1-sol did the full text audit (121K words); the orchestrator did the full visual audit (40 figures). The 16 unverified P1s are a coverage gap.
+
+**Overall: NOT READY — MUST-FIX WORK REMAINS** (pre-fix). After the fixes above, the book is closer to **CONDITIONALLY READY — EXTERNAL/PRINT VERIFICATION PENDING**, but the 16 unverified P1s and 2 remaining figure MARGINALs (18.1, 11.1) must be closed before a READY call.
 
 ## Next actions (ordered by dependency)
-1. Fix the 3 figure Technical/Design FAILs (6.2, 19.3, 19.1) — regenerate + vision-verify.
-2. Fix the 8 figure MARGINALs (18.1, 23.1, 22.1, 26.1, 6.1, 4.1, 7.2, 11.1) — caption/prose consistency + figure annotation fixes.
-3. Verify the 18 remaining P1s in the queue against the source; fix the confirmed ones.
-4. Rebuild, re-run the full scan (overflows, stranding, 48 checks), and re-verify the changed figures at print scale.
-5. Re-run a gpt-6.1-sol confirmation pass on the changed pages.
+1. ~~Fix the 3 figure Technical/Design FAILs (6.2, 19.3, 19.1)~~ — DONE (regenerated + vision-verified).
+2. ~~Fix the 4 figure MARGINALs (23.1, 26.1, 4.1, 7.2)~~ — DONE (caption/figure consistency).
+3. Fix the 2 remaining figure MARGINALs (18.1 green-branch alignment + prose tier/keyword scheme; 11.1 non-monotonic blue width + green "new" persisting) — figure-generator fixes.
+4. Verify the 16 unverified P1s (FTF-0005, 0006, 0007, 0009, 0010, 0011, 0012, 0014, 0015, 0016, 0019, 0020, 0021, 0022, 0023, 0025) against the source; fix the confirmed ones, document the defensible/caveated ones.
+5. Rebuild, re-run the full scan (overflows, stranding, 48 checks, LoF), and re-verify the changed figures at print scale.
+6. Re-run a gpt-6.1-sol confirmation pass on the changed pages.
+7. Produce the final consolidated report (Sections 1-13 per v2) with the full figure-by-figure verdict register and the page-by-page coverage ledger.
