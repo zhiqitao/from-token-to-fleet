@@ -57,14 +57,18 @@ ctasks = [(0, 2.0, 0, False), (0.6, 2.4, 1, False), (1.0, 1.6, 2, False), (1.4, 
           (5.0, 1.9, 0, True), (5.9, 2.0, 1, True)]
 for (x0, w, s, backfill) in ctasks:
     y = 0.5 + (s % 4) * 0.7
-    # in-flight sequences all use the single 'sequence in flight' blue (region
-    # separation is positional); backfill (new sequence) is green with a hatch
-    # so it also separates in grayscale, not by colour alone.
     if backfill:
-        col = '#2e8b57'; ec = '#1e6b42'; lw_e = 1.6; hatch = '//'
+        # A backfill sequence is "new" only at admission (the green start);
+        # after that it runs as a normal in-flight sequence (blue).  Draw a
+        # short green admission marker + a blue rest so the green does not
+        # persist across the whole decode (which would imply the sequence
+        # stays "new" for its entire life).
+        green_w = min(0.35, w * 0.25)
+        ax.add_patch(Rectangle((x0, y), green_w, 0.6, fc='#2e8b57', ec='#1e6b42', lw=1.6, hatch='//', alpha=0.9))
+        if w - green_w > 0.05:
+            ax.add_patch(Rectangle((x0 + green_w, y), w - green_w, 0.6, fc='#3a6ea5', ec='none', alpha=0.9))
     else:
-        col = '#3a6ea5'; ec = 'none'; lw_e = 0; hatch = None
-    ax.add_patch(Rectangle((x0, y), w, 0.6, fc=col, ec=ec, lw=lw_e, hatch=hatch, alpha=0.9))
+        ax.add_patch(Rectangle((x0, y), w, 0.6, fc='#3a6ea5', ec='none', alpha=0.9))
 # time arrow: points RIGHT (time = the horizontal axis, per the caption "the
 # horizontal axis is time"); the earlier vertical arrow contradicted the
 # caption and the discrete panel's horizontal time direction (v8 review).

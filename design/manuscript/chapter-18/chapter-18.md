@@ -175,7 +175,7 @@ The fleet operator becomes a *cost‑latency steward* rather than a single-model
 - Tier 3 (70B FP16) processes 250 tokens/hr → $0.75
 - **Total hourly cost: $7.88** → **$5,752 / month** (× 730 hr).
 
-The p95 is now ~250 ms (all tiers under 500 ms), so the SLO is met. The saving narrows from $8,994 / month (≈82%) to **$5,198 / month (≈47%)** — still a clear win, but the SLO-constrained figure, not the raw 82%, is the honest number. The correct order is: check the SLO, then size the cost. The routing arithmetic shows the *economic* win; the SLO check is what keeps it honest, and it must come first.
+The p95 is now ~250 ms (all tiers under 500 ms), so the SLO is met. The saving narrows from $8,994 / month (≈82%) to **$5,198 / month (≈47%)** — still a clear win, but the SLO-constrained figure, not the raw 82%, is the honest number. The correct order *within the cost/SLO gate* is: check the SLO, then size the cost (the capability filter still comes first, per Fig 18.1 and Table 18-1). The routing arithmetic shows the *economic* win; the SLO check is what keeps it honest, and it must come first *in the cost analysis*.
 
 The key enabler was the router's feature gate: queries mentioning "multilingual" or "technical specification" were auto‑escalated to Tier 3; the rest flowed to Tier 1 or Tier 2 automatically.
 
