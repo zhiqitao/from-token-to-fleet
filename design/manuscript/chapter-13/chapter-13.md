@@ -40,7 +40,7 @@ The canonical enterprise-Q&A RAG workload sits firmly on the **server** tier. We
 
 - **Throughput/latency**: ~10 rps average / 40 rps peak, input-heavy (9.2K in / 300 out). On the *per-request latency* axis, Ch11 showed continuous batching + prefix caching keeps p95 TTFT under the 2 s SLO on a single 8×H100 host. **But on the *capacity* axis the single host does not carry the full arrival rate**: with the canonical ~8.6 s service time, Little's Law puts ≈40 × 8.6 ≈ 344 requests in flight at the peak, against ~17.5 KV-resident requests per host — so a single host is a *latency-feasible* but not *capacity-sufficient* server (Ch16/17 size the fleet to ~20 hosts at the 40 rps peak). The tier choice here is about model residency and per-request latency, not about whether one host serves the entire peak arrival. [ILLUSTRATIVE][DERIVED]
 
-- **Interconnect**: parallelism is unnecessary (one node) — the interconnect question doesn't bind. ✓
+- **Interconnect**: no *cross-host* model parallelism is required (one node; intra-host TP=8 fits the 140 GB model) — the interconnect question doesn't bind. ✓
 
 So the **server** tier is the right *model-residency* archetype for the canonical workload — the model and its KV fit a single 8×H100 node and the per-request TTFT SLO is met on one host. It does **not** mean one host serves the whole arrival rate; a single host is latency-bound and the peak capacity is a fleet-computing question (Ch17). [ILLUSTRATIVE][DERIVED]
 
@@ -87,7 +87,7 @@ These three numbers locate the workload on the ladder objectively.
 
 ## 6. Architecture Consequence
 
-The archetype sets the entire downstream design vocabulary. On the **server** tier (canonical), the consequences are already established: continuous batching + PagedAttention + prefix caching (Ch11), KV quantization when residency binds (Ch7), no parallelism (Ch10). Moving up to **cluster** introduces: DP/PP/TP replicas (Ch10), P/D disaggregation (Ch11), and interconnect budgeting (Ch9). Moving **down** to local forces distillation and on-device KV limits. The tier is the top-level decision; every other choice in the book slots beneath it.
+The archetype sets the entire downstream design vocabulary. On the **server** tier (canonical), the consequences are already established: continuous batching + PagedAttention + prefix caching (Ch11), KV quantization when residency binds (Ch7), no *cross-host* model parallelism (Ch10; intra-host TP=8 fits the 140 GB model). Moving up to **cluster** introduces: DP/PP/TP replicas (Ch10), P/D disaggregation (Ch11), and interconnect budgeting (Ch9). Moving **down** to local forces distillation and on-device KV limits. The tier is the top-level decision; every other choice in the book slots beneath it.
 
 ![Fig 13.1 — The reference-architecture ladder and its escalation triggers. Escalation (red) fires when model/KV/throughput outgrows a tier; de-escalation (green) fires on privacy, data sovereignty, and cost — but scale-down decisions should also reference **utilization** (sustained low load on a tier), **failure domain** (a smaller tier has a smaller blast radius), **operations burden** (fewer hosts to run), and **SLO margin** (headroom to absorb a burst without breaching the SLO). Make these measurable: e.g. de-escalate when 30-day p95 utilization < 40% AND SLO margin > 2× AND the smaller tier's failure domain is acceptable. [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
 

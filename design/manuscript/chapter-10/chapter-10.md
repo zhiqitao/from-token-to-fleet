@@ -132,7 +132,7 @@ The parallelism strategy is forced by the binding constraint, and that constrain
 
 - **MoE models** (if chosen per Ch3) push toward EP, because only the active experts need residency per token.
 
-- **The canonical answer**: for the book's ~70B/8×H100 scenario, no parallelism is required at the baseline; parallelism becomes the tool when the model or workload outgrows one node. The architect escalates through TP (in-node) → PP (cross-node) → DP (replicating a fitting model) in that order.
+- **The canonical answer**: for the book's ~70B/8×H100 scenario, no *cross-host* model parallelism is required at the baseline (intra-host TP=8 is still needed to fit the 140 GB model across the eight 80 GB GPUs); parallelism becomes the tool when the model or workload outgrows one node. The architect escalates through TP (in-node) → PP (cross-node) → DP (replicating a fitting model) in that order.
 
 Table 10-1 above consolidates the five parallelization strategies (plus the serving-only P/D disaggregation): reading across a row gives one strategy's full trade-off (what it splits, what it replicates, what it communicates, when it fits), and reading down a column shows how each axis varies across strategies. (Fig 10.1 illustrates the three canonical patterns — TP, PP, DP — side by side; the table adds the specialist EP and CP rows.)
 
