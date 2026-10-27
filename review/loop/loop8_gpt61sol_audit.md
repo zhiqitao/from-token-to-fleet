@@ -68,9 +68,9 @@
 | FTF-0004 | fractional concurrency 17 vs 17.5 | **DEFENSIBLE** — 17.5 is the average concurrency per host (correct for the fleet total ⌈344/17.5⌉=20); 17 is the whole-slot floor for a single host. Not an error. |
 | FTF-0005 | decode roofline omits KV reads | NEEDS VERIFICATION — the book's decode FLOP/token is the parameter term; KV reads are a separate bandwidth term (Ch 8). Likely already caveated. |
 | FTF-0006 | MoE total-vs-active memory | NEEDS VERIFICATION — the book distinguishes active (compute) vs total (residency) params. Likely already caveated. |
-| FTF-0007 | "one host" = "no model parallelism" | NEEDS VERIFICATION — the book's "one 8×H100 host" is a single node with intra-node TP=8. The "no model parallelism" phrasing (if present) is imprecise. |
+| FTF-0007 | "one host" = "no model parallelism" | **CONFIRMED + FIXED** — Ch10/13 "no parallelism is required at the baseline"→"no *cross-host* model parallelism is required (intra-host TP=8 fits the 140 GB model across the eight 80 GB GPUs)." |
+| FTF-0009 | 140 GB per-rank H100 collectives | **CONFIRMED + FIXED** — Ch9 added: the 140 GB per-rank figure is the *logical* size of the all-reduce (the full gradient tensor), not the physical HBM footprint on a single 80 GB GPU; in practice each rank is a multi-GPU node (2×H100 = 160 GB) or uses hybrid DP+TP. |
 | FTF-0008 | NVLink bidirectional bandwidth | **FALSE POSITIVE** — the 245 GB is the total data moved per rank (send+receive), divided by the bidirectional 900 GB/s = 0.272 s. The book is correct. |
-| FTF-0009 | 140 GB per-rank H100 collectives | NEEDS VERIFICATION — the 140 GB is the total model (sharded across 8 ranks). The per-rank collective volume is 140/8 = 17.5 GB. |
 | FTF-0010 | aggregate network demand uses host count | NEEDS VERIFICATION — the book's network demand is per-host, not aggregate. Likely already caveated. |
 | FTF-0011 | prefix-cache savings without exact-prefix eligibility | NEEDS VERIFICATION — the book's prefix caching requires exact-prefix matches. Likely already caveated. |
 | FTF-0012 | tool-result caching shrinks retained context | NEEDS VERIFICATION — the book's tool-result caching is a separate mechanism. Likely already caveated. |
