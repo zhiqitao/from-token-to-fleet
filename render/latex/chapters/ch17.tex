@@ -545,10 +545,12 @@ B_\text{per-req} = \frac{D}{t_\text{net}} = 5\text{ MB} / 0.02\text{ s} = 250\te
 For D = 5\,MB (top‑5 retrieval snippets), t\_net = 20\,ms (typical rack
 latency), the per‑request burst is \(B_\text{per-req} = 5 / 0.02 = 250\)
 MB/s ≈ 2\,Gbps, while the fleet aggregate --- the expected number of
-concurrent cross‑host requests (φ\,·\,N) times that burst --- is
+concurrent cross‑host requests
+(\(\varphi \cdot \lambda \cdot t_\text{net}\), by Little's Law, where
+\(\lambda\) is the request arrival rate) times that burst --- is
 
 \[
-B_\text{agg} = \varphi \cdot N \cdot \frac{D}{t_\text{net}} = 0.1 \times 4 \times 250\text{ MB/s} = 100\text{ MB/s} = 0.8\text{ Gbps}
+B_\text{agg} = \varphi \cdot \lambda \cdot D = 0.1 \times 40 \times 5\text{ MB} = 20\text{ MB/s} = 0.16\text{ Gbps}
 \]
 
 Both are far inside the 10\,Gbps link, so the base case appears benign
@@ -556,9 +558,9 @@ Both are far inside the 10\,Gbps link, so the base case appears benign
 smaller). But if φ scales to 0.5 (many distributed queries) and D grows
 to 50\,MB, the per‑request burst becomes \(50/0.02 = 2{,}500\) MB/s ≈
 20\,Gbps --- exceeding a single 10\,Gbps link on its own --- and the
-fleet aggregate becomes \(0.5 \times 4 \times 2{,}500 = 5{,}000\) MB/s =
-5\,GB/s, which exceeds the 10\,Gbps (\textasciitilde1.25\,GB/s) limit by
-\textasciitilde4×.
+fleet aggregate becomes \(0.5 \times 40 \times 50 = 1{,}000\) MB/s = 1
+GB/s, which is \textasciitilde80\% of the 10\,Gbps
+(\textasciitilde1.25\,GB/s) limit.
 
 This calculation shows that cross‑host communication must be dimensioned
 early on the \textbf{per‑request burst} (which can exceed a single link
@@ -692,18 +694,18 @@ stateless → software LB with consistent hashing.
 \textbf{Cross-host data infrastructure.} If any request type requires
 cross‑host communication (distributed retrieval, multi‑model
 orchestration, state sync), a dedicated backend network must be
-provisioned. The minimum bandwidth is B\_min = φ · N · D / t\_net (the
-fleet aggregate derived in §17.4.4 --- the expected concurrent
-cross-host requests times the per-request burst D / t\_net), and the
-fabric should provide at least 2×B\_min for headroom. In the canonical
-scenario with φ = 0.1, N = 4, D = 5\,MB, t\_net = 20\,ms, B\_min ≈
-0.8\,Gbps (0.1 × 4 × 5 MB / 0.02 s = 100 MB/s), so a 10\,Gbps intra-rack
-network has ample headroom for the aggregate; but as §17.4.4 notes, the
-per-request burst itself (D / t\_net = 250 MB/s ≈ 2\,Gbps in the base
-case) must also fit a single link once a request is in flight, which is
-the binding constraint when φ or D grows. But the architect should
-instrument φ and D from production telemetry and revisit the bandwidth
-provisioning quarterly.
+provisioned. The minimum bandwidth is B\_min = φ · λ · D (the fleet
+aggregate derived in §17.4.4 --- the expected concurrent cross---host
+requests φ·λ·t\_net times the per---request burst D/t\_net, which
+simplifies to φ·λ·D), and the fabric should provide at least 2×B\_min
+for headroom. In the canonical scenario with φ = 0.1, λ = 40 rps, D =
+5\,MB, B\_min ≈ 0.16\,Gbps (0.1 × 40 × 5 MB = 20 MB/s), so a 10\,Gbps
+intra-rack network has ample headroom for the aggregate; but as §17.4.4
+notes, the per-request burst itself (D / t\_net = 250 MB/s ≈ 2\,Gbps in
+the base case) must also fit a single link once a request is in flight,
+which is the binding constraint when φ or D grows. But the architect
+should instrument φ and D from production telemetry and revisit the
+bandwidth provisioning quarterly.
 
 \textbf{Observability across the fleet.} With N hosts, tracing a request
 end‑to‑end requires correlating the LB routing decision, the selected
@@ -839,18 +841,17 @@ validated by a \hyperref[chap:14]{Chapter 14} benchmark before committing hardwa
 NGINX as a software load balancer with consistent hashing for session
 affinity, and instruments each host with OpenTelemetry tracing.
 Cross‑host communication is minimal (φ ≈ 0.05), but the §17.6 rule must
-be re‑run at this fleet size: B\_min = φ·N·D/t\_net = 0.05 × 52--74 ×
-250 MB/s ≈ 5.2--7.4 Gbps, and with the 2×B\_min headroom rule (§17.6)
-2×B\_min ≈ 10.4--14.8 Gbps exceeds the existing 10 Gbps intra‑rack
-network --- the rack is at/over budget at both ends of the host range.
-Verify φ and D from telemetry and budget ≥20 Gbps per rack, or shard the
-fleet across racks. Monthly GPU‑utilization metrics should sit at or
-below the 70\% utilization target against the KV‑residency ceiling ---
-≈68\% at the sizing traffic on the 74‑host end (1,380/(74×27.5)),
-whereas the 52‑host full‑utilization end runs ≈96\% at the same traffic
-and carries no headroom --- and the SLO must be validated by a
-deployment benchmark (\hyperref[chap:14]{Chapter 14}) --- end‑to‑end latency including
-agentic overhead is an ILLUSTRATIVE target until measured.
+be re‑run at this traffic: B\_min = φ·λ·D = 0.05 × 40 × 5 MB = 10 MB/s ≈
+0.08 Gbps, and with the 2×B\_min headroom rule (§17.6) 2×B\_min ≈ 0.16
+Gbps is well within the existing 10 Gbps intra‑rack network. Verify φ
+and D from telemetry and revisit the bandwidth provisioning as traffic
+grows. Monthly GPU‑utilization metrics should sit at or below the 70\%
+utilization target against the KV‑residency ceiling --- ≈68\% at the
+sizing traffic on the 74‑host end (1,380/(74×27.5)), whereas the 52‑host
+full‑utilization end runs ≈96\% at the same traffic and carries no
+headroom --- and the SLO must be validated by a deployment benchmark
+(\hyperref[chap:14]{Chapter 14}) --- end‑to‑end latency including agentic overhead is an
+ILLUSTRATIVE target until measured.
 
 \textbf{Lesson.} The fleet decision is driven by KV‑residency capacity
 vs.~\textbf{service‑time‑scaled concurrency} (λ·W) --- not by raw rps,
