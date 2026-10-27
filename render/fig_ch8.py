@@ -35,11 +35,14 @@ ax.loglog(ais, ach100, color='#27408b', lw=2.2, ls='-', marker='o',
           markevery=22, ms=3.2, label='H100 FP16 (3.35 TB/s)')
 ax.loglog(ais, ach200, color='#c0392b', lw=1.9, ls='--', marker='^',
           markevery=22, ms=3.6, label='H200 FP16 (4.8 TB/s)')
-# Ridge points (solid/dashed vertical lines + labeled markers)
+# Ridge points (dotted vertical lines + labeled markers).
+# The dotted ridge lines carry the ridge intensity; the 'ridge ≈' labels name it.
+# The extra plotted ridge markers (blue 'o' at peak*0.35, red '^' at peak*0.10)
+# were removed in Loop-6 (L6-2): the red triangle floated mid-plot off the red
+# H200 curve (which is already at the plateau at that intensity), so a reader
+# could misread it as an operating point.
 ax.axvline(r100, color='#27408b', ls=':', lw=1.2)
 ax.axvline(r200, color='#c0392b', ls=':', lw=1.2)
-ax.plot([r100], [peak*0.35], marker='o', color='#27408b', ms=6, ls='none', zorder=6)
-ax.plot([r200], [peak*0.10], marker='^', color='#c0392b', ms=7, ls='none', zorder=6)
 # Ridge labels — opaque white bbox backing so the ridge axvline + major gridlines
 # never show through the digit glyphs; also offset horizontally off the dotted
 # line so the line runs beside rather than through the label (Loop-5 F5).
