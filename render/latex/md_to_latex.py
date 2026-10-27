@@ -334,7 +334,9 @@ def keep_table_captions(tex_path):
     # (possibly after a blank line). Insert \needspace before it if not already
     # present on the preceding line.
     pat = _re.compile(r"(?m)^(?<!\\needspace\{4\\baselineskip\}\n)(?=\\textbf\{\\hyperref\[tab:\d+\.\d+\]\{Table \d+-\d+\})")
-    tex = pat.sub("\\needspace{4\\baselineskip}\n", tex)
+    # Use a lambda so the replacement string is returned verbatim (re.sub would
+    # otherwise interpret '\b' in '\baselineskip' as a backspace control char).
+    tex = pat.sub(lambda m: "\\needspace{4\\baselineskip}\n", tex)
     if tex != orig:
         open(tex_path, "w", encoding="utf-8").write(tex)
     return tex.count("\\needspace{4\\baselineskip}")
