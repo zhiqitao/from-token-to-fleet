@@ -1,11 +1,19 @@
 # Loop 7 — Convergence Note
 
 ## Auxiliary review model consulted
-Qwen3.8-27B (tailscale 100.105.225.59:30000) gave a decisive recommendation:
-fix the reader-visible items (#2 Table 16-2 straddle, #3 Table 15-1 Typi/cal,
-#4 Fig 16.1 in-figure tags, #6 caption normalization), accept #1 (math-subscript
-exemption) and #7 (531pt lines within trim), fix #5 only if a clean local tweak,
-and run ONE narrow confirmation pass (not another full 362pp review).
+**gpt-6.1-sol** (the configured `auxiliary.review` model, via the copilot `/responses`
+endpoint) — the correct model. (An earlier pass mistakenly used Qwen3.8-27B, which is
+the `auxiliary.vision` model, not the review one.)
+
+gpt-6.1-sol verdict: **declare CONVERGENCE and stop the review loops.** No specific
+unaddressed issue class warrants another pass. The remaining items are bounded,
+documented exceptions; the reverted caption normalization shows further cosmetic
+intervention is now more likely to introduce regressions than to improve the book.
+The two things a reader is most likely to actually notice: (1) the large blank area
+beneath Fig 14.1, (2) the inconsistent table-caption styling. The 531pt justified-edge
+lines and the 5.98pt math subscript are unlikely to register as defects in normal
+reading. Freeze the verified artifact; routine printer/export preflight is a release
+check, not another open-ended editorial loop.
 
 ## Executed
 - **L6-2 Fig 8.2** — removed the stray mid-plot red triangle marker (vision CLEAN).
