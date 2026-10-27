@@ -42,15 +42,15 @@ ax.scatter([9.2], [2.5*9.2], color='#c0392b', zorder=5, s=25)
 # curve and below the KV-budget rule.  Measured clearances: label 9.7 pt off the
 # red curve, 10.1 pt off the 436 GB rule, 19.1 pt inside the left frame; the
 # leader drops onto the 9.2K point from above and crosses no curve.
-ax.annotate('9.2K ≈ 24 GB (FP16 bound)', xy=(9.2, 2.5*9.2), xytext=(1.2, 107),
+ax.annotate('9.5K ≈ 24.9 GB (FP16 bound)', xy=(9.5, 2.62*9.5), xytext=(1.2, 107),
             arrowprops=dict(arrowstyle='->', lw=0.8), fontsize=8.5)
-ax.scatter([9.2], [0.33*9.2], color='#27408b', zorder=5, s=25)
+ax.scatter([9.5], [0.33*9.5], color='#27408b', zorder=5, s=25)
 # v9 review: this tag sat ON the GQA FP16/FP8 markers at 9.2K and used the same
 # blue as the GQA-FP16 curve.  Move it into the open right-hand whitespace
 # (no data beyond x=128K) and recolour to neutral dark grey.  The leader starts
 # inside the empty band between the two GQA curves, so in log-log space it stays
 # between them (convex strip) and crosses no curve or marker.
-ax.annotate('9.2K ≈ 3 GB (GQA)\n8× saving (Ch. 7)', xy=(9.2, 0.33*9.2), xytext=(240, 55),
+ax.annotate('9.5K ≈ 3.1 GB (GQA)\n8× saving (Ch. 7)', xy=(9.5, 0.33*9.5), xytext=(240, 55),
             ha='left',
             arrowprops=dict(arrowstyle='->', lw=0.8, color='#555555'),
             fontsize=8.5, color='#3a3a3a')

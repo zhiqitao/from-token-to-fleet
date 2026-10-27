@@ -104,7 +104,7 @@ ax.set_xlim(0, 10); ax.set_ylim(0, 10); ax.axis('off')
 # ("our app is slow") through each gate to a quantified architectural bound.
 stages = [
     ('1. What is the true problem?',
-     '"our app is slow" \u2192 TTFT p99 1.4 s on a 70B model'),
+     '"our app is slow" \u2192 TTFT p95 2.1 s on a 70B model'),
     ('2. What does success look like?',
      'p95 TTFT \u2264 2 s, ~25 ms/token, 40 rps peak'),
     ('3. What data exists?',

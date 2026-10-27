@@ -226,7 +226,7 @@ The six‑dimension characterization directly dictates the architectural path fo
 
 ![Fig 4.1 — Six-dimension workload characterization mapped to architectural decisions. Each arrow means the dimension *constrains/informs* the corresponding architectural choice — it is a heuristic influence, not a deterministic one-to-one mapping. The arrows are **non-exclusive**: in practice a dimension often influences several decisions at once (e.g. latency SLO shapes both model choice and serving configuration), and the six axes are a starting lens, not a partition. [ILLUSTRATIVE conceptual]](figures/fig-04-0401.png)
 
-*The six workload dimensions and the architectural decision each one drives: Quality → model size/type; Traffic → concurrency & batching strategy; Token profile → KV cache size & prefill demand; Latency → TTFT/TPOT targets & batch window; Economic → host count & cost ceiling; Operational → multi-region vs. single-region deployment.*
+*The six workload dimensions and the architectural decision each one drives: Quality → model size/type; Traffic → concurrency & batching; Token profile → KV cache size & prefill demand; Latency → TTFT/TPOT & batch window; Economic → host count & cost ceiling; Operational → multi-region vs. single-region deployment.*
 
 <!-- Figure spec: mechanism-first diagram; one labeled axis per dimension, each arrow ending at its architectural consequence. -->
 
