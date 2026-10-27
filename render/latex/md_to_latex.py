@@ -681,7 +681,6 @@ def convert(mapping):
         fix_urls(out)
         fix_crossrefs(out, n)
         fix_captions(out)
-        keep_table_captions(out)
         bind_figure_descriptions(out)
         fix_label_atomicity(out)
         fix_minicase_toc(out)
