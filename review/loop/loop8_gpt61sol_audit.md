@@ -16,6 +16,8 @@
 
 ## Fixed in this loop (verified in the rebuilt PDF)
 
+### Text fixes (6 confirmed gpt-6.1-sol findings)
+
 | ID | Sev | Location | Fix |
 |---|---|---|---|
 | FTF-0001 | P0 | Ch16/21/26 | TCO repriced from 24×7 (26M req/mo) to the active business-hours schedule (6.24M req/mo) per Ch4's explicit instruction. Self-host $5.7→$23.7/1K, cloud $2.8→$11.7/1K, managed $541K→$129.8K/mo, 30-host $8.4→$34.8/1K. Table 16-1, Ch21 bad-release cost, Ch26 $0.0057→$0.0237 all updated. |
@@ -24,6 +26,17 @@
 | FTF-0013 | P1 | Ch19 | Agent token accounting: "call 3 = 9,200 + 2×(800+65) + 300 ≈ 12,095"→"3×(800+65) = 12,095" (the formula gave 11,230); task_input 9,200+10,350+12,095=31,645→9,200+10,365+12,095=31,660 (10,350 was a 15-token error vs the table's 10,365). |
 | FTF-0017 | P1 | Ch24 | PIES "equivalence relation"→"deterministic clustering rule" (thresholded NLE ≤ 0.25 is not transitive: 0000~0001, 0001~0011, but 0000!~0011). |
 | FTF-0018 | P1 | Ch24 | False-positive rate "≈13 per 1,000 queries"→"≈0.05 per 1,000 (1.3% of the 4.1 interventions per 1,000)" — the false positives cannot exceed the total interventions. |
+
+### Figure fixes (3 FAILs + 3 caption consistency)
+
+| Fig | Issue | Fix |
+|---|---|---|
+| 6.2 | peak bar (3023) clipped at the y-axis max (~3000) | `set_ylim(0, 3300)` — headroom above the peak. (The mean<median and p99-in-gap critiques were misreads: mean=0.847 > p50=0.8, and p99=1.334 is correctly in the gap before the 1% stragglers at 5s.) |
+| 19.3 | bars didn't grow linearly (minimum clamps made O_final/γ the same height every turn) | removed the `max(h_of(x), min)` clamps so the bands are drawn to scale; the bars now grow linearly (24.9→34.0 GB, ~2.25 GB/turn) and the bar-top heights match the KV labels. The thin γ cap is honest (reasoning is 65–260 tokens). |
+| 19.1 | in-figure "[ILLUSTRATIVE conceptual]" tag (metadata leakage) | removed the tag from the annotation line (the caption already carries [ILLUSTRATIVE]). |
+| 6.1 | caption "top-down diagnostic path" contradicted "diagnosis runs upward" | "top-down"→"bottom-up". |
+| 22.1 | body said the y-axis is "labeled generically 'Compute (PFLOP; see series definition)'" but the axes are labeled per series | "labeled generically"→"labeled per series (prefill: PFLOP/request; decode: PFLOP/token)". |
+| 26.1 | "Normalised" (British) vs "normalized" (US) | "Normalised"→"Normalized" in the generator. |
 
 ## False positive (no action)
 - **FTF-0008 (P1)** — gpt-6.1-sol claimed the NVLink ring all-reduce uses bidirectional 900 GB/s for a unidirectional 245 GB send (→ 0.544 s, not 0.27 s). **Misread:** the 245 GB is the *total* data moved per rank (send+receive, 2(N-1)/N·M), divided by the *bidirectional* 900 GB/s = 0.272 s. The book is correct.
