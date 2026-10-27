@@ -315,6 +315,31 @@ def short_title(full):
     return s.strip() or ""
 
 
+def keep_table_captions(tex_path):
+    """Keep an inline-bold table caption with its table (no orphaned caption).
+
+    Table captions that are inline-bold paragraphs (\\textbf{\\hyperref[tab:N.M]
+    {Table N-N} --- ...}) — as opposed to \\section-style '#### Table N-N'
+    headings, which carry a built-in \\Needspace — can strand at the bottom of a
+    page with the table opening the next page untitled. Insert a \\needspace
+    before each such caption so it starts at least 4 lines above the page bottom,
+    mirroring the heading binding. (Loop-7: the caption normalization that
+    converted '#### Table N-N' headings to inline bold removed the heading's
+    Needspace, stranding Table 13-1.)
+    """
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    orig = tex
+    # A caption paragraph begins with \textbf{\hyperref[tab:N.M]{Table N-N}
+    # (possibly after a blank line). Insert \needspace before it if not already
+    # present on the preceding line.
+    pat = _re.compile(r"(?m)^(?<!\\needspace\{4\\baselineskip\}\n)(?=\\textbf\{\\hyperref\[tab:\d+\.\d+\]\{Table \d+-\d+\})")
+    tex = pat.sub("\\needspace{4\\baselineskip}\n", tex)
+    if tex != orig:
+        open(tex_path, "w", encoding="utf-8").write(tex)
+    return tex.count("\\needspace{4\\baselineskip}")
+
+
 def fix_captions(tex_path):
     """Strip the manually-written 'Fig X.Y' prefix from captions and alt text.
 
@@ -654,6 +679,7 @@ def convert(mapping):
         fix_urls(out)
         fix_crossrefs(out, n)
         fix_captions(out)
+        keep_table_captions(out)
         bind_figure_descriptions(out)
         fix_label_atomicity(out)
         fix_minicase_toc(out)
