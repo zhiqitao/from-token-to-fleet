@@ -871,6 +871,14 @@ Reject or flag:
 
 A reader should not have to work to decode the layout before understanding the idea.
 
+Documented type-size exemption (math subscripts): the 8 pt print floor applies to
+figure in-text annotations and body prose. LaTeX body-math subscripts (e.g.
+`B_\text{eff}`, `n_\text{steps}`) render at the standard math script size
+(~0.7× body), which is conventional typesetting and is NOT a defect. Do not flag
+a body-math subscript glyph for being below 8 pt; the sub-8 pt scan should treat
+math-script glyphs as exempt. (The 7.97 pt spans are a float32 page-width artifact
+of the 8 pt floor, also exempt.)
+
 ============================================================
 24. FIGURE CAUSALITY REVIEW
 ============================================================
