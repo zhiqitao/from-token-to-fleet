@@ -85,7 +85,7 @@ To make the distinction concrete, let us walk through the canonical enterprise Q
 | H100 HBM3 peak bandwidth | 3.35 TB/s | NVIDIA H100 specs [1P][FACT] |
 | Decode: bandwidth verdict | bandwidth-bound | 5.6 > 3.35 → under the batch-1-equivalent model, a single H100 cannot meet the demand; batching/amortization change this (see later chapters) [canonical scenario][DERIVED] |
 | Prefill: input tokens | 9,200 | 1,200 prompt + 8K context [canonical scenario][DERIVED] |
-| Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 ×70e9 ×9.2e3 ≈ 1.29 ×10^15 [canonical scenario][DERIVED] |
+| Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP | 2 ×70e9 ×9.2e3 ≈ 1.29 ×10¹⁵ [canonical scenario][DERIVED] |
 | H100 BF16 dense compute | 989 TFLOPS | NVIDIA H100 BF16 tensor-core peak [1P][FACT] |
 | Prefill: regime verdict | compute-bound regime | arithmetic intensity ~9.2K FLOP/byte > ridge ~295 → on the compute-bound side of the roofline [canonical scenario][DERIVED] |
 | Prefill: single-H100 capacity | insufficient for real-time prefill | 1.29 PFLOP / ~1.08 s ≈ 1.19 PFLOPS demand > 0.989 PFLOPS H100 peak → one H100 cannot meet the TTFT deadline under this analytical model [canonical scenario][DERIVED] |
