@@ -26,8 +26,11 @@
 | FTF-0013 | P1 | Ch19 | Agent token accounting: "call 3 = 9,200 + 2×(800+65) + 300 ≈ 12,095"→"3×(800+65) = 12,095" (the formula gave 11,230); task_input 9,200+10,350+12,095=31,645→9,200+10,365+12,095=31,660 (10,350 was a 15-token error vs the table's 10,365). |
 | FTF-0017 | P1 | Ch24 | PIES "equivalence relation"→"deterministic clustering rule" (thresholded NLE ≤ 0.25 is not transitive: 0000~0001, 0001~0011, but 0000!~0011). |
 | FTF-0018 | P1 | Ch24 | False-positive rate "≈13 per 1,000 queries"→"≈0.05 per 1,000 (1.3% of the 4.1 interventions per 1,000)" — the false positives cannot exceed the total interventions. |
+| FTF-0007 | P1 | Ch10/13 | "no parallelism is required at the baseline"→"no *cross-host* model parallelism is required (intra-host TP=8 fits the 140 GB model across the eight 80 GB GPUs)." |
+| FTF-0009 | P1 | Ch9 | Added: the 140 GB per-rank figure is the *logical* size of the all-reduce (the full gradient tensor), not the physical HBM footprint on a single 80 GB GPU; in practice each rank is a multi-GPU node (2×H100 = 160 GB) or uses hybrid DP+TP. |
+| FTF-0010 | P1 | Ch17 | B_agg = φ·N·D/t_net (N=host count) → B_agg = φ·λ·D (λ=request arrival rate, by Little's Law). 100 MB/s → 20 MB/s (0.8 → 0.16 Gbps); the 5 GB/s worst case → 1 GB/s; downstream refs updated. |
 
-### Figure fixes (3 FAILs + 3 caption consistency)
+### Figure fixes (3 FAILs + 6 caption/figure consistency)
 
 | Fig | Issue | Fix |
 |---|---|---|
@@ -36,7 +39,12 @@
 | 19.1 | in-figure "[ILLUSTRATIVE conceptual]" tag (metadata leakage) | removed the tag from the annotation line (the caption already carries [ILLUSTRATIVE]). |
 | 6.1 | caption "top-down diagnostic path" contradicted "diagnosis runs upward" | "top-down"→"bottom-up". |
 | 22.1 | body said the y-axis is "labeled generically 'Compute (PFLOP; see series definition)'" but the axes are labeled per series | "labeled generically"→"labeled per series (prefill: PFLOP/request; decode: PFLOP/token)". |
-| 26.1 | "Normalised" (British) vs "normalized" (US) | "Normalised"→"Normalized" in the generator. |
+| 26.1 | "Normalised" (British) vs "normalized" (US); caption listed 3 different sets of six axes | "Normalised"→"Normalized" in the generator; caption now clarifies the fingerprint axes (context length, traffic, quality, cost, latency, output tokens) are distinct from Ch 4's decision dimensions (Quality, Traffic, Token profile, Latency, Economic, Operational). |
+| 4.1 | caption "concurrency & batching strategy" / "TTFT/TPOT targets & batch window" vs figure "concurrency & batching" / "TTFT/TPOT & batch window" | aligned the caption to the figure. |
+| 7.2 | in-chart annotation "9.2K ≈ 24 GB" vs caption "9.5K / 24.9 GB" (3 different context lengths) | annotation now uses 9.5K / 24.9 GB (the total context, which is what the KV is based on), matching the caption. |
+| 23.1 | Box 1 "problem" (TTFT p99 1.4 s) already satisfied Box 2 "success" (p95 ≤ 2 s) | Box 1 changed to "TTFT p95 2.1 s" (which violates the p95 ≤ 2 s criterion). |
+| 18.1 | prose "check the SLO, then size the cost... it must come first" read as contradicting the figure's "capability first" policy | prose clarified: the "check SLO then cost" order is *within the cost/SLO gate* (the capability filter still comes first, per Fig 18.1 and Table 18-1). |
+| 11.1 | green "new sequence (backfill)" persisted across the entire decode (implying the sequence stays "new" for its whole life) | green now only at admission (a short green marker), with the rest in blue (normal in-flight). |
 
 ## False positive (no action)
 - **FTF-0008 (P1)** — gpt-6.1-sol claimed the NVLink ring all-reduce uses bidirectional 900 GB/s for a unidirectional 245 GB send (→ 0.544 s, not 0.27 s). **Misread:** the 245 GB is the *total* data moved per rank (send+receive, 2(N-1)/N·M), divided by the *bidirectional* 900 GB/s = 0.272 s. The book is correct.
@@ -71,7 +79,7 @@
 | FTF-0007 | "one host" = "no model parallelism" | **CONFIRMED + FIXED** — Ch10/13 "no parallelism is required at the baseline"→"no *cross-host* model parallelism is required (intra-host TP=8 fits the 140 GB model across the eight 80 GB GPUs)." |
 | FTF-0009 | 140 GB per-rank H100 collectives | **CONFIRMED + FIXED** — Ch9 added: the 140 GB per-rank figure is the *logical* size of the all-reduce (the full gradient tensor), not the physical HBM footprint on a single 80 GB GPU; in practice each rank is a multi-GPU node (2×H100 = 160 GB) or uses hybrid DP+TP. |
 | FTF-0008 | NVLink bidirectional bandwidth | **FALSE POSITIVE** — the 245 GB is the total data moved per rank (send+receive), divided by the bidirectional 900 GB/s = 0.272 s. The book is correct. |
-| FTF-0010 | aggregate network demand uses host count | NEEDS VERIFICATION — the book's network demand is per-host, not aggregate. Likely already caveated. |
+| FTF-0010 | aggregate network demand uses host count | **CONFIRMED + FIXED** — Ch17 B_agg = φ·N·D/t_net (N=host count) → B_agg = φ·λ·D (λ=request arrival rate, by Little's Law). 100 MB/s → 20 MB/s (0.8 → 0.16 Gbps); the 5 GB/s worst case → 1 GB/s; downstream refs (lines 181, 207) updated. |
 | FTF-0011 | prefix-cache savings without exact-prefix eligibility | NEEDS VERIFICATION — the book's prefix caching requires exact-prefix matches. Likely already caveated. |
 | FTF-0012 | tool-result caching shrinks retained context | NEEDS VERIFICATION — the book's tool-result caching is a separate mechanism. Likely already caveated. |
 | FTF-0014 | fallback accounting / conditional percentiles | NEEDS VERIFICATION — the book's fallback is a separate path. Likely already caveated. |
@@ -88,20 +96,19 @@
 **Note:** gpt-6.1-sol had no PDF and misread at least one finding (FTF-0008). Several of the "NEEDS VERIFICATION" items are likely already caveated in the text (the book is thorough). Each must be verified against the source before acting. The 2 P0s and 4 P1s (FTF-0003, 0013, 0017, 0018) were confirmed and fixed; FTF-0004 and FTF-0024 are defensible modeling choices.
 
 ## Release gates (v2) — current status
-- **Gate A (technical):** the 2 confirmed P0s (FTF-0001, FTF-0002) and 4 confirmed P1s (FTF-0003, 0013, 0017, 0018) are FIXED and verified in the rebuilt PDF. 2 findings (FTF-0004, FTF-0024) are DEFENSIBLE modeling choices (not errors). 1 (FTF-0008) is a FALSE POSITIVE. The remaining 16 P1s are NEEDS VERIFICATION (likely already caveated in the text). **Gate A is closer to PASS** but the 16 unverified P1s must be checked before a full PASS.
-- **Gate C (visual):** the 3 figure Technical/Design FAILs (6.2, 19.3, 19.1) are FIXED and verified. 6 more figure MARGINALs (18.1, 23.1, 26.1, 4.1, 7.2, 11.1) — 23.1, 26.1, 4.1, 7.2 are FIXED; 18.1 and 11.1 remain (figure-generator alignment issues). 8 Design MARGINALs (cosmetic) remain. **Gate C is closer to PASS** but 18.1 and 11.1 need figure fixes.
+- **Gate A (technical):** the 2 confirmed P0s (FTF-0001, FTF-0002) and 7 confirmed P1s (FTF-0003, 0007, 0009, 0010, 0013, 0017, 0018) are FIXED and verified in the rebuilt PDF. 2 findings (FTF-0004, FTF-0024) are DEFENSIBLE modeling choices (not errors). 1 (FTF-0008) is a FALSE POSITIVE. The remaining 13 P1s are NEEDS VERIFICATION (likely already caveated in the text). **Gate A is closer to PASS** but the 13 unverified P1s must be checked before a full PASS.
+- **Gate C (visual):** the 3 figure Technical/Design FAILs (6.2, 19.3, 19.1) are FIXED and verified. All 8 figure MARGINALs (18.1, 23.1, 26.1, 4.1, 7.2, 11.1, 6.1, 22.1) are FIXED. 8 Design MARGINALs (cosmetic) remain. **Gate C is closer to PASS** but the 8 cosmetic Design MARGINALs remain.
 - **Gate B (evidence):** NOT VERIFIED (no external source check performed in this loop).
 - **Gate D (pedagogy):** the causal spine is intact; the fixes above improve consistency. PASS (no new pedagogy defects found).
 - **Gate E (production):** the PDF is clean (361pp, 0 overflows, 0 stranding, 48/48 checks, LoF correct). Physical print proof NOT VERIFIED.
-- **Gate F (coverage):** gpt-6.1-sol did the full text audit (121K words); the orchestrator did the full visual audit (40 figures). The 16 unverified P1s are a coverage gap.
+- **Gate F (coverage):** gpt-6.1-sol did the full text audit (121K words); the orchestrator did the full visual audit (40 figures). The 13 unverified P1s are a coverage gap.
 
-**Overall: NOT READY — MUST-FIX WORK REMAINS** (pre-fix). After the fixes above, the book is closer to **CONDITIONALLY READY — EXTERNAL/PRINT VERIFICATION PENDING**, but the 16 unverified P1s and 2 remaining figure MARGINALs (18.1, 11.1) must be closed before a READY call.
+**Overall: NOT READY — MUST-FIX WORK REMAINS** (pre-fix). After the fixes above, the book is closer to **CONDITIONALLY READY — EXTERNAL/PRINT VERIFICATION PENDING**, but the 13 unverified P1s and 8 cosmetic Design MARGINALs must be closed before a READY call.
 
 ## Next actions (ordered by dependency)
 1. ~~Fix the 3 figure Technical/Design FAILs (6.2, 19.3, 19.1)~~ — DONE (regenerated + vision-verified).
-2. ~~Fix the 4 figure MARGINALs (23.1, 26.1, 4.1, 7.2)~~ — DONE (caption/figure consistency).
-3. Fix the 2 remaining figure MARGINALs (18.1 green-branch alignment + prose tier/keyword scheme; 11.1 non-monotonic blue width + green "new" persisting) — figure-generator fixes.
-4. Verify the 16 unverified P1s (FTF-0005, 0006, 0007, 0009, 0010, 0011, 0012, 0014, 0015, 0016, 0019, 0020, 0021, 0022, 0023, 0025) against the source; fix the confirmed ones, document the defensible/caveated ones.
-5. Rebuild, re-run the full scan (overflows, stranding, 48 checks, LoF), and re-verify the changed figures at print scale.
-6. Re-run a gpt-6.1-sol confirmation pass on the changed pages.
-7. Produce the final consolidated report (Sections 1-13 per v2) with the full figure-by-figure verdict register and the page-by-page coverage ledger.
+2. ~~Fix the 8 figure MARGINALs (23.1, 26.1, 4.1, 7.2, 18.1, 11.1, 6.1, 22.1)~~ — DONE (caption/figure consistency).
+3. Verify the 13 unverified P1s (FTF-0005, 0006, 0011, 0012, 0014, 0015, 0016, 0019, 0020, 0021, 0022, 0023, 0025) against the source; fix the confirmed ones, document the defensible/caveated ones.
+4. Rebuild, re-run the full scan (overflows, stranding, 48 checks, LoF), and re-verify the changed figures at print scale.
+5. Re-run a gpt-6.1-sol confirmation pass on the changed pages.
+6. Produce the final consolidated report (Sections 1-13 per v2) with the full figure-by-figure verdict register and the page-by-page coverage ledger.
