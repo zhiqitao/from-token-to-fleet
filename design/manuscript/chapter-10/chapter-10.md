@@ -34,7 +34,7 @@ Each strategy is best distinguished by *what it trades bandwidth for*. Tensor pa
 
 The useful mental model is a **resource triangle**: we have weights (memory), activations (work), and data (batch). Each strategy moves one corner off a single GPU at the cost of communication. When a GPU runs out of *memory*, we reach for TP/PP (weight splitting). When a GPU is *idle* waiting, we reach for DP/CP (more work per GPU). When the model is *too big to replicate*, TP wins over DP. The binding constraint chooses the strategy.
 
-#### Table 10-1 — Parallelism strategies at a glance
+**Table 10-1** — Parallelism strategies at a glance
 
 | Strategy | What it splits | Replicates | Communicates | Fits when |
 |---|---|---|---|---|

@@ -75,7 +75,7 @@ The RAG request's 8K retrieved-context tokens are largely shared across queries 
 
 Recall from Ch2/Ch6: prefill is **compute-bound** (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak), decode is **bandwidth-bound** (the whole-model weight-read rate of ~5.6 TB/s if served by one device vs 3.35 TB/s per GPU; under the canonical 8×H100 host it is sharded to ~0.70 TB/s per GPU, and the shard-invariant cause is the low ~1.0 FLOP/byte intensity, Ch 6) [1P][DERIVED]. Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for decode and prefill starves. **P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P])** runs prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring KV across via the fabric (**Fig 11.3** shows the two-pool topology and what moves between them). Mooncake's reported up to 525% long-context throughput and +75% request count are the quantitative anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off only when the workload outgrows a node and the two phases' resource conflicts become binding.
 
-#### Table 11-1 — Serving techniques at a glance
+**Table 11-1** — Serving techniques at a glance
 
 | Technique | Mechanism | Primary resource traded | When it matters | Source |
 |---|---|---|---|---|
@@ -133,7 +133,7 @@ The serving mechanisms dictate the deployment choices:
 
 The mechanisms above are what matter; the engines are just implementations of them. This comparison is organized by *architectural capability* so it transfers across specific products and versions. **It is explicitly time-sensitive** — capabilities, supported models, and features change fast, and these rows must be re-verified against each engine's current first-party documentation before any deployment decision. The table is a map of *which mechanism to look for*, not a ranking.
 
-#### Table 11-2 — Serving engines by architectural capability (time-sensitive)
+**Table 11-2** — Serving engines by architectural capability (time-sensitive)
 
 | capability | vLLM | SGLang | TensorRT-LLM | llama.cpp | architectural note |
 |---|---|---|---|---|---|

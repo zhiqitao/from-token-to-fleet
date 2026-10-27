@@ -38,7 +38,7 @@ RAG is retrieval-augmented generation: the system retrieves relevant passages fr
 
 We now apply the six‑dimension framework to the **canonical enterprise‑Q&A RAG workload** used throughout this handbook. The canonical numbers are the fixed reference set for Part II; all arithmetic in this chapter traces to them. Table 4-1 states the six-dimension characterization; Table 4-2 gives each value's provenance.
 
-#### Table 4-1 — Six-dimension workload characterization for the canonical RAG workload
+**Table 4-1** — Six-dimension workload characterization for the canonical RAG workload
 
 | Dimension | Characteristic | Derivation / Source |
 |:------------------------|:-----------------------------|:---------------------------------------------------------|
@@ -84,7 +84,7 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 
 Throughout this book the SI convention applies: K = 1,000 and M = 1,000,000 for token counts. 9.2K tokens therefore means 9,200 tokens, and 32K means 32,000. This matches the 2.62 MB/token figure, the KV residency totals (24.1 GB at 9,200 tokens; 83.9 GB at 32K), and the 128K figure (128,000 tokens → 335.5 GB).
 
-#### Table 4-2 — Canonical-scenario provenance ledger (which value is assumed, derived, or factual)
+**Table 4-2** — Canonical-scenario provenance ledger (which value is assumed, derived, or factual)
 
 Every quantity below is either an assumed workload input, a vendor fact, a modeled result, or a dated price snapshot. This is the authority for which is which; chapters refer back to it rather than restating provenance each time.
 

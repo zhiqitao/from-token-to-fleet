@@ -43,7 +43,7 @@ The analytical ceiling sets the *range* of the sweep and flags which levels are 
 
 **Step 3 — read the result.** Suppose candidate A (a 70B dense on 8×H100) shows p95 TTFT 1.9 s and a measured goodput that meets the per-request TTFT SLO at the ~17.5-concurrent / ~2.0-req-per-second analytical load it can hold. The host's prefill ceiling from Ch 8 is ~19,800 tok/s — the right order for the prefill leg of that rate (2.0 × 9,200 = 18,400 input tok/s, Ch17 §17.4.2); the summed ~19K figure must not be compared to a prefill-only ceiling (Ch17) — but that is the *prefill-only ideal*, not the goodput: the benchmark's goodput is the SLO-windowed prefill+decode figure under continuous batching, and it is the benchmark (not the ceiling) that confirms the SLO is met at that concurrency. Candidate B (a smaller 7B) shows 0.6 s TTFT — much faster — but scores lower on the capability screen for the retrieval-QA quality threshold. We therefore *select* A for deployment (capability + deployment both pass), not B (capability fails despite speed). The benchmark did not score one number; it reproduced the decision. [ILLUSTRATIVE][DERIVED]
 
-#### Table 14-1 — Capability vs deployment benchmarks
+**Table 14-1** — Capability vs deployment benchmarks
 
 | Instrument | Answers | Example metrics | Picks | Risk if misused |
 |---|---|---|---|---|

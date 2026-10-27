@@ -97,10 +97,10 @@ A new deployment adds 500 registered users (traffic rises to ~12.5/50 rps at the
 
 *Do not read the 8.75× throughput jump as a capacity-side win.* It is dominated by the **kernel/batching** change (batch‑1 no‑flash → continuous batching with FlashAttention‑2), which is worth most of the multiplicative gain, **plus ~2× from adding the second host** — the two are not separable from this single outcome number. This is a *per‑host kernel/batching* improvement story, not a claim that "more GPUs = 8.75×." Were we adding a second host with no kernel/batching change, the expected throughput gain would be roughly the host-pool ratio (≈2×), and the fleet-sizing consequence is computed separately in Ch 16–17 from the service-time model, not from this mini-case's aggregate number.
 
-#### Table 15-1 — Performance Regime Summary
+**Table 15-1** — Performance Regime Summary
 
 | Regime | In‑Flight Concurrency ( = λ·W ) | Request Rate (rps) | Tokens/Request | KV‑Cache/User (GB) | MFU (%) | Dominant Bottleneck |
-|--------|-------------|-------------------|----------------|-------------------|---------|---------------------|
+|------------|-----------|-------------------|----------------|-------------------|---------|---------------------|
 | Light | ~17 | ~2 | 9,500 | ~24.9 | 12 | Compute (SDPA) |
 | Typical | ~86 | ~10 | 9,500 | ~24.9 | 38 | Memory / KV cache |
 | Peak | ~344 | ~40 | 9,500 | ~24.9 | 52 | KV + Inter‑GPU bandwidth |
