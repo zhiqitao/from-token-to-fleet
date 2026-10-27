@@ -102,7 +102,7 @@ For *T* = 4: α(4) ≈ 1.36× as computed in the worked example. In production, 
 
 $$\text{task\_input} = \sum_i \text{input}(call_i), \qquad \text{task\_output} = \sum_i \text{output}(call_i)$$
 
-with `cached`, `uncached`, and `billed` token quantities recorded separately (a prefix-cache hit means a call's input is not re-processed from scratch, so billed/FLOP input differs from context-carried input). Example: a 3-call task where calls 2 and 3 reuse the call-1 prefix without caching has `task_input = 9,200 + 10,350 + 12,095 = 31,645` (uncached); with a perfect prefix cache it is bounded by the retained-context sizes instead. Concurrency/queueing and economics follow the call-trace totals, not α.
+with `cached`, `uncached`, and `billed` token quantities recorded separately (a prefix-cache hit means a call's input is not re-processed from scratch, so billed/FLOP input differs from context-carried input). Example: a 3-call task where calls 2 and 3 reuse the call-1 prefix without caching has `task_input = 9,200 + 10,365 + 12,095 = 31,660` (uncached); with a perfect prefix cache it is bounded by the retained-context sizes instead. Concurrency/queueing and economics follow the call-trace totals, not α.
 
 **Token-quantity definitions (distinct terms, used consistently).** The five quantities below are different and must not be collapsed:
 
@@ -111,8 +111,8 @@ with `cached`, `uncached`, and `billed` token quantities recorded separately (a 
 | `req_in`, `req_out` | tokens of the single-shot baseline request | 9,200 input + 300 output = 9,500 |
 | `newly_generated_output` | tokens the model *produces as output* in a call (final answer + per-turn reasoning γ) | last call 300; each reasoning pass ~65 |
 | `retained_history` | prior turns' context carried into the current call's *input* (the grown prefix) | call 3 carries ~12,095−300 = 11,795 as input prefix |
-| `current_input_length` | the full input of a given call (retained history + new retrieval δ + prompt) | call 3 input = 9,200 + 2×(800+65) + 300 prefix ≈ 12,095 |
-| `task_input / task_output` | Σ over all calls of input / output tokens (the execution-trace totals) | uncached task_input ≈ 31,645; task_output ≈ Σ outputs |
+| `current_input_length` | the full input of a given call (retained history + new retrieval δ + prompt) | call 3 input = 9,200 + 3×(800+65) + 300 prefix = 12,095 |
+| `task_input / task_output` | Σ over all calls of input / output tokens (the execution-trace totals) | uncached task_input ≈ 31,660; task_output ≈ Σ outputs |
 | `cached / uncached / billed` | fraction of task_input served by prefix cache vs re-processed; billed per provider rules | a cache hit makes billed input smaller than task_input |
 
 The δ tokens are *generated once* (as retrieval/tool output), then *retained* as part of later turns' input context — they are counted once as output-of-tool and again (as carried context) in each later call's input. That is correct and intended, but it means total tokens ≠ context size: the amplification α (retained context) and the task totals (Σ per-call) are explicitly different, and neither is the billed amount without a cache/billing rule.
