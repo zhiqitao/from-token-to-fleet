@@ -91,7 +91,7 @@ for (name, desc, fc, ec, tag, tx) in terms:
 
 ax.text(5.0, 5.95, 'The agent loop: a four-state state machine', ha='center', va='center',
         fontsize=10.5, fontweight='bold', color='#1a1a1a')
-ax.text(5.0, 0.45, 'resolved \u2192 final answer; no resolution within the turn limit \u2192 stopped [ILLUSTRATIVE conceptual]',
+ax.text(5.0, 0.45, 'resolved \u2192 final answer; no resolution within the turn limit \u2192 stopped',
         ha='center', va='center', fontsize=8.0, color='#666')
 
 out = 'design/manuscript/chapter-19/figures/fig-19-1901.png'

@@ -25,7 +25,7 @@ b3 = ax.bar(x+wdt, batch,   wdt, label='Batch inference',      color='#6f9e5f', 
 ax.set_xticks(x)
 ax.set_xticklabels(dims, fontsize=9.2, rotation=0, ha='center')
 ax.tick_params(axis='x', length=0, pad=6)
-ax.set_ylabel('Normalised intensity (0-1)', fontsize=9)
+ax.set_ylabel('Normalized intensity (0-1)', fontsize=9)
 # Loop-2 MODERATE: the axis title AND the in-figure note both state a 0-1
 # scale, but the limit was 1.45, so the ticks ran 0.0..1.4 and the top ~30 %
 # was empty headroom beyond the stated range.  Cap at 1.0 so the ticks stop at

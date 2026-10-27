@@ -20,7 +20,7 @@ The discipline this chapter works toward: **never jump from a workload metric st
 
 ![Fig 6.1 — The metric hierarchy as a diagnostic chain [ILLUSTRATIVE conceptual]](figures/fig-06-0601.png)
 
-*The three metric layers and the top-down diagnostic path from a p95 TTFT breach to its root cause. Causation runs downward (workload → resource demand → serving behavior); diagnosis runs upward (serving symptom → resource evidence → workload/context).*
+*The three metric layers and the bottom-up diagnostic path from a p95 TTFT breach to its root cause. Causation runs downward (workload → resource demand → serving behavior); diagnosis runs upward (serving symptom → resource evidence → workload/context).*
 
 ### Why the Wrong Metric Persists
 

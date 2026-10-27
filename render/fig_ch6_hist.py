@@ -75,6 +75,8 @@ ax.set_title('Latency distribution: the mean hides the tail', fontsize=10.5, pad
 ax.text(0.5, 1.055, '[ILLUSTRATIVE synthetic profile]', transform=ax.transAxes, fontsize=9,
         fontweight='bold', color='#8a3a12', ha='center', va='bottom')
 ax.set_xlim(0, 6.2)
+# y-axis headroom so the peak bar (≈3023) is not clipped at a round 3000 limit
+ax.set_ylim(0, 3300)
 ax.grid(alpha=0.2, axis='y')
 ax.tick_params(labelsize=9)
 plt.tight_layout()

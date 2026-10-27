@@ -56,19 +56,22 @@ for i, (name, dl, gm, kv) in enumerate(cols):
     h0 = h_of(I0)
     band(x, y, h0, 'I0', 'I\u2080 (in)', 9.5, '#27408b')
     y += h0
-    # final output O_final (solid green, constant 300 tokens)
-    hf = max(h_of(300), 0.34)
-    band(x, y, hf, 'Ofin', 'O_final', 8.5, '#0d4a35')
+    # final output O_final (solid green, constant 300 tokens) — drawn to scale
+    # (no minimum clamp) so the bar heights grow linearly with the cumulative
+    # context; the label lives in the legend (the band is too thin to hold it).
+    hf = h_of(300)
+    band(x, y, hf, 'Ofin', None, 8.5, '#0d4a35')
     y += hf
-    # retrieved tool output (teal dots, grows with turns)
+    # retrieved tool output (teal dots, grows with turns) — to scale
     if dl > 0:
-        h1 = max(h_of(dl), 0.46)
+        h1 = h_of(dl)
         band(x, y, h1, 'delta', '\u03b4', 10.5, '#0a4a3a')
         y += h1
-    # generated reasoning (orange cross, grows with turns)
+    # generated reasoning (orange cross, grows with turns) — to scale; label in
+    # the legend (the band is too thin to hold it at the small end).
     if gm > 0:
-        h2 = max(h_of(gm), 0.40)
-        band(x, y, h2, 'gamma', '\u03b3', 10.0, '#8a4b08')
+        h2 = h_of(gm)
+        band(x, y, h2, 'gamma', None, 10.0, '#8a4b08')
         y += h2
     ax.text(x+cwd/2, y+0.5, f'KV {kv:.1f}', fontsize=8.5, ha='center',
             fontweight='bold', color='#c0392b')
