@@ -69,7 +69,7 @@ In re-packaged (naive) serving, each request's KV cache for 9.2K input is ~24.1 
 
 ### Prefix Caching: Don't Re-Prefill the Same Documents
 
-The RAG request's 8K retrieved-context tokens are largely shared across queries (same documents). Without caching, every request re-runs the ~1.29 PFLOP prefill for those 8K tokens [ILLUSTRATIVE][DERIVED]. **RadixAttention / APC [S3][1P]** caches the KV of common prefixes, so a new request reuses the shared-document KV and prefills only the unique query tail — cutting the dominant prefill FLOPs and TTFT for repeated-context traffic [ILLUSTRATIVE][DERIVED].
+The RAG request's 8K retrieved-context tokens are largely shared across queries (same documents). Without caching, every request re-runs the ~1.29 PFLOP prefill for those 8K tokens [ILLUSTRATIVE][DERIVED]. **RadixAttention / APC [S3][1P]** caches the KV of common prefixes, so a new request reuses the shared-document KV and prefills only the unique query tail — cutting the dominant prefill FLOPs and TTFT for repeated-context traffic [ILLUSTRATIVE][DERIVED]. *Layout caveat:* this reuse requires the shared documents to sit at a **fixed prefix position** in the prompt (e.g. system prompt → retrieved documents → unique query tail). If the unique query precedes the documents, the causal K/V of the document span differs per query and no prefix is reusable — the savings above assume the documents-then-query layout, which the architect must verify in the actual prompt template.
 
 ### When to Disaggregate: Prefill and Decode Want Different Pools
 
