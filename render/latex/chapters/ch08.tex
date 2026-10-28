@@ -364,14 +364,23 @@ heavily dependent on fusion and cache residency{]}
 This is well below the H100 dense-FP16 ridge of \textasciitilde295
 FLOP/byte, meaning single-stream decode is overwhelmingly
 memory-bandwidth-bound. Throughput improves with batching because the
-weight-reread amortizes across tokens --- decode intensity ≈ batch size,
-so at batch=32 the effective intensity is \textasciitilde32 FLOP/byte,
-still \textasciitilde9× below the 295 ridge (compute-bound decode needs
-batch ≈ 295, or quantized weights, which halve bytes and double
-intensity), and TFLOP/s utilization increases accordingly. This is why
-continuous-batching systems (Orca, vLLM) prioritize batch growth: it is
-the primary lever for pushing decode arithmetic intensity toward the
-ridge.
+weight-reread amortizes across tokens --- decode intensity ≈ batch size
+(weight-only), so at batch=32 the effective intensity is
+\textasciitilde32 FLOP/byte, still \textasciitilde9× below the 295 ridge
+(compute-bound decode needs batch ≈ 295, or quantized weights, which
+halve bytes and double intensity), and TFLOP/s utilization increases
+accordingly. \textbf{KV-read caveat:} the weight-only intensity above
+omits the per-sequence KV re-read (\textasciitilde24 GB at the canonical
+9.2K context, FP16 full-MHA). Including it, the decode intensity is
+(140·B)/(140 + 24·B) FLOP/byte, which \emph{saturates} at
+\textasciitilde5.8 FLOP/byte as B→∞ --- far below the 295 ridge. So with
+the KV term, decode stays bandwidth-bound at every batch size; the
+``batch ≈ 295'' figure is the weight-only first-order estimate (valid
+when the KV re-read is small relative to the weight stream, e.g.~short
+contexts or KV quantization). This is why continuous-batching systems
+(Orca, vLLM) prioritize batch growth: it is the primary lever for
+pushing decode arithmetic intensity toward the ridge (on the weight-only
+term).
 
 \emph{Scope note on the single-device roofline here:} the 140 GB
 weight-read and the per-GPU \textasciitilde3.35 TB/s HBM bandwidth are
