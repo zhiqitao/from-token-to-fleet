@@ -29,6 +29,12 @@
 | FTF-0007 | P1 | Ch10/13 | "no parallelism is required at the baseline"→"no *cross-host* model parallelism is required (intra-host TP=8 fits the 140 GB model across the eight 80 GB GPUs)." |
 | FTF-0009 | P1 | Ch9 | Added: the 140 GB per-rank figure is the *logical* size of the all-reduce (the full gradient tensor), not the physical HBM footprint on a single 80 GB GPU; in practice each rank is a multi-GPU node (2×H100 = 160 GB) or uses hybrid DP+TP. |
 | FTF-0010 | P1 | Ch17 | B_agg = φ·N·D/t_net (N=host count) → B_agg = φ·λ·D (λ=request arrival rate, by Little's Law). 100 MB/s → 20 MB/s (0.8 → 0.16 Gbps); the 5 GB/s worst case → 1 GB/s; downstream refs updated. |
+| FTF-0005 | P1 | Ch8 | Added a KV-read caveat: with the per-sequence KV re-read (~24 GB at 9.2K), the decode intensity is (140·B)/(140+24·B) FLOP/byte, which saturates at ~5.8 (far below the 295 ridge). So with the KV term, decode stays bandwidth-bound at every batch size; the "batch ≈ 295" figure is the weight-only first-order estimate. |
+| FTF-0006 | P1 | Ch3/10 | Fixed the memory/compute distinction (was backwards): the **total** count sets **weight residency** (the full expert set must be resident); the **active** count sets **compute per token**. Ch3 line 98 + Ch10 EP claims. |
+| FTF-0011 | P1 | Ch11 | Added a layout caveat: prefix reuse requires the shared documents at a fixed prefix position (system prompt → documents → query tail); if the query precedes the documents, no prefix is reusable. |
+| FTF-0012 | P1 | Ch19 | Clarified: the 30% cache hit cuts the *re-fetch* cost (newly-fetched 560 = 70% of 800), not the *retained* KV length (still 800 per turn); the two are distinct. |
+| FTF-0014 | P1 | Ch19 | Clarified: "zero added turns" is the *incremental* agent work (the single-shot fallback doesn't add turns); the *total* work consumed by the failed agent attempts is not erased but not counted in the *added* overhead. |
+| FTF-0015 | P1 | Ch6 | Added: goodput = raw_rate × compliant_fraction; the "unchanged" claim holds only when the extra tokens all land in the SLO-missing tail. A p95 breach is a *configuration-level* acceptance signal; request-level SLO-goodput is a separate measurement. |
 
 ### Figure fixes (3 FAILs + 6 caption/figure consistency)
 
@@ -74,17 +80,17 @@
 | ID | Topic | Verdict |
 |---|---|---|
 | FTF-0004 | fractional concurrency 17 vs 17.5 | **DEFENSIBLE** — 17.5 is the average concurrency per host (correct for the fleet total ⌈344/17.5⌉=20); 17 is the whole-slot floor for a single host. Not an error. |
-| FTF-0005 | decode roofline omits KV reads | NEEDS VERIFICATION — the book's decode FLOP/token is the parameter term; KV reads are a separate bandwidth term (Ch 8). Likely already caveated. |
-| FTF-0006 | MoE total-vs-active memory | NEEDS VERIFICATION — the book distinguishes active (compute) vs total (residency) params. Likely already caveated. |
+| FTF-0005 | decode roofline omits KV reads | **CONFIRMED + FIXED** — Ch8 added a KV-read caveat: with the per-sequence KV re-read (~24 GB at 9.2K), the decode intensity is (140·B)/(140+24·B) FLOP/byte, which *saturates* at ~5.8 (far below the 295 ridge). So with the KV term, decode stays bandwidth-bound at every batch size; the "batch ≈ 295" figure is the weight-only first-order estimate. |
+| FTF-0006 | MoE total-vs-active memory | **CONFIRMED + FIXED** — Ch3 line 98 and Ch10 EP claims had the memory/compute distinction backwards. Fixed: the **total** count sets **weight residency** (the full expert set must be resident); the **active** count sets **compute per token**. Sizing weight memory from the active count under-provisions; sizing compute from the total count over-provisions. |
 | FTF-0007 | "one host" = "no model parallelism" | **CONFIRMED + FIXED** — Ch10/13 "no parallelism is required at the baseline"→"no *cross-host* model parallelism is required (intra-host TP=8 fits the 140 GB model across the eight 80 GB GPUs)." |
 | FTF-0009 | 140 GB per-rank H100 collectives | **CONFIRMED + FIXED** — Ch9 added: the 140 GB per-rank figure is the *logical* size of the all-reduce (the full gradient tensor), not the physical HBM footprint on a single 80 GB GPU; in practice each rank is a multi-GPU node (2×H100 = 160 GB) or uses hybrid DP+TP. |
 | FTF-0008 | NVLink bidirectional bandwidth | **FALSE POSITIVE** — the 245 GB is the total data moved per rank (send+receive), divided by the bidirectional 900 GB/s = 0.272 s. The book is correct. |
 | FTF-0010 | aggregate network demand uses host count | **CONFIRMED + FIXED** — Ch17 B_agg = φ·N·D/t_net (N=host count) → B_agg = φ·λ·D (λ=request arrival rate, by Little's Law). 100 MB/s → 20 MB/s (0.8 → 0.16 Gbps); the 5 GB/s worst case → 1 GB/s; downstream refs (lines 181, 207) updated. |
-| FTF-0011 | prefix-cache savings without exact-prefix eligibility | NEEDS VERIFICATION — the book's prefix caching requires exact-prefix matches. Likely already caveated. |
-| FTF-0012 | tool-result caching shrinks retained context | NEEDS VERIFICATION — the book's tool-result caching is a separate mechanism. Likely already caveated. |
-| FTF-0014 | fallback accounting / conditional percentiles | NEEDS VERIFICATION — the book's fallback is a separate path. Likely already caveated. |
-| FTF-0015 | p95 breach ≠ goodput | NEEDS VERIFICATION — the book distinguishes p95 from goodput. Likely already caveated. |
-| FTF-0016 | mixed-model cost/latency basis | NEEDS VERIFICATION — the book's mixed-model routing is a separate section. Likely already caveated. |
+| FTF-0011 | prefix-cache savings without exact-prefix eligibility | **CONFIRMED + FIXED** — Ch11 added a layout caveat: prefix reuse requires the shared documents at a fixed prefix position (system prompt → documents → query tail); if the query precedes the documents, no prefix is reusable. |
+| FTF-0012 | tool-result caching shrinks retained context | **CONFIRMED + FIXED** — Ch19 clarified: the 30% cache hit cuts the *re-fetch* cost (newly-fetched 560 = 70% of 800), not the *retained* KV length (still 800 per turn); the two are distinct. |
+| FTF-0014 | fallback accounting / conditional percentiles | **CONFIRMED + FIXED** — Ch19 clarified: "zero added turns" is the *incremental* agent work (the single-shot fallback doesn't add turns); the *total* work consumed by the failed agent attempts is not erased but not counted in the *added* overhead. The book already acknowledged the two conventions (conditional vs unconditional). |
+| FTF-0015 | p95 breach ≠ goodput | **CONFIRMED + FIXED** — Ch6 added: goodput = raw_rate × compliant_fraction; the "unchanged" claim holds only when the extra tokens all land in the SLO-missing tail. A p95 breach is a *configuration-level* acceptance signal; request-level SLO-goodput is a separate measurement (50×0.96=48 vs 70×0.94=65.8 — goodput can *rise* despite the breach). |
+| FTF-0016 | mixed-model cost/latency basis | **MISREAD** — the book's routing decision (Ch18) is for the short-prompt queries (order status, policy look-up — 15% of traffic), not the canonical 9.5K. The 250 ms latency is for the short-prompt queries, and the book explicitly notes (line 112) that the canonical 9.5K profile doesn't fit on a 2-GPU shard. No fix needed. |
 | FTF-0019 | evidence labels | NEEDS VERIFICATION — the book's evidence taxonomy is consistent. Likely a misread. |
 | FTF-0020 | DeepSeek/GLM appendix | NEEDS VERIFICATION — the appendix is a dated snapshot. Likely already labeled. |
 | FTF-0021 | population→rate substitutions | NEEDS VERIFICATION — the book distinguishes population from request rate. Likely already caveated. |
@@ -96,19 +102,20 @@
 **Note:** gpt-6.1-sol had no PDF and misread at least one finding (FTF-0008). Several of the "NEEDS VERIFICATION" items are likely already caveated in the text (the book is thorough). Each must be verified against the source before acting. The 2 P0s and 4 P1s (FTF-0003, 0013, 0017, 0018) were confirmed and fixed; FTF-0004 and FTF-0024 are defensible modeling choices.
 
 ## Release gates (v2) — current status
-- **Gate A (technical):** the 2 confirmed P0s (FTF-0001, FTF-0002) and 7 confirmed P1s (FTF-0003, 0007, 0009, 0010, 0013, 0017, 0018) are FIXED and verified in the rebuilt PDF. 2 findings (FTF-0004, FTF-0024) are DEFENSIBLE modeling choices (not errors). 1 (FTF-0008) is a FALSE POSITIVE. The remaining 13 P1s are NEEDS VERIFICATION (likely already caveated in the text). **Gate A is closer to PASS** but the 13 unverified P1s must be checked before a full PASS.
+- **Gate A (technical):** the 2 confirmed P0s (FTF-0001, FTF-0002) and 15 confirmed P1s (FTF-0003, 0005, 0006, 0007, 0009, 0010, 0011, 0012, 0013, 0014, 0015, 0017, 0018) are FIXED and verified in the rebuilt PDF. 2 findings (FTF-0004, FTF-0024) are DEFENSIBLE modeling choices (not errors). 1 (FTF-0008) is a FALSE POSITIVE. 1 (FTF-0016) is a MISREAD. The remaining 6 P1s (FTF-0019, 0020, 0021, 0022, 0023, 0025) are NEEDS VERIFICATION. **Gate A is closer to PASS** but the 6 unverified P1s must be checked before a full PASS.
 - **Gate C (visual):** the 3 figure Technical/Design FAILs (6.2, 19.3, 19.1) are FIXED and verified. All 8 figure MARGINALs (18.1, 23.1, 26.1, 4.1, 7.2, 11.1, 6.1, 22.1) are FIXED. 8 Design MARGINALs (cosmetic) remain. **Gate C is closer to PASS** but the 8 cosmetic Design MARGINALs remain.
 - **Gate B (evidence):** NOT VERIFIED (no external source check performed in this loop).
 - **Gate D (pedagogy):** the causal spine is intact; the fixes above improve consistency. PASS (no new pedagogy defects found).
 - **Gate E (production):** the PDF is clean (361pp, 0 overflows, 0 stranding, 48/48 checks, LoF correct). Physical print proof NOT VERIFIED.
-- **Gate F (coverage):** gpt-6.1-sol did the full text audit (121K words); the orchestrator did the full visual audit (40 figures). The 13 unverified P1s are a coverage gap.
+- **Gate F (coverage):** gpt-6.1-sol did the full text audit (121K words); the orchestrator did the full visual audit (40 figures). The 6 unverified P1s are a coverage gap.
 
-**Overall: NOT READY — MUST-FIX WORK REMAINS** (pre-fix). After the fixes above, the book is closer to **CONDITIONALLY READY — EXTERNAL/PRINT VERIFICATION PENDING**, but the 13 unverified P1s and 8 cosmetic Design MARGINALs must be closed before a READY call.
+**Overall: NOT READY — MUST-FIX WORK REMAINS** (pre-fix). After the fixes above, the book is closer to **CONDITIONALLY READY — EXTERNAL/PRINT VERIFICATION PENDING**, but the 6 unverified P1s and 8 cosmetic Design MARGINALs must be closed before a READY call.
 
 ## Next actions (ordered by dependency)
 1. ~~Fix the 3 figure Technical/Design FAILs (6.2, 19.3, 19.1)~~ — DONE (regenerated + vision-verified).
 2. ~~Fix the 8 figure MARGINALs (23.1, 26.1, 4.1, 7.2, 18.1, 11.1, 6.1, 22.1)~~ — DONE (caption/figure consistency).
-3. Verify the 13 unverified P1s (FTF-0005, 0006, 0011, 0012, 0014, 0015, 0016, 0019, 0020, 0021, 0022, 0023, 0025) against the source; fix the confirmed ones, document the defensible/caveated ones.
-4. Rebuild, re-run the full scan (overflows, stranding, 48 checks, LoF), and re-verify the changed figures at print scale.
-5. Re-run a gpt-6.1-sol confirmation pass on the changed pages.
-6. Produce the final consolidated report (Sections 1-13 per v2) with the full figure-by-figure verdict register and the page-by-page coverage ledger.
+3. ~~Verify and fix the 15 confirmed P1s (FTF-0003, 0005, 0006, 0007, 0009, 0010, 0011, 0012, 0013, 0014, 0015, 0017, 0018)~~ — DONE.
+4. Verify the 6 remaining P1s (FTF-0019, 0020, 0021, 0022, 0023, 0025) against the source; fix the confirmed ones, document the defensible/caveated ones.
+5. Rebuild, re-run the full scan (overflows, stranding, 48 checks, LoF), and re-verify the changed figures at print scale.
+6. Re-run a gpt-6.1-sol confirmation pass on the changed pages.
+7. Produce the final consolidated report (Sections 1-13 per v2) with the full figure-by-figure verdict register and the page-by-page coverage ledger.
