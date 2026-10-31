@@ -16,7 +16,7 @@
 
 - **R1 — pin.** Every URL carrying a moving ref (`raw/main`, `/main/`, `resolve/main`, `blob/main`, `tree/main`, `/latest/`, `HEAD`) is replaced by a commit-pinned revision. The commit is the repository tip **at the source-retrieval date** (≤ 2026-10-28T23:59:59Z), fetched from the host's own API — never a commit invented here.
 - **R2 — shrink.** In footnote definitions a URL moves to this ledger and is cited in the chapter as a numbered entry `[A-Snn]` when it is **> 60 characters**, or when its footnote carries **≥ 3 URLs** (the dense list footnotes). Short standalone URLs stay inline.
-- **R3 — keep if unverifiable.** If no commit can be retrieved, the URL stays as cited and is recorded in §3 as `UNVERIFIED - moving ref, commit not retrievable` with its retrieval date. No placeholder SHA is ever written into the manuscript.
+- **R3 — keep if unverifiable.** If no commit can be retrieved, the URL stays as cited and is recorded in §3 as `UNVERIFIED - moving ref, commit not retrievable` with its retrieval date — or, when an immutable third-party snapshot exists, upgraded to `SNAPSHOT-PINNED` with the snapshot id (the two Habana pages, MiMo-C04). No placeholder SHA is ever written into the manuscript.
 - **R4 — preserve.** `[1P]`/`[2°]` provenance markers, retrieval dates, footnote IDs, footnote ref/def resolution, section headings and figure alt-text are unchanged (counts in §8).
 
 ## 2. Pinned revisions (append-only list)
@@ -46,14 +46,14 @@ Fetched 2026-10-30 from the host API; every pin was re-fetched and returned HTTP
 
 > **`A-S15` (`huggingface/transformers` → `modeling_qwen3_5.py`).** The moving `main` URL has *drifted* since retrieval (87,818 B now vs 87,748 B archived 2026-10-28). Pinning to the retrieval-date commit `a672eb5f474b8b30173e9f96eab66adf292da635` restores exactly the inspected bytes; pinning to today's `main` tip (`66f51e76…`) would have cited different content. This is the failure mode R10 exists to prevent.
 
-## 3. UNVERIFIED — moving ref, commit not retrievable
+## 3. SNAPSHOT-PINNED — moving ref, no commit; Wayback snapshot (upgraded from UNVERIFIED per MiMo-C04)
 
 | Entry | URL (kept as cited) | Status | Retrieval date | Why |
 |---|---|---|---|---|
-| `A-S88` | https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html | **UNVERIFIED - moving ref, commit not retrievable** | 2026-10-30 | `docs.habana.ai/en/latest/…` exposes no versioned path, tag or commit id (probed the page and `/en/`: no `/en/<version>/` links); HTTP 200, but the ref moves with each docs build |
-| `A-S92` | https://docs.habana.ai/en/latest/PyTorch/PyTorch_Model_Porting/Porting_PyTorch_Models_to_Gaudi.html | **UNVERIFIED - moving ref, commit not retrievable** | 2026-10-30 | `docs.habana.ai/en/latest/…` exposes no versioned path, tag or commit id (probed the page and `/en/`: no `/en/<version>/` links); HTTP 200, but the ref moves with each docs build |
+| `A-S88` | https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html | **SNAPSHOT-PINNED - Wayback 2026-09-26** (`20260926170046`) | 2026-10-30 | `docs.habana.ai/en/latest/…` exposes no versioned path, tag or commit id (probed the page and `/en/`: no `/en/<version>/` links; `/en/1.24.2/` and `/en/1.20.0/` both 404), so no commit pin exists — but the Wayback snapshot `http://web.archive.org/web/20260926170046/…` returns 200 with matching content (HCCL title hit), and the page self-identifies as **Gaudi Documentation 1.24.2** |
+| `A-S92` | https://docs.habana.ai/en/latest/PyTorch/PyTorch_Model_Porting/Porting_PyTorch_Models_to_Gaudi.html | **SNAPSHOT-PINNED - Wayback 2026-09-26** (`20260926170113`) | 2026-10-30 | same probe result (no versioned path/tag/commit); Wayback snapshot `http://web.archive.org/web/20260926170113/…` returns 200 with matching content (`torch.device("hpu")` present); live page version 1.24.2 |
 
-These two are the **only** moving refs left in Appendix A. Per R3 they stay printed in their own footnotes (`[^oct-ix-47]`, `[^oct-ix-55]`) instead of being replaced by an unverifiable pin.
+These two are the **only** moving refs left in Appendix A. They stay printed as cited in their own footnotes (`[^oct-ix-47]`, `[^oct-ix-55]`) — no placeholder SHA is written into the manuscript — and are now pinned at the evidence layer to the 2026-09-26 Wayback snapshots above (page version 1.24.2) rather than left UNVERIFIED.
 
 ## 4. Checked references — every URL in Appendix A
 
@@ -62,7 +62,7 @@ These two are the **only** moving refs left in Appendix A. Per R3 they stay prin
 | ID | Source (as cited) | Cited at | Ref | Status | Revision / entry | HTTP | Content check |
 |---|---|---|---|---|---|---|---|
 | `A-S01` | technical report, 26 August 2026 | body link, L71 | moving | **PINNED** | `69885871a643…` | 200 | ≡ archived 2026-10-28 bytes |
-| `A-S02` | Z.ai release article, 2026-08-26 | body link, L75+1 | page-no-ref | **PAGE** | page URL, no ref | 200 | ≡ archived 2026-10-28 bytes |
+| `A-S02` | Z.ai release article, 2026-08-26 | body link, L75+1 | page-no-ref | **PAGE** | page URL, no ref | 200 | ≡ archived 2026-10-28 bytes — **but the archive is a 604 B SPA shell** (`glm-report.txt` 604 B, `glm-report.clean.md` 0 B): the byte match is true yet vacuous, no article body is archived; body-level claims verifiable only via JS render (MiMo-C23/C17) |
 | `A-S03` | NVFP4 CUTLASS | body link, L214 | commit-pinned | **IMMUTABLE** | already immutable as cited | 200 | no archived copy |
 | `A-S04` | NVFP4 Marlin | body link, L214 | commit-pinned | **IMMUTABLE** | already immutable as cited | 200 | no archived copy |
 | `A-S05` | MXFP4 Marlin | body link, L214 | commit-pinned | **IMMUTABLE** | already immutable as cited | 200 | no archived copy |
@@ -148,11 +148,11 @@ These two are the **only** moving refs left in Appendix A. Per R3 they stay prin
 | `A-S85` | First-party source retrieved 2026-10-28: < | footnote oct-ix-26, L332 | release-tag | **IMMUTABLE** | already immutable as cited | 200 | no archived copy |
 | `A-S86` | First-party source retrieved 2026-10-28: < | footnote oct-ix-28, L334 | page-no-ref | **PAGE** | page URL, no ref | 403 | 403 to audit UA (Intel bot policy); not a dead-link claim |
 | `A-S87` | First-party source retrieved 2026-10-28: < | footnote oct-ix-42, L336 | release-tag | **IMMUTABLE** | already immutable as cited | 200 | no archived copy |
-| `A-S88` | First-party source retrieved 2026-10-28: < | footnote oct-ix-47, L338 | moving | **UNVERIFIED** | kept as cited (§3) | 200 | no archived copy |
+| `A-S88` | First-party source retrieved 2026-10-28: < | footnote oct-ix-47, L338 | moving | **SNAPSHOT-PINNED** | Wayback `20260926170046` (§3) | 200 | snapshot 200, content matches; page version 1.24.2 |
 | `A-S89` | First-party source retrieved 2026-10-28: < | footnote oct-ix-49, L340 | commit-pinned | **IMMUTABLE** | already immutable as cited | 200 | no archived copy |
 | `A-S90` | First-party source retrieved 2026-10-28: < | footnote oct-ix-53, L342 | commit-pinned | **IMMUTABLE** | already immutable as cited | 200 | no archived copy |
 | `A-S91` | First-party source retrieved 2026-10-28: < | footnote oct-ix-54, L344 | commit-pinned | **IMMUTABLE** | already immutable as cited | 200 | no archived copy |
-| `A-S92` | First-party source retrieved 2026-10-28: < | footnote oct-ix-55, L346 | moving | **UNVERIFIED** | kept as cited (§3) | 200 | no archived copy |
+| `A-S92` | First-party source retrieved 2026-10-28: < | footnote oct-ix-55, L346 | moving | **SNAPSHOT-PINNED** | Wayback `20260926170113` (§3) | 200 | snapshot 200, content matches; page version 1.24.2 |
 | `A-S93` | First-party source retrieved 2026-10-28: < | footnote oct-ix-56, L348 | page-no-ref | **PAGE** | page URL, no ref | 200 | no archived copy |
 | `A-S94` | Independent benchmark account [2°], retrieved 2026-10-28: < | footnote oct-ix-60, L350 | page-no-ref | **PAGE** | page URL, no ref | 200 | no archived copy |
 | `A-S95` | Independent deployment account [2°], retrieved 2026-10-28: < | footnote oct-ix-61, L352 | page-no-ref | **PAGE** | page URL, no ref | 200 | no archived copy |
@@ -167,7 +167,7 @@ These two are the **only** moving refs left in Appendix A. Per R3 they stay prin
 | `A-S104` | b.com/QwenLM/Qwen3.8-Flash-Next/blob/main/tech_report.pdf; mo… | body, L364 | page-no-ref | **PAGE** | page URL, no ref | 200 | no archived copy |
 | `A-S105` | ific architecture and normalized attention/KV comparison); mo… | body, L365 | page-no-ref | **PAGE** | page URL, no ref | 200 | no archived copy |
 
-**Totals:** 105 checked · 22 PINNED · 34 already immutable as cited · 47 page URLs (no ref; content may change — logged with retrieval date) · 2 UNVERIFIED. HTTP: 101× 200, 4× 403 (Intel bot policy, page URLs only).
+**Totals:** 105 checked · 22 PINNED · 34 already immutable as cited · 47 page URLs (no ref; content may change — logged with retrieval date) · 2 SNAPSHOT-PINNED (Wayback 2026-09-26; previously recorded UNVERIFIED — MiMo-C04). HTTP: 101× 200, 4× 403 (Intel bot policy, page URLs only).
 ## 5. RED → GREEN proof (isolated source / pandoc only)
 
 Checker: `r10_check.py <chapter> <this ledger>` — 11 checks (ledger exists, unregistered moving refs, footnote wrap budget, ledger-ID resolution, addendum explicitness, provenance/date preservation, footnote ref/def resolution, research-label leak, `[2°]` account marking, supplement headings, Fig A.2 caption length).
@@ -221,7 +221,7 @@ Run 2026-10-30 against the post-edit source and this ledger: **11/11 PASS**. The
 | longest printed URL | 148 chars | 99 chars |
 | LaTeX bytes | 77,547 | 71,722 |
 
-Print-footnote machine-URL load drops **4,029 → 173 characters (45 → 2 printed URLs)**; the two that remain are the UNVERIFIED Habana `latest` URLs kept on purpose (§3). Footnote count is unchanged (50 → 50), so no citation was dropped.
+Print-footnote machine-URL load drops **4,029 → 173 characters (45 → 2 printed URLs)**; the two that remain are the Habana `latest` URLs kept as cited but now snapshot-pinned to Wayback 2026-09-26 (§3). Footnote count is unchanged (50 → 50), so no citation was dropped.
 
 ## 6. October 28 addendum sourcing — explicit (verified)
 
@@ -485,8 +485,9 @@ Full unified diff:
 - **Not fixed here (out of scope — other chapters still cite moving refs):**
   - `chapter-07/chapter-07.md`: 2 — `https://huggingface.co/Qwen/Qwen3.8-27B/raw/main/config.json`; `https://huggingface.co/tomg-group-umd/huginn-0125/raw/main/README.md`
   - `chapter-08/chapter-08.md`: 6 — `https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html`; `https://docs.habana.ai/en/latest/PyTorch/PyTorch_Model_Porting/Porting_PyTorch_Models_to_Gaudi.html`; `https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers/blob/main/transformer/config.json`; `https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/resolve/main/DeepSeek_V41_Tech_Report.pdf`; `https://huggingface.co/tomg-group-umd/huginn-0125/raw/main/README.md`; `https://raw.githubusercontent.com/inclusionAI/LLaDA2.X/main/LLaDA2_2_tech_report.pdf`
-  - `chapter-09/chapter-09.md`: 2 — `https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html`; `https://raw.githubusercontent.com/pytorch/gloo/main/README.md`
-  - Appendix A itself retains only the 2 UNVERIFIED Habana URLs (§3).
+  - `chapter-09/chapter-09.md`: 5 — `https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html`; `https://raw.githubusercontent.com/pytorch/gloo/main/README.md`; `https://raw.githubusercontent.com/intel/torch-ccl/master/README.md`; `https://raw.githubusercontent.com/ROCm/rccl/develop/README.md`; `https://raw.githubusercontent.com/openucx/ucc/master/README.md` (ledger previously listed only the first 2 — R1's enumeration recognized `main/latest/…` but not `master/develop`, MiMo-C05; all 5 HTTP 200 on 2026-10-31, still unpinned — MiMo-C06)
+  - Appendix A itself retains only the 2 Habana `latest` URLs (now snapshot-pinned, §3).
 - **Not re-verified here:** claim-level truth of any vendor statement. This ledger records URL identity, immutability and byte-level agreement with the 2026-10-28 archive — not independent reproduction of results.
+- **Claim-vs-source wording (MiMo-C13):** ch9's "Gloo is … a framework backend name" is not carried by the cited gloo README (0 occurrences of "backend" in it, re-checked 2026-10-31); the backend-name half is now cited separately to PyTorch v2.9.0 `docs/source/distributed.md` (200; "Gloo … backend" present), so each half of the sentence has a source that carries it.
 - **Re-run:** `python3 r10_check.py design/manuscript/chapter-27/chapter-27.md review/publication_v2_20261028/audit/source-verification.md` must exit 0 (GREEN) on the integrated tree.
 

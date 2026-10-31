@@ -63,14 +63,17 @@ for i, (q, a) in enumerate(stages):
     ax.text(5, y+0.80, q, ha='center', va='center', fontsize=9.5, fontweight='bold', color='#4a2f10')
     ax.text(5, y+0.34, a, ha='center', va='center', fontsize=8.5, color='#5a3a14')
     if i < len(stages)-1:
-        # connector: an explicit line spanning the FULL gap (box i bottom y-0.02
-        # -> box i+1 top y-0.25) plus a small arrowhead at the bottom.  R27 P2:
-        # the old annotate arrow rendered as a bare floating triangle (its head was
-        # larger than the ~10pt gap and its length was inconsistent).  An explicit
-        # line guarantees the connector touches both box edges.
+        # connector: an explicit arrow spanning the FULL gap (box i bottom y-0.02
+        # -> box i+1 top y-0.25) so BOTH ends are attached.  R27 P2 added the
+        # shaft; R30 P2 (MiMo-F004) fixes the head: it was drawn over only the
+        # last 0.09 units with matplotlib's default shrink, so its tip stopped
+        # ~2.7 pt short of the lower box and the connector still read as a
+        # floating triangle.  The arrow now starts on the upper box's bottom
+        # edge and its tip is pushed 0.04 units INTO the lower box.
         ax.plot([5, 5], [y-0.02, y-0.25], color='#a05a1a', lw=2.4, zorder=3)
-        ax.annotate('', xy=(5, y-0.25), xytext=(5, y-0.16),
-                    arrowprops=dict(arrowstyle='-|>', lw=2.4, color='#a05a1a', mutation_scale=8))
+        ax.annotate('', xy=(5, y-0.29), xytext=(5, y-0.02),
+                    arrowprops=dict(arrowstyle='-|>', lw=2.4, color='#a05a1a',
+                                    mutation_scale=10, shrinkA=0, shrinkB=0))
 # outcome (narrower than the top box so the funnel silhouette holds: the quantified
 # bound is the narrow, specific result of the five widening questions)
 ax.add_patch(FancyBboxPatch((1.7, 1.13), 6.6, 1.15, boxstyle='round,pad=0.02', fc='#6f9e5f', ec='#3d5a2f'))

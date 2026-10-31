@@ -1,31 +1,37 @@
 # CONTINUE.md — resumable handoff (autonomous loop)
 
 Repo: /home/ubuntu/hermes-work/from-token-to-fleet
-Updated: 2026-10-30
-Current verdict: **RELEASE CANDIDATE** (R28). Publication approval FALSE (external gates).
+Updated: 2026-10-31
+Current verdict: **RELEASE CANDIDATE** (R30). Publication approval FALSE (external gates).
 
-## Current release candidate
-- **R28**: `review/publication_v2_20261028/work/accelerated_external_review_proof_r28/render/build/from-token-to-fleet-v20260913.pdf`
-  SHA `adff9250d74d19ac7d68d886781f441df2907588c788c228260d36169b8ecd2b`, 425 pp, 291 inputs, 14 overlays.
-- Round-2 loop fixes integrated + verified: FTF-N01 (renderer content-loss, NBSP on `^[LABEL]:` callouts), Ch4 D1(26/37)+N02(3.3M), Ch5 N06+N04, Ch6 N04+Fig6.2 caption, Ch15 N03(NFU cap 56K — 70,000=124% MFU impossible)+N04+N05+N07, Ch17/20 range→`35,000–56,000`, Ch27 R10 immutable commit pinning, Figs 22.1(7.79→8.17pt)/26.2(7.60→8.60pt). Structure tree intact (H2 264/H3 102/H4 28, 58/58 fig alt, 0 orphan, 0 Type3, TOCI 95), no overfull, fail-loud checks passed (build exit0), release artifacts refreshed (EPUB 2026-10-31, cover wrap 18.21×11.25in 0.96in spine for 425pp).
-- Issue ledger: `review/publication_v2_20261028/issue-ledger.md` — all round-2 independent-audit P0/P1 CLOSED.
+## Working model (user-directed, 2026-10-31)
+- **Main agent (DeepSeek-V4-Flash) = reviewer/auditor.** I conduct the review myself: recompute key derivations, cross-chapter consistency, figure legibility (min >=8pt), source/provenance discipline, content-loss scan. I do NOT delegate detection to subagents.
+- **MiMo-2.6-Flash-RL (im-eglb/EGLB) = fixer.** I dispatch MiMo subagents to fix the issues I find. Iterate: I review -> MiMo fixes -> rebuild -> I re-review, until I find nothing further.
+- Delegation: `im-eglb` / `MiMo-V2.6-Flash-RL`, 6 children, 32768 tokens.
 
-## Remaining open
-- **fig-P2** (16 figures): 16.1 annotation leaders/feasible-max box, 18.1 arrows/else, 19.2 legend/pattern, 19.3 y-axis/units, 21.1 feedback arrow/grayscale, 22.1 N reuse/red dot, 7.5 9.5K@10K, 15.2 plateau, 10.1 hatch/solid, 12.1 redundant arrow, 23.1 triangle, 25.1 arrow short, 2.2, 2 color-only, 7.8/11.1 grayscale, A.2/A.4.
-- FTF-N08 (Ch22 rps wording), FTF-N09 (Ch23 Table 23-1 cost row), D2–D7 LOW (40.2→40.1, W(3)13.9, Ch19 formula-vs-table, prefill ~24, α(T=2) 1.12/1.18, Ch9 15.6h), P3 N10–N19 + 34 fig polish.
+## Release candidate
+- **R30**: `review/publication_v2_20261028/work/accelerated_external_review_proof_r30/render/build/from-token-to-fleet-v20260913.pdf`
+  SHA `6dfc1479…`, 425 pp, US Letter, tagged, **0 Type3**, all figs >=8pt. origin/main HEAD `3ab5b5f6`.
+- Round history R27->R30 all pushed; all prior external-review + independent-audit P0/P1 CLOSED.
 
-## External / blocked (keep OPEN, do NOT mark passed)
-- veraPDF/PAC PDF-1 cert (not installed) → `pdfuaid:part` held.
-- font/image rights manifest, ISBN, physical print proof, author sign-off.
-- exact original 362pp canonical not recoverable; live canonical preserved (`82006201…`).
-- IX/T3-table HOLD (Ch11 Table 11-2). 4 heading-skips (ch09/10/15) — veraPDF warning-level. FTF-R06 multi-region GATE.
-
-## Delegation
-- provider=qwen38/Qwen3.8-27B (tailscale 100.105.225.59:30000), 6 children, 32768 tokens (set 2026-10-30 per user).
+## MiMo audit of R30 (deleg_51b5c14e): "one fix round's findings" — fix batch IN FLIGHT (deleg_4a305c28)
+- **P2**: MiMo-2001 (Ch13 100rps -> ~74 hosts; 'well under ceiling' false); MiMo-2002 (Ch25 32 KV heads -> 64 to match 2.62 MB/token).
+- **P2 figure**: MiMo-F001 (A.4 contrast 3.47:1 -> >=4.5:1), F002 (21.1 arrowhead), F003 (7.5 9.5K/10K), F004 (23.1 connectors), F005 (16.1 grayscale band).
+- **P3**: MiMo-0001 (Ch15 MFU 38%->62%), MiMo-2003 (19.6 ref), 2004 (5.1 ref), 2005 (Ch6 p99 5.0s), 2006 (Ch20 mean-vs-bound), 2007 (Ch15 section numbering).
+- **Source**: C04 (habana snapshot-pin), C05 (ch9 5 refs), C13 (gloo 'backend'), C18 (GLM 131K), C23 (A-S02 shell).
+- MiMo arithmetic = 94/96 PASS, 0 new P0/P1. Findings: review/publication_v2_20261028/audit/mimo-*-r30.md.
 
 ## NEXT EXACT COMMANDS
-1. Round-3: fix fig-P2 batch + FTF-N08/N09 + D2–D7 (each verify-before-edit), then rebuild R29 via a new freeze script + `run_frozen_build_guarded.py`.
-2. Or converge: if a fresh independent re-audit returns 0 new P0/P1 and only cosmetic P3, declare release candidate & hand to author for print proof + sign-off.
+1. Integrate deleg_4a305c28 (MiMo fixes) -> freeze/build **R31** (`freeze_r31_loop5.py` + `run_frozen_build_guarded.py`). Verify structure tree / 0 Type3 / >=8pt / fig contrast.
+2. **I (DeepSeek) audit R31 myself** (recompute, cross-ref, fig legibility, content-loss). Dispatch MiMo to fix any finding. Iterate until I find nothing.
+3. On convergence: publishing-readiness.md -> hand to author for print proof + sign-off.
+4. Push each round to origin/main.
+
+## External / blocked (keep OPEN, do NOT mark passed)
+- veraPDF/PAC PDF-1 cert (not installed) -> `pdfuaid:part` held.
+- font/image rights manifest, ISBN, physical print proof, author sign-off.
+- exact original 362pp canonical not recoverable; live canonical preserved (`82006201…`).
+- IX/T3-table HOLD (Ch11 Table 11-2). 4 heading-skips (ch09/10/15). FTF-R06 multi-region GATE.
 
 ## Build guard
-Always build via `run_frozen_build_guarded.py <proof> --run` (rejects live/completed, protects live canonical). Never `bash render/build.sh` in the live repo.
+Always build via `run_frozen_build_guarded.py <proof> --run` (rejects live/completed, protects live canonical). Never `bash render/build.sh` live.

@@ -46,6 +46,17 @@ ax.scatter([9.5], [2.5*9.5], color='#c0392b', zorder=5, s=25)
 # leader drops onto the 9.2K point from above and crosses no curve.
 ax.annotate('9.5K ≈ 24.9 GB (FP16 bound)', xy=(9.5, 2.62*9.5), xytext=(1.2, 107),
             arrowprops=dict(arrowstyle='->', lw=0.8), fontsize=8.5)
+# R30 P2 (MiMo-F003): 9.5K IS a plotted point (ctx = 1/4/9.5/32/128) and the
+# arrow above already lands on its marker -- but on a log axis 9.5 sits only
+# ~2.4 pt left of the 10K gridline, so a reader (and the audit) reads the marker
+# as 10K, where the value would be 26.2 GB, not 24.9.  Make the x-position
+# explicit: a drop-line from the marker to the axis plus a "9.5K" label, so the
+# marker cannot be misread as the 10K gridline.
+ax.plot([9.5, 9.5], [0.05, 2.5*9.5], ':', color='#c0392b', lw=0.9,
+        alpha=0.7, zorder=2)
+ax.text(9.5, 0.062, '9.5K', ha='center', va='bottom', fontsize=8.5,
+        color='#c0392b', fontweight='bold', zorder=6,
+        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none'))
 ax.scatter([9.5], [0.33*9.5], color='#27408b', zorder=5, s=25)
 # v9 review: this tag sat ON the GQA FP16/FP8 markers at 9.2K and used the same
 # blue as the GQA-FP16 curve.  Move it into the open right-hand whitespace

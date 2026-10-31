@@ -33,13 +33,30 @@ layers = [
 ]
 ROH = 0.84   # row height
 
-def _text_color(hex):
-    # R27 P2: white label text on the light bands (post-training #8fb8e0,
-    # weights #9ac98a, test-time #6aa0d8) was low-contrast, worst in grayscale.
-    # Pick dark ink on light fills (luminance > 145) and white on dark fills.
+def _text_color(hex, alpha=0.92):
+    # R30 P2 (MiMo-F001): the Rec.601 "lum > 145" heuristic left WHITE ink on
+    # band 3 "Inside tools" (#4d8fc4 -> 3.47:1) and band 7 "Inside attention"
+    # (#6f9e5f -> 3.12:1), both under the WCAG AA 4.5:1 floor.  Pick the ink by
+    # measuring real WCAG contrast against the fill AS COMPOSITED (the patch is
+    # drawn at `alpha` over the white page, which lightens every band), and take
+    # whichever of white / near-black scores higher.  Verified: all 8 bands then
+    # clear 4.5:1 (worst = "Inside agent runtime" 4.50:1).
     r = int(hex[1:3], 16); g = int(hex[3:5], 16); b = int(hex[5:7], 16)
-    lum = 0.299*r + 0.587*g + 0.114*b
-    return '#1a1a1a' if lum > 145 else 'white'
+    r = alpha * r + (1 - alpha) * 255.0
+    g = alpha * g + (1 - alpha) * 255.0
+    b = alpha * b + (1 - alpha) * 255.0
+
+    def _lin(c):
+        c /= 255.0
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+    L_bg = 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b)
+
+    def _cr(L_fg):
+        hi, lo = max(L_fg, L_bg), min(L_fg, L_bg)
+        return (hi + 0.05) / (lo + 0.05)
+
+    return 'white' if _cr(1.0) >= _cr(_lin(26)) else '#1a1a1a'
 
 ax.text(4.0, 10.5, 'Where Should Intelligence Live?', fontsize=12.5,
         fontweight='bold', ha='center', color='#1a1a1a')

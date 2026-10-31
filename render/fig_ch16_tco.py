@@ -99,7 +99,13 @@ fig, ax = plt.subplots(figsize=(6.1, 5.0))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 # NOTE on '$': text.parse_math is OFF for this figure (set above), so every '$'
 # below renders as a literal dollar glyph — no backslash escapes, no mathtext.
-ax.fill_between(req, managed_lo, managed_hi, color='#c0392b', alpha=0.12,
+# R30 P2 (MiMo-F005): at alpha=0.12 the band composited to Rec.601 luma 0.92
+# (92% white) and the 6.2-10.4M price-sensitivity region VANISHED in grayscale.
+# alpha=0.60 composites to luma ~0.63 (gray 159 vs white 255) -- an unambiguous
+# shaded region in B&W -- while staying translucent enough that the grid and the
+# managed curve read through it.  No text sits on the band (checked: every
+# annotation box / legend / vline label is far outside it at its own x).
+ax.fill_between(req, managed_lo, managed_hi, color='#c0392b', alpha=0.60,
                 label='price band $15–25/1K')
 ax.loglog(req, managed_lo, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, managed_hi, ':', color='#c0392b', lw=1.1, alpha=0.9)

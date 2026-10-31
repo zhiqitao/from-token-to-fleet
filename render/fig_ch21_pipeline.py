@@ -91,14 +91,21 @@ for seam in seams:
 # The loop now runs up the left side, across the top (above the stage boxes), and
 # drops into Eval, with a short branch arrow into Data, so BOTH are targeted.
 TOP_Y = 11.6   # above the stage boxes (top y+h=10.85), below the subtitle (12.5)
+# R30 P2 (MiMo-F002): with the default mutation_scale the '-|>' head on a
+# path-based FancyArrowPatch renders 0.4 pt -- invisible at print size -- so the
+# drop into Eval read as a bare stub with "no arrowhead" while the caption
+# promises "data/evaluation".  mutation_scale=16 gives a 6.4 pt head, and the
+# final vertex is pushed 0.12 units past the box's padded top edge so the tip
+# lands ON the Eval box instead of short of it.
 loopverts = [
     (xs[6] + w/2, y),                       # start: Serve bottom
     (xs[6] + w/2, 1.5), (0.3, 1.5),
-    (0.3, TOP_Y), (xs[2] + w/2, TOP_Y), (xs[2] + w/2, y + h),  # up, across, down to Eval top
+    (0.3, TOP_Y), (xs[2] + w/2, TOP_Y),
+    (xs[2] + w/2, y + h - 0.12),            # down INTO Eval's top edge
 ]
 loopcodes = [Path.MOVETO] + [Path.LINETO]*5
 ax.add_patch(FancyArrowPatch(path=Path(loopverts, loopcodes), arrowstyle='-|>',
-                             lw=2.2, color='#2f6f4f', zorder=1))
+                             lw=2.2, color='#2f6f4f', mutation_scale=16, zorder=1))
 # short branch arrow into the Data stage box (left edge)
 ax.annotate('', xy=(xs[0], y + h/2), xytext=(0.3, y + h/2),
             arrowprops=dict(arrowstyle='-|>', lw=2.2, color='#2f6f4f',
