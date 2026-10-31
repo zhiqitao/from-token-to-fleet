@@ -1,5 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')
+matplotlib.rcParams['pdf.fonttype']=42
+matplotlib.rcParams['ps.fonttype']=42
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch, Rectangle
@@ -61,9 +63,14 @@ for i, (q, a) in enumerate(stages):
     ax.text(5, y+0.80, q, ha='center', va='center', fontsize=9.5, fontweight='bold', color='#4a2f10')
     ax.text(5, y+0.34, a, ha='center', va='center', fontsize=8.5, color='#5a3a14')
     if i < len(stages)-1:
-        # arrow in the gap: from box i's bottom (y) down to box i+1's top (y-0.27)
-        ax.annotate('', xy=(5, y-0.25), xytext=(5, y-0.02),
-                    arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#c07a2a', mutation_scale=11))
+        # connector: an explicit line spanning the FULL gap (box i bottom y-0.02
+        # -> box i+1 top y-0.25) plus a small arrowhead at the bottom.  R27 P2:
+        # the old annotate arrow rendered as a bare floating triangle (its head was
+        # larger than the ~10pt gap and its length was inconsistent).  An explicit
+        # line guarantees the connector touches both box edges.
+        ax.plot([5, 5], [y-0.02, y-0.25], color='#a05a1a', lw=2.4, zorder=3)
+        ax.annotate('', xy=(5, y-0.25), xytext=(5, y-0.16),
+                    arrowprops=dict(arrowstyle='-|>', lw=2.4, color='#a05a1a', mutation_scale=8))
 # outcome (narrower than the top box so the funnel silhouette holds: the quantified
 # bound is the narrow, specific result of the five widening questions)
 ax.add_patch(FancyBboxPatch((1.7, 1.13), 6.6, 1.15, boxstyle='round,pad=0.02', fc='#6f9e5f', ec='#3d5a2f'))
@@ -73,7 +80,9 @@ ax.annotate('', xy=(5, 2.30), xytext=(5, 3.18),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#3d5a2f', mutation_scale=13))
 ax.text(5, 9.85, 'From a vague ask to architectural bounds (worked example)', fontsize=11.6, fontweight='bold', ha='center', color='#1a1a1a')
 plt.tight_layout()
-plt.savefig(base % (23, 23, 23), dpi=350); plt.close()
+plt.savefig(base % (23, 23, 23), dpi=350)
+plt.savefig((base % (23, 23, 23)).replace('.png', '.pdf'), format='pdf')
+plt.close()
 print('Ch23 done')
 
 # ---- Ch25: anatomy of an ADR ----

@@ -1,5 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')
+matplotlib.rcParams['pdf.fonttype']=42
+matplotlib.rcParams['ps.fonttype']=42
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
@@ -58,12 +60,19 @@ new_h = 8.4; new_top = 9.0
 adr_card(new_top, new_h, 'ADR-002  (new — supersedes ADR-001)', '#7b241c')
 
 # supersession arrow: kept entirely inside the inter-panel gap, running from the
-# top card's bottom border down to the bottom card's top border. R27 P2: the old
-# tip stopped ~6.5pt ABOVE the ADR-002 top border (new_top+0.2); it now ends just
-# inside the border (new_top-0.08) so the arrowhead clearly touches the card.
+# top card's bottom border down to the bottom card's top border. R27 P2: the tip
+# must actually TOUCH the ADR-002 top rule (the card's top edge sits at
+# new_top+0.06 because of the boxstyle pad).  The old tip (new_top-0.08) and the
+# oversized head (mutation_scale=22) left a visible white sliver above the border;
+# the tip now lands just inside the border with a smaller head.
 old_bottom = old_top - old_h           # top card bottom border (y)
-ax.add_patch(FancyArrowPatch((x0+w, old_bottom-0.2), (x0+w, new_top-0.08),
-             connectionstyle='arc3,rad=-0.25', arrowstyle='-|>', mutation_scale=22,
+# R27 P2: the tip must actually TOUCH the ADR-002 top rule (the card's top edge
+# sits at new_top+0.06 because of the boxstyle pad).  The old oversized head
+# (mutation_scale=22) + curve offset the visual tip well above the border, leaving
+# a white sliver.  A straight arrow with a smaller head (8) and the tip extended
+# just inside the border (new_top-0.15) makes contact unambiguous.
+ax.add_patch(FancyArrowPatch((x0+w, old_bottom-0.2), (x0+w, new_top-0.18),
+             connectionstyle='arc3,rad=0.0', arrowstyle='-|>', mutation_scale=8,
              lw=2.4, color='#c0392b', ls='dashed'))
 # label in the gap, centred vertically between the two borders and placed to the
 # right of the arrow, so neither collides with the other or with the panel borders.
@@ -76,5 +85,7 @@ ax.text(x0+w+2.45, gap_mid,
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-25/figures/fig-25-2501.png',
             dpi=400, bbox_inches='tight', pad_inches=0.08)
+plt.savefig('design/manuscript/chapter-25/figures/fig-25-2501.pdf',
+            format='pdf', bbox_inches='tight', pad_inches=0.08)
 plt.close()
 print('wrote fig-25-2501 (ADR anatomy + supersession, full-height)')

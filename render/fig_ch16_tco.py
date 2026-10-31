@@ -115,17 +115,16 @@ ax.loglog(req, managed, '-', color='#c0392b', lw=2.0,
 ax.axvspan(vol_max, 1e8, facecolor='0.55', alpha=0.30, hatch='///',
            edgecolor='0.30', zorder=0)
 ax.axvline(vol_max, color='0.30', ls='--', lw=1.4, zorder=5)
-# feasible max: a single-line tag centered on the gray bound at the top, so its
-# white face clears the canonical blue dotted line (6.24M). The unit (req/mo) is
-# on the x-axis and the full derivation (40 rps x 624,000 active s) is in the
-# footer, so the box stays short. A solid dark leader line runs from the box
-# down to the bound (visible over the dashed gray line). (R27 P2: the old
-# two-line box sat top-centre and its white face broke the blue dotted line.)
+# feasible max: box sits well LEFT of the gray bound with a clear horizontal
+# leader running right to the bound, so the white face never occludes the dashed
+# line and the association is explicit. (R27 P2: the box was floating and its
+# white face broke the reference line; a box centred on the line still occluded
+# it, so it is offset left with a visible leader.)
 ax.annotate('feasible max 24.96M',
-            xy=(vol_max, 4.6e6), xytext=(vol_max, 9.5e6),
-            ha='center', va='top', fontsize=8.0, color='0.15', fontweight='bold',
-            arrowprops=dict(arrowstyle='-|>', lw=1.0, color='0.15',
-                            mutation_scale=9, shrinkA=1, shrinkB=1),
+            xy=(vol_max, 8.8e6), xytext=(vol_max*0.16, 8.8e6),
+            ha='center', va='center', fontsize=8.0, color='0.15', fontweight='bold',
+            arrowprops=dict(arrowstyle='-|>', lw=1.2, color='0.15',
+                            mutation_scale=10, shrinkA=3, shrinkB=0),
             bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='0.55',
                       lw=0.7, alpha=0.92), zorder=8)
 # INFEASIBLE: solid dark leader line from the box down into the hatched region.

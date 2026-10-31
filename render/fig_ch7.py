@@ -1,11 +1,13 @@
 import matplotlib
 matplotlib.use('Agg')
+matplotlib.rcParams['pdf.fonttype']=42
+matplotlib.rcParams['ps.fonttype']=42
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 
 # ---- fig-07-0701: KV cache size vs context length (70B-class) ----
-ctx = np.array([1, 4, 9.2, 32, 128])  # K tokens
+ctx = np.array([1, 4, 9.5, 32, 128])  # K tokens
 # canonical (Ch. 7, Table 7-1): full-MHA teaching bound 2.62 MB/token ~2.5 MB/token
 # real LLaMA-2-70B-class GQA (8 KV heads): 2*80*8*128*2 B = 0.33 MB/token (8x smaller)
 # FP8 = raw tensor byte-halving (exactly 50% of BF16): 2,621,440/2 = 1,310,720 B = 1.31 MB/tok.
@@ -33,7 +35,7 @@ ax.set_title('KV cache size vs context, by attention geometry (full-MHA vs GQA)'
 # KV budget ceiling: 640 total - 140 weights - ~64 runtime/NCCL = ~436 GB usable KV
 ax.axhline(640, color='#7f8c8d', ls=':', lw=1, label='8×H100 raw (640 GB)')
 ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB')
-ax.scatter([9.2], [2.5*9.2], color='#c0392b', zorder=5, s=25)
+ax.scatter([9.5], [2.5*9.5], color='#c0392b', zorder=5, s=25)
 # Loop-2 review (N1): at xytext=(10.2, 70) the label sat just above the red
 # FP16 curve and its right end crossed the line (measured: 0.0 pt clearance,
 # arrow shaft 0.1 pt) - same-colour annotation-on-curve.  In log-log space the
@@ -67,6 +69,7 @@ fig.text(0.5, 0.010,
          fontsize=8.6, color='#555', ha='center', va='bottom', linespacing=1.3)
 plt.tight_layout(rect=[0, 0.17, 1, 1])
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0701.png', dpi=350)
+plt.savefig('design/manuscript/chapter-07/figures/fig-07-0701.pdf', format='pdf')
 plt.close()
 print('wrote fig-07-0701')
 

@@ -33,6 +33,14 @@ layers = [
 ]
 ROH = 0.84   # row height
 
+def _text_color(hex):
+    # R27 P2: white label text on the light bands (post-training #8fb8e0,
+    # weights #9ac98a, test-time #6aa0d8) was low-contrast, worst in grayscale.
+    # Pick dark ink on light fills (luminance > 145) and white on dark fills.
+    r = int(hex[1:3], 16); g = int(hex[3:5], 16); b = int(hex[5:7], 16)
+    lum = 0.299*r + 0.587*g + 0.114*b
+    return '#1a1a1a' if lum > 145 else 'white'
+
 ax.text(4.0, 10.5, 'Where Should Intelligence Live?', fontsize=12.5,
         fontweight='bold', ha='center', color='#1a1a1a')
 ax.text(4.0, 10.05, 'The 2026 frontier question for an AI Solution Architect\n(Appendix A, "Where Should Intelligence Live?")',
@@ -46,7 +54,7 @@ for i, (name, ch, color, y) in enumerate(layers):
     box = FancyBboxPatch((BOX_X0, y - ROH / 2), BOX_W, ROH,
                          boxstyle='round,pad=0.02', fc=color, ec='none', alpha=0.92)
     ax.add_patch(box)
-    ax.text(NAME_X, y, name, fontsize=8.4, fontweight='bold', color='white',
+    ax.text(NAME_X, y, name, fontsize=8.4, fontweight='bold', color=_text_color(color),
             va='center', ha='left')
     ax.text(CH_X, y, ch, fontsize=8.0, color='#333', va='center', ha='left')
 

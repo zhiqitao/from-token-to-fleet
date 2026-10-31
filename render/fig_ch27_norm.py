@@ -1,7 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch
+from matplotlib.patches import FancyArrowPatch, Rectangle
 from matplotlib.font_manager import FontProperties
 
 # ---- fig-27-2704 / Figure A.2: vendor-reported KV/token and FLOP/token reductions
@@ -62,12 +62,17 @@ ax.text(W/2, T, 'Vendor-reported ratios: % remaining', fontsize=FS_H+1.6,
         fontweight='bold', ha='center', va='center', color='#1a1a1a')
 ax.text(W/2, T - 16, 'vs each model\'s own predecessor',
         fontsize=FS_H-1.8, ha='center', va='center', color='#333')
+# R27 P2: the warning was red bold text only (no border/fill), so it lost
+# salience in grayscale.  Wrap it in a thick-black-bordered, hatched bar so it
+# reads as a warning banner without relying on colour.
+ax.add_patch(Rectangle((60, T-70), W-120, 34, fc='white', ec='black',
+             lw=2.5, hatch='///', zorder=1))
 ax.text(W/2, T - 44,
         'NOT A CROSS-MODEL PERFORMANCE RANKING',
-        fontsize=FS_R-0.2, ha='center', va='center', color='#c0392b', fontweight='bold')
+        fontsize=FS_R-0.2, ha='center', va='center', color='#c0392b', fontweight='bold', zorder=2)
 ax.text(W/2, T - 62,
         "Each figure is relative to that model's OWN stated baseline — no shared scale",
-        fontsize=FS_R-0.6, ha='center', va='center', color='#c0392b')
+        fontsize=FS_R-0.6, ha='center', va='center', color='#c0392b', zorder=2)
 
 # ---- row-scheme note (Loop-2): the grid is one row per REPORTED model ----
 ax.text(W/2, T - 84,

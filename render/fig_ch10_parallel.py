@@ -48,10 +48,11 @@ def card(y0):
     ax.plot([3.0, 58.0], [y0 + 15.4, y0 + 15.4], color='#ededed', lw=0.8, zorder=1)
 
 
-def cbox(x0, y0, w, h, fc, ec, lw=1.3, z=2):
+def cbox(x0, y0, w, h, fc, ec, lw=1.3, z=2, hatch=None, ls='-'):
     ax.add_patch(FancyBboxPatch((x0, y0), w, h,
                                 boxstyle='round,pad=0.05,rounding_size=0.25',
-                                fc=fc, ec=ec, lw=lw, zorder=z))
+                                fc=fc, ec=ec, lw=lw, zorder=z,
+                                hatch=hatch, linestyle=ls))
 
 
 def txt(x, y, s, size=9.0, color=INK, weight='normal', ha='center', z=4):
@@ -73,20 +74,20 @@ card(yA)
 txt(3.0, yA + 16.5, 'A · Tensor parallel (TP) — splits one layer’s weights',
     size=10.5, weight='bold', ha='left')
 # weight matrix, split in half
-cbox(9.0, yA + 11.2, 43.0, 2.4, BLUE_F, BLUE_E)
+cbox(9.0, yA + 11.2, 43.0, 2.4, BLUE_F, BLUE_E, hatch='///')
 ax.plot([30.5, 30.5], [yA + 11.2, yA + 13.6], ls='--', color=BLUE_E, lw=1.2, zorder=3)
 txt(19.5, yA + 12.4, 'W₀', size=9.5, color=BLUE_E, weight='bold')
 txt(41.5, yA + 12.4, 'W₁', size=9.5, color=BLUE_E, weight='bold')
 txt(30.5, yA + 14.7, 'one layer’s weight matrix W', size=8.5, color=MUTE)
 # the two GPUs that each hold one shard
-cbox(9.0, yA + 6.5, 20.0, 3.2, ORAN_F, ORAN_E)
-cbox(32.0, yA + 6.5, 20.0, 3.2, ORAN_F, ORAN_E)
+cbox(9.0, yA + 6.5, 20.0, 3.2, ORAN_F, ORAN_E, hatch='xxx')
+cbox(32.0, yA + 6.5, 20.0, 3.2, ORAN_F, ORAN_E, hatch='xxx')
 txt(19.0, yA + 8.1, 'GPU 0', size=9.5, weight='bold', color='#7a4a08')
 txt(42.0, yA + 8.1, 'GPU 1', size=9.5, weight='bold', color='#7a4a08')
 arrow(19.0, yA + 11.2, 19.0, yA + 9.7, ORAN_E)
 arrow(42.0, yA + 11.2, 42.0, yA + 9.7, ORAN_E)
 # all-reduce of the partial sums
-cbox(17.0, yA + 4.5, 27.0, 1.5, '#ffffff', RED, lw=1.3)
+cbox(17.0, yA + 4.5, 27.0, 1.5, '#ffffff', RED, lw=1.3, hatch='...', ls='--')
 txt(30.5, yA + 5.25, 'all-reduce partial sums  →  full output', size=8.6, color=RED)
 arrow(19.0, yA + 6.5, 22.5, yA + 6.0, RED)
 arrow(42.0, yA + 6.5, 38.5, yA + 6.0, RED)
@@ -102,7 +103,7 @@ txt(3.0, yB + 16.5, 'B · Pipeline parallel (PP) — splits the layer stack',
     size=10.5, weight='bold', ha='left')
 stages = [(5.0, 'GPU 0', 'layers 1–8'), (22.5, 'GPU 1', 'layers 9–16'), (40.0, 'GPU 2', 'layers 17–24')]
 for x0, g, lay in stages:
-    cbox(x0, yB + 7.0, 15.0, 5.0, ORAN_F, ORAN_E)
+    cbox(x0, yB + 7.0, 15.0, 5.0, ORAN_F, ORAN_E, hatch='xxx')
     txt(x0 + 7.5, yB + 10.5, g, size=9.5, weight='bold', color='#7a4a08')
     txt(x0 + 7.5, yB + 8.4, lay, size=8.6, color='#7a4a08')
 arrow(20.0, yB + 9.5, 22.5, yB + 9.5, RED)
@@ -124,13 +125,13 @@ card(yC)
 txt(3.0, yC + 16.5, 'C · Data parallel (DP) — splits the data batch',
     size=10.5, weight='bold', ha='left')
 # data shards
-cbox(9.0, yC + 11.6, 20.0, 2.2, GREEN_F, GREEN_E)
-cbox(32.0, yC + 11.6, 20.0, 2.2, GREEN_F, GREEN_E)
+cbox(9.0, yC + 11.6, 20.0, 2.2, GREEN_F, GREEN_E, hatch='\\\\')
+cbox(32.0, yC + 11.6, 20.0, 2.2, GREEN_F, GREEN_E, hatch='\\\\')
 txt(19.0, yC + 12.7, 'batch shard A', size=9.0, color=GREEN_E, weight='bold')
 txt(42.0, yC + 12.7, 'batch shard B', size=9.0, color=GREEN_E, weight='bold')
 # two GPU replicas, each holding the whole model
-cbox(9.0, yC + 6.3, 20.0, 4.0, ORAN_F, ORAN_E)
-cbox(32.0, yC + 6.3, 20.0, 4.0, ORAN_F, ORAN_E)
+cbox(9.0, yC + 6.3, 20.0, 4.0, ORAN_F, ORAN_E, hatch='xxx')
+cbox(32.0, yC + 6.3, 20.0, 4.0, ORAN_F, ORAN_E, hatch='xxx')
 txt(19.0, yC + 9.0, 'GPU 0', size=9.5, weight='bold', color='#7a4a08')
 txt(42.0, yC + 9.0, 'GPU 1', size=9.5, weight='bold', color='#7a4a08')
 txt(19.0, yC + 7.4, 'full model (replica)', size=8.6, color=BLUE_E)
@@ -147,8 +148,8 @@ txt(3.0, yC + 2.3, 'inference: independent replicas, no sync  ·  throughput sca
 # in grayscale (blue~green, red~orange) it carried nothing.  Each key entry now pairs
 # its hue with a FILL PATTERN and a role label, so the key still resolves without colour.
 KEY = [(BLUE_F, BLUE_E, '///', 'weights (blue)'),
-       (ORAN_F, ORAN_E, '\\', 'GPU (orange)'),
-       (GREEN_F, GREEN_E, 'xxx', 'data (green)'),
+       (ORAN_F, ORAN_E, 'xxx', 'GPU (orange)'),
+       (GREEN_F, GREEN_E, '\\\\', 'data (green)'),
        ('#fdecea', RED, '...', 'comms (red)')]
 fig.canvas.draw()
 _ren0 = fig.canvas.get_renderer()

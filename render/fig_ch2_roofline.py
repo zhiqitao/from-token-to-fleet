@@ -23,6 +23,8 @@ Authored at the 6.1in column width (exempt from regen re-boost).
 """
 import matplotlib
 matplotlib.use('Agg')
+matplotlib.rcParams['pdf.fonttype']=42
+matplotlib.rcParams['ps.fonttype']=42
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.ticker as mtick
@@ -92,10 +94,13 @@ ax.annotate('prefill', xy=(9200.0, pre_y), xytext=(0, 12),
             textcoords='offset points', ha='center', va='bottom',
             color='#12294f', fontsize=11, fontweight='bold', zorder=6)
 
-# regime-marker note (upper-left white area, clear of the ridge label and the
-# memory-bound caption): the markers show the regime, not a measured efficiency.
-ax.text(3.0, 1.6e14, 'markers = regime, not measured MFU\n(real kernels run below the roof)',
-        fontsize=8.0, color='#555', ha='left', va='center', style='italic',
+# regime-marker note: placed in the clear UPPER-LEFT area, high enough that the
+# rising roofline diagonal stays below the box across its full width (the box is
+# ~2.1 decades wide; at its right edge x~126 the roof is ~4.2e14, below the box
+# bottom ~6.2e14).  R27 P2: the old spot (3.0, 1.6e14) was low enough that the
+# black roofline ran through the white box and was hidden.  Text darkened.
+ax.text(1.0, 8.0e14, 'markers = regime, not measured MFU\n(real kernels run below the roof)',
+        fontsize=8.0, color='#333', ha='left', va='center', style='italic',
         bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#bbb', lw=0.6), zorder=6)
 
 # === axes + minimal text ===
@@ -115,5 +120,6 @@ ax.grid(True, which='major', axis='both', alpha=0.26, ls=':', lw=0.8, color='#88
 
 plt.tight_layout(pad=0.6)
 plt.savefig('design/manuscript/chapter-02/figures/fig-02-0201.png', dpi=400)
+plt.savefig('design/manuscript/chapter-02/figures/fig-02-0201.pdf', format='pdf')
 plt.close()
 print('wrote fig-02-0201')

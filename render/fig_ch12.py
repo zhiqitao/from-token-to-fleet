@@ -86,14 +86,16 @@ ax.text(bx + bw / 2, 0.165, '(c)  pending Ch. 14', ha='center', va='center',
 # R27 P2: the central drop was a third (redundant) arrowhead floating over the
 # bus; it is now a plain connector line (no arrowhead) so only the two real
 # targets (OUTCOME / GATED) carry arrowheads.
-_bus_y = 0.305
 _cx_out = sx + sw / 2
 _cx_rej = bx + bw / 2
-ax.plot([CX, CX], [0.323, _bus_y], color='#555', lw=1.6, zorder=3)
-ax.plot([_cx_out, _cx_rej], [_bus_y, _bus_y], color='#555', lw=1.6, zorder=3)
-ax.annotate('', xy=(_cx_out, 0.290), xytext=(_cx_out, _bus_y),
+# R27 P2: the old central drop + horizontal bus left a short vertical "tick"
+# floating in the middle (between the two outcome boxes) and the two arrowheads
+# stopped just short of the box tops.  Replace with two direct arrows from the
+# candidates box bottom to each outcome box top (a clean inverted-V split, no
+# stray middle element, tips touching the boxes).
+ax.annotate('', xy=(_cx_out, 0.288), xytext=(CX, 0.335),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
-ax.annotate('', xy=(_cx_rej, 0.290), xytext=(_cx_rej, _bus_y),
+ax.annotate('', xy=(_cx_rej, 0.288), xytext=(CX, 0.335),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))
 
 plt.tight_layout()

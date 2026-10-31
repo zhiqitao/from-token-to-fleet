@@ -45,9 +45,11 @@ for i, p in enumerate(parts):
             va='center', color='#27408b')
     if i < 5:
         # arrow in the left margin pointing DOWN: Part I -> II -> ... -> VI (top-to-bottom,
-        # matching the stated "Parts I -> VI" order)
+        # matching the stated "Parts I -> VI" order). R27 P2: the old mutation_scale=13
+        # head was larger than the ~11pt gap, so it read as a bare floating ▼; a smaller
+        # head (7) leaves a visible shaft.
         ax.add_patch(FancyArrowPatch((LX0 - 0.5, yb), (LX0 - 0.5, yb - pgap),
-                     arrowstyle='-|>', mutation_scale=13, lw=1.8, color='#555'))
+                     arrowstyle='-|>', mutation_scale=7, lw=1.8, color='#555'))
 ax.text(LX0 + LW/2, 0.62, 'build the substrate, then the discipline', fontsize=8,
         ha='center', color='#555', style='italic')
 
@@ -65,8 +67,10 @@ steps = [
 ]
 for i, (q, ch) in enumerate(steps):
     yb = 9.4 - i*(ph+pgap) - ph
+    # R27 P2: the right column uses a DASHED border so the two paths stay
+    # distinguishable in grayscale (the left column is solid) — not colour alone.
     ax.add_patch(FancyBboxPatch((RX0, yb), RW, ph, boxstyle='round,pad=0.02,rounding_size=0.18',
-                                fc='#fdecea', ec='#c0392b', lw=1.6))
+                                fc='#fdecea', ec='#c0392b', lw=1.6, ls='--'))
     # Loop-5 N2: box 6's "?" touched "Ch16/22/25" (measured gap 0.4pt in the PDF).
     # Question 9.5 -> 9.0pt and side padding 0.35 -> 0.25 units buys ~10pt of gap
     # in every box; 9.0pt is still above the 8pt on-page floor.
@@ -75,9 +79,10 @@ for i, (q, ch) in enumerate(steps):
     ax.text(RX0 + RW - 0.25, yb + ph/2, ch, fontsize=8.5, ha='right', va='center', color='#a53226')
     if i < 5:
         # arrow in the right margin pointing DOWN: token -> cost -> ... (top-to-bottom,
-        # matching the stated "token -> cost -> KV -> ..." trace direction)
+        # matching the stated "token -> cost -> KV -> ..." trace direction). R27 P2:
+        # smaller head (7) so the ~11pt gap shows a visible shaft, not a bare ▼.
         ax.add_patch(FancyArrowPatch((RX0 + RW + 0.5, yb), (RX0 + RW + 0.5, yb - pgap),
-                     arrowstyle='-|>', mutation_scale=13, lw=1.8, color='#c0392b'))
+                     arrowstyle='-|>', mutation_scale=7, lw=1.8, color='#c0392b'))
 ax.text(RX0 + RW/2, 0.62, 'each question → the chapter that answers it', fontsize=8,
         ha='center', color='#555', style='italic')
 
