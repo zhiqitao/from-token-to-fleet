@@ -7,9 +7,20 @@ Updated: 2026-10-30 · Repo: /home/ubuntu/hermes-work/from-token-to-fleet
 **Publication approval is FALSE** until the external gates close (physical print proof, rights, ISBN, author sign-off, veraPDF cert). The autonomous review loop has converged: a fresh independent re-audit (Pass G) of the release candidate found **0 new P0/P1**, confirming no further critical issues in reach.
 
 ## Release candidate
-- **R30**: `review/publication_v2_20261028/work/accelerated_external_review_proof_r30/render/build/from-token-to-fleet-v20260913.pdf`
-  SHA `6dfc1479…`, **425 pp**, US Letter 8.5×11 (612×792pt), text width 439.2pt, tagged/PDF-UA structure, **0 Type3**.
-- Pushed to `origin/main` (HEAD `9b990358`).
+- **R31**: `review/publication_v2_20261028/work/accelerated_external_review_proof_r31/render/build/from-token-to-fleet-v20260913.pdf`
+  SHA `7cc011f6…`, **425 pp**, US Letter 8.5×11 (612×792pt), text width 439.2pt, tagged/PDF-UA structure, **0 Type3**, all figures ≥8pt.
+- Pushed to `origin/main` (HEAD `76bd06e6`).
+
+## Cross-model validation (all CONVERGED, 0 new P0/P1)
+R31 independently validated clean by 5 distinct models:
+1. **DeepSeek-V4-Flash** (main review): all key derivations reproduce, fixes coherent.
+2. **MiMo-2.6-Flash** (fixer): its own audit findings all addressed & verified.
+3. **GLM-5.3-256K** (EGLB): 0 new P0/P1; recomputed all chains; zero content loss (3,437 sentences); no mislabeled measurements; would sign off.
+4. **Ornith-1.5-397B** (EGLB): 0 new P0/P1; independent method (fresh arithmetic, trigram content-compare, direct vision of 16.1/20.1/22.1); would sign off.
+5. **Nemotron-3-Ultra-550B (free, via opencode OpenRouter)**: 0 new P0/P1; verified all arithmetic chains.
+
+## Loop history (R27→R31, all pushed)
+R27 external review P1s → R28 independent-audit P0/P1s + fig-P1 → R29 N08/09/D2-D7 + fig-P2 3/4/6/8 → R30 remaining fig-P2 + pdf.fonttype=42 (0 Type3) → R31 MiMo round (Ch13 51/74 hosts, Ch25 64 KV heads, Ch15 62% MFU, Ch6 p99 5.0s, fig F001-F005, source C04-C23).
 
 ## Loop history (R27→R30, all pushed)
 - **R27**: external review (2026-10-30) R01–R11 — agentic latency reconciled (13.8s @ T=3), call ledger (41,990/495), Fig20.1 gap=capped demand, TCO x-axis + INFEASIBLE, fallback ledger, tables+NOT COMPARABLE, Fig19.2/19.3 ≥8pt + counterfactual inset, R10 refs pinned.
