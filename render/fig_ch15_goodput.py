@@ -65,7 +65,9 @@ axb.tick_params(labelsize=10)
 axb.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 # knee: beyond ~batch 16 the goodput gain per added batch flattens while tail latency keeps rising
 axb.axvline(16, color='#c0392b', ls='--', lw=1.1)
-axb.text(1.7, 90, 'goodput\nplateau (~b16):\nthroughput gain\nflattens; tail\nlatency keeps rising',
+# R27 P2: the old "goodput plateau (~b16)" overclaimed — the curve keeps rising
+# past b16 (66 -> 80 -> 88), it only shows diminishing gains. Reword to match.
+axb.text(1.7, 90, 'diminishing gains\npast ~b16 (no hard\nplateau): goodput\nstill rises; tail\nlatency keeps rising',
          fontsize=8.0, color='#c0392b', va='top')
 
 fig.suptitle('Prefix caching vs batching: two independent effects', fontsize=10.5, fontweight='bold')

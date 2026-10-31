@@ -2,6 +2,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Patch
 
 # ---- fig-19-1902: token + KV growth across agent turns (Ch19 Table 19-1) ----
 # Two aligned panels. Authored NARROW (6.4in) + tight bbox so it never overflows
@@ -21,15 +22,29 @@ x = Ts
 
 # Panel 1: token accumulation — split initial context vs turn-by-turn additions
 # so the two are distinguishable in grayscale (distinct grays + distinct hatches).
-base = np.full(5, I0)               # initial prompt context (constant)
-added = Ts*(d + g)                  # appended per turn (delta retrieved + gamma generated)
-ax1.bar(x - w/2, base, w, color='#2f5a8f', hatch='//', edgecolor='white', linewidth=0.6, label='initial context (I\u2080)')
-ax1.bar(x - w/2, added, w, bottom=base, color='#d98a2b', hatch='//', edgecolor='#7a4a10', linewidth=0.6, label='added per turn (\u03b4=800 + \u03b3=65)')
-ax1.bar(x - w/2, [Of]*5, w, bottom=inp, color='#6f9e5f', hatch='xx', edgecolor='white', linewidth=0.6, label='output tokens (O=300)')
+# R27 P2: the old combined 'added per turn' bar (orange //) and the O bar (green
+# xx) used patterns that CONFLICTED with Fig 19.3 (delta=teal dots, gamma=orange
+# cross, O=green solid). We now split 'added' into delta + gamma and match 19.3's
+# fill+hatch for every shared quantity, and the legend uses explicit Patch handles
+# so each entry shows its swatch (the old auto-handles left I0 and 'added' blank).
+base  = np.full(5, I0)        # initial prompt context (constant)
+delta = Ts*d                  # retrieved per turn
+gamma = Ts*g                  # generated per turn
+ax1.bar(x - w/2, base,  w, color='#c8d8ea', hatch='//',  edgecolor='#27408b', linewidth=0.6, label='initial context (I\u2080)')
+ax1.bar(x - w/2, delta, w, bottom=base,        color='#7fc6b5', hatch='...', edgecolor='#1a7a63', linewidth=0.6, label='retrieved (\u03b4=800)')
+ax1.bar(x - w/2, gamma, w, bottom=base+delta,  color='#f5c98b', hatch='xx',  edgecolor='#e67e22', linewidth=0.6, label='generated (\u03b3=65)')
+ax1.bar(x - w/2, [Of]*5, w, bottom=inp,        color='#6f9e5f',             edgecolor='#1e7a59', linewidth=0.6, label='output (O=300)')
 ax1.set_ylabel('Tokens / request', fontsize=9)
 ax1.set_title('(a) Tokens accumulate', fontsize=9.5)
 ax1.grid(alpha=0.3, axis='y')
-ax1.legend(fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.35), ncol=2, frameon=False)
+_legend_a = [
+    ('initial context (I\u2080)', '#c8d8ea', '//'),
+    ('retrieved (\u03b4=800)',     '#7fc6b5', '...'),
+    ('generated (\u03b3=65)',      '#f5c98b', 'xx'),
+    ('output (O=300)',             '#6f9e5f', ''),
+]
+ax1.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in _legend_a],
+           fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.35), ncol=2, frameon=False)
 ax1.tick_params(labelsize=8.6)
 # headroom so the tallest bar (turn 4 ~12.7K) is not clipped at the top spine
 ax1.set_ylim(0, 14000)
@@ -47,7 +62,8 @@ ax2.set_ylabel('KV / request (GB, FP16)', fontsize=9)
 # title shortened so "GB" is not clipped at the right edge of the panel
 ax2.set_title('(b) KV 24.9 \u2192 34.0 GB', fontsize=9)
 ax2.grid(alpha=0.3, axis='y')
-ax2.legend(fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.35), ncol=1, frameon=False)
+ax2.legend(handles=[Patch(fc='#c0392b', ec='#333', hatch='..', label='KV / request (FP16)')],
+           fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.35), ncol=1, frameon=False)
 ax2.tick_params(labelsize=8.6)
 # headroom so the tallest rotated value label (34.0 + its vertical extent) is not clipped at the top spine
 ax2.set_ylim(0, 48)

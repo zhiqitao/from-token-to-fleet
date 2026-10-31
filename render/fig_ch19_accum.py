@@ -30,7 +30,20 @@ fig._hermes_print_sized = True   # regen must not re-boost/reflow
 fig._hermes_print_crop_bottom_in = 0.35  # trim 25.2pt of verified blank export padding
 # ylim toped just above the column-name row so the legend sits close to the
 # bars (the old top was 12.2, leaving ~1/3 of the axes empty below the legend).
-ax.set_xlim(0, 12.8); ax.set_ylim(-0.6, 10.6); ax.axis('off')
+ax.set_xlim(0, 12.8); ax.set_ylim(-0.6, 10.6)
+# R27 P2: the figure had no y-axis, no ticks, no units — the bars are drawn to
+# scale via h_of(tok)=tok*0.00035 but the reader could only read the text labels.
+# Show a left y-axis in tokens (the bar base sits at data y=2.4 = 0 tokens) while
+# keeping the x-axis off (categorical columns) and the spines hidden (text-art
+# look).  axis('off') would set axison=False and block the y-axis, so hide the
+# pieces individually instead.
+ax.xaxis.set_visible(False)
+ax.yaxis.set_visible(True)
+for _sp in ax.spines.values():
+    _sp.set_visible(False)
+ax.set_yticks([2.4 + t*0.00035 for t in (0, 4000, 8000, 12000)])
+ax.set_yticklabels(['0', '4K', '8K', '12K'])
+ax.set_ylabel('Tokens / request', fontsize=9)
 
 # distinct component styles: (fill, edge, hatch)
 ST = {

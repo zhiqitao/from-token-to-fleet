@@ -48,6 +48,15 @@ Independent audit (deleg_9f9359aa) ran arithmetic recompute (149/155 PASS), figu
 P1: **Fig 22.1 7.8pt / Fig 26.2 7.6pt** (fix dispatched), **Fig 6.2 caption 86-char** (fix dispatched). P2 (16.1 annotation leaders/feasible-max white box, 18.1 arrows/else, 19.2 legend swatches+pattern conflict, 19.3 no y-axis/units, 21.1 feedback arrow+grayscale, 22.1 legend N reuse+red dot, 7.5 9.5K@10K, 15.2 plateau, 10.1 hatch/solid, 12.1 redundant arrow, 23.1 floating triangle, 25.1 arrow 6.5pt short, 2.2 annotation/roofline, 2 color-only, 7.8/11.1 grayscale, A.2/A.4) → next iteration. P3: 34 figures polish.
 Counts: **57 numbered figures** (58 = 57 + cover Figure element). 0 scientific/arithmetic P0.
 
+## Round 3 (remaining P2/P3 + fig-P2) — status
+- **N08 (Ch22) FIXED**: 10/40 rps relabeled "declared traffic inputs [canonical scenario][ASSUMPTION], not derived from the user population (Ch 4 §4.3)".
+- **N09 (Ch23) FIXED**: dialogue now establishes the cost row (added Bound 6 + lead answer) — consistent with "six numbers"/Table 23-1.
+- **D3/D4/D6 (Ch19) FIXED**: footnotes make explicit W(3)=13.854→13.9 vs table's held-1.08 lower-bound 13.8; grown-prefill values; α(T=2) 1.12 (per-turn trace) vs 1.18 (avg-input) are different conventions, not contradictory.
+- **D2 (Ch16) 40.2→40.1; D5 (Ch4) ~23→~24 hosts (23.23 ceil); D7 (Ch9) 15.5h→15.6h** — FIXED.
+- **fig-P2 (partial, 4/16)**: items 3/4/6/8 done (Fig 19.2 legend/hatch, Fig 19.3 y-axis "Tokens / request"+, Fig 22.1 legend N, Fig 15.2 plateau) — all regenerated ≥8pt (1903 8.40, 1902 8.40, 2201 8.60, 1501 8.00). **Items 1/2/5/7/9–16 still open** (16.1 leaders, 18.1 arrows, 21.1, 7.5, 10.1, 12.1, 23.1, 25.1, 2.2, fig2, 7.8/11.1, A.2/A.4) — the fig-P2 subagent hit a repetition loop mid-work.
+- Evidence: `review/audits/p2p3-remaining-findings-fix-20261030.md`.
+- Note: fig-P2 subagent (deleg_94a8fc16 task1) FAILED to report (repetition loop after ~105 calls) — its 4 generator/asset edits were recovered+regenerated+verified by parent, kept; the rest re-dispatched.
+
 ## Round 2 (independent audit findings) — R28
 All fixes below are in live and being integrated into **R28** (`accelerated_external_review_proof_r28`, 291 inputs, 14 overlays). Status lines updated.
 | ID | Sev | Status | Notes |

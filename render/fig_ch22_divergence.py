@@ -41,7 +41,7 @@ fig._hermes_print_sized = True   # print-size authored; regen must not re-boost/
 # ---- LEFT panel: prefill FLOPs per request, decomposed (linear vs quadratic term) ----
 ax1.loglog(L / 1e3, lin / 1e15, color='#c0392b', lw=2.6, label='linear 2\u00b7N\u00b7L')
 ax1.loglog(L / 1e3, quad / 1e15, color='#8e44ad', lw=2.4, ls='-.',
-           label='quadratic 4\u00b7n\u2097\u00b7L\u00b2\u00b7d')
+           label='quadratic 4\u00b7n_layers\u00b7L\u00b2\u00b7d')
 ax1.loglog(L / 1e3, (lin + quad) / 1e15, color='#e67e22', lw=2.4, ls='--',
            label='total = linear + quadratic')
 ax1.fill_between(L / 1e3, lin / 1e15, (lin + quad) / 1e15, color='#e67e22', alpha=0.10)
@@ -76,6 +76,11 @@ ax1.annotate('quadratic overtakes\nlinear at ~%.0fK' % (Lstar/1e3),
              arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#8e44ad'))
 # canonical 9.2K point (Figure caption footnote refers to it)
 ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=26)
+# R27 P2: the red dot was unexplained (no legend/annotation). Label it as the
+# canonical 9.2K context so the marker has a clear referent.
+ax1.annotate('canonical 9.2K', xy=(9.2, (2 * N * 9.2e3) / 1e15), xytext=(13, 0.7),
+             fontsize=8.6, color='#c0392b', ha='left', va='center',
+             arrowprops=dict(arrowstyle='-', lw=0.6, color='#c0392b'))
 
 # ---- RIGHT panel: decode FLOPs per token (flat, context-independent) ----
 ax2.loglog(L / 1e3, decode / 1e15, color='#27408b', lw=3.4,
