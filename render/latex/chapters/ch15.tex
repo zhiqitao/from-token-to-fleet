@@ -168,30 +168,30 @@ geometry (80 layers, hidden dimension 8,192 --- the 70B-class teaching
 model, not a universal 70B property), the per-token footprint across ALL
 layers is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 = 2,621,440 B ≈
 2.62 MB/token (2.5 MiB; canonical value from \hyperref[chap:7]{Chapter 7}) --- not the 32
-KB that a single-layer calculation would suggest. For a 9,500-token
-context, one user's KV cache is therefore ≈9,500 ×2.62 MB ≈ 24.9 GB, not
-\textasciitilde304 MB. For the canonical workload's \textasciitilde86
-average in-flight requests at 10 rps (L\_exec = λ × W\_exec ≈ 10 × 8.6;
-see Ch 4 --- note \textasciitilde86 is the \emph{request occupancy},
-distinct from the \textasciitilde100 \emph{active-user} population), the
-total KV cache would be ≈86 × 24.9 GB ≈ 2,140 GB --- which \textbf{does
-not} fit the 640 GB GPU pool; using the canonical practical KV budget
-(640 GB − 140 GB weights − \textasciitilde64 GB runtime/workspace ≈ 436
-GB), only ≈17.5 concurrent \emph{requests} (9,500-token KV each) fit
-on-host for KV (436 GB ÷ 24.9037 GB; conservative integer floor 17
-(aggregate bound; per-rank and fragmentation must be checked
-separately)), before also reserving weight residency. This is a
-decisive, order-of-magnitude correction to the intuitive picture:
-long-context KV is a first-order memory constraint, and the architect
-sizes concurrency by KV capacity, not by the small per-layer number.
-Doubling context to 19,000 tokens pushes per-user KV to
-\textasciitilde49.8 GB (19,000 × 2.62 MB) and halves on-host concurrency
-to \textasciitilde8.7 (436 GB ÷ 49.8 GB; conservative integer floor 8).
-The canonical unit-check rule
+KiB (32,768 B) that a single-layer calculation would suggest. For a
+9,500-token context, one user's KV cache is therefore ≈9,500 ×2.62 MB ≈
+24.9 GB, not \textasciitilde311 MB (9,500 × 32,768 B). For the canonical
+workload's \textasciitilde86 average in-flight requests at 10 rps
+(\(L_{\mathrm{exec}}\) = λ × \(W_{\mathrm{exec}}\) ≈ 10 × 8.6; see Ch 4
+--- note \textasciitilde86 is the \emph{request occupancy}, distinct
+from the \textasciitilde100 \emph{active-user} population), the total KV
+cache would be ≈86 × 24.9 GB ≈ 2,140 GB --- which \textbf{does not} fit
+the 640 GB GPU pool; using the canonical practical KV budget (640 GB −
+140 GB weights − \textasciitilde64 GB runtime/workspace ≈ 436 GB), only
+≈17.5 concurrent \emph{requests} (9,500-token KV each) fit on-host for
+KV (436 GB ÷ 24.9037 GB; conservative integer floor 17 (aggregate bound;
+per-rank and fragmentation must be checked separately)), before also
+reserving weight residency. This is a decisive, order-of-magnitude
+correction to the intuitive picture: long-context KV is a first-order
+memory constraint, and the architect sizes concurrency by KV capacity,
+not by the small per-layer number. Doubling context to 19,000 tokens
+pushes per-user KV to \textasciitilde49.8 GB (19,000 × 2.62 MB) and
+halves on-host concurrency to \textasciitilde8.7 (436 GB ÷ 49.8 GB;
+conservative integer floor 8). The canonical unit-check rule
 (quantity/unit/formula/substitution/result/sanity) catches this class of
-error: if 9,500 tokens × \textasciitilde2.5 MB/token ≈ 24 GB does not
-reconcile with the intended \textasciitilde304 MB, the unit layer-count
-has been dropped.
+error: if 9,500 tokens × 2,621,440 B/token ≈ 24.9 GB does not reconcile
+with the intended \textasciitilde311 MB single-layer counterexample, the
+unit layer-count has been dropped.
 
 \emph{Attention FLOP comparison:} Scaled‑dot‑product attention (SDPA)
 for 9,200‑token prompts. Note the 2P/token figure above approximates the
@@ -210,8 +210,8 @@ parameter-matmul FLOPs (≈15\% of total forward FLOPs) at 9.2K (\hyperref[fig:2
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so each K/V tile is read into on-chip memory once for that tile and the result is accumulated in place --- far fewer HBM round-trips. Scope of the ``read once'' claim: the tile-level on-chip reuse is per-tile; it is not a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size --- see the original I/O analysis in the FlashAttention papers). The attention result is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim. I/O bound: Tri Dao et al., ``FlashAttention,'' NeurIPS 2022, arXiv:2205.14135.)},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1502.pdf}}
-\caption[FlashAttention: the same math, far less HBM traffic]{FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so each K/V tile is read into on-chip memory once \emph{for that tile} and the result is accumulated in place --- far fewer HBM round-trips. \textbf{Scope of the ``read once'' claim:} the tile-level on-chip reuse is per-tile; it is \emph{not} a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size --- see the original I/O analysis in the FlashAttention papers). The attention \emph{result} is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim. I/O bound: Tri Dao et al., ``FlashAttention,'' NeurIPS 2022, arXiv:2205.14135.)}
+\pandocbounded{\includegraphics[keepaspectratio,alt={FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so each K/V tile is read into on-chip memory once for that tile and the result is accumulated in place --- far fewer HBM round-trips. Scope of the ``read once'' claim: the tile-level on-chip reuse is per-tile; it is not a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size --- see the original I/O analysis in the FlashAttention papers). The attention result is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim. I/O bound: Tri Dao et al., ``FlashAttention,'' NeurIPS 2022, arXiv:2205.14135.) \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1502.pdf}}
+\caption[FlashAttention: the same math, far less HBM traffic]{FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the intermediate attention matrix is materialized to HBM and re-read, so every query block re-streams the full K/V row-block --- many HBM round-trips. After (FlashAttention), the computation is tiled and fused so each K/V tile is read into on-chip memory once \emph{for that tile} and the result is accumulated in place --- far fewer HBM round-trips. \textbf{Scope of the ``read once'' claim:} the tile-level on-chip reuse is per-tile; it is \emph{not} a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size --- see the original I/O analysis in the FlashAttention papers). The attention \emph{result} is the same mathematical target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact arithmetic but can differ in the last bits under finite precision --- a numerical-equivalence, not a bit-identical, claim. I/O bound: Tri Dao et al., ``FlashAttention,'' NeurIPS 2022, arXiv:2205.14135.) \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:15.1}\emph{Read the figure as an I/O story, not a speed-up number.}
 
@@ -267,17 +267,16 @@ loading'' (streaming the 140\,GB weights into HBM) and from CUDA/JIT
 kernel warm‑up. A 70B cold‑start that reuses cached weights is far
 faster than one that must load them from scratch --- but these are
 distinct effects, not one number. Set these illustrative figures from
-the target host's profiler before quoting them as fact. {[}ILLUSTRATIVE
---- set these from the target host's profiler before quoting them as
-fact{]}
+the target host's profiler before quoting them as fact.
+\mbox{{[}ILLUSTRATIVE{]}}
 
 \subsubsection{Goodput vs.~Batch Size: the Cache
 Lever}\label{goodput-vs.-batch-size-the-cache-lever}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Prefix caching and batching act on different serving phases: caching reduces prefill work per repeated prompt; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks --- left = prefill work vs prefix-cache hit rate (lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Units are relative, normalized to the no-cache / batch-1 baseline. \mbox{{[}ASSUMPTION{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1501.pdf}}
-\caption[Prefix caching and batching act on different serving phases]{Prefix caching and batching act on different serving phases: caching reduces prefill work per repeated prompt; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks --- left = prefill work vs prefix-cache hit rate (lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Units are relative, normalized to the no-cache / batch-1 baseline. \mbox{{[}ASSUMPTION{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Prefix caching and batching act on different serving phases: caching reduces prefill work per repeated prompt; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks --- left = prefill work vs average prefix reuse (prefill work, lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Left uses percent of no-cache prefill work; right uses arbitrary goodput units. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-15-1501.pdf}}
+\caption[Prefix caching and batching act on different serving phases]{Prefix caching and batching act on different serving phases: caching reduces prefill work per repeated prompt; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks --- left = prefill work vs average prefix reuse (prefill work, lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Left uses percent of no-cache prefill work; right uses arbitrary goodput units. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}}
 
 \label{fig:15.2}\end{figure}
 
@@ -286,6 +285,18 @@ act on different phases: batching raises decode goodput (right plot)
 until bandwidth saturates, while prefix caching lowers the prefill work
 per repeated prompt (left plot) so more prefill‑recompute headroom
 remains under the same host. They are not competing on the same axis.
+
+Summing all collective durations can overstate exposed cost when
+operations overlap. Subtracting every overlapped duration can understate
+cost when communication slows concurrent compute. The measured quantity
+is the change in the end-to-end critical path, supported by compute and
+communication traces. CPU progress threads, HBM, device links and NICs
+remain shared resources even when their work appears in separate
+profiler lanes.\footnote{NVIDIA NCCL source \texttt{src/proxy.cc} at
+  pinned tag \texttt{v2.32.3-1} --- the host-side proxy progress path
+  for transport operations:
+  https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/proxy.cc
+  (retrieved 2026-10-28; outside the book's 2026-08-30 evidence cutoff).}
 
 \section{The Optimization Decision
 Map}\label{the-optimization-decision-map}
@@ -300,12 +311,12 @@ it helps depends on the measured workload and hardware (Ch. 14).
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.1327\linewidth}
-  >{\raggedright\arraybackslash}p{0.1327\linewidth}
-  >{\raggedright\arraybackslash}p{0.1327\linewidth}
-  >{\raggedright\arraybackslash}p{0.1327\linewidth}
-  >{\raggedright\arraybackslash}p{0.1327\linewidth}
-  >{\raggedright\arraybackslash}p{0.1327\linewidth}@{}}
+  >{\raggedright\arraybackslash}p{0.1257\linewidth}
+  >{\raggedright\arraybackslash}p{0.1257\linewidth}
+  >{\raggedright\arraybackslash}p{0.1257\linewidth}
+  >{\raggedright\arraybackslash}p{0.1676\linewidth}
+  >{\raggedright\arraybackslash}p{0.1257\linewidth}
+  >{\raggedright\arraybackslash}p{0.1257\linewidth}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
 observed symptom
@@ -355,7 +366,7 @@ parallelism & collective time, TP/PP/EP balance, placement & retune
 TP/PP/EP/DP topology, placement, partitioning & parallelism vs
 interconnect & topology is a cost lever \\
 
-\label{tab:15.1}\end{longtable}
+\noalign{\label{tab:15.2}}\end{longtable}
 
 \textbf{Two cautions.} First, do not read the table as ``technique X
 fixes symptom Y'': the same symptom can come from two bottlenecks (high
@@ -366,6 +377,17 @@ tuning) are the expensive, structural levers --- they are worth testing
 only after the cheaper in-kernel and in-scheduler mechanisms have been
 measured and shown insufficient, because they change capacity,
 orchestration, and cost, not just a kernel constant.
+
+Weight quantization is a candidate intervention when weight capacity or
+weight traffic is limiting. After the change, the bottleneck may move to
+KV access, attention, collective communication, conversion kernels or
+queueing. The next measurement therefore repeats the workload and SLO
+test rather than inferring a gain from checkpoint size. More KV headroom
+can permit a larger batch, but a larger batch can also increase waiting
+time or decode-step duration. The useful operating point is the one that
+preserves task quality and request-level SLOs, not the one that fills
+the most memory. \hyperref[chap:7]{Chapter 7}'s storage sensitivity and \hyperref[fig:7.4]{Fig 7.4} describe
+an input to this decision, not its performance result.
 
 \section{Two Mechanisms, Read as
 Mechanisms}\label{two-mechanisms-read-as-mechanisms}
@@ -570,6 +592,8 @@ the host-pool ratio (≈2×), and the fleet-sizing consequence is computed
 separately in Ch 16--17 from the service-time model, not from this
 mini-case's aggregate number.
 
+\needspace{26\baselineskip}
+
 \subsubsection{Table 15-1 --- Performance Regime
 Summary}\label{table-15-1-performance-regime-summary}
 
@@ -586,11 +610,11 @@ Summary}\label{table-15-1-performance-regime-summary}
 \begin{minipage}[b]{\linewidth}\raggedright
 Regime
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-In‑Flight Concurrency ( = λ·W )
+In‑Flight (λ·W)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Request Rate (rps)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Tokens/Request
+Tokens/Req
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 KV‑Cache/User (GB)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -609,20 +633,22 @@ Typical & \textasciitilde86 & \textasciitilde10 & 9,500 &
 Peak & \textasciitilde344 & \textasciitilde40 & 9,500 &
 \textasciitilde24.9 & 52 & KV + Inter‑GPU bandwidth \\
 
-\label{tab:15.2}\end{longtable}
+\noalign{\label{tab:15.1}}\end{longtable}
 
 \emph{Concurrency here is \textbf{in‑flight requests}, computed as λ·W
 with the canonical per‑request service time W ≈ 8.6 s (the Little's‑law
 discipline of \hyperref[chap:17]{Chapter 17} --- never equate in‑flight concurrency with a
 number of registered or simultaneously‑online users). The three rps
-values are the canonical average and peak; the resulting in‑flight
-concurrency (17/86/344) is what must be compared against a host's
-concurrent‑request ceiling. KV‑Cache/User uses the canonical
-\textasciitilde2.62 MB/token × 9,500 ≈ 24.9 GB. MFU is an
-\mbox{{[}ILLUSTRATIVE{]}} regime label for teaching shape, not an achieved-MFU
-measurement: the 12/38/52 \% values mark the congestion level of each
-regime (light/typical/peak), and the peak 52 \% is a demand-side label
-that exceeds the \textasciitilde30--40 \% sustained H100 FP16 MFU of
-\hyperref[chap:8]{Chapter 8} --- it is not a claim that a real kernel reaches 52 \%
-utilization. The bottleneck column reflects the roofline logic of
-\hyperref[chap:8]{Chapter 8}.}
+values are the canonical average (\textasciitilde10 rps) and peak
+(\textasciitilde40 rps) plus an illustrative light case
+(\textasciitilde2 rps) --- a low‑traffic shape illustration, not a third
+canonical rate; the resulting in‑flight concurrency (17/86/344) is what
+must be compared against a host's concurrent‑request ceiling.
+KV‑Cache/User uses the canonical \textasciitilde2.62 MB/token × 9,500 ≈
+24.9 GB. MFU is an \mbox{{[}ILLUSTRATIVE{]}} regime label for teaching shape,
+not an achieved-MFU measurement: the 12/38/52 \% values mark the
+congestion level of each regime (light/typical/peak), and the peak 52 \%
+is a demand-side label that exceeds the \textasciitilde30--40 \%
+sustained H100 FP16 MFU of \hyperref[chap:8]{Chapter 8} --- it is not a claim that a real
+kernel reaches 52 \% utilization. The bottleneck column reflects the
+roofline logic of \hyperref[chap:8]{Chapter 8}.}

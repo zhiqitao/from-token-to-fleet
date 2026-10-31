@@ -300,9 +300,20 @@ def _duo_savefig(fname, *args, **kwargs):
     # size (no tight bbox) so they place 1:1.
     is_print_sized = any(getattr(plt.figure(n), "_hermes_print_sized", False)
                          for n in plt.get_fignums())
+    print_bbox = None
     if is_print_sized:
         kw.pop("bbox_inches", None)
         kw.pop("pad_inches", None)
+        # A figure-specific bottom crop removes verified blank export padding
+        # without widening the print canvas or rescaling text and geometry.
+        crop = getattr(plt.gcf(), '_hermes_print_crop_bottom_in', 0)
+        if crop:
+            from matplotlib.transforms import Bbox
+            width, height = plt.gcf().get_size_inches()
+            if not 0 < crop < height:
+                raise ValueError('Invalid print-figure bottom crop')
+            print_bbox = Bbox.from_extents(0, crop, width, height)
+            kw['bbox_inches'] = print_bbox
     else:
         kw.setdefault("bbox_inches", "tight")
         kw.setdefault("pad_inches", 0.08)
@@ -314,6 +325,8 @@ def _duo_savefig(fname, *args, **kwargs):
         if is_print_sized:
             kwo.pop("bbox_inches", None)
             kwo.pop("pad_inches", None)
+            if print_bbox is not None:
+                kwo['bbox_inches'] = print_bbox
         else:
             kwo.setdefault("bbox_inches", "tight")
             kwo.setdefault("pad_inches", 0.08)

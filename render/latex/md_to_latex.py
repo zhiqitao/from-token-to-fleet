@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""md_to_latex.py -- convert the 27 manuscript chapters to LaTeX for the book.
+r"""md_to_latex.py -- convert the 27 manuscript chapters to LaTeX for the book.
 
 Workflow:
   1. Copy all chapter figures into render/latex/figures/ (flat, dedup by name).
-  2. For each chapter, rewrite image paths to the flat figures/ dir and run pandas
+  2. For each chapter, rewrite image paths to the flat figures/ dir and run pandoc
      to produce a per-chapter .tex with \chapter + sections.
   3. Emit the master book.tex that \frontmatter (title/preface/toc) + \mainmatter
      (parts/chapters) + \backmatter.
@@ -118,7 +118,7 @@ def fix_wide_tables(tex_path):
 
 
 def fix_figure_width(tex_path):
-    """Ensure every pandoc \includegraphics is width-constrained to the text
+    r"""Ensure every pandoc \includegraphics is width-constrained to the text
     block (scale down over-wide figures, never enlarge). Pandoc emits
     \includegraphics[keepaspectratio,alt={...}]{figures/x.png} with no width;
     append width=\maxwidth{\textwidth} so wide source images fit."""
@@ -132,6 +132,49 @@ def fix_figure_width(tex_path):
             return m.group(0)
         return "\\includegraphics[%s,width=\\maxwidth{\\textwidth},keepaspectratio]{%s}" % (opts, m.group(2))
     new = pat.sub(repl, tex)
+    if new != tex:
+        open(tex_path, "w", encoding="utf-8").write(new)
+        return True
+    return False
+
+
+def fix_ch20_figure_placement(tex_path):
+    r"""C004 (Ch20 short tail): the chapter-end Fig 20.1 is a float that the
+    book class's chapter \clearpage flushes to a standalone page, leaving an
+    8-line text tail on the previous page. Make this ONE figure [H] (non-float,
+    placed exactly after the tail), trim the artwork's internal padding, and
+    scope \intextsep=6pt so the tail + figure share a page:
+      tail 113.6 + intextsep 6 + figure 511.3 = 630.9 < 635.8 body frame.
+    (With the default 12pt intextsep the total is 636.9, 1.1pt over.)
+    Requires \usepackage{float} (added to book.sty). Scoped to fig-20-2001
+    only; no other figure is touched. Idempotent: a second run finds the
+    figure already [H] and returns False."""
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    if "fig-20-2001" not in tex:
+        return False
+    # Figure environments do not nest, so the first \end{figure} after a
+    # \begin{figure} is the matching close. Match each block and transform only
+    # the one that carries fig-20-2001.
+    pat = _re.compile(r"\\begin\{figure\}(.*?)\\end\{figure\}", _re.S)
+    def fig_repl(m):
+        inner = m.group(1)
+        if "fig-20-2001" not in inner:
+            return m.group(0)
+        if inner.lstrip()[:1] == "[":
+            # Already carries a placement spec. Pandoc emits none by default, so
+            # [H] here means we already applied it (idempotent); any other spec
+            # is unexpected and left untouched rather than double-applied.
+            return m.group(0)
+        # Add the artwork trim to this figure's \includegraphics. The options
+        # list contains nested brackets (alt={...[ILLUSTRATIVE][DERIVED]...}),
+        # so match them the same way fix_figure_width does.
+        inner = _re.sub(
+            r"\\includegraphics\[((?:[^\[\]]|\[[^\]]*\])*)\]\{(figures/fig-20-2001\.\w+)\}",
+            r"\\includegraphics[\1,trim=0 3.58 0 8.80,clip]{\2}",
+            inner, count=1)
+        return "{\\intextsep=6pt\\relax\\begin{figure}[H]" + inner + "\\end{figure}"
+    new = pat.sub(fig_repl, tex)
     if new != tex:
         open(tex_path, "w", encoding="utf-8").write(new)
         return True
@@ -167,7 +210,7 @@ def fix_urls(tex_path):
         # Match a bare URL, then trim trailing punctuation (; , . ) ] ), and
         # un-escape any \\_ pandoc emitted so it doesn't render a literal
         # backslash inside \\url{} (url handles underscores natively).
-        pat = _re.compile(r"(?<!\\url\{)(https?://[^\s}]+)")
+        pat = _re.compile(r"(?<!\\url\{)(?<!\\href\{)(https?://[^\s}]+)")
         def repl(mm):
             u = mm.group(1)
             u = _re.sub(r"[;,.)\]]+$", "", u)
@@ -278,6 +321,14 @@ def short_title(full):
     """
     import re as _re
     s = full.strip()
+    # These two long navigational titles leave no room for leader dots.
+    # Keep the complete explanation and evidence in the displayed caption.
+    for prefix, title in {
+        'The model-lifecycle layer runs': 'The model lifecycle: data, training, evaluation and promotion',
+        'The Anatomy of an Architecture Decision Record,': 'Architecture decision records and their succession',
+    }.items():
+        if s.startswith(prefix):
+            return title
     def balanced(t):
         # a cut is only safe if it does not split a LaTeX command's braces
         return t.count('{') == t.count('}')
@@ -347,9 +398,9 @@ def fix_captions(tex_path):
 
     Pandoc copies the markdown caption verbatim (e.g. '*Fig 1.1 — The KV cache…*'),
     so the resulting \\caption{Fig 1.1 — …} duplicates the figure environment's
-    auto-generated 'Figure 1.1:' label.  Also strip the editorial bracket markers
-    ([ILLUSTRATIVE…], [VERIFY], [HYPOTHESIS], [DERIVED]) from captions/alt so they
-    do not leak into the List of Figures or the accessibility alt text.
+    auto-generated 'Figure 1.1:' label. Preserve evidence labels in the long
+    caption and accessibility text. These labels qualify the reader's claim;
+    they are not editorial markers. The short title is navigation only.
     """
     import re as _re
     tex = open(tex_path, encoding="utf-8").read()
@@ -370,17 +421,7 @@ def fix_captions(tex_path):
         return t
 
     def clean_marks(t):
-        # Remove editorial bracket markers: {[}ILLUSTRATIVE textual{]},
-        # [ILLUSTRATIVE…], [VERIFY…], [HYPOTHESIS…], [DERIVED…], [1P], [2°…],
-        # and the pandoc-escaped braces around them.
-        # Pandoc escapes a literal '[' as '{[}' and ']' as '{]}' in the .tex,
-        # so the escaped form is e.g. '{[}ILLUSTRATIVE{]}' / '{[}DERIVED from 1P: …{]}'
-        # (the inner text carries no braces). Strip that form first.
-        # A tag often carries a trailing gloss word that belongs with it
-        # (e.g. "[ILLUSTRATIVE] conceptual" or "[ILLUSTRATIVE] — Ch 19 arithmetic"):
-        # consume that gloss too so a caption never ends in an orphaned word.
-        t = _re.sub(r"\{\[\}(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^{}]*\{\]\}\s*(?:conceptual|model|ladder|—[^,.;]*)?", "", t)
-        t = _re.sub(r"\[\s*(?:ILLUSTRATIVE|VERIFY|HYPOTHESIS|DERIVED)[^\[\]]*\]\s*(?:conceptual|model|ladder|—[^,.;]*)?", "", t)
+        # Evidence labels and their explanatory gloss must survive conversion.
         # Drop a stray leading backslash that can remain from a stripped
         # '\hyperref[...]{Fig X.Y} --- ' prefix (an undefined-control-sequence
         # whose first char silently drops the caption's leading word).  Only
@@ -513,12 +554,47 @@ def fix_minicase_toc(tex_path):
     return False
 
 
+def fix_needspace(tex_path):
+    r"""Normalise legacy lowercase \needspace{...} to \Needspace{...}.
+
+    R23-C16-01 (actual p260): the frozen chapter-16 TeX carries
+    \needspace{18\baselineskip} immediately before the printed Table 16-2
+    caption. needspace v1.3e's lowercase form is the glue/penalty variant --
+    it lays down \vskip 0pt plus 18\baselineskip followed by \penalty-100 --
+    so TeX breaks there with the reservation stretched across the page and
+    longtable then repeats its head at the top of the new page AHEAD of the
+    caption: a header with ZERO rows, then the caption, then the real head
+    with rows (measured: header y73.8, caption y131.9, head y287.0).
+
+    \Needspace{...} is the package's documented command: it reserves exactly
+    the same vertical space and only issues \break when the reservation cannot
+    fit, so the caption keeps its 18-line reservation while the empty opening
+    header disappears. Genuine continuation heads and rows are untouched --
+    they are produced by longtable's own page breaking, not by this command.
+
+    Isolated compiled A/B on the frozen chapter (W/r24_renderer_repro):
+      lowercase 18\baselineskip -> 1 spurious header above the caption
+      \Needspace 18\baselineskip -> 0, caption y188.3, continuation head kept
+      lowercase 6\baselineskip  -> 0 (the hazard needs the large reserve)
+      reservation removed       -> 0
+    Idempotent: already-uppercase reservations are byte-identical.
+    """
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    new = _re.sub(r"(?<!\\)\\needspace\{", r"\\Needspace{", tex)
+    if new != tex:
+        open(tex_path, "w", encoding="utf-8").write(new)
+    return new != tex
+
+
 def fix_crossrefs(tex_path, chnum):
     """Add \\label to every figure/table and turn body references
     ('Fig X.Y', 'TAB X.Y', 'Chapter N') into clickable \\hyperref links.
     Returns True if the file changed."""
     import re as _re
-    tex = open(tex_path, encoding="utf-8").read()
+    with open(tex_path, encoding="utf-8") as source:
+        original = tex = source.read()
+
 
     # 1) Label every figure from its caption: \label{fig:X.Y} before \end{figure}
     fig_pat = _re.compile(r"(\\begin\{figure\}.*?\\caption\{([^}]*?)\})(.*?)(\\end\{figure\})", _re.S)
@@ -528,23 +604,67 @@ def fix_crossrefs(tex_path, chnum):
         if not mm:
             return m.group(0)
         lab = f"fig:{mm.group(1)}.{mm.group(2)}"
+        if f"\\label{{{lab}}}" in between:
+            return m.group(0)
         return f"{head}{between}\n\\label{{{lab}}}{end}"
     tex = fig_pat.sub(fig_repl, tex)
 
-    # 2) Label every longtable by chapter position: \label{tab:<chnum>.<k>}
+    # 2) Reserve printed names before numbering unnamed longtables. An unnamed
+    # table before Table 19-1 must not steal tab:19.1 from the named table.
     tab_pat = _re.compile(r"(\\begin\{longtable\}.*?)(\\end\{longtable\})", _re.S)
-    k = [0]
+    tex = _re.sub(r"\\nopagebreak\[4\]\n(?=\\begin\{longtable\})", "", tex)
+    tables = list(tab_pat.finditer(tex))
+    cap_pat = _re.compile(
+        r"\\(?:textbf|emph|section|subsection|subsubsection|paragraph)\s*\*?\s*\{\s*"
+        r"(?:\\hyperref\[[^]]+\]\{)?Table\s+(\d+)-(\d+)"
+        r"(?=\s*(?:\}\s*)*(?:---|[—–-]))"
+    )
+    named = {}
+    printed_ids = set()
+    for cap in cap_pat.finditer(tex):
+        if any(t.start() <= cap.start() < t.end() for t in tables):
+            continue
+        label = f"tab:{cap.group(1)}.{cap.group(2)}"
+        if cap.group(1) != str(chnum):
+            raise ValueError(f"Printed table ID {label} belongs to another chapter, not {chnum}")
+        if label in printed_ids:
+            raise ValueError(f"Duplicate printed table ID {label} in chapter {chnum}")
+        printed_ids.add(label)
+        following = next((i for i, t in enumerate(tables) if t.start() >= cap.end()), None)
+        if following is None:
+            raise ValueError(f"Printed table {label} has no following longtable")
+        if following in named:
+            raise ValueError(f"Two printed captions address the same table in chapter {chnum}")
+        named[following] = label
+    reserved = set(named.values())
+    allocated = set(reserved)
+    labels = []
+    for i in range(len(tables)):
+        if i in named:
+            labels.append(named[i])
+        else:
+            k = 1
+            while f"tab:{chnum}.{k}" in allocated:
+                k += 1
+            label = f"tab:{chnum}.{k}"
+            allocated.add(label)
+            labels.append(label)
+    table_index = iter(labels)
     def tab_repl(m):
-        k[0] += 1
         body, end = m.groups()
-        lab = f"tab:{chnum}.{k[0]}"
-        # \\\\nopagebreak[4] before the longtable keeps the bold "Table N-M —"
+        lab = next(table_index)
+        # A bare label after the last row starts an empty alignment row. At a
+        # page boundary longtable can emit a repeated header with no data.
+        # Strip either previous form before allocating one alignment-safe label.
+        body = _re.sub(r"\n\\noalign\{\\label\{tab:\d+\.\d+\}\}(?=\s*$)", "", body)
+        body = _re.sub(r"\n\\label\{tab:\d+\.\d+\}(?=\s*$)", "", body)
+        # \\\\\nopagebreak[4] before the longtable keeps the bold "Table N-M —"
         # caption paragraph (which sits immediately above) on the same page as
-        # the table's first row. (A \\needspace prefix was tried and caused a
+        # the table's first row. (A \\\\needspace prefix was tried and caused a
         # longtable header-duplication artifact on tables that break across a
         # page - head emitted on the same page twice with a blank gap - so it is
-        # removed; \\nopagebreak[4] alone is the safe form.)
-        return f"\\nopagebreak[4]\n{body}\n\\label{{{lab}}}{end}"
+        # removed; \\\\nopagebreak[4] alone is the safe form.)
+        return f"\\nopagebreak[4]\n{body}\n\\noalign{{\\label{{{lab}}}}}{end}"
     tex = tab_pat.sub(tab_repl, tex)
 
     # 3) Body refs -> \\hyperref. Stash caption/alt definitions first so a
@@ -556,6 +676,8 @@ def fix_crossrefs(tex_path, chnum):
         return key
     tex2 = _re.sub(r"\\caption\{[^{}]*\}", stash, tex)
     tex2 = _re.sub(r"alt=\{[^{}]*\}", stash, tex2)
+    # Existing links are already resolved; never wrap their visible text again.
+    tex2 = _re.sub(r"\\hyperref\[[^]]+\]\{[^{}]*\}", stash, tex2)
 
     def linkrefs(s):
         # Skip verbatim/Verbatim code blocks first so a copy-ready template
@@ -591,8 +713,9 @@ def fix_crossrefs(tex_path, chnum):
     for key, val in protected.items():
         tex2 = tex2.replace(key, val)
 
-    if tex2 != tex:
-        open(tex_path, "w", encoding="utf-8").write(tex2)
+    if tex2 != original:
+        with open(tex_path, "w", encoding="utf-8") as destination:
+            destination.write(tex2)
         return True
     return False
 
@@ -634,7 +757,7 @@ def copy_figures():
 
 
 def convert(mapping):
-    """Run pandoc per chapter -> chapters/chNN.tex with \chapter\label."""
+    r"""Run pandoc per chapter -> chapters/chNN.tex with \chapter\label."""
     parts, chapters = read_yaml_chapters()
     built = {}
     for n in sorted(chapters):
@@ -660,6 +783,17 @@ def convert(mapping):
             flat = mapping.get(rel, rel)
             return f"![{alt}](figures/{flat})"
         txt = IMG_RE.sub(rep, txt)
+        # Protect leading evidence-tag callouts ('[LABEL]: prose') from pandoc
+        # parsing them as reference-link definitions ('[label]: url'), which
+        # consumes the prose as a URL and drops it from the body. Observed:
+        # Ch5 'HYPOTHESIS' paragraph was the (first plain-prose) definition and
+        # vanished; the later ones only rendered because their '[HYPOTHESIS]'
+        # became *references* to that definition. Inserting a non-breaking
+        # space between ']' and ':' makes pandoc keep the label as literal
+        # text, so every callout renders as '[LABEL]: prose'.
+        txt = re.sub(
+            r"(?m)^(\[[A-Za-z0-9° ]+\])\s*:",
+            lambda m: m.group(1) + "\u00a0" + ":", txt)
         md_path = os.path.join(LATEX, "_md", f"ch{n:02d}.md")
         os.makedirs(os.path.dirname(md_path), exist_ok=True)
         open(md_path, "w", encoding="utf-8").write(txt)
@@ -677,6 +811,7 @@ def convert(mapping):
         fix_colspec(out)
         fix_wide_tables(out)
         fix_figure_width(out)
+        fix_ch20_figure_placement(out)
         fix_verbatim(out)
         fix_urls(out)
         fix_crossrefs(out, n)
@@ -684,6 +819,7 @@ def convert(mapping):
         bind_figure_descriptions(out)
         fix_label_atomicity(out)
         fix_minicase_toc(out)
+        fix_needspace(out)
         built[n] = (chapters[n]["title"], out)
     return built
 

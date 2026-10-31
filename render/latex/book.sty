@@ -66,6 +66,8 @@
 \usepackage{tabularx}
 \usepackage{longtable}
 \usepackage{needspace}
+% [H] absolute placement for the scoped chapter-end figure (C004, Ch20).
+\usepackage{float}
 
 % ---- pandoc generated-command compatibility macros ----
 \providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
@@ -205,6 +207,7 @@
 \setlength{\cftfigindent}{1.5em}
 \setlength{\cftbeforefigskip}{2pt}
 \renewcommand{\cftdotsep}{1.5}
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
 
 % ---- Reduce widow/orphan and page-break rough edges throughout the book ----
 \AtBeginDocument{%
@@ -277,4 +280,121 @@
 \renewcommand{\_}{\origUSchar\allowbreak}
 \makeatother
 \sloppy
+
+
+% ---- PDF/UA fixes: Formula /Alt + Table /Headers (r25_pdfua_table lane) ----
+% (1) Formula /Alt: latex-lab clears Formula /Alt unless math/alt/use is on
+%     (normally auto-enabled by \DocumentMetadata{pdfua=1}, which this TeX Live
+%     rejects as an unknown key).  Enable it explicitly so every Formula element
+%     carries /Alt text a screen reader can speak.
+\tagpdfsetup{math/alt/use=true}
+% (2) Table /Headers: latex-lab tags header-row cells TH with Scope=Column
+%     (TH-col attribute class) but never sets /Headers on the Table element.
+%     After \__tbl_set_header_rows: has run (still inside tbl/longtable/finalize,
+%     before tbl/vmode/end closes the Table), copy the header cells' structure
+%     numbers into the Table's /Headers array.  Struct object numbers are
+%     registered at \tag_struct_begin, so \pdf_object_ref_indexed resolves here;
+%     the nne variant bakes the refs into the prop before the group exits.
+\ExplSyntaxOn
+\tl_new:N \l_pdfua_headers_tl
+\clist_new:N \l_pdfua_cells_clist
+\cs_new_protected:Npn \pdfua_set_table_headers:
+  {
+    \clist_if_empty:NF \l__tbl_header_rows_clist
+     {
+      \tl_clear:N \l_pdfua_headers_tl
+      \clist_map_inline:Nn \l__tbl_header_rows_clist
+       {
+        \clist_set:Ne \l_pdfua_cells_clist
+          { \seq_item:Nn \g__tbl_struct_cells_seq {##1} }
+        \clist_map_inline:Nn \l_pdfua_cells_clist
+         {
+          \int_compare:nNnT {####1} > {0}
+           {
+            \tl_put_right:Nn \l_pdfua_headers_tl
+              { ~ \pdf_object_ref_indexed:nn {__tag/struct} {####1} }
+           }
+         }
+       }
+      \tl_if_empty:NF \l_pdfua_headers_tl
+       {
+        \__tag_struct_prop_gput:nne { \g__tbl_struct_table_tl }
+          { Headers } { [\l_pdfua_headers_tl ~] }
+       }
+     }
+  }
+\apptocmd{\__tbl_set_header_rows:}{\pdfua_set_table_headers:}
+  {} { \PackageWarning{book}{pdfua-headers-patch-failed} }
+\ExplSyntaxOff
+% ==== r25_pdfua_heading FIX A: heading roles H2/H3/H4 (structure only) ====
+% ROOT CAUSE: titlesec redefines \section/\subsection/\subsubsection to its
+% own \ttl@... implementation (\ttl@straightclass{...}), so latex-lab's
+% tagging patch of \@startsection/\@sect never runs for these levels: every
+% section heading was typeset as ordinary paragraph text -> role P,
+% H2=H3=H4=0 (chapters keep H1 because titlesec formats them through
+% \@makechapterhead, leaving the patched \chapter command in place).
+% FIX: re-wrap the three commands.  sec/end closes the previous section
+% container, sec/begin opens the Sect container, sec/title/init makes the
+% heading paragraph carry the structure name sec/<level>/title, which the
+% latex-book namespace maps to section/subsection/subsubsection -> H2/H3/H4
+% (RoleMap section->H2, subsection->H3, subsubsection->H4).  The original
+% titlesec command (incl. the \pretocmd \Needspace above) typesets the
+% title; para/restore resets paragraph tagging afterwards.  Placed after
+% \pretocmd{\section}{\Needspace...} so the captured command keeps it, and
+% after hyperref (which is nopatch-sectioning under \DocumentMetadata).
+\let\hfixsecS\section
+\let\hfixsecSS\subsection
+\let\hfixsecSSS\subsubsection
+\RenewDocumentCommand\section{s o m}{%
+  \par
+  \UseTaggingSocket{sec/end}{1}%
+  \UseTaggingSocket{sec/begin}{{1}{tag=\UseStructureName{sec/1}}}%
+  \UseTaggingSocket{sec/title/init}{1}%
+  \IfBooleanTF{#1}{\hfixsecS*{#3}}{\IfValueTF{#2}{\hfixsecS[#2]{#3}}{\hfixsecS{#3}}}%
+  \UseTaggingSocket{para/restore}%
+}
+\RenewDocumentCommand\subsection{s o m}{%
+  \par
+  \UseTaggingSocket{sec/end}{2}%
+  \UseTaggingSocket{sec/begin}{{2}{tag=\UseStructureName{sec/2}}}%
+  \UseTaggingSocket{sec/title/init}{2}%
+  \IfBooleanTF{#1}{\hfixsecSS*{#3}}{\IfValueTF{#2}{\hfixsecSS[#2]{#3}}{\hfixsecSS{#3}}}%
+  \UseTaggingSocket{para/restore}%
+}
+\RenewDocumentCommand\subsubsection{s o m}{%
+  \par
+  \UseTaggingSocket{sec/end}{3}%
+  \UseTaggingSocket{sec/begin}{{3}{tag=\UseStructureName{sec/3}}}%
+  \UseTaggingSocket{sec/title/init}{3}%
+  \IfBooleanTF{#1}{\hfixsecSSS*{#3}}{\IfValueTF{#2}{\hfixsecSSS[#2]{#3}}{\hfixsecSSS{#3}}}%
+  \UseTaggingSocket{para/restore}%
+}
+
+% ==== r25_pdfua_heading FIX B: TOC/List-of-Figures content in the tree ====
+% ROOT CAUSE: tocloft (and our custom \l@chapter above) replace latex-lab's
+% \l@... implementations, so the contentsline/text|page hooks never fire:
+% the TOCI elements were empty shells (/Ref only, no /K) and the entry text
+% was typeset outside the structure (on the frozen proof the whole entry
+% block is even marked /Artifact).  \contentsline itself is still latex-lab's
+% (TOC/TOCI + /Ref are created), so re-wrap the \l@... call in a Reference
+% element inside the open TOCI: entry text, leaders and folio become marked
+% content associated with the TOCI.  Entries deeper than \tocdepth are not
+% typeset at all (toclevel@<type> > \c@tocdepth), so no wrapper is opened
+% for them - same condition latex-lab uses to open the TOCI.
+\makeatletter
+\def\contentsline#1#2#3#4{%
+  \UseTaggingSocket{toc/contentsline/before}{{#1}{#2}{#3}{#4}}%
+  \gdef\@contentsline@destination{#4}%
+  \ifnum \csname toclevel@#1\endcsname > \c@tocdepth\relax
+    \csname l@#1\endcsname{#2}{#3}%
+  \else
+    \tagstructbegin{tag=Reference}%
+    \tagmcbegin{tag=Reference}%
+    \csname l@#1\endcsname{#2}{#3}%
+    \tagmcend
+    \tagstructend
+  \fi
+  \UseTaggingSocket{toc/contentsline/after}{{#1}{#2}{#3}{#4}}%
+}
+\makeatother
 

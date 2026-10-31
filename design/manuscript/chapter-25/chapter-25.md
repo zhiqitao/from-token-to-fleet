@@ -14,6 +14,8 @@ An Architecture Decision Record is a single Markdown file that captures a signif
 - **Consequences** — outcomes, both positive and negative, that flow from the decision
 - **Alternatives considered** — other paths rejected, with brief rationale for rejection
 
+These five are the *core* fields. The worked ADR in §25.3 and the copy-ready template in §25.3.1 both keep them and then add record-specific apparatus — the worked record adds a Rationale and Evidence Tags; the template adds Evidence, decision owner, validation, rollback, review trigger, and falsification path — without changing the core.
+
 The key distinction between an ADR and a standard design document is intent: an ADR is meant to be living, reviewed in pull requests, and occasionally superseded. It answers the "why" at the moment the decision was made, preserving it for future engineers who must reason about the system years later.
 
 In a RAG/Q&A fleet with 70B models, ADRs prevent the "why did we choose this tokenizer?" or "why FP16 over BF16?" questions from becoming tribal knowledge. They also integrate naturally with git — each ADR lives in version control, linked to the commit or PR that implemented the decision.
@@ -66,7 +68,7 @@ Render the serving model in BF16.
 
 ### 3.1 A copy-ready blank template
 
-This is the minimal template to copy into a repo, intended to be filled and to serve as a reusable professional artifact. Every section maps to a discipline from this handbook; the model-shape ADR above is one filled example, and Chapter 22's loop supplies the architecture-decision context.
+This is the template to copy into a repo, intended to be filled and to serve as a reusable professional artifact. Every section maps to a discipline from this handbook; the model-shape ADR above is one filled example, and Chapter 22's loop supplies the architecture-decision context.
 
 ```
 # ADR-NNNN — <Short Decision Title>
@@ -166,14 +168,14 @@ When adopting ADRs, teams frequently fall into patterns that undermine the forma
 Introducing ADRs into the "From Token to Fleet" handbook has several architecture-level consequences:
 
 - **Decision provenance:** Every significant choice in the fleet's evolution is traceable to a git commit and a Markdown file. New engineers can audit why the system is as it is, without relying on Slack history or outdated wikis.
-- **RQO (Reasoned Quality Optimization):** By forcing the articulation of alternatives and evidence, ADRs make the trade-off surface explicit. Teams can point to an ADR and say "we chose BF16 over FP16 because of range robustness and training-to-serving consistency" (as ADR 0016 does) — and those reasons are verifiable.
+- **RQO (Reasoned Quality Optimization):** the discipline of improving an architecture decision's quality by forcing the articulation of alternatives and evidence, so the trade-off surface is explicit rather than tacit. ADRs are where that reasoning is recorded: teams can point to an ADR and say "we chose BF16 over FP16 because of range robustness and training-to-serving consistency" (as ADR 0016 does) — and those reasons are verifiable.
 - **Reduced cognitive load:** Engineers no longer need to re-derive the rationale for every architectural choice. The ADR serves as a single source of truth.
 - **ADR proliferation:** As the fleet grows, the number of ADRs will grow. A naming convention (ADR 0001, ADR 0002, ...) and a top-level index (ADR index) prevent the record from becoming unwieldy.
 - **Integration with CI:** ADRs can be validated as part of the CI pipeline — e.g., ensuring every ADR has a status, a rationale, and at least one evidence tag. This automation reinforces the habit.
 
 On the negative side, ADRs add a small writing overhead. For a team of ~10 engineers making ~1–2 significant architectural decisions per month, this is a manageable cost. The payoff — reduced on-call noise, faster onboarding, and fewer "why did we do it this way?" debates — more than compensates.
 
-![Fig 25.1 — The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. **Takeaway:** an ADR is a fixed five-field record — Context (the situation), Options (the alternatives), Decision (the choice), Rationale (the why), Consequences (the effects) — and it is *kept, not edited*: the Consequences of ADR-001 become the Context of ADR-002, which supersedes it while the original stays on file. **Scope:** the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice. **Warning:** illustrative structure, not a measured decision record — a real ADR must carry the evidence tags its numbers are judged by. [ILLUSTRATIVE] conceptual](figures/fig-25-2501.png)
+![Fig 25.1 — The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. **Takeaway:** an ADR is a fixed five-field record — Title and status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives considered (the rejected options) — and it is *kept, not edited*: the Consequences of ADR-001 become the Context of ADR-002, which supersedes it while the original stays on file. **Scope:** the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice as their five core fields (§25.1), each extended with its own apparatus. **Warning:** illustrative structure, not a measured decision record — a real ADR must carry the evidence tags its numbers are judged by. [ILLUSTRATIVE] conceptual](figures/fig-25-2501.png)
 
 ## 7. What We Still Don't Know
 
@@ -183,7 +185,7 @@ Despite the structured format, several questions remain open and would benefit f
 2. **Evidence decay:** How long do derived quantities remain valid? Should ADRs include a "last reviewed" date and a trigger for re-evaluation?
 3. **Cross-ADR dependencies:** When multiple ADRs interact (e.g., a quantization choice interacts with a retrieval chunk-size choice), how should the team document the dependency graph?
 4. **Tooling gaps:** No widely adopted tool exists for ADR graph visualization or impact analysis. Building such a tool would require understanding the ADR network and its evolution over time.
-5. **ADR format evolution:** The minimal format (title, context, decision, consequences, alternatives) works for most cases, but edge cases — decisions involving regulatory compliance, security, or data governance — may require additional sections.
+5. **ADR format evolution:** The minimal format (title and status, context, decision, consequences, alternatives) works for most cases, but edge cases — decisions involving regulatory compliance, security, or data governance — may require additional sections.
 
 These open questions are not blockers; they are signals for when the practice matures and the team needs more sophisticated governance.
 
@@ -201,7 +203,7 @@ These open questions are not blockers; they are signals for when the practice ma
   - Positive: KV residency per request falls from ~24.9 GB (FP16) to ~12.45 GB (FP8, raw byte-halving — 50% of BF16) at the 9,500-token max, so the canonical budget supports ~35.0 concurrent requests rather than ~17.5. This is a memory lever, not a compute lever: it does not change decode speed per token, it raises the concurrency the host can hold under the same KV budget.
   - Negative: FP8 KV has lower precision in the cached K/V tensors, which can add small retrieval-fidelity error on long contexts. The trade-off is memory capacity vs long-context reconstruction fidelity; it must be validated on the held-out Q&A set, not assumed.
 - **Alternatives considered:**
-  1. **Add capacity** — rejected as the first move: the canonical peak already needs ~20 hosts (Ch 16/17), so "adding a second host" misunderstands the scale; relieving the memory ceiling by adding hosts multiplies the fleet cost (each 8×H100 is ~$5.8K/mo amortized), while FP8 KV relaxes the same ceiling without commissioning new hardware.
+  1. **Add capacity** — rejected as the first move: the canonical peak already needs 21 hosts (Ch 16/17), so "adding a second host" misunderstands the scale; relieving the memory ceiling by adding hosts multiplies the fleet cost (each 8×H100 is ~$5.8K/mo amortized), while FP8 KV relaxes the same ceiling without commissioning new hardware.
   2. **GQA (grouped-query attention) reduction** — not available for the canonical model: the 70B reference geometry is full multi-head attention (32 KV heads, 2.62 MB/token, Ch 7). Adopting GQA would cut KV per token by ~8× (the largest single capacity lever in this book, Ch 16), but it changes the model architecture and requires retraining and re-evaluation — it is outside a serving-only change. It is the right *next-model* decision, not a knob on this deployment.
   3. **Prefix/context caching** — complementary, not a substitute: it reduces prefill work and recomputation, but does not shrink the KV resident per active long-context request; retained alongside FP8 KV.
 - **Evidence Tags:** [canonical scenario][DERIVED] — at ~2.62 MB/token a 9,500-token request needs ~24.9 GB FP16 KV (9,500 × 2.62 MB ≈ 24.9 GB; Ch. 15, Ch. 17). [ILLUSTRATIVE][DERIVED] — FP8 is byte-halved to 1.31 MB/token (exactly 50% of BF16), so a 9,500-token FP8 KV ≈ 12.45 GB/request; 436 GB ÷ 12.45 GB ≈ 35.0 concurrent (floor 35). [HYPOTHESIS] — the FP8 precision shift has a small, measurable effect on long-context retrieval fidelity that must be measured on the held-out set before promoting.

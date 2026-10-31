@@ -29,7 +29,7 @@ The customer conversation is really about **buying information, not delivering a
 
 ### The Requirements Dialogue: Turning "an internal AI assistant" Into Bounds
 
-*(Worked example dialogue — illustrative, not reference.)* An internal-platform lead says: "We want an AI assistant for our sales teams — it should answer questions from our product docs and CRM data, and it should be fast." [2°]
+*(Worked example dialogue — illustrative, not reference.)* An internal-platform lead says: "We want an AI assistant for our sales teams — it should answer questions from our product docs and CRM data, and it should be fast." [2°] *(Provenance/status label axes are defined in the Sources chapter.)*
 
 **Architect:** "~How many people will use it, and how often?"
 **Lead:** "~2,000 on the platform; maybe 5% are in it at once at peaks."
@@ -50,10 +50,11 @@ The customer conversation is really about **buying information, not delivering a
 **→ Bound 4: a 50-question retrieval-QA quality benchmark on their actual data.** [canonical scenario] (Ch 4, Table 4-2)
 
 **Architect:** "Data sensitivity — can this touch a public cloud, and how much can it cost?"
-**Lead:** "It's internal and regulated; keep it on-prem if at all possible."
+**Lead:** "It's internal and regulated; keep it on-prem if at all possible. And at this scale we'd rather not pay per-token API fees — keep it within a self-host budget."
 **→ Bound 5: operational constraint forces the local/server tier (Ch13).** [canonical scenario] (Ch 4, Table 4-2)
+**→ Bound 6: cost ceiling — within a self-host budget (Ch16).** [canonical scenario] (Ch 4, Table 4-2)
 
-**Architect (mirror):** "So to lock it: ~2,000 sales users, ~10 rps average / 40 peak, prompts with ~9,200-token retrieval context, answers starting under 2 s, quality judged on 50 of your real questions, and fully on-prem because it's regulated. Have I captured it?"
+**Architect (mirror):** "So to lock it: ~2,000 sales users, ~10 rps average / 40 peak, prompts with ~9,200-token retrieval context, answers starting under 2 s, quality judged on 50 of your real questions, fully on-prem because it's regulated, and within a self-host budget. Have I captured it?"
 **Lead:** "Yes — that's exactly it."
 
 **Reading the result.** The vague ask collapsed into the exact canonical workload this book has architected end-to-end — a 70B-class model on an 8×H100 on-prem server *becomes a candidate architecture* whose memory fit can be derived and whose latency, throughput, quality, and peak-load behavior must then be validated (Ch2-16 derive the constraints; the deployment has to be benchmarked and measured against them, as Ch24's red-team pass shows). The conversation did not sell a model; it *exposed the numbers* that then narrowed the candidate set, and left the actual validation to the measurement phase. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*

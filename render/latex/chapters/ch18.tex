@@ -90,7 +90,7 @@ vs.~batch). \\
 the next-best alternative? & Queue, degrade quantization, or escalate to
 the next tier. \\
 
-\label{tab:18.1}\end{longtable}
+\noalign{\label{tab:18.1}}\end{longtable}
 
 The weighting (α,β) is deployment-context dependent. A chat UI tolerates
 \textasciitilde200\,ms of added service latency per request; a batch ETL
@@ -152,11 +152,13 @@ FP16; weights + KV fit in the 640 GB pool) \\
 \textasciitilde18 by weights alone; the worked deployment below uses 2
 copies) \\
 
-\label{tab:18.2}\end{longtable}
+\noalign{\label{tab:18.2}}\end{longtable}
 
 \emph{(Each row's footprint is its own model's size at the named
 precision --- put the number in that precision's column. A dash means
 that precision does not apply to the row's naming.)}
+
+\needspace{3\baselineskip}
 
 With 8×H100 (640\,GB), we can simultaneously run the weights of:
 
@@ -178,6 +180,54 @@ That is \textasciitilde350\,GB of weights, leaving
 binding term: as the FP16 row above notes, that tier's KV alone uses the
 full 640\,GB pool, so this co-residency holds only while the resident
 tiers' combined KV fits.
+
+\subsection*{Qualification precedes placement and
+promotion}\label{qualification-precedes-placement-and-promotion}
+\addcontentsline{toc}{subsection}{Qualification precedes placement and
+promotion}
+
+Placement starts with feasible configurations, not with a vendor label.
+A small local model can be a candidate for an Intel GPU or an OpenVINO
+client path when its operators, memory budget and service behavior pass
+the same gates as the central service.\footnote{\raggedright
+
+  OpenVINO documentation source, ``Inference with OpenVINO GenAI,'' at
+  revision \texttt{6f2492828618e1becda7d5ba6df6aa339e489e44} (examples
+  of device targets for local GenAI inference):
+  \url{https://raw.githubusercontent.com/openvinotoolkit/openvino/6f2492828618e1becda7d5ba6df6aa339e489e44/docs/articles_en/openvino-workflow-generative/inference-with-genai.rst}
+  (retrieved 2026-10-28, Pacific time; outside the book's 2026-08-30
+  evidence cutoff; documentation inspection, not a tested combined
+  environment).} An integrated GPU and an NPU remain separate choices
+even when they share a package and system memory. Their advertised
+compute figures do not form one execution budget.\footnote{Intel Core
+  Ultra X9 388H processor specifications list the Intel Arc B390
+  integrated GPU and the NPU as separate devices with their own compute
+  figures (the GPU Peak TOPS (Int8) figure is quoted for the GPU alone),
+  while graphics uses shared system memory:
+  \url{https://www.intel.com/content/www/us/en/products/sku/245526/intel-core-ultra-x9-processor-388h-18m-cache-up-to-5-10-ghz/specifications.html};
+  OpenVINO documentation on managing iGPU memory usage:
+  \url{https://raw.githubusercontent.com/openvinotoolkit/openvino/0e15d2a38122e6787137fa91d96fe52c61615e66/docs/articles_en/openvino-workflow/running-inference/optimize-inference/managing-igpu-memory-usage.rst}
+  (documentation source pinned to revision
+  \texttt{0e15d2a38122e6787137fa91d96fe52c61615e66}; both inspected
+  2026-10-28, Pacific time, outside the book's 2026-08-30 evidence
+  cutoff; device specifications and documentation are not a combined
+  runtime benchmark).}
+
+A routing policy also needs the cost of failure. If a local attempt
+misses its contract and falls back to a central service, both attempts
+contribute resource use and end-to-end delay. The fallback route must
+preserve the data policy and still meet any applicable deadline.
+Promotion therefore follows a canary on the exact model/backend
+configuration, with monitored cache behavior, correctness, tail latency
+and rollback. Replacing a driver, kernel package or graph mode can
+change that configuration even when the model identifier is
+unchanged.\footnote{\raggedright
+
+  vLLM XPU requirements at pinned revision
+  \texttt{5df63a7203cdb9328d824a27b682e77c7b9928be}, which pins the
+  framework/runtime stack (e.g.~\texttt{torch==2.14.0}):
+  \url{https://raw.githubusercontent.com/vllm-project/vllm/5df63a7203cdb9328d824a27b682e77c7b9928be/requirements/xpu.txt}
+  (retrieved 2026-10-28; outside the book's 2026-08-30 evidence cutoff).}
 
 \subsection{Per-token cost (example numbers, Q4 2026
 pricing)}\label{per-token-cost-example-numbers-q4-2026-pricing}
@@ -202,31 +252,37 @@ Basis
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-70B dense FP16 (8×H100 capital amortized) & \$2.50 & 120 & capital +
-energy \\
-70B dense 8-bit (1×H100) & \$1.25 & 250 & public cloud \mbox{{[}1P{]}} \\
-70B MoE 8-bit (2 active experts) & \$1.00 & 300 & public cloud
-\mbox{{[}1P{]}} \\
-70B 4-bit GGUF (local, no GPU) & \$0.15 & 800 & energy only \\
+70B dense FP16 & \$2.50 & 120 & capital + energy \\
+70B dense 8-bit & \$1.25 & 250 & public cloud \mbox{{[}1P{]}} \\
+70B MoE 8-bit & \$1.00 & 300 & public cloud \mbox{{[}1P{]}} \\
+70B 4-bit GGUF & \$0.15 & 800 & energy only \\
 
-\label{tab:18.3}\end{longtable}
+\noalign{\label{tab:18.3}}\end{longtable}
+
+\emph{Row hardware (Model-column parentheticals, moved here): 70B dense
+FP16 on 8×H100, capital amortized; 70B dense 8-bit on 1×H100; 70B MoE
+8-bit with 2 active experts; 70B 4-bit GGUF local, no GPU.}
 
 \emph{Basis note (reconciled with Ch16's TCO):} these per-1M figures are
 \textbf{per-model nominal rates for routing comparison} --- the cost per
 1M tokens if that model instance were serving at its own nominal
-throughput on its own host. They are \emph{not} the same quantity as the
-fleet-amortized per-token cost derived in Ch16 §16.3
-(\textasciitilde\$0.60/1M for the 70B FP16 self-host), which divides the
-full peak-provisioned fleet TCO (\textasciitilde\$148K/mo, ≈20 hosts at
-full utilization) by the considerably higher token volume that fleet
-actually serves (\textasciitilde2.5×10¹¹ tokens/month). The ≈4× gap
-between \$2.50/1M and \textasciitilde\$0.60/1M is therefore a
-\textbf{utilization/throughput basis difference, not a contradiction}:
-the table rates one host near its nominal (modestly-loaded) rate, while
-the Ch16 TCO spreads the same capex+energy over a heavily-utilized
-fleet's larger token output. Read each number with its own basis; the
-mixed-fleet \emph{savings} conclusion below depends only on the relative
-per-model rates, not on the absolute self-host basis.
+throughput on its own host. The fleet-amortized per-token cost derived
+in Ch16 §16.3 divides the full peak-provisioned fleet TCO
+(\textasciitilde\$155,817/mo ≈ \textasciitilde\$156K/mo, 21 hosts at
+full utilization) by the token volume that fleet serves at the canonical
+workload --- 6.24M requests/month × 9,500 tokens ≈ 5.93×10¹⁰
+tokens/month --- giving \textasciitilde\$155,817 ÷ 5.93×10¹⁰ ≈
+\textbf{\$2.63/1M}. That is close to --- but not equal to --- the
+\$2.50/1M the table prints for the FP16 tier, and the closeness is a
+coincidence of this volume, not an identity: the fleet-amortized figure
+spreads the whole 21-host included-cost total (capex amortization +
+energy + staff alloc) over the canonical token volume, while the table's
+FP16 row is a capital + energy nominal rate for one model on its own
+host. The two bases do not numerically match, and each moves
+independently if the fleet size, the served volume, or the price inputs
+change. Read each number with its own basis; the mixed-fleet
+\emph{savings} conclusion below depends only on the relative per-model
+rates, not on the absolute self-host basis.
 
 \subsection{Routing arithmetic}\label{routing-arithmetic}
 
@@ -342,6 +398,8 @@ request needs (κ = 2.62\,MB/token, Ch 17). Two reserved GPUs suffice
 only for the \textasciitilde250-token support queries of §18.8, not for
 the canonical 9.5K request.
 
+\Needspace{11\baselineskip}
+
 \ntsection{Measurement}\label{measurement}
 
 
@@ -378,7 +436,7 @@ Guarantee SLO per tier; fleet p95 must be computed from the combined
 routed-request latency distribution --- per-model p95 values cannot in
 general be averaged (percentiles are not linearly composable). \\
 
-\label{tab:18.4}\end{longtable}
+\noalign{\label{tab:18.4}}\end{longtable}
 
 Instrumentation: add a middleware shim that logs
 \texttt{model\_id,\ token\_count,\ latency\_ms,\ cost\_cents} per
@@ -417,6 +475,16 @@ above, then update daily as actual token counts and cloud prices shift.
   the router must have a next‑best alternative ready; otherwise requests
   time out or queue indefinitely.
 \end{enumerate}
+
+A routing candidate is a validated deployment variant, not only a model
+family. A lower-precision variant can lower resource use, but its
+quality loss may appear selectively in reasoning, code, tool arguments
+or long contexts. Retries and longer generations can consume the
+apparent savings. The routing table therefore attaches quality and SLO
+evidence to the exact precision/backend combination, and the fallback
+preserves the task's acceptance conditions. A change to scales, excluded
+layers or execution kernels creates a new candidate for validation; it
+does not inherit the previous candidate's quality curve automatically.
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
 
@@ -568,8 +636,8 @@ Tier\,3; the rest flowed to Tier\,1 or Tier\,2 automatically.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general and fallback model families as leaves},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-18-1801.pdf}}
-\caption[Model-routing decision tree]{Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general and fallback model families as leaves}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general and fallback model families as leaves \mbox{{[}ILLUSTRATIVE conceptual{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-18-1801.pdf}}
+\caption[Model-routing decision tree]{Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general and fallback model families as leaves \mbox{{[}ILLUSTRATIVE conceptual{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:18.1}\emph{The routing decision chain. A request first passes a capability
 filter (is there a specialized model that can serve it?), then a
@@ -578,9 +646,4 @@ general model. Each specialized family is a leaf the router can dispatch
 to. This converts the raw cost arithmetic above into the operational
 routing shape an architect operates daily.}
 
-\end{figure}\begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
-
-\emph{Evidence labels: \mbox{{[}1P{]}} price observations from public cloud
-provider pricing pages (Q4\,2026); \mbox{{[}2°{]}} derived per-token cost
-arithmetic; \mbox{{[}UNRESOLVED{]}} latency measurements from local GGUF
-benchmarks on reference hardware.}
+\end{figure}

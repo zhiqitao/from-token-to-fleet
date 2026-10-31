@@ -22,7 +22,14 @@ def _logfmt(x, pos):
 # at the print column (~6.1in) -- the earlier 10in-wide version overflowed both
 # edges and truncated the title/x-labels/panel titles.
 batch = np.array([1, 2, 4, 8, 16, 32, 64])
-prefill_nocache = np.full_like(batch, 100.0, dtype=float)
+# Panel (a) operand: AVERAGE PREFIX REUSE (reuses per repeated prompt) -- adjudicated
+# from the mechanism, not renamed cosmetically: caching removes prefill work per
+# REPEATED prompt, so the independent variable of panel (a) is reuse count; batch
+# size affects decode (panel b) and cannot remove prefill FLOPs/request. Same
+# log-spaced 1..64 grid, separate name so the operand matches the axis
+# 'Avg prefix reuse' and the caption; values are synthetic [ILLUSTRATIVE].
+reuse = np.array([1, 2, 4, 8, 16, 32, 64])
+prefill_nocache = np.full_like(reuse, 100.0, dtype=float)
 prefill_cache  = np.array([99, 94, 90, 84, 78, 72, 60], dtype=float)
 # decode goodput rises with batch, THEN PLATEAUS as bandwidth saturates (~near batch 16):
 # the knee is where further batching stops raising throughput but keeps raising tail latency.
@@ -32,8 +39,8 @@ fig, (axa, axb) = plt.subplots(1, 2, figsize=(6.1, 3.5))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 
 # Panel (a): prefill saving
-axa.plot(batch, prefill_nocache, '-o', color='#c0392b', lw=1.8, label='no cache')
-axa.plot(batch, prefill_cache, '-s', color='#2f6f4f', lw=1.8, label='with prefix cache')
+axa.plot(reuse, prefill_nocache, '-o', color='#c0392b', lw=1.8, label='no cache')
+axa.plot(reuse, prefill_cache, '-s', color='#2f6f4f', lw=1.8, label='with prefix cache')
 axa.set_xscale('log')
 axa.set_xlabel('Avg prefix reuse', fontsize=9)
 axa.set_ylabel('Prefill FLOPs / req\n(% of no-cache)', fontsize=9)

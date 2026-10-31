@@ -139,7 +139,7 @@ label(W/2, banner_y, 'same Q·Kᵀ·V math and same result —\nthe gain is fewe
 label(W/2, banner_y - 34,
       'K/V on-chip reuse is per-tile (per Q-block), not a single global K/V pass.\n'
       'I/O bound: FlashAttention — Tri Dao et al., arXiv:2205.14135.',
-      C_NOTE, FS-4.4, style='italic', va='top')
+      C_NOTE, 8.5, style='italic', va='top')
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-15/figures/fig-15-1502.png', dpi=400)

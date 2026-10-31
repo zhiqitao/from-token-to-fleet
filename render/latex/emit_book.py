@@ -132,7 +132,7 @@ def emit_book():
     lines.append("")
     # Cover as full-bleed page 0: include the approved clean vector cover PDF
     # first, so the deliverable opens on the cover and stays a single tagged build.
-    lines.append(r"\includepdf[pages=1,fitpaper=false,noautoscale=false]{../cover/cover_clean_front.pdf}")
+    lines.append(r"\includepdf[pages=1,fitpaper=false,noautoscale=false,alt={Front cover of From Token to Fleet: An AI Solution Architect's Handbook by Zhiqi Tao (first edition, 2026). Cream background with a faint grid; large left-aligned title FROM TOKEN in black over TO FLEET in navy above an orange-to-teal gradient rule; subtitle An AI Solution Architect's Handbook; a central diagram scaling left to right from one orange square labeled token through teal clusters to a 3x3 grid of navy squares labeled fleet; author and edition line at the bottom left.}]{../cover/cover_clean_front.pdf}")
     lines.append("")
     # title (custom typeset inline; \title/\subtitle/\maketitle are NOT used
     # because the custom \subtitle macro would typeset content immediately)

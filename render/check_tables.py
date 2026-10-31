@@ -18,13 +18,13 @@ def pipes(line):
     return line.strip().count("|")
 
 def is_separator(line):
-    s = line.strip().strip("|")
-    s = s.replace(" ", "").replace(":", "")
-    return s != "" and set(s) <= set("-")
+    cells = line.strip().strip('|').split('|')
+    return bool(cells) and all(re.fullmatch(r'\s*:?-{3,}:?\s*', cell) for cell in cells)
 
 def check_file(path):
     bad = []
-    lines = open(path, encoding="utf-8").read().split("\n")
+    with open(path, encoding="utf-8") as source:
+        lines = source.read().split("\n")
     i = 0
     while i < len(lines):
         if lines[i].strip().startswith("|"):

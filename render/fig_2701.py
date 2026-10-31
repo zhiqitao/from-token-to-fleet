@@ -6,7 +6,7 @@ import numpy as np
 # 2026 Frontier Architecture data [1P]
 # Active fraction (%) per model, total/active params annotated.
 # Layout tightened so EVERYTHING fits inside the 6.1in column at 11pt body scale.
-names = ['DeepSeek V4-Pro/Flash', 'Kimi K3', 'Qwen3.8-Flash-Next', 'GLM-5.3-Flash']
+names = ['DeepSeek V4-Flash', 'Kimi K3', 'Qwen3.8-Flash-Next', 'GLM-5.3-Flash']
 total_b = [284, 2800, 125, 320]       # total params (B) [1P]
 active_b = [13, 104, 6, 18]           # active params (B) [1P]
 frac = [a/t*100 for a, t in zip(active_b, total_b)]

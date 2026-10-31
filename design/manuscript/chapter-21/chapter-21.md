@@ -28,6 +28,8 @@ The factory's shape is a **pipeline with decisions**: data in → train/fine-tun
 
 ## 3. Worked Example
 
+The example below works the economics of promotion gating on the canonical 70B RAG workload.
+
 ### The Economics of Promotion Gating for the Canonical Workload
 
 We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [canonical scenario] (Ch 4, Table 4-2)
@@ -37,9 +39,11 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 - **Ungated**: deploy the candidate to all production traffic immediately. If it regresses (say p95 TTFT degrades because of a slower tokenizer, or quality drops on a subset), the service suffers until rollback.
 - **Gated**: run the candidate on a 5% canary for N hours, measure TTFT/goodput/quality against the incumbent, promote only if it beats every threshold.
 
-**Cost of a bad ungated release.** The canonical service does ~864,000 requests/day. Suppose a regression raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery and rollback. That is 6/24 ×864,000 ≈ **216,000 requests** served at a broken SLO. At the Ch16 canonical self-hosted rate of ~$23.7/1K requests (active business-hours volume, Ch 4), the direct cost is ~216 × $23.7 ≈ **$5,119**, and it is ~$2,527 on the Ch16 cloud-scaled ~$11.7/1K basis — modest relative to the *business* cost, but the dominant term is users experiencing a 47% latency regression, trust erosion, and the fire drill. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
+\Needspace{5\baselineskip}
 
-**Cost of a good gated release.** A canary at 5% traffic for 2 hours serves 5% × 864,000 ×2/24 ≈ **3,600 requests** through the candidate while it is measured against a full evaluation suite. If it passes, promotion is low-risk; if it fails, no users beyond canary were exposed. [ILLUSTRATIVE][DERIVED]
+**Cost of a bad ungated release.** The canonical service does ~288,000 requests/workday (10 rps × 8 h × 3,600 s; ~6.24M/month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16). Suppose a regression raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery and rollback. That is 6/8 ×288,000 ≈ **216,000 requests** served at a broken SLO. At the Ch16 canonical self-hosted rate of ~$24.97/1K requests (active business-hours volume, Ch 4), the direct cost is 216,000 × 24.97066185897436 ÷ 1,000 ≈ **$5,394**, and it is ≈ **$3,032** on the Ch16 cloud-scaled ~$14.04/1K basis (216,000 × 14.038461538461538 ÷ 1,000 = 3,032.31) — modest relative to the *business* cost, but the dominant term is users experiencing a 47% latency regression, trust erosion, and the fire drill. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
+
+**Cost of a good gated release.** A canary at 5% traffic for 2 hours serves 5% × 288,000 ×2/8 ≈ **3,600 requests** through the candidate while it is measured against a full evaluation suite. If it passes, promotion is low-risk; if it fails, no users beyond canary were exposed. [ILLUSTRATIVE][DERIVED]
 
 **Reading the result.** Gating turns a risky 216K-request exposure (ungated) into a controlled ~3.6K-request canary — a ~60× reduction in blast radius for the cost of a 2-hour evaluation. The factory makes this routine. [ILLUSTRATIVE][DERIVED]
 
@@ -50,9 +54,11 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 | Ungated | ~216K in a bad release | high (all traffic) | post-hoc | slow | tiny/experimental |
 | Gated (5% canary) | ~3.6K | low (confined) | automated | fast | business-critical serving |
 
-*(ILLUSTRATIVE worked example: the canary arithmetic is DERIVED from the stated workload inputs — 5% traffic, 2-hour window, ~864,000 requests/day — and is illustrative, not a reference measurement. The workload inputs are sourced from the canonical scenario (Ch 4, Table 4-2); the 2-hour/5% choices are held-out example assumptions, to be re-set per deployment.)*
+*(ILLUSTRATIVE worked example: the canary arithmetic is DERIVED from the stated workload inputs — 5% traffic, 2-hour window, ~288,000 requests/workday — and is illustrative, not a reference measurement. The workload inputs are sourced from the canonical scenario (Ch 4, Table 4-2); the 2-hour/5% choices are held-out example assumptions, to be re-set per deployment.)*
 
 ## 4. Measurement
+
+The configuration qualification in Chapter 18 supplies the candidate identity for these gates: model, precision, backend and relevant runtime versions. A changed execution path needs new evidence; a previous model-level approval does not establish that the new configuration is safe to promote.
 
 The factory is only as trustworthy as its gates. We measure four things continuously:
 
@@ -73,11 +79,13 @@ The factory is only as trustworthy as its gates. We measure four things continuo
 
 The AI Factory is the operational backbone that makes the book's whole loop durable. Every architectural decision recomputes through it: model selection (Ch3/5) feeds the evaluation gate, serving choices (Ch11) determine canary mechanics, benchmarking (Ch14) becomes the recurring gate, TCO (Ch16) sets how much gating overhead is affordable, and fleet operations (Ch17-20) provide the rollout/rollback surfaces. Without the factory, each chapter's decision is a one-off; with it, they compound into a system that gets better and safer every cycle.
 
-![Fig 21.1 — The AI Factory promotion pipeline, showing the *model lifecycle* layer named in the chapter opener (the model lifecycle, the serving pipeline, and the operations loop). Each stage has an explicit **promotion gate** (a measured metric that must PASS before the next stage begins): (1) *Data* → gate: src valid; (2) *Train* → gate: cost ok; (3) *Eval* → gate: qual ok; (4) *Canary* → gate: health ok; (5) *Observe* → gate: TTFT ok; (6) *Promote* → gate: cost ok; (7) *Serve* — the loop's output, no gate of its own. **Failure path:** any gate FAIL rolls back to the last-known-good and re-validates. **Feedback loop:** production feedback → data/evaluation, each cycle re-gated. Every promotion is a PASS/FAIL decision on a measured metric, not a hand-off — the gates are the mechanism that makes "promotion" a decision, not a hope. [ILLUSTRATIVE] conceptual](figures/fig-21-2101.png)
+\begingroup\makeatletter\def\fps@figure{!htb}\makeatother
 
-*The model lifecycle: data → train → eval → canary → observe → promote → serve, every transition re-gated PASS/FAIL with rollback to last-known-good, and a production feedback loop back to data/evaluation.*
+![Fig 21.1 — The model-lifecycle layer runs Data → Train → Eval → Canary → Observe → Promote → Serve. Six gates align with the transition seams: PASS permits the next stage; each labeled FAIL branch restores last-known-good state and re-validates. Production feedback returns evidence to data/evaluation, where the gates apply again. [ILLUSTRATIVE] conceptual](figures/fig-21-2101.png)
 
-<!-- Figure spec: mechanism-first flowchart; stages data/train/evaluate-canary-observe-promote-rollback-serve; a decision diamond at the gate; a dashed feedback arrow from production back to data/evaluation. -->
+\endgroup
+
+<!-- Figure spec: seven forward stages; decision ticks at the six transition seams; six labeled failure branches to a separate rollback node; production feedback to data/evaluation. -->
 
 ## 7. What We Still Don't Know
 
@@ -91,6 +99,6 @@ A vendor pitches the architect a newer, cheaper model: "just swap it in — it s
 
 ## 9. Transition to Part VI
 
-Up to this point we have built the machine. Parts I–V traced one continuous engagement: a token enters, we price it, we size the model and memory, we measure its compute and bandwidth, we parallelize and serve it, we benchmark it, we price the fleet, we route and agentify it, and finally we industrialize its delivery in the AI Factory. The reader on the far side of Chapter 21 can name the workload, size the residency, place the roofline, and gate a promotion.
+Parts I–V traced one engagement: token accounting defines workload demand; model architecture sets compute and memory costs; parallelism adds communication; serving schedules shared resources; fleet design determines capacity and cost; the AI Factory governs changes. These mechanisms connect request-level behavior to operational decisions.
 
-What remains is the question the whole book has been circling: *how does an architect repeatedly make these decisions under uncertainty?* The mechanisms are now in hand — token accounting, the KV constant, arithmetic intensity, batching, disaggregation, the factory gate. Part VI turns from what the system contains to how an architect reasons. The next chapters do not add a new subsystem; they formalize the loop that has quietly run through every chapter so far, make its canonical decision flow explicit, and leave behind a worksheet an architect can keep beside the keyboard.
+Part VI applies these mechanisms to decisions under uncertainty rather than introducing another subsystem. It makes the decision process explicit: state workload assumptions, compare alternatives against resource bounds, and identify the measurements needed to resolve uncertainty. The next chapters provide a worksheet for recording the decision, its assumptions, and its validation criteria.

@@ -29,7 +29,7 @@ BOLD = FontProperties(weight='bold')
 rows = [
     ("DeepSeek V4-Flash", "vs V3.2",        "reported 2026-06",  7,  10, "#c0392b"),
     ("DeepSeek V4-Pro",   "vs V3.2",        "reported 2026-06", 10,  27, "#3a6ea5"),
-    ("GLM-5.3-Flash",     "vs prior GLM-5", "reported 2026-02", 23, 33, "#6f9e5f"),
+    ("GLM-5.3-Flash",     "vs GLM-5.3", "reported 2026-08", 23, 33, "#6f9e5f"),
 ]
 
 W = 6.1 * 72
@@ -58,7 +58,7 @@ h_kv   = 36        # half span of the 100%/arrow/~X% cluster
 pitch = 60
 
 # ---- title / warning ----
-ax.text(W/2, T, 'KV & FLOP per token: % remaining', fontsize=FS_H+1.6,
+ax.text(W/2, T, 'Vendor-reported ratios: % remaining', fontsize=FS_H+1.6,
         fontweight='bold', ha='center', va='center', color='#1a1a1a')
 ax.text(W/2, T - 16, 'vs each model\'s own predecessor',
         fontsize=FS_H-1.8, ha='center', va='center', color='#333')
@@ -81,8 +81,8 @@ ax.text(W/2, T - 102,
 hy = T - 126
 ax.text(c_name, hy, 'reported model', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
 ax.text(c_base, hy, 'own baseline', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
-ax.text(c_kv,   hy, 'KV / token',   fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
-ax.text(c_flop, hy, 'FLOP / token', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
+ax.text(c_kv,   hy, 'KV cache*',   fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
+ax.text(c_flop, hy, 'Compute*', fontsize=FS_H, fontweight='bold', ha='center', va='center', color='#333')
 
 sep_y = hy - 13
 ax.plot([12, W-12], [sep_y, sep_y], color='#999', lw=1.0)
@@ -102,16 +102,26 @@ for r, (name, base, date, kv, flop, col) in enumerate(rows):
         ax.text(cc + h_kv*0.58, ry, '~%d%%' % pct, fontsize=FS_R+1.0, fontweight='bold',
                 ha='center', va='center', color=col)
 
+# GLM normalization comes from the August 26 release article, not the February
+# GLM-5 parent report. Neither ratio is a whole-model inference/storage measure.
+ry_glm = row0 - 2 * pitch
+ax.text(c_kv, ry_glm - 14, 'BF16 / layer', fontsize=8.0, ha='center',
+        va='center', color='#6f9e5f', style='italic')
+ax.text(c_flop, ry_glm - 14, 'attention only', fontsize=8.0, ha='center',
+        va='center', color='#6f9e5f', style='italic')
+ax.text(c_flop, ry_glm - 26, 'per head / layer', fontsize=8.0, ha='center',
+        va='center', color='#6f9e5f', style='italic')
+
 # ---- footnote ----
 fy = row0 - len(rows)*pitch - 16
 ax.text(W/2, fy,
-        "Values are % REMAINING (7% remaining = 93% reduction)",
+        "*Metric scopes differ. 7% remaining = 93% reduction.",
         fontsize=FS_R-0.2, ha='center', va='center', color='#555')
 ax.text(W/2, fy - 20,
         'Value source: vendor-reported [1P] \u2014 DeepSeek V4: arXiv 2606.19348',
         fontsize=FS_R-0.8, ha='center', va='center', color='#777', fontstyle='italic')
 ax.text(W/2, fy - 40,
-        'GLM-5.3-Flash: arXiv 2602.15763 (HF zai-org). Not yet independently verified.',
+        'GLM: z.ai/blog/glm-5.3-flash (2026-08-26). Vendor claims, not reproduced.',
         fontsize=FS_R-0.8, ha='center', va='center', color='#777', fontstyle='italic')
 
 plt.savefig('design/manuscript/chapter-27/figures/fig-27-2704.png', dpi=400)

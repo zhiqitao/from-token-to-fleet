@@ -21,22 +21,27 @@ def box(x, y, w, h, fc):
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.05',
                                 fc=fc, ec='#333', lw=1.2, alpha=0.92))
 
-def stage_text(x, y, lines, big, body_fs=8.2):
-    # text kept SHORT so it never clips the box width (box w=7.4 at x). 
+def stage_text(x, y, lines, big, body_fs=8.6):
+    # text kept SHORT so it never clips the box width (box w=BW at x).
+    # P1 legibility floor: the book places this figure 1:1 at 439.2pt (6.1in),
+    # so authored size == on-page size. The old 8.2/7.6pt box bodies printed at
+    # 8.2/7.6pt (< 8pt floor for the DERIVED box). Author at 8.6pt; boxes widen
+    # to BW=8.0 data units so the longest line still clears the border.
     tx = x + 0.5; ty = y + 2.0
     ax.text(tx, ty, lines[0], ha='left', va='top', color='white', fontsize=big, fontweight='bold')
     ax.text(tx, ty - 0.55, '\n'.join(lines[1:]), ha='left', va='top', color='white',
             fontsize=body_fs, linespacing=1.4)
 
 
-def stage_text_small(x, y, lines, big, body_fs=7.6):
-    # variant for boxes whose footer is longer; uses a slightly smaller body font
+def stage_text_small(x, y, lines, big, body_fs=8.6):
+    # variant for boxes whose footer is longer (same 8.6pt floor; the wider
+    # BW box holds 'TTFT mean 180 · p99 250 ms' with margin at 8.6pt).
     tx = x + 0.5; ty = y + 2.0
     ax.text(tx, ty, lines[0], ha='left', va='top', color='white', fontsize=big, fontweight='bold')
     ax.text(tx, ty - 0.55, '\n'.join(lines[1:]), ha='left', va='top', color='white',
             fontsize=body_fs, linespacing=1.45)
 
-BW = 7.4
+BW = 8.0
 # Top row: FACT (left) -> DERIVED (right)
 box(0.8, 7.4, BW, 2.5, '#2980b9')
 stage_text(0.8, 7.4, ['1 · FACT',
@@ -61,12 +66,13 @@ def arrow(p1, p2, color, lw=2.2, rad=0.0):
                 arrowprops=dict(arrowstyle='-|>', lw=lw, color=color,
                                 connectionstyle=f'arc3,rad={rad}'))
 
-# Step 1 -> 2 (top, left to right), short label fitted in the narrow gap
-arrow((8.2 + 0.1, 8.65), (11.8, 8.65), '#2980b9')
-ax.text(10.0, 8.15, 'trace', fontsize=8.2, ha='center', color='#2980b9', fontweight='bold')
+# Step 1 -> 2 (top, left to right), short label fitted in the narrow gap.
+# Start just clear of the widened FACT box (0.8 + BW = 8.8).
+arrow((0.8 + BW + 0.1, 8.65), (11.8, 8.65), '#2980b9')
+ax.text(10.0, 8.15, 'trace', fontsize=8.6, ha='center', color='#2980b9', fontweight='bold')
 # Step 2 -> 3 (right side, down)
 arrow((15.5, 7.4), (15.5, 3.5), '#16a085')
-ax.text(16.6, 5.4, 'validate', fontsize=8.5, ha='left', va='center', color='#16a085', fontweight='bold')
+ax.text(16.6, 5.4, 'validate', fontsize=8.6, ha='left', va='center', color='#16a085', fontweight='bold')
 
 # Step 3 -> 1: a SINGLE L-shaped return edge (left along the bottom, then up the left
 # side to FACT), so the loop closes unambiguously.
@@ -75,8 +81,8 @@ ret_verts = [(11.8, 2.25), (4.5, 2.25), (4.5, 7.4)]
 ret_codes = [Path.MOVETO, Path.LINETO, Path.LINETO]
 ax.add_patch(FancyArrowPatch(path=Path(ret_verts, ret_codes), arrowstyle='-|>',
              mutation_scale=18, lw=2.6, color='#a83232', zorder=1))
-ax.text(8.0, 1.7, 'adjust + pick pattern', fontsize=8.5, ha='center', color='#a83232', fontweight='bold')
-ax.text(3.9, 5.4, 'feedback', fontsize=8.5, ha='right', va='center', color='#a83232', fontweight='bold')
+ax.text(8.0, 1.7, 'adjust + pick pattern', fontsize=8.6, ha='center', color='#a83232', fontweight='bold')
+ax.text(3.9, 5.4, 'feedback', fontsize=8.6, ha='right', va='center', color='#a83232', fontweight='bold')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-26/figures/fig-26-2601.png',

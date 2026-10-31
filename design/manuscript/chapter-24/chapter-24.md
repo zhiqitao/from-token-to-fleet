@@ -14,7 +14,7 @@ Red Team / Green Team is a structured adversarial evaluation pattern borrowed fr
 
 The Green Team responds by hardening defenses, refining detection, and quantifying coverage. The cycle repeats until the attack-surface budget is demonstrably bounded.
 
-This chapter assumes a canonical deployment: ~2,000 registered users (~100 concurrent at peak), a 70B dense FP16 base model, and a RAG pipeline with vector search over a curated corpus. The Red Team / Green Team process is not a one-time audit; it is an ongoing practice embedded in the deployment lifecycle.
+This chapter assumes a canonical deployment: ~2,000 registered users (an illustrative ~100 active users, not a simultaneous-request count; arrival rate and execution occupancy are separate quantities in Chapter 4), a 70B dense FP16 base model, and a RAG pipeline with vector search over a curated corpus. The Red Team / Green Team process is not a one-time audit; it is an ongoing practice embedded in the deployment lifecycle.
 
 ## 2. Mental Model
 
@@ -35,7 +35,7 @@ The mental model consists of five layers:
 | **Model behavior** | Does the model deviate from intended personas or policies? | Jailbreak sequences, token‑level manipulation, temperature tampering |
 | **Fleet orchestration** | Can inter‑service protocols be abused? | Message injection between gateway and model runner, race conditions |
 
-The Green Team tracks each probe's outcome as a **FACT** (observed, verifiable event), **DERIVED** (computed from lower‑level data), or **HYPOTHESIS** (unverified but testable claim). This axis ensures that every reported metric traces back to an observable anchor.
+The Green Team tracks each probe's outcome as a **FACT** (observed, verifiable event), **DERIVED** (computed from lower‑level data), or **HYPOTHESIS** (unverified but testable claim). These are epistemic-status labels; provenance and measurement status are separate axes defined in the Sources chapter. Each reported metric also needs its underlying observation, calculation, or stated assumption.
 
 \Needspace{7\baselineskip}
 
@@ -103,7 +103,7 @@ The Red Team pattern applies not only to security but to the architecture decisi
 | **PIES** | DERIVED | Unique, non‑redundant prompt‑injection patterns across all entry points | < 150 (after hardening) | [ILLUSTRATIVE][ASSUMPTION] |
 | **Poisoned‑hit rate** | DERIVED | Fraction of retrievals that return at least one poisoned chunk | < 0.3% (0.003 per query) | [ILLUSTRATIVE][ASSUMPTION] |
 | **Guardrail‑trigger rate** | FACT | Number of guardrail interventions per 1,000 user queries | < 5 | [ILLUSTRATIVE][ASSUMPTION] |
-| **False‑positive rate** | FACT | Guardrail interventions that block legitimate user intent | < 1.5% | [ILLUSTRATIVE][ASSUMPTION] |
+| **False‑positive rate** | FACT | Share of guardrail interventions that block legitimate user intent (denominator = interventions, not queries) | < 1.5% | [ILLUSTRATIVE][ASSUMPTION] |
 | **Tool‑use exploit rate** | FACT | Percentage of Red Team tool‑use probes that achieve an unintended action (an *attacker*‑side success; lower is better) | < 0.5% | [ILLUSTRATIVE][ASSUMPTION] |
 | **Red‑team win rate** | HYPOTHESIS | Proportion of evaluation cycles where Red Team escapes all guardrails | → 0 over time | [ILLUSTRATIVE][ASSUMPTION] |
 
@@ -153,13 +153,13 @@ Each consequence is tracked as a **change request** in the fleet’s operational
 
 ## 8. End-of-Chapter Mini-Case: The PIES Drop: Red Team / Green Team Iteration
 
-**Scenario:** The fleet’s Green Team observes that PIES has dropped from 217 to 143 after adding a prompt‑scanning guardrail. The poisoned‑hit rate remains at ≈0.003 per query (≈3 poisoned chunks per 1,000 queries). The tool‑use exploit rate is 0.44%. However, the false‑positive rate has risen to 2.4% — legitimate user queries are being blocked ~24 times per 1,000 queries.
+**Scenario:** The fleet’s Green Team observes that PIES has dropped from 217 to 143 after adding a prompt‑scanning guardrail. The poisoned‑hit rate remains at ≈0.003 per query (≈3 poisoned chunks per 1,000 queries). The tool‑use exploit rate is 0.44%. However, the false‑positive rate remains above target at 2.4% — down from 3.1% in Cycle 1, but still over the <1.5% target. The denominator is guardrail interventions, not queries: at the Cycle 2 guardrail‑trigger rate of 5.4 per 1,000 queries, a 2.4% false‑positive share blocks ≈0.13 legitimate queries per 1,000 (5.4 × 0.024 ≈ 0.13).
 
 **Decision point:** The Red Team recommends tightening the guardrail thresholds, which would reduce PIES further (to ~110) but increase the false‑positive rate to 4.1%. The Green Team rejects this trade-off, citing the 2.4% false‑positive rate as unacceptable for a public‑facing service. Instead, they opt for a targeted refinement: add a context‑aware classifier that distinguishes intent‑preserving prompts from injection attempts, aiming to bring PIES below 150 while keeping the false‑positive rate under 1.5%.
 
 **Quantified outcome (illustrative worked example, not a reported production measurement):** In this scenario, after refinement the model projects PIES = 138, poisoned‑hit rate = 0.0025 (≈2.5 per 1,000 queries), guardrail‑trigger rate = 4.1 per 1,000 queries, and false‑positive rate ≈ 1.3% of those interventions (≈0.05 per 1,000 queries, since 4.1 × 0.013 ≈ 0.05), with the Red‑team win rate dropping from 8% to 1.2% over three simulated cycles. An illustrative 12‑month extension holds these metrics stable when the corpus is refreshed quarterly, with PIES varying by no more than ±8 points. (These are illustrative scenario values to illustrate the measurement loop's shape, not evidence that this system achieved them — they must be produced by a real Red Team run before being treated as results.) The metrics and the figure are intended for the production deployment of the ~2,000‑user RAG fleet described in this handbook; the exact numbers an organization would record come from its own run.
 
-![Fig 24.1 - Red Team / Green Team cycle. The loop (probe → guardrails → metrics → green team) is operational, but it needs **decision gates** to be actionable: (1) a **release-blocking severity criterion** (e.g. any P0/P1 finding blocks promotion; P2/P3 are tracked but non-blocking); (2) **test-corpus ownership** (a named team maintains the probe corpus and adds new cases from each red-team run); (3) **regression thresholds** (a previously-passing probe that now fails is a regression and blocks release). Without these, the cycle is a ritual, not a gate. [ILLUSTRATIVE] conceptual](figures/fig-24-2401.png)
+![Fig 24.1 - Red Team / Green Team cycle. The loop (probe → exposure → guardrails → metrics → green team) is operational, but it needs **decision gates** to be actionable: (1) a **release-blocking severity criterion** (e.g. any P0/P1 finding blocks promotion; P2/P3 are tracked but non-blocking); (2) **test-corpus ownership** (a named team maintains the probe corpus and adds new cases from each red-team run); (3) **regression thresholds** (a previously-passing probe that now fails is a regression and blocks release). Without these, the cycle is a ritual, not a gate. [ILLUSTRATIVE] conceptual](figures/fig-24-2401.png)
 
 *Red Team / Green Team cycle. Probes sweep three domains (model behavior, tool use, retrieval/RAG); findings flow through exposure, guardrails and metrics; failed metrics spawn change-request backlog items that harden the system, and the loop repeats each evaluation cycle. [ILLUSTRATIVE] conceptual*
 

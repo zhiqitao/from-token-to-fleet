@@ -54,6 +54,8 @@ The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200�
 
 *(Each row's footprint is its own model's size at the named precision — put the number in that precision's column. A dash means that precision does not apply to the row's naming.)*
 
+\needspace{3\baselineskip}
+
 With 8×H100 (640 GB), we can simultaneously run the weights of:
 
 - **One 70B dense FP16** (140 GB)
@@ -63,16 +65,24 @@ With 8×H100 (640 GB), we can simultaneously run the weights of:
 
 That is ~350 GB of weights, leaving ~290 GB for KV cache and for smaller specialized models (e.g., 22B, 8B) for classification or routing. KV, not weights, is the binding term: as the FP16 row above notes, that tier's KV alone uses the full 640 GB pool, so this co-residency holds only while the resident tiers' combined KV fits.
 
+### Qualification precedes placement and promotion {.unnumbered}
+
+Placement starts with feasible configurations, not with a vendor label. A small local model can be a candidate for an Intel GPU or an OpenVINO client path when its operators, memory budget and service behavior pass the same gates as the central service.[^oct-ix-t7-openvino] An integrated GPU and an NPU remain separate choices even when they share a package and system memory. Their advertised compute figures do not form one execution budget.[^oct-ix-t7-devices]
+
+A routing policy also needs the cost of failure. If a local attempt misses its contract and falls back to a central service, both attempts contribute resource use and end-to-end delay. The fallback route must preserve the data policy and still meet any applicable deadline. Promotion therefore follows a canary on the exact model/backend configuration, with monitored cache behavior, correctness, tail latency and rollback. Replacing a driver, kernel package or graph mode can change that configuration even when the model identifier is unchanged.[^oct-ix-t7-configpath]
+
 ### 3.2. Per-token cost (example numbers, Q4 2026 pricing)
 
 | Model | Token cost (USD / 1M) | Per-request service latency (ms) | Basis |
 |-------|----------------------|--------------------|---------------------|
-| 70B dense FP16 (8×H100 capital amortized) | $2.50 | 120 | capital + energy |
-| 70B dense 8-bit (1×H100) | $1.25 | 250 | public cloud [1P] |
-| 70B MoE 8-bit (2 active experts) | $1.00 | 300 | public cloud [1P] |
-| 70B 4-bit GGUF (local, no GPU) | $0.15 | 800 | energy only |
+| 70B dense FP16 | $2.50 | 120 | capital + energy |
+| 70B dense 8-bit | $1.25 | 250 | public cloud [1P] |
+| 70B MoE 8-bit | $1.00 | 300 | public cloud [1P] |
+| 70B 4-bit GGUF | $0.15 | 800 | energy only |
 
-*Basis note (reconciled with Ch16's TCO):* these per-1M figures are **per-model nominal rates for routing comparison** — the cost per 1M tokens if that model instance were serving at its own nominal throughput on its own host. They are *not* the same quantity as the fleet-amortized per-token cost derived in Ch16 §16.3 (~$0.60/1M for the 70B FP16 self-host), which divides the full peak-provisioned fleet TCO (~$148K/mo, ≈20 hosts at full utilization) by the considerably higher token volume that fleet actually serves (~2.5×10¹¹ tokens/month). The ≈4× gap between $2.50/1M and ~$0.60/1M is therefore a **utilization/throughput basis difference, not a contradiction**: the table rates one host near its nominal (modestly-loaded) rate, while the Ch16 TCO spreads the same capex+energy over a heavily-utilized fleet's larger token output. Read each number with its own basis; the mixed-fleet *savings* conclusion below depends only on the relative per-model rates, not on the absolute self-host basis.
+*Row hardware (Model-column parentheticals, moved here): 70B dense FP16 on 8×H100, capital amortized; 70B dense 8-bit on 1×H100; 70B MoE 8-bit with 2 active experts; 70B 4-bit GGUF local, no GPU.*
+
+*Basis note (reconciled with Ch16's TCO):* these per-1M figures are **per-model nominal rates for routing comparison** — the cost per 1M tokens if that model instance were serving at its own nominal throughput on its own host. The fleet-amortized per-token cost derived in Ch16 §16.3 divides the full peak-provisioned fleet TCO (~$155,817/mo ≈ ~$156K/mo, 21 hosts at full utilization) by the token volume that fleet serves at the canonical workload — 6.24M requests/month × 9,500 tokens ≈ 5.93×10¹⁰ tokens/month — giving ~$155,817 ÷ 5.93×10¹⁰ ≈ **$2.63/1M**. That is close to — but not equal to — the $2.50/1M the table prints for the FP16 tier, and the closeness is a coincidence of this volume, not an identity: the fleet-amortized figure spreads the whole 21-host included-cost total (capex amortization + energy + staff alloc) over the canonical token volume, while the table's FP16 row is a capital + energy nominal rate for one model on its own host. The two bases do not numerically match, and each moves independently if the fleet size, the served volume, or the price inputs change. Read each number with its own basis; the mixed-fleet *savings* conclusion below depends only on the relative per-model rates, not on the absolute self-host basis.
 
 ### 3.3. Routing arithmetic
 
@@ -111,6 +121,8 @@ The latency and capacity must also reconcile with the canonical workload's KV re
 
 In our example, consolidation wins because the MoE and 8-bit models capture the same request classes at lower cost, and the FP16 tier handles the tail without contention. The FP16 tier has no separate reserve in this worked example: per §18.3.1 it shares the 640 GB pool — 140 GB of weights plus KV — and at the canonical 9.5K profile it cannot be a 2-GPU reserve, because a 2-GPU shard holds 160 GB − 140 GB = 20 GB of KV headroom against the 24.9 GB that one 9,500-token request needs (κ = 2.62 MB/token, Ch 17). Two reserved GPUs suffice only for the ~250-token support queries of §18.8, not for the canonical 9.5K request.
 
+\Needspace{11\baselineskip}
+
 ## 4. Measurement
 
 To operate a mixed fleet we measure four cross-cutting metrics:
@@ -133,6 +145,8 @@ Instrumentation: add a middleware shim that logs `model_id, token_count, latency
 3. **Ignoring capital amortization.** FP16 on 8×H100 has high upfront cost; spreading that cost across a mixed fleet improves effective cost/token. Don't forget to annualize GPU capex in the per-token math.
 4. **Over-provisioning the top tier.** Keeping a full FP16 GPU idle "just in case" is expensive. Keep just enough capacity for the tail (≈10% of peak rps) and route the rest.
 5. **No fallthrough plan.** If the preferred model is at capacity, the router must have a next‑best alternative ready; otherwise requests time out or queue indefinitely.
+
+A routing candidate is a validated deployment variant, not only a model family. A lower-precision variant can lower resource use, but its quality loss may appear selectively in reasoning, code, tool arguments or long contexts. Retries and longer generations can consume the apparent savings. The routing table therefore attaches quality and SLO evidence to the exact precision/backend combination, and the fallback preserves the task's acceptance conditions. A change to scales, excluded layers or execution kernels creates a new candidate for validation; it does not inherit the previous candidate's quality curve automatically.
 
 ## 6. Architecture Consequence
 
@@ -183,5 +197,7 @@ The key enabler was the router's feature gate: queries mentioning "multilingual"
 
 *The routing decision chain. A request first passes a capability filter (is there a specialized model that can serve it?), then a cost/SLO gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialized family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
 
----
-*Evidence labels: [1P] price observations from public cloud provider pricing pages (Q4 2026); [2°] derived per-token cost arithmetic; [UNRESOLVED] latency measurements from local GGUF benchmarks on reference hardware.*
+
+[^oct-ix-t7-openvino]: \raggedright OpenVINO documentation source, "Inference with OpenVINO GenAI," at revision `6f2492828618e1becda7d5ba6df6aa339e489e44` (examples of device targets for local GenAI inference): https://raw.githubusercontent.com/openvinotoolkit/openvino/6f2492828618e1becda7d5ba6df6aa339e489e44/docs/articles_en/openvino-workflow-generative/inference-with-genai.rst (retrieved 2026-10-28, Pacific time; outside the book's 2026-08-30 evidence cutoff; documentation inspection, not a tested combined environment).
+[^oct-ix-t7-devices]: Intel Core Ultra X9 388H processor specifications list the Intel Arc B390 integrated GPU and the NPU as separate devices with their own compute figures (the GPU Peak TOPS (Int8) figure is quoted for the GPU alone), while graphics uses shared system memory: [https://www.intel.com/content/www/us/en/products/sku/245526/intel-core-ultra-x9-processor-388h-18m-cache-up-to-5-10-ghz/specifications.html](https://www.intel.com/content/www/us/en/products/sku/245526/intel-core-ultra-x9-processor-388h-18m-cache-up-to-5-10-ghz/specifications.html); OpenVINO documentation on managing iGPU memory usage: https://raw.githubusercontent.com/openvinotoolkit/openvino/0e15d2a38122e6787137fa91d96fe52c61615e66/docs/articles_en/openvino-workflow/running-inference/optimize-inference/managing-igpu-memory-usage.rst (documentation source pinned to revision `0e15d2a38122e6787137fa91d96fe52c61615e66`; both inspected 2026-10-28, Pacific time, outside the book's 2026-08-30 evidence cutoff; device specifications and documentation are not a combined runtime benchmark).
+[^oct-ix-t7-configpath]: \raggedright vLLM XPU requirements at pinned revision `5df63a7203cdb9328d824a27b682e77c7b9928be`, which pins the framework/runtime stack (e.g. `torch==2.14.0`): https://raw.githubusercontent.com/vllm-project/vllm/5df63a7203cdb9328d824a27b682e77c7b9928be/requirements/xpu.txt (retrieved 2026-10-28; outside the book's 2026-08-30 evidence cutoff).

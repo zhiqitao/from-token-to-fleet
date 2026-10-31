@@ -190,8 +190,8 @@ instead of the scheduler. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is time (decode steps / iterations); each row is one decode step, and in the continuous panel the step boundaries are staggered across rows as the scheduler admits new requests and evicts finished ones. In the top (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the bottom (continuous) panel freed slots are refilled every step. The diagram is a decode-only illustration; see the note in the figure.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1102.pdf}}
-\caption[Discrete vs continuous batching (Orca-style slot diagram)]{Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is \textbf{time (decode steps / iterations)}; each row is one decode step, and in the continuous panel the step boundaries are staggered across rows as the scheduler admits new requests and evicts finished ones. In the top (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the bottom (continuous) panel freed slots are refilled every step. The diagram is a \textbf{decode-only} illustration; see the note in the figure.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is time (decode steps / iterations); each row is one decode step, and in the continuous panel the step boundaries are staggered across rows as the scheduler admits new requests and evicts finished ones. In the top (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the bottom (continuous) panel freed slots are refilled every step. The diagram is a decode-only illustration; see the note in the figure. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1102.pdf}}
+\caption[Discrete vs continuous batching (Orca-style slot diagram)]{Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is \textbf{time (decode steps / iterations)}; each row is one decode step, and in the continuous panel the step boundaries are staggered across rows as the scheduler admits new requests and evicts finished ones. In the top (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the bottom (continuous) panel freed slots are refilled every step. The diagram is a \textbf{decode-only} illustration; see the note in the figure. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:11.1}\emph{Discrete batching runs each batch to completion, leaving GPU slots
 idle as sequences finish early; continuous batching admits and evicts
@@ -230,6 +230,11 @@ causal K/V of the document span differs per query and no prefix is
 reusable --- the savings above assume the documents-then-query layout,
 which the architect must verify in the actual prompt template.
 
+Prefix reuse is also only one of the state-preservation requirements a
+serving system must meet: preemption, speculative rollback, and
+adaptive-depth execution all constrain what a cache may evict or reuse
+--- see the serving qualification in §4.
+
 \subsection{When to Disaggregate: Prefill and Decode Want Different
 Pools}\label{when-to-disaggregate-prefill-and-decode-want-different-pools}
 
@@ -251,6 +256,16 @@ request count are the quantitative anchor \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P
 canonical single-host (\textasciitilde10 rps) this disaggregation is
 premature; it pays off only when the workload outgrows a node and the
 two phases' resource conflicts become binding.
+
+The state crossing between prefill and decode pools is a different
+communication object from a TP activation reduction. Its endpoints,
+ownership, block layout, and transfer frequency must be stated
+independently. A KV-transfer path may use point-to-point or specialized
+transfer facilities rather than a group collective. The service budget
+includes transfer and orchestration on the request's critical path; it
+does not count a whole KV cache again on every ordinary decode step. Ch
+9 provides the directional byte convention; this chapter determines when
+moving ownership is worthwhile.
 
 \subsubsection{Table 11-1 --- Serving techniques at a
 glance}\label{table-11-1-serving-techniques-at-a-glance}
@@ -289,7 +304,7 @@ FLOPs +~memory & repeated-context RAG & \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]
 P/D disaggregation & Split prefill/decode pools + KV transfer & both at
 scale & workload outgrows a node & \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}} \\
 
-\label{tab:11.1}\end{longtable}
+\noalign{\label{tab:11.1}}\end{longtable}
 
 \ntsection{Measurement}\label{measurement}
 
@@ -315,6 +330,48 @@ the GPU busy?'':
   \textbf{Measure the scheduler's real occupancy} --- idle decode slots,
   queue wait, and the tail of TTFT under load, not the average.
 \end{enumerate}
+
+\subsection{Serving qualification: model support is not serving
+capability}\label{serving-qualification-model-support-is-not-serving-capability}
+
+Model support is not a complete serving capability. A hybrid model can
+require both paged history and bounded recurrent state. A looped-depth
+model can require iteration-specific caches. Prefix reuse, preemption,
+and speculative rollback must preserve the state that the next execution
+actually consumes. An early-exit interface also needs a runtime path
+that avoids the skipped work, rather than selecting logits after all
+work has already run. A capability record can therefore identify the
+exact model revision, engine revision, state representation, cache
+policy, precision, and supported execution paths; kernel or module
+speedups remain separate from end-to-end goodput at the service SLO.
+\mbox{{[}DERIVED{]}}
+
+Adaptive depth changes the scheduler's unit of work. Requests that exit
+at different iterations can leave an initially uniform batch with
+different amounts of remaining computation. A runtime may compact active
+requests or group them by depth, but compaction, cache indexing, and
+synchronization consume resources. Padding every request to the deepest
+active iteration can preserve batching convenience while eliminating the
+hoped-for arithmetic saving. These are alternative implementation
+choices, not measured features. \mbox{{[}DERIVED{]}}
+
+Latency evaluation must retain the depth distribution. Average passes
+per token does not determine p95 token latency: difficult tokens, long
+histories, and queueing can coincide. A comparison therefore fixes the
+prompt population, output length, quality criterion, and SLO, then
+records actual pass counts, state allocation, and elapsed time by phase.
+When prefill and decode use different cache policies, one aggregate
+cache-reduction factor hides the capacity bottleneck. \mbox{{[}DERIVED{]}}
+
+The economic denominator is completed, quality-compliant work within the
+service target. A reduced core-work budget is useful only if it
+increases that useful output or lowers the resources required to produce
+it. Routing a difficult request to more depth can be rational even when
+its per-token cost rises. Conversely, premature exits that can require
+retries can raise task cost despite shorter first attempts. A
+training-time self-improvement loop and an inference-time depth loop are
+different mechanisms; sharing the word ``iteration'' assigns no
+inference-time saving to either. \mbox{{[}DERIVED{]}}
 
 \ntsection{Common Mistakes}\label{common-mistakes}
 
@@ -375,8 +432,8 @@ The serving mechanisms dictate the deployment choices:
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation). A concrete serving design that chooses one mechanism per concern: request scheduling = continuous (Orca-style) batching; state management = PagedAttention (fixed-size KV pages); reuse = prefix caching of shared context; resource specialisation = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- a system can combine any mechanism with any other --- and the canonical baseline uses the first three; resource specialisation joins when the workload outgrows a node (§11.3.6).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1101.png}}
-\caption[Serving is four orthogonal concerns, not a stack]{Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation). A concrete serving design that chooses one mechanism per concern: \textbf{request scheduling} = continuous (Orca-style) batching; \textbf{state management} = PagedAttention (fixed-size KV pages); \textbf{reuse} = prefix caching of shared context; \textbf{resource specialisation} = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- a system can combine any mechanism with any other --- and the canonical baseline uses the first three; resource specialisation joins when the workload outgrows a node (§11.3.6).}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation). A concrete serving design that chooses one mechanism per concern: request scheduling = continuous (Orca-style) batching; state management = PagedAttention (fixed-size KV pages); reuse = prefix caching of shared context; resource specialisation = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- a system can combine any mechanism with any other --- and the canonical baseline uses the first three; resource specialisation joins when the workload outgrows a node (§11.3.6). \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1101.pdf}}
+\caption[Serving is four orthogonal concerns, not a stack]{Serving is four orthogonal concerns, not a stack (request scheduling, state management, reuse, resource specialisation). A concrete serving design that chooses one mechanism per concern: \textbf{request scheduling} = continuous (Orca-style) batching; \textbf{state management} = PagedAttention (fixed-size KV pages); \textbf{reuse} = prefix caching of shared context; \textbf{resource specialisation} = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- a system can combine any mechanism with any other --- and the canonical baseline uses the first three; resource specialisation joins when the workload outgrows a node (§11.3.6). \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:11.2}\emph{The design lever is what each concern trades: \textbf{request
 scheduling} exchanges latency for utilization, \textbf{state management}
@@ -386,8 +443,8 @@ compute/memory regimes to two pools.}
 
 \end{figure}\begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer. The KV-transfer arrow is the load-bearing cost: it moves the per-request KV state (e.g.~\textasciitilde35 GB for a \textasciitilde13K-token context at 2.62 MB/token, §9.8) over the interconnect, and the disaggregation is only worth it when the prefill/decode specialization benefit exceeds the KV-transfer time plus the orchestration overhead of routing requests between two pools. Illustrative: at NVLink's 450 GB/s per direction (§9.2) that \textasciitilde35 GB transfer is \textasciitilde0.08 s, which is small against the \textasciitilde1.08 s prefill it enables, so the inequality holds on-node; over a 40 GB/s fabric it is \textasciitilde0.9 s, which can erase the benefit --- the transfer cost is the term that decides whether P/D disaggregation pays.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1103.png}}
-\caption[P/D disaggregation topology]{P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer. The KV-transfer arrow is the load-bearing cost: it moves the per-request KV state (e.g.~\textasciitilde35 GB for a \textasciitilde13K-token context at 2.62 MB/token, §9.8) over the interconnect, and the disaggregation is only worth it when the prefill/decode specialization benefit \textbf{exceeds} the KV-transfer time plus the orchestration overhead of routing requests between two pools. Illustrative: at NVLink's 450 GB/s per direction (§9.2) that \textasciitilde35 GB transfer is \textasciitilde0.08 s, which is small against the \textasciitilde1.08 s prefill it enables, so the inequality holds on-node; over a 40 GB/s fabric it is \textasciitilde0.9 s, which can erase the benefit --- the transfer cost is the term that decides whether P/D disaggregation pays.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer. The KV-transfer arrow is the load-bearing cost: it moves the per-request KV state (e.g.~\textasciitilde35 GB for a \textasciitilde13K-token context at 2.62 MB/token, §9.8) over the interconnect, and the disaggregation is only worth it when the prefill/decode specialization benefit exceeds the KV-transfer time plus the orchestration overhead of routing requests between two pools. Illustrative: at NVLink's 450 GB/s per direction (§9.2) that \textasciitilde35 GB transfer is \textasciitilde0.08 s, which is small against the \textasciitilde1.08 s prefill it enables, so the inequality holds on-node; over a 40 GB/s fabric it is \textasciitilde0.9 s, which can erase the benefit --- the transfer cost is the term that decides whether P/D disaggregation pays. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1103.pdf}}
+\caption[P/D disaggregation topology]{P/D disaggregation topology: a prefill-optimized pool (FLOPs) and a decode-optimized pool (HBM) bridged by KV transfer. The KV-transfer arrow is the load-bearing cost: it moves the per-request KV state (e.g.~\textasciitilde35 GB for a \textasciitilde13K-token context at 2.62 MB/token, §9.8) over the interconnect, and the disaggregation is only worth it when the prefill/decode specialization benefit \textbf{exceeds} the KV-transfer time plus the orchestration overhead of routing requests between two pools. Illustrative: at NVLink's 450 GB/s per direction (§9.2) that \textasciitilde35 GB transfer is \textasciitilde0.08 s, which is small against the \textasciitilde1.08 s prefill it enables, so the inequality holds on-node; over a 40 GB/s fabric it is \textasciitilde0.9 s, which can erase the benefit --- the transfer cost is the term that decides whether P/D disaggregation pays. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:11.3}\emph{The KV moves once per request, then stays local (ownership
 splits); the split itself exists because the two stages want opposite
@@ -461,7 +518,7 @@ constrained & constrained & whether output can be schema-constrained \\
 supported hardware & NVIDIA / AMD / CPU & NVIDIA / AMD & NVIDIA-only &
 CPU + consumer GPUs & deployment niche \\
 
-\label{tab:11.2}\end{longtable}
+\noalign{\label{tab:11.2}}\end{longtable}
 
 The columns read as \emph{knobs on a common set of mechanisms}, not as
 ``which engine is best.'' An engine's real value is which mechanisms it
@@ -474,6 +531,231 @@ the go-to engine''} --- that is workload-independent and will be wrong.
 The only defensible statement is workload-specific: \emph{for this
 request shape, this precision, and this hardware, engine Y implements
 the mechanism Z we need; benchmark it against the alternative (Ch. 14).}
+
+\subsection{What the capability table does not
+promise}\label{what-the-capability-table-does-not-promise}
+
+\textbf{A recognized quantization name is not an end-to-end support
+claim.} A deployment needs a chain of compatible choices: checkpoint
+schema, model graph, tensor layout, operator coverage, runtime
+dependencies, and device instructions. ``Supports four-bit weights''
+does not establish support for a model's grouped expert GEMMs, attention
+variant, modal branches, or KV format. A backend may accept a checkpoint
+and select a different arithmetic path, reject a particular shape, or
+need a temporary higher-precision representation; the serialized tensor
+layout and the kernel-required runtime layout are different objects. A
+missing compatible path is a deployment failure, not a guaranteed
+fallback. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Implementation-specific examples are
+dated separately.
+
+The deployment record therefore includes the exact model and engine
+revision, device architecture, driver/toolkit and library versions,
+quantized tensor inventory, selected kernels, and fallback logs. It also
+records cold-load peak and steady HBM separately. This record determines
+whether the configuration can be reproduced; a single support-table
+checkmark does not. Allocator or scheduling limits then determine how
+much of the remaining memory can become usable KV capacity without
+violating latency targets. Smaller weights do not justify increasing
+admitted concurrency until the new operating point is measured.
+\mbox{{[}DERIVED{]}}
+
+\textbf{A serving feature belongs to an algorithm path.} The capability
+table is a map of mechanisms, not a guarantee that every supported model
+can combine every row. Diffusion language models make this qualification
+especially important. A paged allocator can manage buffers without
+proving that their contents remain valid across refinement. A
+prefix-cache key must describe finalized token content and compatible
+state, not an unresolved mask canvas. Grammar constraints, quantized
+loading, graph capture, and distributed parallelism also depend on the
+selected model implementation and sampler. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
+
+Requests can require different numbers of refinement rounds. A lockstep
+batch waits for its slowest active member unless the scheduler can
+preserve unfinished state and admit or complete requests independently.
+The SGLang diffusion scheduler inspected on 2026-10-28 (revision
+a1966e1) implements a first-done-first-out path that retains partial
+block state.\footnote{SGLang documentation and source at pinned revision
+  \texttt{a1966e1b5d8b750b494d7e53cca1d2464f960038},
+  §``First-Done-First-Out (FDFO) Scheduling'':
+  \url{https://raw.githubusercontent.com/sgl-project/sglang/a1966e1b5d8b750b494d7e53cca1d2464f960038/docs/docs/supported-models/diffusion_language_models.mdx}
+  ; scheduler comment ``keep partial state and KV for the next FDFO
+  round'':
+  \url{https://raw.githubusercontent.com/sgl-project/sglang/a1966e1b5d8b750b494d7e53cca1d2464f960038/python/sglang/srt/dllm/mixin/scheduler.py}
+  . Retrieved 2026-10-28; source-inspected, not executed.} This is
+explicit iteration-aware scheduling, not evidence that the
+autoregressive token loop works unchanged --- an observation about that
+inspected revision, dated 2026-10-28 and outside this edition's
+2026-08-30 evidence snapshot. Tail latency depends on the distribution
+of rounds, block sizes, queueing, refresh, and cancellation, not merely
+the average accepted tokens per round. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}; latency
+interpretation \mbox{{[}DERIVED{]}}
+
+A prefill/decode-style split must place context encoding, block
+refinement, and finalization on explicit resources. Any transferred
+state, repeated attention to that state, and finalization work belong in
+the service budget. The familiar principle survives: specialization is
+useful only when its benefit exceeds transfer and orchestration costs.
+The objects being transferred cannot be inferred from an autoregressive
+KV formula alone. \mbox{{[}DERIVED{]}}
+
+\textbf{The complete backend path.} A serving engine needs more than a
+visible accelerator. It needs a compatible model implementation,
+numerical representation, attention path, cache management, kernel set,
+runtime and driver. Distributed execution adds a collective backend and
+a supported transport. \hyperref[fig:11.4]{Fig 11.4} separates these dependencies from the
+final qualification decision. Its columns are alternatives, not
+interchangeable APIs.
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={Three accelerator paths and one qualification gate. Three columns descend from serving engine through backend entry, kernels/runtime, and hardware: Intel GPU (torch.xpu or engine-native SYCL), Gaudi (hpu and its own stack), and client NPU (the OpenVINO NPU plugin). Solid arrows denote dependencies; dashed arrows bring the complete path to the qualification gate. The columns are alternatives, not interchangeable APIs. Original conceptual diagram; no measured performance data.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-backend-paths.pdf}}
+\caption[Three accelerator paths and one qualification gate]{Three accelerator paths and one qualification gate. Three columns descend from serving engine through backend entry, kernels/runtime, and hardware: Intel GPU (torch.xpu or engine-native SYCL), Gaudi (hpu and its own stack), and client NPU (the OpenVINO NPU plugin). Solid arrows denote dependencies; dashed arrows bring the complete path to the qualification gate. The columns are alternatives, not interchangeable APIs. Original conceptual diagram; no measured performance data.}
+
+\label{fig:11.4}\emph{A visible device or a loaded model is not a serving path: each
+column must be complete --- model implementation, kernels, runtime,
+driver, hardware --- and the gate additionally requires memory
+residency, operator coverage, request isolation, collectives when used,
+and a measured SLO. (Original conceptual diagram; no measured
+performance data. Observed 2026-10-28.)}
+
+\end{figure}The distinction matters when an engine changes its implementation
+without failing the request. OpenVINO GenAI documentation inspected on
+2026-10-28 states that \texttt{LLMPipeline} and \texttt{VLMPipeline} can
+fall back to contiguous-cache SDPA if paged-attention initialization
+fails; explicit paged-attention selection can instead make that failure
+visible.\footnote{OpenVINO GenAI documentation, ``Continuous Batching''
+  --- PagedAttention default on CPU/GPU, automatic SDPA fallback when PA
+  initialization fails, and explicit \texttt{ATTENTION\_BACKEND="PA"}
+  selection that makes failure visible instead:
+  \url{https://openvinotoolkit.github.io/openvino.genai/docs/concepts/optimization-techniques/continuous-batching}
+  . Retrieved 2026-10-28.} A service that still generates tokens may
+therefore have lost the cache behavior assumed by its capacity
+calculation. The resulting concurrency limit and queueing latency must
+be measured again. This CPU/GPU behavior does not imply the same feature
+set on the NPU. \mbox{{[}1P{]}} (observed 2026-10-28, outside the 2026-08-30
+snapshot)
+
+Graph execution provides a second example. Capturing work can reduce
+repeated launch overhead, but it introduces startup work and constraints
+on supported shapes and operators. A compiler transformation and graph
+replay are not the same mechanism. The SGLang XPU documentation
+inspected on 2026-10-28 treats decode and prefill graphs separately and
+marks them experimental and opt-in; the prefill breakable path uses
+segmented capture rather than \texttt{torch.compile}.\footnote{SGLang
+  XPU documentation at pinned revision
+  \texttt{a1966e1b5d8b750b494d7e53cca1d2464f960038}, §``XPU Graph
+  \mbox{{[}Experimental{]}}'' --- decode \texttt{full} graph captured on
+  startup and prefill \texttt{breakable} segmented
+  \texttt{torch.xpu.XPUGraph} capture/replay (no
+  \texttt{torch.compile}), both off/opt-in by default:
+  \url{https://raw.githubusercontent.com/sgl-project/sglang/a1966e1b5d8b750b494d7e53cca1d2464f960038/docs/docs/hardware-platforms/xpu.mdx}
+  . Retrieved 2026-10-28.} More capture is not automatically better when
+startup delay or shape diversity dominates. \mbox{{[}1P{]}} (observed
+2026-10-28, outside the 2026-08-30 snapshot)
+
+A compact qualification record can contain seven gates:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Exact device, checkpoint, tokenizer, engine, and dependency identities
+  are fixed.
+\item
+  Each rank fits weights, KV, workspace, and temporary conversion state.
+\item
+  Required operators, weight/activation/KV formats, and attention
+  layouts execute correctly.
+\item
+  Scheduling, cache reuse, graph behavior, and any fallback are
+  observable.
+\item
+  Required collectives work on the deployed topology and message sizes.
+\item
+  Long-context quality, concurrent-request isolation, and failure
+  recovery pass.
+\item
+  Measured tail latency and quality-qualified goodput satisfy the
+  workload contract.
+\end{enumerate}
+
+A failure closes the proposed configuration. A different configuration
+can be evaluated, but a reduced context, changed quality threshold, or
+disabled feature is a changed deployment --- not an unnoticed repair to
+the original result.
+
+\subsection{The serving concerns transfer; the text mechanisms do not
+transfer
+automatically}\label{the-serving-concerns-transfer-the-text-mechanisms-do-not-transfer-automatically}
+
+A video service still schedules requests, manages live state, reuses
+valid work, and chooses resource-specialized pools. The mechanisms
+implementing those concerns differ. The inspected full-clip Wan path
+does not emit a completed next frame at each denoising step.\footnote{Wan2.2
+  TI2V sampling loop at pinned commit
+  \texttt{1ea34ff48f87168174e12956e200b1d908b1c5ff} --- denoising steps
+  update the full clip latent; frames are produced by the VAE decode
+  after sampling:
+  \url{https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py}
+  . Retrieved 2026-10-28; source-inspected, not executed.} A step
+boundary can be a scheduling or cancellation point if the runtime
+exposes it, but it is not automatically a text continuous-batching
+boundary. Jobs with different shapes, samplers, guidance branches, and
+timestep schedules may be difficult or wasteful to batch together.
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} model execution; \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}HYPOTHESIS{]}}
+scheduling consequence.
+
+A useful admission record therefore includes the checkpoint revision,
+task type, exact height and width, frame count, audio/reference inputs,
+schedule, guidance method, precision, and parallel layout. Shape-aware
+buckets limit padding and kernel recompilation. A deadline-aware
+dispatcher can separate interactive previews from full-quality
+completion. It must include queue age and avoid starving long jobs. A
+low-step preview is a separate quality contract unless the
+implementation proves that its state can continue into the final recipe.
+A preview image, first decoded frame, and finalized downloadable clip
+are three different completion events.
+
+Per-request memory limits follow measured peaks for each admitted
+configuration. The largest VAE reconstruction, full-clip attention
+workspace, compiler workspace, and overlapping transfers can bind even
+when the weight set fits. Offload and quantization change those peaks
+only where the actual kernels support the chosen representation. A
+quantized checkpoint file alone does not establish faster execution,
+adequate reconstruction quality, or a supported attention backend.
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} documented offload paths;
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}HYPOTHESIS{]}} deployment consequences.
+
+Parallelism also changes the cost of a step. Sequence or context
+parallelism partitions video positions and exchanges attention data.
+Tensor parallelism partitions model operations and introduces its own
+collectives. Weight sharding is a residency technique, not a synonym for
+either. Wan2.2's official multi-GPU path combines FSDP and Ulysses; the
+Ulysses strategy's attention-head divisibility requirement is part of
+the deployable configuration.\footnote{Wan2.2 official README,
+  ``Multi-GPU inference using FSDP + DeepSpeed Ulysses''
+  (\texttt{-\/-ulysses\_size\ 8}), pinned commit
+  \texttt{1ea34ff48f87168174e12956e200b1d908b1c5ff}:
+  \url{https://github.com/Wan-Video/Wan2.2/tree/1ea34ff48f87168174e12956e200b1d908b1c5ff}
+  . The head-divisibility requirement for the Ulysses strategy is stated
+  in Wan's official README at commit
+  \texttt{9737cba9c1c3c4d04b33fcad41c111989865d315}:
+  \url{https://raw.githubusercontent.com/Wan-Video/Wan2.1/9737cba9c1c3c4d04b33fcad41c111989865d315/README.md}
+  (``\texttt{num\_heads} should be divisible by
+  \texttt{ulysses\_size}''). Both retrieved 2026-10-28.} More aggregate
+GPU memory does not establish that an arbitrary partition or mixed-speed
+GPU group is valid or fast. Repeated synchronization can make the
+slowest device or weakest link determine the step time.
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} supported path; \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}HYPOTHESIS{]}}
+performance boundary.
+
+The end-to-end clock starts at request acceptance and ends only after
+the promised media artifact is available. Model denoising, VAE decode,
+frame transfer, video encoding, audio muxing, safety checks, storage
+upload, and delivery can all extend that clock. Encoder-heavy
+postprocessing may merit a separate CPU or GPU pool, but the transfer
+and queue cost must be measured. A text prefill/decode split does not
+prove that the same split is useful here.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -503,29 +785,29 @@ target cluster):
 \section{End-of-Chapter Mini-Case: Which Serving Mechanism to Reach
 For}\label{end-of-chapter-mini-case-which-serving-mechanism-to-reach-for}
 
-An architect runs the canonical internal Q\&A service on a single 8×H100
-host and sees p95 TTFT creep toward 2.2 s against a 2 s SLO as traffic
-peaks at 40 rps. Applying this chapter: the architect first confirms
-continuous batching is on (vLLM) and that PagedAttention is active ---
-otherwise the \textasciitilde24.1 GB-per-request KV for 9.2K inputs
-fragments and concurrency collapses. The biggest lever: prefix caching.
-The RAG traffic reuses the same retrieved documents, so the architect
-enables automatic prefix caching and watches TTFT drop as the 8K-context
-prefill is replaced by cached KV lookups. The architect does
-\textbf{not} reach for P/D disaggregation or speculative decoding ---
-the single host is resource-sufficient \emph{for this latency/SLO} once
-the wasted re-prefill is eliminated. The result: p95 TTFT back under 1.8
-s at 40 rps, goodput restored, with only configuration changes ---
-because the architecture followed the serving mechanism that matched the
-workload's repeated-context shape. Scope note: this is a
-\textbf{latency-bound, single-host} judgment. It answers ``can one host
-meet the TTFT SLO per request,'' \emph{not} ``can one host carry the
-whole 40 rps arrival rate.'' At the canonical peak, in-flight
-concurrency at the \textasciitilde8.6 s service time is ≈344 requests,
-far above an 8×H100 host's KV-residency ceiling (C ≈ 17.5, conservative
-integer floor 17); a \emph{single} host therefore cannot serve the peak
-\emph{traffic}, even though it can meet the per-request TTFT SLO. The
-capacity/fleet question --- how many such hosts for λ=40 rps --- is
-answered by \hyperref[chap:17]{Chapter 17}'s service-time-aware sizing (≈20 hosts), not by
-this mini-case. The two questions (per-request latency vs aggregate
-capacity) must not be conflated.
+This is an illustrative scenario, not a measured result.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} An architect examines one 8×H100
+replica in the canonical internal Q\&A service, whose aggregate service
+peak is 40 rps. Suppose that replica's assigned load produces p95 TTFT
+of 2.2 s against a 2 s SLO. The first checks are whether continuous
+batching and PagedAttention are active: the baseline KV for 9.2K inputs
+is about 24.1 GB per request, so allocation behavior matters. Repeated
+RAG documents then make prefix caching a candidate because valid
+shared-prefix KV can avoid repeated prefill work. Suppose a controlled
+test at the same assigned load and request mix brings p95 TTFT below 1.8
+s. That assumed result would support the cache change for this replica;
+it would not establish service capacity at 40 rps. P/D disaggregation
+and speculative decoding remain separate candidates, not required steps
+in this diagnosis.
+
+Scope note: with the baseline mean service-time assumption of 8.6 s, the
+aggregate 40 rps peak implies approximately 344 in-flight requests. The
+baseline unshared-KV capacity quotient is about 17.5 complete requests
+per host, conservatively floored to 17 integer slots. \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} That baseline requires multiple replicas; a
+per-request TTFT result does not size the fleet. Any capacity credit for
+sharing must follow measured prefix-cache occupancy, hit rates, service
+time, and tail latency under the admitted workload. \hyperref[chap:17]{Chapter 17} applies
+joint residency and throughput constraints, headroom, and failure
+reserve. The replica's latency result and the service's capacity
+decision remain distinct.

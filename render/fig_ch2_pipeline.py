@@ -192,10 +192,14 @@ ax.text(X_T - 12, _py, 'populate', color='#333333', fontsize=FSN,
 
 # ==================== DECODE ====================
 band(LM, dc_bot, X_BANDR, dc_top)
-label(LM + 2, dc_title, 'DECODE', '#333333', FST, weight='bold', ha='left')
 dc_names = ['previous token', 'token + position', 'transformer',
             'logits + sampling', 'next token']
 dc = layout_row(dc_names, dc_rail, [C_TOK, C_BOX, C_TRANS, C_BOX, C_TOK])
+# DECODE band title: placed to the RIGHT of the previous-token box so the green
+# initialize drop (which enters the previous-token top at its centre) never passes
+# through the label (A-014). Still at the top of the decode band.
+label(dc['previous token'][1] + 8, dc_title, 'DECODE', '#333333', FST,
+      weight='bold', ha='left')
 for a, b in [('previous token', 'token + position'),
              ('token + position', 'transformer'),
              ('transformer', 'logits + sampling'),
@@ -235,12 +239,10 @@ _ay = (gn_y + BR + kc_bot) / 2
 ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
         fontweight='bold', ha='left', va='center')
 
-# Junction dots where the green initialize channel crosses the read and append
-# lines (Loop-3 D-7): the crossings are bridged so green passes over, and a
-# small node at each crossing marks it as a deliberate junction rather than a
-# stray overlap.  Dot sits above the green stroke (zorder 6 > 5).
-for _jx in (X_T, X_APP):
-    ax.plot([_jx], [gn_y], marker='o', ms=5.2, mfc=C_AR, mec=C_AR, zorder=6)
+# The green initialize channel crosses the read and append lines; those lines are
+# bridged (broken) at the crossing so the green passes OVER cleanly. No junction
+# dots are drawn: a filled node at a mere crossing misreads as a real junction
+# (A-014) — the bridge gap alone conveys the over/under relationship.
 
 # R-09: the single read/append pair is a *conceptual* per-step, per-layer
 # cache I/O, not one global read/append bracketing the whole transformer.

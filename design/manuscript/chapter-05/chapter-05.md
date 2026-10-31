@@ -16,6 +16,14 @@ Model selection proceeds across five surfaces, each derived from the workload ch
 
 The core reframe — modeled in Chapter 4 — is that **model selection is a consequence of workload characterization**. When the workload is specified in token counts, request rates, latency budgets, and economic constraints, the feasible model space narrows naturally. The architect does not start with a model and reason forward; they start with the workload and reason backward into model space.
 
+### A model candidate includes its deployment precision
+
+A model name alone does not identify a deployable candidate. The same checkpoint can produce different quality, memory use and execution paths under different quantization recipes.[^oct-qz-awq]^,^[^oct-qz-gptq] We therefore compare a base-model revision together with its tensor precisions, calibration or recovery procedure, export schema and serving backend. The quality gate applies to that exported deployment, including its tokenizer, prompt template and modal branches. A language-only quantization result does not establish that a vision encoder, projector or tool-use workload retains the same behavior. The mechanism and byte accounting appear in Chapter 7; Chapter 14 supplies the acceptance test. [1P][DERIVED]
+
+### Inference mode is a candidate, not a selection verdict
+
+The same task can favor different inference modes at different concurrency levels. Parallel refinement is worth investigating when low-batch latency or constrained infilling dominates, but neither advantage follows from a model-family label. AR fill-in-the-middle models are a necessary editing baseline. Structured output adds another gate: an API that documents JSON-schema generation and a self-hosted backend that rejects grammar constraints are not interchangeable candidates.[^oct-df-struct] The selection question is whether the specific model, sampler and runtime meet the workload's quality, output and SLO requirements together. The mechanisms in Chapter 3 explain the candidate; the measurements in Chapter 14 decide whether it belongs in the architecture. [DERIVED]
+
 ## 2. Mental Model
 
 Model selection is really **system design, not model picking**. The workload is the architect's input; the model is a component that must satisfy the workload's constraints. If the workload is input-heavy (9.2K average input, 300-token output, ~30× more input than output), the system is memory‑capacity‑bound (KV residency) and prefill‑dominated — prefill itself sits in the compute‑bound regime (Ch 2). If the workload were output‑heavy, it would be decode‑bandwidth‑bound. The mental model holds both profiles in view: the same "which model?" question produces opposite answers depending on the token profile.
@@ -39,19 +47,21 @@ The retrieval leg maps chunks of internal documents to dense vectors so that a u
 
 Three realistic options, each with documented properties:
 
-| Embedding model | Dim | Params | FLOPs per embedding | Typical use case |
-|------------------|----|--------|---------------------|--------------------|
-| all‑MiniLM‑L6‑v2 | 384 | ~23M | ~0.3 GFLOPs | Light‑weight, high‑throughput search |
-| all‑mpnet‑base‑v2 | 768 | ~110M | ~1 GFLOPs | General‑purpose, quality‑first |
-| bge‑large‑en | 1024 | ~335M | ~2 GFLOPs | Dense-retrieval-optimal, technical docs |
+| Embedding model | Dim | Params | FLOPs per embedding (64-token query) | Typical use case |
+|---|---|---|---|---|
+| all‑MiniLM‑L6‑v2 | 384 | ~23M | ~2.9 GFLOPs | Light‑weight, high‑throughput search |
+| all‑mpnet‑base‑v2 | 768 | ~110M | ~14 GFLOPs | General‑purpose, quality‑first |
+| bge‑large‑en | 1024 | ~335M | ~43 GFLOPs | Dense-retrieval-optimal, technical docs |
+
+*FLOPs per embedding = 2 × params × L at a 64-token query (L = 64); the value scales linearly with query length, so the model-to-model ratio equals the parameter ratio (bge‑large ≈ 3× mpnet). [DERIVED]*
 
 [HYPOTHESIS]: *within a given embedding family or a controlled dimensionality experiment*, reducing the embedding dimension may trade retrieval quality for lower storage and compute — e.g. a 384‑dim variant of the same model family can cost roughly half the FLOPs and index storage of a 768‑dim one. **Dimension alone is not a cross‑model quality metric**: a 1024‑dim embedding model is not intrinsically better than a 768‑dim one merely because its vector has more dimensions; retrieval quality depends on model architecture, training objective/data, corpus/query distribution, normalization, and retrieval strategy. Any observed quality‑vs‑dimension relationship (reports range from a few to ~15% MAP difference) is domain‑ and corpus‑specific and must be validated on the target corpus.
 
 [ILLUSTRATIVE][DERIVED]: for a 1 M‑chunk corpus (a Ch 5‑local illustrative input, not part of Table 4‑2), the index storage for a $D$‑dim float32 vector corpus is $\text{bytes} = n_\text{chunks} \times D \times 4$. For 768‑dim: $1{\times}10^6 \times 768 \times 4 = 3.07$ GB; for 384‑dim: $1{\times}10^6 \times 384 \times 4 = 1.54$ GB; a difference of ~1.5 GB. At 10× the corpus (10 M chunks), that difference grows to ~15 GB. Small relative to a 140 GB base model, but not negligible at large corpus scale: storage is a persistent footprint that scales with corpus size, not a one‑time cost that vanishes.
 
-[HYPOTHESIS]: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~0.8 ms on a single CPU core, well within the ~120 ms retrieval budget. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2×FLOP cost — a workload‑specific tradeoff, not a universal rule.
+[HYPOTHESIS]: for the canonical 2,000‑user workload with ~10 rps average, the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~11.1 GFLOP per 64‑token query (2 × params × L: 14.08 − 2.94 GFLOP, Table 5‑1's own rows; a same‑family 384‑dim variant is the ~2× case) — ~56–370 ms if encoded on a single CPU core at a realistic 30–200 GFLOP/s, but only ~1.1 ms on a ~10 TFLOP/s GPU, which is the basis the ~120 ms retrieval budget already assumes (vector search and reranking on a local GPU, Ch 4). On that basis the incremental cost stays well within the ~120 ms retrieval budget; single‑core encoding is the configuration that would not fit. The decision hinges on whether the ~15% retrieval quality gain translates into sufficient answer‑quality improvement to justify the 2×FLOP cost — a workload‑specific tradeoff, not a universal rule.
 
-**Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the ~2× FLOP cost over all‑mpnet‑base‑v2 (the ~2 GFLOPs vs the ~1 GFLOPs for the 768‑dim option in the table above).
+**Takeaway for the canonical RAG workload:** 768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model. It places the workload in the quality‑positive regime without introducing per‑request latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal quality gain does not offset the ~3× FLOP cost over all‑mpnet‑base‑v2 (≈43 vs ≈14 GFLOPs per 64-token embedding in the table above, the same ratio as their parameter counts).
 
 \needspace{250pt}
 **Table 5-1** — Model-selection decision: embedding vs generation model
@@ -80,7 +90,7 @@ The generation leg produces the 300-token answer given the 9.2K retrieved contex
 
 [ILLUSTRATIVE][DERIVED]: tokens/s per dollar for generation. On‑demand H100 list price ~$2.50/hour per GPU → 8×H100 = $20/hour. At ~50 tok/s aggregate throughput, the effective cost is ~0.40 $/tok/s, or equivalently ~2.5 tokens/s per dollar-hour. In tokens‑per‑dollar terms: 50 tok/s × 3600 s/hr ÷ $20/hr = 9,000 tokens per dollar per hour of runtime.
 
-> **Economics unit note (reconciliation with Ch. 4 and Ch. 15).** Both chapters use the same on-demand price basis: ~$2.50/hr per H100 → ~$20/hr per 8×H100 host. Two things must be kept straight. First, *units*: this chapter expresses **tokens per dollar-hour** (token-rate × 3600 s ÷ hourly cost), while Chapter 4 expresses **tokens per second per dollar** (token-rate ÷ per-second cost); convert by ÷3600. Second, *throughput basis*: the ~50 tok/s used here is a deliberately **conservative single-stream / low-batch generation rate** adopted to illustrate the per-dollar *method*, **not** a claim about the host's batched serving throughput. Chapter 15's measured-range figure (raw batch-1 ≈ 8,000 tok/s rising to ~35,000–70,000 tok/s under FlashAttention + continuous batching) is the multi-request *serving* throughput of the same host. The per-dollar figures therefore scale up substantially at batch, and the 9,000 tokens/dollar-hour figure should be read as a floor set by the single-stream assumption, not as the host's economic optimum. [ILLUSTRATIVE][DERIVED]
+> **Economics unit note (reconciliation with Ch. 4 and Ch. 15).** Both chapters use the same on-demand price basis: ~$2.50/hr per H100 → ~$20/hr per 8×H100 host. Two things must be kept straight. First, *units*: this chapter expresses **tokens per dollar-hour** (token-rate × 3600 s ÷ hourly cost), while Chapter 4 expresses **tokens per second per dollar** (token-rate ÷ per-second cost); convert by ÷3600. Second, *throughput basis*: the ~50 tok/s used here is a deliberately **conservative single-stream / low-batch generation rate** adopted to illustrate the per-dollar *method*, **not** a claim about the host's batched serving throughput. Chapter 15's figures are two different quantities, and neither is the single-stream decode rate used here: its **~8,000 tok/s is a prefill-side / whole-request rate** (Chapter 4's ≈8.5K tokens/s prefill — 9,200 tokens ÷ ~1.08 s — not batch-1 *decode*, which at the canonical 25 ms/token is ~40 tok/s, Chapter 2), while its **~35,000–56,000 tok/s** is the multi-request *serving* throughput under FlashAttention + continuous batching. The ~50 tok/s here (single-stream decode) and Chapter 15's ~8,000 tok/s (prefill-side) are therefore different phases of the same host, not two values for one quantity. The per-dollar figures therefore scale up substantially at batch, and the 9,000 tokens/dollar-hour figure should be read as a floor set by the single-stream assumption, not as the host's economic optimum. [ILLUSTRATIVE][DERIVED]
 
 [ILLUSTRATIVE][DERIVED]: tokens/s per dollar with prefill included. (Mixed-input convention: when a derivation mixes a canonical price with an illustrative rate, the result carries the non-canonical provenance — here the 50 tok/s rate input is [ILLUSTRATIVE][ASSUMPTION] while the $20/hr price is canonical.) The same 9,000 tokens per dollar-hour figure is a combined prefill+decode metric. Because this workload is input‑heavy (9.2K input vs 300 output tokens), the prefill leg consumes **~97% of the tokens** per request (9,200 ÷ 9,500) — and, because each prefill token runs the full $2\times70B$ forward FLOP, it is also **~97% of the linear forward-FLOP cost** (before the quadratic attention term). But it is only **~13% of the wall-clock time** (1.08 s prefill vs 7.5 s decode), because prefill is compute‑intensive yet batchable across concurrent requests, while decode is a sequentially‑limited token-by-token stream. So the honest picture is *both*: prefill dominates the compute/FLOP budget (and hence the GPU-hour cost of running the pipeline), and decode dominates the wall-clock latency budget (and hence per‑request service time). The per‑dollar economics therefore favor models that reduce the *prefill compute* burden (smaller context, larger batch, lower per‑token FLOP) more than models that optimize decode throughput alone — but a deployment must balance both, since decode still sets the latency SLO.
 
@@ -122,6 +132,10 @@ How does an architect measure the workload dimensions that drive model selection
 
 These checks let model selection be made on measured workload dimensions rather than a generic "bigger model is better" assumption.
 
+### Model identity includes the execution path
+
+Backend identity completes the candidate: the relevant identity includes the checkpoint revision, tokenizer, numerical representation, engine revision and device backend. A loader may recognize the model while a fused attention operator, recurrent-state update or quantized expert kernel is unavailable on the target device. A fallback can restore execution but change latency, memory use or numerical behavior. We therefore separate model-quality acceptance from backend qualification. Both must hold for the same configuration. A small successful completion does not validate long-context state, concurrent-request isolation or the intended serving SLO.[^oct-ix-t0]
+
 ## 5. Common Mistakes
 
 - **Starting with "which model is best?"** Instead of characterizing the workload first. The workload's token profile, latency budget, and economic constraints are what narrow the model space; starting with a model short‑circuits the reasoning chain and leads to post hoc justification.
@@ -146,7 +160,7 @@ This consequence feeds directly into the fine-tuning-for-specific-workloads patt
 
 ## 7. What We Still Don't Know
 
-[HYPOTHESIS]: the interaction between embedding dimension and retrieval quality across diverse enterprise domains is not yet characterized with reproducible benchmarks. Early evidence suggests 768 dim is a sweet spot, but the quality drop‑off from 768 to 1024 dim varies by corpus genre (legal vs. engineering vs. creative), and no public study quantifies this domain‑dependence.
+[HYPOTHESIS]: the interaction between embedding dimension and retrieval quality across diverse enterprise domains is not yet characterized with reproducible benchmarks. Early evidence suggests 768 dim is a sweet spot, but the quality difference between 768 and 1024 dim varies by corpus genre (legal vs. engineering vs. creative), and no public study quantifies this domain‑dependence.
 
 [HYPOTHESIS]: the break‑even point between RAG + guardrails and fine‑tuned models as a function of query volume and domain specialization is **model‑ and domain‑dependent**: it is set by the $Q^*$ equation above (training + storage cost over the quality uplift), not by a universal rule of thumb. Any quoted break‑even volume is a derived scenario value; more data points and a measured $\Delta Q$ are needed before it can be stated as a general principle.
 
@@ -158,7 +172,7 @@ Each of these flags is an open empirical question a team should resolve against 
 
 *(Continuous scenario: the enterprise Q&A architect must now pick the model given the Ch. 4 characterization.)*
 
-An architect is assembled for a design review of the enterprise Q&A tool described in Chapter 4 — the canonical workload (Ch 4, Table 4-2). The team has agreed on the retrieval architecture: vector search with embeddings, 768‑dim all‑mpnet‑base‑v2, late‑max retrieval over a 1 M‑chunk corpus.
+An architect is assembled for a design review of the enterprise Q&A tool described in Chapter 4 — the canonical workload (Ch 4, Table 4-2). The team has agreed on the retrieval architecture: vector search with embeddings, 768‑dim all‑mpnet‑base‑v2, late‑interaction (MaxSim) retrieval over a 1 M‑chunk corpus.
 
 From the unit-and-token work of Ch 1 alone (Ch 5's selection surfaces), the architect can immediately check the consequences:
 
@@ -177,3 +191,11 @@ The architect now has a concrete model shortlist: 768‑dim all‑mpnet‑base�
 ---
 
 **End of Chapter 5**
+
+[^oct-qz-awq]: AWQ: activation-aware weight quantization of large language models (arXiv 2306.00978v6): https://arxiv.org/abs/2306.00978v6
+
+[^oct-qz-gptq]: GPTQ: post-training quantization for generative pre-trained transformers (arXiv 2210.17323v2): https://arxiv.org/abs/2210.17323v2
+
+[^oct-df-struct]: Structured-output documentation versus grammar-constraint rejection in inspected first-party sources, retrieved 2026-10-28 (outside the book's 2026-08-30 evidence cutoff): Mercury structured outputs (JSON-schema generation): https://docs.inceptionlabs.ai/capabilities/structured-outputs ; SGLang DiffusionGemma cookbook at pinned revision `a1966e1b5d8b750b494d7e53cca1d2464f960038` (the recipe rejects grammar-constrained requests): https://raw.githubusercontent.com/sgl-project/sglang/a1966e1b5d8b750b494d7e53cca1d2464f960038/docs/cookbook/autoregressive/Google/DiffusionGemma.mdx
+
+[^oct-ix-t0]: Inspected first-party engine sources for device-backend-specific model, operator and fallback paths, retrieved 2026-10-28 (outside the book's 2026-08-30 evidence cutoff): vLLM supported models — XPU: https://docs.vllm.ai/en/stable/models/hardware_supported_models/xpu ; vLLM `vllm/platforms/xpu.py` at pinned revision `5df63a7203cdb9328d824a27b682e77c7b9928be`: https://raw.githubusercontent.com/vllm-project/vllm/5df63a7203cdb9328d824a27b682e77c7b9928be/vllm/platforms/xpu.py ; SGLang `docs/hardware-platforms/xpu.mdx` at pinned revision `a1966e1b5d8b750b494d7e53cca1d2464f960038`: https://raw.githubusercontent.com/sgl-project/sglang/a1966e1b5d8b750b494d7e53cca1d2464f960038/docs/docs/hardware-platforms/xpu.mdx

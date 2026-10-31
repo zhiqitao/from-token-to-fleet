@@ -63,9 +63,23 @@ assert host(552, 1, 13) == 61      # 40rps T=3
 assert host(1380, 1, 13) == 152    # 100rps T=3
 assert host(2760, 1, 13) == 304    # 200rps T=3
 
-# ---- TCO ----
-assert abs(20.8e-3 * 26e6 - 540800.0) < 1.0       # managed-API monthly
-assert abs(148000 / (20.8 / 1000) - 7.115e6) < 1e5
+# ---- TCO (R23: canonical inputs from the shared root CLI; no literal price table) ----
+import json as _json, os as _os, subprocess as _sub, sys as _sys
+_repo_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+_cli = _sub.run([_sys.executable, _os.path.join(_repo_root, "render", "tco_calc.py"), "--json"],
+                 capture_output=True, text=True, cwd=_repo_root)
+assert _cli.returncode == 0, _cli.stderr[-400:]
+_r = _json.loads(_cli.stdout)
+_api, _m1, _be, _cal = (_r["mode3_api"], _r["mode1_self_host"],
+                          _r["breakeven_vs_api"], _r["calendar"])
+# managed-API monthly at the canonical request calendar (retired: 20.8e-3 * 26e6 with the old 26M volume)
+assert abs(_api["per_1k"] / 1000 * _cal["requests_per_month"] - _api["month"]) < 1.0
+assert abs(_api["month"] - 129792.0) < 1.0
+# self-host vs managed-API break-even (retired: 148000 / (20.8/1000) ~= 7.115e6)
+assert abs(_m1["total"] / (_api["per_1k"] / 1000) - _be["mid"]) < 1.0
+assert abs(_be["mid"] - 7491198.557692308) < 1.0
+assert abs(_m1["total"] - 155816.93) < 1e-6
+assert abs(_m1["per_1k"] - 24.97066185897436) < 1e-9
 
 # ---- Capstone (Ch 26 F02/F04): mixture mean vs p99 ----
 H = 0.35

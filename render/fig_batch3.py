@@ -101,74 +101,11 @@ print('Ch18 done')
 # The four-state (Plan→Execute→Observe→Decide) lifecycle figure is produced by
 # the Archify pipeline and checked in as fig-19-1901.{png,pdf}.
 
-# ---- Ch20: fleet capacity — ANALYTICAL BOUND vs MEASURED DEPLOYMENT (ILLUSTRATIVE) ----
-# The chapter's ~2.0 req/s/host figure drives the 5-20-host sizing reasoning, so it
-# deserves a large, unambiguous two-panel treatment. DESIGNER PASS:
-#   * TWO CLEAR PANELS — top = ANALYTICAL CAPACITY BOUND; bottom = MEASURED DEPLOYMENT.
-#   * VISUALLY OBVIOUS distinction: the analytical bound is a THIN GREY DASHED line;
-#     the measured deployment throughput is a THICK COLOURED SOLID line. Not colour alone
-#     (channel redundancy: colour + line style + dash + marker + label).
-#   * ANNOTATIONS LARGE (multiple lines of explanatory text, not crowded out by the curves).
-# The bound is the ~2.0 req/s/host KV/service-time analytical ceiling; the measured
-# curve below it reflects the ~95% scheduling efficiency and the tail that caps a
-# fleet at the canonical 40 rps peak once ~20 hosts are provisioned.
-fig, axs = plt.subplots(2, 1, figsize=(6.1, 8.2), gridspec_kw={'hspace': 0.5})
-fig._hermes_print_sized = True   # print-size authored at column width; regen must not re-boost/reflow
-hosts = np.array([1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 30, 40, 60])
-per_host = 2.0                     # KV/service-time analytical bound (req/s/host)
-bound = per_host * hosts
-schedule_eff = 0.95                # ~95% scheduling efficiency
-peak_load = 40.0                   # canonical peak demand (rps)
-plateau = peak_load * 0.97         # tail/queueing keeps achieved slightly below the nominal peak
-capacity_eff = per_host * hosts * schedule_eff
-measured = np.minimum(capacity_eff, plateau)
-
-# ---- Panel 1 (top): ANALYTICAL CAPACITY BOUND ----
-ax = axs[0]
-ax.plot(hosts, bound, ls='--', lw=1.8, color='#8a8a8a', marker='D', ms=5,
-        markevery=2, label='ANALYTICAL BOUND  ~2.0 req/s/host')
-ax.axhline(peak_load, color='#c0392b', ls=':', lw=1.4, zorder=0)
-ax.text(2.0, peak_load + 6, 'canonical peak load = 40 rps', fontsize=10, color='#7a2020')
-ax.set_xlim(0, 68); ax.set_ylim(0, 130)
-ax.set_xlabel('Host count', fontsize=11)
-ax.set_ylabel('Fleet capacity (req/s)', fontsize=11)
-ax.set_title('ANALYTICAL CAPACITY BOUND  (no overhead)', fontsize=11.5,
-             fontweight='bold', color='#555')
-ax.tick_params(labelsize=9.5)
-ax.grid(alpha=0.3)
-ax.legend(fontsize=10, loc='upper left', framealpha=0.92)
-ax.text(0.99, 0.96, '[ILLUSTRATIVE][DERIVED]', transform=ax.transAxes, fontsize=9,
-        color='#8a5a00', ha='right', va='top')
-# ceiling annotation parked in the empty lower-right (below the bound line)
-ax.annotate('~2.0 req/s/host\n(KV/service-time ceiling)',
-            xy=(26, 52), xytext=(46, 18), fontsize=11.5, color='#7a2020',
-            ha='center', arrowprops=dict(arrowstyle='-|>', color='#7a2020', lw=1.4))
-
-# ---- Panel 2 (bottom): MEASURED DEPLOYMENT THROUGHPUT ----
-ax = axs[1]
-# faint analytical reference (thin dashed grey) so the gap to measured is obvious
-ax.plot(hosts, bound, ls='--', lw=1.4, color='#8a8a8a', marker='D', ms=4,
-        markevery=2, label='analytical bound (ceiling)')
-ax.plot(hosts, measured, ls='-', lw=4.0, color='#3a6ea5', marker='o', ms=7,
-        label='MEASURED deployment throughput')
-ax.set_xlim(0, 68); ax.set_ylim(0, 130)
-ax.set_xlabel('Host count', fontsize=11)
-ax.set_ylabel('Fleet throughput (req/s)', fontsize=11)
-ax.set_title('MEASURED DEPLOYMENT THROUGHPUT', fontsize=11.5,
-             fontweight='bold', color='#1e4d78')
-ax.tick_params(labelsize=9.5)
-ax.grid(alpha=0.3)
-ax.legend(fontsize=10, loc='upper left', framealpha=0.92)
-# operating points that drive the 5-20-host sizing reasoning (parked in empty regions)
-ax.annotate('~5 hosts \u2192 ~9.5 req/s',
-            xy=(5, measured[4]), xytext=(10, 22), fontsize=11.5, color='#1e4d78',
-            ha='left', arrowprops=dict(arrowstyle='-|>', color='#1e4d78', lw=1.4))
-ax.annotate('\u224820 hosts \u2192 reaches the 40 rps peak;\nmeasured plateaus (gap \u224895%)',
-            xy=(20, measured[9]), xytext=(38, 55), fontsize=11.5, color='#c0392b',
-            ha='center', arrowprops=dict(arrowstyle='-|>', color='#c0392b', lw=1.4))
-plt.subplots_adjust(left=0.13, right=0.96, top=0.93, bottom=0.08)
-plt.savefig(base % (20, 20, 20), dpi=350); plt.close()
-print('Ch20 done')
+# ---- Ch20: canonical capacity figure lives in its own generator ----
+# RETIRED: the legacy block used rounded2rps,20hosts and synthetic data
+# labeled MEASURED. Only render/fig_ch20_capacity.py owns fig-20-2001.
+# Never regenerate that asset from this batch.
+print('Ch20: see render/fig_ch20_capacity.py (stale batch block retired)')
 
 # ---- Ch22: prefill vs decode bottleneck divergence (9.2K marker + quadratic band) ----
 fig, ax = plt.subplots(figsize=(8.5, 5.5))

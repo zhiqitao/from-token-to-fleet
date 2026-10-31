@@ -14,13 +14,15 @@ ax.set_xlim(0, 26); ax.set_ylim(0, 22); ax.axis('off')
 ax.set_title('Anatomy of an ADR, and how one ADR supersedes the next', fontsize=10.5,
              fontweight='bold', color='#1a1a1a', pad=10)
 
-# short hints that fit inside the section boxes
+# short hints that fit inside the section boxes — the five CORE ADR fields in
+# §25.1 order (C-20: the figure must match the copy-ready template's core fields,
+# not the old Context/Options/Decision/Rationale/Consequences set).
 stages = [
-    ('Context',      'the situation'),
-    ('Options',      'alternatives'),
-    ('Decision',     'the choice'),
-    ('Rationale',    'the "why"'),
-    ('Consequences', 'the effects'),
+    ('Title & status', 'the record'),
+    ('Context',        'the situation'),
+    ('Decision',       'the choice'),
+    ('Consequences',   'the effects'),
+    ('Alternatives',   'rejected options'),
 ]
 n = len(stages)
 w = 4.9; gap = 0.25
@@ -56,11 +58,11 @@ new_h = 8.4; new_top = 9.0
 adr_card(new_top, new_h, 'ADR-002  (new — supersedes ADR-001)', '#7b241c')
 
 # supersession arrow: kept entirely inside the inter-panel gap, running from the
-# top card's bottom border down to the bottom card's top border (short connector,
-# inset a little so it never lies on top of either border). The arrowhead points
-# down into the new card.
+# top card's bottom border down to the bottom card's top border. R27 P2: the old
+# tip stopped ~6.5pt ABOVE the ADR-002 top border (new_top+0.2); it now ends just
+# inside the border (new_top-0.08) so the arrowhead clearly touches the card.
 old_bottom = old_top - old_h           # top card bottom border (y)
-ax.add_patch(FancyArrowPatch((x0+w, old_bottom-0.2), (x0+w, new_top+0.2),
+ax.add_patch(FancyArrowPatch((x0+w, old_bottom-0.2), (x0+w, new_top-0.08),
              connectionstyle='arc3,rad=-0.25', arrowstyle='-|>', mutation_scale=22,
              lw=2.4, color='#c0392b', ls='dashed'))
 # label in the gap, centred vertically between the two borders and placed to the

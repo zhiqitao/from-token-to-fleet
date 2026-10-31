@@ -15,7 +15,12 @@ from matplotlib.font_manager import FontProperties
 # padding, so a label always fits.  1 data unit == 1 point.
 BOLD = FontProperties(weight='bold')
 W = 6.1 * 72        # 439.2 pt == column width
-Ht = 4.3 * 72
+# Vertical extent: content top is the spine row (SP=190) + half a box height
+# (~10.8 pt) = ~200.8 pt. The old Ht=309.6 left ~109 pt of empty ylim above
+# the diagram, which tight_layout rendered as a 107 pt in-artwork
+# title-to-diagram gap (FTF-R23C-04). Ht now ends just above the spine boxes;
+# no row, label, arrow, or font size changes.
+Ht = 215.0
 FS = 9.0            # ~on-page size (no boost at column width)
 PADX = 0.45         # extra box width (%) beyond label
 SEG = 1.2           # gap between horizontal boxes (%) of label width
@@ -41,7 +46,11 @@ def arrow(x1,y1,x2,y2,color='#555'):
     ax.annotate('', xy=(x2,y2), xytext=(x1,y1),
                 arrowprops=dict(arrowstyle='-|>', lw=1.8, color=color, shrinkA=0, shrinkB=0))
 
-fig, ax = plt.subplots(figsize=(6.1, 4.3))
+# Figure height = Ht (axes data span; 1 data unit == 1 pt when the axes is
+# exactly Ht points tall) + 43 pt for the title (pad 12 + title height) and
+# tight_layout margins — the same non-axes band the old 4.3 in figure had, so
+# the axes keeps its authored scale instead of being squeezed to ~0.86.
+fig, ax = plt.subplots(figsize=(6.1, (Ht + 43) / 72))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
 ax.set_title('Routing every request to the right specialised model (sequential cascade)',
@@ -50,6 +59,10 @@ ax.set_title('Routing every request to the right specialised model (sequential c
 SP = 190
 RES = 70
 GAP = 5.0          # pt gap between top boxes
+SPINE_GAP = 14.0   # wider gap on the top row so the 'no' arrows show a shaft
+                   # (a 5pt gap with a 10pt head read as an isolated triangle)
+# leaf box top edge (single-line boxes: h = FS*2.4, so top = RES + FS*1.2)
+LEAF_TOP = RES + FS * 1.2
 
 def hflow(defs, y, xstart, gap):
     xc = xstart; edges = []
@@ -68,8 +81,8 @@ spine_defs = [
     ('Cost/SLO gate', '#e67e22', '#b35900'),
     ('Fallthrough', '#e67e22', '#b35900'),
 ]
-spine_w = sum(max(tw(l) for l in d[0].split('\n'))*(1+PADX) for d in spine_defs) + GAP*(len(spine_defs)-1)
-spine = hflow(spine_defs, SP, (W - spine_w)/2, GAP)
+spine_w = sum(max(tw(l) for l in d[0].split('\n'))*(1+PADX) for d in spine_defs) + SPINE_GAP*(len(spine_defs)-1)
+spine = hflow(spine_defs, SP, (W - spine_w)/2, SPINE_GAP)
 
 # ---- specialist leaf group ----
 spec_defs = [
@@ -99,9 +112,14 @@ x0s = (W - total)/2
 spec = hflow(spec_defs, RES, x0s, gap_eff)
 gen  = hflow(gen_defs, RES, x0s + spec_w + groupgap, gap_eff)
 
-# ---- spine 'no' arrows ----
+# ---- spine 'no' arrows (the else/continue path) ----
+# Each horizontal arrow carries a 'no' label above it so the reader sees the
+# cascade as: match? yes -> leaf, no -> next gate. (R27 P2: the arrows were
+# unlabeled, so the 'else' path had to be inferred.)
 for i in range(len(spine)-1):
     arrow(spine[i][1], SP, spine[i+1][0], SP)
+    ax.text((spine[i][1] + spine[i+1][0]) / 2, SP + 13, 'no',
+            fontsize=FS-0.2, color='#555', ha='center', va='center', fontweight='bold')
 
 # ---- branches down ----
 def branch(xf, yf, xt, yt, lab, lx, ly, color='#1e5a3a'):
@@ -122,8 +140,10 @@ def fan(drop_x, y_from, leaves, color, lab, lab_x, lab_y):
     bx1 = max([drop_x] + centers)
     ax.plot([bx0, bx1], [BUS_Y, BUS_Y], color=color, lw=1.6)
     # one distinct down-arrow per leaf, all starting BELOW the bus (clean verticals)
+    # and ending exactly on the leaf box top edge (R27 P2: the old RES+16 tip
+    # left a visible white gap between the arrowhead and the box).
     for cx in centers:
-        ax.annotate('', xy=(cx, RES+16), xytext=(cx, BUS_Y-2),
+        ax.annotate('', xy=(cx, LEAF_TOP), xytext=(cx, BUS_Y-2),
                     arrowprops=dict(arrowstyle='-|>', lw=1.4, color=color, shrinkA=0, shrinkB=0))
     ax.text(lab_x, lab_y, lab, fontsize=FS-0.2, color=color, ha='center', fontweight='bold')
 
@@ -167,7 +187,7 @@ fan(spc, SP-14, gen[:2], '#1e5a3a', 'yes \u2192\nfrontier / small',
 EY = 156                                    # elbow row
 ax.plot([fth, fth], [SP-14, EY], color='#444', lw=1.8)
 ax.plot([fth, gen_ft_x], [EY, EY], color='#444', lw=1.8)
-ax.annotate('', xy=(gen_ft_x, RES+16), xytext=(gen_ft_x, EY),
+ax.annotate('', xy=(gen_ft_x, LEAF_TOP), xytext=(gen_ft_x, EY),
             arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#444', shrinkA=0, shrinkB=0))
 ax.text(label_cx(gen_ft_x, 'fallthrough'), LB_Y, 'fallthrough',
         fontsize=FS-0.2, color='#444', ha='center', fontweight='bold')

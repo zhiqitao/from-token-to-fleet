@@ -75,18 +75,28 @@ ax.text(RIDGE * 0.90, YMAX * 0.72, 'roofline ridge ~295', color='#c0392b',
 # === roofline curve (heaviest element; upper envelope) ===
 ax.plot(I, roofline, color='#1a1a1a', lw=2.8, zorder=4, solid_capstyle='round')
 
-# === operating points: markers on the roofline, labels lifted into white space ===
-ax.plot([1.0], [PEAK_BW * 1.0], marker='o', ms=11, color='#c0392b',
+# === operating points: dropped BELOW the roof so they read as regime indicators,
+# not measured 100%-efficiency points (A-016). decode at ~85% of the memory roof,
+# prefill at ~40% of the compute roof; a note clarifies they are not measured MFU.
+dec_y = 0.85 * PEAK_BW * 1.0
+ax.plot([1.0], [dec_y], marker='o', ms=11, color='#c0392b',
         mec='#7a1c10', zorder=5)
-ax.annotate('decode', xy=(1.0, PEAK_BW), xytext=(0, 15), textcoords='offset points',
+ax.annotate('decode', xy=(1.0, dec_y), xytext=(0, 12), textcoords='offset points',
             ha='center', va='bottom', color='#8f2318', fontsize=11,
             fontweight='bold', zorder=6)
 
-ax.plot([9200.0], [PEAK_FLOPS], marker='^', ms=12, color='#27408b',
+pre_y = 0.40 * PEAK_FLOPS
+ax.plot([9200.0], [pre_y], marker='^', ms=12, color='#27408b',
         mec='#12294f', zorder=5)
-ax.annotate('prefill', xy=(9200.0, PEAK_FLOPS), xytext=(0, 15),
+ax.annotate('prefill', xy=(9200.0, pre_y), xytext=(0, 12),
             textcoords='offset points', ha='center', va='bottom',
             color='#12294f', fontsize=11, fontweight='bold', zorder=6)
+
+# regime-marker note (upper-left white area, clear of the ridge label and the
+# memory-bound caption): the markers show the regime, not a measured efficiency.
+ax.text(3.0, 1.6e14, 'markers = regime, not measured MFU\n(real kernels run below the roof)',
+        fontsize=8.0, color='#555', ha='left', va='center', style='italic',
+        bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#bbb', lw=0.6), zorder=6)
 
 # === axes + minimal text ===
 ax.set_xlabel('arithmetic intensity (FLOP/byte)', fontsize=9.5, fontweight='bold')

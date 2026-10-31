@@ -11,15 +11,41 @@ stalls.
 \ntsection{Concept}\label{concept}
 
 
-Communication in a distributed LLM system is not a single pipe. It is a
-hierarchy: each GPU talks to its neighbors over PCIe, nodes within a
-server meet over NVLink/NVSwitch, racks talk over 200/400 GbE RoCE, and
-cross-rack or cross-data-center traffic rides InfiniBand. Each layer has
-a distinct bandwidth ceiling, a distinct latency profile, and a distinct
-cost per gigabyte. The architect must match the collective operation to
-the layer where the bandwidth is sufficient, because moving the same
-data over a slower layer adds minutes to training time or inference
-latency for no computational benefit.
+\emph{Implementation citations in this chapter were inspected on 28
+October 2026 for the separately dated addendum, outside the 30 August
+snapshot. They identify documented or source-inspected paths, not a
+tested combined environment or a refresh of the August hardware
+comparisons.}
+
+Communication in a distributed LLM system follows the deployed topology,
+not a universal vendor hierarchy. A server may connect its accelerators
+through PCIe, a dedicated scale-up fabric, integrated Ethernet links, or
+a combination of paths; NVLink and NVSwitch are NVIDIA's examples of
+such a path, while Gaudi organizes a different integrated-network
+topology
+(\href{https://cdrdv2-public.intel.com/817486/gaudi-3-ai-accelerator-white-paper.pdf}{Gaudi
+3 white paper}, retrieved 2026-10-28). Across hosts, Ethernet/RoCE or
+InfiniBand may carry the traffic, subject to the actual adapter, routing
+and transport support. Each layer still has a distinct bandwidth
+ceiling, a distinct latency profile, and a distinct cost per gigabyte,
+so the architect must match the collective operation to the layer where
+the bandwidth is sufficient: moving the same data over a slower layer
+adds minutes to training time or inference latency for no computational
+benefit. The relevant quantities are directional bandwidth, latency,
+contention, and the physical traffic of the chosen collective --- a
+product name alone supplies none of those measurements for a deployment.
+
+A collective operation describes how data from a group of ranks becomes
+a result; it does not specify a network, an algorithm, or a hardware
+vendor. A rank is an index within a communication group, not a synonym
+for a server --- one server can host several ranks, and several
+independent groups can occupy the same devices. The communicator
+identifies the participants and the context in which their operations
+match
+(\href{https://www.mpi-forum.org/docs/mpi-5.0/mpi50-report.pdf}{MPI 5.0
+standard};
+\href{https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/api/comms.html}{NCCL
+communicator API}, retrieved 2026-10-28).
 
 The collective operations that dominate multi-node training and
 inference are:
@@ -27,30 +53,35 @@ inference are:
 \begin{itemize}
 \tightlist
 \item
-  \textbf{all-reduce}: every GPU contributes a gradient fragment; the
-  result (the sum, scaled by 1/N) is delivered to every GPU. This is the
-  workhorse of data-parallel and model-parallel training.
+  \textbf{all-reduce}: each rank contributes an equal-shaped tensor; a
+  reduction such as the elementwise sum is returned to every rank.
+  Averaging additionally requires division by the rank count; the
+  collective does not imply that division. Data-parallel training
+  commonly uses gradient reductions, while tensor-parallel inference
+  uses activation reductions.
 \item
   \textbf{all-gather}: every GPU contributes a tensor; every GPU
   receives the concatenation of all fragments. Used when a model split
   across nodes needs the full weight or KV cache locally.
 \item
-  \textbf{reduce-scatter}: the inverse of all-gather. Every GPU
-  contributes a fragment; each GPU receives a portion of the final
-  result, sized 1/N of the input. Used when the full tensor does not
-  need to reside on any single GPU.
+  \textbf{reduce-scatter}: ranks contribute equal-shaped tensors, reduce
+  corresponding elements, and receive distinct partitions of the reduced
+  result. Each output partition has 1/N of the input tensor's elements.
+  Unlike all-gather, this operation also performs a reduction; it is not
+  its mathematical inverse.
 \end{itemize}
 
 The bandwidth each collective consumes depends on three factors: the
 data volume (bytes), the number of participating nodes (N), and the
 interconnect's effective bandwidth in the presence of contention. A 70B
 FP16 model is 140 GB, and its FP16 gradient is the same size --- the
-§9.3 worked example all-reduces that 140 GB gradient tensor. An
-all-reduce of a 140 GB tensor across 8 GPUs on a single node moves 140
-GB over NVLink; across 8 nodes connected by InfiniBand it moves 140 GB
-(or more, depending on the algorithm) over the fabric. The same 140 GB
-over a 25 Gb/s Ethernet link (≈ 2.5 GB/s practical-effective) takes ≈ 56
-s --- about 350× the ≈ 0.16 s over a 900 GB/s NVLink (§9.2, §9.3).
+§9.3 worked example all-reduces that 140 GB gradient tensor. The 140 GB
+is a logical input size, not the physical traffic of the collective. For
+an eight-rank point-to-point ring, each rank sends 245 GB and receives
+another 245 GB (§9.3). A one-way transfer of the logical 140 GB alone
+would take 56 s at an assumed effective 2.5 GB/s; the ring's send volume
+instead gives 98 s. The bandwidth denominator must use the same
+direction convention as the counted bytes.
 
 \subsubsection{Table 9-1 --- The interconnect
 hierarchy}\label{table-9-1-the-interconnect-hierarchy}
@@ -93,7 +124,7 @@ per port & \textasciitilde us & medium & \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FAC
 Rack/cluster & InfiniBand HDR/NDR & 200/400 Gb/s ≈ 25/50 GB/s per port &
 \textasciitilde us & high capex & \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 
-\label{tab:9.1}\end{longtable}
+\noalign{\label{tab:9.1}}\end{longtable}
 
 \emph{(Hierarchy: bandwidth drops \textasciitilde2--3 orders of
 magnitude from HBM to the cluster fabric --- the reason the
@@ -101,103 +132,288 @@ interconnect, not the GPU, often binds at scale. Figures are established
 hardware specs \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, except where a row is tagged
 otherwise.)}
 
+Behind these three workhorses sits one contract. For a fixed-count
+all-reduce, each rank contributes an equal-length typed buffer;
+corresponding elements are reduced, and every rank receives the result.
+SUM returns a sum --- averaging requires division by the group size or
+an explicitly selected averaging operation, at any group size, not an
+implicit property of the operation. The reduction operation, dtype,
+element count, communicator, and operation order form a single contract,
+and matching buffer byte counts alone are insufficient
+(\href{https://www.mpi-forum.org/docs/mpi-5.0/mpi50-report.pdf}{MPI 5.0
+standard};
+\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/nccl.h.in}{NCCL
+API header, pinned to v2.32.3-1}, retrieved 2026-10-28). \hyperref[tab:9.2]{Table 9-2}
+states the full set of operations this chapter's traffic arithmetic can
+encounter within one group.
+
+\subsubsection{Table 9-2 --- Collective semantics within one
+group}\label{table-9-2-collective-semantics-within-one-group}
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2927\linewidth}
+  >{\raggedright\arraybackslash}p{0.2927\linewidth}
+  >{\raggedright\arraybackslash}p{0.2927\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Operation
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Input and result within one group
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Architectural meaning
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+All-reduce & Corresponding elements are reduced; every rank receives the
+full result & Replicate a reduced activation or gradient tensor \\
+Reduce & Corresponding elements are reduced; the designated root
+receives the full result & Aggregate without replicating the result
+everywhere \\
+All-gather & Each rank contributes a fragment; every rank receives the
+rank-ordered concatenation & Materialize a tensor from distributed
+fragments; no reduction occurs \\
+Reduce-scatter & Corresponding input elements are reduced; each rank
+receives a distinct result partition & Retain a sharded reduced result
+rather than a full replica \\
+Broadcast & The root's buffer is copied to all participants & Distribute
+one source, not a sum of all inputs \\
+All-to-all & Each source sends a destination-specific block; each
+destination receives one block from each source & Redistribute a
+source-by-destination partition, as in expert routing \\
+Barrier & Completion requires every participant to have entered the
+group synchronization & Coordinate participants; not a substitute for
+device-stream dependencies \\
+
+\noalign{\label{tab:9.2}}\end{longtable}
+
+\emph{(The table uses equal-sized fragments where that simplifies the
+explanation. MPI also defines variable-count and derived-datatype
+interfaces, while a tensor library may expose a narrower set of
+contiguous-buffer operations; in-place rules, supported dtype/op
+combinations, and unequal-count behavior remain implementation-specific
+(\href{https://www.mpi-forum.org/docs/mpi-5.0/mpi50-report.pdf}{MPI 5.0
+standard};
+\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/nccl.h.in}{NCCL
+API header, pinned};
+\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/include/oneapi/ccl.h}{oneCCL
+C API, pinned to 2022.1.0}).)}
+
 \ntsection{Mental Model}\label{mental-model}
 
 
-The interconnect is best read as a series of concentric rings. The GPU
-sits at the center, reached by the fewest hops (PCIe). One ring out is
-the node: GPUs on the same server are joined by NVLink and NVSwitch,
-forming a high-radix, low-latency mesh. The next ring out is the rack:
-100/200/400 GbE RoCE connects nodes. The outermost ring is the cluster
-or data center: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s) stitches
-racks into a single logical network. A well-designed deployment keeps
-the heavy collectives (all-reduce, reduce-scatter) on the inner rings
-and reserves the outer rings for less volume or latency-tolerant
-traffic.
+The concentric-ring model represents increasing communication distance
+in the actual topology, not a mandatory sequence of fabrics. An
+accelerator accesses its local HBM first. Inside a server, PCIe or a
+dedicated scale-up fabric connects devices; NVLink and NVSwitch are
+examples for the NVIDIA configuration in \hyperref[tab:9.1]{Table 9-1}, not universal server
+components. Across servers and racks, Ethernet/RoCE or InfiniBand can
+carry traffic according to the deployed links, adapters, and routing. A
+useful placement keeps frequent exchanges within a measured low-latency
+group where possible and budgets any traffic that crosses its boundary.
+Physical distance alone does not establish a bandwidth ranking: rail
+count, topology, contention, and transport support remain part of the
+measurement.
 
-The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink
-bisection provides 900 GB/s of total bidirectional bandwidth per GPU
-(450 GB/s per direction; 18 NVLink 4.0 links × 50 GB/s bidirectional,
-NVIDIA H100 datasheet), \textbf{a lower bound} on time is 140 GB ÷ 900
-GB/s ≈ \textbf{0.16 s \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}} --- note the word
-\emph{lower bound}. The actual completion time of a real collective is
-higher because a collective is not one flat transfer but a sequence of
-message-passing and reduction steps across the topology:
+Directionality comes before division. H100's advertised NVLink bandwidth
+is 900 GB/s bidirectional per GPU, or 450 GB/s per direction (NVIDIA
+H100 datasheet). This per-GPU port aggregate is not a measurement of a
+particular topology's bisection. A one-way 140 GB transfer at the
+directional peak takes about 0.31 s \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. A collective
+also incurs reduction, synchronization and routing work:
 
 \[
 T_{\text{collective}} \approx \alpha \times n_\text{steps} + \frac{\text{bytes}}{\beta}
 \]
 
-where \(\alpha\) is the per-step latency (message setup,
-synchronization), \(\beta\) is the achieved (not peak) bandwidth, and
-\(n_\text{steps}\) is the number of message-passing/reduction hops. (For
-a flat transfer \(n_\text{steps}=1\).) The 0.16 s figure uses only the
-\(\text{bytes}/\beta\) term at peak bandwidth; real NCCL all-reduce on
-NVLink lands tens of \% above it once per-step overhead, ring stages,
-and topology routing are included. So treat the
-\texttt{bytes\ ÷\ bandwidth} form as a \emph{sizing lower bound}, and
-reserve measured \texttt{nccl-tests} numbers (§9.4 Measurement) for
-capacity decisions. The relative ranking between interconnects is what
-matters most here: if those same 140 GB travel over a 200 Gb/s HDR
-InfiniBand link (≈ 25 GB/s effective unidirectional) it is ≈ 5.6 s ---
-\textasciitilde35× longer; over 25 Gb/s Ethernet (≈ 2.5 GB/s
-practical-effective, §9.3) ≈ 56 s. (These are flat single-rail lower
-bounds, 140 GB ÷ bandwidth. The §9.3 ring-model worked example uses the
-multi-rail effective bandwidth (40 GB/s) plus the 1.75 ring factor,
-giving ≈ 6.1 s (IB) and ≈ 98 s (RoCE) --- the same ranking, a slightly
-higher absolute time.) The interconnect choice is a first-order
-determinant of wall-clock time in all cases.
+where \(\alpha\) is the per-step latency, \(\beta\) is the achieved
+bandwidth under an explicit directional convention, and
+\(n_\text{steps}\) is the number of communication steps. The byte term
+must count that algorithm's physical traffic rather than substitute the
+logical tensor size. This expression is a simplified model; overlap,
+reduction work and collective offload can change the critical path. For
+a flat one-way 140 GB transfer, the nominal 25 GB/s of one HDR port
+gives a best-case 5.6 s; an assumed practical-effective 2.5 GB/s
+Ethernet path gives 56 s. The eight-rank ring in §9.3 instead sends 245
+GB per rank: about 0.54 s at the H100 directional peak, 6.1 s at an
+assumed effective two-rail 40 GB/s, and 98 s at 2.5 GB/s. These are
+analytical comparisons, not measured NCCL results; deployment choices
+require §9.4 measurements.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={All-reduce time vs data volume, by interconnect tier (ANALYTICAL ). The plot is marked in-figure as analytical, not measured network performance: each curve uses the EFFECTIVE bandwidth of its tier (NVSwitch 1.8 TB/s --- the next-generation/Blackwell-class tier §9.7 describes as ``toward 1.8 TB/s aggregate'', not the H100's 900 GB/s in-node tier of \hyperref[tab:9.1]{Table 9-1} --- NVLink 0.9 TB/s, InfiniBand \textasciitilde40 GB/s, RoCE2 \textasciitilde2.5 GB/s) with the large-N ring factor t ≈ 2·V/B (2(N-1)/N → 2 as N grows; for N=8 it is 1.75). These effective values --- not the nominal per-port peaks (IB HDR 25 GB/s, NDR 50 GB/s, RoCE 400GbE 50 GB/s; \hyperref[tab:9.1]{Table 9-1}) --- are what the §9.3 worked example uses, so the figure and the example agree (IB \textasciitilde6.1 s, RoCE \textasciitilde98 s at 140 GB). The 140 GB vertical line marks the §9.3 worked-example payload: a data-parallel gradient all-reduce of a 70B FP16 model (the gradient tensor is the same size as the weights in FP16). It is a training collective, not an inference one --- §9.5 shows that per-step inference communication is activation- or KV-fragment-sized (tens of MB), and that re-fetching the 140 GB of weights each step is a pathological anti-pattern, not a baseline.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0901.png}}
-\caption[All-reduce time vs data volume, by interconnect tier (ANALYTICAL )]{All-reduce time vs data volume, by interconnect tier (ANALYTICAL ). The plot is marked in-figure as analytical, not measured network performance: each curve uses the EFFECTIVE bandwidth of its tier (NVSwitch 1.8 TB/s --- the next-generation/Blackwell-class tier §9.7 describes as ``toward 1.8 TB/s aggregate'', not the H100's 900 GB/s in-node tier of \hyperref[tab:9.1]{Table 9-1} --- NVLink 0.9 TB/s, InfiniBand \textasciitilde40 GB/s, RoCE2 \textasciitilde2.5 GB/s) with the large-N ring factor t ≈ 2·V/B (2(N-1)/N → 2 as N grows; for N=8 it is 1.75). These effective values --- not the nominal per-port peaks (IB HDR 25 GB/s, NDR 50 GB/s, RoCE 400GbE 50 GB/s; \hyperref[tab:9.1]{Table 9-1}) --- are what the §9.3 worked example uses, so the figure and the example agree (IB \textasciitilde6.1 s, RoCE \textasciitilde98 s at 140 GB). The 140 GB vertical line marks the §9.3 worked-example payload: a data-parallel \textbf{gradient} all-reduce of a 70B FP16 model (the gradient tensor is the same size as the weights in FP16). It is a \emph{training} collective, not an inference one --- §9.5 shows that per-step inference communication is activation- or KV-fragment-sized (tens of MB), and that re-fetching the 140 GB of weights each step is a pathological anti-pattern, not a baseline.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Eight-rank ring all-reduce time under an explicit directional-bandwidth model. Each rank sends 1.75 times the logical tensor size and receives the same amount. Curves use 450 GB/s for H100 NVLink (one direction of the 900 GB/s bidirectional peak), 40 GB/s for an assumed effective two-rail HDR path, and 2.5 GB/s for an assumed effective 25GbE RoCE path. At 140 GB the ideal times are about 0.54 s, 6.1 s and 98 s. The NVLink case is a communication-only comparison, not a memory-feasible training configuration. No curve is measured performance. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \mbox{{[}ANALYTICAL{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0901.pdf}}
+\caption[Eight-rank ring all-reduce time under an explicit directional-bandwidth model]{Eight-rank ring all-reduce time under an explicit directional-bandwidth model. Each rank sends 1.75 times the logical tensor size and receives the same amount. Curves use 450 GB/s for H100 NVLink (one direction of the 900 GB/s bidirectional peak), 40 GB/s for an assumed effective two-rail HDR path, and 2.5 GB/s for an assumed effective 25GbE RoCE path. At 140 GB the ideal times are about 0.54 s, 6.1 s and 98 s. The NVLink case is a communication-only comparison, not a memory-feasible training configuration. No curve is measured performance. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \mbox{{[}ANALYTICAL{]}}}
 
 \label{fig:9.1}\end{figure}
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={One SUM through a balanced four-rank ring. Reduce-scatter leaves one reduced element per rank; all-gather then replicates the already-reduced fragments. Illustrative FP16 inputs, exactly representable; each rank sends 12 B and receives 12 B across both phases. No averaging or measured performance is implied. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0902-collective-semantics.pdf}}
+\caption[One SUM through a balanced four-rank ring]{One SUM through a balanced four-rank ring. Reduce-scatter leaves one reduced element per rank; all-gather then replicates the already-reduced fragments. Illustrative FP16 inputs, exactly representable; each rank sends 12 B and receives 12 B across both phases. No averaging or measured performance is implied. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+
+\label{fig:9.2}\end{figure}
+
+The reduce-scatter and all-gather rows of \hyperref[tab:9.2]{Table 9-2} become concrete in
+\hyperref[fig:9.2]{Fig 9.2}, which follows one SUM through a balanced four-rank ring.
+Reduce-scatter leaves a different reduced fragment at each rank, and
+all-gather then replicates those already-reduced fragments --- gathering
+the original inputs instead would not produce the same result. The two
+phases are also the traffic §9.3 counts: each phase sends \((N-1)/N\) of
+the tensor per rank, which is where 122.5 GB per phase, and 245 GB per
+rank, comes from at eight ranks and 140 GB
+(\href{https://www.mpi-forum.org/docs/mpi-5.0/mpi50-report.pdf}{MPI 5.0
+standard};
+\href{https://raw.githubusercontent.com/NVIDIA/nccl-tests/afd59abab774a6a4b492eb344bd0c845a0b7bb4d/doc/PERFORMANCE.md}{nccl-tests
+performance definition, pinned}, retrieved 2026-10-28).
+
+Floating-point SUM adds another constraint. Its mathematical expression
+is unchanged when an implementation changes the reduction tree, but
+finite-precision addition can produce different bits, and the MPI
+standard explicitly recognizes this effect
+(\href{https://www.mpi-forum.org/docs/mpi-5.0/mpi50-report.pdf}{MPI 5.0
+standard}). A reproducibility claim therefore needs a scope: inputs,
+dtype, rank count and mapping, algorithm, kernels, and hardware/software
+versions. A fixed random seed does not by itself establish bitwise
+collective reproducibility.
+
+The software path above those physical rings has several distinct
+decisions, and \hyperref[fig:9.3]{Fig 9.3} separates them from the setup path. The framework
+chooses a communication group and operation; its backend connects that
+request to a collective implementation; the implementation chooses an
+algorithm and uses device execution and transport facilities; those
+facilities share HBM, device links, PCIe, NICs, and switches --- the
+layers of \hyperref[tab:9.1]{Table 9-1}. Changing a transport can leave the collective
+semantics unchanged while changing which resource limits the operation
+(\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/nccl.h.in}{NCCL
+API header, pinned to v2.32.3-1};
+\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/transport.cc}{NCCL
+transport selection, pinned};
+\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/deps/libccl/src/atl/mpi/atl_mpi.cpp}{oneCCL
+MPI transport, pinned to 2022.1.0};
+\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/deps/libccl/src/atl/ofi/atl_ofi.cpp}{oneCCL
+OFI transport, pinned}, retrieved 2026-10-28).
+
+\begin{figure}
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={Payload layers and communicator setup are different paths. Named backend and library paths are a 2026-10-28 implementation snapshot, not a drop-in compatibility claim. Dashed setup connections do not imply that MPI carries the collective payload; GPU-aware MPI is also a possible payload implementation. \mbox{{[}ILLUSTRATIVE{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0903-communication-layers.pdf}}
+\caption[Payload layers and communicator setup are different paths]{Payload layers and communicator setup are different paths. Named backend and library paths are a 2026-10-28 implementation snapshot, not a drop-in compatibility claim. Dashed setup connections do not imply that MPI carries the collective payload; GPU-aware MPI is also a possible payload implementation. \mbox{{[}ILLUSTRATIVE{]}}}
+
+\label{fig:9.3}\end{figure}
+
+MPI is a standard, not one library and not a CPU-only transport: Open
+MPI, MPICH, and Intel MPI are implementations, and GPU-aware
+implementations can accept supported device buffers, so eligible
+configurations can move their payload without staging it through host
+memory. Device-pointer recognition, direct RDMA, operation support, and
+stream integration are separate capabilities --- none follows
+automatically from the phrase ``GPU-aware.'' The fair comparison is
+specific: Open MPI's v5.0.x CUDA documentation supports device buffers
+for several blocking collectives yet explicitly restricts nonblocking
+reduction collectives on the documented CUDA-aware UCX path
+(\href{https://docs.open-mpi.org/en/v5.0.x/tuning-apps/networking/cuda.html}{Open
+MPI CUDA-aware support}), while MPICH v5.0.2 documents CUDA, HIP, and
+Level Zero build support --- a build statement, not a guarantee for
+every datatype, provider, or persistent device-buffer operation
+(\href{https://raw.githubusercontent.com/pmodels/mpich/v5.0.2/README.md}{MPICH
+v5.0.2 README}, retrieved 2026-10-28). A nonblocking MPI request allows
+overlap; it does not guarantee independent background progress, and a
+correct MPI program must tolerate weak progress
+(\href{https://www.mpi-forum.org/docs/mpi-5.0/mpi50-report.pdf}{MPI 5.0
+standard}).
+
+A typical NCCL call instead submits work to a CUDA stream: stream order
+connects the collective to preceding producers and later consumers, a
+consumer on another stream needs an explicit dependency, and network
+paths can use CPU proxy threads, so GPU-oriented communication does not
+imply zero host resource use
+(\href{https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/streams.html}{NCCL
+stream semantics};
+\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/proxy.cc}{NCCL
+proxy source, pinned to v2.32.3-1}). The submission-versus-completion
+contract itself is measurement business, taken up in §9.4.
+
+MPI and NCCL can coexist: NVIDIA's own example uses MPI to launch and
+coordinate ranks and distribute the NCCL unique ID, then calls NCCL for
+the tensor reduction
+(\href{https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/examples.html}{NCCL
+MPI example}). The presence of mpirun or MPI\_Bcast in an application
+therefore does not identify the collective payload path; conversely, an
+MPI implementation may itself carry GPU payload, and oneCCL's transport
+layer includes MPI as well as OFI paths
+(\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/deps/libccl/src/atl/mpi/atl_mpi.cpp}{oneCCL
+MPI transport, pinned};
+\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/deps/libccl/src/atl/ofi/atl_ofi.cpp}{oneCCL
+OFI transport, pinned}). Bootstrap, collective algorithm, and transport
+require separate labels.
+
+A ring is one execution strategy, not the meaning of all-reduce. A
+balanced point-to-point ring pipelines fragments through reduce-scatter
+and all-gather --- the structure \hyperref[fig:9.2]{Fig 9.2} shows --- while trees can
+reduce synchronization depth, hierarchical algorithms can keep much of
+the traffic inside a fast local group, and pairwise exchanges serve a
+different redistribution pattern in all-to-all
+(\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/device/all_reduce.h}{NCCL
+ring implementation, pinned to v2.32.3-1};
+\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/tuning/cost_model.cc}{NCCL
+cost model, pinned}). Channels add parallel communication paths, and
+protocols such as NCCL's LL, LL128, and Simple govern lower-level
+movement and synchronization
+(\href{https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html}{NCCL
+environment variables}); a protocol name is not an algorithm or a
+physical fabric.
+
+The useful choice depends on message size and topology. For small
+messages, launch and per-step latency can dominate --- the per-step
+latency term of the model above; for large messages, sustained
+directional bandwidth and load balance matter more --- its byte term.
+Communication kernels may compete with model kernels for SMs, HBM, and
+cache, while network progress consumes host and NIC resources, so more
+overlap can reduce exposed waiting yet slow the computation being
+overlapped. The architecture decision follows the combined critical
+path, not a library name or an isolated bandwidth score.
 
 \ntsection{Worked Example}\label{worked-example}
 
 
-Take the canonical scenario: a 70B dense model in FP16, whose weight
-tensor is 140 GB. Using the same FP16 precision for the gradient gives a
-gradient tensor of the same size, so every all-reduce moves a gradient
-tensor of \(M = 140\) GB per rank. (Note: this assumes an FP16 gradient,
-which is the common mixed-precision training case. Ch 10's data-parallel
-worked example instead uses an FP32 gradient of
-\(70 \times 10^9 \times 4\) B ≈ 280 GB --- the two differ only by
-gradient precision, and the communication time doubles accordingly.
-State the gradient dType explicitly before quoting a sync size.) We
-underline that this example is best read as a \emph{cross-node}
-data-parallel setting (options B and C): a single 8×H100 host holds only
-\textasciitilde640 GB, so it cannot fit eight full 140 GB replicas at
-once. (In practice each data-parallel rank would be a multi-GPU node ---
-e.g.~2×H100 = 160 GB, which fits the 140 GB model --- or the model would
-be sharded within each rank via hybrid DP+TP; the 140 GB per-rank figure
-is the \emph{logical} size of the all-reduce, i.e.~the full gradient
-tensor, not the physical HBM footprint on a single 80 GB GPU.) For any
-\(N\) ranks, a ring all-reduce sends \(2\frac{N-1}{N}M\) through each
-rank --- for \(N=8\), that is \(1.75 \times 140 \approx 245\) GB ---
-which is what the ring-adjusted times below reflect. Let us compute the
-communication time under three interconnect options.
+For a communication-only illustration, a 70B model has 140 GB of FP16
+weights. We separately assume an FP16 gradient tensor of logical size
+\(M=140\) GB at each rank. \hyperref[chap:10]{Chapter 10} instead assumes FP32 gradients, so
+its logical tensor is 280 GB. Neither a 140 GB weight tensor nor this
+gradient buffer fits on one 80 GB GPU. Even two 80 GB GPUs fitting the
+weights would not establish training-state fit: gradients, optimizer
+state, activations and workspace also require memory. A real deployment
+must specify partitioning and chunking before applying this model. For
+the arithmetic below, eight logical ranks perform a point-to-point ring
+without collective offload. Each phase sends \((N-1)M/N=122.5\) GB per
+rank; reduce-scatter followed by all-gather therefore sends 245 GB and
+receives another 245 GB per rank. These are endpoint traffic counts, not
+a claim that the full buffer can be allocated on an H100.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
-\textbf{Option A --- NVLink on a single host.} H100 GPUs provide 900
-GB/s bidirectional NVLink bandwidth per GPU, and NVSwitch aggregates
-bisection bandwidth. For an all-reduce of 140 GB across 8 GPUs on one
-host, the effective bandwidth is close to the per-link peak because
-NVSwitch can forward multiple concurrent channels without severe
-contention. A lower bound on the pure-bytes time is
+\textbf{Option A --- H100 NVLink directional-peak model.} The advertised
+900 GB/s is the sum of both directions at each GPU endpoint. The
+corresponding peak in one direction is 450 GB/s. We use that directional
+peak to obtain an ideal ring time, not an achieved bandwidth or a
+memory-feasible eight-replica training deployment. A flat one-way
+transfer alone would take
 
 \[
-T = \frac{M}{B_\text{eff}} = \frac{140 \text{ GB}}{900 \text{ GB/s}} \approx 0.16 \text{ s}
+T_{\text{flat}} = \frac{140 \text{ GB}}{450 \text{ GB/s}} \approx 0.31 \text{ s}
 \]
 
-That is not the whole story: a ring all-reduce moves \(2\frac{N-1}{N}M\)
-per rank (for \(N=8\), \(1.75 \times 140 \approx 245\) GB), so the
-ring-adjusted estimate is
-\(T_\text{ring} \approx 2\frac{N-1}{N}\frac{M}{B_\text{eff}} = 1.75 \times 0.16 \approx 0.27\)
-s, before any per-step latency term or staging overhead.
+The ring sends 245 GB and receives another 245 GB per rank. With
+concurrent send and receive, its ideal time is
+\(T_\text{ring} \approx 245/450 \approx 0.54\) s. Equivalently, 490 GB
+of sent-plus-received traffic divided by 900 GB/s gives the same time.
+Reduction, synchronization, contention and staging can increase the
+elapsed time. The ring accounting follows the
+\href{https://github.com/NVIDIA/nccl-tests/blob/afd59abab774a6a4b492eb344bd0c845a0b7bb4d/doc/PERFORMANCE.md}{NVIDIA
+nccl-tests performance definition}. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
-\textbf{Option B --- InfiniBand across 8 nodes, one GPU per node.} HDR
+\textbf{Option B --- InfiniBand across eight logical ranks.} HDR
 InfiniBand delivers \textbf{200 Gb/s per link} (≈ 25 GB/s before link
 coding; NDR doubles this to 400 Gb/s). InfiniBand uses a 64b/66b line
 code, so the useful payload sits a bit below the line rate. A
@@ -211,6 +427,8 @@ referenced in §9.2 and \hyperref[fig:9.1]{Fig 9.1}). Using the ring model:
 T_\text{ring} \approx 2\frac{N-1}{N}\frac{M}{B_\text{eff}} = 2\frac{7}{8}\frac{140 \text{ GB}}{40 \text{ GB/s}} \approx 6.1 \text{ s}
 \]
 
+\Needspace{11\baselineskip}
+
 \textbf{Option C --- 25 Gb/s Ethernet (RoCE2) across 8 nodes.} 25 Gb/s ≈
 3.125 GB/s unidirectional. With protocol overhead and multi-node tree
 contention, a practical effective bandwidth might be 2.5 GB/s. Ring
@@ -220,14 +438,13 @@ model:
 T_\text{ring} \approx 2\frac{7}{8}\frac{140 \text{ GB}}{2.5 \text{ GB/s}} \approx 98 \text{ s}
 \]
 
-These numbers illustrate the scale: moving from NVLink to InfiniBand
-adds \textasciitilde22× latency, and forcing the same all-reduce over
-Ethernet adds \textasciitilde350× latency. In a training job where 100
-all-reduce steps run per iteration, the NVLink path adds
-\textasciitilde27 s of communication per iteration, the InfiniBand path
-adds \textasciitilde610 s, and the Ethernet path adds
-\textasciitilde9,800 s. The latter two would effectively serialize the
-training, turning a minutes-long job into an hours- or days-long one.
+Under these stated assumptions, the InfiniBand time is about 11× the
+ideal NVLink ring time, and the Ethernet time is about 180×. A synthetic
+iteration containing 100 serialized collectives of this size would spend
+about 54 s, 610 s or 9,800 s respectively in communication. These totals
+exclude overlap and computation; they do not predict a real training
+iteration without its collective schedule.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 The worked example also highlights why model parallelism and pipeline
 parallelism exist: when a single GPU cannot hold the model, splitting it
@@ -246,33 +463,74 @@ overhead. Three practical measurements an architect can make:
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
 \item
-  \textbf{Bandwidth benchmark per link.} Use \texttt{nccl-tests} or
-  \texttt{ib\_write\_bw} / \texttt{bwperf} to measure achieved bandwidth
-  on PCIe, NVLink (via NVIDIA's Nsight), RoCE, and InfiniBand. Record
-  the unidirectional and bidirectional throughput for payload sizes
-  matching the collective (typically 1 MB--1 GB). These numbers anchor
-  the arithmetic to the real hardware.
+  \textbf{Correctness and completion.} A known-input test establishes
+  the operation, dtype, element count, communicator, reduction, root,
+  rank order and output partition. Floating-point comparisons use a
+  documented tolerance; bitwise repeatability is a separate result.
+  Device producers must finish before the collective reads their
+  buffers, and consumers must observe completion rather than host
+  submission. A CUDA-stream submission returning successfully does not
+  by itself establish that its result is ready on another stream
+  (\href{https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/streams.html}{NCCL
+  stream semantics}).
 \item
-  \textbf{Collective latency and throughput.} Run \texttt{nccl-tests}
-  all-reduce micro‑benchmarks varying the number of GPUs (1, 2, 4, 8)
-  and the tensor size (from 100 MB up to 140 GB). Plot time vs.~size and
-  extract the slope --- that slope is the effective bandwidth the
-  collective will see in production. Compare the slope across 1 node, 2
-  nodes, 4 nodes, to see where the interconnect ceiling is hit.
+  \textbf{Collective performance on feasible buffers.} A microbenchmark
+  uses resident per-rank allocations that fit after runtime reserves,
+  including any separate input/output buffers and scratch space. The
+  logical 140 GB example in §9.3 is not a request to allocate 140 GB on
+  one 80 GB GPU. The test matrix spans small activation messages and
+  larger gradient buckets, group sizes and node mappings. Each result
+  records the stack, topology, transport, selected algorithm, warmup,
+  sample count, repeated trials and timing boundary. Host enqueue time
+  differs from device-completed latency. The original elapsed time stays
+  beside \texttt{algbw} and \texttt{busbw}; the latter is an
+  algorithm-specific normalization, not a physical-link byte counter
+  (\href{https://github.com/NVIDIA/nccl-tests/blob/afd59abab774a6a4b492eb344bd0c845a0b7bb4d/doc/PERFORMANCE.md}{nccl-tests
+  performance definitions}). A point-to-point link test answers a
+  different question from a collective test.
 \item
-  \textbf{End-to-end training iteration time.} Instrument the training
-  loop to separate compute time (FLOPs) from communication time
-  (all-reduce collectives). Many frameworks (PyTorch Distributed, vLLM,
-  Deepspeed) already expose a per-iteration breakdown. The communication
-  time per iteration, divided by the number of all-reduce steps, gives
-  the average per-collective latency, which we can compare against the
-  benchmark numbers above.
+  \textbf{Service impact under contention.} The same shapes run in the
+  actual compute and arrival schedule, first in isolation and then with
+  concurrent traffic. Profiler traces separate exposed communication
+  stalls, hidden communication and compute slowed by shared-resource
+  contention. Summing all collective durations can overstate the exposed
+  cost, while subtracting all overlap can understate it. TTFT, ITL,
+  errors and SLO-goodput establish the serving consequence; training
+  uses device-completed iteration time and its critical path. A
+  large-buffer bandwidth result alone does not establish either outcome
+  (\hyperref[chap:14]{Chapter 14}).
 \end{enumerate}
+
+Collective tests must also exercise the backend the workload actually
+uses. NCCL tests describe an NCCL path; they do not certify XCCL or
+HCCL. The examined vLLM XPU configuration selects the XCCL backend with
+recent PyTorch
+(\href{https://raw.githubusercontent.com/vllm-project/vllm/5df63a7203cdb9328d824a27b682e77c7b9928be/vllm/platforms/xpu.py}{vLLM
+XPU platform source, pinned to revision 5df63a7}), while Gaudi exposes
+HCCL
+(\href{https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html}{Habana
+HCCL API reference}, retrieved 2026-10-28). The test record therefore
+needs rank placement, data type, message size, transport, and a
+sent/received bandwidth convention. For Gaudi's documented 24 × 200 Gb/s
+port total
+(\href{https://cdrdv2-public.intel.com/817486/gaudi-3-ai-accelerator-white-paper.pdf}{Gaudi
+3 white paper}), the nominal arithmetic is 600 GB/s per direction or
+1,200 GB/s bidirectional aggregate --- derived nominal figures, and
+neither is an achieved all-reduce bandwidth. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 The key invariant: always measure on the same hardware and software
 stack that the production job will use. A benchmark run on a clean VM
 with no other traffic will overstate the achievable bandwidth compared
 to a crowded cluster.
+
+Failure tests complete this contract. Missing ranks, mismatched counts
+or collective order, network faults and process exits can block a group.
+Framework watchdogs, asynchronous library errors and request deadlines
+need one recovery policy. An asynchronous success code does not
+establish correctness after communicator failure; recovery must be
+exercised at the framework and service boundary
+(\href{https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/api/comms.html\#ncclcommgetasyncerror}{NCCL
+communicator errors and abort}).
 
 \ntsection{Common Mistakes}\label{common-mistakes}
 
@@ -324,9 +582,10 @@ first-class design variable that shapes all three. If the architecture
 calls for data-parallel training of a 70B FP16 model across 8 nodes, the
 all-reduce bandwidth dictates whether the nodes are connected by
 InfiniBand, 200 GbE, or even 100 GbE. If the budget can accommodate
-NVLink‑connected hosts, keeping the all-reduce on-node reduces
-communication time by \textasciitilde22× vs InfiniBand and
-\textasciitilde350× vs RoCE (§9.3).
+NVLink‑connected hosts, keeping the all-reduce on-node gives an ideal
+ring time about 11× below the assumed InfiniBand case and about 180×
+below the assumed RoCE case (§9.3). These ratios apply to this
+communication-only model, not to end-to-end throughput.
 
 The architecture consequence also flows in the other direction: a
 tighter communication budget (e.g., target \textless0.5 s per
@@ -386,15 +645,163 @@ arithmetic shown in this chapter.
   the constants need re‑measurement for the specific tensor shape.
 \end{itemize}
 
+\subsection*{Dated implementation note: collective libraries ---
+2026-10-28}\label{dated-implementation-note-collective-libraries-2026-10-28}
+\addcontentsline{toc}{subsection}{Dated implementation note: collective
+libraries --- 2026-10-28}
+
+\begin{quote}
+\textbf{Dated research snapshot --- 2026-10-28, outside this edition's
+2026-08-30 evidence cutoff.} The observations below describe fetched
+documentation and source, not tested binary interchangeability; they are
+recorded here separately so the frozen snapshot stays intact.
+\end{quote}
+
+NCCL's latest GitHub release at retrieval was v2.32.3-1, published
+2026-09-17
+(\href{https://api.github.com/repos/NVIDIA/nccl/releases/tags/v2.32.3-1}{NCCL
+releases}). Its tagged API includes all-reduce, all-gather,
+reduce-scatter, and all-to-all
+(\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/nccl.h.in}{nccl.h,
+pinned to v2.32.3-1}), and its source contains topology discovery, graph
+search, transport selection, and an algorithm/protocol cost model
+(\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/graph/topo.cc}{topology},
+\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/graph/search.cc}{search},
+\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/transport.cc}{transport},
+and
+\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/tuning/cost_model.cc}{cost
+model}, all pinned to that tag, retrieved 2026-10-28). Current official
+documentation also describes a device-side API introduced in the 2.28
+series with capability-dependent local and network paths
+(\href{https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/deviceapi.html}{NCCL
+device API guide}) --- an extension of the host stream API, not a claim
+that every accelerator or NIC supports every device-side mechanism.
+
+oneCCL's official UXL repository was not archived at retrieval, and its
+default branch was master-v2
+(\href{https://api.github.com/repos/uxlfoundation/oneCCL}{oneCCL
+repository}); GitHub's latest release was 2022.1.0, published 2026-08-15
+--- a version identifier, not its release year
+(\href{https://api.github.com/repos/uxlfoundation/oneCCL/releases/tags/2022.1.0}{oneCCL
+releases}). That tag exposes a C API and a plugin architecture
+(\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/include/oneapi/ccl.h}{ccl.h,
+pinned to 2022.1.0}); its legacy plugin connects to the existing C++
+collective implementation, and its tree contains MPI and OFI transports
+(\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/plugins/legacy/ccl_legacy.cpp}{legacy
+plugin},
+\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/deps/libccl/src/atl/mpi/atl_mpi.cpp}{MPI
+transport}, and
+\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/deps/libccl/src/atl/ofi/atl_ofi.cpp}{OFI
+transport}, all pinned to that tag, retrieved 2026-10-28). SYCL/Level
+Zero describe the device execution and memory path; MPI/OFI describe
+transport choices at another layer, and actual device-buffer support
+still depends on the selected plugin, transport, build, and system
+configuration.
+
+Queue semantics are part of that contract. The inspected 2022.1.0 legacy
+plugin expects an in-order SYCL queue for its queue path; its CPU branch
+with a null stream waits on an event, and other branches contain queue
+waits or host tasks
+(\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/plugins/legacy/ccl_legacy.cpp}{legacy
+plugin source, pinned}). The broad description ``asynchronous GPU
+collective'' cannot replace those path-specific completion rules, and
+similar-looking function names do not establish matching error,
+lifetime, or recovery semantics. The C API has a concrete plugin error
+boundary: in the inspected tag its wrapper converts caught C++
+exceptions into onecclPluginException, and a communicator without a
+finalize or abort callback causes the corresponding API to return
+onecclNotImplemented --- a conditional code path, not a claim that every
+plugin lacks recovery callbacks
+(\href{https://raw.githubusercontent.com/uxlfoundation/oneCCL/2022.1.0/src/api.cpp}{oneCCL
+API source, pinned}). A synchronous return code also does not establish
+completion of previously queued device work; runtime failures and the
+selected plugin's recovery behavior remain separate obligations.
+
+The older intel/torch-ccl binding project is a different lifecycle
+question: its README declares the project archived and deprecated and
+directs distributed use toward PyTorch itself
+(\href{https://raw.githubusercontent.com/intel/torch-ccl/master/README.md}{torch-ccl
+README}). PyTorch v2.9.0 documents the XCCL backend for XPU devices
+(\href{https://raw.githubusercontent.com/pytorch/pytorch/v2.9.0/docs/source/distributed.md}{PyTorch
+distributed documentation, pinned to v2.9.0}), and a separately
+inspected torch-xpu-ops commit uses onecclComm\_t and oneCCL wrappers
+within ProcessGroupXCCL
+(\href{https://raw.githubusercontent.com/intel/torch-xpu-ops/73a6552c3c122614d2651de2a0c6feb8f81ae613/src/xccl/ProcessGroupXCCL.cpp}{ProcessGroupXCCL.cpp,
+pinned commit}). This supports a backend-to-library distinction, not a
+claim that every PyTorch release uses the same ABI or that a standalone
+successor called Intel XCCL has been verified; proposals in a PyTorch
+RFC are not release evidence
+(\href{https://api.github.com/repos/pytorch/pytorch/issues/194761}{PyTorch
+RFC discussion}).
+
+\subsubsection{Table 9-3 --- Similar semantics, different integration
+contracts (2026-10-28
+snapshot)}\label{table-9-3-similar-semantics-different-integration-contracts-2026-10-28-snapshot}
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Comparison dimension
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+NCCL path
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Inspected oneCCL path
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+MPI path
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Identity & NVIDIA collective library & UXL collective library with
+tagged C API/plugin path & Standard implemented by Open MPI, MPICH and
+others \\
+Device integration & CUDA streams; conditional device API & SYCL/Level
+Zero path; inspected legacy plugin has in-order queue requirements &
+Device-buffer, progress and stream behavior depend on
+implementation/component \\
+Execution choices & Topology-aware algorithms, protocols and eligible
+offload & Selected plugin, collective implementation and transport &
+Implementation-selected collective algorithms and communication
+components \\
+Setup & Communicator IDs/ranks supplied by application or framework; MPI
+may assist & Communicator/plugin setup; launcher and transport are
+separate choices & Implementation process/runtime and communicator
+facilities \\
+Portability claim & Not a vendor-neutral execution ABI & API similarity
+does not imply binary or behavioral interchangeability & Standardized
+semantics do not make all GPU extensions portable \\
+
+\noalign{\label{tab:9.3}}\end{longtable}
+
+RCCL and UCC clarify the same architectural distinction without
+requiring a product catalog: RCCL implements collective semantics in the
+ROCm/HIP ecosystem
+(\href{https://raw.githubusercontent.com/ROCm/rccl/develop/README.md}{RCCL
+README}), UCC can provide collectives to different programming models
+and integrates with Open MPI
+(\href{https://raw.githubusercontent.com/openucx/ucc/master/README.md}{UCC
+README}), and Gloo is both a communication library and a framework
+backend name
+(\href{https://raw.githubusercontent.com/pytorch/gloo/main/README.md}{Gloo
+README}, all retrieved 2026-10-28). Actual operation and device support
+must be checked at the framework boundary as well as in the underlying
+library. No performance ranking follows from this table.
+
 \section{End-of-Chapter Mini-Case: Naming the Parallelism Before the
 Arithmetic}\label{end-of-chapter-mini-case-naming-the-parallelism-before-the-arithmetic}
 
-An architect is asked to design a distributed inference fleet for a 70B
-parameter model serving user queries for 10,000 concurrent users. The
-team debates whether to use a single 8×H100 host with NVLink, or to
-shard the model across 32 nodes connected by 200 GbE RoCE. Before any
-hardware is ordered, the architect opens this chapter and runs the
-communication arithmetic.
+An architect is asked to design a 70B inference service for a population
+of 10,000 users. The request frequency and arrival trace have not yet
+been supplied. The team considers replicating an eight-GPU
+tensor-parallel engine or partitioning one engine across 32 hosts. The
+communication scheme can be assessed before the fleet count is known,
+but a user population alone cannot determine that count.
 
 The per-request all-reduce is not the right model for inference, and
 neither is a blanket ``all-gather the full weights every decode step.''
@@ -419,27 +826,28 @@ each step is pathological (that is a design smell, an anti-pattern to
 flag, not a baseline); exchanging activations or KV fragments is the
 normal case that fits comfortably within NVLink.
 
-The architect proposes the single 8×H100 host (TP within the node, so
-intra-node NVLink carries the per-step activation all-reduce) for the
-core serving fleet, with a fallback to a 32‑node RoCE cluster only if KV
-concurrency or memory capacity exceeds one host (\hyperref[chap:17]{Chapter 17}). The
-communication arithmetic made the trade-off explicit: TP activation
-exchanges are tens of MB and free within NVLink; cross-node weight/KV
-shuttling is 35× more expensive and avoided unless the fleet genuinely
-spans hosts. The design is now grounded in bandwidth and the
-\emph{specific} parallelism scheme, not in vague notions of ``scale.''
+The architect proposes keeping each tensor-parallel engine within an
+eight-GPU host where memory and operator support permit. Additional
+independent replicas can then absorb greater traffic without extending
+tensor parallelism across hosts. Activation exchange still consumes
+bandwidth and synchronization time; it is not free. Cross-host
+partitioning becomes a separate candidate when a model or its required
+request state cannot fit within the chosen host, or when measurements
+demonstrate another benefit. A prefill/decode split also needs a
+measured KV-transfer path; NVLink timing only applies when that path is
+actually available.
 
-\emph{Scope note.} This conclusion decides the communication
-\textbf{scheme}, not the fleet size, and it is stated for the canonical
-workload (\textasciitilde10/40 rps, Ch 4, \hyperref[tab:4.2]{Table 4-2}) that the rest of
-the book's arithmetic uses --- not for the 10,000-concurrent-user figure
-in the setup. At that stated scale the fallback condition in the
-sentence above is met on arrival: one 8×H100 host holds only C ≈ 17.5
-concurrent full-context requests (Ch 17), so 10,000 concurrent users
-exceed a single host's capacity by \textasciitilde570× (10,000 ÷ 17.5 ≈
-570 hosts regardless of fabric) --- a \hyperref[chap:17]{Chapter 17} capacity question, not
-a fabric question. The single-host-versus-RoCE choice above is what
-governs the canonical scale, where per-step TP activation exchanges stay
-tens of MB inside NVLink.
+\emph{Scope note.} People, request arrivals and resident requests are
+different populations. The 10,000-user setup needs a request-frequency
+assumption or trace before \hyperref[chap:17]{Chapter 17} can determine occupancy and fleet
+capacity. The separate canonical 10/40 req/s workload can use the
+established \hyperref[chap:17]{Chapter 17} planning analysis. If a deliberately different
+storage scenario specifies 10,000 simultaneous full-context resident
+requests, the ideal whole-context limit of 17 slots per host gives
+\(\lceil 10{,}000/17 \rceil=589\) hosts before throughput, runtime
+overhead, placement, SLO headroom and failure reserve. That is a
+request-storage lower bound, not a user-derived deployment
+recommendation. More replicas do not by themselves require cross-host
+model partitioning. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}

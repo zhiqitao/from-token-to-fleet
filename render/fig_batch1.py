@@ -52,67 +52,10 @@ print('Ch04 done')
 # regen_figs.py must not clobber the Archify asset.
 print('fig-05-0501: Archify-rendered asset; matplotlib generator retired')
 
-# ---- Ch09: collective completion time vs data volume (the promised chart) ----
-# all-reduce completion ~ O(2*Nminus1/N * V / B_eff). Curves use EFFECTIVE bandwidths matched
-# to the §9.4 worked example: NVSwitch 1.8, NVLink 0.9 TB/s (intra-node nominal), InfiniBand
-# ~40 GB/s and RoCE2 ~2.5 GB/s (multi-node effective, incl. coding + contention) — NOT the
-# nominal per-port peak, which is ~50 GB/s for both IB and RoCE (Table 9-1). Using effective
-# values reconciles the figure with §9.4 (IB ~6.1 s, RoCE ~98 s at 140 GB).
-# Loop-5 F3: the 1.8 TB/s curve is NOT the H100 in-node tier (Table 9-1 = 900 GB/s); it is
-# §9.7's next-generation figure ("toward 1.8 TB/s aggregate") / NVLink 5-class.  The legend
-# entry now says so in-figure, so a reader cannot size an H100 host from the top curve.
-size = np.logspace(-2, np.log10(300), 240)      # GB (cover past the 140 GB weight footprint)
-bw = {'next-gen NVSwitch (1.8 TB/s, §9.7 — not H100)': 1800, 'NVLink (0.9 TB/s)': 900,
-      'InfiniBand HDR (eff. ~40 GB/s)': 40, 'RoCE 25GbE (eff. ~2.5 GB/s)': 2.5}
-data_per_byte = 1.75   # ring all-reduce moves ~2(N-1)/N * V; for N=8 nodes it is 1.75 (matches §9.4 worked example)
-fig, ax = plt.subplots(figsize=(6.1, 4.7))
-fig._hermes_print_sized = True   # regen must not re-boost/reflow
-cols = {'next-gen NVSwitch (1.8 TB/s, §9.7 — not H100)': ('#27408b', '-', 'o'),
-        'NVLink (0.9 TB/s)': ('#3a6ea5', '--', 's'),
-        'InfiniBand HDR (eff. ~40 GB/s)': ('#e67e22', '-.', '^'),
-        'RoCE 25GbE (eff. ~2.5 GB/s)': ('#c0392b', ':', 'D')}
-for name, b in bw.items():
-    c, ls, mk = cols[name]
-    t = data_per_byte * size / b   # GB / (GB/s) = s
-    ax.loglog(size, t*1000, color=c, ls=ls, marker=mk, markevery=30,
-              lw=1.8, label=name, markersize=3.5)  # ms
-ax.axvline(140, color='#555', ls='--', lw=1.3)   # 140 GB = §9.3 worked-example payload (70B FP16 gradient all-reduce)
-ax.annotate('140 GB (Sec. 9.3: 70B FP16\ngradient all-reduce)', xy=(140, 9.8e4), xytext=(2.2, 6e4),
-            arrowprops=dict(arrowstyle='->'), fontsize=8.5)
-# Arrow tips onto the RoCE 140 GB data point (1750*140/2.5 = 9.8e4 ms, the
-# Sec. 9.4 'RoCE ~98 s at 140 GB' worked-example value).  Tail sits above the
-# red dotted RoCE curve and the shaft stays above it until it lands on the
-# point, so the arrow no longer crosses the RoCE curve and its target is
-# unambiguous.
-ax.set_xlabel('Data volume (GB)', fontsize=9)
-ax.set_ylabel('All-reduce completion time (ms)', fontsize=9)
-ax.set_title('All-reduce time vs data volume,\nby interconnect tier', fontsize=9.5)
-# ANALYTICAL/DERIVED tag in-plot (upper right whitespace)
-ax.text(0.99, 0.94, 'ANALYTICAL [DERIVED]\n(t = 1.75·V/B, N=8 ring, effective B)', transform=ax.transAxes,
-        fontsize=8, color='#8a5a00', ha='right', va='top')
-ax.tick_params(labelsize=10)
-# Loop-2 review: the default log formatter draws the y tick exponents as
-# mathtext superscripts = 0.7 x 10pt = 7.0pt on page (sub-8pt floor).  Plain
-# decimal labels keep every glyph at the full 10pt tick size - same fix as
-# Fig 2.2 (render/fig_ch2_roofline.py).
-# Loop-3 review: '%g' switches to machine notation at 7 significant digits, so
-# the 10^6 top tick rendered as '1e+06' while every lower tick was plain
-# (1, 10, ... 100000) - mixed formats on one axis.  '%.0f' prints the same
-# ticks as plain whole numbers ('1000000'), no scientific notation anywhere,
-# still at the full 10pt tick size (>= 8pt floor).
-ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, p: '%.0f' % v))
-ax.yaxis.set_minor_formatter(mticker.NullFormatter())
-# x-axis labelled tick covering the 140 GB weight-footprint reference
-ax.set_xticks([0.01, 0.1, 1, 10, 100, 200])
-ax.set_xticklabels(['0.01', '0.1', '1', '10', '100', '200'])
-ax.set_ylim(1e-1, 1e6)
-# legend OUTSIDE the axes (below) so it does not occlude the data
-ax.legend(fontsize=8, loc='upper center', bbox_to_anchor=(0.5, -0.14), ncol=2, frameon=False)
-ax.grid(alpha=0.3, which='both')
-ax.set_xlim(0.005, 250); ax.set_ylim(1, 2e6)   # extend past the 200 tick so its label is not on the right border
-plt.tight_layout(rect=(0, 0.08, 1, 1))
-plt.savefig(base % (9, 9, 9), dpi=350); plt.close()
-print('Ch09 done')
+# ---- Ch09: dedicated directional ring generator ----
+# Retired here to prevent batch regeneration from restoring aggregate/directional mismatch.
+# Canonical owner: render/fig_ch9_directional.py
+print('Ch09: see render/fig_ch9_directional.py')
 
 # ---- Ch11: serving = four concerns, not a layer stack ----
 # REDESIGN (reviewer, 2026-09-27): the prior version packed each concern card

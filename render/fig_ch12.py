@@ -45,13 +45,13 @@ def downarrow(y_top, y_bot):
 box(X0, 0.790, W, 0.150, '#eaf1fb', '#3a6ea5')
 stagelabel(CX, 0.865, '\u2460  REQUIREMENTS', '#27408b')
 divider(0.778)
-downarrow(0.778, 0.750)
+downarrow(0.778, 0.735)   # R27 P2: extend the tip into the box so it touches
 
 # ---- Stage 2 CONSTRAINTS ----
 box(X0, 0.600, W, 0.150, '#fdf3e0', '#d68910')
 stagelabel(CX, 0.675, '\u2461  CONSTRAINTS', '#935116')
 divider(0.588)
-downarrow(0.588, 0.560)
+downarrow(0.588, 0.545)   # R27 P2: extend the tip into the box so it touches
 
 # ---- Stage 3 CANDIDATES (taller: title + the candidate line) ----
 box(X0, 0.335, W, 0.225, '#e7f5ec', '#1e8449')
@@ -83,11 +83,13 @@ ax.text(bx + bw / 2, 0.165, '(c)  pending Ch. 14', ha='center', va='center',
 # horizontal bus, then a vertical arrow into each box top, so the
 # survivors-vs-rejected split is explicit (the old single arrow reached only
 # OUTCOME and left the REJECTED path disembodied).
+# R27 P2: the central drop was a third (redundant) arrowhead floating over the
+# bus; it is now a plain connector line (no arrowhead) so only the two real
+# targets (OUTCOME / GATED) carry arrowheads.
 _bus_y = 0.305
 _cx_out = sx + sw / 2
 _cx_rej = bx + bw / 2
-ax.annotate('', xy=(CX, _bus_y), xytext=(CX, 0.323),
-            arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555'))
+ax.plot([CX, CX], [0.323, _bus_y], color='#555', lw=1.6, zorder=3)
 ax.plot([_cx_out, _cx_rej], [_bus_y, _bus_y], color='#555', lw=1.6, zorder=3)
 ax.annotate('', xy=(_cx_out, 0.290), xytext=(_cx_out, _bus_y),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#555'))

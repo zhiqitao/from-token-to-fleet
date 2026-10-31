@@ -49,12 +49,16 @@ ax1.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax1.set_ylabel('Prefill compute (PFLOP / request)', fontsize=9.5)
 ax1.set_title('PREFILL  (per request)', fontsize=10, fontweight='bold', color='#5a2a7a')
 ax1.set_ylim(1e-2, 1e3)
-ax1.tick_params(which='major', labelsize=8.5)
+# P1 legibility floor: ch22 places this figure at width=0.95\linewidth
+# (0.95 x 439.2pt = 417.24pt), so every authored size is multiplied by 0.95
+# on the page. 8.5pt ticks/legend landed at 8.07pt and the 8.2pt panel note at
+# 7.79pt (< 8pt print floor). Author at 8.6pt -> 8.17pt placed, >= 8pt.
+ax1.tick_params(which='major', labelsize=8.6)
 ax1.tick_params(which='minor', labelsize=0)   # hide minor tick labels (log-axis clutter); keep grid
 ax1.yaxis.set_major_formatter(FuncFormatter(_logfmt))  # "10^e" at full tick size
 ax1.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax1.grid(alpha=0.3, which='both')
-ax1.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
+ax1.legend(fontsize=8.6, loc='upper right', framealpha=0.92, frameon=True)
 # Crossover: equality of linear (2*N*L) and quadratic (4*nl*L^2*d) terms:
 #   L* = N / (2*nl*d) = 70e9 / (2*80*8192) = 53,406 tokens  (P0-03 fix).
 # ONE concise arrow annotation at the crossover; the full explanation (incl. the
@@ -80,14 +84,14 @@ ax2.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax2.set_ylabel('Decode compute (PFLOP / token)', fontsize=9.5)
 ax2.set_title('DECODE  (per token)', fontsize=10, fontweight='bold', color='#27408b')
 ax2.set_ylim(1e-5, 1e-3)
-ax2.tick_params(which='major', labelsize=8.5)
+ax2.tick_params(which='major', labelsize=8.6)
 ax2.tick_params(which='minor', labelsize=0)   # hide minor tick labels (log-axis clutter); keep grid
 ax2.yaxis.set_major_formatter(FuncFormatter(_logfmt))  # "10^e" at full tick size
 ax2.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax2.grid(alpha=0.3, which='both')
-ax2.legend(fontsize=8.5, loc='upper right', framealpha=0.92, frameon=True)
+ax2.legend(fontsize=8.6, loc='upper right', framealpha=0.92, frameon=True)
 ax2.text(0.83, 3.2e-5, '2·N only — full decode\nadds KV attention',
-         fontsize=8.2, color='#27408b', fontweight='bold', va='center', ha='left')
+         fontsize=8.6, color='#27408b', fontweight='bold', va='center', ha='left')
 
 fig.text(0.5, 0.975, 'LEFT: PER REQUEST   |   RIGHT: PER GENERATED TOKEN',
          ha='center', va='top', fontsize=10, fontweight='bold', color='#7a0000',

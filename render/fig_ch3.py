@@ -58,8 +58,10 @@ for r in range(NROWS):
 ax.add_patch(Rectangle((0.62, cell_top(NROWS-1)-CELL_H-0.10),
                         COLS*1.35+0.55, (NROWS-1)*ROW_P+CELL_H+0.22, fc='none', ec='#c0392b', lw=2.0))
 ax.text(4.725, cell_top(0)+0.42, 'ALL active', fontsize=9, color='#c0392b', ha='center', fontweight='bold')
-legend_row(ax, A_RES, '#cccccc', '#888', 'resident \u2248 140 GB', '#444')
-legend_row(ax, A_ACT, '#3a6ea5', '#333', 'active per token \u2248 140 GB', '#333')
+# Dense: every param is BOTH resident and active (140 GB), so a single blue legend
+# row replaces the old grey 'resident' + blue 'active' pair — the grey swatch matched
+# no cell (all cells are blue) and read as orphaned (A-015).
+legend_row(ax, A_RES, '#3a6ea5', '#333', 'all 140 GB resident & active', '#333')
 ax.text(5, A_SENT, 'every token activates all 70B params', fontsize=9.0, color='#333', ha='center')
 ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', ha='center')
 
