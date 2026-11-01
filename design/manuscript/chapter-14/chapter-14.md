@@ -41,6 +41,22 @@ We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (c
 
 The analytical ceiling sets the range of the sweep. The scenario's 40 req/s peak and assumed 8.6-second execution time imply about 344 executing requests fleet-wide, not resident requests on one host. Chapter 17 distinguishes the integer-slot planning minimum, occupancy headroom and spare capacity; those are not measured fleet capacity. The benchmark supplies the highest offered load that still meets the SLO. That measured SLO-goodput, not the analytical C/W, becomes the provisioning input.
 
+**Result worksheet (optional, illustrative — no measurements are claimed here).** The protocol above advances the analytical candidate (Ch 17's screens) to a validated one only when every row carries a measured value from the named stack; until then the candidate's status stays **UNMEASURED**:
+
+| Row | What is recorded | Reference value from this book | Status |
+|---|---|---|---|
+| Load trace | the exact query set and offered-load schedule (2 / 4 / 8 / 12 / 16 active requests, Step 2) | to be captured | [UNMEASURED] |
+| TTFT | p50 / p95 / p99 at each load level | budget: median ≤ 1.2 s, p95 ≤ 2 s | [UNMEASURED] |
+| TPOT | p50 / p95 | ~25 ms/token median | [UNMEASURED] |
+| SLO-goodput | tokens/s meeting the SLO (Ch 6), not raw throughput | — | [UNMEASURED] |
+| KV allocator usage | resident bytes per rank, block occupancy, prefix-cache hit ratio | C ≈ 17.5 whole-context slots/host | [UNMEASURED] |
+| Rank imbalance | max − min load and memory across the 8 GPUs | — | [UNMEASURED] |
+| Admission rejection | offered load at the saturation knee (Step 2) | — | [UNMEASURED] |
+| Hardware utilization | achieved FLOP/s ÷ peak FLOP/s (MFU, Ch 8 definition) | planning assumption 35% | [UNMEASURED] |
+| Model ID + backend commit | exact weights revision and serving-engine commit under test | to be recorded | [UNMEASURED] |
+
+Filling this worksheet is what turns an analytical lower-bound screen into a validated provisioning input; a blank row is a reason to hold the candidate, not a reason to round up. [ILLUSTRATIVE][ASSUMPTION]
+
 **Step 3 — interpret a candidate result.** This example is hypothetical, not a measurement made for this book. Suppose candidate A (70B dense on 8×H100) passes the capability screen and achieves p95 TTFT 1.9 s at an illustrative offered load of 1.3 req/s, with the other request SLOs also satisfied. At the assumed 8.6-second execution time, the mean executing population is 1.3 × 8.6 ≈ 11.2 requests; a mean does not guarantee that bursts fit the 17-slot limit. Its prefill demand is 1.3 × 9,200 = 11,960 input tok/s. That lies below Chapter 8's approximately 19,800 input tok/s idealized prefill ceiling, but the ceiling alone cannot establish mixed prefill/decode goodput or tail latency. Suppose candidate B (7B) instead achieves p95 TTFT 0.6 s but fails the retrieval-QA quality threshold. A qualifies at the tested point; B does not. A's accepted operating point would then be an input to fleet sizing, not proof that one host serves the 40 req/s peak. [ILLUSTRATIVE][ASSUMPTION][UNMEASURED]
 
 #### Table 14-1 — Capability vs deployment benchmarks

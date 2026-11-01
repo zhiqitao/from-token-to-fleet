@@ -78,7 +78,7 @@ for i, (name, ch, color, y) in enumerate(layers):
 # horizontalized scope annotation (vertical axis = WHERE, not BETTER) — two centered lines so it fits
 ax.text(4.0, 1.25, 'scope of placement: intelligence shifts up out of the weights',
         fontsize=8.0, color='#c0392b', ha='center', va='center')
-ax.text(4.0, 0.90, '(vertical axis = WHERE it lives, not BETTER/HIGHER)',
+ax.text(4.0, 0.90, '(vertical axis = WHERE it lives: nonexclusive placement choices, not a ranking)',
         fontsize=8.0, color='#c0392b', ha='center', va='center')
 
 ax.text(4.0, 0.35, 'Model intelligence \u2260 system intelligence', fontsize=9.2,

@@ -195,9 +195,22 @@ No delivery mode is committed. The least-cost option — the cloud default paid-
 
 **Consequences:**
 
-- **Positive:** no input assumption is promoted to a commitment; the four pending items are named, owned and testable, and the single-region baseline (21-host headline / 30-host N−1 policy) keeps operating as a *provisional* assumption.
+- **Positive:** no input assumption is promoted to a commitment; the four pending items are named, owned and testable, and the single-region baseline (21-host headline / 32-host N−1 policy) keeps operating as a *provisional* assumption.
 - **Negative:** no procurement path this quarter, and the availability requirement stays unmet on paper until regional capacity is priced; planning must carry the single-region totals as single-region totals, not as the SLA's cost.
 - **Monitoring:** regional capacity quote, region-failure test result, measured p95 SLO-goodput at the target offered load, and a matched-scope re-run of the three modes.
+
+**Requirement coverage matrix (every stated requirement of the canonical workload → the status this ADR records):**
+
+| # | Requirement (Ch 4 / Table 4-2; SLA) | Screen applied | Status |
+|---|---|---|---|
+| R1 | Serve the canonical workload: 10 rps avg / 40 rps peak, 9.2K-in / 300-out | KV-residency screen (Ch 17 Table 17-1): 21 hosts case (i) / 22 case (ii); 32 hosts at the 70% × 95% + N−1 policy | **SCREENED** — analytical lower-bound screen, not measured SLO-goodput |
+| R2 | TTFT ≤ 2 s (p95), ~25 ms/token decode | Ch 14 load test at the target offered load | **NOT VALIDATED** — unmeasured |
+| R3 | 50-question retrieval-QA quality benchmark on customer data | Ch 14 evaluation run | **NOT VALIDATED** — unmeasured |
+| R4 | Failover under one host loss (N−1) | 32-host policy row (31 working + 1 reserve), single region | **SCREENED** — single-host only; no region-failure test |
+| R5 | **Multi-region active-active, 99.9% availability** | none — no regional capacity, replication, routing or failure test is in any number in this record | **multi-region active-active: NOT VALIDATED / NOT PRICED** |
+| R6 | Cost compared across the three delivery modes | Ch 16 Tables 16-1 / 16-2 | **NOT COMPARABLE** — scopes unmatched; the multi-region row is NOT PRICED |
+
+**R5 is the requirement the HOLD exists for: multi-region active-active is NOT VALIDATED / NOT PRICED.** Every $/1K and every host count above is single-region; the canonical workload's own stated 99.9% requirement is carried as an unpriced, untested row until exit criteria (i) and (ii) close it. [ILLUSTRATIVE][ASSUMPTION]
 
 **Alternatives considered:**
 
