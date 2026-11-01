@@ -17,7 +17,7 @@
 \begin{itemize}\tightlist
 \item \textbf{TTFT} — time to first token: latency from request to the first output token (prefill-dominated).
 \item \textbf{TPOT} — time per output token: steady-state decode latency per token.
-\item \textbf{ITL} — inter-token latency: the decode phase's per-token lag; the book treats TPOT (steady-state) and ITL (per-token, incl. any measured inter-token gap) as the same canonical per-token metric and writes them ``TPOT/ITL.'' Where a measurement distinguishes them, treat ITL as the per-token value that includes any queueing/scheduling gap between emitted tokens, i.e. a tail-sensitive complement to bounded TPOT.
+\item \textbf{ITL} — inter-token latency: the decode phase's per-token lag, including any queueing/scheduling gap between emitted tokens. The book writes ``TPOT/ITL'' for one canonical per-token metric; where a source separates them, TPOT is the bounded steady-state value and ITL the tail-sensitive per-token value that also carries that gap.
 \item \textbf{tail latency} — latency at the high percentiles of the distribution (p95/p99), set by the slowest requests rather than the typical one; the SLOs in this book are written against the tail (TTFT/TPOT p95/p99), so a median that meets its budget says nothing about the tail (Ch 20).
 \item \textbf{prefill} — the pass that processes the prompt tokens and builds the KV cache/state. Often the compute-bound pass in high-arithmetic-intensity regimes, but the compute- vs bandwidth-bound classification is a function of model, sequence length, batch, kernel, and device operating point (Ch 8, \S8.2). Long-context and large-batch regimes can shift where it sits on the roofline.
 \item \textbf{decode} — the autoregressive pass that generates the output one token at a time from the built state. Often memory-bandwidth-bound at low batch (small arithmetic intensity per emitted token), but not invariably so; large-batch and bandwidth-friendly regimes can move it. Refer to the operating-point discussion in Ch 8, \S8.2 for the conditional, not unconditional, classification.
@@ -28,7 +28,7 @@
 \item \textbf{FlashAttention} — an I/O-aware attention kernel that tiles/fuses the Q·K·V computation through fast on-chip storage, reducing HBM traffic while preserving the same attention mathematics.
 \item \textbf{PagedAttention} — a memory-management strategy for the KV cache that allocates key/value blocks in non-contiguous pages, reducing fragmentation and enabling near-full memory utilization.
 \item \textbf{speculative decoding} — a draft model proposes a candidate sequence that the target model verifies in parallel, accepting matching tokens to raise effective throughput at the cost of draft + verification compute.
-\item \textbf{MFU} — model FLOPs utilization: achieved FLOPs as a fraction of hardware peak.
+\item \textbf{MFU} — model FLOPs utilization: achieved model FLOPs as a fraction of hardware peak; a compute-efficiency ratio for a run (the worked examples assume 35\%), not a host-occupancy number — see \emph{Utilization and efficiency} below for how it differs from $u$, $\rho$ and offered-load utilization.
 \item \textbf{RPS / QPS} — requests per second / queries per second: a \emph{rate} of incoming work, the primary input to a capacity model.
 \item \textbf{concurrency} — the number of requests \emph{in flight} (being served) at the same time; distinct from \emph{concurrent users}, which is a population measure, and related to the arrival rate by Little's law (in-flight $\approx \lambda W$) (Ch 17, 20).
 \end{itemize}
@@ -40,8 +40,8 @@
 \item \textbf{KV offloading} — moving some KV state out of GPU HBM (to host DRAM/SSD), trading capacity against transfer latency; it does \emph{not} shrink the state itself (that is quantization), and the cited 2--22$\times$ TTFT range is a particular warm-cache reuse benchmark, not a generic cold-cache improvement (Ch 2, 6; S7).
 \item \textbf{GQA} — grouped-query attention; \textbf{MQA} — multi-query attention; \textbf{MHA} — multi-head attention; \textbf{MLA} — multi-head latent attention: a compressed per-token KV (K/V stored in a low-rank latent space), so KV per token still grows with context but at fewer bytes/token than full MHA (Ch 1, 8; App.~A).
 \item \textbf{APC / RadixAttention / prefix cache} — caching of shared prompt prefixes to avoid recomputation.
-\item \textbf{prompt caching} — the broader system/provider term; the book uses it to mean \emph{reusing the KV of a shared prompt prefix across requests}, so it is \emph{not} a separate mechanism from prefix caching above (Ch 2) — the provider-facing name for the same reuse, kept as its own entry because providers document and bill it as a feature.
-\item \textbf{cache hit / miss} — a cache \emph{hit} serves a request (or a shared prefix) from cached state without recomputing it; a \emph{miss} must be computed (or re-prefilled); the hit ratio (hits $\div$ requests) is the FACT that the prefix- and semantic-cache arithmetic starts from (Ch 15, 19, 26).
+\item \textbf{prompt caching} — the provider-facing name for the prefix caching above: \emph{reusing the KV of a shared prompt prefix across requests}. Not a separate mechanism (Ch 2); kept as its own entry because providers document and bill it as a feature.
+\item \textbf{cache hit / miss} — a cache \emph{hit} serves a request (or a shared prefix) from cached state without recomputing it; a \emph{miss} must be computed (or re-prefilled); the hit ratio (hits $\div$ requests) is the FACT from which the prefix- and semantic-cache arithmetic starts (Ch 15, 19, 26).
 \item \textbf{TTL} — time-to-live: how long a cached entry stays valid before it must be refreshed or evicted; the semantic response cache uses a 5-min TTL, and its hit ratio is measured at TTL=T (Ch 26).
 \item \textbf{LRU} — least-recently-used: the eviction policy that discards the least recently used cache entry first (Ch 26, Table 26-2).
 \item \textbf{HBM} — high-bandwidth memory: the large, relatively slow-capacity memory attached to a GPU (distinct from fast on-chip SRAM).
@@ -78,6 +78,21 @@
 \item \textbf{tokens/s} — throughput in tokens per second; \textbf{token/request} — average tokens per request (a workload property).
 \item \textbf{κ (kappa)} — per-token KV cache footprint in bytes/token (e.g. ≈2.62 MB/token FP16 for the canonical full-MHA 70B; $\kappa = 2 \times n_\text{layers} \times d_\text{hidden} \times \text{bytes}$). Used in the KV-residency and concurrency arithmetic (Ch 7, 17).
 \item \textbf{ρ (rho)} — the effective throughput fraction after load-balancer and scheduling effects (the fraction of theoretical peak a host actually sustains under the chosen LB/fleet configuration); used with the capacity formula (Ch 17).
+\end{itemize}
+
+\noindent\textbf{Utilization and efficiency --- four quantities that are not MFU}
+\begin{itemize}\tightlist
+\item \textbf{utilization target ($u$)} — the policy ceiling on how full a host may run (0.70, Table 17-1); a chosen provisioning input, not a measurement.
+\item \textbf{scheduling efficiency ($\rho$)} — the separate load-balancer/scheduling loss applied on top of $u$ (0.95: health checks, affinity skew, LB CPU); $u$ and $\rho$ multiply the denominator as two \emph{independent} factors, never nested (Ch 17, \S17.4; the same symbol as \emph{ρ (rho)} under \emph{Notation} above).
+\item \textbf{offered-load utilization (occupancy)} — served $\div$ provisioned at the operating point (Ch 16, Note 16.1-1: ``Utilization = served $\div$ provisioned''); how full the fleet runs under the offered load --- an occupancy ratio, not a compute-efficiency ratio.
+\item \textbf{qualitative scenario indicators} — hand-designed ordinal labels such as Table 15-1's \emph{Illustrative load pressure} (a 0--100 dimensionless score with no FLOP numerator or denominator); a teaching aid, deliberately not an MFU and not a measured utilization.
+\end{itemize}
+
+\noindent\textbf{Quote which quantity --- memory and latency distinctions}
+\begin{itemize}\tightlist
+\item \textbf{raw bytes / allocated cache / observed resident memory} — the three accounting boundaries of any footprint number (Ch 7, \S7.4): \emph{raw bytes} is the logical K/V payload (2.62 MB/token FP16 canonical; 1.31 MB/token at 8-bit raw byte-halving), \emph{allocated cache} is what the engine reserves (paged blocks plus scale/offset metadata and allocator rounding, so allocated $\ge$ raw), \emph{observed resident memory} is what the device reports in use. Name which one a footprint counts.
+\item \textbf{active weights vs resident weights} — \emph{active} is the set touched per token (the $\sim$12.8B-active MoE reads $\sim$25.6 GB of weights per token); \emph{resident} is the full weight bytes held in HBM ($\sim$140 GB FP16 for the dense 70B, $\sim$94 GB for the $\sim$47B MoE's full expert set) (Ch 3).
+\item \textbf{residency duration vs end-to-end latency} — residency duration is the time state actually occupies the accelerator: the mean KV-holding time $\mathrm{E}[W_{KV\text{-}resident}]$ in the provisioning formula, or weight residency; end-to-end latency is request-to-last-token wall time as the user sees it ($W_{\mathrm{e2e}}$, tool and orchestration overhead included), which is \emph{not} the $W$ in the KV formula (Ch 17). SLO-goodput is neither latency: it is the \emph{goodput} that meets the latency/quality bar (above).
 \end{itemize}
 
 \noindent\textit{Where an acronym is ambiguous or its definition is load-bearing, the body defines it at first use and the relevant chapter develops the consequence.}

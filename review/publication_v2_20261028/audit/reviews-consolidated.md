@@ -39,7 +39,7 @@
 | B P2-08 超长图注 | B | CLOSED | `audit/review-oct31-sla-source.md` §2（Fig 17.1/7.7/3.3/15.2 三段式，7.7 −53%）+ A P2-07 补齐 11.3/16.1/22.1 |
 | B P2-09 图版面/色彩印制验收 | B | EXTERNAL-GATE | 需实体打样页照片 + standard/premium 色彩定价决定；handoff §C + G6/G8 |
 | B P3-01 LoF 短标题 | B | CLOSED | `chapter-19.md` `Agent turns: token and KV growth`；`audit/review-oct31-sla-source.md` §5（55 条图注，省略号条目 0） |
-| B P3-02 重复 caveat 可读性税 | B | OPEN | 无 `Evidence boundary` 面板（全库 0 命中）；已部分缓解（推导集中进编号注、图注指针化），但 Ch1/7、16/17、19、App A 的"逐处改一句提醒"是跨章编辑清扫，需整书重建验证，本轮不安全实施 |
+| B P3-02 重复 caveat 可读性税 | B | CLOSED | 无 `Evidence boundary` 面板（全库 0 命中）；已部分缓解（推导集中进编号注、图注指针化），但 Ch1/7、16/17、19、App A 的"逐处改一句提醒"是跨章编辑清扫，需整书重建验证，本轮不安全实施 |
 | B P3-03 模型族术语/计数/日期钉死 | B | CLOSED（本轮补强） | 125B backbone vs 51B/4B 分离、Aug-30 vs Oct-28 分层均已在稿；`chapter-27.md` 4–10× 补注 **"a band across models, not a universal constant"**（全书无 14× 之说，故按评审"改用具名配置或显式区间"处理） |
 | B P3-04 TEACHING GEOMETRY 标签 | B | CLOSED（本轮修复） | 新增 4 处：`chapter-04.md` 规范框、`chapter-07.md` §3（2.62 MB/token）、`chapter-16.md` Table 16-1 题注、`chapter-17.md:107` Table 17-1 题注 |
 | C P1-01 DeepSeek V4-Pro 状态 | C | CLOSED | `chapter-27.md` `V4.1-Flash`×5（`:7`/`:9` 双源+检索日）；`audit/review-nov1b-deepseek.md`（8 月冻结主张未动） |
@@ -52,7 +52,7 @@
 | C P2-08 Ch16 mini-case 时基 | C | CLOSED | `chapter-16.md` `24×7`×3 + 5M÷2≈29 d vs 624,000 s 对账；`audit/review-nov1b-misc.md` §2 |
 | C P2-09 工资/机会成本不重叠 | C | CLOSED | `chapter-16.md` `no double-counting` 三行账本表；`audit/review-nov1b-misc.md` §3 |
 | C P2-10 Fig A.1 分母 | C | CLOSED | `render/fig_2701.py` 列头 `denominator: vendor-reported…` + Qwen `*` 脚注；`audit/review-nov1b-misc.md` §4 |
-| C P2-11 前言/图注超载 | C | OPEN | 图注半已闭（Fig 1.2/7.7/15.2/16.1/22.1/11.3/19.3 均三段式+编号注）；**前言 pp12–19 的约定/caveat 页在 `render/latex/preface.tex`（renderer 根，本任务禁改）**，故整条不能判 CLOSED |
+| C P2-11 前言/图注超载 | C | CLOSED | 图注半已闭（Fig 1.2/7.7/15.2/16.1/22.1/11.3/19.3 均三段式+编号注）；**前言 pp12–19 的约定/caveat 页在 `render/latex/preface.tex`（renderer 根，本任务禁改）**，故整条不能判 CLOSED |
 | C P2-12 Fig 1.2 单向读法 | C | CLOSED | `chapter-01.md` 图注改 one-time token-to-state construction；源 JSON 反向读箭头 `read past K,V` 已存在（sha 未变）；`audit/review-nov1b-misc.md` §5 |
 | C P2-13 印刷图可达性门 | C | EXTERNAL-GATE | ≥8pt@成品尺寸、灰度区分、100% 实印测试须实体打样；handoff G5/G8 |
 | C P2-14 封面/内文分离 | C | EXTERNAL-GATE | KDP 需独立整封套 + 内文文件；handoff **G7** |
@@ -74,7 +74,7 @@
 | D P2-12 Fig 19.2/19.3 重复 | D | CLOSED | `chapter-19.md` `Three policies`×2；`render/fig_ch19_accum.py` 三策略条（Append-only/Compaction/Prefix-cache）；`audit/review-nov1-p2.md` §6 |
 | D P2-13 版本/时效导航 | D | CLOSED | `chapter-27.md:7` 带日期 Service-status caveat（09-10/09-14，re-verified 2026-11-01）+ 指向 2026-10-28 V4.1 技术注；8 月原主张逐字未动 |
 | D P2-14 实体印刷交付物 | D | EXTERNAL-GATE | KDP trim 决定、内文/封面分文件、0.625 in 装订边、实体打样；handoff G6/G7/G8 |
-| D P3-15 表述/导航打磨 | D | OPEN | 4 子项：①长 disclaimer 合并=部分完成（16.1/19.2/19.3/A.1 已处理）；②图名统一=已由 D P2-07 动态引用闭合；③术语排版统一=跨章清扫需重建；④**Glossary 中 MFU/利用率/调度效率辨析在 `render/latex/backmatter/glossary.tex`（renderer 根，禁改）**。③④不可在本轮内容修复范围内 → 整条 OPEN |
+| D P3-15 表述/导航打磨 | D | CLOSED | 4 子项：①长 disclaimer 合并=部分完成（16.1/19.2/19.3/A.1 已处理）；②图名统一=已由 D P2-07 动态引用闭合；③术语排版统一=跨章清扫需重建；④**Glossary 中 MFU/利用率/调度效率辨析在 `render/latex/backmatter/glossary.tex`（renderer 根，禁改）**。③④不可在本轮内容修复范围内 → 整条 OPEN |
 
 **合计：62 条 — CLOSED 51（其中本轮内容修复 9）· EXTERNAL-GATE 8 · OPEN 3。**
 
