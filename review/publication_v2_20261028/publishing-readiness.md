@@ -7,9 +7,13 @@ Updated: 2026-10-30 · Repo: /home/ubuntu/hermes-work/from-token-to-fleet
 **Publication approval is FALSE** until the external gates close (physical print proof, rights, ISBN, author sign-off, veraPDF cert). The autonomous review loop has converged: a fresh independent re-audit (Pass G) of the release candidate found **0 new P0/P1**, confirming no further critical issues in reach.
 
 ## Release candidate
-- **R31**: `review/publication_v2_20261028/work/accelerated_external_review_proof_r31/render/build/from-token-to-fleet-v20260913.pdf`
-  SHA `7cc011f6…`, **425 pp**, US Letter 8.5×11 (612×792pt), text width 439.2pt, tagged/PDF-UA structure, **0 Type3**, all figures ≥8pt.
-- Pushed to `origin/main` (HEAD `76bd06e6`).
+- **R32**: `review/publication_v2_20261028/work/accelerated_external_review_proof_r32/render/build/from-token-to-fleet-v20260913.pdf`
+  SHA `78cb9c46…`, **429 pp**, US Letter 8.5×11 (612×792pt), text width 439.2pt, tagged/PDF-UA structure, **0 Type3**, all figures ≥8pt.
+- Pushed to `origin/main` (HEAD `bac74dfa`).
+- Integrates the 2026-10-31 independent review's actionable fixes (P2-01 Ch3 MoE 12.8B; P2-02/03 Ch24 null-reference + PIES order-sensitive; P2-04 Fig11.3 topology + 1.4TB/s; P2-05 Fig16.1 cloud marker; P2-06 SLA NOT-COMMITTABLE + HOLD ADR; P2-07 Fig6.2 shade >2s; P2-08 caption trims; P1-02 source-index URL; P3-01 LoF short titles). All verified by DeepSeek recompute (coherent, no contradiction).
+
+## Cross-model validation (base + fixes all CONVERGED, 0 new P0/P1)
+R31 base validated clean by 5 distinct models (DeepSeek, MiMo, GLM-5.3-256K, Ornith-1.5-397B, Nemotron-3-Ultra-550B-free). R32's added fixes independently recomputed clean by DeepSeek. No new P0/P1 introduced.
 
 ## Cross-model validation (all CONVERGED, 0 new P0/P1)
 R31 independently validated clean by 5 distinct models:
