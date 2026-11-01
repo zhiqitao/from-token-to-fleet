@@ -61,12 +61,23 @@ ax.text(2.03, ytop * 0.94, 'SLO 2 s', fontsize=8.5, color='#27408b',
 ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\np99 = %.2fs\nSLO 2 s\n(p99 still looks fine)' % (mean, v99),
         fontsize=8.5, color='#333', ha='center', va='center',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f7f7f7', ec='#cccccc', lw=0.8))
-ax.axvspan(4.0, 6.0, color='#c0392b', alpha=0.08)
+# P2-07: shade the ENTIRE SLO-violating region (> 2 s, everything right of the
+# SLO line) lightly, and mark the 5 s straggler cluster inside it with a darker
+# hatched band.  The old shading started at 4 s, which left the 2-4 s violating
+# region unshaded and understated the violation area.
+ax.axvspan(2.0, 6.2, facecolor='#c0392b', alpha=0.10, zorder=0)
+ax.axvspan(4.5, 5.5, facecolor='#c0392b', alpha=0.22, zorder=0)
+# hatch drawn as its own facecolor='none' patch: `color=` would override
+# edgecolor (killing the dark hatch) and a patch-level alpha would fade it.
+ax.axvspan(4.5, 5.5, facecolor='none', edgecolor='#7b241c', hatch='///',
+           linewidth=0.0, alpha=0.85, zorder=1)   # lw 0 = no border rectangle
+ax.text(3.3, ytop * 0.60, 'SLO-violating region (> 2 s)', fontsize=8.5,
+        color='#c0392b', ha='center', va='center', fontweight='bold')
 # place the stragglers label in the CLEAR upper region of the red band (the tail
 # bars near x=5 are tiny, and the legend box ends at x=4.0), so it never sits on a bar.
 ax.text(5.0, ytop*0.72, '1% stragglers\n~5 s (cross the SLO)', fontsize=8.5, color='#c0392b',
         ha='center', va='center',
-        bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#c0392b', lw=0.8, alpha=0.9))
+        bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#c0392b', lw=0.8, alpha=0.95))
 
 ax.set_xlabel('Request latency (s)', fontsize=9.5)
 ax.set_ylabel('Request count', fontsize=9.5)

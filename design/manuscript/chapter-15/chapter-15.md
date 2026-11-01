@@ -43,7 +43,7 @@ To validate the mental model we instrument the serving stack with three metric f
 
 #### Goodput vs. Batch Size: the Cache Lever
 
-![Fig 15.2 — Prefix caching and batching act on different serving phases: caching reduces prefill work per repeated prompt; batching raises decode goodput. Illustrative (synthetic) curves, not measured benchmarks — left = prefill work vs average prefix reuse (prefill work, lower is better); right = decode goodput vs batch size (rises until HBM bandwidth saturates). Left uses percent of no-cache prefill work; right uses arbitrary goodput units. [ILLUSTRATIVE][ASSUMPTION]](figures/fig-15-1501.png)
+![Fig 15.2 — Two levers, two serving phases: prefix caching cuts prefill work per repeated prompt (left: prefill work vs average prefix reuse, as a percent of no-cache prefill work, lower is better); batching raises decode goodput (right: decode goodput vs batch size, arbitrary goodput units, rising until HBM bandwidth saturates). **Scope:** illustrative (synthetic) curves, not measured benchmarks. [ILLUSTRATIVE][ASSUMPTION]](figures/fig-15-1501.png)
 
 The capacity response to batch size under peak load. Two distinct levers act on different phases: batching raises decode goodput (right plot) until bandwidth saturates, while prefix caching lowers the prefill work per repeated prompt (left plot) so more prefill‑recompute headroom remains under the same host. They are not competing on the same axis.
 

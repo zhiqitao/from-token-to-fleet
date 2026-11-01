@@ -177,6 +177,48 @@ On the negative side, ADRs add a small writing overhead. For a team of ~10 engin
 
 ![Fig 25.1 — The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. **Takeaway:** an ADR is a fixed five-field record — Title and status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives considered (the rejected options) — and it is *kept, not edited*: the Consequences of ADR-001 become the Context of ADR-002, which supersedes it while the original stays on file. **Scope:** the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice as their five core fields (§25.1), each extended with its own apparatus. **Warning:** illustrative structure, not a measured decision record — a real ADR must carry the evidence tags its numbers are judged by. [ILLUSTRATIVE] conceptual](figures/fig-25-2501.png)
 
+> **DECISION STATE — CANDIDATE SCREENED; NOT COMMITTABLE — regional availability, failover, SLO-goodput and matched-scope costs pending.**
+>
+> An ADR may record this state. The canonical candidate has cleared the capability and *single-region* cost screens (Ch 16 §16.6, Ch 17 §17.6), but the canonical workload's 99.9% multi-region active-active requirement is unsized and unpriced, only N−1 single-host failover is modeled, SLO-goodput is unmeasured at the target offered load (Ch 14), and the delivery modes are not compared on matched scopes. Writing **HOLD** into the Status field is the correct, auditable record — and it is not the same as choosing the cheapest row.
+
+**A worked HOLD record — ADR 0015, in this chapter's template** (the compact form appears at the Decision rung in Ch 22 §6; the record is kept, not edited).
+
+#### ADR 0015 — Delivery mode and region topology for the canonical Q&A workload {.unnumbered}
+
+**Status:** **HOLD** — screened, not committed.
+
+**Context:**
+The loop has produced capability, capacity and *single-region* cost screens: the 70B 8×H100 self-host clears the capability screen, and the single-region arithmetic gives ~$155.8K/mo (~$24.97/1K) self-host, ~$87.6K/mo (~$14.04/1K) on the cloud default paid-occupancy input, and ~$129.8K/mo (~$20.8/1K) managed API at the canonical 6.24M requests/mo. The canonical workload's own 99.9% multi-region active-active requirement sits in none of those numbers (Ch 16 §16.3, Table 16-2).
+
+**Decision:**
+No delivery mode is committed. The least-cost option — the cloud default paid-occupancy input at ~$14.04/1K — is explicitly **not** selected, and neither is self-host nor the managed API. **HOLD is the decision**, with the four exit criteria below as its review trigger.
+
+**Consequences:**
+
+- **Positive:** no input assumption is promoted to a commitment; the four pending items are named, owned and testable, and the single-region baseline (21-host headline / 30-host N−1 policy) keeps operating as a *provisional* assumption.
+- **Negative:** no procurement path this quarter, and the availability requirement stays unmet on paper until regional capacity is priced; planning must carry the single-region totals as single-region totals, not as the SLA's cost.
+- **Monitoring:** regional capacity quote, region-failure test result, measured p95 SLO-goodput at the target offered load, and a matched-scope re-run of the three modes.
+
+**Alternatives considered:**
+
+1. **Select the least-cost mode now** — rejected: the $87.6K line is a paid-occupancy INPUT, not a measured duty cycle, and no row carries the 99.9% active-active cost; choosing it would encode an assumption as a decision.
+2. **Commit to self-host** — rejected: its SLO-goodput pass is provisional until benchmarked (Ch 14), and it is single-region only.
+3. **HOLD with explicit exit criteria** — adopted.
+
+**Evidence:** [ILLUSTRATIVE][ASSUMPTION] — the three single-region cost rows are Ch 16 scenario inputs, not quotes. [DERIVED] — 6.24M req/mo and every $/1K division are Ch 16 arithmetic. [ASSUMPTION] — the 99.9% active-active requirement is the canonical workload's stated SLA (Ch 4), unpriced here.
+
+**Trade-offs & consequences:** the team trades a decision's timeliness for its defensibility: HOLD costs optionality in the near term and prevents a cost ranking from silently becoming an availability commitment.
+
+**Decision owner:** the serving-platform architect who ran the Ch 22 loop, with the SRE owner accountable for the region-failure test.
+
+**Validation plan:** (i) regional capacity sized and priced for the 99.9% active-active SLA; (ii) a region-failure test defined — per-region **weight/index availability is mandatory**, **live-KV replication across regions is an optional policy** (clients may replay or recompute context in the surviving region within the recovery objectives, Ch 16 §16.3); (iii) measured p95 TTFT/TPOT SLO-goodput at the target offered load; (iv) a matched-scope re-run of the three delivery modes.
+
+**Rollback plan:** none required while HOLD stands — no mode has been commissioned; any interim spend stays month-to-month and reversible, and the single-region baseline remains the operating assumption.
+
+**Review trigger:** any validation item (i)–(iv) landing, or a change to the canonical workload's SLA or price period.
+
+**Falsification path:** if all four exit criteria are met and the matched-scope re-run still shows a stable least-cost ordering, a successor record (ADR 0018 or later) lifts the HOLD and supersedes this one; ADR 0015 stays on file unchanged. If the criteria cannot be met, the HOLD itself is the finding — the requirement and the cost model do not describe the same system.
+
 ## 7. What We Still Don't Know
 
 Despite the structured format, several questions remain open and would benefit from future ADRs or empirical studies:

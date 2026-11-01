@@ -80,7 +80,7 @@ The appendix's labels are the human-friendly framing; the three-axis labels are 
 
 ## 5. What This Means for the Handbook's Canonical Arithmetic
 
-![Fig A.2 — Vendor-reported percentages remaining relative to each model's own reference, not a shared baseline. GLM's rows are per-layer/per-head scope, not total FLOPs or total cache; no predecessor row exists for Kimi K3 or Qwen3.8-Flash-Next. [1P][DERIVED] Sources: DeepSeek V4 arXiv:2606.19348; Z.ai GLM-5.3-Flash release article, 2026-08-26.](figures/fig-27-2704.png)
+![Fig A.2 — Vendor-relative KV/compute ratios. Vendor-reported percentages remaining relative to each model's own reference, not a shared baseline. GLM's rows are per-layer/per-head scope, not total FLOPs or total cache; no predecessor row exists for Kimi K3 or Qwen3.8-Flash-Next. [1P][DERIVED] Sources: DeepSeek V4 arXiv:2606.19348; Z.ai GLM-5.3-Flash release article, 2026-08-26.](figures/fig-27-2704.png)
 
 *Same message as Fig 7.1's GQA line, taken to the frontier: the per-token KV and FLOP "constants" of Chapter 7/8 are not universal — they are the canonical full-MHA conservative upper-bound teaching model, which hybrid attention re-architects down at the mechanism. Each row is a model's vendor-reported ratio of its own stated reference (e.g. DeepSeek V4 vs V3.2); they do not share a common denominator, so they must not be read as percentages of a single baseline. The canonical 70B dense full-MHA model is the book's teaching floor, not the denominator for these percentages. An architect who re-derives them per candidate model avoids both over- (sizing a 7% KV model as if it were 100%) and under-provisioning. Values are vendor-published [1P], not yet independently reprofiled on a serving stack (see A.7).*
 
@@ -151,6 +151,8 @@ Deciding where intelligence lives — rather than which attention variant a mode
 ## Post-snapshot technology notes — 2026-10-28 {.unnumbered}
 
 The following notes are outside the four-family comparison and its 2026-08-30 First-hand Sources list. They retain separate retrieval, release and implementation dates. They do not refresh the earlier comparison or establish locally measured performance. Sources inspected 28 October 2026 as part of this separately dated addendum, not a refresh of the August comparison tables. The long machine URLs behind the numbered source entries cited in these notes ([A-S01]–[A-S105]) are held in the release source ledger `source-verification.md`, pinned to immutable commit revisions where retrievable.
+
+> **Source-index landing (version-pinned) — how every `[A-S#]` key resolves.** One rule: `[A-S23]` → pinned source-ledger entry 23. The ledger is the repository file `review/publication_v2_20261028/audit/source-verification.md`, read at this edition's immutable revision `27f4cd571d53ecb2ac549d5825a77c87f8736ad3`; the permalink below opens exactly that file at exactly that revision, and every `[A-S01]`–`[A-S105]` key cited in this edition resolves there: https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/review/publication_v2_20261028/audit/source-verification.md. The revision is pinned, so the address does not drift as the repository advances; the same repository path on the default branch carries any later edition's ledger.
 
 ### Architecture dimensions and executed depth — 2026-10-28 {.unnumbered}
 

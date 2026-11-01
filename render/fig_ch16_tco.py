@@ -9,7 +9,10 @@ All prices are [ILLUSTRATIVE][ASSUMPTION] Q4-2026 scenario values, not market fa
 Values (computed at run time, not stated here):
   self-host      = 21-host ideal-active included cost (capex + energy + staff), flat
   cloud          = default paid-occupancy INPUT (6 x 730 = 4,380 host-hours) — an
-                   assumption, NOT a measured duty cycle / load-duration integral
+                   assumption, NOT a measured duty cycle / load-duration integral.
+                   P2-05: it is ONE priced operating point (6.24M req/mo), so it
+                   is drawn as a MARKER at that point, never as a flat line
+                   across the volume axis, and it takes no part in the crossover.
   managed API    = $0.0208/req linear ($20.80/1K)
   break-even     = self / api_per_req, with the $15-25/1K price band
 
@@ -90,10 +93,15 @@ vol_max = sc['peak_rps'] * active_s                 # 24,960,000 req/month
 # ---- plot ----
 req = np.logspace(4, 8, 300)
 self_host = np.full_like(req, self_total)            # flat: fleet paid regardless
-cloud_line = np.full_like(req, cloud_total)          # occupancy-input flat line
 managed = api_per_req * req                          # zero-intercept linear
 managed_lo = api_lo * req
 managed_hi = api_hi * req
+# P2-05 FIX: the $87.6K cloud figure is ONE priced operating point
+# (4,380 paid host-hours priced against the canonical 6.24M req/mo), not a cost
+# function of volume, so it cannot serve every point on the x-axis.  It is drawn
+# as a MARKER at (6.24M, $87.6K) instead of a flat line across the whole axis;
+# it is deliberately NOT part of the crossover curves.  One noncomparability
+# warning is kept (the header line below).
 
 fig, ax = plt.subplots(figsize=(6.1, 5.0))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
@@ -111,8 +119,11 @@ ax.loglog(req, managed_lo, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, managed_hi, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, self_host, '-', color='#27408b', lw=2.0,
           label=f'self-host ${self_total/1000:.1f}K/mo ({n_hosts} hosts)')
-ax.loglog(req, cloud_line, '--', color='#6f9e5f', lw=1.9,
-          label=f'cloud ${cloud_total/1000:.1f}K/mo (occupancy input)')
+# P2-05: cloud is ONE priced operating point -> marker, not a line across x.
+ax.plot([req_month], [cloud_total], 'D', ms=8, color='#6f9e5f',
+        mec='#2e5c3a', mew=1.2, zorder=6,
+        label=f'cloud ${cloud_total/1000:.1f}K/mo @ {req_month/1e6:.2f}M '
+              f'(occupancy input)')
 ax.loglog(req, managed, '-', color='#c0392b', lw=2.0,
           label=f'managed ${m3["per_1k"]:.2f}/1K')
 
@@ -128,7 +139,7 @@ ax.axvline(vol_max, color='0.30', ls='--', lw=1.4, zorder=5)
 # it, so it is offset left with a visible leader.)
 ax.annotate('feasible max 24.96M',
             xy=(vol_max, 8.8e6), xytext=(vol_max*0.16, 8.8e6),
-            ha='center', va='center', fontsize=8.0, color='0.15', fontweight='bold',
+            ha='center', va='center', fontsize=8.1, color='0.15', fontweight='bold',
             arrowprops=dict(arrowstyle='-|>', lw=1.2, color='0.15',
                             mutation_scale=10, shrinkA=3, shrinkB=0),
             bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='0.55',
@@ -162,6 +173,19 @@ ax.axvline(req_month, color='#27408b', ls=':', lw=1.2)
 ax.text(req_month * 0.8, 4.0e5,
         f'canonical {req_month/1e6:.2f}M req/mo',
         fontsize=9, color='#27408b', ha='right')
+
+# P2-05: label the cloud MARKER (single priced operating point).  The box sits
+# in the clear band between the price band's upper edge and the self-host line,
+# left of the canonical vline; a leader runs right to the marker.
+ax.annotate(f'cloud ${cloud_total/1000:.1f}K/mo (occupancy input)\n'
+            f'priced at {req_month/1e6:.2f}M req/mo only',
+            xy=(req_month, cloud_total), xytext=(1.4e6, 7.45e4),
+            ha='right', va='center', fontsize=8.2, color='#2e5c3a',
+            fontweight='bold',
+            arrowprops=dict(arrowstyle='-|>', lw=1.0, color='#2e5c3a',
+                            mutation_scale=9, shrinkA=4, shrinkB=3),
+            bbox=dict(boxstyle='round,pad=0.28', fc='white', ec='#6f9e5f',
+                      lw=0.8), zorder=8)
 
 # break-even self-host fleet vs managed: solve api_per_req * x = self_total
 be_mid = be['mid']
