@@ -76,9 +76,20 @@ We now apply the six‑dimension framework to the **canonical enterprise‑Q&A R
 > | Hardware | 8×H100 (80 GB each, 640 GB) |
 > | Compute price | $2.50/GPU-hr (illustrative 2026 input) → ~$20/hr per 8×H100 host |
 > | Availability | 99.9% |
-> | Monthly budget | ~$15,000 (illustrative *per-host* ceiling: one 8×H100 host at ~$20/hr × 730 hr ≈ $14.6K/mo. Note this is a **single host**, not the whole workload — meeting the canonical ~10 rps average / ~40 rps peak needs ~6–21 hosts, so the workload's real monthly spend is ~$87.6K–$306.6K/mo (6 hosts at the default paid-occupancy input, $87,600 ≈ $14.04/1K, up to 21 hosts always-on at peak, $306,600 ≈ $49.13/1K; $14.6K/host/mo on-demand — Ch 16/17; the canonical self-host total is $155,816.93/mo ≈ $24.97/1K — all illustrative included-cost inputs, and the paid-occupancy hours are an explicit input, not a measured duty cycle); the budget box is a per-host ceiling, not the workload ceiling) |
+> | Monthly budget | ~$15,000 *(illustrative cap; not full workload budget — see the sidebar below)* |
 >
 > *The two derived rates most chapters cite: at 10 rps the input demand is ~92,000 tokens/s (9,200 × 10) and output ~3,000 tokens/s (300 × 10); at 40 rps peak the input demand is ~368,000 tokens/s (9,200 × 40). These come from this box, not from a chapter re-deriving the mix differently.*
+
+**Sidebar — what the ~$15,000 budget line is, and the 6–21-host workload comparison.** The budget row above is an **illustrative per-host cap**, not the workload ceiling: one 8×H100 host at ~$20/hr × 730 hr ≈ $14.6K/mo ($14.6K/host/mo on-demand — Ch 16/17). Meeting the canonical ~10 rps average / ~40 rps peak needs ~6–21 hosts, so the workload's real monthly spend is ~$87.6K–$306.6K/mo:
+
+| Delivery mode (canonical workload) | Monthly | Per 1K req | Qualifier |
+|---|---|---|---|
+| Cloud, 6 hosts — default paid-occupancy input | $87,600 | ≈ $14.04 | occupancy INPUT, not a measured duty cycle |
+| Self-host — 21-host peak KV-screen fleet | $155,816.93 | ≈ $24.97 | canonical self-host total (capex amortized) |
+| Cloud, 21 hosts always-on at peak | $306,600 | ≈ $49.13 | always-on at peak |
+| *Reference:* one 8×H100 host (the ~$15,000 row) | ~$14.6K | — | the per-host cap, not the workload |
+
+All four are illustrative included-cost inputs (Ch 16/17), and the paid-occupancy hours are an explicit input, not a measured duty cycle.
 
 **Availability topology — UNPRICED / NOT VALIDATED in the canonical cost arithmetic.** The canonical workload's operational constraint and SLA (this box: `Multi-region deployment (active-active)`, `99.9% availability`) state the *requirement*; the follow-on TCO and fleet arithmetic in Ch 16–17 prices a **single-region** deployment with **N−1 single-host failover**, **not** multi-region active-active. These are **different provisioning problems**: multi-region active-active requires cross-region capacity duplication, region-failure tolerance, data locality and traffic routing, and consistent state/data replication across regions — none of which is priced or validated anywhere in this book's cost arithmetic. The canonical cost figures (Ch 16 `$/1K req`, Ch 17 host counts) therefore **understate the cost of the canonical workload's own stated 99.9% availability requirement**. Treat the TCO/fleet totals as *single-region, N−1-only* numbers, and add a separate multi-region capacity + replication cost line before the availability SLA can be considered met.
 

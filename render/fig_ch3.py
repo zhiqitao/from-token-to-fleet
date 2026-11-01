@@ -42,9 +42,9 @@ def panel_setup(ax, title, color, tx=5.0):
     ax.text(tx, 18.3, title, fontsize=11.5, fontweight='bold', ha='center', color=color)
 
 
-def legend_row(ax, y, fc, ec, text, tcolor):
+def legend_row(ax, y, fc, ec, text, tcolor, va='center'):
     ax.add_patch(Rectangle((0.4, y), 0.5, 0.32, fc=fc, ec=ec, lw=0.8))
-    ax.text(1.05, y+0.16, text, fontsize=9.2, color=tcolor, ha='left', va='center')
+    ax.text(1.05, y+0.16, text, fontsize=9.2, color=tcolor, ha='left', va=va)
 
 
 # ================= LEFT: Dense 70B (all resident & active) =================
@@ -82,9 +82,16 @@ for idx, (r, c) in enumerate(expert_cells):
 # red bracket around the two active E1/E4 cells (col 0, rows 0-1)
 ax.add_patch(Rectangle((0.66, cell_top(1)-CELL_H-0.10), 2.06, ROW_P+CELL_H+0.22, fc='none', ec='#c0392b', lw=2.0))
 ax.text(3.9, cell_top(0)+0.42, 'top-2 active', fontsize=9, color='#c0392b', ha='center', fontweight='bold')
-legend_row(ax, A_RES, '#cccccc', '#888', 'resident \u2248 full expert set', '#444')
-legend_row(ax, A_ACT, '#e67e22', '#333', 'active per token \u2248 28 GB', '#333')
-ax.text(5, A_SENT, 'only top-2 of 8 experts compute per token', fontsize=9.0, color='#333', ha='center')
+legend_row(ax, A_RES, '#cccccc', '#888', 'resident weights \u2248 94 GB', '#444')
+# P1-02: the ledger's per-token active-weight bytes are 12.8B x 2 = 25.6 GB
+# (was a stale '~28 GB' left over from the retired 14B-active ledger).  The
+# label is wrapped to two lines so it stays inside the panel column at the
+# authored 9.2pt (measure_fig.py gate: min on-page >= 8.0pt, no shrinking).
+legend_row(ax, A_ACT, '#e67e22', '#333', 'per-token active-weight bytes\n\u2248 25.6 GB (12.8B \u00d7 2 bytes)', '#333')
+# P1-02 (caption conflation): name the two components of the 12.8B total-active
+# count so it is not read as "top-2 experts alone" — always-on 1.4B + the two
+# routed experts 11.4B (2 x 5.7B) = 12.8B, per Tables 3-2/3-3.
+ax.text(5, A_SENT, 'per token: 11.4B top-2 + 1.4B always-on', fontsize=9.0, color='#333', ha='center')
 ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', ha='center')
 
 # ---- KV bars: identical under both columns ----

@@ -63,16 +63,21 @@ ax.text(W/2, T, 'Vendor-reported ratios: % remaining', fontsize=FS_H+1.6,
 ax.text(W/2, T - 16, 'vs each model\'s own predecessor',
         fontsize=FS_H-1.8, ha='center', va='center', color='#333')
 # R27 P2: the warning was red bold text only (no border/fill), so it lost
-# salience in grayscale.  Wrap it in a thick-black-bordered, hatched bar so it
-# reads as a warning banner without relying on colour.
-ax.add_patch(Rectangle((60, T-70), W-120, 34, fc='white', ec='black',
-             lw=2.5, hatch='///', zorder=1))
+# salience in grayscale, and the R27 fix wrapped it in a HATCHED bar whose
+# '///' ran UNDER the glyphs — 2026-11-01 review P2-10: the hatch made
+# "NOT A CROSS-MODEL PERFORMANCE RANKING" illegible at print size.
+# Fix: solid white fill + one dark-red border (no hatch anywhere under the
+# text) and a larger, contrast-safe type size, so the banner reads as a
+# warning from its border and weight rather than from a pattern behind the
+# letters.  The band is widened so both lines sit inside it with clearance.
+ax.add_patch(Rectangle((24, T-70), W-48, 34, fc='white', ec='#8b1e13',
+             lw=2.2, zorder=1))
 ax.text(W/2, T - 44,
         'NOT A CROSS-MODEL PERFORMANCE RANKING',
-        fontsize=FS_R-0.2, ha='center', va='center', color='#c0392b', fontweight='bold', zorder=2)
+        fontsize=FS_R+2.2, ha='center', va='center', color='#8b1e13', fontweight='bold', zorder=2)
 ax.text(W/2, T - 62,
         "Each figure is relative to that model's OWN stated baseline — no shared scale",
-        fontsize=FS_R-0.6, ha='center', va='center', color='#c0392b', zorder=2)
+        fontsize=FS_R+0.2, ha='center', va='center', color='#8b1e13', zorder=2)
 
 # ---- row-scheme note (Loop-2): the grid is one row per REPORTED model ----
 ax.text(W/2, T - 84,
