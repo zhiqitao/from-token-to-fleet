@@ -28,6 +28,9 @@ h = 0.55
 # bar (GLM max frac ~5.6) even with the note's own width.
 axis_max = 11.0
 ax.set_xlim(0, axis_max)
+# P2-10: extra headroom above the top bar so the denominator-column header
+# clears the "284B/13B active" note (was default ~3.45 top).
+ax.set_ylim(-0.55, 4.05)
 param_label_x = axis_max * 0.985         # hard right margin for param note
 
 bars = ax.barh(y, frac, height=h, color='#ff8c42', edgecolor='none')
@@ -37,7 +40,11 @@ for i_orig, i_rev in enumerate(range(len(names))):
     t = total_b[i_orig]
     fr = frac[i_orig]
     # Fraction — just past the bar end, white-boxed for contrast on any fill.
-    ax.text(fr + 0.25, y[i_rev], f'{fr:.1f}%',
+    # P2-10: the Qwen bar is marked with '*' = backbone ratio (see footnote).
+    # Leading position keeps the trailing gap to the right-hand note unchanged
+    # (a trailing ' *' closed that gap to ~7px at 350dpi).
+    star = '*' if 'Qwen' in names[i_orig] else ''
+    ax.text(fr + 0.25, y[i_rev], f'{star}{fr:.1f}%',
             va='center', ha='left', fontsize=10.5, color='#b25a1e', fontweight='bold',
             bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.85))
     # Param note — anchored to right edge, ha='right' pulls it inward so it
@@ -53,24 +60,37 @@ for i_orig, i_rev in enumerate(range(len(names))):
             va='center', ha='right', fontsize=8.5, color='#555', linespacing=1.15)
 
 ax.set_yticks(y)
-ax.set_yticklabels(names, fontsize=10.5)
+# P2-10: mark the Qwen row as a backbone ratio (asterisk ties to the footnote).
+ax.set_yticklabels([f'{n}*' if 'Qwen' in n else n for n in names], fontsize=10.5)
 ax.set_xlabel('Active parameters as % of total', fontsize=11)
 ax.tick_params(labelsize=10)
 ax.grid(alpha=0.3, axis='x')
 ax.spines['top'].set_visible(False)
 ax.spines['right'].set_visible(False)
 
+# P2-10: label the denominator (parameter-note) COLUMN — vendor-reported /
+# resident total, varies by vendor. Right-aligned inside the axes, above the
+# top note, white-boxed so gridlines do not run through the text.
+ax.text(param_label_x, 3.95,
+        'denominator: vendor-reported / resident total, varies by vendor',
+        ha='right', va='top', fontsize=8, color='#777',
+        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.85))
+
 # Shorter, action-oriented title that fits the column at 6.1in width.
 ax.set_title('Extreme sparsity: single-digit active (2026)',
              fontsize=11, loc='left', pad=4)
 
 # Vendor-reported caveat as a compact one-line footnote BELOW the axis.
+# P2-10: second line explains the '*' backbone-ratio mark on the Qwen bar.
+fig.text(0.04, 0.045,
+         '* Qwen bar = backbone ratio (125B backbone), excluding the 51B n-gram embedding and 4B MTP.',
+         fontsize=8.2, color='#777', ha='left', va='bottom')
 fig.text(0.04, 0.005,
          'VENDOR-REPORTED active fractions; parameter definitions vary across vendors.',
          fontsize=8.5, color='#777', ha='left', va='bottom')
 
 # Tight layout reserves enough room for the y-tick labels and footer.
-plt.subplots_adjust(left=0.36, right=0.99, top=0.90, bottom=0.20)
+plt.subplots_adjust(left=0.36, right=0.99, top=0.90, bottom=0.24)
 out = 'design/manuscript/chapter-27/figures/fig-27-2701.png'
 plt.savefig(out, dpi=350)
 import matplotlib as _mpl

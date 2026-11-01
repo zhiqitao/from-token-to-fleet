@@ -96,7 +96,15 @@ $$
 
 [DERIVED: 2 × N × L where N=70B, L=9,200; the figure is large because the full context is attended to, but it is a one-time cost per request, not a sustained rate]
 
-*Accuracy of the 2 ×N × L approximation.* This linear prefill count omits the quadratic attention term, $\approx 4 \times n_\text{layers} \times L^2 \times d$. At the canonical 9.2K context that correction is small — roughly **+17%** of the 1.29 PFLOP — so the 2NL roofline is a sound teaching baseline there. But the omission grows with context: at 32K the attention term is ~**+60%** of the linear term and at 128K it *dominates* (~2.4× the linear term, ≈+240%). An architect sizing long-context prefill must add the quadratic term or measure it; the Unknowns section returns to this.
+*Accuracy of the 2 ×N × L approximation.* This linear prefill count omits the quadratic attention term, $\approx 4 \times n_\text{layers} \times L^2 \times d$. At the canonical 9.2K context that correction is small — roughly **+17%** of the 1.29 PFLOP — so the 2NL roofline is a sound teaching baseline there.
+
+**The ONE prefill-FLOP accounting convention used in this book.** Chapters 8, 15, 16, 17, 20 and 22 name the same three cases, and every prefill FLOP figure and every prefill host count states which case it uses:
+
+- **(i) linear-only lower bound** — 2N·L = **1.288 PFLOP** per 9.2K request (excludes attention);
+- **(ii) full-square attention upper/conservative model** — 2N·L + 4·n_layers·L²·d = **1.5099 PFLOP**, **+17.23%** over (i); a *full-square* (un-masked) attention-work approximation;
+- **(iii) causal-triangle kernel sensitivity** — 2N·L + 2·n_layers·L²·d = **1.3989 PFLOP**, **+8.61%** over (i): a causal mask performs half the attention-pair work of (ii).
+
+But the omission grows with context: at 32K the attention term is ~**+60%** of the linear term and at 128K it *dominates* (~2.4× the linear term, ≈+240%). An architect sizing long-context prefill must add the quadratic term or measure it; the Unknowns section returns to this.
 
 At 10 requests/s, the sustained prefill throughput demand is:
 
@@ -111,8 +119,10 @@ $$
 | metric | value | derivation |
 |---|---|---|
 | per-token FLOPs (forward) | ~140 GFLOP/token | 2 ×70B params [DERIVED; standard dense-forward arithmetic — the same 2×N rule gives 175B ≈ 0.35 TFLOP/token] |
-| prefill FLOPs for 9.2K input (linear only) | ~1.29 PFLOP | 2 ×70 ×10⁹ × 9.2 ×10³ [DERIVED; **parameterized-linear term — excludes the quadratic attention term**, see Ch 22] |
-| sustained prefill demand @ 10 rps | ~12.9 PFLOP/s | 1.29 PFLOP × 10 [DERIVED] |
+| prefill FLOPs for 9.2K input (linear only) | ~1.29 PFLOP | 2 ×70 ×10⁹ × 9.2 ×10³ [DERIVED; **case (i) parameterized-linear lower bound — excludes the quadratic attention term**, see Ch 22] |
+| prefill FLOPs for 9.2K input (full-square, conservative) | ~1.5099 PFLOP | 1.288 + 4 ×80 ×9,200² ×8,192 = 1.288 + 0.2219 [DERIVED; **case (ii) — full-square (un-masked) attention work, +17.23%**] |
+| prefill FLOPs for 9.2K input (causal-triangle sensitivity) | ~1.3989 PFLOP | 1.288 + 2 ×80 ×9,200² ×8,192 = 1.288 + 0.1109 [DERIVED; **case (iii) — causal mask halves the attention-pair term, +8.61%**] |
+| sustained prefill demand @ 10 rps | ~12.9 PFLOP/s | 1.29 PFLOP × 10 [DERIVED; **case (i)** — case (ii) gives ~15.1 PFLOP/s] |
 | H100 peak FP16 TFLOPS | ~989 TFLOPS [1P: NVIDIA H100 datasheet] | NVIDIA H100 SXM5 datasheet, without sparsity |
 | H100 sustained MFU (typical) | 30–40% [2°: industry benchmarks] | ~346 TFLOPS sustained at 35% MFU |
 | prefill throughput per GPU | ~2,471 tokens/s | 346 TFLOPS ÷ 140 GFLOP/token [DERIVED; **per-GPU scope**] |
@@ -158,9 +168,17 @@ $$
 
 [DERIVED: token demand ÷ per-host prefill throughput; **idealized aggregate**]
 
-At the peak 40 rps (368,000 tokens/s) the same arithmetic gives ~18.6 → **~19–20 hosts**. This aligns — independently — with the KV-residency / Little's-Law fleet sizing derived in Chapter 17, with the cost basis in Chapter 16 (~21 hosts at peak, ~$155,816.93/mo self-host ≈ $24.97/1K — illustrative included-cost, Ch 16), which is a useful cross-check that the two fundamentally different constraints (prefill FLOP throughput vs. KV residency/service time) point at the same order of fleet.
+At the peak 40 rps (368,000 tokens/s) the same arithmetic gives ~18.6 → **19 hosts under case (i)**. The screen depends on the FLOP-counting case, so all three are stated (35% MFU; host = 8 × 0.989 PFLOPS × 0.35 = 2.7692 PFLOP/s):
 
-**Honest boundary on both numbers.** The per-GPU `2,471 tokens/s` is itself an *analytical* figure at an assumed 35% MFU — not a measured throughput. The `8×` aggregate (`~19,800`/host) is a **theoretical first-order estimate** that assumes perfect tensor-parallel scaleout: it does **not** account for TP communication, per-rank load imbalance, kernel inefficiency under a given batch, or scheduling/system overhead. It is an upper-bound analysis value, not a servable goodput. Actual reachable prefill throughput must come from benchmark goodput under the target workload (Chapter 14). Treat both numbers as scope-disciplined *models*, never as measured capacity.
+| FLOP-counting case | prefill FLOP/request @9.2K | peak demand @40 rps | hosts = ⌈demand ÷ 2.7692 PFLOP/s⌉ |
+|---|---|---|---|
+| (i) linear-only lower bound | 1.288 PFLOP | 5.152 ×10¹⁶ FLOP/s | ⌈18.60⌉ = **19 hosts** |
+| (iii) causal-triangle sensitivity | 1.3989 PFLOP | 5.596 ×10¹⁶ FLOP/s | ⌈20.21⌉ = **21 hosts** |
+| (ii) full-square conservative | 1.5099 PFLOP | 6.040 ×10¹⁶ FLOP/s | ⌈21.81⌉ = **22 hosts** |
+
+Under case (ii) the compute screen **binds above** the KV-residency / Little's-Law fleet sizing derived in Chapter 17 (⌈344/17⌉ = 21 hosts at peak), so the capacity floor is the *max* of the named screens — **21 hosts under case (i), 22 under case (ii)** — with the cost basis in Chapter 16 pricing both (~$155,816.93/mo ≈ $24.97/1K at 21 hosts; ~$162,760.59/mo ≈ $26.08/1K at 22 — illustrative included-cost, Ch 16). That two fundamentally different constraints (prefill FLOP throughput vs. KV residency/service time) land within one host of each other is the useful cross-check that they point at the same order of fleet. **19 / 21 / 22 — and 30 (KV-only) / 33 (case (ii)) at the 70% + N−1 policy, Ch 16/17 — are illustrative planning screens under the stated FLOP-counting case and the 35% MFU assumption, NOT measured SLO-goodput.**
+
+**Honest boundary on both numbers.** The per-GPU `2,471 tokens/s` is itself an *analytical* figure at an assumed 35% MFU — not a measured throughput. The `8×` aggregate (`~19,800`/host) is a **theoretical first-order estimate** that assumes perfect tensor-parallel scaleout: it does **not** account for TP communication, per-rank load imbalance, kernel inefficiency under a given batch, or scheduling/system overhead. It is an upper-bound analysis value, not a servable goodput. Actual reachable prefill throughput must come from benchmark goodput under the target workload (Chapter 14). Treat both numbers as scope-disciplined *models*, never as measured capacity — and treat every host count they produce (19 / 21 / 22, and 30 / 33 at the 70% + N−1 policy) as an **illustrative planning screen under its stated FLOP-counting case and the 35% MFU assumption, not measured SLO-goodput**.
 
 This rough sizing illustrates that prefill is FLOP-bound at this scale — the compute requirement is the primary constraint, and memory bandwidth (HBM at 3.35 TB/s per H100) is sufficient to keep the compute fed if the kernel is efficient. The ridge point for dense FP16 on H100 is ~295 FLOP/byte (989 ÷ 3.35); the arithmetic intensity of a mature attention kernel sits near or above this ridge, meaning the kernel is compute-saturated rather than bandwidth-starved once the batch is large enough.
 

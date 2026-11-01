@@ -32,7 +32,7 @@ N = 70e9
 nl, d = 80, 8192
 L = np.logspace(np.log10(0.8e3), np.log10(128e3), 400)
 lin = 2 * N * L
-quad = 4 * nl * (L ** 2) * d          # exact quadratic attention term per request
+quad = 4 * nl * (L ** 2) * d          # CASE (ii) full-square (un-masked) attention term per request
 decode = 2 * N * np.ones_like(L)      # per-token decode FLOPs, context-independent
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.1, 5.2))
@@ -43,7 +43,13 @@ ax1.loglog(L / 1e3, lin / 1e15, color='#c0392b', lw=2.6, label='linear 2\u00b7N\
 ax1.loglog(L / 1e3, quad / 1e15, color='#8e44ad', lw=2.4, ls='-.',
            label='quadratic 4\u00b7n_layers\u00b7L\u00b2\u00b7d')
 ax1.loglog(L / 1e3, (lin + quad) / 1e15, color='#e67e22', lw=2.4, ls='--',
-           label='total = linear + quadratic')
+           label='total (full-square)')
+# P2-05: causal-triangle SENSITIVITY curve - a causal mask does half the
+# attention-pair work (2*nl*L^2*d = quad/2), so the total falls and the
+# crossover moves 53.4K -> 106.8K. One curve, one legend entry: a 4-entry
+# legend is what leaves the annotation band clear (verified by bbox probe).
+ax1.loglog(L / 1e3, (lin + quad / 2) / 1e15, color='#0e7a5f', lw=2.4, ls=':',
+           label='total (causal-triangle)')
 ax1.fill_between(L / 1e3, lin / 1e15, (lin + quad) / 1e15, color='#e67e22', alpha=0.10)
 ax1.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax1.set_ylabel('Prefill compute (PFLOP / request)', fontsize=9.5)
@@ -59,26 +65,38 @@ ax1.yaxis.set_major_formatter(FuncFormatter(_logfmt))  # "10^e" at full tick siz
 ax1.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 ax1.grid(alpha=0.3, which='both')
 ax1.legend(fontsize=8.6, loc='upper right', framealpha=0.92, frameon=True)
-# Crossover: equality of linear (2*N*L) and quadratic (4*nl*L^2*d) terms:
-#   L* = N / (2*nl*d) = 70e9 / (2*80*8192) = 53,406 tokens  (P0-03 fix).
-# ONE concise arrow annotation at the crossover; the full explanation (incl. the
-# 9.2K / 32K / 128K ratios) lives in the figure caption, so the label stays short.
-# The label sits in the clear horizontal whitespace band between the curves
-# (max y = total(68K) ~= 21.6) and the legend (bottom edge y ~= 124). At y=45 the
-# text box spans data y ~= 27.8..72.9, wholly above every curve and below the
-# legend, so it never obscures a curve. Anchored ha='right' at x=68 so it stays
-# inside the panel; a short near-vertical leader arrow drops to the crossover.
-Lstar = N / (2 * nl * d)
-ax1.annotate('quadratic overtakes\nlinear at ~%.0fK' % (Lstar/1e3),
+# Crossover annotations: equality of linear (2*N*L) with the quadratic term.
+#   full-square:      L* = N / (2*nl*d) = 70e9 / (2*80*8192) = 53,406 tokens
+#   causal-triangle:  L* = N / (nl*d)   = 70e9 / (80*8192)   = 106,812 tokens
+# ONE concise arrow annotation per crossover; the full explanation (incl. the
+# 9.2K / 32K / 128K ratios and the FLOP-counting convention) lives in the figure
+# caption, so each label stays short. The full-square label sits in the clear
+# horizontal whitespace band between the curves (max y = total(68K) ~= 21.6) and
+# the legend; a short near-vertical leader arrow drops to the crossover.
+Lstar = N / (2 * nl * d)          # full-square: 4·nl·L²·d = 2N·L  -> 53,406
+Lstar_c = N / (nl * d)            # causal-triangle (÷2)           -> 106,812
+ax1.annotate('full-square quad\novertakes ~%.1fK' % (Lstar/1e3),
              xy=(Lstar/1e3, (2*N*Lstar)/1e15),
-             xytext=(68.0, 45.0), fontsize=8.8, color='#8e44ad', fontweight='bold',
+             xytext=(40.0, 24.0), fontsize=8.8, color='#8e44ad', fontweight='bold',
              ha='right', va='center',
              arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#8e44ad'))
+# P2-05: second crossover, causal-triangle sensitivity (half the attention-pair
+# term doubles the crossing). Positions were chosen with a renderer bbox probe
+# (text-only extents vs legend vs sampled curves): purple sits in the clear band
+# between total(40K)=9.8 and the 4-entry legend; teal is right-anchored at x=126
+# so its left edge (7.0K) clears quad/2 (0.064 > 0.036); the 'canonical 9.2K'
+# label sits at y=3.0, above every curve in its x-range (max total(7.7K)=1.30)
+# and below the purple annotation; its short leader drops to the marker.
+ax1.annotate('causal-triangle:\ncrossover ~%.1fK' % (Lstar_c/1e3),
+             xy=(Lstar_c/1e3, (2*N*Lstar_c)/1e15),
+             xytext=(126.0, 0.022), fontsize=8.8, color='#0e7a5f', fontweight='bold',
+             ha='right', va='center',
+             arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#0e7a5f'))
 # canonical 9.2K point (Figure caption footnote refers to it)
 ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=26)
 # R27 P2: the red dot was unexplained (no legend/annotation). Label it as the
 # canonical 9.2K context so the marker has a clear referent.
-ax1.annotate('canonical 9.2K', xy=(9.2, (2 * N * 9.2e3) / 1e15), xytext=(13, 0.7),
+ax1.annotate('canonical 9.2K', xy=(9.2, (2 * N * 9.2e3) / 1e15), xytext=(0.85, 3.0),
              fontsize=8.6, color='#c0392b', ha='left', va='center',
              arrowprops=dict(arrowstyle='-', lw=0.6, color='#c0392b'))
 
@@ -108,4 +126,4 @@ import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-22/figures/fig-22-2201.pdf', format='pdf')
 plt.close()
-print('wrote fig-22-2201 (dramatic side-by-side prefill-vs-decode, one annotation line each)')
+print('wrote fig-22-2201 (prefill-vs-decode, full-square + causal-triangle sensitivity, two crossovers)')
