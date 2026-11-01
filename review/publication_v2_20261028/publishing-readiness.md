@@ -7,9 +7,10 @@ Updated: 2026-10-30 · Repo: /home/ubuntu/hermes-work/from-token-to-fleet
 **Publication approval is FALSE** until the external gates close (physical print proof, rights, ISBN, author sign-off, veraPDF cert). The autonomous review loop has converged: a fresh independent re-audit (Pass G) of the release candidate found **0 new P0/P1**, confirming no further critical issues in reach.
 
 ## Release candidate
-- **R32**: `review/publication_v2_20261028/work/accelerated_external_review_proof_r32/render/build/from-token-to-fleet-v20260913.pdf`
-  SHA `78cb9c46…`, **429 pp**, US Letter 8.5×11 (612×792pt), text width 439.2pt, tagged/PDF-UA structure, **0 Type3**, all figures ≥8pt.
-- Pushed to `origin/main` (HEAD `bac74dfa`).
+- **R33**: `review/publication_v2_20261028/work/accelerated_external_review_proof_r33/render/build/from-token-to-fleet-v20260913.pdf`
+  SHA `a4bf87e3…`, **434 pp**, US Letter 8.5×11 (612×792pt), text width 439.2pt, tagged/PDF-UA structure, **0 Type3**, all figures ≥8pt.
+- Pushed to `origin/main` (HEAD `fd493396`).
+- Integrates the 2026-11-01 independent review: Ch3 MoE verdict rewritten (weights 140→94GB, KV unchanged, routing-GPU optional; Fig 3.4 28→25.6GB; single MoE ledger); Ch17 W_KV-resident/E[L_KV]/host=max(capacity,tail); C/W upper-bound unification (10 places); Table 15-1 MFU→load-pressure; Fig1.1→Preface Fig1; token "I/O" metaphor; A.2 solid warning; Ch16 mini-case conditional; Fig19.3 policy comparison; DeepSeek V4.1 service-status; Ch4 budget/Fig16.1 streamlining.
 - Integrates the 2026-10-31 independent review's actionable fixes (P2-01 Ch3 MoE 12.8B; P2-02/03 Ch24 null-reference + PIES order-sensitive; P2-04 Fig11.3 topology + 1.4TB/s; P2-05 Fig16.1 cloud marker; P2-06 SLA NOT-COMMITTABLE + HOLD ADR; P2-07 Fig6.2 shade >2s; P2-08 caption trims; P1-02 source-index URL; P3-01 LoF short titles). All verified by DeepSeek recompute (coherent, no contradiction).
 
 ## Cross-model validation (base + fixes all CONVERGED, 0 new P0/P1)
