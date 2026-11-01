@@ -10,7 +10,13 @@ and if one host drains (health-check fail) the N-1 residual must still clear the
 
 Canonical numbers (frozen): per-host ~2.0 req/s analytical planning bound (C/W = 17.5/8.6);
 N = 4 in the canonical scenario (aggregate ~8.0 req/s); after one host drains, the N-1 = 3
-residual is ~6.0 req/s, still above the ~5.5 req/s burst peak.
+residual is ~6.0 req/s.
+
+P1-02 (review 2026-11-01): every capacity line is an IDEAL rho=1 analytical service ceiling,
+not an SLO claim. The N-1 = 3 residual (~6.0) clears the ~5.5 req/s burst ONLY at rho = 1:
+at rho = 0.85 (the low end of the book's LB range) 3 x 2.0 x 0.85 = 5.1 req/s, BELOW the
+burst, and the residual only clears it for rho >= 5.5/(3 x 2.0) = 0.9167. The figure
+therefore draws the rho=0.85 residual line as well and labels the ideal lines as rho=1.
 """
 import matplotlib
 matplotlib.use('Agg')
@@ -47,10 +53,16 @@ ax.axhline(host_cap, color='#8a8a8a', ls='--', lw=1.4)
 ax.text(11.3, host_cap+0.30, 'one host ~2.0 req/s', fontsize=8, color='#666',
         ha='right', va='bottom')
 ax.axhline(N1res, color='#e67e22', ls=':', lw=2.0)
-ax.text(0.9, N1res+0.20, 'N-1 residual (~6.0, 1 host drains)', fontsize=8,
+# P1-02: robust lower bound at the low end of the book's LB range (rho=0.85):
+# 3 surviving hosts x 2.0 x 0.85 = 5.1 req/s, BELOW the ~5.5 burst. Drawn as a thin
+# dash-dot line labelled at the RIGHT end (x=11.3), where the burst curve has dropped
+# away, so it cannot collide with the hump or with the N-1 label on the left.
+N1res_085 = 3 * host_cap * 0.85       # ~5.1 (rho = 0.85)
+ax.axhline(N1res_085, color='#e67e22', ls='-.', lw=1.2, alpha=0.9)
+ax.text(0.9, N1res+0.20, 'N-1 residual (~6.0 ideal, rho=1)', fontsize=8,
         color='#b5590a', ha='left', fontweight='bold')
 ax.axhline(N4, color='#3a6ea5', lw=1.8)
-ax.text(0.9, N4+0.20, 'N = 4 fleet capacity (~8.0)', fontsize=8, color='#27408b',
+ax.text(0.9, N4+0.20, 'N = 4 fleet (~8.0, ideal)', fontsize=8, color='#27408b',
         ha='left', fontweight='bold')
 
 # Burst-peak call-out. The old label (xytext=(4.5,4.4), ha='left') was ~3 units
@@ -80,7 +92,7 @@ ax.axhspan(N1res, N4, color='#2c7a4b', alpha=0.16)   # headroom band (visible)
 bx = 9.7
 ax.plot([bx, bx], [peak, N4], color='#555', lw=1.2)   # brace
 ax.plot([bx-0.15, bx+0.15], [N1res, N1res], color='#555', lw=1.2)  # tick at N-1
-ax.text(bx+0.3, peak - 0.50, 'failover', fontsize=8, color='#27408b',
+ax.text(bx+0.3, peak - 1.15, 'failover', fontsize=8, color='#27408b',
         ha='left', va='center', fontweight='bold')
 ax.text(bx+0.3, (N1res+N4)/2, 'headroom', fontsize=8, color='#1e6b3a',
         ha='left', va='center', fontweight='bold')
@@ -91,17 +103,18 @@ ax.set_ylabel('offered load / req·s⁻¹', fontsize=9)
 # Use a SHORT two-line title (the full qualifier lives in the caption), sized
 # so it always fits within the axes width at column scale.
 ax.set_title('Sizing a fleet of one model\n'
-             '(small illustrative ~5.5-rps burst, not the canonical 40-rps peak)',
+             '(ideal rho=1 analytical ceilings; small ~5.5-rps burst)',
              fontsize=9.5, fontweight='bold')
 # T-02 (review): the smooth curve is *offered-load capacity*, not a queueing
 # proof. Note rendered as two centered lines INSIDE the axes (top, empty region
 # above y=8) so bbox_inches='tight' cannot clip it and it stays clear of the
 # '12' tick and the top border. Font sized down so it fits the plot width.
-ax.text(0.5, 0.985,
-        'Offered-load capacity only \u2014 not a proof of p99 TTFT/TPOT;\n'
-        'tail latency needs a measured queueing model (Ch 14)',
-        transform=ax.transAxes, fontsize=8.0, color='#444', ha='center', va='top',
-        style='italic', linespacing=1.00,
+ax.text(0.975, 0.985,
+        'Ideal rho=1 analytical ceiling \u2014 no SLO claim.\n'
+        'N-1 clears the burst only at rho = 1:\n'
+        'dash-dot (rho=0.85): ~5.1 < ~5.5, need 0.917.',
+        transform=ax.transAxes, fontsize=7.6, color='#444', ha='right', va='top',
+        style='italic', linespacing=1.05,
         bbox=dict(boxstyle='round,pad=0.10', fc='white', ec='none', alpha=0.85))
 ax.set_yticks([0, 2, 4, 6, 8, 10, 12])
 ax.grid(alpha=0.25, axis='y')
@@ -109,8 +122,8 @@ ax.legend(handles=[Line2D([], [], color='#c0392b', lw=2),
                    Line2D([], [], color='#8a8a8a', ls='--', lw=1.4),
                    Line2D([], [], color='#3a6ea5', lw=1.8),
                    Line2D([], [], color='#e67e22', ls=':', lw=2)],
-          labels=['offered load (burst)', 'one host bound (~2.0)',
-                  'N = 4 fleet capacity (~8.0)', 'N-1 residual (1 host drains)'],
+          labels=['offered load (burst)', 'one host bound (~2.0, ideal)',
+                  'N = 4 fleet capacity (~8.0, ideal)', 'N-1 residual (1 host drains, ideal)'],
           fontsize=8.0, loc='upper center', bbox_to_anchor=(0.5, -0.42),
           ncol=2, frameon=False)
 plt.tight_layout(rect=(0, 0, 1, 0.93))
