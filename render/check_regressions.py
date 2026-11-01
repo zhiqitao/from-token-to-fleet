@@ -63,6 +63,19 @@ assert host(552, 1, 13) == 61      # 40rps T=3
 assert host(1380, 1, 13) == 152    # 100rps T=3
 assert host(2760, 1, 13) == 304    # 200rps T=3
 
+# ---- host_policy: N_total = ceil(L/(C*u*rho)) + N_spare under the adopted independent u×ρ policy (Table 17-1) ----
+# u=0.70 and rho=0.95 are INDEPENDENT (product 0.665); rho=1 is the u-only variant; N_spare=1 (N−1).
+def host_policy(L, c_floor, util=0.70, rho=0.95, spare=1):
+    return math.ceil(L / (c_floor * util * rho)) + spare
+assert host_policy(344, 17) == 32          # 40rps T=0 FP16: 31 working + 1 reserve (31×17/8.6×0.665=40.75≥40)
+assert host_policy(344, 17, rho=1.0) == 30 # rho=1 u-only variant (superseded alternative)
+assert host_policy(860, 17) == 78          # Ch13 100rps: 77 working + 1 reserve
+assert host_policy(21.81, 1) == 34         # full-square case(ii) prefill screen (33 working + 1)
+# Table 17-2 raw ceil cells (no spare), matching the corrected values:
+assert math.ceil(2760/(13*0.70*0.95)) == 320  # 200rps T=3 FP16 ceil (was 319)
+assert math.ceil(1380/(13*0.70*0.95)) == 160  # 100rps T=3 FP16 ceil
+assert math.ceil(2760/(27*0.70*0.95)) == 154  # 200rps T=3 FP8 ceil
+
 # ---- TCO (R23: canonical inputs from the shared root CLI; no literal price table) ----
 import json as _json, os as _os, subprocess as _sub, sys as _sys
 _repo_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
