@@ -132,27 +132,28 @@ ax.loglog(req, managed, '-', color='#c0392b', lw=2.0,
 ax.axvspan(vol_max, 1e8, facecolor='0.55', alpha=0.30, hatch='///',
            edgecolor='0.30', zorder=0)
 ax.axvline(vol_max, color='0.30', ls='--', lw=1.4, zorder=5)
-# feasible max: box sits well LEFT of the gray bound with a clear horizontal
-# leader running right to the bound, so the white face never occludes the dashed
-# line and the association is explicit. (R27 P2: the box was floating and its
-# white face broke the reference line; a box centred on the line still occluded
-# it, so it is offset left with a visible leader.)
+# feasible max: box sits well LEFT of the gray bound in a clear band (below the
+# legend, above the curves) with a leader running right to the bound, so the
+# white face never occludes the dashed line and the box never straddles the plot
+# top edge (it previously sat at y=8.8e6 against the 1e7 top bound).
 ax.annotate('feasible max 24.96M',
-            xy=(vol_max, 8.8e6), xytext=(vol_max*0.16, 8.8e6),
+            xy=(vol_max, 4.4e6), xytext=(vol_max*0.16, 4.4e6),
             ha='center', va='center', fontsize=8.1, color='0.15', fontweight='bold',
             arrowprops=dict(arrowstyle='-|>', lw=1.2, color='0.15',
                             mutation_scale=10, shrinkA=3, shrinkB=0),
             bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='0.55',
                       lw=0.7, alpha=0.92), zorder=8)
 # INFEASIBLE: solid dark leader line from the box down into the hatched region.
+# The box sits above the managed curve, clear of it, and its tail points into
+# the hatched band (the box face is white so it stays legible on the hatch).
 ax.annotate('INFEASIBLE\n(> 24.96M)',
-            xy=(5.0e7, 1.4e6), xytext=(5.0e7, 3.4e6),
+            xy=(5.0e7, 4.0e6), xytext=(5.0e7, 5.0e6),
             ha='center', va='center', fontsize=8.2, color='#7b241c',
             fontweight='bold',
             arrowprops=dict(arrowstyle='-|>', lw=1.0, color='0.15',
                             mutation_scale=9, shrinkA=1, shrinkB=1),
             bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='0.45',
-                      lw=0.7, alpha=0.92), zorder=8)
+                      lw=0.7, alpha=1.0), zorder=8)
 
 ax.set_xlabel('Requests/month (log)', fontsize=9)
 ax.set_ylabel('Cost/month (USD, log)', fontsize=9)

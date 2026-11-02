@@ -59,10 +59,13 @@ ax.axhline(N1res, color='#e67e22', ls=':', lw=2.0)
 # away, so it cannot collide with the hump or with the N-1 label on the left.
 N1res_085 = 3 * host_cap * 0.85       # ~5.1 (rho = 0.85)
 ax.axhline(N1res_085, color='#e67e22', ls='-.', lw=1.2, alpha=0.9)
-ax.text(0.9, N1res+0.20, 'N-1 residual (~6.0 ideal, rho=1)', fontsize=8,
+# N-1 residual label lifted clear ABOVE its dotted line so the line no longer
+# cuts through the text (previously y = 6.2 against the y=6 line).
+ax.text(0.9, N1res+0.72, 'N-1 residual (~6.0 ideal, rho=1)', fontsize=8,
         color='#b5590a', ha='left', fontweight='bold')
 ax.axhline(N4, color='#3a6ea5', lw=1.8)
-ax.text(0.9, N4+0.20, 'N = 4 fleet (~8.0, ideal)', fontsize=8, color='#27408b',
+# N = 4 label lifted clear ABOVE its line and the green headroom band top.
+ax.text(0.9, N4+0.62, 'N = 4 fleet (~8.0, ideal)', fontsize=8, color='#27408b',
         ha='left', fontweight='bold')
 
 # Burst-peak call-out. The old label (xytext=(4.5,4.4), ha='left') was ~3 units

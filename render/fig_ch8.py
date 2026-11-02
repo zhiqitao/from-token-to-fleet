@@ -56,6 +56,10 @@ ax.grid(alpha=0.18, which='major', axis='both')
 ax.minorticks_off()
 
 # Compute plateau ceiling (shared by both parts), plus region labels made explicit.
+# Lift the y upper bound above 989 so the plateau line and the top badges no
+# longer share a row (they did: the line ran through 'ANALYTICAL [DERIVED]' and
+# touched the right edge of the 'PER GPU' box).
+ax.set_ylim(1e0, 4e3)
 ax.axhline(peak, color='gray', ls='-.', lw=1.0, alpha=0.75)
 ax.text(0.985, 0.36, 'compute plateau\n= 989 TFLOPS',
         transform=ax.transAxes, fontsize=8.5, color='#6f9e5f',
@@ -63,17 +67,17 @@ ax.text(0.985, 0.36, 'compute plateau\n= 989 TFLOPS',
 ax.text(0.06, 0.10, 'memory-bound slope\n(≈ intensity × BW)',
         transform=ax.transAxes, fontsize=8.5, color='#e67e22',
         ha='left', va='center',
-        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.92))
-# DERIVED / source tag in-plot (top-centre, clear of PER GPU at left and prefill ridge at right)
+        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
+# DERIVED / source tag in-plot (clear of the plateau line, top-centre)
 ax.text(0.50, 0.965, 'ANALYTICAL [DERIVED]', transform=ax.transAxes,
         fontsize=8, color='#8a5a00', ha='center', va='top',
-        bbox=dict(boxstyle='round,pad=0.16', fc='white', ec='none', alpha=0.92))
+        bbox=dict(boxstyle='round,pad=0.16', fc='white', ec='none', alpha=1.0))
 
 # "PER GPU" stated plainly INSIDE the plotting area (top-left of the axes),
 # so the figure carries its own single-GPU qualification.
 ax.text(0.02, 0.965, 'PER GPU', transform=ax.transAxes, fontsize=10,
         fontweight='bold', color='#333333', ha='left', va='top',
-        bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#888888', alpha=0.9))
+        bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#888888', alpha=1.0))
 
 # Operating points. Prefill intensity is set by sequence length (weights read once,
 # reused across all tokens) -> to the RIGHT of the ridge, on the plateau (compute-bound).
@@ -87,15 +91,28 @@ colors = {'prefill': '#e67e22', 'decode': '#27408b'}
 for name, a, t, tag in pts:
     ax.scatter([a], [min(t, peak)], color=colors[tag], zorder=5, s=45)
 
-# label the markers, offset so they do not sit on the dots
-ax.text(9200, 989*0.55, 'prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', fontsize=9,
-        color=colors['prefill'], ha='center', va='top')
-# decode batch=1: label to the LEFT of its marker (ha='right') so the centered text
-# no longer spans the (0.5, 1.7) dot and obscures "batch"
-ax.text(0.42, 1.65, 'decode\nbatch=1', fontsize=9, color=colors['decode'], ha='right', va='center',
-        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.92))
-ax.text(11, 30, 'decode batched', fontsize=9, color=colors['decode'], ha='left',
-        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=0.92))
+# label the markers in CLEAR white space (the region above the roofline is
+# unreachable/empty), pointing at each marker with a thin leader so no label
+# straddles a curve or a reference line.
+ax.annotate('prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', xy=(9200, 989), xytext=(0.86, 0.80),
+            textcoords='axes fraction', fontsize=9, color=colors['prefill'],
+            ha='center', va='center',
+            arrowprops=dict(arrowstyle='-', lw=0.9, color=colors['prefill'],
+                            shrinkA=2, shrinkB=6))
+# decode batch=1: upper-left empties, pointing down-right to its (0.5,1.7) marker
+ax.annotate('decode\nbatch=1', xy=(0.5, 1.7), xytext=(0.045, 0.72),
+            textcoords='axes fraction', fontsize=9, color=colors['decode'],
+            ha='left', va='center',
+            arrowprops=dict(arrowstyle='-', lw=0.9, color=colors['decode'],
+                            shrinkA=2, shrinkB=6),
+            bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
+# decode batched: below the batch=1 callout, pointing up-right to its (8,27) marker
+ax.annotate('decode batched', xy=(8, 27), xytext=(0.045, 0.52),
+            textcoords='axes fraction', fontsize=9, color=colors['decode'],
+            ha='left', va='center',
+            arrowprops=dict(arrowstyle='-', lw=0.9, color=colors['decode'],
+                            shrinkA=2, shrinkB=6),
+            bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
 
 # continuous-batching arrow: decode batch=1 -> decode batched, up the slope
 ax.annotate('', xy=(8, 27), xytext=(0.6, 1.8),
