@@ -36,15 +36,15 @@ tiers = [
     ('Cluster / fleet', 'many nodes\nnetwork spine'),
 ]
 tier_y = [2.0, 4.7, 7.4, 10.1]
-bw, bh = 2.2, 0.9
+bw, bh = 2.2, 1.05
 tx = 0.5
 for (name, sub), y in zip(tiers, tier_y):
     ax.add_patch(FancyBboxPatch((tx, y - bh/2), bw, bh,
                                 boxstyle='round,pad=0.02,rounding_size=0.15',
                                 fc='#eef7f0', ec='#1e8449', lw=1.2))
-    ax.text(tx + bw/2, y + 0.20, name, ha='center', va='center',
+    ax.text(tx + bw/2, y + 0.24, name, ha='center', va='center',
             fontsize=8.2, fontweight='bold', color='#1a3a2a')
-    ax.text(tx + bw/2, y - 0.14, sub, ha='center', va='center',
+    ax.text(tx + bw/2, y - 0.20, sub, ha='center', va='center',
             fontsize=8.0, color='#33523a')
     # small STOP branch hanging off each rung (the escape at every level)
     ax.text(tx + bw/2, y - bh/2 - 0.36, '\u25bc constraints \u2192 STOP',
