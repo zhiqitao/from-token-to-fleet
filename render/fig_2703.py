@@ -18,7 +18,7 @@ steps = [
     ("Agent System", 'cap', '~2025'),
     ("Agent Fleet", 'fleet', '~2026'),
 ]
-colors = {'eff': '#f0b35f', 'effcap': '#cf9240', 'cap': '#5a9bd5', 'fleet': '#8055b5'}
+colors = {'eff': '#c07a2e', 'effcap': '#a8681f', 'cap': '#5a9bd5', 'fleet': '#8055b5'}
 border = {'eff': '--', 'effcap': '--', 'cap': '-', 'fleet': '-'}
 
 n = len(steps)

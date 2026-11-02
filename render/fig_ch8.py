@@ -94,9 +94,14 @@ for name, a, t, tag in pts:
 # label the markers in CLEAR white space (the region above the roofline is
 # unreachable/empty), pointing at each marker with a thin leader so no label
 # straddles a curve or a reference line.
-ax.annotate('prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', xy=(9200, 989), xytext=(0.86, 0.80),
+# Prefill sits on the plateau corner (top-right, unreachable-empty above it), so
+# place the label fully ABOVE the plateau with an opaque white bbox and a leader
+# down-to the marker; the bbox keeps the plateau line, ridge dotted line and the
+# prefill marker from crossing the glyphs (Loop review: label straddled the plateau).
+ax.annotate('prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', xy=(9200, 989), xytext=(0.66, 0.885),
             textcoords='axes fraction', fontsize=9, color=colors['prefill'],
             ha='center', va='center',
+            bbox=dict(boxstyle='round,pad=0.20', fc='white', ec='none', alpha=1.0),
             arrowprops=dict(arrowstyle='-', lw=0.9, color=colors['prefill'],
                             shrinkA=2, shrinkB=6))
 # decode batch=1: upper-left empties, pointing down-right to its (0.5,1.7) marker

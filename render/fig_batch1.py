@@ -28,9 +28,9 @@ fig, ax = plt.subplots(figsize=(7.6, 7.6))
 ax.set_xlim(0, 10); ax.set_ylim(0, 10); ax.axis('off')
 dims = ['Quality requirements', 'Traffic / concurrency', 'Token profile', 'Latency SLO', 'Economic constraints', 'Operational constraints']
 cons = ['model size / type', 'concurrency & batching', 'KV cache size & prefill demand', 'TTFT/TPOT & batch window', 'host count & cost ceiling', 'multi-region vs. single-region']
-# column headers (hierarchy: the two reading units)
+# column headers (hierarchy: the two reading units) — aligned to each column centre
 ax.text(2.5, 9.55, 'WORKLOAD DIMENSION', ha='center', va='center', fontsize=10.5, fontweight='bold', color='#27408b')
-ax.text(7.5, 9.55, 'ARCHITECTURAL DECISION', ha='center', va='center', fontsize=10.5, fontweight='bold', color='#7a3b00')
+ax.text(8.1, 9.55, 'ARCHITECTURAL DECISION', ha='center', va='center', fontsize=10.5, fontweight='bold', color='#7a3b00')
 ax.plot([0.3, 9.7], [9.25, 9.25], color='#bbb', lw=1.0)
 for i, (d, c) in enumerate(zip(dims, cons)):
     y = 8.4 - i*1.30
@@ -38,9 +38,12 @@ for i, (d, c) in enumerate(zip(dims, cons)):
     ax.text(2.5, y, d, ha='center', va='center', color='white', fontsize=11.5, fontweight='bold')
     # dashed arrow: the mapping is a heuristic influence, not a deterministic one-to-one
     ax.annotate('', xy=(6.3, y), xytext=(4.9, y), arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#555', linestyle=(0, (4, 2))))
-    # pale orange + dark text: white-on-orange is below the print contrast floor
+    # pale orange + dark text: white-on-orange is below the print contrast floor.
+    # Right-column font kept at 9.2 (down from 10.5) so the two longest labels
+    # ('KV cache size & prefill demand', 'multi-region vs. single-region') fit with
+    # clear side padding instead of overrunning the box borders (review: row-3/row-6).
     ax.add_patch(FancyBboxPatch((6.5, y-0.42), 3.2, 0.84, boxstyle='round,pad=0.02', fc='#f5c99b', ec='none'))
-    ax.text(8.1, y, c, ha='center', va='center', color='#7a3b00', fontsize=10.5)
+    ax.text(8.1, y, c, ha='center', va='center', color='#7a3b00', fontsize=9.2)
 plt.tight_layout()
 plt.savefig(base % (4, 4, 4), dpi=350); plt.close()
 print('Ch04 done')
