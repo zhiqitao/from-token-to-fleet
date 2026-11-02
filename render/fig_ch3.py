@@ -94,15 +94,29 @@ legend_row(ax, A_ACT, '#e67e22', '#333', 'per-token active-weight bytes\n\u2248 
 ax.text(5, A_SENT, 'per token: 11.4B top-2 + 1.4B always-on', fontsize=9.0, color='#333', ha='center')
 ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', ha='center')
 
-# ---- KV bars: identical under both columns ----
+# ---- KV bars: bytes are set by attention SHAPE, not by MoE routing ----
 # Each panel is only ~2.9in wide (6.1in / 2), so the 8.8/10 bar is ~184pt. The
-# label must stay under ~150pt to keep right margin. "KV: identical (dense = MoE)"
-# (28 chars, ~123pt) states the intended point: KV growth is the same in both.
+# label must stay under ~150pt to keep right margin. P1 (review nov1e): the old
+# "KV: identical (dense = MoE)" + "same attention geometry" note claimed a
+# controlled comparison the parameter ledger contradicts — the ~47B challenger's
+# ~1.4B always-on implies a 32L/4096H GQA attention stack, not the dense
+# 80L/8192H full-MHA one, so the two KV footprints are NOT equal (Table 3-3:
+# 1.31 MB/token x 9,200 = 12.06 GB vs 0.064 MB/token x 9,200 = 0.60 GB, 8-bit).
+# The bars now state the recomputed bytes and the attribution. Width budget is
+# set by the ORIGINAL figure (tight_layout sizes the axes to the widest string):
+# bar text <= ~140pt inside the 154.4pt bar, note lines <= 156.9pt (the original
+# widest line) -- measured: bar 133.2pt, note 149.7/150.1pt, so the axes, the bar
+# and every grid cell keep their original geometry (no reflow, no font shrinking).
+# Final strings (measured): bar 'dense 12 GB vs MoE 0.6 GB' 135.6pt < 154.4pt bar;
+# note '8-bit KV set by shape, not routing:' 144.6pt and '80L/8192H MHA vs
+# 32L/4096H GQA' 150.1pt, both < 156.9pt (the original widest line). The bar names
+# both models and the note carries the precision, so '12 vs 0.6' cannot be misread
+# as two precisions of one model.
 for axx in axes:
     axx.add_patch(Rectangle((0.6, KV_Y), 8.8, 0.9, fc='#c0392b', ec='white'))
-    axx.text(5, KV_Y+0.45, 'KV: identical (dense = MoE)',
+    axx.text(5, KV_Y+0.45, 'dense 12 GB vs MoE 0.6 GB',
              ha='center', va='center', fontsize=8.8, color='white', fontweight='bold')
-    axx.text(5, KV_Y-0.55, 'controlled: same attention geometry,\ncontext length, and cache dtype',
+    axx.text(5, KV_Y-0.55, '8-bit KV set by shape, not routing:\n80L/8192H MHA vs 32L/4096H GQA',
              ha='center', va='center', fontsize=8.4, color='#7a1f1f', style='italic')
 
 plt.tight_layout()

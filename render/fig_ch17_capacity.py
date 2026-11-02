@@ -109,10 +109,13 @@ ax.set_title('Sizing a fleet of one model\n'
 # proof. Note rendered as two centered lines INSIDE the axes (top, empty region
 # above y=8) so bbox_inches='tight' cannot clip it and it stays clear of the
 # '12' tick and the top border. Font sized down so it fits the plot width.
+# P1 (review nov1e): the threshold symbol is written as matplotlib mathtext
+# r'$\geq$' (a real >= glyph from the embedded DejaVu subset), never as a raw
+# U+2265/U+2273 text char, so no notdef/tofu box can reach the figure PDF.
 ax.text(0.975, 0.985,
         'Ideal rho=1 analytical ceiling \u2014 no SLO claim.\n'
         'N-1 clears the burst only at rho = 1:\n'
-        'dash-dot (rho=0.85): ~5.1 < ~5.5, need 0.917.',
+        'dash-dot (rho=0.85): ~5.1 < ~5.5, need $\\geq$ 0.917.',
         transform=ax.transAxes, fontsize=7.6, color='#444', ha='right', va='top',
         style='italic', linespacing=1.05,
         bbox=dict(boxstyle='round,pad=0.10', fc='white', ec='none', alpha=0.85))
