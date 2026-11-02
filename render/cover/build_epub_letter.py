@@ -70,8 +70,8 @@ print("assembled %d chapters -> %s (%d chars)" % (len(chapters), assem_md, len(a
 
 # ---- render the approved cover to a raster for the EPUB ---- 
 import base64
-cover_svg = os.path.join(REPO, "render", "cover", "cover_clean_front.svg")
-cover_png = os.path.join(REPO, "render", "cover", "cover_clean_front.png")
+cover_svg = os.path.join(REPO, "render", "cover", "cover_premium_letter.svg")
+cover_png = os.path.join(REPO, "render", "cover", "cover_premium_front.png")
 if not os.path.exists(cover_png) or os.path.getmtime(cover_svg) > os.path.getmtime(cover_png):
     subprocess.run(["inkscape", cover_svg, "-o", cover_png, "-w", "850", "-h", "1100"],
                    check=False, capture_output=True)
