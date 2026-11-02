@@ -76,6 +76,17 @@ assert math.ceil(2760/(13*0.70*0.95)) == 320  # 200rps T=3 FP16 ceil (was 319)
 assert math.ceil(1380/(13*0.70*0.95)) == 160  # 100rps T=3 FP16 ceil
 assert math.ceil(2760/(27*0.70*0.95)) == 154  # 200rps T=3 FP8 ceil
 
+# ---- P1-01 acceptance test: full u × rho × spare host-count matrix (canonical 40rps KV screen, C=17, L=344) ----
+# u in {1.0, 0.70}, rho in {1.0, 0.95}, spare in {0,1}; plus full-square case(ii) prefill screen (L'=21.81).
+assert host_policy(344, 17, 1.00, 1.00, 0) == 21   # ideal-active, zero derate, zero spare
+assert host_policy(344, 17, 1.00, 0.95, 0) == 22   # rho-only, zero spare
+assert host_policy(344, 17, 0.70, 1.00, 0) == 29   # u-only, zero spare (rho=1 variant)
+assert host_policy(344, 17, 0.70, 1.00, 1) == 30   # u-only + N-1 (superseded 30-host row)
+assert host_policy(344, 17, 0.70, 0.95, 0) == 31   # u*rho working, zero spare
+assert host_policy(344, 17, 0.70, 0.95, 1) == 32   # u*rho + N-1 (chosen policy, Table 17-1)
+assert host_policy(21.81, 1, 0.70, 1.00, 1) == 33  # full-square case(ii), u-only + N-1
+assert host_policy(21.81, 1, 0.70, 0.95, 1) == 34  # full-square case(ii), u*rho + N-1
+
 # ---- TCO (R23: canonical inputs from the shared root CLI; no literal price table) ----
 import json as _json, os as _os, subprocess as _sub, sys as _sys
 _repo_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
