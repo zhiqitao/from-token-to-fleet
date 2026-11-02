@@ -101,7 +101,7 @@ ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', h
 # controlled comparison the parameter ledger contradicts — the ~47B challenger's
 # ~1.4B always-on implies a 32L/4096H GQA attention stack, not the dense
 # 80L/8192H full-MHA one, so the two KV footprints are NOT equal (Table 3-3:
-# 1.31 MB/token x 9,200 = 12.06 GB vs 0.064 MB/token x 9,200 = 0.60 GB, 8-bit).
+# 1.31 MB/token x 9,200 = 12.06 GB vs 0.0655 MB/token x 9,200 = 0.60 GB, 8-bit).
 # The bars now state the recomputed bytes and the attribution. Width budget is
 # set by the ORIGINAL figure (tight_layout sizes the axes to the widest string):
 # bar text <= ~140pt inside the 154.4pt bar, note lines <= 156.9pt (the original
