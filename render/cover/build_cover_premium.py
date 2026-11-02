@@ -29,20 +29,17 @@ SPINE_CX = SPINE_X + SPINE / 2.0
 
 here = os.path.dirname(os.path.abspath(__file__))
 
-# Render the premium front SVG to PNG for full-bleed embedding.
+# Embed the front cover as VECTOR SVG, inlined into the HTML (not as an img
+# src) so Chrome renders it as vector type, keeping the wrap crisp and small.
 front_svg = os.path.join(here, "cover_premium_letter.svg")
-front_png = os.path.join(here, "cover_premium_front.png")
-if not os.path.exists(front_png) or os.path.getmtime(front_svg) > os.path.getmtime(front_png):
-    subprocess.run(["inkscape", front_svg, "-o", front_png, "-w", "850", "-h", "1100"],
-                   check=False, capture_output=True)
-with open(front_png, "rb") as f:
-    b64 = base64.b64encode(f.read()).decode()
+with open(front_svg, encoding="utf-8") as f:
+    svg_data = f.read()
 
 vals = dict(
     TW=pt(TOTAL_W), TH=pt(TOTAL_H), BW=pt(BACK_W), SW=pt(SPINE),
     FW=pt(FRONT_W), SX=pt(SPINE_X), FX=pt(FRONT_X),
     SCX=pt(SPINE_CX), BL=pt(BLEED), TRIMW=pt(TRIM_W), TRIMH=pt(TRIM_H),
-    IMGW=pt(TRIM_W), IMGH=pt(TRIM_H), IMGSRC=b64,
+    IMGW=pt(TRIM_W), IMGH=pt(TRIM_H), SVGINLINE=svg_data,
 )
 
 TPL = """<!DOCTYPE html>
@@ -124,7 +121,7 @@ TPL = """<!DOCTYPE html>
   </div>
 
   <div class="panel front">
-    <img class="frontimg" src="data:image/png;base64,@IMGSRC@" style="object-fit:fill;">
+    <div class="frontimg">@SVGINLINE@</div>
   </div>
 
 </div>
