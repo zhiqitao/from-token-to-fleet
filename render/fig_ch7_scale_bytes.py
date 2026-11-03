@@ -62,10 +62,15 @@ ctext(X0, 2.10, 'NVFP4 (common 1D): one E4M3 scale per 16 values', size=9.5,
 end2 = bar(1.56, [(8, PAYLOAD, '16 values = 8 B'),
                   (8, PAYLOAD, '16 values = 8 B'),
                   (1, SCALE, None), (1, SCALE, None)])
-# white grouping bracket under the two 1-B scale cells
-ax.add_patch(Rectangle((end2 - 2 * S, 1.44), 2 * S, 0.10, fc='white',
-                       ec=STROKE, lw=1.0))
-ctext(end2 - S, 1.30, '2 B scales')
+# grouping bracket under the two 1-B scale cells — an OPEN bracket (an under-brace:
+# two short upward ticks joined by a baseline line) so it reads as a grouping mark,
+# NOT an empty filled box (review: the closed white rectangle looked like a stray/leftover
+# element, inconsistent with the MXFP4 row's single tick line).
+_gx = end2 - S  # centre below the two scale cells
+ax.plot([_gx - S, _gx - S], [1.58, 1.48], color=STROKE, lw=1.0)
+ax.plot([_gx - S, _gx + S], [1.48, 1.48], color=STROKE, lw=1.0)
+ax.plot([_gx + S, _gx + S], [1.48, 1.58], color=STROKE, lw=1.0)
+ax.text(_gx, 1.34, '2 B scales', ha='center', va='center')
 ctext(X0, 1.02, 'Local: 18 B / 32 = 0.5625 B/value = 4.5 bit/value',
       size=9.5, weight='bold', ha='left')
 

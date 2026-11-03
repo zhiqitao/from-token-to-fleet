@@ -97,7 +97,10 @@ bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'], width=0.6)
 for i, (b, v) in enumerate(zip(bars, vals)):
     cx = b.get_x() + b.get_width() / 2.0
     if i == 2:
-        ax.text(cx + 0.10, 200, f'~{v} GB', ha='left', fontsize=10, fontweight='bold')
+        # Center the QLoRA tag above its (short) bar, clear of the 80/160 GB rules,
+        # instead of extending right with ha='left' (which ran the label edge into
+        # the right plot border; review: '~60 GB' flush against the spine).
+        ax.text(cx, 200, f'~{v} GB', ha='center', fontsize=10, fontweight='bold')
     else:
         ax.text(cx, v + 30, f'~{v} GB', ha='center', fontsize=10, fontweight='bold')
 ax.set_ylabel('GPU memory floor (GB)')

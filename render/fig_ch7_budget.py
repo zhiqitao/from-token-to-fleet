@@ -34,8 +34,15 @@ bx0, bx1 = 0.5, 10.4                 # bar spans this x range
 bar_y, bar_h = 4.70, 1.15            # taller bar (v8 review: more breathing room for the two-line labels)
 def gb_to_x(g): return bx0 + (g / total) * (bx1 - bx0)
 def label(x, gb, txt, fc):
+    # Solid bbox matching the fill (ec='none') so any hatch / slot lines drawn in the
+    # region are hidden BEHIND the pill and never cross the white glyphs. This carries
+    # into the vector PDF (path_effects do NOT), so it is the reliable fix for
+    # text-over-white-pattern legibility (review: Fig 7.7).
     ax.text(x, bar_y + bar_h / 2.0, txt, ha='center', va='center',
-            fontsize=9.0, color='white', fontweight='bold')
+            fontsize=9.0, color='white', fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.12', fc=('#3a6ea5' if weights <= x <= gb_to_x(weights) else
+                     ('#6f9e5f' if x >= gb_to_x(weights + runtime) else '#4a4e52')),
+                     ec='none', alpha=1.0))
 
 # weights region
 ax.add_patch(Rectangle((gb_to_x(0), bar_y), gb_to_x(weights) - gb_to_x(0), bar_h,

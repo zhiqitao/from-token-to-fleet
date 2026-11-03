@@ -42,7 +42,11 @@ for y, name, val, col, hatch, ec, vlab, sub in rows:
     ax.barh(y, val, BAR_H, color=col, hatch=hatch, edgecolor=ec, linewidth=1.0)
     ax.text(val + 0.7, y, vlab, va='center', ha='left', fontsize=8.6,
             fontweight='bold', color=col)
-    ax.text(0.4, y - 0.44, sub, va='center', ha='left', fontsize=8.0, color='#333')
+    # Opaque white bbox behind each annotation line so the vertical single-shot
+    # dashed reference line (x=24.9), which spans the full plot height, is masked
+    # behind the text rather than crossing through it (review: line-over-text).
+    ax.text(0.4, y - 0.44, sub, va='center', ha='left', fontsize=8.0, color='#333',
+            bbox=dict(boxstyle='round,pad=0.10', fc='white', ec='none', alpha=1.0))
 
 # single-shot reference: the footprint every policy starts from
 ax.axvline(24.9, ls='--', lw=1.0, color='#555', zorder=0)

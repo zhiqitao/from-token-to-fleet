@@ -68,10 +68,13 @@ ax.text(0.06, 0.10, 'memory-bound slope\n(≈ intensity × BW)',
         transform=ax.transAxes, fontsize=8.5, color='#e67e22',
         ha='left', va='center',
         bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
-# DERIVED / source tag in-plot (clear of the plateau line, top-centre)
-ax.text(0.50, 0.965, 'ANALYTICAL [DERIVED]', transform=ax.transAxes,
+# DERIVED / source tag in-plot (clear of the plateau line, top-left-of-centre).
+# Moved left (x 0.50 -> 0.30) so it sits fully to the LEFT of both ridge dotted
+# lines (red ~206 at axes-x ~0.62, blue ~295 at ~0.66); a widened bbox alone still
+# let the blue ridge dots show at the tag's right edge (review: line through label).
+ax.text(0.30, 0.965, 'ANALYTICAL [DERIVED]', transform=ax.transAxes,
         fontsize=8, color='#8a5a00', ha='center', va='top',
-        bbox=dict(boxstyle='round,pad=0.16', fc='white', ec='none', alpha=1.0))
+        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
 
 # "PER GPU" stated plainly INSIDE the plotting area (top-left of the axes),
 # so the figure carries its own single-GPU qualification.
