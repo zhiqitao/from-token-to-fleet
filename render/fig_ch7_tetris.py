@@ -51,6 +51,7 @@ for x, (label, kv) in zip(xs, ctxs):
             path_effects=[pe.withStroke(linewidth=2.6, foreground='white')])
     ax.text(x, 134, 'weights 140 GB', ha='center', va='center', fontsize=8.5,
             color='white', zorder=6,
+            bbox=dict(boxstyle='round,pad=0.16', fc='#27408b', ec='none', alpha=1.0),
             path_effects=[pe.withStroke(linewidth=2.6, foreground='#27408b')])
     total = base + kv
     # KV value as a tag just ABOVE ITS OWN bar top (bars top out at 229/288/539,
