@@ -158,7 +158,7 @@ Filling rows 1–8 is what would let a successor ADR lift the HOLD; until then e
 
 \needspace{18\baselineskip}
 
-**Table 16-2 — Matched SLO/availability comparison (decision view).** The three modes below are compared on the canonical workload's stated **multi-region active-active 99.9% SLA** (Ch 4). They are **[ILLUSTRATIVE][ASSUMPTION] planning rows, NOT measured.** The **not-apples-to-apples caveat** of Table 16-1 still governs. This table does not change the Table 16-1 result. Every $/1K below divides the monthly cost by the canonical 6,240,000 requests/month (10 rps over the 8 h × 260-workday business window, Ch 4 — not 24×7), the same basis as Table 16-1.
+**Table 16-2 — Availability-scope reconciliation / remaining gaps (decision view).** The three modes below are compared against the canonical workload's stated **multi-region active-active 99.9% SLA** (Ch 4), and the table's purpose is to state where the comparison still has gaps — not to claim the modes are matched. They are **[ILLUSTRATIVE][ASSUMPTION] planning rows, NOT measured.** The **not-apples-to-apples caveat** of Table 16-1 still governs; in particular, multi-region active-active remains **unsized, unpriced, and not comparable** here, and the self-host and elastic-cloud rows are single-region examples. This table does not change the Table 16-1 result. Every $/1K below divides the monthly cost by the canonical 6,240,000 requests/month (10 rps over the 8 h × 260-workday business window, Ch 4 — not 24×7), the same basis as Table 16-1.
 
 | Deployment / availability mode | Provisioned | Monthly cost | $/1K req @6.24M | Qualification |
 |---|---|---|---|---|

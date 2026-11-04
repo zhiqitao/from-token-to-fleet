@@ -37,8 +37,8 @@ ax.text(0.5, 0.925, 'the split is the same; the transfer link — and its cost �
 # (A) prefill + decode partitions INSIDE ONE 8xH100 host = one NVLink domain.
 ax.text(0.255, 0.875, 'A. Within one NVLink domain', fontsize=9.0,
         fontweight='bold', ha='center', color='#1a1a1a')
-ax.text(0.255, 0.825, '~35 GB ≈ 0.08 s (on-node)', fontsize=8.4,
-        ha='center', color='#2b2b2b')
+ax.text(0.255, 0.825, '~35 GB ≈ 0.08 s (on-node)\nillustrative 13.3K-token, FP16 full-MHA', fontsize=8.0,
+        ha='center', va='center', color='#2b2b2b')
 
 # host = one NVLink domain
 ax.add_patch(FancyBboxPatch((0.03, 0.34), 0.45, 0.44, boxstyle='round,pad=0.01',
@@ -94,8 +94,8 @@ ax.annotate('', xy=(0.375, 0.215), xytext=(0.375, 0.335),
 # (B) separate prefill host and decode host = the fabric is the KV link.
 ax.text(0.745, 0.875, 'B. Across hosts (fabric)', fontsize=9.0,
         fontweight='bold', ha='center', color='#1a1a1a')
-ax.text(0.745, 0.825, '~35 GB ≈ 0.9 s (cross-host)', fontsize=8.4,
-        ha='center', color='#2b2b2b')
+ax.text(0.745, 0.825, '~35 GB ≈ 0.9 s (cross-host)\nillustrative 13.3K-token, FP16 full-MHA', fontsize=8.0,
+        ha='center', va='center', color='#2b2b2b')
 
 def _host_box(x0, label, fc, ec, gfc, gec):
     w = 0.177

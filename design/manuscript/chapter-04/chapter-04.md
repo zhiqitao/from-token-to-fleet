@@ -120,7 +120,7 @@ Every quantity below is either an assumed workload input, a vendor fact, a model
 | H100 HBM per GPU | 80 GB | [1P][FACT] vendor |
 | H100 BF16 peak (dense, no sparsity) | ~0.989 PFLOPS | [1P][FACT] vendor |
 | Retrieval latency | 120 ms | [canonical scenario][ASSUMPTION] |
-| Prefill latency (TTFT) | 1.08 s | [canonical scenario][DERIVED] from the chosen TTFT budget (1.2 s) minus the assumed retrieval latency (120 ms) |
+| Prefill compute budget (derived from the simplified TTFT budget; prefill is a component of, not identical to, user-observed TTFT) | 1.08 s | [canonical scenario][DERIVED] from the chosen TTFT budget (1.2 s) minus the assumed retrieval latency (120 ms) |
 | Decode (TPOT) | 25 ms/token | [canonical scenario][ASSUMPTION] author-chosen per-token decode budget |
 | Host price (8×H100, on-demand) | ~$20/hr | [canonical scenario][ASSUMPTION] dated price snapshot (2026 on-demand $2.50/GPU-hr × 8; not [1P] vendor spec, not a measured figure) |
 

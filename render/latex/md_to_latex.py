@@ -181,6 +181,35 @@ def fix_ch20_figure_placement(tex_path):
     return False
 
 
+def fix_appA_figure_placement(tex_path):
+    r"""R-15 (Appendix A): Fig A.1 (fig-27-2701) is a float that the book class's
+    \clearpage / float pool pulls to the TOP of the following page, severing the
+    'four families at a glance' numbered list: items 1-3 land on the prior page
+    and item 4 (GLM-5.3-Flash) re-appears BELOW the figure+caption. In the source
+    the figure is declared AFTER the complete list (ch27.md line ~34), so the fix
+    is to pin Fig A.1 as [H] (non-float, placed exactly where declared, after the
+    completed list) so the numbered list finishes before the figure floats.
+    Requires \usepackage{float} (already in book.sty). Scoped to fig-27-2701 only.
+    Idempotent."""
+    import re as _re
+    tex = open(tex_path, encoding="utf-8").read()
+    if "fig-27-2701" not in tex:
+        return False
+    pat = _re.compile(r"\\begin\{figure\}(.*?)\\end\{figure\}", _re.S)
+    def fig_repl(m):
+        inner = m.group(1)
+        if "fig-27-2701" not in inner:
+            return m.group(0)
+        if inner.lstrip()[:1] == "[":
+            return m.group(0)   # already pinned (idempotent)
+        return "\\begin{figure}[H]" + inner + "\\end{figure}"
+    new = pat.sub(fig_repl, tex)
+    if new != tex:
+        open(tex_path, "w", encoding="utf-8").write(new)
+        return True
+    return False
+
+
 def fix_verbatim(tex_path):
     """Route pandoc's plain \\\\begin{verbatim} blocks through fancyvrb's
     Verbatim with breaklines/breakanywhere so long code lines wrap instead of
@@ -812,6 +841,7 @@ def convert(mapping):
         fix_wide_tables(out)
         fix_figure_width(out)
         fix_ch20_figure_placement(out)
+        fix_appA_figure_placement(out)
         fix_verbatim(out)
         fix_urls(out)
         fix_crossrefs(out, n)
