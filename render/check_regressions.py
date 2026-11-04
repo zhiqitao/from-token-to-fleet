@@ -117,6 +117,38 @@ cost_red = H + (1 - H) * 0.20                    # 48%
 assert abs(cost_red - 0.48) < 1e-9, cost_red
 
 print("OK - all numeric regression checks passed.")
+
+# ---- Agentic trace -> service time (review 2026-11-04 A-01..A-04 / F-01) ----
+# The T-turn trace has T+1 model invocations; no-reuse must SUM every prefill.
+_sys.path.insert(0, _os.path.join(_repo_root, "render"))
+import agent_trace as _at
+# A-01: no-reuse W(3) sums all 4 prefills; reuse counts only incremental.
+assert abs(_at.W(3, False) - 17.7033) < 1e-3, _at.W(3, False)
+assert abs(_at.W(3, True) - 14.1586) < 1e-3, _at.W(3, True)
+assert abs(_at.W(0, False) - 8.58) < 1e-3
+# A-02: no premature rounding of W before the ceil; use unrounded.
+assert _at.host_count(100, 3, 13, reuse=False)["working"] == 205   # no-reuse FP16
+assert _at.host_count(100, 3, 27, reuse=False)["working"] == 99    # no-reuse FP8
+assert _at.host_count(100, 3, 13, reuse=True)["working"] == 164    # reuse FP16
+assert _at.host_count(100, 3, 27, reuse=True)["working"] == 79     # reuse FP8
+# A-03: fallback exclusion removes only the failed-attempt work (30,390), not the
+# whole fallback (39,890); denominator = 98 genuine completions.
+_s = _at.summarize()["A03"]
+assert abs(_s["per_submitted"] - 23926.7) < 1e-1, _s["per_submitted"]
+assert abs(_s["per_completed_excl_failed"] - 23794.8) < 1e-1, _s["per_completed_excl_failed"]
+assert abs(_s["mult_noreuse"] - 2.519) < 1e-3, _s["mult_noreuse"]
+assert abs(_s["failed_per_fallback"] - 30390) < 1e-6
+# A-04: retained-context alpha (1.12x/12%) must NOT be quoted as the processed
+# token multiplier; processed = 2.52x under no-reuse.
+assert abs(_at.W(3, False) - 17.7033) < 1e-3  # no-reuse processed cost is 2.52x, not 1.12x
+print("  agent trace: W3 no-reuse %.3f s / reuse %.3f s; A02 FP16 %d/%d (no-reuse/reuse), "
+      "FP8 %d/%d; A03 excl_failed %.1f tok/req (%.1f%% of 24415), mult %.3fx"
+      % (_at.W(3, False), _at.W(3, True),
+         _at.host_count(100, 3, 13)["working"], _at.host_count(100, 3, 13, True)["working"],
+         _at.host_count(100, 3, 27)["working"], _at.host_count(100, 3, 27, True)["working"],
+         _s["per_completed_excl_failed"], _s["per_completed_excl_failed"] / 24415 * 100,
+         _s["mult_noreuse"]))
+
 print(f"  KV FP16 {kv_fp16_bytes} B ({kv_fp16_mb:.3f} MB/tok); FP8 raw {kv_fp8_bytes} B ({kv_fp8_mb:.3f} MB/tok)")
 print(f"  KV @9.5K FP16 {kv_9500_gb:.3f} GB (C={C_fp16_9500:.3f}, floor {math.floor(C_fp16_9500)}); "
       f"FP8 {fp8_9500_gb:.3f} GB (C={C_fp8_9500:.3f}, floor {math.floor(C_fp8_9500)})")

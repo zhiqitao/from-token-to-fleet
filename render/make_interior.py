@@ -20,9 +20,11 @@ import fitz  # PyMuPDF
 
 def main():
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    src = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    kdp = "--kdp" in sys.argv   # PRINT-01: strip bookmarks + disallowed metadata
+    src = args[0] if args else os.path.join(
         repo, "render/build/from-token-to-fleet-v20260913-plain.pdf")
-    out = sys.argv[2] if len(sys.argv) > 2 else src.replace(".pdf", "-interior.pdf")
+    out = args[1] if len(args) > 1 else src.replace(".pdf", "-kdp-split.pdf" if kdp else "-interior.pdf")
 
     d = fitz.open(src)
     n = d.page_count
@@ -37,16 +39,31 @@ def main():
     interior = fitz.open()
     interior.insert_pdf(d, from_page=1, to_page=n - 1)
 
-    # Copy bookmarks, shifted by -1 (drop cover), dropping any entry pointing at p0.
-    toc = []
-    for lvl, title, page in d.get_toc():
-        if page <= 1:
-            continue
-        toc.append([lvl, title, page - 1])
-    interior.set_toc(toc)
-    interior.set_metadata(d.metadata)
+    if not kdp:
+        # Digital/readable edition: copy bookmarks (shifted -1, drop p0 entries).
+        toc = []
+        for lvl, title, page in d.get_toc():
+            if page <= 1:
+                continue
+            toc.append([lvl, title, page - 1])
+        interior.set_toc(toc)
+        interior.set_metadata(d.metadata)
+        label = "interior (digital, with bookmarks)"
+    else:
+        # KDP manuscript: no bookmark tree, no disallowed interactive/metadata
+        # objects (PRINT-01). Keep searchable text; set clean minimal metadata.
+        interior.set_toc([])
+        interior.set_metadata({
+            "title": "From Token to Fleet: An AI Solution Architect's Handbook",
+            "author": "Zhiqi Tao",
+            "subject": "AI systems architecture",
+            "keywords": "",
+            "creator": "",
+            "producer": "",
+            "creationDate": "", "modDate": ""})
+        label = "interior (KDP, no bookmarks)"
     interior.save(out, garbage=4, deflate=True)
-    print(f"interior pages: {interior.page_count} (from {n} incl. cover)")
+    print(f"{label}: {interior.page_count} pages (from {n} incl. cover)")
     print(f"saved {os.path.relpath(out, repo)}")
 
 

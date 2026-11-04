@@ -70,12 +70,12 @@ We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-2): a **canoni
 | 3×H100 total VRAM | 3 ×80 GB = 240 GB | [DERIVED] 165 GB < 240 GB |
 | fits 2×H100 at 9.2K? | no, 164.1 GB > 160 GB | does not fit in 2×H100; needs ≥3×H100 by aggregate capacity (or lower precision / more GPUs) |
 | fits 8×H100 at 9.2K? | yes | 164.1 GB < 640 GB |
-| fits 3×H100 at 9.2K? | yes | 164.1 GB < 240 GB |
-| fits 8×H100 at 32K? | yes | 224.0 GB < 640 GB |
-| fits 8×H100 at 128K? | yes, barely | 475.5 GB < 640 GB |
+| fits 3×H100 at 9.2K? | passes aggregate bytes only; TP=3 placement not established | 164.1 GB < 240 GB, but a canonical hidden-dim of 8192 does not split evenly into 3 shards (8192/3 not integral); viable TP=3 requires a supported sharding/head-partition plan, per-rank allocation and a working engine benchmark — see the note below |
+| fits 8×H100 at 32K? | yes (passes aggregate bytes) | 224.0 GB < 640 GB |
+| fits 8×H100 at 128K? | passes aggregate bytes only; runtime config not established | 475.5 GB < 640 GB; a nominal pool check alone never establishes a supported runtime configuration |
 | fits 1×H100 at 9.2K? | no | 164.1 GB > 80 GB; needs ≥3×H100 by aggregate capacity |
 
-*Note on “does it fit?”: this residency check answers a single-request question — does ONE request’s weights + KV fit in the pool? It says nothing yet about how many such requests fit concurrently. For that, an architect must subtract the runtime/activation/workspace floor (~64 GB on the 8×H100 host) from the 640 GB pool before sizing KV. We compute that concurrent capacity — the ~436 GB KV budget and ~17.5 requests/host (byte-accurate 17.51; conservative integer floor 17) — in Chapter 17. Keep the two numbers separate: the ~500 GB headroom (Ch. 4/7, single-request) and the ~436 GB KV budget (Ch. 17, concurrency) answer different questions.*
+*Note on “does it fit?”: this residency check answers a single-request question — does ONE request’s weights + KV fit in the pool? It says nothing yet about how many such requests fit concurrently. For that, an architect must subtract the runtime/activation/workspace floor (~64 GB on the 8×H100 host) from the 640 GB pool before sizing KV. We compute that concurrent capacity — the ~436 GB KV budget and ~17.5 requests/host (byte-accurate 17.51; conservative integer floor 17) — in Chapter 17. Keep the two numbers separate: the ~500 GB headroom (Ch. 4/7, single-request) and the ~436 GB KV budget (Ch. 17, concurrency) answer different questions. **"Passes aggregate bytes" is NOT an execution result.** A fit verdict needs three distinct gates: (1) aggregate bytes (pool ≥ residency), (2) per-rank allocation/shard compatibility (a hidden dim of 8192 does not shard evenly into 3 ranks; attention-head partition, runtime/workspace and topology must be supported), and (3) a working engine/kernel/topology benchmark. 8×H100 (no sharding ambiguity at 8 shards) passes gates 1–2 for the 9.2K and 32K rows; the 3×H100 row and the 128K row pass gate 1 only, so they are labeled "passes aggregate bytes only — placement/runtime not established."*
 
 *Attention-family sensitivity note.* The ~2.62 MB/token (2.5 MiB) figure is the **full-MHA** (multi-head attention) upper bound: n_KV-heads = n_query-heads, and n_KV-heads × head_dim = hidden_dim, i.e.
 

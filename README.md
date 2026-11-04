@@ -121,18 +121,26 @@ binding evidence rules, the build runbook, and the verification bar.
 For a print-on-demand (KDP) run the deliverables are split:
 
 - **Interior-only archive** — `render/build/from-token-to-fleet-v<date>-plain-interior.pdf`
-  is the clean interior (450 pages for `v20260913`): the page-0 full-bleed cover is
+  is the clean digital interior (456 pages for `v20260913`): the page-0 full-bleed cover is
   removed so the interior starts at the half-title block and keeps the correct
-  page parity. Regenerate it any time the plain archive is rebuilt with
-  `python3 render/make_interior.py` (drops the cover page and renumbers bookmarks).
-  Page labels are stripped of the leading cover so the printed folio starts at 1.
+  page parity, and the bookmark tree is kept for the readable/digital edition.
+  Regenerate it any time the plain archive is rebuilt with
+  `python3 render/make_interior.py`.
+- **KDP interior** — `render/build/from-token-to-fleet-v<date>-plain-kdp-split.pdf`
+  is the print manuscript: the same interior but with the bookmark tree stripped
+  and the disallowed interactive/metadata objects removed (PRINT-01, review
+  2026-11-04). Generate it with `python3 render/make_interior.py --kdp`.
 - **Separate cover** — `render/cover/cover_premium_front.pdf` (full-bleed front) and
   `render/cover/cover_premium_wrap.pdf` (full wrap with spine) are the print cover;
   they are **not** part of the interior. The `v<date>.pdf` archive below is the
   self-contained digital edition that opens on the cover.
+- **Release manifest** — `render/build/release-manifest.json` (from
+  `python3 render/make_manifest.py`) records the source commit, build command,
+  PDF SHA-256 and page count, and the figure-generator script hashes so an
+  external reader can re-derive the artifacts (PRINT-03).
 
 `render/build/from-token-to-fleet-v<date>.pdf` (and `-plain.pdf`) keep the cover as
-page 0 by design — this is the *digital* edition; the interior archive is the one to
+page 0 by design — this is the *digital* edition; the `-kdp-split.pdf` is the one to
 upload to KDP. Do not supply a single combined file as the print interior.
 
 ---

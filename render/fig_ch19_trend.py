@@ -84,8 +84,10 @@ fig.text(0.5, 0.86, 'append-only illustrative model: context only ever accumulat
 # live agent.  Placed in the empty band between the x-labels and the legend.
 fig.text(0.5, 0.135,
          'counterfactual: each column = a separate completion after T turns,\n'
-         'including one final 300-token answer — not successive states of one live agent.',
-         ha='center', va='center', fontsize=8.4, color='#222')
+         'including one final 300-token answer — not successive states of one live agent.\n'
+         'Bars are RETAINED context/KV, not summed per-call processed or billed tokens;\n'
+         'processed tokens grow ~2.5x under no prefix reuse (see Table 19-1, A-04).',
+         ha='center', va='center', fontsize=8.2, color='#222')
 plt.subplots_adjust(left=0.12, right=0.97, top=0.78, bottom=0.28, wspace=0.40)
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',
             dpi=400, bbox_inches='tight', pad_inches=0.05)
