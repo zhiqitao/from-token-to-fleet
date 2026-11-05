@@ -10,10 +10,11 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
-echo "== check_tables / check_md_leaks / check_regressions (fail loud) =="
+echo "== check_tables / check_md_leaks / check_regressions / check_stale_values (fail loud) =="
 python3 render/check_tables.py
 python3 render/check_md_leaks.py
 python3 render/check_regressions.py
+python3 render/check_stale_values.py
 
 echo "== md_to_latex =="
 python3 render/latex/md_to_latex.py

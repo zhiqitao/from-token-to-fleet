@@ -5,6 +5,7 @@ canonical TOK / MEM / CMP / FLT / TCO invariants. Fails with a non-zero exit
 if any check is off. Run from the repo root:  python3 render/check_regressions.py
 """
 import math
+import glob
 
 # ---- canonical reference (Ch 4 Table 4-3 + Ch 7) ----
 LAYERS = 80
@@ -148,6 +149,23 @@ print("  agent trace: W3 no-reuse %.3f s / reuse %.3f s; A02 FP16 %d/%d (no-reus
          _at.host_count(100, 3, 27)["working"], _at.host_count(100, 3, 27, True)["working"],
          _s["per_completed_excl_failed"], _s["per_completed_excl_failed"] / 24415 * 100,
          _s["mult_noreuse"]))
+
+# ---- Stale-value gate (review 2026-11-04 follow-up) ----
+# A superseded literal left as a LIVE value in the manuscript must fail the suite.
+# check_stale_values.py exits non-zero on any live stale use. Run it in-process.
+import importlib.util as _ilu
+_stale_spec = _ilu.spec_from_file_location(
+    "check_stale_values", _os.path.join(_repo_root, "render", "check_stale_values.py"))
+_stale = _ilu.module_from_spec(_stale_spec); _stale_spec.loader.exec_module(_stale)
+_files = sorted(glob.glob(_os.path.join(_repo_root, "design", "manuscript", "**", "*.md"),
+                           recursive=True))
+_stale_bad = 0
+for _f in _files:
+    for _desc, _pat, _pos in _stale.scan_file(_f):
+        _stale_bad += 1
+        print(f"  STALE [{_desc}] in {_os.path.relpath(_f, _repo_root)}")
+assert _stale_bad == 0, f"stale superseded values found: {_stale_bad}"
+print("  stale-value gate: OK (no live superseded values)")
 
 print(f"  KV FP16 {kv_fp16_bytes} B ({kv_fp16_mb:.3f} MB/tok); FP8 raw {kv_fp8_bytes} B ({kv_fp8_mb:.3f} MB/tok)")
 print(f"  KV @9.5K FP16 {kv_9500_gb:.3f} GB (C={C_fp16_9500:.3f}, floor {math.floor(C_fp16_9500)}); "
