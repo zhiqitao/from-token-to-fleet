@@ -134,7 +134,7 @@ Failure tests complete this contract. Missing ranks, mismatched counts or collec
 
 ## 5. Common Mistakes
 
-- **Assuming peak bandwidth is sustained.** PCIe Gen5 x16 peaks at ~64 GB/s, but a single all-reduce never saturates the full link because the traffic is split across multiple GPUs and multiple links. Measured effective bandwidth is typically 40–60% of peak; design against the measured number, not the spec sheet peak.
+- **Assuming peak bandwidth is sustained.** PCIe Gen5 x16 peaks at ~64 GB/s, but a single all-reduce usually does not saturate the full link: in multi-GPU topologies the traffic is split across multiple GPUs and multiple links (a two-rank collective over one path can saturate it, and the ring model of §3 carries (N−1)/N of the tensor per link). Measured effective bandwidth is typically 40–60% of peak; design against the measured number, not the spec sheet peak.
 
 - **Placing all-reduce on Ethernet without a bandwidth budget.** A 70B model gradient all-reduce at 25 Gb/s Ethernet (≈ 2.5 GB/s practical-effective) takes ~56 s per step (a flat lower bound; ~98 s with the ring factor, §9.3). If the training runs 1,000 iterations, that is ~56,000 s (15.6 hours) spent exclusively in communication. Always compute the per-iteration communication cost before committing to a lower-bandwidth fabric.
 

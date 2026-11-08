@@ -1,0 +1,34 @@
+Fleet-Level Optimization
+250
+suboptimal if the bottleneck is scheduler throughput or cache contention, not compute capacity. 
+Measure the marginal cost of adding a host before triggering a scale-out event.
+• Ignoring cold-start cost: When a host is freshly provisioned or re-warmed after idle, loading 
+the full model weights into HBM takes 30–120 seconds (a weight-load figure; distinct from the 
+much shorter KV-cache warm-up of ~2 s discussed in Chapter 15, which re-populates only the 
+retained KV state). Autoscaling policies must account for this weight-load warm-up window 
+when scaling out a fresh host; otherwise the fleet experiences a spike in error rate or timeout 
+during scale-out events.
+20.6. Architecture Consequence
+Fleet-level optimization reshapes the serving architecture in three ways:
+1. Centralized scheduler: A lightweight service (e.g., based on etcd or a custom placement 
+engine) maintains real-time view of per-host utilization and makes dispatch decisions. This 
+service must be highly available, and its dispatch overhead should stay a small fraction of 
+the per-request SLO — for the canonical ~8.6 s service time, a sub-millisecond decision is 
+a comfortable target (the round-robin baseline adds ~0.5 ms, §3), not a universal necessity: 
+the binding constraint is that dispatch overhead not consume a meaningful share of the 
+request/turn SLO, which depends on routing frequency and scheduling architecture.
+2. Data colocation: Vector indexes and model weights are stored close to the hosts that consume 
+them. This may mean running a local Qdrant or Milvus instance per host, or using a shared 
+object store (e.g., MinIO) with read-replicas per availability zone. The goal is to minimize the 
+distance—measured in network hops—between the scheduler’s placement decision and the 
+data fetch. But colocation is a trade, not a free win: a per-host index multiplies memory/storage, 
+consistency, ingestion, and operational cost across the fleet, and model-weight locality is a 
+different problem from vector-index locality. The right placement depends on the workload — 
+compare centralized retrieval, AZ-local retrieval, replicated indexes, and cached results, and 
+identify the traffic/latency point at which colocation’s access-latency saving outweighs its 
+replication cost. Do not conflate the two locality questions.
+3. Graceful degradation: The fleet should have a mode where, under extreme overload, it serves 
+stale or truncated answers rather than failing entirely. This could mean returning the top-k 
+results from a cached embedding rather than recomputing, or surfacing a “try again” message 
+with an estimated wait time. The architectural contract must make this trade-off explicit so 
+product teams can set appropriate SLOs.

@@ -46,11 +46,17 @@ trap - EXIT
 
 echo "== fix_pdf_meta (page labels + linearize) =="
 cd "$REPO"
-python3 render/fix_pdf_meta.py render/latex/book.pdf \
+# pymupdf lives in the render venv, not the system python3
+if python3 -c "import pymupdf" 2>/dev/null; then
+  PYFITZ=python3
+else
+  PYFITZ="/home/ubuntu/.hermes/installs/5f0a1ff4045d044e/environments/02af1ccff96b479ca1900df1726f28a4/venv/bin/python3"
+fi
+"$PYFITZ" render/fix_pdf_meta.py render/latex/book.pdf \
         render/build/from-token-to-fleet-v20260913-plain.pdf
 
 echo "== verify output =="
-python3 - <<'PY'
+"$PYFITZ" - <<'PY'
 import pymupdf
 d = pymupdf.open("render/build/from-token-to-fleet-v20260913-plain.pdf")
 cat = d.pdf_catalog()

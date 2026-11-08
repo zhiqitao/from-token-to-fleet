@@ -298,14 +298,17 @@ model-shape ADR above, the derived quantities are:
   GB parameters, plus \textasciitilde30 GB activations at the peak for
   this worked example, giving ≈ \(170\) GB total derived footprint. This
   \textasciitilde30 GB is a \emph{per-request working-set} figure for
-  this ADR's single-request arithmetic; it is deliberately \textbf{not}
-  the \textasciitilde64 GB runtime/workspace/NCCL reserve the body uses
-  elsewhere (140 GB weights + \textasciitilde436 GB KV budget +
-  \textasciitilde64 GB reserve ≈ the 640 GB HBM envelope). The two are
-  different quantities --- one sizes a single request's activations, the
-  other reserves headroom for the serving stack's runtime --- and both
-  coexist on the 8×H100 host. Derived from the model parameter count and
-  a typical activation overhead factor.
+  this ADR's single-request arithmetic; it is \textbf{not a re-labeling
+  of} the \textasciitilde64 GB runtime/workspace/NCCL reserve the body
+  uses elsewhere (140 GB weights + \textasciitilde436 GB KV budget +
+  \textasciitilde64 GB reserve = the 640 GB HBM envelope). The two
+  answer different questions --- one sizes a single request's
+  activations, the other reserves headroom for the serving stack's
+  runtime --- and at serving time the activation working set is drawn
+  from \emph{within} that 64 GB workspace line (workspace includes
+  activation buffers), so the envelope closes as 140 + 436 + 64 = 640,
+  not 670. Derived from the model parameter count and a typical
+  activation overhead factor.
 \item
   \textbf{Weight-quantization residency lever} --- quantizing the
   FP16/BF16 weights to INT8 reduces the nominal parameter-weight
@@ -430,6 +433,178 @@ it this way?'' debates --- more than compensates.
 
 \label{fig:25.1}\end{figure}
 
+\begin{quote}
+\textbf{DECISION STATE --- CANDIDATE SCREENED; NOT COMMITTABLE ---
+regional availability, failover, SLO-goodput and matched-scope costs
+pending.}
+
+An ADR may record this state. The canonical candidate has cleared the
+capability and \emph{single-region} cost screens (Ch 16 §16.6, Ch 17
+§17.6), but the canonical workload's 99.9\% multi-region active-active
+requirement is unsized and unpriced, only N−1 single-host failover is
+modeled, SLO-goodput is unmeasured at the target offered load (Ch 14),
+and the delivery modes are not compared on matched scopes. Writing
+\textbf{HOLD} into the Status field is the correct, auditable record ---
+and it is not the same as choosing the cheapest row.
+\end{quote}
+
+\textbf{A worked HOLD record --- ADR 0015, in this chapter's template}
+(the compact form appears at the Decision rung in Ch 22 §6; the record
+is kept, not edited).
+
+\subsubsection*{ADR 0015 --- Delivery mode and region topology for the
+canonical Q\&A
+workload}\label{adr-0015-delivery-mode-and-region-topology-for-the-canonical-qa-workload}
+\addcontentsline{toc}{subsubsection}{ADR 0015 --- Delivery mode and
+region topology for the canonical Q\&A workload}
+
+\textbf{Status:} \textbf{HOLD} --- screened, not committed.
+
+\textbf{Context:} The loop has produced capability, capacity and
+\emph{single-region} cost screens: the 70B 8×H100 self-host clears the
+capability screen, and the single-region arithmetic gives
+\textasciitilde\$155.8K/mo (\textasciitilde\$24.97/1K) self-host,
+\textasciitilde\$87.6K/mo (\textasciitilde\$14.04/1K) on the cloud
+default paid-occupancy input, and \textasciitilde\$129.8K/mo
+(\textasciitilde\$20.8/1K) managed API at the canonical 6.24M
+requests/mo. The canonical workload's own 99.9\% multi-region
+active-active requirement sits in none of those numbers (Ch 16 §16.3,
+\hyperref[tab:16.2]{Table 16-2}).
+
+\textbf{Decision:} No delivery mode is committed. The least-cost option
+--- the cloud default paid-occupancy input at \textasciitilde\$14.04/1K
+--- is explicitly \textbf{not} selected, and neither is self-host nor
+the managed API. \textbf{HOLD is the decision}, with the four exit
+criteria below as its review trigger.
+
+\textbf{Consequences:}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Positive:} no input assumption is promoted to a commitment;
+  the four pending items are named, owned and testable, and the
+  single-region baseline (21-host headline / 32-host N−1 policy) keeps
+  operating as a \emph{provisional} assumption.
+\item
+  \textbf{Negative:} no procurement path this quarter, and the
+  availability requirement stays unmet on paper until regional capacity
+  is priced; planning must carry the single-region totals as
+  single-region totals, not as the SLA's cost.
+\item
+  \textbf{Monitoring:} regional capacity quote, region-failure test
+  result, measured p95 SLO-goodput at the target offered load, and a
+  matched-scope re-run of the three modes.
+\end{itemize}
+
+\textbf{Requirement coverage matrix (every stated requirement of the
+canonical workload → the status this ADR records):}
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\#
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Requirement (Ch 4 / \hyperref[tab:4.2]{Table 4-2}; SLA)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Screen applied
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Status
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+R1 & Serve the canonical workload: 10 rps avg / 40 rps peak, 9.2K-in /
+300-out & KV-residency screen (Ch 17 \hyperref[tab:17.1]{Table 17-1}): 21 hosts (KV,
+case-independent); prefill screen 19 case (i) / 22 case (ii); 70\% ×
+95\% + N−1 policy: 32 (KV screen) / 34 (case (ii) prefill screen, Ch 20)
+& \textbf{SCREENED} --- analytical lower-bound screen, not measured
+SLO-goodput \\
+R2 & TTFT ≤ 2 s (p95), \textasciitilde25 ms/token decode & Ch 14 load
+test at the target offered load & \textbf{NOT VALIDATED} ---
+unmeasured \\
+R3 & 50-question retrieval-QA quality benchmark on customer data & Ch 14
+evaluation run & \textbf{NOT VALIDATED} --- unmeasured \\
+R4 & Failover under one host loss (N−1) & 32-host policy row (31 working
++ 1 reserve), single region & \textbf{SCREENED} --- single-host only; no
+region-failure test \\
+R5 & \textbf{Multi-region active-active, 99.9\% availability} & none ---
+no regional capacity, replication, routing or failure test is in any
+number in this record & \textbf{multi-region active-active: NOT
+VALIDATED / NOT PRICED} \\
+R6 & Cost compared across the three delivery modes & Ch 16 Tables 16-1 /
+16-2 & \textbf{NOT COMPARABLE} --- scopes unmatched; the multi-region
+row is NOT PRICED \\
+
+\noalign{\label{tab:25.2}}\end{longtable}
+
+\textbf{R5 is the requirement the HOLD exists for: multi-region
+active-active is NOT VALIDATED / NOT PRICED.} Every \$/1K and every host
+count above is single-region; the canonical workload's own stated 99.9\%
+requirement is carried as an unpriced, untested row until exit criteria
+(i) and (ii) close it. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}
+
+\textbf{Alternatives considered:}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Select the least-cost mode now} --- rejected: the \$87.6K line
+  is a paid-occupancy INPUT, not a measured duty cycle, and no row
+  carries the 99.9\% active-active cost; choosing it would encode an
+  assumption as a decision.
+\item
+  \textbf{Commit to self-host} --- rejected: its SLO-goodput pass is
+  provisional until benchmarked (Ch 14), and it is single-region only.
+\item
+  \textbf{HOLD with explicit exit criteria} --- adopted.
+\end{enumerate}
+
+\textbf{Evidence:} \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- the three
+single-region cost rows are Ch 16 scenario inputs, not quotes.
+\mbox{{[}DERIVED{]}} --- 6.24M req/mo and every \$/1K division are Ch 16
+arithmetic. \mbox{{[}ASSUMPTION{]}} --- the 99.9\% active-active requirement is
+the canonical workload's stated SLA (Ch 4), unpriced here.
+
+\textbf{Trade-offs \& consequences:} the team trades a decision's
+timeliness for its defensibility: HOLD costs optionality in the near
+term and prevents a cost ranking from silently becoming an availability
+commitment.
+
+\textbf{Decision owner:} the serving-platform architect who ran the Ch
+22 loop, with the SRE owner accountable for the region-failure test.
+
+\textbf{Validation plan:} (i) regional capacity sized and priced for the
+99.9\% active-active SLA; (ii) a region-failure test defined ---
+per-region \textbf{weight/index availability is mandatory},
+\textbf{live-KV replication across regions is an optional policy}
+(clients may replay or recompute context in the surviving region within
+the recovery objectives, Ch 16 §16.3); (iii) measured p95 TTFT/TPOT
+SLO-goodput at the target offered load; (iv) a matched-scope re-run of
+the three delivery modes.
+
+\textbf{Rollback plan:} none required while HOLD stands --- no mode has
+been commissioned; any interim spend stays month-to-month and
+reversible, and the single-region baseline remains the operating
+assumption.
+
+\textbf{Review trigger:} any validation item (i)--(iv) landing, or a
+change to the canonical workload's SLA or price period.
+
+\textbf{Falsification path:} if all four exit criteria are met and the
+matched-scope re-run still shows a stable least-cost ordering, a
+successor record (ADR 0018 or later) lifts the HOLD and supersedes this
+one; ADR 0015 stays on file unchanged. If the criteria cannot be met,
+the HOLD itself is the finding --- the requirement and the cost model do
+not describe the same system.
+
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
 
@@ -501,7 +676,7 @@ ceiling is now limiting throughput below the target request rate.
   \textbf{Decision:} Render the KV cache in FP8 for the long-context
   decode path, keeping prefill and the retrieval/prompt phase in FP16.
   FP8 KV cuts KV residency to \textasciitilde50\% of the FP16 figure
-  (raw byte-halving of BF16: 1.31 MB/token vs 2.62 MB/token
+  (raw byte-halving of FP16: 1.31 MB/token vs 2.62 MB/token
   \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}), so the same \textasciitilde436 GB
   budget holds \textasciitilde35.0 concurrent 9,500-token requests
   instead of \textasciitilde17.5 --- roughly doubling per-host
@@ -514,7 +689,7 @@ ceiling is now limiting throughput below the target request rate.
   \item
     Positive: KV residency per request falls from \textasciitilde24.9 GB
     (FP16) to \textasciitilde12.45 GB (FP8, raw byte-halving --- 50\% of
-    BF16) at the 9,500-token max, so the canonical budget supports
+    FP16) at the 9,500-token max, so the canonical budget supports
     \textasciitilde35.0 concurrent requests rather than
     \textasciitilde17.5. This is a memory lever, not a compute lever: it
     does not change decode speed per token, it raises the concurrency
@@ -542,7 +717,7 @@ ceiling is now limiting throughput below the target request rate.
   \item
     \textbf{GQA (grouped-query attention) reduction} --- not available
     for the canonical model: the 70B reference geometry is full
-    multi-head attention (32 KV heads, 2.62 MB/token, Ch 7). Adopting
+    multi-head attention (64 KV heads, 2.62 MB/token, Ch 7). Adopting
     GQA would cut KV per token by \textasciitilde8× (the largest single
     capacity lever in this book, Ch 16), but it changes the model
     architecture and requires retraining and re-evaluation --- it is
@@ -559,7 +734,7 @@ ceiling is now limiting throughput below the target request rate.
   \textasciitilde2.62 MB/token a 9,500-token request needs
   \textasciitilde24.9 GB FP16 KV (9,500 × 2.62 MB ≈ 24.9 GB; Ch. 15, Ch.
   17). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- FP8 is byte-halved to 1.31
-  MB/token (exactly 50\% of BF16), so a 9,500-token FP8 KV ≈ 12.45
+  MB/token (exactly 50\% of FP16), so a 9,500-token FP8 KV ≈ 12.45
   GB/request; 436 GB ÷ 12.45 GB ≈ 35.0 concurrent (floor 35).
   \mbox{{[}HYPOTHESIS{]}} --- the FP8 precision shift has a small, measurable
   effect on long-context retrieval fidelity that must be measured on the

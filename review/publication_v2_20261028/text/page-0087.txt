@@ -1,0 +1,51 @@
+69
+From Workload to Model Selection
+5.3.1. (a) Embedding‑model selection for the retrieval leg
+KV cache per-token figures are at FP16 (~2.62 MB/token) unless an 8-bit (~1.3 MB/token) variant is 
+explicitly stated.
+The retrieval leg maps chunks of internal documents to dense vectors so that a user query can be 
+matched to the most relevant context. The architect must choose an embedding model — specifically, 
+its embedding dimension and parameter count — against the retrieval quality the workload demands.
+Three realistic options, each with documented properties:
+Embedding model
+Dim
+Params
+FLOPs per embedding
+Typical use case
+all‑MiniLM‑L6‑v2
+384
+~23M
+~0.3 GFLOPs
+Light‑weight, 
+high‑throughput 
+search
+all‑mpnet‑base‑v2
+768
+~110M
+~1 GFLOPs
+General‑purpose, 
+quality‑first
+bge‑large‑en
+1024
+~335M
+~2 GFLOPs
+Dense-retrieval-
+optimal, technical docs
+HYPOTHESIS: within a given embedding family or a controlled dimensionality experiment, reducing 
+the embedding dimension may trade retrieval quality for lower storage and compute — e.g. a 384‑dim 
+variant of the same model family can cost roughly half the FLOPs and index storage of a 768‑dim 
+one. Dimension alone is not a cross‑model quality metric: a 1024‑dim embedding model is not 
+intrinsically better than a 768‑dim one merely because its vector has more dimensions; retrieval quality 
+depends on model architecture, training objective/data, corpus/query distribution, normalization, 
+and retrieval strategy. Any observed quality‑vs‑dimension relationship (reports range from a few to 
+~15% MAP difference) is domain‑ and corpus‑specific and must be validated on the target corpus.
+[ILLUSTRATIVE][DERIVED]: for a 1 M‑chunk corpus (a Ch 5‑local illustrative input, not part 
+of Table 4‑2), the index storage for a D‑dim float32 vector corpus is bytes = nchunks × D × 4. For 
+768‑dim: 1×106 × 768 × 4 = 3.07 GB; for 384‑dim: 1×106 × 384 × 4 = 1.54 GB; a difference of 
+~1.5 GB. At 10× the corpus (10 M chunks), that difference grows to ~15 GB. Small relative to a 140 GB 
+base model, but not negligible at large corpus scale: storage is a persistent footprint that scales with 
+corpus size, not a one‑time cost that vanishes.
+Takeaway for the canonical RAG workload: 768‑dim (all‑mpnet‑base‑v2) is the recommended 
+embedding model. It places the workload in the quality‑positive regime without introducing per‑re­
+quest latency that threatens the TTFT SLO. The 384‑dim option is viable only if storage or compute 
+budget is extremely constrained; the bge‑large‑en option is overkill for this scale and its marginal 

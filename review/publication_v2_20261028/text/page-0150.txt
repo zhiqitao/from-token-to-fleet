@@ -1,0 +1,53 @@
+Parallelism: Splitting the Model Across Machines
+132
+Strategy
+What it splits
+Replicates
+Communicates
+Fits when
+Data (DP)
+the data batch
+model + 
+optimizer
+gradients → 
+all-reduce (per 
+step)
+model fits one 
+GPU, need 
+throughput (the 
+canonical 70B is 
+140 GB > 80 GB 
+per GPU, so it 
+does not fit one 
+GPU — DP is 
+not its baseline; 
+see §10.3)
+Expert (EP)
+MoE experts
+attention / 
+weights
+routes → 
+all-to-all (per 
+token)
+MoE models
+Sequence (CP)
+the token 
+sequence
+model weights
+KV → ring
+long contexts, 
+KV too big
+(Strategies compose; the table names the primary cost each trades.)
+10.3. Worked Example
+10.3.1. Why the Canonical 70B Doesn’t Fit One H100
+The canonical model is 70B FP16 dense = 140 GB of weights [ILLUSTRATIVE][DERIVED] (reality 
+check: 70 ×10⁹ params × 2 bytes). A single H100 has 80 GB of HBM [1P][FACT]. The arithmetic is 
+immediate:
+• The weights alone don’t fit on one H100:
+140 GB weights > 80 GB HBM
+We need at least 140/80 ≈1.75 → ≥ 2 GPUs just to hold the weights (and that’s before KV 
+cache, which adds ~2.62 MB/token at FP16 (2.5 MiB) — the 9.2K-token canonical prompt needs ~24.1 
+GB more (initial KV)). [ILLUSTRATIVE][DERIVED]
+The canonical 8×H100 host (640 GB total) fits the weights + KV comfortably, which is why the 
+single-host baseline in earlier chapters works. But if the model grows (say to 400B) or owns more, 
+the split becomes mandatory:

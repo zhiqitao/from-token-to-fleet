@@ -1,0 +1,37 @@
+213
+From Server to Fleet
+at the KV screen; C is not the ceiling. Second, the binding term becomes decode bandwidth: each 
+generated token re-reads the full ~14 GB of weights, so the per-host decode token rate is capped 
+by HBM bandwidth ÷ weight size, and at 200 rps × 100 output tokens the aggregate output-token 
+demand dwarfs what any one host’s bandwidth supplies. The host count is set by λ·O / (per-host 
+token rate), not by KV residency. The fleet formula is unchanged; the binding term is bandwidth, not 
+memory.
+Counter-scenario B — long context, low rate: memory dominates even below the KV 
+screen. A document-analysis workload is the opposite pole: ~128K-token input, ~50-token output, 
+but a low rate (say 2 rps). Here the per-request KV is enormous — 128K tokens against the canonical 
+κ is ~335 GB, which consumes most of the host’s ~436 GB KV budget (already net of the 140 GB 
+weights). Because even one request nearly fills the host, the fleet is sized almost one-request-per-host 
+despite the low rate. Here memory is not just a ceiling — it is the dominant term, and the canonical 
+brief-context C/W shorthand (which assumes many small requests share a host) does not apply at all.
+The transferable lesson. In the canonical regime the host is KV-bound and sized by λ·W/C; 
+in counter-scenario A it is bandwidth-bound and sized by output-token rate; in counter-scenario 
+B it is memory-dominated and sized by aggregate context. The architect must identify which term 
+binds for the specific workload before applying any single sizing formula — that is what makes the 
+canonical scenario a method rather than a template.
+17.5. Common Mistakes
+1. Ignoring KV cache growth from agentic loops. A common mistake is to assume that 
+adding an agentic layer barely changes per-request resource usage. As shown, each turn adds 
+~800 tokens of context, which linearly reduces concurrent‑request capacity. Forgetting this 
+leads to under‑provisioning the fleet.
+2. Over‑relying on sticky sessions without load‑balance analysis. Sticky sessions simplify 
+cross‑host communication but can create hot‑spot hosts if a few users generate disproportionate 
+traffic. Always measure the session‑affinity distribution on the actual workload. A Gini coef­
+ficient exceeding 0.3 is an [ILLUSTRATIVE][ASSUMPTION] example threshold, not 
+a universal constant — the trigger to abandon sticky sessions depends on the workload, the 
+tail-latency SLO, and the failure domain. Establish the skew threshold with a traffic replay/load 
+test and tune it to the SLO, not to a fixed 0.3; measure per-host queueing, p95/p99 latency, and 
+request drops to decide when stateless routing or session sharding is the appropriate response.
+3. Using raw rps to size the fleet. Requests‑per‑second is necessary but not sufficient; the 
+product of rps × average latency gives concurrent load, which must fit within KV cache capacity. 
+A host serving 40 rps at 0.5 s latency carries 20 concurrent requests, whereas at 2 s latency it 
+carries 80 — the same rps, very different resource usage.

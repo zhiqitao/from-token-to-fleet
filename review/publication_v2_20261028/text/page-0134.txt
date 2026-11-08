@@ -1,0 +1,37 @@
+Compute
+116
+• If prefill is FLOP-bound (as it is for 70B+ models with long contexts), the primary opti­
+mization is batching — larger prefill batches do not remove the per-request attention work 
+(each sequence still has its own attention computation); they improve accelerator utilization by 
+forming larger matrix operations, amortizing weight and execution overhead across requests, 
+and raising achieved FLOP/s. The relevant lever is the achieved efficiency (MFU) of the prefill 
+kernel, not a change to the per-request FLOP count. System design should therefore provision 
+for batchable prefill (continuous batching, Orca, vLLM continuous batching) as the first-order 
+throughput lever.
+• If decode is memory-bound (single-stream, low batch), the primary optimization is batching 
+— decode arithmetic intensity ≈ batch size, so even modest batch sizes (8–16) raise it to ~8–16 
+FLOP/byte (batch 16 → ~16, still ~18× below the 295 ridge), improving TFLOP/s utilization 
+without reaching compute-bound; compute-bound decode needs batch ≈ 295, or quantized 
+weights, which halve bytes and double intensity. KV cache quantization (FP8, int8) also reduces 
+bytes per token, raising effective intensity. P/D disaggregation (prefill on GPUs, decode on a 
+separate pool) can rebalance: prefill’s FLOP demand is served by compute-optimized GPUs, 
+while decode’s bandwidth demand is served by wide-memory GPUs or even CPU offload.
+• If the workload’s intensity crosses the hardware ridge (e.g. a workload at ~250 FLOP/byte 
+is memory-bound on H100’s ~295 ridge but compute-bound on H200, whose FP16 ridge is ~206 
+FLOP/byte — 989 TFLOPS ÷ 4.8 TB/s — from its higher HBM3e bandwidth), the same workload 
+may shift from memory-bound to compute-bound, changing the optimal hardware choice. 
+The shift comes from the lower ridge, not from precision: a higher ridge moves the boundary 
+right and makes compute-bound harder (H200’s ~412 FLOP/byte ridge in dense FP8 — ~1.98 
+PFLOPS ÷ 4.8 TB/s, never the sparsity-inclusive ~4 PFLOPS (§8.5) — would do the opposite), 
+and precision scaling moves intensity and ridge together (bytes halve → intensity doubles; 
+peak doubles → ridge doubles), so FP8 alone does not change the classification. This is why 
+the H200 represents an inflection point where inference and training hardware lines begin to 
+converge [1P: NVIDIA H200 SXM datasheet].
+In practice, the architect measures arithmetic intensity for the target workload and precision, 
+locates the kernel on the roofline chart, and then selects hardware and batching strategy accordingly. 
+The roofline is the diagnostic; the architecture decision follows.
+8.7. What We Still Don’t Know
+• Arithmetic intensity of fused kernels. Most roofline estimates treat attention or MLP as 
+separate matmuls, but in practice frameworks fuse multiple operations into a single kernel. 
+The effective FLOP/byte of a fused attention+MLP kernel is not well cataloged in primary 
+sources and would require profiling on the target hardware to anchor.

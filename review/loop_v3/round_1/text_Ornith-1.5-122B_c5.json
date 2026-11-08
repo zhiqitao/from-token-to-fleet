@@ -1,0 +1,58 @@
+
+
+[
+  {
+    "id": "CH26-CAPSTONE-MISSBUDGET",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 26 §26.8 Capstone Step 1–2 (two-point model); cross-ref §26.3 Pattern B and Capstone Execution",
+    "chapter": 26,
+    "quoted_clause": "a cache miss is served by the engine at ~250 ms (a scenario value after the 35% lower arrival rate has settled the prefill queue) ... These components sum to a ~450 ms baseline TTFT",
+    "observed": "The chapter's headline −44% p99 TTFT result (450→250 ms) requires the cache-MISS path to drop from the 450 ms baseline to 250 ms, but the baseline is stated as a pure sum of work components (compute 320 + I/O 80 + retrieval 50 = ~450 ms) with NO queueing term, and a semantic-response-cache miss still performs retrieval + generation — the same work as the uncached baseline. With no queue component in the baseline decomposition, lowering the arrival rate (2.0→1.3 rps) cannot drop a miss below the ~450 ms work floor. So the miss value and its stated cause ('settled prefill queue') are not reconciled with the stated baseline budget, and the −44% p99 improvement is not derivable from the stated inputs.",
+    "evidence": "Baseline budget: 320+80+50 = 450 ms (work only). Two-point model: hit=50 ms (p=0.35), miss=250 ms (p=0.65); p99=250 ms because 0.35<0.99≤1.0; mean=0.35×50+0.65×250=180 ms — both arithmetically correct GIVEN the inputs. But if a miss is rebuilt to pay the same work as the baseline (retrieval+gen ≈ 450 ms), then p99=450 ms → ~0% p99 improvement, and only the mean improves (0.35×50+0.65×450=310 ms, −31%). The −44% p99 therefore hinges on miss=250 being < the baseline work floor, which needs a ~200 ms queue term the baseline never states.",
+    "root_cause": "The 250 ms miss is introduced as an assumed scenario value with a post-hoc causal gloss ('after the 35% lower arrival rate has settled the prefill queue') that presupposes a queue component absent from the stated baseline decomposition (work-only, 450 ms). A budget/event-trace gap between §26.3 and §26.8.",
+    "correction": "Either (a) add an explicit queueing term to the baseline so pure work ≈250 ms and the queue removed at 1.3 rps ≈200 ms (making baseline p99=450 and miss=250 consistent); (b) set miss = baseline work (~450 ms) and report the cache's p99 benefit accordingly (~0% p99, ~31% mean); or (c) explicitly decouple the 250 ms from the stated baseline budget and drop the 'settled queue' causal claim, relabeling −44% as an illustrative input pair, not a derived delta.",
+    "acceptance_test": "Rebuild the capstone per-call trace (hit vs miss) from §26.8's stated inputs alone; a reader must be able to derive miss=250 ms from a baseline decomposition that explicitly contains the ~200 ms queue it later removes. If miss remains an independent assumption, the −44% p99 claim must be relabeled as not derived from the baseline budget."
+  },
+  {
+    "id": "CH26-API-COST-ROUNDING",
+    "severity": "P3",
+    "confidence": "low",
+    "page_hint": "Ch 26 §8, Table 26-2 cost note",
+    "chapter": 26,
+    "quoted_clause": "$0.012/request (≈$11.6 per 1,000 requests, Ch 4)",
+    "observed": "$0.012 × 1,000 = $12.00, not the stated ≈$11.6 per 1,000. The book's own self-host figure follows the per-request×1000=per-1,000 convention exactly ($0.02497/request = $24.97 per 1,000), so the API figure breaks that internal convention; the two stated forms of the same hosted-API rate do not reconcile.",
+    "evidence": "Self-host: 0.02497×1000 = 24.97 ✓. API: 0.012×1000 = 12.00 ≠ 11.6 ✗. A consistent API per-request value would be $0.0116 (= $11.6/1,000).",
+    "root_cause": "Likely a 2-sig-fig rounding of an underlying $0.0116 to '$0.012' while retaining the more-precise '$11.6/1,000', yielding two mutually inconsistent forms.",
+    "correction": "Change '$0.012/request' to '$0.0116/request' (or restate as '≈$12 per 1,000' to match $0.012), and reconcile against Ch 4's exact hosted-API $/request.",
+    "acceptance_test": "Check Ch 4's stated hosted-API $/request; confirm per-request × 1,000 = per-1,000 figure (matching the self-host $24.97 convention)."
+  },
+  {
+    "id": "APP-A-KV-BAND",
+    "severity": "P3",
+    "confidence": "low",
+    "page_hint": "Appendix A §5 'What This Means for the Handbook's Canonical Arithmetic'",
+    "chapter": "Appendix A",
+    "quoted_clause": "Hybrid-attention models cut it 4–10× at the mechanism in the named configurations",
+    "observed": "'it' = the KV constant, but the stated vendor KV reductions span ~4.4× (GLM-5.3-Flash, '4.4× smaller KV cache') to ~14× (DeepSeek-V4-Flash, '~7% of its KV cache' = 1/0.07 ≈ 14.3×). The '4–10×' band undersells the DeepSeek-V4-Flash upper end (~14×), which lies outside the stated band. (The FLOP reductions ~27%/~10% = 3.7–10× DO fit '4–10×', so the band appears calibrated on FLOPs while the sentence names the KV constant.)",
+    "evidence": "KV cut = 1/(fraction): DeepSeek Pro ~10%→10×, Flash ~7%→14.3×; GLM 4.4×. Range 4.4–14.3×; '4–10×' omits the 10–14× portion (DeepSeek-V4-Flash).",
+    "root_cause": "A single summary band is applied to the KV constant while the underlying KV ratios extend to ~14×; probable FLOP/KV scope conflation within the same paragraph.",
+    "correction": "Widen the KV band to '~4–14×' (or '~4–15×') to cover DeepSeek-V4-Flash's ~7% KV, or state the FLOP band and KV band separately.",
+    "acceptance_test": "Recompute 1/(KV-fraction) for each family's stated KV reduction; confirm the summary band covers every stated endpoint."
+  },
+  {
+    "id": "CH26-HIT-PATH-RETRIEVAL",
+    "severity": "P3",
+    "confidence": "low",
+    "page_hint": "Ch 26 §8 Step 2 (two-point model) vs §26.3 Pattern B",
+    "chapter": 26,
+    "quoted_clause": "a cache hit returns at a fixed ~50 ms (retrieval + cache lookup, no LLM prefill)",
+    "observed": "The hit path is described as paying 'retrieval + cache lookup', but Pattern B states that on a response-cache hit 'the embedding/retrieval step is also skipped' (exact-match) and a semantic hit only incurs 'encoding and lookup cost'. Labeling the 50 ms hit cost as including 'retrieval' conflicts with the cache skipping document retrieval on hits, mildly muddying what the cache saves. Arithmetic (hit=50 ms; mean 180, p99 250) is unaffected.",
+    "evidence": "§26.3: 'the embedding/retrieval step is also skipped for exact-match hits.' §26.8: hit = 'retrieval + cache lookup.' A semantic response cache returns the stored answer on a hit and should not re-retrieve documents; the ~50 ms should be the embedding/NN-lookup surrogate, not document retrieval.",
+    "root_cause": "Loose use of 'retrieval' to mean the semantic cache's embedding/nearest-neighbor lookup, colliding with the earlier precise statement that retrieval is skipped on hits.",
+    "correction": "Rename the hit cost as 'embedding + cache-lookup (no document retrieval, no generation)' to match Pattern B, or clarify that the 50 ms surrogates the skipped retrieval.",
+    "acceptance_test": "Confirm the hit-path cost label is consistent across §26.3 and §26.8 and excludes document retrieval, matching the response-cache definition."
+  }
+]
+
+COVERAGE: Text (T) read in full for the Ch 26 + Appendix A manuscript chunk. Quant (Q) independently rederived: MoE active fractions (Kimi 104/2800=3.7%, DeepSeek-V4-Flash 13/284=4.6%, GLM 18/320=5.6%, Qwen 6/125=4.8%); FLOPs/token 2N=1.4e11; FP16 weights 140 GB; KV/token 2.62 MB (consistent with 2×80×8192×2 B); 17.5 conc × 9500 tok × 2.62 MB ≈ 436 GB; two-point mean 0.35×50+0.65×250=180 ms and p99=250 ms; −44% = (450−250)/450 and 37.5% = (400−250)/400; 2.0×(1−0.35)=1.3 rps; 17.5/8.6=2.03 req/s; block_q4_K 144 B→4.5 bits/value; self-host 0.02497×1000=24.97 convention. All rederivations above checked out EXCEPT the miss-path budget gap reported as CH26-CAPSTONE-MISSBUDGET. Rendered pages/figures = NOT VERIFIED (no built PDF provided: Fig 26.1/26.2 and A.1–A.5 drawn content, legibility, grayscale distinguishability, and geometry uncheckable). References/gates = NOT VERIFIED (no web or script access: all [1P] vendor specs, arXiv/HF/GitHub IDs, and service-status claims taken as stated, unconfirmed). Cross-chapter anchors outside this chunk = NOT VERIFIED (Ch 4 ~40 rps peak basis and 6.24M/25.92M volume basis, Ch 16 exact $/req, 21-host fleet sizing, 8.6 s = 1.08+7.5 service derivation). Considered and REJECTED as benign: baseline SM util 45% vs modeled 68% (different operating points; book's own utilization note states SM util is not the binding metric for a decode-bandwidth-bound workload). Disagreement register: n/a — single independent pass, no cross-model sharing.

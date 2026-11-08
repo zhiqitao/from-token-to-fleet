@@ -1,0 +1,35 @@
+135
+Parallelism: Splitting the Model Across Machines
+10.6. Architecture Consequence
+The parallelism strategy is forced by the binding constraint, and that constraint is usually 
+memory for large models:
+• A model that exceeds one GPU’s memory must split weights → TP (within a node, on 
+NVLink) or PP (across nodes, low comm). Which one depends on whether the model fits a 
+node: fits one node → TP among its GPUs; spans nodes → PP across them, with TP inside 
+each node.
+• A workload with high throughput demand (like the canonical ~10 rps / 40 rps) that fits one 
+replicable model → DP to scale batch across GPUs, accepting the gradient-sync cost only if it 
+trains/fine-tunes. For pure inference the canonical 70B fits one 8×H100 node, so parallelism is 
+often unnecessary at the single-host baseline.
+• MoE models (if chosen per Ch3) push toward EP, because the full expert set must be resident 
+(the active count sets compute per token, not residency) and EP shards the experts across 
+GPUs.
+• The canonical answer: for the book’s ~70B/8×H100 scenario, no cross-host model parallelism 
+is required at the baseline (intra-host TP=8 is still needed to fit the 140 GB model across the 
+eight 80 GB GPUs); parallelism becomes the tool when the model or workload outgrows one 
+node. The architect escalates through TP (in-node) → PP (cross-node) → DP (replicating a 
+fitting model) in that order.
+Table 10-1 above consolidates the five parallelization strategies (plus the serving-only P/D 
+disaggregation): reading across a row gives one strategy’s full trade-off (what it splits, what it 
+replicates, what it communicates, when it fits), and reading down a column shows how each axis 
+varies across strategies. (Fig 10.1 illustrates the three canonical patterns — TP, PP, DP — side by side; 
+the table adds the specialist EP and CP rows.)
+10.7. What We Still Don’t Know
+• Optimal split for very large MoE or long-context models is workload- and interconnect-
+dependent; the exact NVLink-vs-fabric crossover for a given model is unmeasured 
+[UNRESOLVED] — measure on the target cluster.
+• 2026 MoE scaling has moved the specialist/EP frontier. Kimi K3 activates just 16 of 
+896 routed experts per token (2.8T total / 104B active) via its Stable LatentMoE [1P: arXiv 
+2607.24653]; Qwen3.8-Flash-Next routes 10+1 of 512 experts (125B total / 6B active) [1P: HF 
+Qwen/Qwen3.8-Flash-Next]. These extreme sparsities (16/896 ≈ 1.8% expert activation) are 
+why expert-parallel and fused cross-expert comm kernels (e.g. MoE expert parallelism with 

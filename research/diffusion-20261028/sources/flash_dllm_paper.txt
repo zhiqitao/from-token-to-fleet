@@ -1,0 +1,1399 @@
+Flash-dLLM: IO-Aware KV Caching and Parallel Decoding for Fast, Memory-Efficient Diffusion LLMs
+Skip to main content
+Report GitHub Issue
+×
+Title:
+Content selection saved. Describe the issue below:
+Description:
+Submit without GitHub
+Submit in GitHub
+Why HTML?
+Report Issue
+Back to Abstract
+Download PDF
+Contents
+Reading mode
+Colour theme
+Abstract
+1 Introduction
+2 Methodology
+2.1 Preliminaries
+KV Caching in Diffusion LLMs.
+Parallel Decoding in Diffusion LLMs.
+2.2 Flash-Cache: IO-aware key-value caching
+KV caching fused kernel.
+Scheduled flash attention.
+2.3 Flash-Verify: KV-cache-driven draft-and-verify Parallel Decoding
+3 Experiments
+3.1 Experimental Setup
+3.2 Main Results
+3.3 Ablation Studies and Analysis
+4 Related Work
+5 Conclusion
+References
+A Limitations
+B Broader Impact
+C Bounded-Deviation Guarantee for Flash-Verify
+Setup.
+D Detailed Experiment Setup
+E Statistical analysis
+F Ablation of Generation and Prefill Length.
+G More scalability analysis
+H Sample Response
+License: CC BY 4.0
+arXiv:2609.26796v1 [cs.CL] 22 Sep 2026
+Flash-dLLM: IO-Aware KV Caching and Parallel Decoding for Fast, Memory-Efficient Diffusion LLMs
+Quan Nguyen-Tri
+Affiliation: VILA Lab, MBZUAI
+Affiliation: Abu Dhabi, UAE
+Email: quan.nguyen@mbzuai.ac.ae
+Mukul Ranjan
+Affiliation: VILA Lab, MBZUAI
+Affiliation: Abu Dhabi, UAE
+Email: mukul.ranjan@mbzuai.ac.ae
+Zhiqiang Shen
+††thanks: Corresponding author.
+Affiliation: VILA Lab, MBZUAI
+Affiliation: Abu Dhabi, UAE
+Email: zhiqiang.shen@mbzuai.ac.ae
+Code available at: https://github.com/VILA-Lab/Flash-dLLM
+Abstract
+Diffusion Large Language Models (dLLMs) have recently emerged as a promising alternative to autoregressive LLMs by enabling non-autoregressive text generation. However, their practical deployment remains limited by inefficient inference, largely due to the absence of effective Key-Value (KV) caching and scalable parallel decoding mechanisms. Existing acceleration methods typically study KV caching and parallel decoding in isolation, overlooking the I/O bottlenecks that arise when cache reuse and parallel token verification are jointly applied. In this work, we introduce  Flash-dLLM, a training-free inference acceleration framework for fast and memory-efficient dLLMs. Flash-dLLM first identifies GPU memory I/O as a dominant bottleneck in KV-cache-enabled dLLM inference and addresses it with an I/O-aware fused KV-cache kernel that reduces redundant memory movement. Building on this optimized cache mechanism, Flash-dLLM further proposes an efficient KV-cache-driven draft-and-verify decoding strategy, where the dLLM itself serves as both drafter and verifier without requiring an auxiliary model. This unified design enables faster decoding while preserving generation quality and improving scalability to longer sequences and larger batch size. Extensive experiments on mathematical reasoning and code-generation benchmarks demonstrate that Flash-dLLM consistently outperforms existing state-of-the-art dLLM acceleration methods in both inference speed and memory efficiency. In particular, it achieves 5.1×5.1\times and 11.0×11.0\times speedups over prior strongest baseline Elastic-Cache on GSM8K and HumanEval, respectively.
+1 Introduction
+Diffusion Large Language Models (dLLMs) Austin et al. (2021a); Sahoo et al. (2024); Li et al. (2025b); Bie et al. (2025); Nie et al. (2025b); Ye et al. (2025a); Ou et al. (2024); Yang et al. (2025b); Shi et al. (2024); Google DeepMind (2025); Inception Labs (2025); Arriola et al. (2025); Lou et al. (2023); Nie et al. (2025a); Xie et al. (2025) have recently emerged as a promising alternative to conventional autoregressive large language models Radford et al. (2018); Achiam et al. (2023); Singh et al. (2025); Comanici et al. (2025); Guo et al. (2025); Yang et al. (2025a) by reformulating text generation as an iterative denoising process. Instead of producing tokens strictly from left to right, dLLMs refine partially masked or noisy sequences over multiple denoising steps, enabling more flexible generation schedules and exposing opportunities for non-autoregressive decoding. This paradigm has shown encouraging potential for controllable generation, global sequence refinement, and improved parallelism. However, despite these algorithmic advantages, the practical inference efficiency of open-source dLLMs still lags behind mature autoregressive LLM systems, whose deployment has benefited from years of optimization around KV caching, attention kernels, and speculative decoding Kwon et al. (2023); Ye et al. (2025b); Cai et al. (2024); Pope et al. (2023).
+A major bottleneck to efficient dLLM inference lies in the repeated construction and movement of Key-Value (KV) states across denoising iterations. In autoregressive LLMs, KV caching avoids recomputing attention states for previously generated tokens. In dLLMs, however, the sequence is repeatedly revisited, and the set of updated tokens changes across iterations. This causes frequent KV-cache reads, writes, and updates Liu et al. (2025); Song et al. (2026); Ma et al. (2025b), even when many cached states remain unchanged or contribute little to the current decoding step. As a result, naive KV caching may reduce floating-point computation but introduce substantial GPU memory-access overhead. In practice, the redundancy in KV-cache read and write operations can dominate runtime, limiting the actual speedup obtainable from cache reuse (Fig. 1(a)).
+Beyond this system-level redundancy, dLLM decoding also exhibits strong token-level sparsity. Although each denoising step processes the full sequence, only a small fraction of decoded or partially decoded tokens has a significant influence on the current prediction distribution. Many tokens remain stable across iterations or provide limited additional context for the next decoding decision. Treating all cached tokens as equally important therefore wastes memory bandwidth and computation Song et al. (2026); Huang et al. (2026); Zhang et al. (2023); Xiao et al. (2024); Tang et al. (2024). This observation suggests that efficient dLLM inference should not simply cache and reuse all KV states uniformly, instead, it should prioritize the subset of tokens that meaningfully affect the current decoding process while reducing unnecessary memory traffic for less influential tokens (Fig. 1(b)).
+(a) IO bottleneck in KV caching
+(b) Attention sparsity across layers
+(c) Confidence and early decoding
+Figure 1: Motivating observations (LLaDA-1.5). (a) Per-layer latency breakdown: the conventional cache pipeline is dominated by memory-bound operations; our fused kernel eliminates intermediate materialization for a 1.37×\times speedup. (b) Top-32 most-attended decoded tokens capture up to 50% of total attention in middle layers, motivating selective tracking over full recomputation. (c) Average prediction confidence and number of early-decodable tokens are positively correlated across denoising steps, indicating that improving confidence directly increases tokens decoded per step.
+Another key point comes from the confidence dynamics of dLLM generation Wei et al. (2025); Kong et al. (2025); Israel et al. (2025); Wu et al. (2026b). During iterative denoising, many tokens become semantically determined at an early stage, even though their individual confidence scores may not yet exceed the conservative threshold required for immediate commitment. These tokens are often close to being correctly decoded, but existing decoding strategies delay their acceptance until later iterations, leading to redundant refinement steps. This creates a mismatch between token readiness and token commitment: the model already contains sufficient information to recover many positions, yet the decoding algorithm fails to exploit this early predictability due to insufficient confidence calibration.
+Importantly, we observe that increasing the average confidence level of candidate decoded tokens directly improves the number of tokens that can be accepted correctly in each denoising step (Fig. 1(c)). This indicates that the bottleneck is not only whether tokens can be predicted early, but whether their confidence can be made reliable enough for safe parallel commitment. A more effective decoding strategy should therefore aggregate useful contextual evidence, suppress low-impact cache interactions, and raise the confidence of promising token candidates. By doing so, dLLMs can decode more tokens per iteration while preserving generation quality, thereby reducing the total number of denoising steps required for completion.
+Motivated by these observations, we propose Flash-dLLM, a training-free inference framework that jointly optimizes IO-aware KV caching and cache-driven parallel decoding for fast, memory-efficient dLLMs. Flash-dLLM first reduces redundant KV-cache memory movement through an IO-aware fused cache kernel, which minimizes unnecessary read/write operations and improves cache locality during iterative denoising. It then exploits token-level sparsity by focusing cache reuse and verification on tokens that most affect the current decoding step. Finally, Flash-dLLM introduces a KV-cache-based parallel draft-and-verify mechanism that enables the dLLM itself to draft multiple early-decodable tokens and verify them with improved confidence, without requiring an auxiliary drafter or additional training. Together, these designs convert the inherent parallelism of diffusion language generation into practical wall-clock acceleration and improved memory scalability.
+Figure 2: Overview of Flash-dLLM. Left (Flash-Cache): At each step, a fixed-size query of βm\beta_{m} tokens (tracked + current masked window) attends bidirectionally to the full KV cache via the fused kernel. Tracked positions are the top-kk decoded tokens by attention importance, reselected each step to keep the cache-served representations aligned with full recomputation. Right (Flash-Verify): Draft predictions are sorted by confidence. Tokens above threshold ϵ\epsilon are decoded directly. Remaining search tokens are duplicated in the query (once with the draft prediction, once with [MASK]) under a causal attention mask that prevents the two views from attending to each other. Tokens are accepted left-to-right when both views agree and the mask-view confidence exceeds γ\gamma.
+This study makes the following contributions:
+•
+We identify redundant read/write memory access as a key bottleneck in KV-cache-enabled dLLM inference, and propose an IO-aware fused KV-cache mechanism to reduce unnecessary GPU memory movement and improve cache locality. We further observe that only a small subset of decoded tokens significantly affects the current decoding step. Based on this, Flash-dLLM selectively prioritizes influential tokens during cache reuse and verification, improving efficiency without uniformly processing all cached states.
+•
+We propose a training-free parallel decoding strategy where the dLLM itself serves as both drafter and verifier. By leveraging cached states to increase candidate-token confidence, Flash-dLLM enables more tokens to be decoded correctly in early stages, reducing denoising steps while preserving generation quality.
+•
+Our approach achieves strong empirical speed and scalability gains. Extensive experiments on mathematical reasoning and code generation benchmarks demonstrate that the proposed Flash-dLLM improves inference speed and memory efficiency while maintaining generation quality, outperforming existing dLLM acceleration methods.
+2 Methodology
+2.1 Preliminaries
+KV Caching in Diffusion LLMs.
+We adopt the sliding window decoding and KV caching strategy from Elastic-Cache Nguyen-Tri et al. (2025). Let ℐ={1,…,N}\mathcal{I}=\{1,\ldots,N\} represent all positions, 𝒟t\mathcal{D}^{t} denote the newly decoded positions at step tt, and 𝒟<t=𝒟0∪⋯∪𝒟t−1\mathcal{D}^{<t}=\mathcal{D}^{0}\cup\dots\cup\mathcal{D}^{t-1} denote the decoded positions up to step tt, and ℳt\mathcal{M}^{t} represent the remaining masked positions. At the initial step, we feed the entire sequence into the model to initialize the KV cache values for all positions ℐ\mathcal{I}: 𝐊~[ℐ]t,l\tilde{\mathbf{K}}^{t,l}_{[\mathcal{I}]} and 𝐕~[ℐ]t,l\tilde{\mathbf{V}}^{t,l}_{[\mathcal{I}]}. For the subsequent step tt, we perform KV caching for every token except the current query positions 𝒬t=𝒟t∪ℳβmt\mathcal{Q}^{t}=\mathcal{D}^{t}\cup\mathcal{M}^{t}_{\beta_{m}}. This includes the newly decoded tokens 𝒟t\mathcal{D}^{t} and a fixed sliding window of masked tokens ℳtβm=ℳt[1:βm]\mathcal{M}^{t}_{\beta_{m}}=\mathcal{M}^{t}_{[1:\beta_{\text{m}}]}, where βm\beta_{\text{m}} is the fixed window size. The attention at step tt is computed as follows:
+𝐀[𝒬t]t,l=softmax(𝐐[𝒬t]t,l​(𝐊~[ℐ]t,l)⊤dk)𝐕~[ℐ]t,l,update: 𝐊~[𝒬t]t,l=𝐊[𝒬t]t,l,𝐕~[𝒬t]t,l=𝐕[𝒬t]t,l.\mathbf{A}^{t,l}_{[\mathcal{Q}^{t}]}=\mathrm{softmax}\!\left(\frac{\mathbf{Q}^{t,l}_{[\mathcal{Q}^{t}]}(\tilde{\mathbf{K}}^{t,l}_{[\mathcal{I}]})^{\top}}{\sqrt{d_{k}}}\right)\tilde{\mathbf{V}}^{t,l}_{[\mathcal{I}]},\quad\text{update: }\tilde{\mathbf{K}}^{t,l}_{[\mathcal{Q}^{t}]}=\mathbf{K}^{t,l}_{[\mathcal{Q}^{t}]},\;\;\tilde{\mathbf{V}}^{t,l}_{[\mathcal{Q}^{t}]}=\mathbf{V}^{t,l}_{[\mathcal{Q}^{t}]}.
+(1)
+The cache is exact for positions in 𝒬t\mathcal{Q}^{t} and approximate for the rest. Existing methods differ in how they manage this approximation: Fast-dLLM (Wu et al., 2025) refreshes the entire cache at block boundaries, and Elastic-Cache (Nguyen-Tri et al., 2025) triggers refresh adaptively based on attention-pattern drift. All these methods implement the cache update logic in PyTorch, issuing separate kernel launches for QKV projection, rotary positional embedding, cache writes, and attention computation per layer.
+This makes the caching operation memory-bound: the intermediate tensors are written to and read from GPU HBM multiple times, and the memory access cost dominates over the arithmetic cost.
+Parallel Decoding in Diffusion LLMs.
+Diffusion LLMs generate by iteratively unmasking tokens from a fully masked sequence. At each step, the model predicts all masked positions in parallel, but these predictions are conditionally independent given 𝐱t\mathbf{x}_{t}. The model samples from the product of marginals ∏ip⁡(𝐱si∣𝐱t)\prod_{i}p(\mathbf{x}_{s}^{i}\mid\mathbf{x}_{t}), while the true joint p⁡(𝐱si,𝐱sj∣𝐱t)=p⁡(𝐱si∣𝐱t)⋅p⁡(𝐱sj∣𝐱t,𝐱si)p(\mathbf{x}_{s}^{i},\mathbf{x}_{s}^{j}\mid\mathbf{x}_{t})=p(\mathbf{x}_{s}^{i}\mid\mathbf{x}_{t})\cdot p(\mathbf{x}_{s}^{j}\mid\mathbf{x}_{t},\mathbf{x}_{s}^{i}) contains inter-token dependencies (Wu et al., 2025). Decoding many tokens at once amplifies this discrepancy and degrades coherence. Fast-dLLM (Wu et al., 2025) tackles this issue by introducing Confidence-aware decoding. This approach selectively unmasking only tokens whose confidence ci=maxx⁡pθ​(xi∣𝐱t)c^{i}=\max_{x}p_{\theta}(x^{i}\mid\mathbf{x}_{t}) surpasses a predefined threshold ϵ\epsilon. Consequently, parallel decoding effectively approximates the true joint distribution when all decoded tokens exhibit high confidence.
+(a) Key-Value (KV) Caching in Flash-Cache
+(b) Flash Attention in Flash-Cache
+Figure 3: IO-aware memory management in Flash-Cache. (a) The fused kernel eliminates intermediate KV tensors by performing projection, RoPE, and cache write directly on the KV cache, reducing HBM read/write traffic and memory usage. (b) Varying sequence lengths from partial (cached) and full (updated) computations are reorganized into contiguous blocks managed by a block table, enabling parallel execution without padding or synchronization overhead.
+2.2 Flash-Cache: IO-aware key-value caching
+Flash-Cache consists of three main components: (i) a fused kernel for Key-Value (KV) caching to alleviate the IO bottleneck, (ii) scheduled flash attention to manage the substantial variation in sequence lengths within batches, and (iii) constrained cache updates by monitoring the most-attended tokens.
+KV caching fused kernel.
+At each transformer layer, a conventional KV cache implementation launches four separate CUDA kernels for the query set 𝒬t\mathcal{Q}^{t}: QKV projection, rotary positional embedding (RoPE), cache write, and attention. Each kernel writes its output to GPU high-bandwidth memory (HBM) before the next kernel reads it. QKV projection, RoPE, and cache writing each incur 𝒪⁡(Q​dmodel)\mathcal{O}(Qd_{\text{model}}) memory traffic, while attention streams over the full cache with 𝒪⁡(N​d)\mathcal{O}(Nd) traffic. Thus, the total per-layer HBM traffic is approximately 4×𝒪⁡(Q​dmodel)+𝒪⁡(N​d)4\times\mathcal{O}(Qd_{\text{model}})+\mathcal{O}(Nd). Because the non-attention operations have low arithmetic intensity, the cache-update path becomes memory-bound (Fig. 3(a)).
+Inspired by Flash Attention (Dao et al., 2022), we introduce a fused Flash-Cache kernel that combines QKV projection, RoPE, and cache writing (Fig. 3(a)). The fused kernel performs projection and RoPE in SRAM and writes the resulting keys and values directly to the KV cache, eliminating intermediate key-value materialization. This reduces HBM traffic, lowers memory usage, and improves IO efficiency. As shown in Fig. 1(a), positional embedding and cache writing can dominate runtime relative to core computations such as attention and QKV projection. With Flash-Cache, we achieve a 1.37×1.37\times speedup on an RTX 3090 GPU.
+Scheduled flash attention.
+KV caching and parallel decoding introduce new challenges for scaling diffusion LLMs to batched inference. While conventional attention can process variable-length sequences through padding and length-based grouping, diffusion LLMs make sequence lengths more dynamic and divergent. KV caching typically alternates between a caching stage, which computes only over a small window, and an update stage, which recomputes the full sequence; as a result, samples in the same batch may require substantially different computation at each iteration. Forcing all samples into the same stage can reduce efficiency and accuracy. This issue is further amplified by adaptive methods such as Elastic-Cache, where sequence length may vary within a layer, and by parallel decoding, which causes samples to progress at different rates.
+To address this challenge, we extend Flash Attention (Dao et al., 2022; Shah et al., 2024; Zadouri et al., 2026) by partitioning each batch into multiple sequence blocks and scheduling them with a block table that aligns query blocks with their corresponding key-value blocks (Fig. 3(b)). This design mitigates length discrepancies during inference and provides a flexible mechanism for adding or removing blocks, enabling more adaptive decisions about when to cache or update. Unlike Flash Attention, which primarily optimizes IO efficiency within the attention computation, our Scheduled Flash Attention focuses on controlling which blocks are computed and in what order through the block table. This scheduling strategy is particularly effective for accelerating batched inference in diffusion LLMs.
+The overall algorithm of Fused Kernel and Scheduled Flash Attention is presented in algorithm 1.
+Algorithm 1  Flash-Cache
+1:
+Input 𝐗∈ℝM×d\mathbf{X}\!\in\!\mathbb{R}^{M\times d}, query 𝐐∈ℝM×d\mathbf{Q}\!\in\!\mathbb{R}^{M\times d}, KV cache 𝐊,𝐕∈ℝ(B​N)×d\mathbf{K},\mathbf{V}\!\in\!\mathbb{R}^{(BN)\times d}, output 𝐀∈ℝM×d\mathbf{A}\!\in\!\mathbb{R}^{M\times d}, positions 𝐏∈ℝM×d\mathbf{P}\!\in\!\mathbb{R}^{M\times d}, block size β\beta, sequence length NN, query length MM, batch size BB, heads hh
+2:
+Split 𝐗\mathbf{X} into Tm=M/βT_{m}=M/\beta blocks {𝐗i}i=1Tm\{\mathbf{X}_{i}\}_{i=1}^{T_{m}}; create block table 𝐁\mathbf{B} and assign batch index (𝐗i,b)(\mathbf{X}_{i},b)
+3:
+Split each block into heads 𝐗i,1,…,𝐗i,h\mathbf{X}_{i,1},\dots,\mathbf{X}_{i,h}
+Flash Fused Kernel
+1:
+for 1≤i≤Tm1\leq i\leq T_{m} do
+2:
+Load 𝐩←𝐏i\mathbf{p}\leftarrow\mathbf{P}_{i}
+// HBM →\to SRAM
+3:
+for 1≤j≤h1\leq j\leq h do
+4:
+Load 𝐱←𝐗i,j\mathbf{x}\leftarrow\mathbf{X}_{i,j}
+// HBM →\to SRAM
+5:
+𝐪,𝐤,𝐯←projection​(𝐱)\mathbf{q},\mathbf{k},\mathbf{v}\leftarrow\texttt{projection}(\mathbf{x});   𝐪,𝐤←RoPE​(𝐪,𝐤)\mathbf{q},\mathbf{k}\leftarrow\texttt{RoPE}(\mathbf{q},\mathbf{k})
+6:
+Write 𝐪→𝐐i,j\mathbf{q}\to\mathbf{Q}_{i,j}
+7:
+Write 𝐤,𝐯→𝐊[𝐩,j],𝐕[𝐩,j]\mathbf{k},\mathbf{v}\to\mathbf{K}_{[\mathbf{p},j]},\mathbf{V}_{[\mathbf{p},j]}
+// SRAM →\to HBM
+8:
+end for
+9:
+end for
+Scheduled Flash Attention
+1:
+for 1≤i≤Tm1\leq i\leq T_{m} do
+2:
+Load b←𝐁ib\leftarrow\mathbf{B}_{i}
+// HBM →\to SRAM
+3:
+for 1≤j≤h1\leq j\leq h do
+4:
+Load 𝐪←𝐐i,j\mathbf{q}\leftarrow\mathbf{Q}_{i,j}
+// HBM →\to SRAM
+5:
+Load 𝐤,𝐯←𝐊[b,j],𝐕[b,j]\mathbf{k},\mathbf{v}\leftarrow\mathbf{K}_{[b,j]},\mathbf{V}_{[b,j]}
+// HBM →\to SRAM
+6:
+𝐚←attention​(𝐪,𝐤,𝐯)\mathbf{a}\leftarrow\texttt{attention}(\mathbf{q},\mathbf{k},\mathbf{v})
+7:
+Write 𝐚→𝐀i,j\mathbf{a}\to\mathbf{A}_{i,j}
+// SRAM →\to HBM
+8:
+end for
+9:
+end for
+Selective cache update.
+Following our new design of KV caching and scheduled flash attention, we introduce a simple yet effective Constrained cache update to further enhance the scalability of our method. We observed that only 32 of the top-attended tokens can contribute approximately 50% of the weight in attention computation among the middle layers (from layer 5 to 20, as shown in Fig. 1(b)). This suggests that updating only a small subset of these tokens could be sufficient to retain most of the information loss. Motivated by this observation, we introduce the Selective cache update approach, which maintains and updates only a fixed set of the most-attended tokens (as depicted in Fig. 2).
+Our method constructs a fixed-size query at each subsequent decoding step (t>0t>0) using a sliding unmasking window of size βm\beta_{m} and a fixed tracking budget βt\beta_{t}. Specifically, the query for step t+1t+1 is defined as 𝒬t+1=ℳβmt+1∪𝒯t+1,\mathcal{Q}^{t+1}=\mathcal{M}_{\beta_{m}}^{t+1}\cup\mathcal{T}^{t+1},
+where 𝒯t+1\mathcal{T}^{t+1} comprises the newly decoded tokens 𝒟t\mathcal{D}^{t} and the most-attended tokens from the preceding step. The latter are selected from previously decoded tokens according to the attention they receive from masked tokens. The attention score of each decoded token ii at step tt is computed as follows:
+ait=∑l=1L1H​∑h=1H1|ℳβmt|​∑j∈ℳβmt𝐒j,it,l,h,i∈𝒟<ta_{i}^{t}=\sum_{l=1}^{L}\frac{1}{H}\sum_{h=1}^{H}\frac{1}{|\mathcal{M}^{t}_{\beta_{m}}|}\sum_{j\in\mathcal{M}^{t}_{\beta_{m}}}\mathbf{S}^{t,l,h}_{j,i},\quad i\in\mathcal{D}^{<t}
+(2)
+where 𝐒t,l\mathbf{S}^{t,l} is unnormalized attention logits. The score measures the extent to which the current masked queries are paying attention to the decoded position ii. The tracking set is 𝒯t+1=top​-​k⁡({ait:i∈𝒟<t},βt−|𝒟t|)∪𝒟t\mathcal{T}^{t+1}=\operatorname{top\text{-}k}(\{a_{i}^{t}:i\in\mathcal{D}^{<t}\},\;\beta_{\text{t}}-|\mathcal{D}^{t}|)\cup\mathcal{D}^{t}, and the next query set is 𝒬t+1=ℳβmt+1∪𝒯t+1\mathcal{Q}^{t+1}=\mathcal{M}^{t+1}_{\beta_{m}}\cup\mathcal{T}^{t+1}. Newly decoded tokens are prepended to 𝒟<t\mathcal{D}^{<t} before ranking, giving them automatic inclusion. All other decoded positions are served from cache without participating as queries, bounding per-step compute at βt+βm\beta_{t}+\beta_{m}.
+Algorithm 2  Flash-dLLM
+1:
+Model fθf_{\theta}, prompt 𝐱prompt\mathbf{x}_{\text{prompt}}, generation length NN, tracking budget βt\beta_{t}, masked-window size βm\beta_{m}, confidence threshold ϵ\epsilon, verify threshold γ\gamma.
+2:
+𝐱0←{𝐱prompt;[MASK]N}\mathbf{x}^{0}\!\leftarrow\!\{\mathbf{x}_{\text{prompt}};\,\texttt{[MASK]}^{N}\}; 𝒟<1←{1,…,|𝐱prompt|}\mathcal{D}^{<1}\!\leftarrow\!\{1,\dots,|\mathbf{x}_{\text{prompt}}|\}; ℳ1←{|𝐱prompt|+1,…,|𝐱prompt|+N}\mathcal{M}^{1}\!\leftarrow\!\{|\mathbf{x}_{\text{prompt}}|{+}1,\dots,|\mathbf{x}_{\text{prompt}}|{+}N\};
+3:
+Allocate KV cache 𝐊~l,𝐕~l∈ℝ(B⋅Nmax)×dmodel\tilde{\mathbf{K}}^{l},\tilde{\mathbf{V}}^{l}\in\mathbb{R}^{(B\cdot N_{\max})\times d_{\text{model}}} for each layer ll // pre-allocate once
+4:
+while ℳt≠∅\mathcal{M}^{t}\neq\emptyset do
+5:
+ℳtβm←ℳt[:βm]\mathcal{M}^{t}_{\beta_{m}}\leftarrow\mathcal{M}^{t}_{[:\beta_{m}]}; 𝒬t←𝒯t∪ℳβmt\mathcal{Q}^{t}\leftarrow\mathcal{T}^{t}\cup\mathcal{M}^{t}_{\beta_{m}}
+6:
+pθ​(𝐱∣𝐱t),𝐒←FusedForward​(fθ,𝐱[𝒬t]t,𝐊~,𝐕~)p_{\theta}(\mathbf{x}\mid\mathbf{x}^{t}),\,\mathbf{S}\leftarrow\texttt{FusedForward}(f_{\theta},\,\mathbf{x}^{t}_{[\mathcal{Q}^{t}]},\,\tilde{\mathbf{K}},\,\tilde{\mathbf{V}}) // Flash-Cache, Alg. 1
+7:
+ci,x^i←maxx⁡pθ​(xi∣𝐱t)c^{i},\hat{x}^{i}\leftarrow\max_{x}\,p_{\theta}(x^{i}\mid\mathbf{x}^{t})  for i∈ℳβmti\in\mathcal{M}^{t}_{\beta_{m}}; 𝒟t←{i∈ℳβmt:ci≥ϵ}\mathcal{D}^{t}\leftarrow\{i\in\mathcal{M}^{t}_{\beta_{m}}:c^{i}\geq\epsilon\} ; 𝒮t←ℳβmt∖𝒟t\mathcal{S}^{t}\leftarrow\mathcal{M}^{t}_{\beta_{m}}\setminus\mathcal{D}^{t}
+8:
+if verify and 𝒮t≠∅\mathcal{S}^{t}\neq\emptyset then // Flash-Verify
+9:
+Adjust tracking set 𝒯tv←𝒯t[:2βm−|𝒟t|−2|𝒮t|]\mathcal{T}^{t}_{v}\leftarrow\mathcal{T}^{t}_{[:2\beta_{m}-|\mathcal{D}^{t}|-2|\mathcal{S}^{t}|]}
+10:
+Construct verify query: {𝐱[𝒯vt]t;𝐱^[𝒟t];𝐱^[𝒮t];𝐱[𝒮t]t}\{\mathbf{x}_{[\mathcal{T}^{t}_{v}]}^{t};\mathbf{\hat{x}}_{[\mathcal{D}^{t}]};\;\mathbf{\hat{x}}_{[\mathcal{S}^{t}]};\mathbf{x}^{t}_{[\mathcal{S}^{t}]}\}
+11:
+Construct causal mask for bi-directional attention 𝐌\mathbf{M}
+12:
+pθ​(𝐱∣𝐱^[𝒮t])←FusedForward​(fθ,verify query,𝐊~,𝐕~,𝐌)p_{\theta}(\mathbf{x}\mid\mathbf{\hat{x}}_{[\mathcal{S}^{t}]})\leftarrow\texttt{FusedForward}(f_{\theta},\,\text{verify query},\,\tilde{\mathbf{K}},\,\tilde{\mathbf{V}},\,\mathbf{M})
+13:
+c~i,x~i←maxx⁡pθ​(xi∣𝐱^[𝒮t])\tilde{c}^{i},\tilde{x}^{i}\leftarrow\max_{x}\,p_{\theta}(x^{i}\mid\mathbf{\hat{x}}_{[\mathcal{S}^{t}]})  for i∈𝒮ti\in\mathcal{S}^{t}
+14:
+𝒟t←𝒟t∪{i∈𝒮t:x^i=x~i∧c~i≥γ,up to first mismatch}\mathcal{D}^{t}\leftarrow\mathcal{D}^{t}\cup\{i\in\mathcal{S}^{t}:\hat{x}^{i}=\tilde{x}^{i}\;\wedge\;\tilde{c}^{i}\geq\gamma,\;\text{up to first mismatch}\}
+15:
+end if
+16:
+Decode: 𝐱[𝒟t]t+1←𝐱^[𝒟t]\mathbf{x}^{t+1}_{[\mathcal{D}^{t}]}\leftarrow\mathbf{\hat{x}}_{[\mathcal{D}^{t}]}; 𝒟<t+1←𝒟<t∪𝒟t\mathcal{D}^{<t+1}\leftarrow\mathcal{D}^{<t}\cup\mathcal{D}^{t}; ℳt+1←ℳt∖𝒟t\mathcal{M}^{t+1}\leftarrow\mathcal{M}^{t}\setminus\mathcal{D}^{t}
+17:
+ait←∑l1H​|ℳβmt|​∑h,j∈ℳβmt𝐒j,it,l,ha_{i}^{t}\leftarrow\sum_{l}\frac{1}{H|\mathcal{M}^{t}_{\beta_{m}}|}\sum_{h,\,j\in\mathcal{M}^{t}_{\beta_{m}}}\mathbf{S}^{t,l,h}_{j,i}  for i∈𝒟<ti\in\mathcal{D}^{<t}
+18:
+𝒯t+1=top​-​k⁡({ait:i∈𝒟<t},βt−|𝒟t|)∪𝒟t\mathcal{T}^{t+1}=\operatorname{top\text{-}k}(\{a_{i}^{t}:i\in\mathcal{D}^{<t}\},\;\beta_{\text{t}}-|\mathcal{D}^{t}|)\cup\mathcal{D}^{t}  t←t+1t\leftarrow t+1
+19:
+end while
+20:
+return 𝐱t\mathbf{x}^{t}
+2.3 Flash-Verify: KV-cache-driven draft-and-verify Parallel Decoding
+Confidence-aware decoding (Wu et al., 2025; Wu et al., 2026a) unmasks only tokens whose confidence ci=maxx⁡pθ​(xi∣𝐱t)c^{i}=\max_{x}p_{\theta}(x^{i}\mid\mathbf{x}_{t}) exceeds a threshold ϵ\epsilon, discarding all others even when many are correct (Fig. 1(c)). This creates a throughput ceiling on tasks where the model is uncertain, as few tokens pass the threshold per step. We propose Flash-Verify, a self-verification scheme in which the dLLM serves as both drafter and verifier, recovering correct predictions that confidence-aware decoding would waste. At each denoising step, a standard draft pass runs the model on 𝒬t=𝒯t∪ℳβmt\mathcal{Q}^{t}=\mathcal{T}^{t}\cup\mathcal{M}^{t}_{\beta_{m}} against the full KV cache. The masked positions are sorted by confidence and partitioned into a confident set 𝒟t\mathcal{D}^{t} (above ϵ\epsilon, accepted directly) and a search set 𝒮t\mathcal{S}^{t} (below ϵ\epsilon, candidates for verification).
+A verify pass then constructs a new query with three groups: an adjusted tracking set 𝒯v\mathcal{T}_{v} consisting of previously decoded tokens and 𝒟t\mathcal{D}^{t}, the search positions 𝒮t\mathcal{S}^{t} filled with their draft predictions x^i\hat{x}^{i} (the draft view), and the same positions filled with [MASK] (the mask view). Both views share positional embeddings but are isolated by a causal attention mask loaded inside the fused Triton kernel: the tracked context cannot attend to the draft view, and the draft and mask views at the same position cannot attend to each other, so they produce independent predictions from shared context. A search token is accepted if both views agree and the mask-view confidence exceeds a threshold γ\gamma: accept(i)=𝕀[x^i=x~i]⋅𝕀[c~i≥γ]\text{accept}(i)=\mathbb{I}[\hat{x}^{i}=\tilde{x}^{i}]\cdot\mathbb{I}[\tilde{c}^{i}\geq\gamma],
+where x~i\tilde{x}^{i} and c~i\tilde{c}^{i} are the mask view’s prediction and confidence. Following speculative decoding conventions (Leviathan et al., 2023), tokens are accepted sequentially along the decoding order and all tokens after the first mismatch are rejected.
+The verify pass reuses the same fused kernel and pre-allocated KV cache; only the query tokens and the attention mask change, so the additional cost is proportional to 2​βm2\beta_{m} rather than the full sequence. Unlike prior draft-and-verify methods for dLLMs that rely on a separate autoregressive verifier (Hu et al., 2025) or multiple independent forward passes (Wu and Zhang, 2025), Flash-Verify requires no external model: the dLLM verifies its own predictions through the two-view attention mask, roughly doubling the tokens accepted per step (Fig. 6). Algorithm 2 summarizes the full procedure of Flash-dLLM, including both Flash-Cache and Flash-Verify.
+3 Experiments
+3.1 Experimental Setup
+Implementation Details. All experiments run on a single NVIDIA A100 80GB GPU. We evaluate Flash-dLLM on LLaDA-1.5 (Zhu et al., 2025) across GSM8K (Cobbe et al., 2021), MATH (Hendrycks et al., 2021), HumanEval (Chen et al., 2021), and MBPP (Austin et al., 2021b). We implement the fused KV-cache kernel in Triton 2.0. Default benchmark is GSM8K, with default hyperparameters: confidence threshold ϵ=0.9\epsilon=0.9, verify threshold γ=0.8\gamma=0.8, block size β=16\beta=16, tracked budget βt=80\beta_{t}=80, sliding window size βm=64\beta_{m}=64, generation length 512. For fair comparison, we re-run all baselines under identical hardware and software configurations. Baselines. We compare against three approaches: (1) No Cache: standard dLLM inference without KV caching, under both greedy (fixed-step) and confidence-aware decoding; (2) Fast-dLLM (Wu et al., 2025): prefix-caching with confidence-aware decoding; (3) Elastic-Cache (Nguyen-Tri et al., 2025): adaptive KV caching with attention-pattern-based cache reuse. We report Flash-dLLM results under three configurations: greedy decoding (pure KV-cache speedup), confidence-aware decoding (KV-cache + parallel decoding), and Flash-Verify (KV-cache + draft-and-verify parallel decoding).
+(a) Throughput vs. batch size
+(b) Peak memory vs. batch size
+Figure 4: Scalability on GSM8K-512 (1-shot, LLaDA-1.5). (a) Flash-dLLM (Flash-Cache+Flash-Verify) throughput scales linearly to batch size 32, while Fast-dLLM OOMs at 24. Llama3-8B is an autoregressive reference. (b) Flash-dLLM uses less memory than all baselines across batch sizes.
+3.2 Main Results
+Table 1: Accuracy and decoding efficiency of LLaDA-1.5 across different benchmarks and decoding configurations. Each cell reports accuracy (top) and throughput with speedup over greedy decoding without caching (bottom; blue: tokens/s, orange: speedup). Bold indicates the highest accuracy in each row, while yellow shading indicates the highest throughput.
+Greedy
+Confidence-Aware
+Flash-Verify
+Benchmark
+Len
+No Cache
+Flash-Cache
+No Cache
+Fast-dLLM
+Elastic-Cache
+Flash-Cache
+No Cache
+Flash-Cache
+GSM8K
+(5-shot)
+256
+80.36
+6.7 (1.0×\times)
+82.87
+56.8 (8.5×\times)
+80.44
+22.5 (3.4×\times)
+80.59
+51.2 (7.6×\times)
+81.88
+45.9 (6.9×\times)
+82.34
+144.9 (21.6×\times)
+83.62
+38.2 (5.7×\times)
+81.88
+194.9 (29.1×\times)
+512
+81.35
+2.6 (1.0×\times)
+82.94
+54.8 (21.1×\times)
+81.88
+17.2 (6.6×\times)
+80.82
+36.8 (14.2×\times)
+82.79
+41.7 (16.0×\times)
+82.87
+149.4 (57.5×\times)
+82.71
+32.2 (12.4×\times)
+83.02
+210.6 (81.0×\times)
+MATH
+(4-shot)
+256
+33.52
+8.5 (1.0×\times)
+37.22
+67.6 (8.0×\times)
+33.60
+22.3 (2.6×\times)
+32.74
+44.4 (5.2×\times)
+33.26
+40.6 (4.8×\times)
+36.80
+144.3 (17.0×\times)
+36.98
+38.1 (4.5×\times)
+36.56
+189.7 (22.3×\times)
+512
+35.63
+5.0 (1.0×\times)
+37.40
+66.2 (13.2×\times)
+35.56
+20.3 (4.1×\times)
+33.68
+44.4 (8.9×\times)
+35.84
+41.4 (8.3×\times)
+37.08
+149.9 (30.0×\times)
+37.76
+32.8 (6.6×\times)
+35.98
+210.1 (42.0×\times)
+HumanEval
+(0-shot)
+256
+43.29
+7.0 (1.0×\times)
+42.68
+79.0 (11.3×\times)
+42.68
+17.5 (2.5×\times)
+34.75
+18.7 (2.7×\times)
+36.59
+20.9 (3.0×\times)
+40.85
+169.4 (24.2×\times)
+37.20
+63.2 (9.0×\times)
+39.63
+209.2 (29.9×\times)
+512
+40.85
+3.2 (1.0×\times)
+41.46
+74.5 (23.3×\times)
+39.63
+9.7 (3.0×\times)
+36.59
+15.4 (4.8×\times)
+37.80
+16.8 (5.2×\times)
+42.07
+145.7 (45.5×\times)
+37.20
+57.5 (18.0×\times)
+40.24
+185.6 (58.0×\times)
+MBPP
+(3-shot)
+256
+38.00
+2.4 (1.0×\times)
+41.20
+62.0 (25.8×\times)
+38.00
+14.2 (5.9×\times)
+34.60
+28.0 (11.7×\times)
+41.20
+32.7 (13.6×\times)
+41.80
+115.9 (48.3×\times)
+41.40
+37.7 (15.7×\times)
+38.20
+148.0 (61.7×\times)
+512
+38.20
+1.0 (1.0×\times)
+39.80
+58.5 (58.5×\times)
+38.60
+11.5 (11.5×\times)
+36.20
+17.8 (17.8×\times)
+39.00
+32.8 (32.8×\times)
+40.20
+102.2 (102.2×\times)
+39.40
+31.6 (31.6×\times)
+39.00
+148.2 (148.2×\times)
+Table 1 compares the accuracy and decoding efficiency of the evaluated KV-caching and parallel decoding on mathematical reasoning and code-generation benchmarks.
+Throughput.
+Flash-Cache substantially accelerates greedy decoding, yielding speedups of 8.0×8.0\times–58.5×58.5\times. Under confidence-aware decoding, the range increases to 17.0×17.0\times–102.2×102.2\times, indicating that cache acceleration remains effective with parallel decoding. Combining Flash-Verify and Flash-Cache achieves the highest throughput in all eight settings, reaching 148.0148.0–210.6210.6 tokens/s and speedups of 22.3×22.3\times–148.2×148.2\times. Relative to confidence-aware Flash-Cache, the second-fastest configuration throughout, it improves throughput by approximately 23.5%23.5\%–45.0%45.0\%. The gains are larger at longer generation lengths: from 256 to 512 tokens, the speedup increases from 29.1×29.1\times to 81.0×81.0\times on GSM8K, 22.3×22.3\times to 42.0×42.0\times on MATH, 29.9×29.9\times to 58.0×58.0\times on HumanEval, and 61.7×61.7\times to 148.2×148.2\times on MBPP.
+Accuracy.
+Accuracy exhibits a task-dependent trade-off. On GSM8K-512, Flash-Verify with Flash-Cache achieves both the highest accuracy (83.02%83.02\%) and throughput (210.6210.6 tokens/s). Elsewhere, the fastest configuration is not consistently the most accurate: Flash-Verify without caching performs best on GSM8K-256 and MATH-512, whereas confidence-aware Flash-Cache leads on HumanEval-512 and both MBPP settings. On mathematical reasoning tasks, the combined method remains within 1.781.78 percentage points of the best accuracy. Larger gaps arise for 256-token code generation, reaching 3.663.66 points on HumanEval and 3.603.60 points on MBPP. Overall, Flash-Verify with Flash-Cache provides the strongest throughput-oriented configuration.
+Table 2: Comparison of accuracy and decoding throughput across different methods.
+Metric
+dKV-Cache
+FlashDLM
+dLLM-Cache
+Dyna-dLLM
+Fast-dLLM
+FreeDave
+Elastic-Cache
+Flash-Cache
+(conf-aware)
+Flash-Cache
++ Flash-Verify
+Acc. (%)
+81.50
+79.91
+80.97
+79.32
+80.82
+80.97
+82.79
+82.87
+83.02
+TPS
+14.9 (5.7×\times)
+15.7 (6.0×\times)
+16.8 (6.5×\times)
+38.4 (14.8×\times)
+36.8 (14.2×\times)
+42.8 (16.5×\times)
+41.7 (16.0×\times)
+149.4 (57.5×\times)
+210.6 (81.0×\times)
+More baselines.
+Table 2 compares the accuracy and decoding throughput of the evaluated cache and parallel-verification methods. Conventional baselines achieve accuracies of 79.32%79.32\%–82.79%82.79\% and throughputs of 14.914.9–42.842.8 tokens/s. Elastic-Cache yields the highest baseline accuracy (82.79%82.79\%), whereas FreeDave achieves the highest baseline throughput (42.842.8 tokens/s).
+Flash-Cache with confidence-aware decoding achieves 82.87%82.87\% accuracy and 149.4149.4 tokens/s, while its integration with Flash-Verify further improves performance to 83.02%83.02\% accuracy and 210.6210.6 tokens/s. These results demonstrate that combining Flash-Cache with Flash-Verify yields substantial gains in both KV-cache efficiency and parallel-decoding performance over existing baselines.
+3.3 Ablation Studies and Analysis
+Scalability.
+Figure 4(a) reports throughput as a function of batch size on GSM8K-512 (1-shot) using LLaDA-1.5. Flash-dLLM scales nearly linearly to a batch size of 3232 without exhausting GPU memory, whereas Fast-dLLM encounters an out-of-memory error at batch size 2424. Table 6 extends this analysis to GSM8K-512 (5-shot), showing that all Flash-dLLM configurations (greedy, confident, verify) scale monotonically from batch sizes 11 to 3232. In particular, Flash-Cache with Flash-Verify reaches 199.8199.8 tokens/s at batch size 3232. Figure 4(b) further shows that, at batch size 1616, Flash-dLLM uses approximately 2626 GB of GPU memory, compared with 5050 GB for Fast-dLLM, representing a reduction of about 48%48\%. This improvement arises from the flat, preallocated cache layout, which avoids dynamic memory allocation and the padding overhead associated with conventional four-dimensional KV-cache implementations.
+(a) Pareto frontier of Flash-Verify
+(b) Pareto frontiers of Flash-Verify and Confidence
+Figure 5: Accuracy–throughput trade-off under different track-budget values βt\beta_{t} and denoising settings γ\gamma/ϵ\epsilon. The mean and standard deviation are computed over five random seeds.
+Accuracy–throughput trade-off.
+Figure 5(a) characterizes the accuracy–throughput trade-off across track budgets βt\beta_{t} and Flash-Verify thresholds γ\gamma. In general, accuracy and throughput are inversely related: increasing accuracy from approximately 80.2%80.2\% to 83.2%83.2\% reduces throughput from 278278 to 186186 tokens/s. Larger track budgets generally improve accuracy at the cost of additional computation, whereas γ\gamma provides finer control over parallelism within a fixed budget. The Pareto frontier identifies the optimal operating points across these configurations. In particular, a favorable trade-off can be obtained by maintaining a relatively large βt\beta_{t} while reducing γ\gamma to promote greater decoding parallelism.
+Flash-Verify vs. confidence-aware decoding.
+Figure 5(b) compares Flash-Verify with confidence-aware decoding. Across most of their shared accuracy range, Flash-Verify delivers substantially higher throughput. At approximately 82.6%82.6\%–82.9%82.9\% accuracy, it achieves 190190–210210 tokens/s, compared with 140140–160160 tokens/s for confidence-aware decoding. Although confidence-aware decoding attains a slightly higher peak accuracy of approximately 83.4%83.4\%, its throughput decreases to about 131131 tokens/s. Overall, Flash-Verify provides a more favorable accuracy–throughput trade-off.
+Figure 6: Tokens-per-iteration comparison of Flash-Verify and Confidence-aware decoding.
+Tokens decoded per iteration.
+Figure 6 compares accuracy, throughput, and tokens decoded per iteration across Flash-Verify thresholds γ\gamma and confidence-aware thresholds ϵ\epsilon. Across denoising settings, Flash-Verify generally decodes more tokens per iteration and achieves higher throughput, demonstrating greater parallel-decoding efficiency. Because Flash-Verify incurs an additional verification step, decoding 7.27.2 tokens per iteration yields throughput comparable to confidence-aware decoding at 5.65.6 tokens per iteration; however, Flash-Verify achieves 3.5%3.5\% higher accuracy. As the number of tokens decoded per iteration increases, the accuracy gap between the methods narrows, while Flash-Verify’s throughput advantage grows to as much as 1.33×1.33\times.
+Figure 7: Impact of the masked-window size βm\beta_{m} on accuracy and throughput
+Masked-window size βm\beta_{m}.
+Figure 7 examines the effect of the masked-window size βm\beta_{m} on the accuracy and throughput of Flash-Verify and confidence-aware decoding. For both methods, accuracy improves up to an intermediate window size, whereas throughput decreases as βm\beta_{m} increases. Flash-Verify achieves comparable accuracy across all settings, with gaps of only 0.20.2–1.21.2 percentage points. Moreover, it consistently delivers higher throughput, with its speedup over confidence-aware decoding increasing from approximately 1.4×1.4\times to 1.5×1.5\times as the window size grows.
+4 Related Work
+Diffusion Language Models and Acceleration.
+Masked diffusion models generate text by iteratively unmasking tokens predicted in parallel (Li et al., 2025b; Austin et al., 2021a; Sahoo et al., 2024; Shi et al., 2024; Zheng et al., 2024). Scaling this paradigm has produced models competitive with autoregressive LLMs, including LLaDA (Nie et al., 2025b), Dream (Ye et al., 2025a), and Gemini Diffusion (Google DeepMind, 2025). However, the lack of KV caching support makes dLLM inference slow: bidirectional attention and evolving hidden states across denoising steps prevent direct reuse of autoregressive caching strategies (Pope et al., 2023). Fast-dLLM (Wu et al., 2025) introduces prefix caching with confidence-aware decoding. dKV-Cache (Ma et al., 2025a) caches at fixed temporal intervals. Elastic-Cache (Nguyen-Tri et al., 2025) makes updates adaptive via attention-pattern drift detection. FlashDLM (Hu et al., 2025) combines token-level change detection with an external autoregressive verifier.
+Parallel Decoding and Speculative Verification.
+Speculative decoding (Leviathan et al., 2023; Chen et al., 2023) accelerates autoregressive LLMs by drafting tokens with a fast model and verifying them in parallel with the target model. In diffusion LLMs, parallel decoding takes a different form: confidence-aware methods (Wu et al., 2025) unmask all tokens above a threshold per step, Prophet (Li et al., 2025a) dynamically halts refinement when predictions stabilize, and FreeDave (Wu and Zhang, 2025) drafts tokens in one forward pass then verifies in a second. FlashDLM (Hu et al., 2025) uses an external autoregressive LLM as the verifier. Our Flash-Verify differs from all of these: the dLLM serves as both drafter and verifier through the KV cache, with no external model and no training. We feed both the draft predictions and the original masks at the same positions under a causal attention mask, letting the model check its own consistency in a single additional forward pass. Tokens are accepted only when the draft and mask views agree, combining the throughput of aggressive parallel decoding with the accuracy of conservative single-token unmasking.
+5 Conclusion
+In this work, we proposed Flash-dLLM, a training-free inference acceleration framework for diffusion Large Language Models. Flash-dLLM addresses the key efficiency bottlenecks in dLLM decoding by jointly handling IO-aware KV caching and parallel draft-and-verify decoding. By reducing redundant KV-cache read/write operations, prioritizing influential decoded tokens, and improving the confidence of early token commitments, Flash-dLLM effectively converts the inherent parallelism of dLLMs into practical inference speedup. Extensive experiments on mathematical reasoning and code generation demonstrate that Flash-dLLM achieves superior speed, memory efficiency, and scalability over existing acceleration methods, offering a promising and practical path toward efficient deployment of diffusion-based language models.
+Acknowledgments
+This work is supported by the MBZUAI-WIS Joint Program for Artificial Intelligence Research.
+References
+Achiam et al. (2023)
+J. Achiam, S. Adler, S. Agarwal, L. Ahmad, I. Akkaya, F. L. Aleman, D. Almeida, J. Altenschmidt, S. Altman, S. Anadkat, et al.
+Gpt-4 technical report.
+arXiv preprint arXiv:2303.08774.
+Cited by: §1.
+Agrawal et al. (2025)
+S. Agrawal, R. Garrepalli, R. Goel, C. Lott, F. Porikli, and M. Lee
+Structuring the future: diffusion llm speculative decoding via calibrated draft graphs.
+arXiv preprint arXiv:2509.18085.
+Cited by: Remark 2.
+Arriola et al. (2025)
+M. Arriola, A. Gokaslan, J. Chiu, Z. Yang, Z. Qi, J. Han, S. Sahoo, and V. Kuleshov
+Block diffusion: interpolating between autoregressive and diffusion language models.
+In International Conference on Learning Representations,
+Vol. 2025, pp. 50726–50753.
+Cited by: §1.
+Austin et al. (2021a)
+J. Austin, D. D. Johnson, J. Ho, D. Tarlow, and R. Van Den Berg
+Structured denoising diffusion models in discrete state-spaces.
+Advances in Neural Information Processing Systems 34, pp. 17981–17993.
+Cited by: §1,
+§4.
+Austin et al. (2021b)
+J. Austin, A. Odena, M. Nye, M. Bosma, H. Michalewski, D. Dohan, E. Jiang, C. Cai, M. Terry, Q. Le, et al.
+Program synthesis with large language models.
+arXiv preprint arXiv:2108.07732.
+Cited by: §D,
+§D,
+§3.1.
+Ben-Hamu et al. (2025)
+H. Ben-Hamu, I. Gat, D. Severo, N. S. Nolte, and B. Karrer
+Accelerated sampling from masked diffusion models via entropy bounded unmasking.
+Advances in Neural Information Processing Systems 38, pp. 55981–56007.
+Cited by: §C,
+Remark 1.
+Bie et al. (2025)
+T. Bie, M. Cao, K. Chen, L. Du, M. Gong, Z. Gong, Y. Gu, J. Hu, Z. Huang, Z. Lan, et al.
+Llada2. 0: scaling up diffusion language models to 100b.
+arXiv preprint arXiv:2512.15745.
+Cited by: §1.
+Cai et al. (2024)
+T. Cai, Y. Li, Z. Geng, H. Peng, J. D. Lee, D. Chen, and T. Dao
+Medusa: simple llm inference acceleration framework with multiple decoding heads.
+arXiv preprint arXiv:2401.10774.
+Cited by: §1.
+Chen et al. (2023)
+C. Chen, S. Borgeaud, G. Irving, J. Lespiau, L. Sifre, and J. Jumper
+Accelerating large language model decoding with speculative sampling.
+arXiv preprint arXiv:2302.01318.
+Cited by: §C,
+§4.
+Chen et al. (2021)
+M. Chen, J. Tworek, H. Jun, Q. Yuan, H. P. D. O. Pinto, J. Kaplan, H. Edwards, Y. Burda, N. Joseph, G. Brockman, et al.
+Evaluating large language models trained on code.
+arXiv preprint arXiv:2107.03374.
+Cited by: §D,
+§D,
+§3.1.
+Cobbe et al. (2021)
+K. Cobbe, V. Kosaraju, M. Bavarian, M. Chen, H. Jun, L. Kaiser, M. Plappert, J. Tworek, J. Hilton, R. Nakano, et al.
+Training verifiers to solve math word problems.
+arXiv preprint arXiv:2110.14168.
+Cited by: §D,
+§D,
+§3.1.
+Comanici et al. (2025)
+G. Comanici, E. Bieber, M. Schaekermann, I. Pasupat, N. Sachdeva, I. Dhillon, M. Blistein, O. Ram, D. Zhang, E. Rosen, et al.
+Gemini 2.5: pushing the frontier with advanced reasoning, multimodality, long context, and next generation agentic capabilities.
+arXiv preprint arXiv:2507.06261.
+Cited by: §1.
+Dao et al. (2022)
+T. Dao, D. Fu, S. Ermon, A. Rudra, and C. Ré
+Flashattention: fast and memory-efficient exact attention with io-awareness.
+Advances in neural information processing systems 35, pp. 16344–16359.
+Cited by: §2.2,
+§2.2.
+Gao et al. (2024)
+L. Gao, J. Tow, B. Abbasi, S. Biderman, S. Black, A. DiPofi, C. Foster, L. Golding, J. Hsu, A. Le Noac’h, H. Li, K. McDonell, N. Muennighoff, C. Ociepa, J. Phang, L. Reynolds, H. Schoelkopf, A. Skowron, L. Sutawika, E. Tang, A. Thite, B. Wang, K. Wang, and A. Zou
+A framework for few-shot language model evaluation.
+Zenodo.
+External Links: Document,
+Link
+Cited by: §D,
+§D.
+Google DeepMind (2025)
+Google DeepMind
+Gemini diffusion.
+Note: https://deepmind.google/models/gemini-diffusionAccessed: 2026-05-02
+Cited by: §1,
+§4.
+Guo et al. (2025)
+D. Guo, D. Yang, H. Zhang, J. Song, P. Wang, Q. Zhu, R. Xu, R. Zhang, S. Ma, X. Bi, et al.
+Deepseek-r1: incentivizing reasoning capability in llms via reinforcement learning.
+arXiv preprint arXiv:2501.12948.
+Cited by: §1.
+Hendrycks et al. (2021)
+D. Hendrycks, C. Burns, S. Kadavath, A. Arora, S. Basart, E. Tang, D. Song, and J. Steinhardt
+Measuring mathematical problem solving with the math dataset.
+arXiv preprint arXiv:2103.03874.
+Cited by: §D,
+§D,
+§3.1.
+Hu et al. (2025)
+Z. Hu, J. Meng, Y. Akhauri, M. S. Abdelfattah, J. Seo, Z. Zhang, and U. Gupta
+FlashDLM: accelerating diffusion language model inference via efficient kv caching and guided diffusion.
+arXiv preprint arXiv:2505.21467.
+Cited by: §2.3,
+§4,
+§4.
+Huang et al. (2026)
+J. Huang, Y. Zhang, Y. Yang, B. Huang, and L. Zhang
+Mask tokens as prophet: fine-grained cache eviction for efficient dllm inference.
+In Findings of the Association for Computational Linguistics: ACL 2026,
+pp. 3456–3479.
+Cited by: §1.
+Inception Labs (2025)
+Inception Labs
+Introducing mercury: the first commercial diffusion-based language model.
+Note: https://www.inceptionlabs.ai/introducing-mercuryAccessed: 2026-05-02
+Cited by: §1.
+Israel et al. (2025)
+D. Israel, G. Van den Broeck, and A. Grover
+Accelerating diffusion llms via adaptive parallel decoding.
+Advances in neural information processing systems 38, pp. 52870–52888.
+Cited by: §1.
+Kong et al. (2025)
+F. Kong, J. Zhang, Y. Liu, Z. Wu, Y. Tian, G. Zhou, et al.
+Accelerating diffusion llm inference via local determinism propagation.
+arXiv preprint arXiv:2510.07081.
+Cited by: §1.
+Kwon et al. (2023)
+W. Kwon, Z. Li, S. Zhuang, Y. Sheng, L. Zheng, C. H. Yu, J. Gonzalez, H. Zhang, and I. Stoica
+Efficient memory management for large language model serving with pagedattention.
+In Proceedings of the 29th symposium on operating systems principles,
+pp. 611–626.
+Cited by: §1.
+Leviathan et al. (2023)
+Y. Leviathan, M. Kalman, and Y. Matias
+Fast inference from transformers via speculative decoding.
+In International Conference on Machine Learning,
+pp. 19274–19286.
+Cited by: §C,
+§2.3,
+§4.
+Li et al. (2025a)
+P. Li, Y. Zhou, D. Muhtar, L. Yin, S. Yan, L. Shen, S. Vosoughi, and S. Liu
+Diffusion language models know the answer before decoding.
+arXiv preprint arXiv:2508.19982.
+Cited by: §4.
+Li et al. (2025b)
+T. Li, M. Chen, B. Guo, and Z. Shen
+A survey on diffusion language models.
+arXiv preprint arXiv:2508.10875.
+Cited by: §1,
+§4.
+Liu et al. (2025)
+Z. Liu, Y. Yang, Y. Zhang, J. Chen, C. Zou, Q. Wei, S. Wang, Y. Zhu, and L. Zhang
+Dllm-cache: accelerating diffusion large language models with adaptive caching.
+arXiv preprint arXiv:2506.06295.
+Cited by: §1.
+Lou et al. (2023)
+A. Lou, C. Meng, and S. Ermon
+Discrete diffusion modeling by estimating the ratios of the data distribution.
+arXiv preprint arXiv:2310.16834.
+Cited by: §1.
+Ma et al. (2025a)
+X. Ma, R. Yu, G. Fang, and X. Wang
+Dkv-cache: the cache for diffusion language models.
+arXiv preprint arXiv:2505.15781.
+Cited by: §4.
+Ma et al. (2025b)
+Y. Ma, L. Du, L. Wei, K. Chen, Q. Xu, K. Wang, G. Feng, G. Lu, L. Liu, X. Qi, et al.
+Dinfer: an efficient inference framework for diffusion language models.
+arXiv preprint arXiv:2510.08666.
+Cited by: §1.
+Nguyen-Tri et al. (2025)
+Q. Nguyen-Tri, M. Ranjan, and Z. Shen
+Attention is all you need for kv cache in diffusion llms.
+arXiv preprint arXiv:2510.14973.
+Cited by: §D,
+§2.1,
+§2.1,
+§3.1,
+§4.
+Nie et al. (2025a)
+S. Nie, F. Zhu, C. Du, T. Pang, Q. Liu, G. Zeng, M. Lin, and C. Li
+Scaling up masked diffusion models on text.
+In International Conference on Learning Representations,
+Vol. 2025, pp. 82974–82997.
+Cited by: §1.
+Nie et al. (2025b)
+S. Nie, F. Zhu, Z. You, X. Zhang, J. Ou, J. Hu, J. Zhou, Y. Lin, J. Wen, and C. Li
+Large language diffusion models.
+arXiv preprint arXiv:2502.09992.
+Cited by: §1,
+§4.
+Ou et al. (2024)
+J. Ou, S. Nie, K. Xue, F. Zhu, J. Sun, Z. Li, and C. Li
+Your absorbing discrete diffusion secretly models the conditional distributions of clean data.
+arXiv preprint arXiv:2406.03736.
+Cited by: §1.
+Pope et al. (2023)
+R. Pope, S. Douglas, A. Chowdhery, J. Devlin, J. Bradbury, J. Heek, K. Xiao, S. Agrawal, and J. Dean
+Efficiently scaling transformer inference.
+Proceedings of machine learning and systems 5, pp. 606–624.
+Cited by: §1,
+§4.
+Radford et al. (2018)
+A. Radford, K. Narasimhan, T. Salimans, and I. Sutskever
+Improving language understanding by generative pre-training.
+Cited by: §1.
+Ringel et al. (2026)
+L. Ringel, A. Ali, and Y. Romano
+Dependency-guided parallel decoding in discrete diffusion language models.
+arXiv preprint arXiv:2604.02560.
+Cited by: §C,
+Remark 1.
+Sahoo et al. (2024)
+S. S. Sahoo, M. Arriola, Y. Schiff, A. Gokaslan, E. Marroquin, J. T. Chiu, A. Rush, and V. Kuleshov
+Simple and effective masked diffusion language models.
+arXiv preprint arXiv:2406.07524.
+Cited by: §1,
+§4.
+Shah et al. (2024)
+J. Shah, G. Bikshandi, Y. Zhang, V. Thakkar, P. Ramani, and T. Dao
+Flashattention-3: fast and accurate attention with asynchrony and low-precision.
+Advances in Neural Information Processing Systems 37, pp. 68658–68685.
+Cited by: §2.2.
+Shi et al. (2024)
+J. Shi, K. Han, Z. Wang, A. Doucet, and M. K. Titsias
+Simplified and generalized masked diffusion for discrete data.
+arXiv preprint arXiv:2406.04329.
+Cited by: §1,
+§4.
+Singh et al. (2025)
+A. Singh, A. Fry, A. Perelman, A. Tart, A. Ganesh, A. El-Kishky, A. McLaughlin, A. Low, A. Ostrow, A. Ananthram, et al.
+Openai gpt-5 system card.
+arXiv preprint arXiv:2601.03267.
+Cited by: §1.
+Song et al. (2026)
+Y. Song, X. Liu, R. Li, Z. Liu, Z. Huang, Q. Guo, Z. He, and X. Qiu
+Sparse-dllm: accelerating diffusion llms with dynamic cache eviction.
+In Proceedings of the AAAI Conference on Artificial Intelligence,
+Vol. 40, pp. 33038–33046.
+Cited by: §1,
+§1.
+Tang et al. (2024)
+J. Tang, Y. Zhao, K. Zhu, G. Xiao, B. Kasikci, and S. Han
+Quest: query-aware sparsity for efficient long-context llm inference.
+arXiv preprint arXiv:2406.10774.
+Cited by: §1.
+Wei et al. (2025)
+Q. Wei, Y. Zhang, Z. Liu, D. Liu, and L. Zhang
+Accelerating diffusion large language models with slowfast: the three golden principles.
+arXiv preprint arXiv:2506.10848.
+Cited by: §1.
+Wu et al. (2026a)
+C. Wu, H. Zhang, S. Xue, S. Diao, Y. Fu, Z. Liu, P. Molchanov, P. Luo, S. Han, and E. Xie
+Fast-dllm v2: efficient block-diffusion llm.
+In International Conference on Learning Representations,
+Vol. 2026, pp. 128353–128370.
+Cited by: §2.3.
+Wu et al. (2025)
+C. Wu, H. Zhang, S. Xue, Z. Liu, S. Diao, L. Zhu, P. Luo, S. Han, and E. Xie
+Fast-dllm: training-free acceleration of diffusion llm by enabling kv cache and parallel decoding.
+arXiv preprint arXiv:2505.22618.
+Cited by: §C,
+§C,
+§D,
+§D,
+§2.1,
+§2.1,
+§2.3,
+§3.1,
+§4,
+§4,
+Remark 1,
+Remark 2.
+Wu and Zhang (2025)
+S. Wu and J. Zhang
+Free draft-and-verification: toward lossless parallel decoding for diffusion large language models.
+arXiv preprint arXiv:2510.00294.
+Cited by: §2.3,
+§4.
+Wu et al. (2026b)
+T. Wu, X. Sun, Y. Jiao, Y. Li, Y. Chen, Y. Cao, Y. Hu, and Z. Tian
+Dynamic-dllm: dynamic cache-budget and adaptive parallel decoding for training-free acceleration of diffusion llm.
+In The Fourteenth International Conference on Learning Representations,
+Cited by: §1.
+Xiao et al. (2024)
+G. Xiao, Y. Tian, B. Chen, S. Han, and M. Lewis
+Efficient streaming language models with attention sinks.
+In International Conference on Learning Representations,
+Vol. 2024, pp. 21875–21895.
+Cited by: §1.
+Xie et al. (2025)
+Z. Xie, J. Ye, L. Zheng, J. Gao, J. Dong, Z. Wu, X. Zhao, S. Gong, X. Jiang, Z. Li, et al.
+Dream-coder 7b: an open diffusion language model for code.
+arXiv preprint arXiv:2509.01142.
+Cited by: §1.
+Yang et al. (2025a)
+A. Yang, A. Li, B. Yang, B. Zhang, B. Hui, B. Zheng, B. Yu, C. Gao, C. Huang, C. Lv, et al.
+Qwen3 technical report.
+arXiv preprint arXiv:2505.09388.
+Cited by: §1.
+Yang et al. (2025b)
+L. Yang, Y. Tian, B. Li, X. Zhang, K. Shen, Y. Tong, and M. Wang
+Mmada: multimodal large diffusion language models.
+arXiv preprint arXiv:2505.15809.
+Cited by: §1.
+Ye et al. (2025a)
+J. Ye, Z. Xie, L. Zheng, J. Gao, Z. Wu, X. Jiang, Z. Li, and L. Kong
+Dream 7b: diffusion large language models.
+arXiv preprint arXiv:2508.15487.
+Cited by: §1,
+§4.
+Ye et al. (2025b)
+Z. Ye, L. Chen, R. Lai, W. Lin, Y. Zhang, S. Wang, T. Chen, B. Kasikci, V. Grover, A. Krishnamurthy, et al.
+Flashinfer: efficient and customizable attention engine for llm inference serving.
+Proceedings of Machine Learning and Systems 7.
+Cited by: §1.
+Yin et al. (2024)
+M. Yin, M. Chen, K. Huang, and M. Wang
+A theoretical perspective for speculative decoding algorithm.
+Advances in Neural Information Processing Systems 37, pp. 128082–128117.
+Cited by: §C,
+Remark 2.
+Zadouri et al. (2026)
+T. Zadouri, M. Hoehnerbach, J. Shah, T. Liu, V. Thakkar, and T. Dao
+Flashattention-4: algorithm and kernel pipelining co-design for asymmetric hardware scaling.
+arXiv preprint arXiv:2603.05451.
+Cited by: §2.2.
+Zhang et al. (2023)
+Z. Zhang, Y. Sheng, T. Zhou, T. Chen, L. Zheng, R. Cai, Z. Song, Y. Tian, C. Ré, C. Barrett, et al.
+H2o: heavy-hitter oracle for efficient generative inference of large language models.
+Advances in neural information processing systems 36, pp. 34661–34710.
+Cited by: §1.
+Zheng et al. (2024)
+K. Zheng, Y. Chen, H. Mao, M. Liu, J. Zhu, and Q. Zhang
+Masked diffusion models are secretly time-agnostic masked models and exploit inaccurate categorical sampling.
+arXiv preprint arXiv:2409.02908.
+Cited by: §4.
+Zhu et al. (2025)
+F. Zhu, R. Wang, S. Nie, X. Zhang, C. Wu, J. Hu, J. Zhou, J. Chen, Y. Lin, J. Wen, et al.
+Llada 1.5: variance-reduced preference optimization for large language diffusion models.
+arXiv preprint arXiv:2505.19223.
+Cited by: §D,
+§3.1.
+Appendix
+Table of Contents
+A
+Limitations
+B
+Broader Impact
+C
+Bounded-Deviation Guarantee for Flash-Verify
+D
+Detailed Experiment Setup
+E
+Statistical analysis
+F
+Ablation of Generation and Prefill Length.
+G
+More scalability analysis
+H
+Sample Response
+A Limitations
+Flash-dLLM is evaluated on two representative masked diffusion LLMs across mathematical reasoning and code generation tasks. While the fused Triton kernel and Flash-Verify are architecture-agnostic in design, we have not yet validated them on continuous-space diffusion language models, where the cache update patterns may differ. Similarly, our benchmarks focus on structured-output tasks; the behavior of confidence-aware decoding on open-ended generation (e.g., long-form writing or dialogue), where token-level confidence distributions tend to be flatter, is an interesting direction for future work. The hyperparameters γ\gamma and βm\beta_{m} are fixed throughout generation; an adaptive scheme that adjusts these based on running confidence statistics could further improve the throughput-accuracy trade-off. We view these as natural extensions and a potential future research direction.
+B Broader Impact
+This work targets inference-time efficiency for diffusion LLMs and does not introduce new training data, model architectures, or fine-tuning procedures. By reducing the computational and memory cost of dLLM decoding, Flash-dLLM lowers the hardware barrier to deploying these models, which could broaden access to non-autoregressive language generation for researchers and practitioners with limited GPU resources. Faster inference also reduces the energy consumption per generated sequence, contributing to more sustainable deployment of large language models. We do not modify safety filters or alignment mechanisms of the underlying models; the generation quality and any associated risks (e.g., producing harmful or biased content) are inherited from the base dLLM. We encourage users to apply standard content moderation and human oversight when deploying Flash-dLLM in user-facing applications, particularly in high-stakes domains.
+C Bounded-Deviation Guarantee for Flash-Verify
+Setup.
+We first fix the two distributions that Flash-Verify evaluates at a search
+position, following the draft and verify passes of
+Section 2.3, Figure 2 and
+Algorithm 2. Throughout, the quantity being controlled is
+the gap between committing several positions at once and committing them from
+the model’s own chain-rule joint; this gap is the standard error term of
+parallel unmasking in masked diffusion
+models [46, 6, 37].
+Draft pass. At denoising step tt, the draft pass runs the model on the
+query set 𝒬t=𝒯t∪ℳβmt\mathcal{Q}^{t}=\mathcal{T}^{t}\cup\mathcal{M}^{t}_{\beta_{m}} with every
+position in ℳβmt\mathcal{M}^{t}_{\beta_{m}} held at [MASK][\mathrm{MASK}]. Let 𝐱t\mathbf{x}^{t}
+denote this input sequence. For each i∈ℳβmti\in\mathcal{M}^{t}_{\beta_{m}} the draft
+pass yields the draft-pass distribution over the vocabulary VV, which we
+call the draft marginal
+qi​(x):=pθ​(xi=x∣𝐱t),x∈V,q_{i}(x):=p_{\theta}\!\big(x^{i}=x\mid\mathbf{x}^{t}\big),\qquad x\in V,
+(3)
+from which the draft prediction and its confidence are
+x^i=arg⁡maxx​qi​(x)\hat{x}^{i}=\arg\max_{x}q_{i}(x) and ci=qi​(x^i)c^{i}=q_{i}(\hat{x}^{i}). The window is
+partitioned by confidence into the confident set
+𝒟t={i:ci≥ϵ}\mathcal{D}^{t}=\{i:c^{i}\geq\epsilon\}, which is accepted directly, and the
+search set 𝒮t=ℳβmt∖𝒟t\mathcal{S}^{t}=\mathcal{M}^{t}_{\beta_{m}}\setminus\mathcal{D}^{t},
+which is sent to verification. Note that qiq_{i} conditions on no other prediction
+made at step tt: every position in ℳβmt\mathcal{M}^{t}_{\beta_{m}}, including
+𝒟t\mathcal{D}^{t} and the other search positions, is masked in 𝐱t\mathbf{x}^{t}.
+Committing 𝒟t\mathcal{D}^{t} directly is covered by the analysis of confidence-aware
+decoding [46, Thm. 1]: if nn positions all have marginal
+confidence above 1−ε1-\varepsilon with (n+1)​ε≤1(n+1)\varepsilon\leq 1, the joint mode
+equals the product-of-marginals mode and the two distributions are within
+3​n−12​ε\tfrac{3n-1}{2}\varepsilon in total variation. That result says nothing about
+𝒮t\mathcal{S}^{t}, whose positions fail the confidence condition by construction,
+and it is for those positions that the verify pass and the guarantee below are
+needed.
+Verify pass. Let 𝐱+t\mathbf{x}^{t}_{+} denote 𝐱t\mathbf{x}^{t} with the confident
+positions committed to their drafts, x𝒟t=x^𝒟tx^{\mathcal{D}^{t}}=\hat{x}^{\mathcal{D}^{t}};
+together with the previously decoded tokens this forms the tracked context
+𝒯v\mathcal{T}_{v}. Write the search positions in causality order (draft
+confidence, descending) as i1,…,iKi_{1},\dots,i_{K} with K=|𝒮t|K=|\mathcal{S}^{t}|. The
+verify query duplicates 𝒮t\mathcal{S}^{t} into a draft view, filled with
+x^𝒮t\hat{x}^{\mathcal{S}^{t}}, and a mask view, filled with [MASK][\mathrm{MASK}].
+Under the causal verify mask of Figure 2, the mask view at
+iki_{k} attends to 𝒯v\mathcal{T}_{v}, to the draft view at i1,…,ik−1i_{1},\dots,i_{k-1} and
+to the mask view at ik,…,iKi_{k},\dots,i_{K}; it does not attend to the draft view at
+iki_{k} or at any later position. Every search position therefore enters its
+context exactly once, as a draft if it precedes iki_{k} and as [MASK][\mathrm{MASK}]
+otherwise, so the model output at the mask view of iki_{k} is the mask-view
+distribution, which we call the verify conditional
+pik​(x):=pθ​(xik=x∣𝐱+t,x^i1,…,x^ik−1),x∈V,p_{i_{k}}(x):=p_{\theta}\!\big(x^{i_{k}}=x\mid\mathbf{x}^{t}_{+},\ \hat{x}^{i_{1}},\dots,\hat{x}^{i_{k-1}}\big),\qquad x\in V,
+(4)
+i.e. the model’s prediction for iki_{k} when the positions before it in
+causality order are committed to their drafts and ik,…,iKi_{k},\dots,i_{K} remain
+masked. This is exactly the input that sequential decoding in this order would
+present at its kk-th step, and it is the same object that speculative decoding
+verifies against: the target model’s conditional at a drafted position given
+the accepted tokens before
+it [24, 9, 55].
+The mask-view prediction and confidence are
+x~i=arg⁡maxx​pi​(x)\tilde{x}^{i}=\arg\max_{x}p_{i}(x) and c~i=pi​(x~i)\tilde{c}^{i}=p_{i}(\tilde{x}^{i}).
+Flash-Verify accepts position ii according to
+accept(i)=𝕀[x^i=x~i]⋅𝕀[c~i≥γ],\mathrm{accept}(i)=\mathbb{I}\!\big[\hat{x}^{i}=\tilde{x}^{i}\big]\cdot\mathbb{I}\!\big[\tilde{c}^{i}\geq\gamma\big],
+(5)
+applied in causality order and stopped at the first rejection, so the
+committed block is the longest prefix 𝒜={i1,…,im}\mathcal{A}=\{i_{1},\dots,i_{m}\} on
+which every position is accepted. An accepted token is simultaneously the mode
+of the draft marginal qiq_{i} and a γ\gamma-confident mode of the verify
+conditional pip_{i}. On acceptance the model commits the agreed token, and we
+write the delivered distribution at position ii as the point mass
+πi(x):=𝕀[x=x~i]\pi_{i}(x):=\mathbb{I}[x=\tilde{x}^{i}]. For two distributions u,vu,v over a
+finite set, total variation distance is
+TV⁡(u,v):=12​∑x|u⁡(x)−v⁡(x)|\mathrm{TV}(u,v):=\tfrac{1}{2}\sum_{x}|u(x)-v(x)|.
+Assumption 1.
+The reference for the committed block is the model’s own sequential
+distribution in causality order: at position iki_{k} it is the verify conditional
+pikp_{i_{k}} of Eq. (4), and over the block it is the
+chain-rule joint
+p𝒜​(xi1,…,xim):=∏k=1mpθ​(xik∣𝐱+t,xi1,…,xik−1)p_{\mathcal{A}}(x^{i_{1}},\dots,x^{i_{m}}):=\prod_{k=1}^{m}p_{\theta}\!\big(x^{i_{k}}\mid\mathbf{x}^{t}_{+},x^{i_{1}},\dots,x^{i_{k-1}}\big),
+which is the distribution one-token-per-step decoding of the same positions in
+the same order samples from. Deviation is measured against this model
+distribution rather than the data distribution.
+Theorem 1 (Per-token deviation).
+Under Assumption 1, for every i∈𝒜i\in\mathcal{A},
+TV⁡(πi,pi)=1−c~i≤1−γ.\mathrm{TV}(\pi_{i},p_{i})=1-\tilde{c}^{i}\leq 1-\gamma.
+(6)
+Proof.
+Let m:=x~i=arg⁡maxx​pi​(x)m:=\tilde{x}^{i}=\arg\max_{x}p_{i}(x), so that pi​(m)=c~ip_{i}(m)=\tilde{c}^{i} and
+πi(x)=𝕀[x=m]\pi_{i}(x)=\mathbb{I}[x=m]. By the definition of total variation,
+TV⁡(πi,pi)=12​∑x∈V|πi​(x)−pi​(x)|=12​(|πi​(m)−pi​(m)|+∑x≠m|πi​(x)−pi​(x)|).\mathrm{TV}(\pi_{i},p_{i})=\tfrac{1}{2}\sum_{x\in V}\big|\pi_{i}(x)-p_{i}(x)\big|=\tfrac{1}{2}\Big(\big|\pi_{i}(m)-p_{i}(m)\big|+\sum_{x\neq m}\big|\pi_{i}(x)-p_{i}(x)\big|\Big).
+(7)
+At x=mx=m we have πi​(m)=1\pi_{i}(m)=1, hence
+|πi​(m)−pi​(m)|=1−pi​(m)|\pi_{i}(m)-p_{i}(m)|=1-p_{i}(m). At every x≠mx\neq m we have πi​(x)=0\pi_{i}(x)=0,
+hence |πi​(x)−pi​(x)|=pi​(x)|\pi_{i}(x)-p_{i}(x)|=p_{i}(x), and since pip_{i} is a probability
+distribution, ∑x≠mpi​(x)=1−pi​(m)\sum_{x\neq m}p_{i}(x)=1-p_{i}(m). Combining,
+TV⁡(πi,pi)=12​[(1−pi​(m))+(1−pi​(m))]=1−pi​(m)=1−c~i.\mathrm{TV}(\pi_{i},p_{i})=\tfrac{1}{2}\big[(1-p_{i}(m))+(1-p_{i}(m))\big]=1-p_{i}(m)=1-\tilde{c}^{i}.
+(8)
+The acceptance rule fires only when c~i≥γ\tilde{c}^{i}\geq\gamma, therefore
+TV⁡(πi,pi)=1−c~i≤1−γ\mathrm{TV}(\pi_{i},p_{i})=1-\tilde{c}^{i}\leq 1-\gamma.
+∎
+Corollary 1 (Block deviation).
+Let 𝒜={i1,…,im}\mathcal{A}=\{i_{1},\dots,i_{m}\} be the block committed by a single
+verify pass, π𝒜:=∏k=1mπik\pi_{\mathcal{A}}:=\prod_{k=1}^{m}\pi_{i_{k}} the delivered
+distribution over 𝒜\mathcal{A}, and p𝒜p_{\mathcal{A}} the chain-rule joint of
+Assumption 1. Then
+TV⁡(π𝒜,p𝒜)=1−∏k=1mc~ik≤1−γm≤m⁡(1−γ).\mathrm{TV}(\pi_{\mathcal{A}},p_{\mathcal{A}})=1-\prod_{k=1}^{m}\tilde{c}^{\,i_{k}}\leq 1-\gamma^{m}\leq m\,(1-\gamma).
+(9)
+Proof.
+Every accepted token equals its draft, x~ik=x^ik\tilde{x}^{i_{k}}=\hat{x}^{i_{k}}, so
+π𝒜\pi_{\mathcal{A}} is the point mass at x^𝒜=(x^i1,…,x^im)\hat{x}^{\mathcal{A}}=(\hat{x}^{i_{1}},\dots,\hat{x}^{i_{m}}). The computation in the proof of
+Theorem 1 applies verbatim to any point mass δz\delta_{z} and any
+distribution pp on a finite set and gives TV⁡(δz,p)=1−p⁡(z)\mathrm{TV}(\delta_{z},p)=1-p(z);
+hence TV⁡(π𝒜,p𝒜)=1−p𝒜​(x^𝒜)\mathrm{TV}(\pi_{\mathcal{A}},p_{\mathcal{A}})=1-p_{\mathcal{A}}(\hat{x}^{\mathcal{A}}). Evaluating the chain rule at
+x^𝒜\hat{x}^{\mathcal{A}}, the kk-th factor is
+pθ​(x^ik∣𝐱+t,x^i1,…,x^ik−1)=pik​(x^ik)=pik​(x~ik)=c~ikp_{\theta}(\hat{x}^{i_{k}}\mid\mathbf{x}^{t}_{+},\hat{x}^{i_{1}},\dots,\hat{x}^{i_{k-1}})=p_{i_{k}}(\hat{x}^{i_{k}})=p_{i_{k}}(\tilde{x}^{i_{k}})=\tilde{c}^{\,i_{k}} by
+Eq. (4); the conditioning tokens x^i1,…,x^ik−1\hat{x}^{i_{1}},\dots,\hat{x}^{i_{k-1}} all lie in the accepted prefix, so no rejected draft enters
+any factor. Thus p𝒜​(x^𝒜)=∏kc~ik≥γmp_{\mathcal{A}}(\hat{x}^{\mathcal{A}})=\prod_{k}\tilde{c}^{\,i_{k}}\geq\gamma^{m}, and 1−γm≤m⁡(1−γ)1-\gamma^{m}\leq m(1-\gamma) by Bernoulli’s inequality.
+∎
+Remark 1 (What the reference is).
+Because the verify mask is causal in causality order, p𝒜p_{\mathcal{A}} is the
+model’s genuine joint over the block, not a product of marginals: the verified
+tokens incur no parallel-unmasking dependence error, and the bound is an
+equality in the mask-view confidences. The dependence term bounded in KL
+by [6] and in total variation
+by [37] therefore concerns only 𝒟t\mathcal{D}^{t}, which is
+committed from marginals and handled by [46, Thm. 1]. Stopping
+at the first rejection is what keeps 𝒜\mathcal{A} a prefix, so that every
+conditional in p𝒜p_{\mathcal{A}} conditions only on accepted tokens.
+Remark 2 (Why γ\gamma gates the mask view).
+The bound is controlled by γ\gamma because acceptance thresholds the
+confidence of pip_{i}, the distribution the token is actually committed from.
+The confidence threshold ϵ\epsilon instead gates ci=qi​(x^i)c^{i}=q_{i}(\hat{x}^{i}),
+computed with all of ℳβmt\mathcal{M}^{t}_{\beta_{m}} masked [46];
+qiq_{i} ignores the other positions decoded in the same step, so x^i\hat{x}^{i} can
+be its mode yet carry little mass under pip_{i}, and for a search token
+ci<ϵc^{i}<\epsilon by construction. Hence lowering ϵ\epsilon is not equivalent to
+verifying: only the latter carries the 1−γ1-\gamma guarantee against pip_{i}. In
+the language of speculative decoding, the rule is a deterministic, biased
+acceptance [55]: the agreement test alone is lossless
+with respect to greedy decoding from pip_{i}, as in the auto-speculative verifier
+of [2], while γ\gamma trades a bounded distribution
+bias of 1−c~i1-\tilde{c}^{i} for more accepted tokens, the trade-off swept in
+Figure 5(a).
+D Detailed Experiment Setup
+Implementation Details. All experiments run on a single NVIDIA A100 80GB GPU. We evaluate Flash-dLLM on LLaDA-1.5 [59] across GSM8K [11], MATH [17], HumanEval [10], and MBPP [5]. We implement the fused KV-cache kernel in Triton 2.0. Default benchmark is GSM8K, with default hyperparameters: confidence threshold ϵ=0.9\epsilon=0.9, verify threshold γ=0.8\gamma=0.8, block size β=16\beta=16, tracked budget βt=80\beta_{t}=80, sliding window size βm=64\beta_{m}=64, generation length 512. For fair comparison, we re-run all baselines under identical hardware and software configurations. Baselines. We compare against three approaches: (1) No Cache: standard dLLM inference without KV caching, under both greedy (fixed-step) and confidence-aware decoding; (2) Fast-dLLM [46]: prefix-caching with confidence-aware decoding; (3) Elastic-Cache [31]: adaptive KV caching with attention-pattern-based cache reuse. We report Flash-dLLM results under three configurations: greedy decoding (pure KV-cache speedup), confidence-aware decoding (KV-cache + parallel decoding), and Flash-Verify (KV-cache + draft-and-verify parallel decoding). Evaluation Metrics. We use lm-eval-harness [14]. Throughput is measured as decoding tokens/sec averaged over the benchmark, following Fast-dLLM’s protocol [46]. Accuracy metrics: GSM8K uses 5-shot flexible_extract; MATH uses 4-shot math_verify; HumanEval uses 0-shot pass@1 with Fast-dLLM post-processing; MBPP uses 3-shot pass@1. We test at generation lengths 256 and 512 to study scalability.
+Evaluation Framework and Metrics.
+Our evaluation protocol comprehensively assesses both inference efficiency and model performance across various tasks. To ensure standardization and reproducibility, we conduct all task-specific evaluations using the lm-eval-harness library [14]. Inference speed is measured by throughput in tokens per second (t/s), calculated as the average number of tokens generated by the model over the entire sequence until it produces an end-of-sequence (<eos>) token. We maintain consistency with Fast-dLLM [46] in our calculation methodology to ensure comparable speed benchmarks. Task-specific performance is evaluated using established metrics suitable for each benchmark. For GSM8K [11], we report 5-shot flexible_extract exact match accuracy. For the MATH dataset [17], we report the 4-shot math_verify score using the minerva_math variant. For HumanEval [10], we evaluate 0-shot accuracy using a post-processing script consistent with the Fast-dLLM implementation to ensure fair comparison. Finally, for MBPP [5], we report the 3-shot pass@1 metric.
+Hyper-parameters: The hyper-parameters used for Flash-dLLM are presented in Table 3. Specifically,
+•
+We set the basic block size to β=16\beta=16, corresponding to the smallest block used in our Triton implementation.
+•
+For confidence-aware decoding, we use ϵ=0.9\epsilon=0.9, following the optimal setting reported by Fast-dLLM.
+•
+We use a default masked-window size of βm=64\beta_{m}=64 across all settings to balance accuracy and decoding speed.
+•
+We set γ=0.8\gamma=0.8 for GSM8K and MBPP and γ=0.85\gamma=0.85 for MATH and HumanEval.
+•
+We use a batch size of 3232 in all experiments to maximize GPU utilization.
+Table 3: The hyper-parameters of Flash-dLLM under various settings.
+Model
+Benchmark
+Gen Length
+Tracking budget βt\beta_{t}
+Window size βm\beta_{m}
+Flash-Verify γ\gamma
+Batch size
+LLaDA-1.5
+GSM8K (5-shot)
+256
+64
+64
+0.8
+32
+512
+64
+64
+0.8
+32
+MATH (4-shot)
+256
+64
+64
+0.85
+32
+512
+64
+64
+0.85
+32
+Humaneval (0-shot)
+256
+64
+64
+0.85
+32
+512
+64
+64
+0.85
+32
+MBPP (3-shot)
+256
+48
+64
+0.8
+32
+512
+48
+64
+0.8
+32
+E Statistical analysis
+Table 4:
+Mean accuracy (%) and throughput over five random seeds.
+Accuracy is shown on the first line and throughput is shown
+in blue on the second line. Values are mean ±\pm standard deviation.
+Track budget βt\beta_{t}
+γ\gamma
+4848
+6464
+8080
+9696
+0.600.60
+80.2380.23 ± 0.46\pm\,0.46
+277.80277.80 ± 1.18\pm\,1.18
+80.7680.76 ± 0.21\pm\,0.21
+261.54261.54 ± 1.00\pm\,1.00
+81.5281.52 ± 0.50\pm\,0.50
+248.80248.80 ± 0.70\pm\,0.70
+81.4281.42 ± 0.41\pm\,0.41
+235.82235.82 ± 0.76\pm\,0.76
+0.700.70
+80.7480.74 ± 0.66\pm\,0.66
+252.20252.20 ± 2.52\pm\,2.52
+81.2781.27 ± 0.65\pm\,0.65
+234.86234.86 ± 4.94\pm\,4.94
+82.0082.00 ± 0.36\pm\,0.36
+226.66226.66 ± 3.28\pm\,3.28
+82.3582.35 ± 0.13\pm\,0.13
+214.78214.78 ± 2.18\pm\,2.18
+0.750.75
+80.9480.94 ± 0.81\pm\,0.81
+235.60235.60 ± 1.36\pm\,1.36
+82.1482.14 ± 0.47\pm\,0.47
+221.68221.68 ± 0.71\pm\,0.71
+82.5282.52 ± 0.45\pm\,0.45
+209.76209.76 ± 1.29\pm\,1.29
+82.5682.56 ± 0.91\pm\,0.91
+208.08208.08 ± 0.51\pm\,0.51
+0.800.80
+81.6481.64 ± 0.54\pm\,0.54
+221.06221.06 ± 3.58\pm\,3.58
+81.7381.73 ± 0.74\pm\,0.74
+208.40208.40 ± 2.64\pm\,2.64
+82.1582.15 ± 0.47\pm\,0.47
+197.08197.08 ± 1.54\pm\,1.54
+82.4782.47 ± 0.47\pm\,0.47
+196.98196.98 ± 0.84\pm\,0.84
+0.850.85
+81.4681.46 ± 1.03\pm\,1.03
+211.32211.32 ± 0.69\pm\,0.69
+82.7182.71 ± 0.51\pm\,0.51
+197.60197.60 ± 0.70\pm\,0.70
+82.7682.76 ± 0.84\pm\,0.84
+187.28187.28 ± 0.75\pm\,0.75
+83.1583.15 ± 0.17\pm\,0.17
+185.70185.70 ± 0.61\pm\,0.61
+0.900.90
+81.5581.55 ± 0.49\pm\,0.49
+206.22206.22 ± 0.50\pm\,0.50
+82.0982.09 ± 0.53\pm\,0.53
+192.90192.90 ± 0.75\pm\,0.75
+82.6482.64 ± 0.41\pm\,0.41
+182.16182.16 ± 0.68\pm\,0.68
+82.7582.75 ± 0.62\pm\,0.62
+171.86171.86 ± 0.33\pm\,0.33
+1.001.00
+81.7981.79 ± 0.64\pm\,0.64
+165.14165.14 ± 0.83\pm\,0.83
+82.2482.24 ± 0.43\pm\,0.43
+149.60149.60 ± 0.47\pm\,0.47
+82.9682.96 ± 0.51\pm\,0.51
+138.28138.28 ± 0.37\pm\,0.37
+83.4183.41 ± 0.50\pm\,0.50
+131.58131.58 ± 1.41\pm\,1.41
+Table  4 examines the joint effect of the denoising parameter γ\gamma and track budget βt\beta_{t} on accuracy and throughput. The results show a consistent accuracy–efficiency trade-off: increasing either parameter generally improves accuracy while reducing decoding throughput. At a fixed γ\gamma, increasing βt\beta_{t} from 4848 to 9696 improves accuracy by approximately 0.830.83–1.691.69 percentage points, but decreases throughput by about 10.9%10.9\%–20.3%20.3\%. Similarly, increasing γ\gamma from 0.600.60 to 1.001.00 yields an accuracy gain of 1.441.44–1.991.99 percentage points across the evaluated track budgets, accompanied by a throughput reduction of approximately 40.6%40.6\%–44.4%44.4\%. Although a few neighboring configurations exhibit small non-monotonic variations, these differences are generally comparable to the reported standard deviations and do not alter the overall trend.
+The highest-throughput configuration is obtained with γ=0.60\gamma=0.60 and βt=48\beta_{t}=48, reaching 277.80277.80 tokens/s at 80.23%80.23\% accuracy. In contrast, the highest accuracy of 83.41%83.41\% is achieved with γ=1.00\gamma=1.00 and βt=96\beta_{t}=96, where throughput decreases to 131.58131.58 tokens/s. Thus, moving from the fastest to the most accurate configuration improves accuracy by 3.183.18 percentage points while reducing throughput by approximately 52.6%52.6\%. Intermediate settings provide more balanced operating points. In particular, γ=0.85\gamma=0.85 and βt=96\beta_{t}=96 achieve 83.15%83.15\% accuracy at 185.70185.70 tokens/s, remaining only 0.260.26 percentage points below the maximum accuracy while providing approximately 41.1%41.1\% higher throughput. The relatively small standard deviations across five random seeds—at most 1.031.03 percentage points for accuracy and 4.944.94 tokens/s for throughput—also indicate that the observed trade-off is consistent across runs. Overall, γ\gamma and βt\beta_{t} offer complementary controls for selecting either a throughput-oriented or accuracy-oriented operating point.
+F Ablation of Generation and Prefill Length.
+Table 5: Ablation of generation and prefill lengths.
+(a) Impact of generation length on LLaDA-1.5 for GSM8K (5-shot) with a batch size of 16.
+Approach
+Metric
+Len. 128
+Len. 256
+Len. 512
+Len. 1024
+Flash-Cache
++ Confidence
+Accuracy
+79.03
+82.36
+82.24
+82.29
+Throughput
+126.7
+(1.00×\times)
+140.4
+(1.00×\times)
+131.8
+(1.00×\times)
+125.7
+(1.00×\times)
+Tokens/step
+2.5
+2.8
+2.8
+2.9
+Flash-Cache
++ Flash-Verify
+Accuracy
+79.55
+81.90
+81.73
+81.72
+Throughput
+174.5
+(1.38×\times)
+198.4
+(1.41×\times)
+186.2
+(1.41×\times)
+173.0
+(1.38×\times)
+Tokens/step
+5.6
+5.6
+5.6
+5.6
+(b) Impact of prefill length on LLaDA-1.5 for GSM8K-512 with a batch size of 16.
+Approach
+Metric
+1-shot
+3-shot
+5-shot
+8-shot
+Flash-Cache
++ Confidence
+Accuracy
+80.00
+82.27
+82.24
+82.25
+Throughput
+155.8
+(1.00×\times)
+145.4
+(1.00×\times)
+131.8
+(1.00×\times)
+123.1
+(1.00×\times)
+Tokens/step
+2.8
+2.8
+2.8
+2.8
+Flash-Cache
++ Flash-Verify
+Accuracy
+80.12
+81.73
+81.73
+81.73
+Throughput
+234.4
+(1.50×\times)
+209.6
+(1.44×\times)
+186.2
+(1.41×\times)
+165.7
+(1.35×\times)
+Tokens/step
+5.8
+5.7
+5.7
+5.6
+Table 5 examines the sensitivity of the two decoding strategies to generation length and prefill length. As shown in Table 5(a), Flash-Cache with Flash-Verify consistently provides higher throughput than confidence-aware decoding across all generation lengths. Its throughput advantage ranges from 1.38×1.38\times to 1.41×1.41\times, corresponding to absolute improvements of 47.347.3–58.058.0 tokens/s. Both methods reach their highest throughput at a generation length of 256, attaining 140.4140.4 tokens/s for confidence-aware decoding and 198.4198.4 tokens/s for Flash-Verify. Beyond 256 tokens, throughput gradually decreases, while accuracy remains nearly unchanged. For example, increasing the generation length from 256 to 1024 reduces throughput by approximately 10.5%10.5\% for confidence-aware decoding and 12.8%12.8\% for Flash-Verify, without providing a corresponding accuracy improvement.
+Table 5(b) shows that increasing the number of in-context examples, and consequently the prefill length, reduces throughput for both methods. From 1-shot to 8-shot prompting, confidence-aware throughput decreases from 155.8155.8 to 123.1123.1 tokens/s, a reduction of approximately 21.0%21.0\%. Flash-Verify decreases from 234.4234.4 to 165.7165.7 tokens/s, corresponding to a reduction of approximately 29.3%29.3\%. Nevertheless, Flash-Verify remains faster in every setting, providing speedups of 1.50×1.50\times, 1.44×1.44\times, 1.41×1.41\times, and 1.35×1.35\times for the 1-, 3-, 5-, and 8-shot settings, respectively. The decreasing relative speedup suggests that the computational cost of processing a longer prefix affects Flash-Verify more strongly, although it retains an absolute advantage of 42.642.6–78.678.6 tokens/s.
+G More scalability analysis
+Table 6: Effect of batch size on throughput. Using LLaDA-1.5 for GSM8K-512 (5-shot). Speedup is measured relative to Flash-Cache with greedy decoding at the same batch size.
+Approach
+ACC
+Tok./step
+Throughput
+B=1
+B=2
+B=4
+B=8
+B=16
+B=24
+B=32
+Flash-Cache
++ Greedy
+82.94
+1.0
+18.5
+(1.0×\times)
+28.9
+(1.0×\times)
+37.7
+(1.0×\times)
+46.3
+(1.0×\times)
+51.3
+(1.0×\times)
+53.6
+(1.0×\times)
+55.0
+(1.0×\times)
+Flash-Cache
++ Confidence
+82.87
+2.8
+51.7
+(2.8×\times)
+78.0
+(2.7×\times)
+102.4
+(2.7×\times)
+120.5
+(2.6×\times)
+131.8
+(2.6×\times)
+136.4
+(2.5×\times)
+139.5
+(2.5×\times)
+Flash-Cache
++ Flash-Verify
+83.02
+5.7
+56.0
+(3.0×\times)
+90.9
+(3.1×\times)
+131.3
+(3.5×\times)
+164.8
+(3.6×\times)
+186.2
+(3.6×\times)
+195.5
+(3.6×\times)
+199.8
+(3.6×\times)
+Analysis.
+Table 6 evaluates the throughput scaling of the three decoding strategies as the batch size increases. Throughput improves monotonically for all methods, although the gains gradually diminish at larger batch sizes. From B=1B=1 to B=32B=32, greedy decoding increases from 18.518.5 to 55.055.0 tokens/s, corresponding to a 2.97×2.97\times increase due to batch scaling. Confidence-aware decoding rises from 51.751.7 to 139.5139.5 tokens/s, or 2.70×2.70\times, while Flash-Verify increases from 56.056.0 to 199.8199.8 tokens/s, corresponding to the largest batch-scaling improvement of 3.57×3.57\times.
+Flash-Verify achieves the highest throughput at every batch size. Relative to greedy decoding under the same batch configuration, its speedup increases from 3.0×3.0\times at B=1B=1 to approximately 3.6×3.6\times for B≥8B\geq 8. Confidence-aware decoding provides a smaller speedup of approximately 2.5×2.5\times–2.8×2.8\times. The advantage of Flash-Verify over confidence-aware decoding also grows with batch size: it is only 8.3%8.3\% faster at B=1B=1, but becomes approximately 43.2%43.2\% faster at B=32B=32. This trend indicates that Flash-Verify makes more effective use of the additional parallel computation available at larger batch sizes.
+The throughput improvements are consistent with the number of tokens decoded per step. Flash-Verify accepts 5.75.7 tokens per step, compared with 2.82.8 for confidence-aware decoding and 1.01.0 for greedy decoding. Throughput begins to saturate beyond B=16B=16: at this batch size, Flash-Verify already reaches 186.2186.2 tokens/s, or approximately 93.2%93.2\% of its throughput at B=32B=32. Therefore, B=16B=16 provides a favorable efficiency point, capturing most of the maximum throughput while requiring only half the batch size.
+H Sample Response
+In the following, we present several examples of actual generation results produced by our approach under different parameter settings.
+Table 7: Example LLaDA-1.5 (without cache) — A qualitative comparison of different decoding methods.
+Prompt: Amy is taking a history test. She correctly answers 80% of the multiple-choice questions, 90% of the true/false questions, and 60% of the long-answer questions. The multiple-choice and true/false questions are worth 1 point each, and the long answer questions are worth 5 points each. How many points does Amy score if there are 10 multiple-choice questions, 20 true/false questions, and 5 long answer questions?
+Greedy
+Confident-aware
+Flash-Verify
+First find the number of multiple-choice questions Amy answers correctly: 80% * 10 questions = <<10*.80=8>>8 questions
+Then find the number of true/false questions Amy answers correctly: 90% * 20 questions = <<20*.90=18>>18 questions
+Then find the number of long-answer questions Amy answers correctly: 60% * 5 questions = <<50*.60=3>>3 questions
+Then find the total points Amy gets from multiple-choice questions: 8 questions * 1 point/question = <<8*1=8>>8 points
+Then find the total points Amy gets from true/false questions: 18 questions * 1 point/question = <<18*1=18>>18 points
+Then find the total points Amy gets from long-answer questions: 3 questions * 5 points/question = <<3*5=15>>15 points
+Then add up the points from each type of question to find her total score: 8 points + 18 points + 15 points = <<8+18+15=41>>41 points
+41\boxed{41}
+Steps: 283, Tokens: 283, Time:64.7s
+First find the number of multiple-choice questions Amy answers correctly: 80% * 10 questions = <<80*.10=8>>8 questions
+Then find the number of true/false questions Amy answers correctly: 90% * 20 questions = <<90*.20=18>>18 questions
+Then find the number of long-answer questions Amy answers correctly: 60% * 5 questions = <<60*.05=3>>3 questions
+Then find the total points Amy gets from multiple-choice questions: 8 questions * 1 point/question = <<8*1=8>>8 points
+Then find the total points Amy gets from true/false questions: 18 questions * 1 point/question = <<18*1=18>>18 points
+Then find the total points Amy gets from long-answer questions: 3 questions * 5 points/question = <<3*5=15>>15 points
+Then add up the points from each type of question to find her total score: 8 points + 18 points + 15 points = <<8+18+15=41>>41 points
+41\boxed{41}
+Steps: 66, Tokens: 277, Time: 17.2s
+First find the number of multiple-choice questions Amy answers correctly: 10 questions * 80% = <<10*0.8=8>>8 questions
+Then find the number of true/false questions Amy answers correctly: 20 questions * 90% = <<20*0.9=18>>18 questions
+Then find the number of long-answer questions Amy answers correctly: 5 questions * 60% = <<5*0.6=3>>3 questions
+Then find the total points from the multiple-choice questions: 8 questions * 1 point/question = <<8*1=8>>8 points
+Then find the total points from the true/false questions: 18 questions * 1 point/question = <<18*1=18>>18 points
+Then find the total points from the long-answer questions: 3 questions * 5 points/question = <<3*5=15>>15 points
+Then add up the points from each type of question to find the total score: 8 points + 18 points + 15 points = <<8+18+15=41>>41 points
+41\boxed{41}
+Steps: 30, Tokens: 276, Time: 13.1s
+Table 8: Example Flash-dLLM: A qualitative comparison of different decoding methods, LLaDA-1.5
+Prompt: Rong has been saving 20 coins in his piggy bank every month. Neil has been saving 2/5 times more coins in his piggy bank per month than Rong. How many coins are they having ten years after they started their savings?
+Greedy
+Confident-aware
+Flash-Verify
+Rong saves 20 coins per month, so in one year, he saves 20 * 12 = <<20*12=240>>240 coins.
+Neil saves 2/5 times more coins than Rong, so he saves 20 + (2/5) * 20 = 20 + 8 = 28 coins per month.
+In one year, Neil saves 28 * 12 = <<28*12=336>>336 coins.
+In ten years, Neil saves 336 * 10 = <<336*10=3360>>3360 coins.
+Together, Rong and Neil have 2400 + 3360 = <<2400+3360=5760>>5760 coins.
+5760\boxed{5760}
+Steps: 224, Tokens: 224, Time:15.2s
+Rong saves 20 coins per month, so in one year, he saves 20 * 12 = <<20*12=240>>240 coins.
+Neil saves 2/5 times more coins than Rong, so he saves 20 + (2/5) * 20 = 20 + 8 = 28 coins per month.
+In one year, Neil saves 28 * 12 = <<28*12=336>>336 coins.
+In ten years, Neil saves 336 * 10 = <<336*10=3360>>3360 coins.
+Together, Rong and Neil have saved 240 + 3360 = <<240+3360=3600>>3600 coins.
+3600\boxed{3600}
+Steps: 73, Tokens: 222, Time: 7.8s
+Rong saves 20 coins per month, so in one year, he saves 20 * 12 = <<20*12=240>>240 coins.
+Neil saves 2/5 times more coins than Rong, so he saves 20 + (2/5 * 20) = 20 + 8 = 28 coins per month.
+In one year, Neil saves 28 * 12 = <<28*12=336>>336 coins.
+In ten years, Neil saves 336 * 10 = <<336*10=3360>>3360 coins.
+Together, Rong and Neil have saved 240 + 3360 = <<240+3360=3600>>3600 coins.
+3600\boxed{3600}
+Steps: 34, Tokens: 219, Time: 5.7s
+Table 9: Example Flash-Verify (without cache) — A qualitative comparison of different γ\gamma values, LLaDA-1.5
+Prompt: A nurses’ station orders bandages in bulk packs of 50. On the first day, the nurses used 38 bandages and ordered one bulk pack of bandages. On the second day, they used ten fewer bandages. On the third day, they ordered two bulk packs of bandages and only used half a pack. They had 78 bandages left at the end of the third day. How many bandages did they start with on the first day?
+γ=0.8\gamma=0.8
+γ=0.9\gamma=0.9
+γ=0.95\gamma=0.95
+First, find the total number of bandages used on the first day: 38 bandages + 50 bandages = <<38+50=88>>88 bandages
+Then find the total number of bandages used on the second day: 88 bandages - 10 bandages = <<88-10=78>>78 bandages
+Then find the total number of bandages used on the third day: 2 * 50 bandages = <<2*50=100>>100 bandages
+Then find the total number of bandages used on the third day: 100 bandages / 2 = <<100/2=50>>50 bandages
+Then find the total number of bandages used over the three days: 88 bandages + 78 bandages + 50 bandages = <<88+78+50=216>>216 bandages
+Then add the number of bandages left at the end of the third day to find the total number of bandages started: 216 bandages + 78 bandages = <<216+78=294>>294 bandages
+Then 294 bandages
+294\boxed{294}
+Steps: 38, Tokens: 298, Time:11.3s
+First, let’s total how many bandages were used on the first day and how many were ordered:
+- Used: 38 bandages
+- Ordered: 1 bulk pack = 50 bandages
+So, the total number of bandages at the end of the first day is:
+38+50=8838+50=88
+Next, let’s determine how many bandages were used on the second day:
+- Used: 38 - 10 = 28 bandages
+So, the total number of bandages at the end of the second day is:
+88−28=6088-28=60
+Now, let’s determine how many bandages were used on the third day:
+- Ordered: 2 bulk packs = 100 bandages
+- Used: 1/2 = 50 bandages
+So, the total number of bandages at the end of the third day is:
+60+100−50=11060+100-50=110
+We know that they had 78 bandages left at the end of the third day, so the total number of bandages they started with on the first day is:
+110+78=188110+78=188
+Therefore, they started with 188 bandages on the first day.
+188\boxed{188}
+Steps: 71, Tokens: 330, Time: 22.0s
+First, find the total number of bandages used on the first day: 38 bandages + 50 bandages = <<38+50=88>>88 bandages
+Then find the total number of bandages used on the second day: 88 bandages - 10 bandages = <<88-10=78>>78 bandages
+Then find the total number of bandages used on the third day: 2 * 50 bandages = <<2*50=100>>100 bandages
+Then find the total number of bandages used over the three days: 88 bandages + 78 bandages + 100 bandages = <<88+78+100=266>>266 bandages
+Then add the number of bandages left at the end of the third day to the total number of bandages used to find the total number of bandages at the start of the first day: 266 bandages + 78 bandages = <<266+78=344>>344 bandages
+344\boxed{344}
+Steps: 57, Tokens: 271, Time: 19.8s
+Experimental support, please
+view the build logs
+for errors. Generated by
+L
+A
+T
+E
+xml
+.
+Instructions for reporting errors
+We are continuing to improve HTML versions of papers, and your feedback helps enhance accessibility and mobile
+support. To report errors in the HTML that will help us improve conversion and rendering, choose any of the
+methods listed below:
+Click the "Report Issue" (
+) button, located in the page header.
+Tip: You can select the relevant text first, to include it in your report.
+Our team has already identified the following issues. We appreciate your time reviewing and reporting rendering errors we
+may not have found yet. Your efforts will help us improve the HTML versions for all readers, because disability
+should not be a barrier to accessing research. Thank you for your continued support in championing open access for
+all.
+Have a free development cycle? Help support accessibility at arXiv! Our collaborators at LaTeXML maintain a list of packages that need conversion, and welcome developer contributions.
+We gratefully acknowledge support from our major funders,
+member institutions, ,
+and all contributors.
+About ·
+Help ·
+Contact ·
+Subscribe ·
+Copyright ·
+Privacy ·
+Accessibility ·
+Operational Status (opens in new tab)

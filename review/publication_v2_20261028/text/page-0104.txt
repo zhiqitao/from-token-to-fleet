@@ -1,0 +1,34 @@
+Measuring What Matters: From Telemetry to Architecture Decisions
+86
+6.4. Measurement
+Three practical habits anchor the architect:
+1. Instrument the hierarchy, not just the app. Deploy counters at all three layers from day 
+one — rps and token profile (workload); TTFT/TPOT/goodput percentiles (serving); HBM 
+bandwidth, FLOP/MFU, KV cache occupancy, queue depth (resource). A system that only logs 
+serving metrics cannot tell why; one that only logs resource metrics cannot tell what it was 
+asked.
+2. Always qualify “throughput.” rps ≠ tokens/s ≠ goodput. The same number, three stories. 
+State the SLO window (p95 ≤ 2 s TTFT) before quoting any rate, or the rate is meaningless.
+3. Log the distribution. Capture p50/p90/p95/p99 for every latency metric, and the full token-
+length distribution (a 32K-tail context is a different workload than a 9.2K average). The mean 
+is a summary, not a signal.
+These habits answer the book’s recurring question — what would we actually measure here? — 
+with three layers of counters at the edge, before any architecture decision is committed.
+6.5. Common Mistakes
+• SLO-ing the average. A ~0.85 s mean (the figure’s simulated stream; the two-point analytic 
+approximation gives ~0.84 s — the figure’s displayed value is used here) hides a 5 s tail. SLO 
+against p95/p99, and watch the outlier fraction, not the mean.
+• Optimizing raw throughput when the SLO windows it. Bigger batches raise raw tokens/s 
+but can push TTFT past its deadline, zeroing goodput. Optimize goodput.
+• Jumping straight to “buy more GPUs.” A bandwidth-bound decode and a prefill-cost 
+problem need different fixes; without the resource layer we guess.
+• Treating hardware peak as a ceiling we can hit. H100’s 3.35 TB/s is the theoretical HBM 
+peak; real memory-bound kernels realize a fraction of it. Design headroom against real utiliza­
+tion, not the spec sheet.
+• Conflating model-quality metrics with serving metrics. Accuracy is the goal; TTFT is 
+the constraint. A slow, accurate model fails its SLO just as surely as a fast, wrong one.
+6.6. Architecture Consequence
+The metric hierarchy directly dictates architecture. For the canonical workload:
+• Bandwidth-bound decode + compute-bound prefill ⇒ P/D disaggregation (Split­
+wise/DistServe/Mooncake) is the remedy at scale, because squeezing both regimes from one 
+resource pool fights itself. [S4][1P][FACT]

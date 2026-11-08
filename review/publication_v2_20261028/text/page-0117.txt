@@ -1,0 +1,36 @@
+99
+Memory Is the First Constraint
+• Model residency decides host count. A 70B FP16 model (140 GB weights) at the 9.5K max 
+context (9.2K in + 300 out) needs ~24.9 GB of KV cache (FP16), so the max end-of-generation 
+residency ≈ 165 GB — it does not fit on a single 80 GB H100, nor within the 160 GB aggregate of 
+2×H100 (160 GB < 165 GB). By aggregate memory capacity it needs ≥ 3×80 GB (240 GB) — but 
+note this is an aggregate-HBM lower bound on card count, NOT a validated 3-way tensor-
+parallel configuration: whether three 80-GB cards actually admit a 70B model depends on 
+head/layer shard divisibility, KV-head routing, TP=3 support, workspace/communication layout, 
+and per-rank fragmentation, none of which the aggregate sum establishes. A practical TP 
+topology (e.g. TP=4 or TP=8) must be checked against the serving engine and model geometry 
+before three cards are treated as deployable. The canonical single host of 8×H100 (640 GB) is not 
+justified by basic capacity alone — three 80 GB GPUs already clear the 165 GB residency floor; 
+the 8×H100 host is chosen for compute, bandwidth, topology, concurrency, implementation 
+constraints, and headroom. [ILLUSTRATIVE][DERIVED]
+• KV cache quantization buys back memory, not compute. FP8 KV ≈ 50% of BF16 (raw 
+byte-halving), dropping the 9.5K max residency from ~165 GB toward ~152 GB. This is a 
+memory lever, orthogonal to bandwidth/compute fixes — the architect pulls it when the KV 
+floor, not decode bandwidth, binds.
+• Fine-tuning is a different memory regime than inference. The same model that serves in 
+~165 GB demands ~1,120 GB under full Adam fine-tuning (weights 140 GB + gradients 140 GB 
++ Adam m/v/master states 840 GB) — roughly 1.75× the 8×H100 host. This is why the architect 
+separates the serving fleet from the training fleet: the memory floors differ by an order of 
+magnitude. [ILLUSTRATIVE][DERIVED]
+• Context length is the largest controllable KV lever. Doubling context from 9.2K to 18.4K 
+doubles KV (~24.1 GB → ~48 GB); 128K context drives KV to ~335 GB, which forces quantization 
+or model parallelism. The architecture must set a context-length ceiling to keep the served 
+model within host memory. [ILLUSTRATIVE][DERIVED]
+In short: the architect sizes the host by weights + KV at the longest supported context, treats KV 
+quantization as a spare memory dial, and keeps inference and training on separate memory-planning 
+tracks.
+7.7. What We Still Don’t Know
+• Per-model KV state beyond K/V — the additional per-head state and per-layer scale/offset 
+metadata some attention implementations store alongside keys and values. The 2 × layers 
+× n_KV-heads × head_dim × bytes formula prices the K/V entries themselves (§7.3 covers 
+GQA/MQA exactly by substituting the model card’s KV-head count), but the extra per-token 

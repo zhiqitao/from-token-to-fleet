@@ -1,0 +1,40 @@
+Designing the AI System: From Constraints to Candidates
+152
+of 164 GB. A single 8×H100 host provides 640 GB aggregate memory (8 ×80 GB), leaving ample 
+headroom. Each candidate satisfies the three hard constraints differently.
+Candidate (a): single 8×H100 host with prefix caching (Ch. 11). This is the per-request-
+latency baseline — the single 8×H100 host that the early book (Ch 2, 4, 7, 8) establishes as meeting one 
+request’s latency SLO. It is not a capacity baseline: a lone host cannot carry the arrival rate (~5 hosts 
+are needed for the canonical average, and ~20 at peak — see Ch 11, 13, 17), so its throughput-gate 
+failure below is expected and is not a reason to dismiss the host class itself. All 70B weights and 
+the full 24 GB KV cache reside on the 8-GPU host. Prefix caching from Ch. 11 amortizes the prefill 
+attention over repeated requests with the same prompt prefix, reducing effective prefill FLOPs by 
+~30% at 10 rps average and ~50% at peak 40 rps when many requests share common document roots. 
+(That 30–50% amortization range is a reasoned expectation, not a measured figure — it rests on the 
+untested premise about traffic overlap flagged in §12.7, so it is labeled [HYPOTHESIS] and should 
+be confirmed by measuring the actual prefix-hit rate before it is relied on.) The 8×H100 host fits the 
+full 164 GB residency easily, but on throughput we must be honest with the Chapter 8 arithmetic: a 
+single 8×H100 host sustains only ~19,800 prefill-tokens/s at the idealized 35%-MFU aggregate (8 × 
+2,471; see the Ch. 8 scope note) — far below the ~92K input tokens/s the workload needs on average. 
+Even if prefix caching (~30% at average load) lifts effective prefill throughput toward ~28K tokens/s 
+[HYPOTHESIS], that is still well below 92K, so a single host fails the throughput gate too — prefill 
+is compute-bound at this operating point, and meeting it is exactly the scaling problem Chapters 
+15–17 take up. Memory fit and throughput fit are different gates: the memory gate passes with one 
+host; the throughput gate does not. Memory fit: 140 GB weights + 24 GB KV = 164 GB < 640 GB 
+aggregate ([ASSUMPTION] canonical (Ch 4, Table 4-2)). Throughput at the SLO: per-request prefill + 
+decode stay within the latency budget thanks to prefix caching and the high bandwidth of 8×H100, 
+but the sustained rate fails at one host, as shown above — the gate closes only when the host class 
+is replicated to ~5 hosts (Chs. 15–17). Quality: the 70B is itself the workload’s quality reference, so 
+this gate is met by construction. Economics (recorded, not one of the three gates — §12.8): one host 
+purchase, one software license tier.
+Candidate (b): P/D-disaggregated two-pool.
+We keep the full 70B model in both pools and split by phase — which is what prefill/decode (P/D) 
+disaggregation actually means (Chapter 11): a compute-bound prefill pool and a bandwidth-bound 
+decode pool, each holding the complete 140 GB weights plus the in-flight KV, with the KV hidden-
+state handed between them (Splitwise / DistServe / Mooncake). Each pool therefore needs its own 
+8×H100 host (residency ~164 GB — weights plus one request’s KV — comfortably under 640 GB). The 
+win is that prefill and decode no longer fight over the same host’s resources: the prefill pool runs 
+FLOPS-saturated on the 9.2K input, the decode pool runs bandwidth-saturated on the 300 output 
+tokens, and KV crosses between them. Crucially, P/D disaggregation does not raise per-host prefill 
+throughput: one 8×H100 prefill host still sustains only ~19,800 prefill-tokens/s (the same Chapter 8 
+arithmetic as Candidate (a)), far short of the ~92K input tokens/s the workload needs on average. So 

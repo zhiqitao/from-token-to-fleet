@@ -138,12 +138,18 @@ the percentiles are read by linear interpolation on the sorted sample.
 The mean of that stream is \[
 \mathbb{E}[L] \approx 0.99 \times 0.8 + 0.01 \times 5.0 \approx 0.84 \text{ s}
 \] --- looks fine. But the distribution actually has a long tail: p50 ≈
-0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s. The mean hides the
-tail; percentiles expose it --- but notice how far one has to go to
-expose \emph{this} tail. Under the canonical p95 TTFT SLO of ≤ 2 s,
-\textbf{even p99 (≈ 1.33 s) still looks healthy.} The 5 s stragglers are
-the top 1\% of the stream --- they sit \emph{between} the 99th and 100th
-percentile, so a p99 line alone does not bring them into view. Only the
+0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s --- a knife-edge
+property of \emph{this} N = 10,000 sample, not of the distribution:
+linear interpolation lands on the largest non-straggler draw, while the
+population p99 of the stated 99 \% log-normal + 1 \% straggler mixture
+is 5.0 s (one extra straggler, 101 of 10,000, moves the sample p99 to
+5.0 s too). The mean hides the tail; percentiles expose it --- but
+notice how far one has to go to expose \emph{this} tail. Under the
+canonical p95 TTFT SLO of ≤ 2 s, \textbf{even this sample's p99 (≈ 1.33
+s) still looks healthy --- the population p99 is 5.0 s, sitting on the
+straggler cluster.} The 5 s stragglers are the top 1\% of the stream ---
+in this sample they sit \emph{between} the 99th and 100th percentile, so
+the interpolated p99 line alone does not bring them into view. Only the
 p99.9 / maximum reading (or the full distribution) surfaces them. This
 is the sharper lesson: a tail can hide not just behind the mean but
 behind any single percentile, and the choice of which percentile to SLO
@@ -153,8 +159,8 @@ SLO line), not just one percentile.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Request-latency distribution: the mean looks healthy while a 1\% tail at \textasciitilde5 s breaches the 2 s SLO. Assumption: a synthetic stream of 99\% log-normal requests around 0.8 s plus 1\% at 5 s, with p50/p90/p95/p99 read off this stream \mbox{{[}ILLUSTRATIVE synthetic profile{]}}. Caveat: the shaded band marks the ≥4 s tail only, not the full SLO-violating region between 2 s and 4 s.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0602.pdf}}
-\caption[Request-latency distribution]{Request-latency distribution: the mean looks healthy while a 1\% tail at \textasciitilde5 s breaches the 2 s SLO. Assumption: a synthetic stream of 99\% log-normal requests around 0.8 s plus 1\% at 5 s, with p50/p90/p95/p99 read off this stream \mbox{{[}ILLUSTRATIVE synthetic profile{]}}. Caveat: the shaded band marks the ≥4 s tail only, not the full SLO-violating region between 2 s and 4 s.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Request-latency distribution: the mean looks healthy while a 1\% tail at \textasciitilde5 s breaches the 2 s SLO. Assumption: a synthetic stream of 99\% log-normal requests around 0.8 s plus 1\% at 5 s, with p50/p90/p95/p99 read off this stream \mbox{{[}ILLUSTRATIVE synthetic profile{]}}. Caveat: the light band shades the full SLO-violating region (\textgreater{} 2 s, everything right of the SLO line) and the darker hatched band marks the 5 s straggler cluster inside it --- the shading marks violations of the one 2 s SLO, not a second threshold.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0602.pdf}}
+\caption[Request-latency distribution]{Request-latency distribution: the mean looks healthy while a 1\% tail at \textasciitilde5 s breaches the 2 s SLO. Assumption: a synthetic stream of 99\% log-normal requests around 0.8 s plus 1\% at 5 s, with p50/p90/p95/p99 read off this stream \mbox{{[}ILLUSTRATIVE synthetic profile{]}}. Caveat: the light band shades the \textbf{full} SLO-violating region (\textgreater{} 2 s, everything right of the SLO line) and the darker hatched band marks the 5 s straggler cluster inside it --- the shading marks violations of the one 2 s SLO, not a second threshold.}
 
 \label{fig:6.2}\end{figure}
 
@@ -183,23 +189,27 @@ not a citation.
 
 Deploying a higher-throughput configuration can \emph{reduce} goodput.
 Concretely: suppose we enable larger dynamic batching to raise raw
-tokens/s from 50 tok/s to 70 tok/s, but the batch window pushes p95 TTFT
-from 1.8 s to 2.3 s --- above the 2 s SLO. The extra 20 tok/s are
-produced, but they land in the tail that misses the SLO, so goodput does
-not grow. Raw throughput is up 40\%; \textbf{goodput} (tokens that met
-the SLO) is effectively unchanged \emph{in this case}, because the batch
-of SLO-compliant tokens didn't grow. (The general relation is goodput =
-raw\_rate × compliant\_fraction: if the compliant fraction falls from
-96\% to 94\%, goodput is 50×0.96 = 48 vs 70×0.94 = 65.8 --- it
-\emph{rises} despite the p95 breach. The ``unchanged'' claim holds only
-when the extra tokens all land in the SLO-missing tail, i.e.~the
-compliant fraction drops proportionally to the raw-rate gain. A p95
-breach is a \emph{configuration-level} acceptance signal; request-level
-SLO-goodput is a separate measurement and must be computed from the
-compliant fraction, not inferred from the p95 alone.) Goodput is the
-metric the customer experiences; raw throughput is what the GPU
-achieves. The architect optimizes goodput. This is why ``faster''
-hardware or bigger batches do not trivially mean a better system.
+tokens/s from 50 tok/s to 70 tok/s (\hyperref[chap:5]{Chapter 5}'s single-stream /
+low-batch decode basis --- a floor, not the host's aggregate serving
+rate; \hyperref[chap:15]{Chapter 15}'s \textasciitilde8,000 tok/s is prefill-side and its
+\textasciitilde35,000--56,000 tok/s the batched serving rate), but the
+batch window pushes p95 TTFT from 1.8 s to 2.3 s --- above the 2 s SLO.
+The extra 20 tok/s are produced, but they land in the tail that misses
+the SLO, so goodput does not grow. Raw throughput is up 40\%;
+\textbf{goodput} (tokens that met the SLO) is effectively unchanged
+\emph{in this case}, because the batch of SLO-compliant tokens didn't
+grow. (The general relation is goodput = raw\_rate ×
+compliant\_fraction: if the compliant fraction falls from 96\% to 94\%,
+goodput is 50×0.96 = 48 vs 70×0.94 = 65.8 --- it \emph{rises} despite
+the p95 breach. The ``unchanged'' claim holds only when the extra tokens
+all land in the SLO-missing tail, i.e.~the compliant fraction drops
+proportionally to the raw-rate gain. A p95 breach is a
+\emph{configuration-level} acceptance signal; request-level SLO-goodput
+is a separate measurement and must be computed from the compliant
+fraction, not inferred from the p95 alone.) Goodput is the metric the
+customer experiences; raw throughput is what the GPU achieves. The
+architect optimizes goodput. This is why ``faster'' hardware or bigger
+batches do not trivially mean a better system.
 
 \subsection{Detecting the Regime: Bandwidth-Bound vs
 Compute-Bound}\label{detecting-the-regime-bandwidth-bound-vs-compute-bound}
@@ -286,7 +296,7 @@ minimum) must be distinguished from these example values. See Ch 8 for
 the underlying intensity/roofline arithmetic that shows why these
 regimes occur.}
 
-\needspace{250pt}
+\Needspace{250pt}
 
 \subsubsection{Table 6-1 --- Detecting the bottleneck regime from
 resource
@@ -351,8 +361,9 @@ each \textasciitilde1.29 PFLOP saturating FLOPs. The decision: enable
 prefix / RadixAttention-style caching (SGLang) or Automatic Prefix
 Caching (vLLM) so shared retrieved-context prefixes are reused instead
 of re-prefilled, cutting effective prefill FLOPs and TTFT.
-\mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} Prefix caching is a compute-saving move, not
-a latency tuning --- and the telemetry told us that.
+\mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} Prefix caching is a compute-saving move ---
+its TTFT benefit arrives through the prefill work it removes, not
+through a latency knob of its own --- and the telemetry told us that.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -433,7 +444,7 @@ workload:
   \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
 \item
   \textbf{KV cache pressure ⇒ quantize or offload KV.} FP8 KV = raw
-  tensor byte-halving = 1.31 MB/token (exactly 50\% of BF16)
+  tensor byte-halving = 1.31 MB/token (exactly 50\% of FP16)
   \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}; any block-allocation/metadata
   overhead is NOT vendor-measured here and must be filled by a
   deployment benchmark. (The vLLM FP8-KV blog's `54\%' is a decode-ITL

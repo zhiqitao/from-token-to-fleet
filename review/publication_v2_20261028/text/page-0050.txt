@@ -1,0 +1,37 @@
+Understanding the Model
+32
+3.3.3. Why MoE saves compute but not KV cache memory
+The compute savings are straightforward: if only na = 14B of nt = 47B total parameters are active 
+per token, the FLOP count drops by the active fraction relative to a same-size dense model. But note 
+the active fraction for top-2-of-8 routing is ~14/47 ≈30%, not single-digit — so the relative saving is 
+about 5× versus the canonical 70B dense comparison, not 20× or 30×. Concretely,
+FLOPMoE/token = na × 2 FLOP/param = 14 B × 2 ≈0.028 T
+which is 0.028/0.14 ≈0.20× of the dense 70B figure — roughly a 5× reduction in compute per 
+token. (It is also 14/47 ≈30% of a hypothetical dense model of the same 47B total; the 5× figure 
+uses the book’s canonical 70B dense as the comparison, so always state which baseline the ratio is 
+against.)
+The KV cache story is the surprising part. Recall from Chapter 1 (KV cache as a concept) 
+that the KV cache stores one key and one value tensor per token, per layer. The cache size per 
+token scales with the canonical Chapter 1 formula (the full-MHA case, where n_KV-heads × head_
+dim = hidden_dim; for a GQA/MQA model substitute n_KV-heads × head_dim), KVper-token =
+2 × nlayers × dhidden × bytes-per-value. Critically, the attention mechanism processes every 
+token in the context densely — each token’s query attends to all previous tokens’ keys and values, 
+regardless of whether the model is dense or MoE. MoE sparsity operates in the feed-forward sub-layer; 
+it does not change the attention sub-layer’s behavior.
+Therefore, for a 70B-class model (dense or MoE) with 8K–9.2K input context:
+• Dense 70B: KV cache ~1.31 MB per token × 9,200 tokens ≈ 12.06 GB (at 8-bit, the raw tensor 
+byte-halving figure = 1.31 MB/token, exactly 50% of BF16 — the block-overhead and ‘54%’ 
+ITL-slope caveats are stated once in Ch 1; see Ch 7) or ~24 GB (at FP16 precision for the 
+key/value storage pattern discussed in Ch. 7).
+• MoE 70B-equivalent: The KV cache is identical in size, because attention still processes 
+all 9,200 tokens densely. The fact that only 14B of 47B total parameters are active in the 
+feed-forward layers does not reduce the number of keys/values emitted by the attention layers.
+In other words: MoE sparsity = compute sparsity (fewer FLOPs per token). MoE sparsity ≠ 
+memory sparsity (KV cache still grows linearly with context length, same as dense). Only changing 
+the attention mechanism itself (e.g., hybrid/linear attention, compressed latent attention, or KV 
+offload) can stop the cache from growing. This distinction — compute-sparsity versus memory-
+sparsity — is one an architect has to get exactly right.
+Key takeaway: MoE provides compute sparsity (far fewer FLOPs per token because 
+a fraction of experts is active), not automatic weight-residency sparsity — the full 
+expert set normally remains resident unless it is explicitly offloaded or sharded in a 
+way that changes residency. And the KV cache budget must be provisioned as if the 

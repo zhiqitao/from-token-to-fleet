@@ -1,0 +1,55 @@
+From Server to Fleet
+208
+prefill aggregate (8 × 2,471 at 35% MFU) before TP/system loss — an analytical up­
+per bound on prefill, not a servable goodput. (3) ~35,000–70,000 tok/s (Ch. 15) is the 
+batched serving decode+prefill range under FlashAttention + continuous batching — 
+the multi-request serving throughput of the same host. (4) ~2.0 req/s (Ch. 17/20) is the 
+KV/service-time bound on whole requests per host (C ÷ W), the quantity that sizes the 
+fleet. The first three are token-rates at different batch/phase assumptions; the fourth is a 
+request-rate bound. They reconcile only phase-by-phase, never as one fungible “total” 
+rate. Do not set a summed 19K tok/s against any single-phase capacity. At ~2.0 
+req/s the request workload decomposes into two components that hit the hardware 
+differently: 18,400 input tokens/s (2.0 × 9,200 — the prefill phase, compute-bound) 
+and 600 output tokens/s (2.0 × 300 — the decode phase, bandwidth-bound) — 
+both first-order regime labels; see Ch15/Ch8 for the scope conditions. Compare the 
+prefill component only against the prefill-only capacities (~19,800 tok/s, item 2; ~35–70K 
+only if those figures are themselves phase-resolved) and the decode component only 
+against decode-scale capacity — never the summed ~19,000 tok/s against a single-phase 
+figure. The apparent near-equality of ~19,000 tok/s and ~19,800 tok/s is a numerical 
+coincidence of units, not a physical equivalence: the two sit in different phases with 
+different arithmetic intensity and different cost (compute-bound prefill vs. bandwidth-
+bound decode), so they cannot be added into one rate and compared to any single-phase 
+number. Aggregate prefill + decode into a single “total” rate only after stating an explicit 
+cost/phase-equivalence model (e.g., a weighted-FLOP or weighted-dollar basis). Use the 
+token-rates for kernel and cost reasoning (keeping prefill and decode separate), and the 
+request-rate for fleet sizing. [DERIVED]
+Define the subsystem boundaries before applying Little’s Law — the populations are 
+NOT the same. The end-to-end “in-flight request” count differs from the number of sequences 
+actually occupying accelerator resources, because a request passes through several subsystems with 
+different residency times and different occupants:
+Subsystem
+Service time (W)
+Occupancy (L = λ·W)
+What is resident
+End-to-end request 
+(user view)
+W_plan ≈ 10 s 
+(planning round)
+λ·W_plan
+requests from first 
+submit to final 
+response
+Request admission + 
+queue
+W_queue
+λ·W_queue
+requests waiting 
+before a GPU slot is 
+free
+Model execution 
+(prefill + decode)
+W_exec ≈ 8.6 s 
+(canonical 9.2K/300)
+λ·W_exec
+sequences being 
+served on a host

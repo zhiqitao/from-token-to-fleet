@@ -1,0 +1,40 @@
+191
+TCO: The Total Cost Reality Check
+Sizing bound
+Average (10 rps)
+Peak (40 rps)
+N_hosts (max)
+~5 hosts
+~20 hosts
+So the canonical workload’s peak requires roughly 20 hosts (FP16 KV, full utilization; 29 working 
+hosts at the 70% utilization target — 30 total with N−1), and even the average needs ~5 — a fleet, not 
+one box. (FP8 KV roughly halves the KV-bound fleet to ~10 hosts at peak — C ≈ 35.0, so ⌈344/35.0⌉
+= 10, matching Ch 17 — but the true peak fleet stays ~20, the throughput bound ⌈40/2.0⌉, which is 
+independent of KV size; the fleet is max(N_throughput, N_KV).) Every TCO figure below is scaled 
+to this fleet requirement; pricing a single host would understate the cost by roughly 5–20×.
+What kind of number is ~2.0 req/s? The per-host rate C_KV / W ≈ 17.5 / 8.6 ≈ 2.0 
+req/s is an upper-order planning estimate under a particular concurrency, timing, and cache geometry 
+— not an observed service rate. It is an average-in-system relation, not a measured goodput. The three 
+quantities behind N_hosts = max(N_throughput, N_KV, N_SLO) are three different models 
+that must be derived and measured separately, and the formula is only as strong as the weakest 
+one:
+• N_KV (KV-memory occupancy ceiling) — how many requests reside in KV cache given the 
+host’s usable HBM and the per-token KV footprint. This is an arithmetic allocation bound (the 
+~17.5 figure).
+• N_throughput (phase capacity) — how many requests the host can complete per second 
+given the service time. The ~8.6 s service time is an uncontended request-level estimate, and 
+C/W treats it as fixed.
+• N_SLO (queueing / goodput) — the number of hosts needed to hold p95/p99 TTFT, TPOT, 
+and success rate under concurrent arrival. Little’s law relates average in-system work to 
+elapsed time under stability; it does not independently prove a throughput ceiling or 
+a p99 latency. At concurrency ~17, TTFT and TPOT can differ substantially from the isolated 
+~8.6 s used to obtain C/W, because batch efficiency, per-request duration, and interference are 
+all coupled to load.
+So the 20-host figure is a scenario-specific bound contingent on the 8.6-second service 
+time remaining valid under concurrent execution, not a deployment-validated estimate. Before 
+budgeting against it, measure λ_goodput per host at the target p95/p99 TTFT, TPOT, and success 
+rate on the actual workload, and re-derive N_hosts. (See the falsification protocol in Ch 17.)
+Treat both provisioning policies explicitly. The headline $ figures below use the full-
+utilization fleet (≈20 hosts, provisioned exactly at the 40 rps peak with no headroom). The capacity-
+planning rule (Ch 17 Table 17-1) uses a 70% max-operating-utilization target, which gives 29 working 
+hosts at the peak ⌈40×8.6/(17.5×0.7)⌉ = ⌈344/12.25⌉ = 29; because one host must be able to drain 

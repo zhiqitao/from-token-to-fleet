@@ -1,0 +1,42 @@
+249
+Fleet-Level Optimization
+Metric
+Definition
+Target
+Scheduler-added median 
+latency
+50th-percentile dispatch 
+latency, scheduler overhead 
+only
+< 30 ms
+Scheduling overhead
+Fraction of per-query time 
+spent in dispatcher, not 
+compute
+< 5%
+Utilization variance
+Standard deviation of 
+per-host query rate as a 
+fraction of mean
+< 0.2
+Note: end-to-end median/p99 latency is deliberately not a fleet-level target for this canonical 9.5K-
+token workload — a request takes ~8.6 s in service (1.08 s prefill + ~7.5 s decode), so an end-to-end <100 
+ms p99 is infeasible (see the mini-case). The table therefore qualifies these as scheduler-added (dispatch) 
+latency targets only.
+Measurement methodology: use a distributed load generator (e.g., Locust or a custom gRPC-driven 
+pump) that sends queries at the target rps while instrumenting each host’s internal metrics—GPU 
+occupancy, kernel launch time, scheduler dispatch timestamp, and queue depth. Aggregate these 
+via a time-series database (InfluxDB or Prometheus) and compute the above metrics over sliding 
+1-minute windows.
+A practical pitfall: measuring only aggregate rps without tracking per-host variance can mask 
+saturation in individual nodes. Always report both the fleet-wide and per-host metrics.
+20.5. Common Mistakes
+• Treating hosts as independent: Optimizing each host in isolation (e.g., tuning batch size per 
+host) ignores the scheduling overhead that becomes dominant when the fleet is viewed as a 
+unit. A suboptimal batch size on one host can increase dispatch frequency for the entire fleet.
+• Overlooking data movement cost: In RAG workloads, the ~9,200 in-tokens and ~300 out-
+tokens per query must be fetched from a vector database or cache. If every host pulls data 
+independently, the network cost scales linearly with fleet size. A better approach is to colocate 
+vector stores with serving hosts or use a shared cache layer that amortizes fetch cost across 
+concurrent queries.
+• Autoscaling too aggressively: Adding hosts at the first sign of latency increase can be 

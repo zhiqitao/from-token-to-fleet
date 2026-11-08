@@ -1,0 +1,39 @@
+205
+From Server to Fleet
+state (KV cache, accumulated tool outputs, retrieval context), the load balancer must route subsequent 
+requests from the same user to the same host (sticky sessions). This reduces cross-host communication 
+but limits the effective parallelism, because a popular user can pin a single host to capacity while other 
+hosts stand underutilized. If sessions are stateless (the model is reloaded or KV cache is discarded 
+between requests), any host can serve any request, and load distribution becomes even. The architect 
+must choose between density (sticky sessions, higher per-host utilization) and evenness (stateless 
+routing, lower per-host utilization but better load balance).
+17.3. Worked Example
+We continue from the canonical scenario (Ch 4, Table 4-2): ~10 rps average / ~40 rps peak, prompt 
+~9,200 input tokens + ~300 output, 70B-class dense FP16 model, 8×H100 host with 640 GB GPU 
+memory. A single 8×H100 host’s capacity is set by the binding constraint among GPU compute, 
+HBM bandwidth, and KV cache memory. Let us verify with arithmetic, keeping the two quantities 
+distinct: aggregate HBM (640 GB) is not the same as KV-available memory (640 − 140 GB weights 
+− runtime/workspace reserve).
+Single-host concurrency capacity (KV-bound). The per-token KV footprint for the canonical 
+full-MHA reference geometry is 2 × layers × hidden × bytes = 2 ×80 ×8,192 ×2 = 2,621,440 B ≈ 2.62 
+MB/token (Chapter 7 canonical). Subtract the 140 GB FP16 weights and ~64 GB runtime/activa­
+tions/workspace from the 640 GB pool, leaving ≈436 GB available for KV. Each request at 9,200 input 
++ 300 output reserves a 9,500-token max KV of 9,500 ×2.62 MB ≈ 24.9 GB (the initial 9.2K residency 
+is 24.1 GB). A single host therefore holds C = 436 GB ÷ 24.9037 GB ≈ 17.5 concurrent requests 
+(byte-accurate; the conservative integer “requests that fit” floor is 17, not 18 — 17.51 cannot round 
+up for a hard fit) — using the canonical layer-complete κ. Computing κ from a single layer instead of 
+all 80 would overstate the concurrency figure by two orders of magnitude.
+Viability at peak. Peak traffic is 40 rps; with the canonical ~8.6 s per-request service time (1.08 
+s prefill + 7.5 s decode), Little’s Law puts ≈ 40 × 8.6 ≈ 344 requests in flight, against a KV capacity 
+of ~17.5 per host (conservative integer floor 17). A single host is not viable at peak even for the 
+non-agentic canonical workload — the fleet needs roughly ⌈344/17.5⌉ ≈ 20 hosts at 40 rps (29 
+working hosts at the 70% utilization target, 30 total with N−1), and more for growth to 100 rps. 
+This flips the original conclusion: the fleet is not a distant luxury but a necessity at the canonical 
+peak, driven by the product of service time (8.6 s) and arrival rate.
+KV compression is the first lever. Switching KV to FP8 (κ ≈ 1.31 MB/token, raw byte-halving 
+— exactly 50% of BF16 [ILLUSTRATIVE][DERIVED]) cuts the 9.5K max per-request KV to ≈12.45 
+GB and raises C to ≈35.0 concurrent per host (436 ÷ 12.45 ≈ 35.0; conservative integer floor 35), 
+roughly doubling headroom before buying hardware. This is why the architect treats KV precision 
+as a first-class capacity dial, not a cosmetic detail.
+Threshold for fleet expansion. Suppose the agentic layer from Chapter 19 is added. Chapter 
+19’s own telemetry puts the turn distribution at 68% terminating in T=1, 25% in T=2, 5% in T=3, and 

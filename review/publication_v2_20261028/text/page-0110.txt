@@ -1,0 +1,42 @@
+Memory Is the First Constraint
+92
+7.2. Mental Model
+The KV cache is per-request state that persists across autoregressive decode steps for 
+the lifetime of the active sequence — unlike weights, which are loaded once and reused across 
+requests, the KV cache is allocated per request and grows with every token added to the context. A 
+9.2K prompt on a 70B model at FP16 carries ~24 GB of KV state that must remain on-GPU for the 
+entire prefill + decode sequence. If it does not fit, the serving stack must page, offload, or recompute 
+— each option degrades latency or throughput. The durable mental model is: every token we add to the 
+context exacts a fixed memory toll, and that toll is paid in HBM every time the GPU re-reads the cache 
+during decode. This is why context length is the single most powerful lever on inference memory 
+pressure, and why “does it fit?” is the architect’s primary gate.
+7.3. Worked Example
+We anchor all arithmetic in the canonical scenario (Ch 4, Table 4-2): a canonical 80-layer, 
+hidden-8192, full-MHA 70B reference model (every query head carries its own K,V, so the 
+per-token KV width equals the model’s hidden dimension), FP16 weights (2 bytes per parameter), 8 
+×GPUs (80 GB each, 640 GB total VRAM), ~9.2K input tokens + 300 output tokens. We compute KV 
+cache size per token, total KV for the canonical context, and contrast with long-context variants. 
+The per-token formula is general — KV/token = 2 × layers × n_KV-heads × head_dim × bytes — 
+and the full-MHA special case (n_KV-heads × head_dim = hidden_dim) gives the ~2.62 MB/token 
+conservative baseline used throughout; a grouped-query attention (GQA) model would use a much 
+smaller constant (see the sensitivity note, below).
+Table 7-1 — KV cache size per token and per-context arithmetic for the canonical 80-layer, hidden-
+8192, full-MHA 70B reference at FP16. (All per-context KV totals, residency figures, and fit/non-fit 
+verdicts below are [ILLUSTRATIVE][DERIVED] from the general per-token formula 2 × layers × n_
+KV-heads × head_dim × bytes (MHA case here); model-card architecture constants are [1P: model 
+card].)
+metric
+value
+derivation
+layers
+80
+canonical 70B full-MHA 
+teaching model 
+[ILLUSTRATIVE]
+[ASSUMPTION]
+hidden_dim
+8192
+canonical 70B full-MHA 
+teaching model 
+[ILLUSTRATIVE]
+[ASSUMPTION]

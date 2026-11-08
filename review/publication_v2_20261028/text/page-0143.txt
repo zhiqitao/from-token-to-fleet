@@ -1,0 +1,37 @@
+125
+Communication
+• Ignoring contention from other traffic. NVSwitch can carry many concurrent channels, 
+but if other collectives (e.g., all-gather for optimizer state) are running simultaneously, the 
+bisection bandwidth is shared. Measure with the full production workload pattern, not an 
+isolated micro‑benchmark.
+• Using InfiniBand as a default without checking the cost–performance ratio. InfiniBand 
+HDR 200 Gb/s gives ~25 GB/s unidirectional, which is sufficient for many workloads, but 
+the price per GB of optics and cables is 5–10× that of Ethernet. If the communication time is 
+acceptable on RoCE2, the cheaper fabric may be the better architectural choice.
+• Overlooking protocol overhead. RoCE and InfiniBand use the same 64b/66b line coding but 
+differ in framing and header sizes. An NDR 400 Gb/s InfiniBand link delivers a ~380 Gb/s class 
+useful payload; a 200 Gb/s RoCE2 link delivers ~180 Gb/s. The difference matters when we are 
+computing per-second throughput for a fixed data volume.
+9.6. Architecture Consequence
+The interconnect choice is not a detail to be decided after the model, the parallelism strategy, and 
+the hardware are selected — it is a first-class design variable that shapes all three. If the architecture 
+calls for data-parallel training of a 70B FP16 model across 8 nodes, the all-reduce bandwidth dictates 
+whether the nodes are connected by InfiniBand, 200 GbE, or even 100 GbE. If the budget can 
+accommodate NVLink‑connected hosts, keeping the all-reduce on-node reduces communication 
+time by ~22× vs InfiniBand and ~350× vs RoCE (§9.3).
+The architecture consequence also flows in the other direction: a tighter communication budget 
+(e.g., target <0.5 s per all-reduce) may force a particular parallelism strategy. We might choose model 
+parallelism (pipeline parallelism, tensor parallelism) to keep the per-collective data volume smaller, or 
+we might accept a slower fabric and reduce the frequency of collectives (e.g., gradient accumulation 
+steps between all-reduce calls). The interconnect bandwidth number is the anchor that makes these 
+trade-offs quantifiable.
+Finally, the architecture consequence extends to cost. A cluster of 8×H100 servers connected 
+by NVSwitch is the highest upfront capital expenditure, but it delivers the lowest per-iteration 
+communication time, which translates to higher throughput per dollar over the life of the cluster. A 
+cluster connected by 200 GbE RoCE has lower capital cost but higher per-iteration communication 
+time, which may increase the total cost of ownership if the training job runs for many weeks. The 
+architect must balance capex vs. opex by way of the communication arithmetic shown in this chapter.
+9.7. What We Still Don’t Know
+• Contention patterns under mixed workloads. The benchmark numbers above assume a 
+dedicated collective on a quiet fabric. In a production fleet, other traffic (user requests, other 
+training jobs, KV cache movement) shares the same links. The effective bandwidth under 

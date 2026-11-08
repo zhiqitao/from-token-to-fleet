@@ -1,0 +1,37 @@
+237
+Agentic Systems
+turn for the workload, then set the cap where marginal value drops off (the canonical policy 
+caps at 3, with a 2% fallback to single-shot — §4, §8). A cap of 10 may be too many for one 
+workflow and too few for another; the number is a policy parameter, not a constant.
+2. Neglecting token accounting per turn. Many architects track only the initial input tokens 
+and forget that each retrieval or tool call adds context that persists for all subsequent turns. 
+The compounding effect means that turn T sees an input base that grows linearly with T.
+3. Overlooking tool latency variance. A tool that typically responds in 30 ms may, under 
+cache misses or lock contention, take 2 s. Without a timeout and fallback, the entire agent loop 
+blocks. Always instrument timeouts and provide a “best-effort” fallback path.
+4. Confusing ‘agentic’ with ‘more prompts’. Adding extra prompts without a structured loop 
+(Plan/Execute/Observe/Decide) does not give the model reasoning power; it just inflates token 
+count. The agentic value comes from the model’s ability to reinterpret prior observations and 
+decide the next action.
+5. Skipping guardrails. Without pre-call validation (e.g., query sanitization, budget checks) 
+and post-call verification (answer relevance, hallucination detection), agentic systems can 
+produce plausible but incorrect or unsafe outputs. Guardrails are not optional — they are the 
+safety net that makes bounded loops safe in production. A production agent needs explicit 
+termination, budget, recovery, and escalation policies: hard turn/token/cost/wall-time limits, 
+tool timeouts, cancellation, idempotency/retry discipline, state checkpointing, and human 
+escalation. A logical multi-step task may be resumed across bounded execution windows rather 
+than granted unlimited resources — guardrails make the loop safe, not unbounded.
+19.6. Architecture Consequence
+Introducing an agentic layer reshapes the system architecture in four ways:
+State-management policy sets the trajectory. Before quantifying context/KV growth, the 
+architect must decide the state-management policy, because that policy — not the model — determines 
+whether context grows unbounded. The quantitative path that follows (Fig 19.2/19.3) uses an append-
+only bounding case with this exact retention policy: (i) the initial prompt is retained in full; (ii) each 
+turn’s tool outputs are retained in full (not externalized); (iii) the model’s per-turn reasoning tokens 
+are visible and retained in the context (not hidden); (iv) no prefix cache is assumed to be reused 
+across turns (each turn’s request is rebuilt from the full accumulated context); (v) no truncation or 
+compaction is applied. Under that policy the context is only ever appended and never evicted, so it 
+is the worst case — a deliberate upper bound, not the deployed design. Two token counts must be 
+kept distinct: the billable tokens (what the API charges, = the full accumulated context sent each 
+turn) and the KV-resident tokens (what occupies the cache, = the same accumulated context under 
+this no-reuse policy); with prefix caching enabled the billable count can fall while the KV-resident 

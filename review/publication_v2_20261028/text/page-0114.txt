@@ -1,0 +1,70 @@
+Memory Is the First Constraint
+96
+scenario
+memory 
+resident
+bytes per param
+total (70B)
+fits 8×H100
+fine-tuning 
+(weights + 
+gradients + 
+optimizer)
+weights + 
+gradients + 
+optimizer states
+Adam: ~16 
+B/param (m + v 
++ ΔW)
+~1,120 GB
+no
+fine-tuning 
+(weights + 
+gradients, FP16)
+weights + 
+gradients FP16
+4 B/param 
+(weights FP16 2 
+B + gradients 
+FP16 2 B)
+~280 GB
+yes
+fine-tuning 
+(QLoRA, 4-bit 
+base + LoRA)
+quantized base + 
+LoRA adapters
+NF4: nominal 
+4-bit (~0.5 
+B/param) + 
+quantization 
+metadata; adds 
+adapters/gradi­
+ents/opti­
+mizer/activa­
+tions
+~50–70 GB
+yes
+inference with 
+FP8 KV
+weights FP16 + 
+KV FP8
+KV: ~50% of 
+BF16 (raw 
+byte-halving)
+~152 GB (9.5K; 
+140 + 12.45; KV 
+alone 12.45 GB)
+yes
+Inference residency = weights + KV cache; the KV footprint scales with context length. Fine-tuning 
+residency adds optimizer states (Adam m, v, and master weights), which for 70B at ~16 bytes/param 
+totals ~1,120 GB — roughly 1.75× the 640 GB of 8×H100. This contrast is the architect’s central takeaway: 
+inference is memory-limited by weights + KV, while fine-tuning is memory-limited by weights + gradients 
++ optimizer, a substantially higher floor. Note the ~1,120 GB is the parameter/optimizer floor (weights 
++ gradients + Adam m/v/master), which is fixed by model size and precision. The actual training peak 
+is higher and is not inferable from that floor alone: it also includes activation memory (scales with batch 
+size × sequence length × hidden dim, and is the dominant term for long-context or large-batch runs), 
+temporary kernel workspace, allocator fragmentation, and checkpointing buffers. A host that fits the 
+1,120 GB floor can still fail to fit a given training run if its activation peak exceeds the remaining HBM — 
+so the fit verdict for training must be checked against the measured peak for the specific batch/sequence 
+configuration, not the parameter floor. (QLoRA’s ~50–70 GB figure is likewise a floor: it holds the 4-bit 

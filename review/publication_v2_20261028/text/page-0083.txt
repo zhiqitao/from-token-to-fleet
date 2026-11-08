@@ -1,0 +1,40 @@
+65
+The Anatomy of an AI Workload
+4.8. End-of-Chapter Mini-Case: A Six-Dimension Workload Characterization
+An architect is brought into the early design of an internal Q&A platform. The stakeholder says: “We 
+have thousands of employees who want to ask questions over our internal documents. We need it to 
+be accurate and fast, but we don’t know how many thousands or how fast is fast enough.” Before 
+any architecture can be defended, the architect does the workload characterization that this chapter 
+walks through.
+From the unit-and-token work of Ch 1 alone, the architect can already establish: the unit is 
+tokens; the request shape will be prompt + retrieved context + output; the workload is input‑heavy; 
+and the first number to lock down is tokens‑per‑request, because every downstream decision (which 
+model fits, how much memory, what latency is possible) is priced against it. Using the canonical 
+scenario as a starting point — ~2,000 registered users, ~5% concurrency, ~10 rps, ~9.2 K input + 300 
+output tokens — the architect projects the enterprise’s actual headcount. If the company has 5,000 
+employees and expects 10% concurrent activity during peak Q&A periods (after a policy rollout), 
+that gives 500 active people — a population measure, not 500 requests currently occupying the 
+inference service. An arrival rate requires its own traffic assumption or observation. Suppose user 
+research and demand modeling independently set the busy-period peak to 50 requests/s (a declared 
+scenario input at this growth scale, not a figure derived from the 500-user count — Little’s Law cannot 
+convert an active-user population into an arrival rate without knowing in-flight request occupancy). 
+With the illustrative ~8.6 s engine response duration, Little’s Law implies approximately 50 × 8.6 ≈ 
+430 requests in the system across the fleet at that rate — distinct from the 500 active people. It 
+is the arrival rate, not the user count, that sizes the fleet. Using the canonical per-host bound from 
+Chapters 15–20 (a single 8×H100 host serves ~2.0 req/s at full modeled utilization, i.e. C/W ≈ 17.5 
+KV-resident requests ÷ 8.6 s), the fleet rounds to:
+nhosts =
+50 rps
+2.0 req/s/host ≈25 hosts
+(full utilization)
+and roughly ~36 hosts at a 70% target utilization. A prefill-throughput cross-check from the 
+Chapter 8 model bounds it from below: 50 rps × 9.2K input = 460,000 prefill tokens/s ÷ ~19,800 
+tokens/s per host (the host’s sustained-planning prefill rate, 8 × 2,471 tok/s at 35% MFU — a planning 
+rate, not a ceiling: the peak-derived ceiling is ~56.5K tok/s; not a measured goodput) ≈ ~23 hosts. 
+(Do not divide by the ~8.5K tok/s single-request prefill rate, 9.2K ÷ 1.08 s — that is the rate for one 
+request monopolizing a host, not a per-host aggregate, and using it here would be a unit error.) So 
+prefill-throughput is a lower bound on host count; the binding figure is the KV-residency/service-
+time ~25 (full util) / ~36 (70%) result. The two do not “agree” — the KV-bound dominates, and the 
+prefill model shows why adding hosts for prefill alone is the wrong lever at this scale; both are 
+analytical bounds that must be confirmed by benchmark goodput (Chapter 14). Note this mini-case 
+is a 5,000-employee growth scenario at 50 rps, distinct from the canonical 40 rps peak (which sizes to 

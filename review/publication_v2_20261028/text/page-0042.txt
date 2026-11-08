@@ -1,0 +1,34 @@
+What Actually Happens During Inference
+24
+With 1.19 > 0.989, even before accounting for attention overhead, kernel inefficiency, 
+and sub-100% model FLOPs utilization (MFU), this first-order lower bound already exceeds 
+the H100’s theoretical peak. Therefore one H100 cannot satisfy the stated prefill budget under these 
+assumptions. The prefill phase is compute-bound for the separate reason given in Table 2-1: arithmetic 
+intensity ~9.2K FLOP/byte > ridge ~295 [canonical scenario][DERIVED]. Note the direction of this 
+argument: exceeding the theoretical peak proves the target is impossible on a single H100 under the 
+stated model, but it does not imply any rate below the peak is achievable — real kernels land well 
+under MFU 100%. Meeting the latency SLO therefore calls for multiple GPUs (model parallelism or 
+data parallelism) or more efficient attention implementations.
+2.4. Measurement
+How do we know whether a given workload is prefill-dominant or decode-dominant in practice? 
+Three practical measurements:
+1. Divide the TTFT into retrieval + prefill. Measure the retrieval latency (vector search, 
+document fetch) separately from the prefill latency (prompt processing). In the canonical 
+scenario, retrieval takes ~120 ms, leaving ~1.08 s for prefill on a 9.2K-token prompt. If prefill 
+exceeds this budget, the bottleneck is compute or memory, not retrieval.
+2. Log TPOT against current sequence length, at controlled batch/concurrency. Track the 
+time-per-token as the generated sequence grows. This is a scaling curve, not a binary verdict. 
+An increasing TPOT as the sequence lengthens reveals growing KV-attention cost — each 
+new token attends over a longer KV sequence, and decode attention work and KV cache traffic 
+generally grow with sequence length even though cached K/V projections are not recomputed. 
+A relatively flat TPOT suggests weight streaming (a fixed per-step cost — reading the full 
+140 GB weight matrix each step) remains dominant. TPOT does not have to stay constant; 
+batching, kernel choice, occupancy, and scheduling can make the observed curve complicated, 
+so measure it rather than asserting a trend.
+3. Measure actual HBM utilization vs FLOP utilization. Using GPU profilers (NVIDIA Nsight, 
+vLLM stats), watch the fraction of peak HBM bandwidth consumed versus the fraction of peak 
+FLOPS consumed. If HBM utilization is near 100% while FLOPS utilization is low, the kernel is 
+bandwidth-bound (typical of decode). If FLOPS utilization is near 100% while HBM utilization 
+is low, the kernel is compute-bound (typical of prefill).
+These measurements cost nothing but a profiler attach and a few representative requests — and 
+they prevent the architect from applying the wrong optimization lever.

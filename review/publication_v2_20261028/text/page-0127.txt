@@ -1,0 +1,34 @@
+109
+Compute
+this. Where our kernel lands on that chart decides whether we should profile memory bandwidth or 
+compute throughput.
+Read this ladder together with the roofline: the roofline’s vertical axis (peak TFLOPS) and horizontal 
+axis (FLOP/byte) are both determined by where on this hierarchy the work sits. A kernel is compute-
+bound when its FLOPs run on the tensor cores and data fits in on-chip memory (high arithmetic 
+intensity); it is bandwidth-bound when it must stream large tensors from HBM faster than the bytes 
+can move (low arithmetic intensity). So the “bound” classification of Ch. 8 is not a property of the 
+model alone — it follows from where the model’s weights and the KV cache happen to be resident, 
+and how much of the computation a kernel can keep on-chip. Ch. 15’s FlashAttention discussion is 
+exactly this ladder in action: keep more of the tile on-chip, move fewer bytes between HBM and the 
+compute units.
+8.3. Worked Example: Canonical Scenario Arithmetic
+The canonical scenario (Ch 4, Table 4-2) is an enterprise Q&A system: the canonical 80-layer, 
+hidden-8192, full-MHA 70B reference (a 70B-class dense model), FP16 weights (~140 GB), 1 host with 
+8×H100-class GPUs (80 GB each), average prompt 1,200 tokens + 8K retrieved context (~9.2K input), 
+300-token output, TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token.
+Scope. “1 host with 8×H100” here is a per-host / per-request feasibility container (does one 
+host meet one request’s latency and memory SLO). It is not a claim that one host absorbs the 40 rps 
+peak arrival rate — as Ch 17 derives, that peak puts in-flight concurrency λ·W ≈ 344 at the ~8.6 s 
+service time, far above one host’s KV-residency ceiling (C ≈ 17.5, conservative integer floor 17), so 
+the fleet needs ~20 hosts. The compute/roofline arithmetic of this chapter answers the per-request 
+and per-host-shard question; the fleet question is a separate multiplication that Ch 17 performs (with 
+the cost basis in Ch 16). We keep them distinct because each requires measuring against a different 
+quantity (a latency budget vs an arrival rate).
+8.3.1. FLOPs per token
+For a 70B-parameter dense model in FP16, the per-token forward FLOP count is approximately:
+FLOP/token ≈2 × N = 2 × 70 × 109 ≈140 GFLOP/token
+[DERIVED: 2 FLOPs/parameter × 70 ×10⁹ params; standard dense-forward arithmetic, which is 
+the same 2×N rule that gives, e.g., a 175B dense model 2 × 175 × 10⁹ ≈ 0.35 TFLOP/token]
+This applies to both prefill and decode: each token that enters the forward pass costs ~140 
+GFLOP. The distinction between prefill and decode is not in the per-token FLOP count but in the data 
+movement pattern — prefill reads the full context once, while decode re-reads weights per token.

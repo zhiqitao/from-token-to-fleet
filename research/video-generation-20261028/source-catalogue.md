@@ -1,0 +1,585 @@
+# Primary-source catalogue
+
+Retrieval and hashes describe archived public responses, not first release dates. Failed/gated fetches are retained as gaps. See claims.json for claim-level boundaries.
+
+## wan22_readme
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/README.md
+- Retrieval: 2026-10-28T06:41:37.291864+00:00
+- Status: retrieved
+- Raw SHA-256: 40222cb3a66cc89aa1cd84589d1fa696806c93c09cf1c4383b3994139202dfa1
+
+## wan21_readme
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.1/main/README.md
+- Retrieval: 2026-10-28T06:41:37.289975+00:00
+- Status: retrieved
+- Raw SHA-256: 3bdaca69aa116222a49859dc21d4a735b60a580af7e1b81531085c87227e4486
+
+## wan_org_repos
+- URL: https://api.github.com/orgs/Wan-Video/repos?per_page=100
+- Retrieval: 2026-10-28T06:41:37.558737+00:00
+- Status: retrieved
+- Raw SHA-256: ddda754a97f5b24806ec813c4a93bd905a094d3e27e65abd2ca94621091c2e71
+
+## wan_hf_models
+- URL: https://huggingface.co/api/models?author=Wan-AI&limit=100&full=true
+- Retrieval: 2026-10-28T06:41:37.336599+00:00
+- Status: retrieved
+- Raw SHA-256: 5e840ce45216d8a911110823ee089505cbf214e12a3ac8876e33ccdf6c2733d4
+
+## wan22_tree
+- URL: https://api.github.com/repos/Wan-Video/Wan2.2/git/trees/main?recursive=1
+- Retrieval: 2026-10-28T06:41:37.476207+00:00
+- Status: retrieved
+- Raw SHA-256: 28190fbfa7fc94d507db02784e7fd5045fae95656f105f2890cf07eb498faae4
+
+## wan22_commit
+- URL: https://api.github.com/repos/Wan-Video/Wan2.2/commits/main
+- Retrieval: 2026-10-28T06:41:37.453543+00:00
+- Status: retrieved
+- Raw SHA-256: bd08fa1aadf5f65c9f12fb4aa5b30f4ff7886201b4a12043834c6856763b7573
+
+## wan21_report
+- URL: https://arxiv.org/html/2503.20314
+- Retrieval: 2026-10-28T06:41:37.415234+00:00
+- Status: retrieved
+- Raw SHA-256: 30724caad99368774c89ceea6f927e34b25937c739a6357cbe9461c34cb9e078
+
+## animate2_readme
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan-Animate-2/main/README.md
+- Retrieval: 2026-10-28T06:41:37.304382+00:00
+- Status: retrieved
+- Raw SHA-256: 90ba2d1fbe516ac38286ce0aec527dc20db5dcbc83d39a6d0fec2caf23e775a3
+
+## ltx_readme
+- URL: https://raw.githubusercontent.com/Lightricks/LTX-2/e98f6d927d83c92ef2be6aec76c8440b19306e39/README.md
+- Retrieval: 2026-10-28T06:41:37.416112+00:00
+- Status: retrieved
+- Raw SHA-256: 0e62adfa16cf401b34cb0e6cc511d8dd9ea597526cde53c75e26c945bacc0de5
+
+## ltx_tree
+- URL: https://api.github.com/repos/Lightricks/LTX-2/git/trees/main?recursive=1
+- Retrieval: 2026-10-28T06:41:37.643761+00:00
+- Status: retrieved
+- Raw SHA-256: 0b3f5f368d4497b6cf2405ca6eadaf0686a19a66c25d36cb4c9adb070bc0607d
+
+## ltx_report
+- URL: https://arxiv.org/html/2601.03233
+- Retrieval: 2026-10-28T06:41:37.545386+00:00
+- Status: retrieved
+- Raw SHA-256: b5cdf71c8aa5a1c08794aba72e411f3792a42ded7022fc6085036b69c234cc8c
+
+## ltx25_card
+- URL: https://huggingface.co/Lightricks/LTX-2.5/raw/main/README.md
+- Retrieval: failed; no successful retrieval timestamp
+- Status: failed
+- Raw SHA-256: not available
+
+## ltx2_card
+- URL: https://huggingface.co/Lightricks/LTX-2/raw/main/README.md
+- Retrieval: 2026-10-28T06:41:37.546474+00:00
+- Status: retrieved
+- Raw SHA-256: 8d63508172b847ecb0fc53173f5c013f29178a19f5113d679866243ca4416f0a
+
+## hunyuan_readme
+- URL: https://raw.githubusercontent.com/Tencent-Hunyuan/HunyuanVideo-1.5/60783e704160023913bee78f0b47036d393d4dfa/README.md
+- Retrieval: 2026-10-28T06:41:37.517726+00:00
+- Status: retrieved
+- Raw SHA-256: 57eed52d56216c2e0b60f0e926267a0708fc18de2109e5a60a01d8ccac6e49dc
+
+## hunyuan_report
+- URL: https://arxiv.org/html/2511.18870
+- Retrieval: 2026-10-28T06:41:37.623585+00:00
+- Status: retrieved
+- Raw SHA-256: 99df66e22e9601189ebdf59e049b53637f7760105e9bc51de18650d231175d26
+
+## ali_overview
+- URL: https://www.alibabacloud.com/help/en/model-studio/video-editing-and-generation
+- Retrieval: 2026-10-28T06:41:39.581564+00:00
+- Status: retrieved
+- Raw SHA-256: 79ab3d5953a34bfa8a88a27a02b90a86e7ae556d2ba315dd643597f323d42e5a
+
+## ali_t2v
+- URL: https://www.alibabacloud.com/help/en/model-studio/text-to-video-api-reference
+- Retrieval: 2026-10-28T06:41:38.819380+00:00
+- Status: retrieved
+- Raw SHA-256: 1db4e64e1895509f796986ed113915372b77920074dc5af05172b12e8f57136a
+
+## ali_i2v
+- URL: https://www.alibabacloud.com/help/en/model-studio/image-to-video-general-api-reference
+- Retrieval: 2026-10-28T06:41:39.017607+00:00
+- Status: retrieved
+- Raw SHA-256: ddc7b8f7ff83210213e24475c75480699a8e0f22014eb71b9113c4489df409ac
+
+## diffusers_wan
+- URL: https://huggingface.co/docs/diffusers/api/pipelines/wan
+- Retrieval: 2026-10-28T06:41:37.886943+00:00
+- Status: retrieved
+- Raw SHA-256: 3905d0bd253d5805b099151d7b63fcece7008b5700b4051eaac27b8ee704510b
+
+## diffusers_releases
+- URL: https://api.github.com/repos/huggingface/diffusers/releases?per_page=5
+- Retrieval: 2026-10-28T06:41:37.905448+00:00
+- Status: retrieved
+- Raw SHA-256: 8eb84e5f5bad19096e5c0487d06f4c51a6df59b8ddafa697fbab386220c91359
+
+## xfuser_readme
+- URL: https://raw.githubusercontent.com/xdit-project/xDiT/main/README.md
+- Retrieval: 2026-10-28T06:41:37.727674+00:00
+- Status: retrieved
+- Raw SHA-256: 175f3f64932582f72aee2d9ee402b92019dc95b81574d7d65ea8cbbc95d5340b
+
+## ltx_releases
+- URL: https://ltx.io/release-notes
+- Retrieval: 2026-10-28T06:41:38.012332+00:00
+- Status: retrieved
+- Raw SHA-256: 48b1c5058e9a20151a220288e689cffff062c99382a4d239032ebe8bf934c3fb
+
+## wan22_model
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/modules/model.py
+- Retrieval: 2026-10-28T06:42:10.202723+00:00
+- Status: retrieved
+- Raw SHA-256: 8b39115298ca7322806c19b3165b3f435a94fe4a58f0624aec24f8e7f4997432
+
+## wan22_attention
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/modules/attention.py
+- Retrieval: 2026-10-28T06:42:10.198690+00:00
+- Status: retrieved
+- Raw SHA-256: 23fe7c6f6e4065242d95e5e188cb2d1a16bd283f05dca7e7e878977158fcfdbc
+
+## wan22_t2v
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/text2video.py
+- Retrieval: 2026-10-28T06:42:10.227762+00:00
+- Status: retrieved
+- Raw SHA-256: 2f212e1f6d7ba4408a25998091b70ee35dde8bcaaeaedd3ba03d6cdab84dc683
+
+## wan22_ti2v
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py
+- Retrieval: 2026-10-28T06:42:10.152351+00:00
+- Status: retrieved
+- Raw SHA-256: 228f2fabf23014ed41ec6b8cd713d5be7371bb558501c71a62a0258b491a877b
+
+## wan22_cfg5
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_ti2v_5B.py
+- Retrieval: 2026-10-28T06:42:10.148850+00:00
+- Status: retrieved
+- Raw SHA-256: 26d9e7b9c555eb0900b13751267a596556f869e7aee2d1572afc2a0a4a76f4c7
+
+## wan22_cfg14
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_t2v_A14B.py
+- Retrieval: 2026-10-28T06:42:10.185495+00:00
+- Status: retrieved
+- Raw SHA-256: a1f3a70472aece6d7a3cfe83ed39be829e957484db23069c13c7a3c35ac07a48
+
+## wan22_cfgi14
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_i2v_A14B.py
+- Retrieval: 2026-10-28T06:42:10.143445+00:00
+- Status: retrieved
+- Raw SHA-256: 1cddca2dd2976df3d08c602e437a8d1aec94b33b3cb4dea3187003dbe5195cd2
+
+## wan22_cfgshared
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/shared_config.py
+- Retrieval: 2026-10-28T06:42:10.177389+00:00
+- Status: retrieved
+- Raw SHA-256: 3ae102e029d4d0e3436ebbaa9f8fd32c10e8468ae8be07facdca2e20ec1858fe
+
+## wan22_hf5
+- URL: https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B/raw/main/README.md
+- Retrieval: 2026-10-28T06:42:10.264377+00:00
+- Status: retrieved
+- Raw SHA-256: e357cb3ac077f8739755b0fb38fe8424c76534b19b4a84f6138856abb00abf69
+
+## wan22_hf14
+- URL: https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B/raw/main/README.md
+- Retrieval: 2026-10-28T06:42:10.267044+00:00
+- Status: retrieved
+- Raw SHA-256: 45aca8eac89096edafa083cd12b4842a696317c318cdfdfd7b1ce4a5840d537f
+
+## wan22_hf5config
+- URL: https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers/raw/main/transformer/config.json
+- Retrieval: 2026-10-28T06:42:10.263720+00:00
+- Status: retrieved
+- Raw SHA-256: dc00d9866e72cf77db6b531aaa33be4dc7148fef9338442bd0ae9181f7075e9b
+
+## wan22_hf5vae
+- URL: https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers/raw/main/vae/config.json
+- Retrieval: 2026-10-28T06:42:10.279967+00:00
+- Status: retrieved
+- Raw SHA-256: d996c340fe9a7df5d7371f76a7d8d6956f6c98256080074d8434fa5eeac11360
+
+## wan22_hf14config
+- URL: https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B-Diffusers/raw/main/transformer/config.json
+- Retrieval: 2026-10-28T06:42:10.291772+00:00
+- Status: retrieved
+- Raw SHA-256: 5a3b02fb0d9b5893a0e608b8d83d189a5794125b1ddf758d539899ffb2af34cf
+
+## wan22_hf14index
+- URL: https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B-Diffusers/raw/main/model_index.json
+- Retrieval: 2026-10-28T06:42:10.308040+00:00
+- Status: retrieved
+- Raw SHA-256: 9787428872b458feb75008857091964da11cd37a606dbd89eb0c8a4939c7c798
+
+## wan_dancer
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan-Dancer/main/README.md
+- Retrieval: 2026-10-28T06:42:10.342664+00:00
+- Status: retrieved
+- Raw SHA-256: 5d79e09b4aa798adfb034175ec1a370d6da2dcfcd2bf9c531a47c6f9908f3f84
+
+## wan_dancer_card
+- URL: https://huggingface.co/Wan-AI/Wan-Dancer-14B/raw/main/README.md
+- Retrieval: 2026-10-28T06:42:10.346024+00:00
+- Status: retrieved
+- Raw SHA-256: 9504fbbcd4b6d91bf4909655227143a8d24225eb3fff35d513b1fb63f4017506
+
+## wan_animate2_card
+- URL: https://huggingface.co/Wan-AI/Wan2.2-Animate-2-14B/raw/main/README.md
+- Retrieval: 2026-10-28T06:42:10.380843+00:00
+- Status: retrieved
+- Raw SHA-256: c24072d3d7eedcc15cb5d10317c742e1abe80cc49be2218b9cd57716814a418c
+
+## animate2_report
+- URL: https://arxiv.org/html/2608.06009
+- Retrieval: 2026-10-28T06:42:10.468454+00:00
+- Status: retrieved
+- Raw SHA-256: 07cf6fa3b98aa853185fbf5b6d9ea2fccf28931e2db5e62b438366d9d293e12b
+
+## s2v_report_pdf
+- URL: https://humanaigc.github.io/wan-s2v-webpage/content/wan-s2v.pdf
+- Retrieval: 2026-10-28T06:42:12.198039+00:00
+- Status: retrieved
+- Raw SHA-256: 29184a4355ba7fc00152d4fbe7527e97c9cfd680ca4b74bf9b9e44408d58a27b
+
+## vace_report
+- URL: https://arxiv.org/html/2503.07598
+- Retrieval: 2026-10-28T06:47:14.012779+00:00
+- Status: retrieved
+- Raw SHA-256: dadc67844409869d5856be88aa3784e03218c51b134b539552aef08a3c4f2cc8
+
+## ltx25_api
+- URL: https://huggingface.co/api/models/Lightricks/LTX-2.5
+- Retrieval: 2026-10-28T06:42:10.419203+00:00
+- Status: retrieved
+- Raw SHA-256: 9756ac953bc05bf33946e2b6cf762ea90b695bd3445e45b3a4f3e8d0b2a01b71
+
+## ltx23_card
+- URL: https://huggingface.co/Lightricks/LTX-2.3/raw/main/README.md
+- Retrieval: 2026-10-28T06:42:10.429050+00:00
+- Status: retrieved
+- Raw SHA-256: f3ba4889c297d45806276d8cb12756878ce19f2b1dbbd6423397b2deb9636ff6
+
+## ltx_license
+- URL: https://raw.githubusercontent.com/Lightricks/LTX-2/e98f6d927d83c92ef2be6aec76c8440b19306e39/LICENSE-2
+- Retrieval: 2026-10-28T06:42:10.486877+00:00
+- Status: retrieved
+- Raw SHA-256: c325da090976a313b214bf0d6a1738003b96505c01c46043e80edc200a72c147
+
+## ltx25_license
+- URL: https://raw.githubusercontent.com/Lightricks/LTX-2/e98f6d927d83c92ef2be6aec76c8440b19306e39/LICENSE-2_x
+- Retrieval: 2026-10-28T06:42:10.468685+00:00
+- Status: retrieved
+- Raw SHA-256: ee5b0c880c1516e15bd51c8576a05ea1d2c6e5bb2d070ca098e847e42a75af34
+
+## ltx_commit
+- URL: https://api.github.com/repos/Lightricks/LTX-2/commits/main
+- Retrieval: 2026-10-28T06:42:10.666518+00:00
+- Status: retrieved
+- Raw SHA-256: 6b9cb291c4e0a95744b7062d4f1bca57b9a4a3e1ebbc9133cdd5c4262b90b30b
+
+## hunyuan_card
+- URL: https://huggingface.co/tencent/HunyuanVideo-1.5/raw/main/README.md
+- Retrieval: 2026-10-28T06:42:10.614080+00:00
+- Status: retrieved
+- Raw SHA-256: fdf86982e7cd3d467e832d622e8779ce4588cb3a05fd09f4e3f5e47caf119437
+
+## hunyuan_license
+- URL: https://raw.githubusercontent.com/Tencent-Hunyuan/HunyuanVideo-1.5/60783e704160023913bee78f0b47036d393d4dfa/LICENSE
+- Retrieval: 2026-10-28T06:42:10.552753+00:00
+- Status: retrieved
+- Raw SHA-256: c38236952096107a4adbc164f44cd1768745b0a20090ea858e0954c96a6b8391
+
+## hunyuan_tree
+- URL: https://api.github.com/repos/Tencent-Hunyuan/HunyuanVideo-1.5/git/trees/main?recursive=1
+- Retrieval: 2026-10-28T06:42:10.806226+00:00
+- Status: retrieved
+- Raw SHA-256: db01f7c4c11289f41476c5453a4e85a9f2c2a54cef32854df15635f9dd994255
+
+## hunyuan_commit
+- URL: https://api.github.com/repos/Tencent-Hunyuan/HunyuanVideo-1.5/commits/main
+- Retrieval: 2026-10-28T06:42:10.803532+00:00
+- Status: retrieved
+- Raw SHA-256: 37c4921618c3a54d8ede81d1503938d6c3a9efc0cf55a3bfa012380bbfbb40c3
+
+## wan_report_abs
+- URL: https://arxiv.org/abs/2503.20314
+- Retrieval: 2026-10-28T06:42:10.653061+00:00
+- Status: retrieved
+- Raw SHA-256: 4ccc9f6ada8274217f1272493dc479ad6b7cd3a8d1e4ff7db880c828b83ab8ee
+
+## ltx_report_abs
+- URL: https://arxiv.org/abs/2601.03233
+- Retrieval: 2026-10-28T06:42:10.722539+00:00
+- Status: retrieved
+- Raw SHA-256: b6cedfcdc8d97f44e9bafd752c1b8b74df4af53025b5335399c798e1e7328f3e
+
+## hunyuan_report_abs
+- URL: https://arxiv.org/abs/2511.18870
+- Retrieval: 2026-10-28T06:42:10.722487+00:00
+- Status: retrieved
+- Raw SHA-256: 60bdbc671201c301a3488f57f80ca4d47dce35f4172425b8df17b0d7e651158a
+
+## animate2_report_abs
+- URL: https://arxiv.org/abs/2608.06009
+- Retrieval: 2026-10-28T06:42:10.821912+00:00
+- Status: retrieved
+- Raw SHA-256: ad5bb7f8d2eb484debe86644c8705db47fa99f20050782dbef75304c61cefced
+
+## diffusers_wan_code
+- URL: https://raw.githubusercontent.com/huggingface/diffusers/main/src/diffusers/pipelines/wan/pipeline_wan.py
+- Retrieval: 2026-10-28T06:42:10.855012+00:00
+- Status: retrieved
+- Raw SHA-256: e80e0bbb05db93a614e5c01733482ac56f0c426dc02abe3bb11383285fddd0a3
+
+## wan3_api
+- URL: https://www.alibabacloud.com/help/en/model-studio/wan3-video-generation-api-reference
+- Retrieval: 2026-10-28T06:43:48.878134+00:00
+- Status: retrieved
+- Raw SHA-256: 016413d7262108a0f2142ad6bc59b2dfa9f032f0de16d461965f83ba1fc6dc4e
+
+## wan3_guide
+- URL: https://www.alibabacloud.com/help/en/model-studio/wan3-video-generation-guide
+- Retrieval: 2026-10-28T06:43:49.278850+00:00
+- Status: retrieved
+- Raw SHA-256: 7b2d5eed472f442c769e062d1f3c4ef80a9bae74c783661d8718c8b69ea585b7
+
+## wan3_model
+- URL: https://www.alibabacloud.com/help/en/model-studio/wan3-0-video
+- Retrieval: 2026-10-28T06:43:48.824891+00:00
+- Status: retrieved
+- Raw SHA-256: 1bb2c10d3fcefa93e0552ad2aefeaae2669ff7831d87677d37596b97113870c9
+
+## ltx25_page
+- URL: https://ltx.io/model/ltx-2-5
+- Retrieval: 2026-10-28T06:43:47.998007+00:00
+- Status: retrieved
+- Raw SHA-256: 7495cf40156f5a1cc403eb62f7d85bc7e87c0c612703a5760d360d369ae1a18b
+
+## ltx25_diffusers_api
+- URL: https://huggingface.co/api/models/Lightricks/LTX-2.5-Diffusers
+- Retrieval: 2026-10-28T06:43:47.991388+00:00
+- Status: retrieved
+- Raw SHA-256: cddc743c10f0481f3dea9acbf02983512ce4b8fdb29e9d2d24bab1d900e3b0cb
+
+## ltx25_config
+- URL: https://huggingface.co/Lightricks/LTX-2.5-Diffusers/raw/main/transformer/config.json
+- Retrieval: failed; no successful retrieval timestamp
+- Status: failed
+- Raw SHA-256: not available
+
+## ltx25_vae
+- URL: https://huggingface.co/Lightricks/LTX-2.5-Diffusers/raw/main/vae/config.json
+- Retrieval: failed; no successful retrieval timestamp
+- Status: failed
+- Raw SHA-256: not available
+
+## ltx2_vae
+- URL: https://huggingface.co/Lightricks/LTX-2/raw/main/vae/config.json
+- Retrieval: 2026-10-28T06:43:47.992140+00:00
+- Status: retrieved
+- Raw SHA-256: 1d402aa299d7c58bf6a30232ee1dcbb0aa41f61237fcb569ef27c2135bfba1cc
+
+## wan_dancer_report
+- URL: https://arxiv.org/html/2607.09581
+- Retrieval: 2026-10-28T06:43:48.185224+00:00
+- Status: retrieved
+- Raw SHA-256: 6511a7c92ee47ba0b1e314134669333f2d2303fdd4a80d1896ba5b9f101c9cf8
+
+## wan_dancer_abs
+- URL: https://arxiv.org/abs/2607.09581
+- Retrieval: 2026-10-28T06:43:48.167015+00:00
+- Status: retrieved
+- Raw SHA-256: 2566adc389e2540636ae6ddab69384711659ab960123670f3ffdfd85bcc10357
+
+## wan22_cfgs2v
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_s2v_14B.py
+- Retrieval: 2026-10-28T06:43:48.184209+00:00
+- Status: retrieved
+- Raw SHA-256: c650ab8d6fd2abdd68546e2fcb7c6bc84ef38a65f002d6872e887c272c80782d
+
+## wan22_s2v
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/speech2video.py
+- Retrieval: 2026-10-28T06:43:48.133251+00:00
+- Status: retrieved
+- Raw SHA-256: 841cb2296299b60637d79abc80967a7d59b4b22711debe8f501ba36e7daaf72f
+
+## wan22_license
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/LICENSE.txt
+- Retrieval: 2026-10-28T06:43:48.186032+00:00
+- Status: retrieved
+- Raw SHA-256: c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4
+
+## wan22_hf5api
+- URL: https://huggingface.co/api/models/Wan-AI/Wan2.2-TI2V-5B?blobs=true
+- Retrieval: 2026-10-28T06:43:48.258033+00:00
+- Status: retrieved
+- Raw SHA-256: 07e118bf81508f64c6e4c9c60a09194ad9698aca92599a3a82118e0534c9287f
+
+## animate2_tree
+- URL: https://api.github.com/repos/Wan-Video/Wan-Animate-2/git/trees/main?recursive=1
+- Retrieval: 2026-10-28T06:43:48.441476+00:00
+- Status: retrieved
+- Raw SHA-256: 49c2c48b0692c0889ced765669b003d4cf7a9b601f15725ba141414d47b6afb9
+
+## diffusers_wan_v040
+- URL: https://raw.githubusercontent.com/huggingface/diffusers/v0.40.0/docs/source/en/api/pipelines/wan.md
+- Retrieval: 2026-10-28T06:43:48.345932+00:00
+- Status: retrieved
+- Raw SHA-256: dc95535eeee38c5c31bbfba378e7305dfbf92c25c635d842d75ade59f032d030
+
+## diffusers_animate2_v040
+- URL: https://raw.githubusercontent.com/huggingface/diffusers/v0.40.0/docs/source/en/api/pipelines/wan_animate_2.md
+- Retrieval: 2026-10-28T06:43:48.354896+00:00
+- Status: retrieved
+- Raw SHA-256: d730b5d28dfa55c7eb5df43f0a4ca242645a9d403c40529b943bdb9a41d6c3ff
+
+## diffusers_ltx_v042
+- URL: https://raw.githubusercontent.com/huggingface/diffusers/v0.42.1/docs/source/en/api/pipelines/ltx2.md
+- Retrieval: 2026-10-28T06:43:48.419463+00:00
+- Status: retrieved
+- Raw SHA-256: 8b4b19a090c24f455fa2f7f21e1e21e5fe21fd58dc9127ac3a774f1da7609853
+
+## diffusers_hunyuan_v042
+- URL: https://raw.githubusercontent.com/huggingface/diffusers/v0.42.1/docs/source/en/api/pipelines/hunyuan_video15.md
+- Retrieval: 2026-10-28T06:43:48.413014+00:00
+- Status: retrieved
+- Raw SHA-256: e02572f5428cc8a53ab632f90a91d4d768b022fbee63b0596d83a3b7565072a1
+
+## hunyuan_hfconfig
+- URL: https://huggingface.co/tencent/HunyuanVideo-1.5/raw/main/transformer/720p_t2v/config.json
+- Retrieval: 2026-10-28T06:43:48.469786+00:00
+- Status: retrieved
+- Raw SHA-256: 0e25e6410f26949aba5beeec4bd2291359ea6c98f684608cede704184f434b6e
+
+## hunyuan_model
+- URL: https://raw.githubusercontent.com/Tencent-Hunyuan/HunyuanVideo-1.5/60783e704160023913bee78f0b47036d393d4dfa/hyvideo/models/transformers/hunyuanvideo_1_5_transformer.py
+- Retrieval: 2026-10-28T06:43:48.528676+00:00
+- Status: retrieved
+- Raw SHA-256: d1a702891a92e04c80cdc072bc06cffe6e631fb962dae702d3c9244d347302d0
+
+## hunyuan_attention
+- URL: https://raw.githubusercontent.com/Tencent-Hunyuan/HunyuanVideo-1.5/60783e704160023913bee78f0b47036d393d4dfa/hyvideo/models/transformers/modules/attention.py
+- Retrieval: 2026-10-28T06:43:48.563855+00:00
+- Status: retrieved
+- Raw SHA-256: 4b4241ee7932a8a2f03c26437a6f28f3c12ff3d070f896bd265e4e770c37610d
+
+## hunyuan_hfapi
+- URL: https://huggingface.co/api/models/tencent/HunyuanVideo-1.5
+- Retrieval: 2026-10-28T06:43:48.525720+00:00
+- Status: retrieved
+- Raw SHA-256: 8397aab9e80271f67c10297c29f78c1d4b743577e95b033aeeb3251ae443951f
+
+## wan22_hf14vae
+- URL: https://huggingface.co/Wan-AI/Wan2.2-T2V-A14B-Diffusers/raw/main/vae/config.json
+- Retrieval: 2026-10-28T06:43:48.550648+00:00
+- Status: retrieved
+- Raw SHA-256: 47e8bcf55e93e9c182e1962a8c7a0650faeb34ea0f66826d6f8aaa9f73e08ec9
+
+## wan22_i2v
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/image2video.py
+- Retrieval: 2026-10-28T06:45:28.279382+00:00
+- Status: retrieved
+- Raw SHA-256: 53f4f302f7e9bc7bca2465abd3f7ff5f0e8fa909c7dc36bd0c49abb7918d5f68
+
+## wan22_i2vconfig
+- URL: https://huggingface.co/Wan-AI/Wan2.2-I2V-A14B-Diffusers/raw/main/transformer/config.json
+- Retrieval: 2026-10-28T06:45:28.259158+00:00
+- Status: retrieved
+- Raw SHA-256: 6809423c4a92f886feded9f85f55c667d73a2332d5e011fab4172f3448dd5666
+
+## wan22_generate
+- URL: https://raw.githubusercontent.com/Wan-Video/Wan2.2/1ea34ff48f87168174e12956e200b1d908b1c5ff/generate.py
+- Retrieval: 2026-10-28T06:45:28.314432+00:00
+- Status: retrieved
+- Raw SHA-256: cae024b99a3d105fe273a8dfe724ea656f9c1a876ccc8534a8c2fbfb716950e7
+
+## ltx_distilled
+- URL: https://raw.githubusercontent.com/Lightricks/LTX-2/e98f6d927d83c92ef2be6aec76c8440b19306e39/packages/ltx-pipelines/src/ltx_pipelines/distilled.py
+- Retrieval: 2026-10-28T06:45:28.291373+00:00
+- Status: retrieved
+- Raw SHA-256: e5bdad4aa57ac72f539437f764f41e5e8a3eabf492a6a38a43c3b717e646d9ca
+
+## ltx_model
+- URL: https://raw.githubusercontent.com/Lightricks/LTX-2/e98f6d927d83c92ef2be6aec76c8440b19306e39/packages/ltx-core/src/ltx_core/model/transformer/model.py
+- Retrieval: 2026-10-28T06:45:28.297367+00:00
+- Status: retrieved
+- Raw SHA-256: 49b841c389c70872b5858b3d7fcca3c97a78bca8c5646976523217366b0efbaa
+
+## ltx_scheduler
+- URL: https://raw.githubusercontent.com/Lightricks/LTX-2/e98f6d927d83c92ef2be6aec76c8440b19306e39/packages/ltx-core/src/ltx_core/components/schedulers.py
+- Retrieval: 2026-10-28T06:45:28.290764+00:00
+- Status: retrieved
+- Raw SHA-256: ca318b9e9d0e3166e7085b8abf1950a2851790f9427bfdcb8e825cc6a8d06be4
+
+## ltx_attention
+- URL: https://raw.githubusercontent.com/Lightricks/LTX-2/e98f6d927d83c92ef2be6aec76c8440b19306e39/packages/ltx-core/src/ltx_core/model/transformer/attention.py
+- Retrieval: 2026-10-28T06:45:28.296840+00:00
+- Status: retrieved
+- Raw SHA-256: e65abeb1536d0ae8b0f1236a913f2b5675fab61ba09d90fe33ccc03f496cabbd
+
+## ltx2_transformerconfig
+- URL: https://huggingface.co/Lightricks/LTX-2/raw/main/transformer/config.json
+- Retrieval: 2026-10-28T06:45:28.290477+00:00
+- Status: retrieved
+- Raw SHA-256: 66f708e87e9bbd93ee48051562241e76d47b4891f66484f9863b259b9780669f
+
+## wan22_s2v_card
+- URL: https://huggingface.co/Wan-AI/Wan2.2-S2V-14B/raw/main/README.md
+- Retrieval: 2026-10-28T06:45:28.372907+00:00
+- Status: retrieved
+- Raw SHA-256: b8361d366abbf2b0d211a20ecb0e721e6879a63f2c3bb66dd4bfc153ed870530
+
+## wan22_animate_card
+- URL: https://huggingface.co/Wan-AI/Wan2.2-Animate-14B/raw/main/README.md
+- Retrieval: 2026-10-28T06:45:28.387491+00:00
+- Status: retrieved
+- Raw SHA-256: 9030b562a976b8bb705a209a98dba1c0d015ca32bb63943893dba7d2ad16eb47
+
+## vace_readme
+- URL: https://raw.githubusercontent.com/ali-vilab/VACE/main/README.md
+- Retrieval: 2026-10-28T06:47:14.065606+00:00
+- Status: retrieved
+- Raw SHA-256: 15844abba9a2c16f35378667e36b6f306154638f131d71519d570b9305da65e7
+
+## vace_abs
+- URL: https://arxiv.org/abs/2503.07598
+- Retrieval: 2026-10-28T06:47:13.985464+00:00
+- Status: retrieved
+- Raw SHA-256: 1ccfc026f0069792585c0e0d7c56a1f5fa59ddbd3c93b4f6523f47ed4ab35a3c
+
+## diffusers_release_v035
+- URL: https://api.github.com/repos/huggingface/diffusers/releases/tags/v0.35.0
+- Retrieval: 2026-10-28T06:49:20.695291+00:00
+- Status: retrieved
+- Raw SHA-256: e7d526913b7d260520e5ea4ff9a20ffdba37984390e999f232772c05ec2a0910
+
+## diffusers_release_v037
+- URL: https://api.github.com/repos/huggingface/diffusers/releases/tags/v0.37.0
+- Retrieval: 2026-10-28T06:49:20.702947+00:00
+- Status: retrieved
+- Raw SHA-256: f83845de595f64b99ea09359fc02eebbbd35e9a9251b1b2e933593a29deefd9c
+
+## diffusers_release_v040
+- URL: https://api.github.com/repos/huggingface/diffusers/releases/tags/v0.40.0
+- Retrieval: 2026-10-28T06:49:20.708990+00:00
+- Status: retrieved
+- Raw SHA-256: aab07436a3db51c88891c07f8cb545f4ff2334eedcda2973e6358ed1534c2d06
+
+## diffusers_release_v042
+- URL: https://api.github.com/repos/huggingface/diffusers/releases/tags/v0.42.0
+- Retrieval: 2026-10-28T06:49:20.711977+00:00
+- Status: retrieved
+- Raw SHA-256: 438b025500bb92555c5f2019d5ea58d77dd418d2af5bdcb2a49dd0ba105521c3
+
+## diffusers_wan_v035
+- URL: https://raw.githubusercontent.com/huggingface/diffusers/v0.35.0/docs/source/en/api/pipelines/wan.md
+- Retrieval: 2026-10-28T06:49:20.681773+00:00
+- Status: retrieved
+- Raw SHA-256: 1c9d1db8babc3b091c069b4376010343b9726de21da42879fdd0273a36dac566

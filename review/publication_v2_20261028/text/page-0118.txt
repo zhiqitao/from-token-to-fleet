@@ -1,0 +1,35 @@
+Memory Is the First Constraint
+100
+bytes an implementation adds on top of K/V are not derived in this chapter and must be 
+established per architecture and serving stack.
+• Quality loss from aggressive KV quantization (2-bit KIVI, or sub-4-bit schemes) at very long 
+context lengths (128K+, MoE experts). The primary sources anchor FP8 KV ≈50% of BF16 (raw 
+byte-halving) at near-zero quality loss, but 2-bit asymmetric patterns and their interaction 
+with RoPE and sliding-window layers are not fully mapped.
+• Whether per-request KV caching can be partially offloaded to CPU DRAM during decode 
+without TTFT impact, beyond the vLLM KV Offloading Connector’s 2–22× TTFT reduction 
+range [S7][1P][FACT], which is highly prompt-size-dependent. The community is converging 
+on tiered KV storage (GPU resident hot set + CPU/DRAM cold set), but the latency trade-offs 
+at concurrency > 1 are not yet primary-anchored.
+• Frontier 2026 has begun re-engineering the KV constant factor, not just quantizing 
+it. All four 2026-class open architectures attack KV cache size at the attention layer itself, 
+on top of the per-token footprint this chapter derives: DeepSeek-V4’s hybrid CSA+HCA 
+reports KV cache at only ~10% (Pro) / ~7% (Flash) of DeepSeek-V3.2 at 1M-token context 
+[1P: arXiv 2606.19348]; GLM-5.3-Flash’s sparse+linear hybrid reports ~4.4×KV reduction [1P: 
+HF zai-org/GLM-5.3-Flash]; Kimi K3’s Kimi Delta Attention + Attention Residuals targets 
+information flow across long sequences [1P: arXiv 2607.24653]; Qwen3.8-Flash-Next combines 
+Gated DeltaNet (compress history) with Qwen Sparse Attention (micro-block indexing) for 
+long-context cost [1P: HF Qwen/Qwen3.8-Flash-Next]. For the architect this is a decisive shift: 
+the KV arithmetic in this chapter (per-token × context) is not a fixed constant across model 
+generations — a 2026 hybrid-attention model can hold dramatically more context per byte of 
+KV than the canonical 70B/8×H100 framing assumed. Size the host against the specific model’s 
+KV scheme, not a universal constant.
+• The impact of MoE routing on KV cache: does each token really emit a full key/value per layer 
+across all experts, or does routing activate only a subset? The total-vs-active and MoE-vs-dense 
+facts of Ch 3 (total parameters ≠ active parameters per token; MoE gives compute sparsity, not 
+weight-residency sparsity) confirm that attention layers process every token densely and emit 
+key/value per token, so MoE sparsity does not reduce KV — but the constant factor for MoE 
+models (e.g., number of experts per layer) needs per-model validation.
+7.8. End-of-Chapter Mini-Case: Sizing Memory First for the 5,000-Employee Wiki
+An architect is asked to design an internal Q&A system over the company’s document repository. 
+The initial ask is vague: “We need to let all 5,000 employees ask questions over our internal wikis.” 

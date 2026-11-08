@@ -1,0 +1,90 @@
+# LLaDA2.X: A Series of Large Diffusion Language Models (from LLaDA2.0 to LLaDA2.2 and onwards...)
+
+<h4 align="center">
+  
+[![repo](https://img.shields.io/badge/dfactory-repo-blue?logo=github)](https://github.com/inclusionAI/dFactory)
+[![repo](https://img.shields.io/badge/dinfer-repo-yellow?logo=github)](https://github.com/inclusionAI/dInfer)
+[![models](https://img.shields.io/badge/llada2.0-models-red?logo=huggingface
+)](https://huggingface.co/collections/inclusionAI/llada20)
+[![models](https://img.shields.io/badge/llada2.1-models-red?logo=huggingface
+)](https://huggingface.co/collections/inclusionAI/llada21)
+[![models](https://img.shields.io/badge/llada2.2-models-red?logo=huggingface
+)](https://huggingface.co/collections/inclusionAI/llada22)
+[![tech report](https://img.shields.io/badge/llada2.2-tech%20report-green
+)](./LLaDA2_2_tech_report.pdf)
+</h4>
+
+## 🌟 What's New
+- **[2026/07]** 🚀 We released **LLaDA2.2: Enabling Agentic Diffusion Language Models via Levenshtein Editing**!
+- **[2026/02]** We released **LLaDA2.1: Speeding Up Text Diffusion via Token Editing**!
+- **[2025/11]** We released **LLaDA2.0**, the first diffusion language model scaled to 100B parameters, featuring MoE architecture and exceptional performance.
+
+
+## Model Introduction
+
+We are thrilled to introduce **LLaDA2.0**, a milestone series of discrete diffusion Large Language Models (dLLMs) from the Ant Group. The LLaDA2.0 family, featuring **LLaDA2.0-mini (16B)** and **LLaDA2.0-flash (100B)** with a Mixture-of-Experts (MoE) architecture, marks the first time diffusion models have been scaled to the **100-billion parameter level**.
+
+### Key Features
+- **🚀 Scaled to 100B Parameters**: LLaDA2.0-flash is the largest diffusion language model to date, demonstrating exceptional performance on code generation and complex instruction-following tasks.
+- **⚡ 2.1x Inference Acceleration**: Leveraging a parallel decoding mechanism, LLaDA2.0-flash-CAP achieves an inference speed of up to **535 tokens/s**, significantly outpacing comparable AR models.
+- **🔍 Fully Open Source**: The model weights for both the 16B and 100B versions, along with associated training code, are fully open-sourced on Hugging Face.
+
+<div align="center">
+  <picture>
+    <img src="figures/llada2_traj.gif" width="90%" alt="LLaDA2.0 Decoding Tractory">
+  </picture>
+</div>
+
+### Model Variants
+
+| Model ID | Description | Hugging Face Link |
+| --- | --- | --- |
+| `inclusionAI/LLaDA2.2-flash` | Instruction-tuned model, ready for downstream applications. | [🤗 Model Card](https://huggingface.co/inclusionAI/LLaDA2.2-flash) |
+| `inclusionAI/LLaDA2.1-mini` | Instruction-tuned model, ready for downstream applications. | [🤗 Model Card](https://huggingface.co/inclusionAI/LLaDA2.1-mini) |
+| `inclusionAI/LLaDA2.1-flash` | Instruction-tuned model, ready for downstream applications. | [🤗 Model Card](https://huggingface.co/inclusionAI/LLaDA2.1-flash) |
+| `inclusionAI/LLaDA2.0-mini` | Instruction-tuned model, ready for downstream applications. | [🤗 Model Card](https://huggingface.co/inclusionAI/LLaDA2.0-mini) |
+| `inclusionAI/LLaDA2.0-flash` | Instruction-tuned model, ready for downstream applications. | [🤗 Model Card](https://huggingface.co/inclusionAI/LLaDA2.0-flash) |
+| `inclusionAI/LLaDA2.0-mini-CAP` | Enhanced with Confidence-Aware Parallel, for efficient inference. | [🤗 Model Card](https://huggingface.co/inclusionAI/LLaDA2.0-mini-CAP) |
+| `inclusionAI/LLaDA2.0-flash-CAP` | Enhanced with Confidence-Aware Parallel, for efficient inference. | [🤗 Model Card](https://huggingface.co/inclusionAI/LLaDA2.0-flash-CAP) |
+
+
+## Evaluation Results
+
+
+<div align="center">
+  <picture>
+      <img src="figures/llada2_flash_main_bench.png" width="90%" alt="Evaluation Results">
+  </picture>
+</div>
+
+
+## Deployment and Usage
+
+To make our 100B model practical, we have performed deep engineering optimizations. We built a custom inference engine based on **dInfer** and **SGLang**, which supports KV-Cache reuse and block-level parallel decoding. This makes LLaDA2.0 not just an academic achievement but a high-performance generation model ready for real-world deployment.
+
+
+## License
+
+This project is licensed under the terms of the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+## Citation
+```bibtex
+@misc{bie2026llada21speedingtextdiffusion,
+      title={LLaDA2.1: Speeding Up Text Diffusion via Token Editing}, 
+      author={Tiwei Bie and Maosong Cao and Xiang Cao and Bingsen Chen and Fuyuan Chen and Kun Chen and Lun Du and Daozhuo Feng and Haibo Feng and Mingliang Gong and Zhuocheng Gong and Yanmei Gu and Jian Guan and Kaiyuan Guan and Hongliang He and Zenan Huang and Juyong Jiang and Zhonghui Jiang and Zhenzhong Lan and Chengxi Li and Jianguo Li and Zehuan Li and Huabin Liu and Lin Liu and Guoshan Lu and Yuan Lu and Yuxin Ma and Xingyu Mou and Zhenxuan Pan and Kaida Qiu and Yuji Ren and Jianfeng Tan and Yiding Tian and Zian Wang and Lanning Wei and Tao Wu and Yipeng Xing and Wentao Ye and Liangyu Zha and Tianze Zhang and Xiaolu Zhang and Junbo Zhao and Da Zheng and Hao Zhong and Wanli Zhong and Jun Zhou and Junlin Zhou and Liwang Zhu and Muzhi Zhu and Yihong Zhuang},
+      year={2026},
+      eprint={2602.08676},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2602.08676}, 
+}
+@misc{bie2025llada20scalingdiffusionlanguage,
+      title={LLaDA2.0: Scaling Up Diffusion Language Models to 100B}, 
+      author={Tiwei Bie and Maosong Cao and Kun Chen and Lun Du and Mingliang Gong and Zhuochen Gong and Yanmei Gu and Jiaqi Hu and Zenan Huang and Zhenzhong Lan and Chengxi Li and Chongxuan Li and Jianguo Li and Zehuan Li and Huabin Liu and Ling Liu and Guoshan Lu and Xiaocheng Lu and Yuxin Ma and Jianfeng Tan and Lanning Wei and Ji-Rong Wen and Yipeng Xing and Xiaolu Zhang and Junbo Zhao and Da Zheng and Jun Zhou and Junlin Zhou and Zhanchao Zhou and Liwang Zhu and Yihong Zhuang},
+      year={2025},
+      eprint={2512.15745},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2512.15745}, 
+}
+```

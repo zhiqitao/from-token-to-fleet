@@ -1,0 +1,37 @@
+185
+Performance Engineering: From “It Works” to “It Meets the SLO”
+15.7. Common Mistakes
+Over‑provisioning batch size to chase throughput: Increasing batch size improves TFLOPS utiliza­
+tion but degrades p99 latency because tail requests wait for larger chunks to fill. The designer must 
+balance batch‑size‑driven arithmetic gain against tail‑latency penalty. A practical illustrative rule of 
+thumb: choose the smallest batch size that keeps MFU above ~25 % while keeping p95 latency under 
+the SLO target (the 25 % threshold and the knee are scenario values — measure them on the target 
+workload). Ignoring KV cache growth: A 70B model with 9,500‑token contexts consumes ≈24.9 GB of 
+KV per user (≈2.62 MB/token × 9,500, max end-of-generation). Without cache eviction, compression, 
+or a concurrency cap, even ~17.5 concurrent requests would exhaust the host’s canonical practical 
+KV budget (~436 GB after weights + runtime), so 100 concurrent full-context users require either 
+multiple hosts, much shorter contexts, or KV compression (FP8/8-bit). But be precise about what 
+“evicting” a context means, because it is not one action. Three distinct mechanisms exist. (a) 
+Evicting an idle/inactive prefix-cache entry — a cached prefix not currently in service — is safe, because 
+no active request depends on it and it can be recomputed on reuse. (b) Offloading or recomputing 
+the KV of an active request whose context is still being generated changes nothing about semantics, 
+but it costs a recompute or a transfer when the request resumes. (c) Deliberate sliding-window or 
+context-truncation strategies drop older tokens of an active request’s context. This changes the 
+model’s effective context: it alters what the attention can attend to, and it is a semantics change, 
+not merely a memory optimization. LRU of inactive cached prefixes is different from truncating 
+active KV. Do not conflate them. KV quantization is a separate, orthogonal lever that cuts the 
+per-token footprint without changing semantics (FP8 ≈2.62 → ~1.31 MB/token — exactly 50% of BF16 
+by raw tensor byte-halving, the same FP8 constant defined in Ch 7; vLLM’s cited 54% [S6] is a decode 
+inter-token-latency slope, a latency metric, not a memory ratio, and any allocator block/metadata 
+overhead is not vendor-measured). Using scaled‑dot‑product attention without FlashAttention: For 
+long contexts (9,200+ tokens) the quadratic memory cost of SDPA (O(L²)) dominates the FLOP cost. 
+FlashAttention fuses read‑write‑compute and reduces HBM traffic by ~3–5× ([ILLUSTRATIVE] — 
+kernel- and length-dependent; measure bytes/request on the target stack), raising effective arith­
+metic intensity. This is one of the highest-impact kernel-level choices (it sits among prefix caching, 
+KV-precision, batching, and P/D disaggregation as a major lever, not the single deciding one), and 
+it pays off specifically when memory-bound; for moderate lengths (2,000–4,000 tokens) the HBM 
+bandwidth reduction typically translates to a ~1.3–1.8× throughput gain on H100 (illustrative — bench 
+the specific kernel on the target hardware). Neglecting kernel launch overhead: In dynamic‑batching 
+setups, each new token generation can trigger a kernel launch. Without continuous batching or 
+token‑level fusion, the kernel-launch overhead (illustratively ~10–20 % of GPU time on H100-class 
+parts at this traffic) can artificially depress measured MFU.

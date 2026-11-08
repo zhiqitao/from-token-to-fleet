@@ -29,14 +29,14 @@ here; this chapter builds on it.
 
 What \hyperref[chap:22]{Chapter 22} adds is not a re-derivation of the token but a
 \textbf{re-framing of it as the input to a decision loop}. The architect
-treats a token as a metered unit of thought --- the way a kilowatt-hour
-meters electricity --- not because one token is meaningful by itself,
-but because every downstream cost and capacity number is denominated in
-it. The durable mental model, unchanged from \hyperref[chap:1]{Chapter 1}'s: \emph{tokens
-are the interface between a human's request and a machine's arithmetic,
-and anything we are asked to size or price reduces to ``how many tokens,
-in what context, with what precision.''} The loop below turns that unit
-into concrete bounds.
+treats a token as a metered unit of model I/O and accounting --- the way
+a kilowatt-hour meters electricity --- not because one token is
+meaningful by itself, but because every downstream cost and capacity
+number is denominated in it. The durable mental model, unchanged from
+\hyperref[chap:1]{Chapter 1}'s: \emph{tokens are the interface between a human's request
+and a machine's arithmetic, and anything we are asked to size or price
+reduces to ``how many tokens, in what context, with what precision.''}
+The loop below turns that unit into concrete bounds.
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -84,8 +84,9 @@ vendor-reported \texttt{\mbox{{[}1P{]}}} figure, so they are labeled
 2,000 employees'' and ``throughout the day.'' We instrument or survey to
 find the per-user rate. The canonical scenario settles on
 \textasciitilde10 requests/s average, with peaks of \textasciitilde40
-rps. These are derived quantities \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}, not
-stipulated.
+rps. These are declared traffic inputs \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}, not derived from the user population
+(walk-through in Ch 4 §4.3).
 
 \textbf{Step 3 --- Compute the token throughput.} With \(I = 9{,}200\)
 input tokens and \(O = 300\) output tokens per request, and
@@ -130,12 +131,13 @@ This loop --- stakeholder ask → measured token counts → traffic profile
 canonical thought process an AI solution architect runs, every time,
 before a single architecture decision is made. It is how we move from
 ``we need a Q\&A system'' to ``at the canonical operating point our
-prefill will be compute-bound at \textasciitilde1.29 PFLOP per request,
-and our decode will be bandwidth-bound at a required weight-read rate of
-\textasciitilde5.6 TB/s over each \textasciitilde25 ms token interval.''
-The loop is the chapter's central contribution; the quantities that
-issue from it are the evidence \mbox{{[}1P{]}}/\mbox{{[}2°{]}}/(to be verified) that
-every following chapter trades on.
+prefill will be compute-bound at \textasciitilde1.29 PFLOP per request
+(case (i), linear-only; \textasciitilde1.5099 PFLOP under case (ii), Ch
+8), and our decode will be bandwidth-bound at a required weight-read
+rate of \textasciitilde5.6 TB/s over each \textasciitilde25 ms token
+interval.'' The loop is the chapter's central contribution; the
+quantities that issue from it are the evidence \mbox{{[}1P{]}}/\mbox{{[}2°{]}}/(to be
+verified) that every following chapter trades on.
 
 \textbf{\hyperref[tab:22.1]{Table 22-1}} --- Derived quantities from the canonical loop
 (worked example, not reference)
@@ -172,7 +174,16 @@ output tokens/s @ 10 rps & \textasciitilde3,000 & 300 ×10
 output tokens/s @ peak 40 rps & \textasciitilde12,000 & 300 ×40
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 prefill FLOPs per request (parameterized-linear, excl. attention term) &
-\textasciitilde1.29 PFLOP & 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ \mbox{{[}DERIVED{]}} \\
+\textasciitilde1.29 PFLOP & 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ {[}DERIVED;
+\textbf{case (i) linear-only lower bound}{]} \\
+prefill FLOPs per request (full-square attention, conservative) &
+\textasciitilde1.5099 PFLOP & 1.288 + 4 ×80 ×9,200² ×8,192 = 1.288 +
+0.2219 (+17.23\%) {[}DERIVED; \textbf{case (ii) --- full-square
+(un-masked) attention work}{]} \\
+prefill FLOPs per request (causal-triangle sensitivity) &
+\textasciitilde1.3989 PFLOP & 1.288 + 2 ×80 ×9,200² ×8,192 = 1.288 +
+0.1109 (+8.61\%) {[}DERIVED; \textbf{case (iii) --- causal mask halves
+the attention-pair term}{]} \\
 decode weight-read per token & \textasciitilde140 GB & full-weight-read
 model (70B FP16) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 decode required BW rate & \textasciitilde5.6 TB/s & \textasciitilde140
@@ -182,7 +193,7 @@ KV cache memory per request & \textasciitilde24.1 GB (9.2K, FP16) /
 \textasciitilde24.9 GB (9.5K max) & 2.62 MB/token × 9,200 / 9,500 tokens
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}; \emph{(sensitivity: at 8-bit KV the
 same 9.2K context falls to \textasciitilde12.06 GB under raw tensor
-byte-halving (2.62→1.31 MB/token, exactly 50\% of BF16). No
+byte-halving (2.62→1.31 MB/token, exactly 50\% of FP16). No
 vendor-measured FP8 memory footprint exists: vLLM's cited 54\% \mbox{{[}S6{]}}
 is a decode inter-token-latency slope (a latency metric), not a memory
 ratio, and any allocator block/metadata overhead is not
@@ -192,10 +203,25 @@ vendor-measured)} \\
 
 \begin{figure}
 \centering
-\includegraphics[width=0.95\linewidth,height=\textheight,keepaspectratio,alt={Prefill vs decode scaling as context grows; two panels, different units, not directly comparable. Takeaway: the quadratic attention term overtakes the parameterized-linear term at L* = N/(2·n\_layers·d) = 70 × 10⁹ / (2 × 80 × 8,192) ≈ 53.4K tokens for the canonical 80-layer, hidden-8,192 reference geometry (Ch 7) --- not yet dominant at 32K. Scope: LEFT = prefill per request (2NL, quadratic 4·n\_layers·L²·d, total); RIGHT = decode per token --- the plotted 2N ≈ 1.4e-4 PFLOP/token is the parameter term only, flat across context (full per-token decode also includes attention over the growing KV cache, not shown). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}]{figures/fig-22-2201.pdf}
-\caption[Prefill vs decode scaling as context grows]{Prefill vs decode scaling as context grows; two panels, different units, \textbf{not directly comparable}. \textbf{Takeaway:} the quadratic attention term overtakes the parameterized-linear term at L* = N/(2·n\_layers·d) = 70 × 10⁹ / (2 × 80 × 8,192) ≈ \textbf{53.4K tokens} for the canonical 80-layer, hidden-8,192 reference geometry (Ch 7) --- not yet dominant at 32K. \textbf{Scope:} LEFT = prefill per request (2NL, quadratic 4·n\_layers·L²·d, total); RIGHT = decode per token --- the plotted 2N ≈ 1.4e-4 PFLOP/token is the \textbf{parameter term only}, flat across context (full per-token decode also includes attention over the growing KV cache, not shown). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\includegraphics[width=0.95\linewidth,height=\textheight,keepaspectratio,alt={Attention vs.~projection prefill FLOP crossover. Takeaway: the quadratic attention term overtakes the parameterized-linear term at \textasciitilde53.4K context tokens under full-square counting and \textasciitilde106.8K under causal-triangle counting, so at 32K it is large but not yet dominant. Geometry/source: 70B, 80-layer, hidden-8,192 geometry (Ch 7); LEFT = prefill FLOPs/request, RIGHT = decode FLOPs/token (2N parameter term only, flat) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Caveat: the panels use different units and are not directly comparable; full per-token decode also attends over the growing KV cache (not plotted). Derivation: Note 22.1-1 below.}]{figures/fig-22-2201.pdf}
+\caption[Attention vs.~projection prefill FLOP crossover]{Attention vs.~projection prefill FLOP crossover. Takeaway: the quadratic attention term overtakes the parameterized-linear term at \textasciitilde53.4K context tokens under \textbf{full-square} counting and \textasciitilde106.8K under \textbf{causal-triangle} counting, so at 32K it is large but not yet dominant. \textbf{Geometry/source:} 70B, 80-layer, hidden-8,192 geometry (Ch 7); LEFT = prefill FLOPs/request, RIGHT = decode FLOPs/token (2N parameter term only, flat) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. \textbf{Caveat:} the panels use different units and are \textbf{not directly comparable}; full per-token decode also attends over the growing KV cache (not plotted). Derivation: Note 22.1-1 below.}
 
-\label{fig:22.1}\emph{For standard full attention, attention work scales quadratically
+\label{fig:22.1}\end{figure}
+
+\textbf{Note 22.1-1 (\hyperref[fig:22.1]{Fig 22.1}) --- crossover derivation, both
+FLOP-counting conventions.} \textbf{Full-square:} the quadratic
+attention term 4·n\_layers·L²·d equals the parameterized-linear term
+2N·L at L* = N/(2·n\_layers·d) = 70 × 10⁹ / (2 × 80 × 8,192) ≈
+\textbf{53.4K tokens} --- the crossover marked on the left panel, for
+the canonical 80-layer, hidden-8,192 reference geometry (Ch 7).
+\textbf{Causal-triangle:} halving the attention-pair term (case (iii)
+--- a causal mask) doubles the crossing, L* = N/(n\_layers·d) = 70 × 10⁹
+/ (80 × 8,192) ≈ \textbf{106.8K tokens} --- so the \textasciitilde53.4K
+figure is a property of the \emph{full-square} convention, and the
+causal kernel moves it to \textasciitilde106.8K. The ratios at 9.2K /
+128K and the per-series unit note are in the figure note below.
+
+\emph{For standard full attention, attention work scales quadratically
 with sequence length while the MLP/projection portion stays roughly
 linear, so total prefill compute becomes increasingly dominated by the
 quadratic attention term as context grows (including the 9.2K canonical
@@ -205,10 +231,19 @@ term} (so it is still subordinate), \textbf{at 128K it is
 \textasciitilde2.4× the linear term} (attention relative to linear), and
 \textbf{total prefill FLOPs at 128K are \textasciitilde3.4× the 2NL
 baseline} (linear + quadratic, i.e.~1 + 2.4). Prefill is compute-bound
-(\textasciitilde1.29 PFLOP/request → \textasciitilde1.19 PFLOPS required
-at the \textasciitilde1.08 s budget vs H100 \textasciitilde0.989 PFLOPS
-peak). The plotted decode series includes only the parameter term, so it
-is flat. Full decode also attends over the growing KV cache; that
+(\textasciitilde1.29 PFLOP/request \textbf{case (i), linear-only} →
+\textasciitilde1.19 PFLOPS required at the \textasciitilde1.08 s budget;
+case (ii) full-square gives \textasciitilde1.5099 PFLOP →
+\textasciitilde1.40 PFLOPS). \textbf{Scope the rate comparison.}
+\textasciitilde1.19 PFLOPS is the \textbf{aggregate (whole-model)
+linear-only deadline demand} for one 9.2K prefill, so it may be compared
+only against an equally-scoped \textbf{aggregate host peak --- 8 × 0.989
+= 7.91 PFLOPS} --- which it clears with headroom; against a
+\emph{single} GPU's \textasciitilde0.989 PFLOPS peak it does not, and
+that is a \textbf{single-GPU counterfactual} (one device doing the
+entire prefill alone), not the canonical 8×H100 host's capacity. The
+plotted decode series includes only the parameter term, so it is flat.
+Full decode also attends over the growing KV cache; that
 context-dependent work and traffic are not plotted here (\hyperref[chap:8]{Chapter 8}).
 Note the aggregation units differ per series: the two prefill series are
 FLOPs \emph{per request} (whole-context), the decode series is FLOPs
@@ -220,12 +255,17 @@ in the bandwidth-bound regime at low batch (Ch6), prefill in the
 compute-bound regime at long prompt (Ch8) --- each an operating-point
 property, not an identity.}
 
-\end{figure}\ntsection{Measurement}\label{measurement}
+\ntsection{Measurement}\label{measurement}
 
 
-For this chapter, measurement reduces to \textbf{counting tokens
-correctly}, because a miscount at the input silently misprices
-everything downstream. Three things an architect can and should check:
+For the \textbf{token-accounting step} of this chapter's method,
+measurement reduces to \textbf{counting tokens correctly}, because a
+miscount at the input silently misprices everything downstream --- and
+only for that step: the end-to-end gates the book insists on elsewhere
+(the Ch 14 benchmark protocol, measured SLO-goodput at the target
+offered load, regional availability, and the Ch 16 TCO gate) are
+separate gates and remain unwaived here. Three things an architect can
+and should check:
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -300,18 +340,19 @@ decision is made.
 The canonical loop's derived quantities have immediate and concrete
 architecture consequences. The 30× input/output ratio means this
 workload's prefill phase dominates: \textasciitilde1.29 PFLOP of compute
-per request, and a KV cache that grows with 9.2K input tokens. The
-decode phase, while smaller in total tokens, requires a weight-read rate
-of \textasciitilde5.6 TB/s sustained over each \textasciitilde25 ms
-decode step (the \textasciitilde140 GB weight-read interval) --- an
-aggregate single-device figure; under the canonical 8×H100
-tensor-parallel host the 140 GB is sharded, so each GPU streams only
-\textasciitilde0.70 TB/s against its own 3.35 TB/s (Ch 6). The
-shard-invariant reason decode is memory-limited is its low arithmetic
-intensity (\textasciitilde1.0 FLOP/byte), not the raw
-5.6\textgreater3.35 comparison. (Note the units: 5.6 TB/s is a
-\emph{rate}; the \emph{per-token weight traffic} is \textasciitilde140
-GB under the full-weight-read model, and rate = traffic / TPOT.)
+per request (case (i), linear-only; \textasciitilde1.5099 PFLOP under
+case (ii)), and a KV cache that grows with 9.2K input tokens. The decode
+phase, while smaller in total tokens, requires a weight-read rate of
+\textasciitilde5.6 TB/s sustained over each \textasciitilde25 ms decode
+step (the \textasciitilde140 GB weight-read interval) --- an aggregate
+single-device figure; under the canonical 8×H100 tensor-parallel host
+the 140 GB is sharded, so each GPU streams only \textasciitilde0.70 TB/s
+against its own 3.35 TB/s (Ch 6). The shard-invariant reason decode is
+memory-limited is its low arithmetic intensity (\textasciitilde1.0
+FLOP/byte), not the raw 5.6\textgreater3.35 comparison. (Note the units:
+5.6 TB/s is a \emph{rate}; the \emph{per-token weight traffic} is
+\textasciitilde140 GB under the full-weight-read model, and rate =
+traffic / TPOT.)
 
 These opposite bottlenecks lead to a central architectural decision:
 \textbf{can we disaggregate prefill and decode?} If prefill needs FLOPS
@@ -352,6 +393,80 @@ derived quantity exists to inform that final, committed decision, and
 Appendix A's closing question --- \emph{where should the intelligence
 live?} --- is the architectural form of that same question, made
 explicit at the top of the hierarchy rather than hidden at the bottom.
+
+\begin{quote}
+\textbf{DECISION STATE --- CANDIDATE SCREENED; NOT COMMITTABLE ---
+regional availability, failover, SLO-goodput and matched-scope costs
+pending.}
+
+Running the loop on the canonical workload yields a \emph{screened
+candidate}, not a commitment: the multi-region 99.9\% SLA is unsized and
+unpriced (Ch 16 §16.3), failover is N−1 single-host only with no
+region-failure test, SLO-goodput is unmeasured at the target offered
+load (Ch 14), and the three delivery modes are not compared on matched
+scopes (Ch 16, \hyperref[tab:16.1]{Table 16-1}). The Decision rung may therefore record a
+\textbf{HOLD} --- a HOLD is a legitimate, auditable outcome of this
+loop, and it is what the example below records.
+\end{quote}
+
+\textbf{Example ADR at the Decision rung --- an explicit HOLD, not a
+least-cost pick.}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{Title:} ADR 0015 --- Delivery mode and region topology for the
+  canonical Q\&A workload
+\item
+  \textbf{Status:} \textbf{HOLD} --- screened, not committed (the same
+  record in the full Ch 25 template appears in Ch 25 §6)
+\item
+  \textbf{Context:} The loop has produced capability, capacity and
+  \emph{single-region} cost screens: the 70B 8×H100 self-host clears the
+  capability screen, and the single-region arithmetic gives
+  \textasciitilde\$155.8K/mo (\textasciitilde\$24.97/1K) self-host,
+  \textasciitilde\$87.6K/mo (\textasciitilde\$14.04/1K) on the cloud
+  default paid-occupancy input, and \textasciitilde\$129.8K/mo
+  (\textasciitilde\$20.8/1K) managed API at the canonical 6.24M
+  requests/mo. The canonical workload's own 99.9\% multi-region
+  active-active requirement is in none of those numbers.
+\item
+  \textbf{Decision:} None yet. The least-cost row --- the cloud default
+  paid-occupancy input at \textasciitilde\$14.04/1K --- is explicitly
+  \textbf{not} selected, and neither is self-host or the managed API:
+  all three rest on unmatched scopes, an unpriced availability
+  requirement and unmeasured SLO-goodput.
+\item
+  \textbf{Rationale:} A HOLD is the honest record when a hard
+  nonfunctional requirement (regional availability) is still unsized and
+  the comparison basis is unequal; picking the cheapest row would encode
+  an input assumption as a decision.
+\item
+  \textbf{Alternatives considered:} (1) \emph{select the least-cost mode
+  now} --- rejected: the \$87.6K line is a paid-occupancy INPUT, not a
+  measured duty cycle, and no row carries the 99.9\% active-active cost;
+  (2) \emph{commit to self-host} --- rejected: its SLO-goodput pass is
+  provisional until benchmarked (Ch 14); (3) \emph{HOLD with explicit
+  exit criteria} --- adopted.
+\item
+  \textbf{Requirement coverage:} \textbf{multi-region active-active
+  (99.9\%): NOT VALIDATED / NOT PRICED} --- no regional capacity,
+  replication or region-failure test is in any number above; the full
+  requirement-coverage matrix is in the Ch 25 §6 copy of this record.
+\item
+  \textbf{Exit criteria / review trigger:} (i) regional capacity sized
+  and priced for the 99.9\% active-active SLA; (ii) a region-failure
+  test defined --- per-region \textbf{weight/index availability
+  mandatory}, \textbf{live-KV replication optional} (clients may replay
+  or recompute context in the surviving region within the recovery
+  objectives, Ch 16 §16.3); (iii) measured p95 SLO-goodput at the target
+  offered load; (iv) a matched-scope re-run of the three modes.
+\item
+  \textbf{Evidence tags:} \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- the
+  three single-region cost rows are Ch 16 scenario inputs, not quotes;
+  \mbox{{[}DERIVED{]}} --- 6.24M req/mo and every \$/1K division are Ch 16
+  arithmetic.
+\end{itemize}
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -410,9 +525,10 @@ GPU streams \textasciitilde0.70 TB/s, and the shard-invariant cause is
 the low \textasciitilde1.0 FLOP/byte intensity, Ch 6). The team's
 immediate architectural choice is whether to build a single homogeneous
 GPU cluster or to separate prefill and decode pools --- the arithmetic
-from this chapter makes clear that a homogeneous design will be
-suboptimal for either bottleneck, and that the disaggregation option
-explored in \hyperref[chap:11]{Chapter 11} is worth evaluating early.
+from this chapter makes P/D disaggregation a \textbf{candidate worth
+testing} for either bottleneck; benchmarking (Ch 14) and TCO (Ch 16)
+determine whether it wins, and the disaggregation option explored in
+\hyperref[chap:11]{Chapter 11} is where to test it.
 
 Before passing this workload to \hyperref[chap:7]{Chapter 7} (Memory), where the KV and
 residency arithmetic is built, the architect locks in one more number:

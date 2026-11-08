@@ -1,0 +1,35 @@
+33
+Understanding the Model
+model were dense. Do not assume MoE reduces KV cache memory, and do not confuse 
+active-compute savings with a residency saving. (This restates at the parameter level 
+the sparsity lesson introduced conceptually in Ch 1 and developed arithmetically for the 
+canonical model in Ch 7; each chapter teaches it at its own rung of the spine.)
+Boxed rule — two distinct accounting lines. Keep two numbers separate and never 
+blur them: 1. total parameters → weight residency. The resident weights (all experts, 
+for MoE) are what the GPUs must hold. For a 70B dense model this is ~140 GB FP16; 
+for a ~47B MoE this is ~94 GB (full expert set) unless experts are explicitly offloaded. 2. 
+active parameters/token → approximate compute per token. The routed top-k 
+fraction (e.g. ~14B active) sets the FLOPs per token (~28 GB of active weights read per 
+token). This is not a memory-freeing lever unless offloading is in play.
+3.4. Measurement
+How do we determine the total-versus-active split for a model we haven’t trained?
+1. Model card inspection. Most model vendors publish the total parameter count. The active-
+per-token count is harder to find; it requires reading the architecture documentation for the 
+routing mechanism (top-k, top-1, importance-based). If the model card says “70B parameters” 
+without qualification, assume dense unless it explicitly describes an MoE layout.
+2. Runtime measurement. For a given input, profile the number of FLOPs or the memory 
+footprint of active weights. Tools such as torch.profiler can count active parameters, but 
+this is an empirical measurement, not a first-party spec.
+3. Architecture diagram. For MoE models, the number of experts × parameters-per-expert 
+gives the total; the routing hyperparameter (top-k) × parameters-per-expert gives the active 
+per token. This is a derived fact from the source code/release, not always on the model card.
+Practical habit: When we encounter a model quoted in “X billion parameters,” pause 
+and ask: is this total or active? For dense models they are the same; for MoE models 
+they diverge. Misreading this is the most common source of KV cache and compute 
+underestimation.
+3.5. Common Mistakes
+• Assuming total parameters = active parameters per token. This is one of the costliest 
+misreads. For a MoE model, the quoted “236B” or “47B” is the total across all experts; the active 
+count per token is a fraction. The two counts drive different budgets: the total count sets 
+weight residency (the full expert set must be resident — 236B × 2 bytes, not just the active 
+footprint), while the active count sets compute per token (only the routed experts are read). 

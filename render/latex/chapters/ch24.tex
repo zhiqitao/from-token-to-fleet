@@ -108,16 +108,24 @@ number appears}: two probe patterns are the same class if their
 normalized-edit-distance (NLE) is ≤ a fixed threshold --- i.e.~within
 NLE ≤ 0.25 of an existing class they are treated as equivalent;
 otherwise they are a distinct class (see §3 for the deduplication rule).
-This deterministic clustering rule (assign each new pattern to an
-existing class when NLE ≤ 0.25, else start a new class) is what makes
-the count well-defined, and it is an author-chosen operational rule, not
-a property of the deployment. \textbf{PIES is a local evaluation metric
-defined in this handbook} for our red/‑green‑team loop; it is \emph{not}
-a standardized security metric, and a PIES value from one deployment is
-not comparable to a PIES value from another (the entry points, probe
-generator, and deduplication threshold are all author-defined). We
-report it with that caveat attached. It is a pedagogical toy metric for
-teaching the \emph{loop's shape}, not a portable security measurement.
+This greedy clustering rule (assign each new pattern to an existing
+class when NLE ≤ 0.25, else start a new class) is an explicitly
+\textbf{order-sensitive heuristic}, not a deterministic cross-run class
+count: threshold proximity is not transitive (A may sit within NLE 0.25
+of B and B within 0.25 of C while A is not within 0.25 of C), so the
+class count --- and therefore PIES --- can change with the pattern
+generation order, the choice of class representative, and the tie-break
+rule. Without a canonical generation order, normalization denominator,
+representative-selection rule, stable sort, tie-break rule, and test
+fixture, the count is well-defined only within a single fixed run; it is
+an author-chosen operational rule, not a property of the deployment.
+\textbf{PIES is a local evaluation metric defined in this handbook} for
+our red/‑green‑team loop; it is \emph{not} a standardized security
+metric, and a PIES value from one deployment is not comparable to a PIES
+value from another (the entry points, probe generator, and deduplication
+threshold are all author-defined). We report it with that caveat
+attached. It is a pedagogical toy metric for teaching the \emph{loop's
+shape}, not a portable security measurement.
 
 \textbf{Worked arithmetic:}
 
@@ -158,8 +166,10 @@ teaching the \emph{loop's shape}, not a portable security measurement.
   normalized Levenshtein distance ≤ 0.25 as the equivalence criterion),
   the unique exposure surface is \textbf{PIES = 217} \mbox{{[}ILLUSTRATIVE{]}}
   --- author-defined operational proxy; the 217 is not reproducible from
-  the text alone, since the dedup threshold is a local choice and
-  normalized edit distance captures textual, not semantic, similarity.
+  the text alone, since the dedup threshold is a local choice, the
+  greedy assignment is order-sensitive (generation order, representative
+  selection, and tie-break are unspecified), and normalized edit
+  distance captures textual, not semantic, similarity.
 \end{itemize}
 
 This illustrative quantity --- 217 distinct, non‑redundant
@@ -168,11 +178,12 @@ guardrail effectiveness. Normalized edit distance captures
 \emph{textual} similarity, not \emph{semantic attack equivalence}: two
 syntactically different attacks may be behaviorally equivalent, and two
 lexically similar attacks may exploit materially different pathways, so
-PIES is a reproducible operational proxy --- not a measure of true
-semantic attack diversity. That is exactly why it is labeled
-author-defined here rather than presented as an objective property of
-the deployment. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- author-defined
-metric and dedup threshold
+PIES is an order-sensitive operational heuristic --- not a deterministic
+cross-run class count, and not a measure of true semantic attack
+diversity. That is exactly why it is labeled author-defined here rather
+than presented as an objective property of the deployment.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- author-defined metric and dedup
+threshold
 
 \subsection{RAG Corpus Poisoning
 Exposure}\label{rag-corpus-poisoning-exposure}
@@ -215,8 +226,15 @@ therefore has to be measured from ranked retrieval (report hit rates
 conditioned on the actual similarity ordering), because adversarial
 chunks are intentionally designed to alter retrieval probability. We
 present the uniform baseline first because it is the one computable by
-hand, and flag it as the \emph{minimum} exposure, not an estimate of the
-true value. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- null-model
+hand, and we flag it as a \textbf{uniform-sampling null reference, not a
+bound} --- neither a floor nor a ceiling on real exposure. Two-line
+counterexample: unrelated queries whose distribution is disjoint from
+the poisoned chunks retrieve none of them, so exposure is near zero no
+matter how large Q is; highly-similar poison crafted for a targeted
+query family lands in the top-k far above its corpus share, so exposure
+is elevated well above 52. The measurable security metric must therefore
+be conditioned on the query distribution, the ranking, chunk provenance,
+and attack success. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- null-model
 uniform-retrieval baseline
 
 \subsection{The Architecture That Fails: Red Team Overturns a
@@ -465,8 +483,9 @@ decisions:
   cycles, the system must add a prompt‑scanning layer (e.g., an
   LLM‑based classifier) before the main model inference. In the
   illustrative scenario we model this as adding \textasciitilde150 ms
-  latency per query and reducing PIES by \textasciitilde60\% ---
-  \textbf{illustrative scenario numbers, not measurements from a
+  latency per query and reducing PIES by roughly a third ---
+  \textasciitilde34\% (the §8 mini-case's worked instance: 217 → 143)
+  --- \textbf{illustrative scenario numbers, not measurements from a
   deployment in this handbook} \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}.
 \item
   \textbf{RAG corpus policy} --- If the poisoned‑hit rate exceeds 0.3\%
@@ -540,14 +559,17 @@ independently re‑scored. \\
 Iteration}\label{end-of-chapter-mini-case-the-pies-drop-red-team-green-team-iteration}
 
 \textbf{Scenario:} The fleet's Green Team observes that PIES has dropped
-from 217 to 143 after adding a prompt‑scanning guardrail. The
-poisoned‑hit rate remains at ≈0.003 per query (≈3 poisoned chunks per
-1,000 queries). The tool‑use exploit rate is 0.44\%. However, the
-false‑positive rate remains above target at 2.4\% --- down from 3.1\% in
-Cycle 1, but still over the \textless1.5\% target. The denominator is
-guardrail interventions, not queries: at the Cycle 2 guardrail‑trigger
-rate of 5.4 per 1,000 queries, a 2.4\% false‑positive share blocks ≈0.13
-legitimate queries per 1,000 (5.4 × 0.024 ≈ 0.13).
+from 217 to 143 after adding a prompt‑scanning guardrail (both values
+from the same order-sensitive dedup heuristic, compared under a fixed
+generation order --- §3.1). The poisoned‑hit rate remains at ≈0.003 per
+query (≈3 poisoned‑hit retrievals per 1,000 queries --- the metric
+counts retrievals returning at least one poisoned chunk, §4.1). The
+tool‑use exploit rate is 0.44\%. However, the false‑positive rate
+remains above target at 2.4\% --- down from 3.1\% in Cycle 1, but still
+over the \textless1.5\% target. The denominator is guardrail
+interventions, not queries: at the Cycle 2 guardrail‑trigger rate of 5.4
+per 1,000 queries, a 2.4\% false‑positive share blocks ≈0.13 legitimate
+queries per 1,000 (5.4 × 0.024 ≈ 0.13).
 
 \textbf{Decision point:} The Red Team recommends tightening the
 guardrail thresholds, which would reduce PIES further (to

@@ -1,0 +1,39 @@
+215
+From Server to Fleet
+Observability across the fleet. With N hosts, tracing a request end‑to‑end requires correlating 
+the LB routing decision, the selected host’s inference logs, and any cross‑host data calls. Structured 
+logging with a request‑ID field that propagates from the client through the LB to the host and back 
+is essential. Distributed tracing (OpenTelemetry, Jaeger) should be enabled by default. Alerts should 
+trigger when per‑host concurrency exceeds 80% of C, when LB error rate exceeds 0.1%, or when 
+cross‑host bandwidth utilization exceeds 70%.
+Failover and redundancy. With N ≥ 2, the fleet provides automatic failover: if one host crashes, 
+the LB routes its traffic to the remaining N−1 hosts, reducing capacity by 1/N (N to N−1 hosts). For 
+N = 4, a single‑host loss reduces capacity from 100% to 75% (assuming equal load distribution). The 
+architect must decide whether this is acceptable or whether N must be larger (e.g., N = 6 for 83% 
+residual capacity after one failure). Health‑check frequency and graceful drain procedures affect the 
+real-world failover time, typically 5–15 seconds.
+Multi-region active-active availability is NOT priced in this chapter’s arithmetic. The 
+multi-region caveat of Ch16 §16.3 applies verbatim to these host counts: every host count here — and 
+the N−1 failover/redundancy model above — is a single-region, N−1-only number (≈20 peak / 29 
+working / 30 with N−1), so the counts and the sizing arithmetic that hangs off them understate the 
+cost of the canonical workload’s own stated 99.9% availability requirement. Add a separate 
+multi-region capacity + replication cost line before the availability SLA can be considered met.
+17.7. What We Still Don’t Know
+Despite the arithmetic above, several questions remain open and would benefit from targeted 
+research:
+• Turn-count distribution under fleet load. Do larger fleets (N > 4) change the observed T 
+distribution? Intuitively, more hosts reduce per-host contention, potentially lowering latency 
+and reducing the agentic loop depth, but empirical measurement is needed.
+• Latency amplification non-linearity. The agentic latency model from Chapter 19 frames 
+the added orchestration overhead as β(T) = 1 + (T·L_agent / L_base), which assumes constant 
+per‑turn orchestration overhead and a fixed base generation time. Under fleet scaling, GPU 
+saturation may make per‑turn overhead grow with concurrent requests, introducing convexity. 
+Empirical load‑testing across N = 1, 2, 4, 8 hosts is required.
+• Optimal fleet size for cost vs. latency. The cost of adding a host is roughly the cost of 
+8×H100 (multi‑hundred-thousand dollars). The marginal latency improvement from the Nth 
+host diminishes (diminishing returns). A cost‑per‑latency‑improved curve would help the 
+architect justify fleet size to stakeholders.
+• Cross‑host communication patterns at scale. The φ = 0.1 assumption may not hold for all 
+workloads (e.g., RAG over a shared index, distributed fine‑tuning). Real‑world measurement of 
+cross‑host traffic patterns is needed to size the backbone accurately.
+• Context‑caching efficacy across a fleet. If many users query related topics, can a fleet‑wide 

@@ -1,0 +1,38 @@
+55
+The Anatomy of an AI Workload
+population’s activity, not about how many requests are in flight at the scheduler at any instant. 
+The two are different state variables, and they need not be close — at the average operating 
+point they happen to be (~100 vs ~86), at the peak they differ (~400 vs ~344).
+• Requests in flight ≠ KV-resident sequences. A request in the queue, or one whose prefill 
+is not yet admitted, is “in flight” from the user’s perspective but does not yet hold a KV slot. 
+In-flight concurrency upper-bounds the KV-concurrency the system must serve, but the KV 
+budget is sized by the number of resident active sequences — which is what the concurrency 
+ceilings in Ch 17 count. Little’s Law gives the in-flight number; the KV budget is a separate, 
+residency-side quantity obtained by multiplying the resident sequence count by per-token KV. 
+Keeping these three apart (in flight vs resident vs per-token KV) is what prevents the “100 
+users → 100 KV slots” leap.
+The “5% active” and “10 s duration” are deliberately simple scenario assumptions 
+([canonical scenario][ASSUMPTION]), not externally verified facts; in a real engagement the archi­
+tect replaces them with observed concurrency, measured latency, and a burst profile from telemetry. 
+Getting this separation right is what turns traffic modeling from a guess into a reproducible arithmetic.
+Token Profile in Detail
+The canonical workload’s token profile is input‑heavy, which has direct consequences for system 
+design:
+• Per‑request input: 1,200 tokens (enterprise query, possibly reformulated) + 8,000 tokens 
+(retrieved context from vector DB) ≈ 9,200 tokens. The [canonical scenario][ASSUMPTION] 
+provenance traces to the canonical scenario (Ch 4, Table 4-2).
+• Per‑request output: ~300 tokens (the generated answer, possibly with citations).
+• Input‑to‑output ratio: 9,200 ÷ 300 ≈ 30× more input tokens than output tokens. This ratio is 
+[canonical scenario][DERIVED] from the canonical numbers and is the single biggest factor in 
+why this workload is KV‑capacity‑ and prefill‑dominated rather than decode‑throughput‑lim­
+ited.
+• At 10 rps: input tokens/s = 9,200 ×10 = 92,000 tokens/s; output tokens/s = 300 ×10 = 3,000 
+tokens/s. At peak 40 rps, input spikes to ~368,000 tokens/s and output to ~12,000 tokens/s. 
+These [canonical scenario][DERIVED] numbers are the Canonical Workload box’s derived 
+rates (above).
+The input-heavy profile means that prefill (processing the prompt) dominates the prefill 
+throughput and KV-memory demand; under the canonical timing assumptions it is not the 
+dominant wall-clock component of an individual request. Prefill takes about 1.08 s, while generating 
+the 300-token answer takes about 7.5 s (300 × 25 ms/TPOT) — so decode is the dominant per-request 
+wall-clock component (~87% of the ~8.58 s total). A model that processes 8K tokens of context in 
+under 1 s of prefill is important to keep the prefill leg within the 1.2 s TTFT budget, but it does 

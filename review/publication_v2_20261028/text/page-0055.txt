@@ -1,0 +1,38 @@
+37
+Understanding the Model
+3.7. What We Still Don’t Know
+As of 2026-08, several questions remain open and are flagged [UNRESOLVED]:
+• Exact active-fraction per token for commercial MoE models. Model cards rarely publish 
+the precise top-k routing distribution under real workloads. We know the architectural top-k 
+(e.g., top-2 from 8 experts), but the actual fraction of active parameters may vary with prompt 
+content, token position, and expert availability.
+• Whether router latency offsets MoE compute savings. The cost of computing routing 
+scores and dispatching to experts is not always included in published FLOP counts. On some 
+hardware the routing overhead can be significant enough to narrow the compute gap between 
+MoE and dense.
+• KV cache behavior under MoE with expert swapping. When experts do not fit on a single 
+GPU and must be swapped (offloaded), does the KV cache interact with the swapping mecha­
+nism in ways that change its effective size or access pattern? This has not been systematically 
+characterized.
+These flags exist because home-lab measurements are not reference per the evidence taxonomy; 
+each is an open empirical question a team should validate against its own target workload, not a 
+claim the handbook has settled.
+3.8. End-of-Chapter Mini-Case: Total vs. Active Parameters, and the KV Constant
+(Continuous scenario — chained from the enterprise Q&A thread.)
+An architect is fleshing out the design of the internal Q&A tool described in Chapter 1’s mini-case. 
+The team’s standing decision from Chapter 2 is the dense 70B model; a MoE model with 8 experts 
+(roughly 47B total params, ~14B active per token) is the challenger under consideration. They ask: “If 
+we go MoE, can we cut our GPU memory budget?”
+From the model-understanding chapter, the architect can answer: Active-compute memory yes — 
+only ~14B of the ~47B total is active per token, so ~28 GB of active weight footprint is read per token 
+vs. 140 GB for a dense 70B. But resident memory is a different question. An MoE model normally 
+keeps its full expert set resident — the non-active experts still occupy HBM unless we explicitly use 
+expert offload/swapping (Ch 3 §3.6, Ch. 18), which itself costs bandwidth. So MoE reduces compute 
+per token, and it gives us the option to offload some experts to shrink residency, but it does not 
+automatically reduce the weight-residency floor. And KV cache memory no — the attention layers 
+still process every token densely, so the cache budget for a 9.2K-context input is the same regardless 
+of whether the model is dense or MoE. We still need to provision for ~12 GB of KV cache (at 8-bit) or 
+~24 GB (at the precision pattern discussed in Ch. 7) per request, and we’ll also need expert-routing 
+infrastructure on top of that.
+The architect’s decision therefore hinges on whether the compute savings from MoE (fewer 
+FLOPs per token, potentially lower $/token) outweigh the added routing complexity and the fact 

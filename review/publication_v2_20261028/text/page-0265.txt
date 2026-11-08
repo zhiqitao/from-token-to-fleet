@@ -1,0 +1,40 @@
+247
+Fleet-Level Optimization
+prefill leg is 2.0 req/s × 9,200 = 18,400 input tok/s) and decode with decode (2.0 × 
+300 = 600 output tok/s); aggregating the two phases into one “total” rate requires an 
+explicit cost/phase-equivalence model. Dividing the total by the ~9,500 tokens/request 
+gives ~3.7 requests/s — but this is not achievable here, because it would require ~3.7 × 8.6 
+≈ 32 concurrent requests in flight, roughly double the host’s KV-residency ceiling (C ≈ 17.5, 
+conservative integer floor 17, Chapter 17). The token-throughput figure is thus a non-binding 
+upper edge for this canonical workload.
+• KV-residency / latency bound (Little’s law). The real ceiling is set by concurrency and 
+service time together: a host holds ~17.5 concurrent full-context requests (KV ceiling, Chapter 
+17) each for ~8.6 s, so it serves C/W ≈ 17.5 / 8.6 ≈ 2.0 requests/s at steady state.
+The binding per-host rate is the minimum of the two — here the KV/latency bound. This is exactly 
+why a token-throughput number must not be divided by tokens-per-request to manufacture a “rps”: a 
+token and a request are different units, and prefill (compute-bound) versus decode (bandwidth-bound) 
+tokens are not fungible in that division. The per-host request rate is a concurrency × service-time 
+quantity, not a tokens ÷ tokens conversion.
+Call this quantity what it is. The ~2.0 req/s figure is a KV-residency / service-time analytical 
+planning bound under the canonical W assumption — not a measured serving throughput. It is 
+achievable only if serving C concurrent sequences does not inflate W beyond the assumed ~8.6 s, and 
+neither a compute, bandwidth, nor scheduler constraint binds first. In real continuous batching, W 
+is a function of batch occupancy, scheduler policy, prefill interference, decode batching, the arrival 
+process, tensor-parallel communication, and the context distribution — so C and W are not always 
+independent constants. Treat ~2.0 req/s as an upper-bound model, and require benchmarked goodput 
+(Chapter 14) under the target arrival process for actual fleet sizing. Planning-bound caveat: like 
+the ~19,800 prefill tok/s/host figure (Ch. 8, idealized prefill only), the ~2.0 req/s/host figure is an upper-
+order planning bound — model-derived, not an implied deployed rate. No p95/p99 performance 
+guarantee has been shown for any of the host counts in this chapter; the p95/p99 tail latency and 
+achieved goodput must be measured on the target deployment (Chapter 14) before the 20-host sizing 
+is treated as validated.
+Simultaneous feasibility check (prefill + decode coexistence). The ~2.0 req/s/host bound 
+assumes prefill and decode run on the same host at the same time. At 2 req/s the prefill demand is 2.0 
+× 9,200 = 18,400 input tokens/s per host (§3). The idealized prefill ceiling is 8 × 0.989 PF/s × 35% / 
+(2 × 70e9) ≈ 19,780 tokens/s (Chapter 8, 35% MFU, prefill-only). The ratio is 18,400 ÷ 19,780 ≈ 93%. 
+Prefill must run at ~93% of the idealized prefill ceiling. This is [ANALYTICAL] (Axis-3 measurement 
+status; defined with the evidence taxonomy in the Sources, Method, and Reproducibility chapter) 
+— a prefill-load check, not a measured rate. The ~93% leaves very little headroom before decode 
+coexistence, interference, and the actual achieved MFU. Prefill and decode share the same hardware. 
+Batch scheduling and decode interleaving compete for the same compute. The achieved MFU is 
+below the 35% ideal. Therefore ~2.0 req/s/host is an analytical upper bound, NOT a claim that a 

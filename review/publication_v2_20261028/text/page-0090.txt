@@ -1,0 +1,37 @@
+From Workload to Model Selection
+72
+(and hence the GPU-hour cost of running the pipeline), and decode dominates the wall-clock latency 
+budget (and hence per‑request service time). The per‑dollar economics therefore favor models that 
+reduce the prefill compute burden (smaller context, larger batch, lower per‑token FLOP) more than 
+models that optimize decode throughput alone — but a deployment must balance both, since decode 
+still sets the latency SLO.
+5.3.3. (c) Base‑model + RAG + guardrails vs fine‑tuned model
+The architect must choose between two paradigms:
+Paradigm 1 — Base model + RAG + guardrails:
+• The base 70B model receives the retrieved 9.2K context via prompt injection.
+• Guardrails (PII redaction, style enforcement, refusal filtering) are applied as post‑generation or 
+prefix‑check layers.
+• No model weights are trained on domain data; the knowledge source is the vector database.
+Paradigm 2 — Fine‑tuned model on domain‑specific Q‑A pairs:
+• The base model is fine‑tuned (full-parameter, or low‑rank adaptation (LoRA)) on thousands of 
+question‑answer pairs reflecting the enterprise’s terminology and reasoning patterns.
+• Inference uses the fine‑tuned weights without a retrieval step, or with a much shorter retrieved 
+context. Fine‑tuning is not a dependable substitute for retrieval when the requirement is 
+factual corpus access, freshness, attribution, or precise enterprise knowledge — fine‑tuning 
+distills behavior, style, task patterns, format, and tool‑use policy, not a guarantee that arbitrary 
+facts are recalled faithfully. Whether it reduces retrieval dependence for a particular task is an 
+empirical question to be measured on that task’s evaluation set.
+• Additional costs: training compute, storage of fine‑tuned weights, and reduced flexibility for 
+new topics.
+([ILLUSTRATIVE][ASSUMPTION] — not a reference measurement): for the canonical workload, 
+a well‑designed RAG + guardrails pipeline may approach a fine‑tuned model’s answer quality on 
+in‑domain queries. This is task‑, model‑, data‑, and evaluation‑dependent — it is not derivable 
+from the architecture alone. The two mechanisms do different work: RAG supplies external, mutable 
+knowledge (grounding, provenance, freshness); fine‑tuning shapes behavior, style, domain reasoning 
+patterns, format, and tool‑use policy. Either or both can improve answer quality, and they can be 
+combined. Whether fine‑tuning reduces retrieval dependence for this workload must be established 
+by measuring answer quality on the actual evaluation set. The economic comparison should be framed 
+parametrically, not with a single number, because the break‑even depends on the quality uplift 
+(domain‑specific) and the query volume (workload‑specific). The decision variable is the break‑even 
+query volume Q∗ where the annualized cost of fine‑tuning, divided by its quality advantage, crosses 
+the RAG baseline:

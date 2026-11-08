@@ -1,0 +1,41 @@
+147
+Serving: From Model in Memory to Requests in Flight
+capability
+vLLM
+SGLang
+TensorRT-
+LLM
+llama.cpp
+architectural 
+note
+The columns read as knobs on a common set of mechanisms, not as “which engine is best.” An 
+engine’s real value is which mechanisms it implements well for the deployed workload’s shape — e.g. a 
+repeated-context RAG workload cares most about the prefix-caching row (RadixAttention in SGLang 
+is a strong implementation), while a latency-critical single-stream deployment might care more about 
+the scheduler and structured-generation rows. Never conclude “X is the go-to engine” — that is 
+workload-independent and will be wrong. The only defensible statement is workload-specific: for 
+this request shape, this precision, and this hardware, engine Y implements the mechanism Z we need; 
+benchmark it against the alternative (Ch. 14).
+11.7. What We Still Don’t Know
+As of 2026-08, several questions remain open, each flagged [HYPOTHESIS] or 
+[UNRESOLVED] (measure on the target cluster):
+• Portable end-to-end goodput across real enterprise RAG — Mooncake’s 525%/75% [S4]
+[1P] and DFlash’s >6× [S5][1P] are strong anchors but are workload-specific; general rules 
+remain an open hypothesis [HYPOTHESIS].
+• Prefix-cache hit rates in mixed traffic — the real reduction in prefill FLOPs from RadixAt­
+tention/APC for a given document-distribution remains a hypothesis [HYPOTHESIS].
+• KV-transfer cost at scale — Mooncake’s engine moves KV to CPU/DRAM/SSD [S4]
+[1P], but the exact latency/bandwidth crossover where disaggregation wins is unmeasured 
+[UNRESOLVED] — measure on the target cluster.
+11.8. End-of-Chapter Mini-Case: Which Serving Mechanism to Reach For
+An architect runs the canonical internal Q&A service on a single 8×H100 host and sees p95 TTFT 
+creep toward 2.2 s against a 2 s SLO as traffic peaks at 40 rps. Applying this chapter: the architect 
+first confirms continuous batching is on (vLLM) and that PagedAttention is active — otherwise 
+the ~24.1 GB-per-request KV for 9.2K inputs fragments and concurrency collapses. The biggest 
+lever: prefix caching. The RAG traffic reuses the same retrieved documents, so the architect enables 
+automatic prefix caching and watches TTFT drop as the 8K-context prefill is replaced by cached KV 
+lookups. The architect does not reach for P/D disaggregation or speculative decoding — the single 
+host is resource-sufficient for this latency/SLO once the wasted re-prefill is eliminated. The result: 
+p95 TTFT back under 1.8 s at 40 rps, goodput restored, with only configuration changes — because 
+the architecture followed the serving mechanism that matched the workload’s repeated-context 
+shape. Scope note: this is a latency-bound, single-host judgment. It answers “can one host meet 

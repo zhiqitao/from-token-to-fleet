@@ -1,0 +1,23 @@
+chapter 9.
+Communication
+The Architect’s Question
+Before we can place a model across multiple GPUs or across a cluster, we need to know what the 
+interconnect can — and cannot — move. This chapter asks: given a model size, a parallelism strategy, 
+and a traffic pattern (all-reduce, all-gather, reduce-scatter), what is the communication time, and 
+does it dominate the compute budget? We will size the hidden bottleneck that often goes unnoticed 
+until the job stalls.
+9.1. Concept
+Communication in a distributed LLM system is not a single pipe. It is a hierarchy: each GPU talks to 
+its neighbors over PCIe, nodes within a server meet over NVLink/NVSwitch, racks talk over 200/400 
+GbE RoCE, and cross-rack or cross-data-center traffic rides InfiniBand. Each layer has a distinct 
+bandwidth ceiling, a distinct latency profile, and a distinct cost per gigabyte. The architect must 
+match the collective operation to the layer where the bandwidth is sufficient, because moving the 
+same data over a slower layer adds minutes to training time or inference latency for no computational 
+benefit.
+The collective operations that dominate multi-node training and inference are:
+• all-reduce: every GPU contributes a gradient fragment; the result (the sum, scaled by 1/N) is 
+delivered to every GPU. This is the workhorse of data-parallel and model-parallel training.
+• all-gather: every GPU contributes a tensor; every GPU receives the concatenation of all 
+fragments. Used when a model split across nodes needs the full weight or KV cache locally.
+• reduce-scatter: the inverse of all-gather. Every GPU contributes a fragment; each GPU receives 
+119

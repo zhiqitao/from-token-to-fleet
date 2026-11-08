@@ -1,0 +1,38 @@
+It All Starts With the First Token
+4
+is a configured maximum, not a per-request charge: a 9.2K request in a 128K window is computed, 
+cached, and billed on the ~9.2K tokens actually used, not on the full 128K. What the window does 
+bound is the worst case — the memory a single request could reserve and the admission capacity the 
+engine must hold — and some engines reserve or pre-allocate against that maximum (a policy choice 
+that varies by engine), while others allocate only for the tokens actually processed. So the window 
+sets the ceiling on reservation and admission, not the floor on per-request cost; the cost tracks the 
+tokens actually cached and billed (developed in Ch 7 and Ch 16).
+1.1.3. Embeddings
+Text enters the model as token IDs, but the model does arithmetic on vectors. The first such vector 
+is the token embedding: a learned lookup table maps each discrete token id to a dense vector 
+in a high-dimensional space, and the transformer operates on those vectors. Two distinct widths 
+must not be conflated: the token-embedding width (the model’s hidden dimension, e.g. 4096 for 
+LLaMA-7B, 8192 for LLaMA-2/3 70B and for the canonical 70B reference, 12288 for a GPT-3-class 175B 
+model) and the retrieval-embedding width (the dimension of a sentence/document embedding 
+produced by a separate encoder for RAG, typically 384–1536 for dedicated retrieval models, or the 
+full hidden dim if the LLM itself is used as the encoder). The “128 to a few thousand” range applies to 
+retrieval embeddings; the token embedding width is architecture-dependent and for modern LLMs 
+is illustratively in the 4096–16384 range (not an exhaustive bound across all models). Two other 
+vector objects are distinct from the token embedding and should not be merged with it: positional 
+encodings (which encode a token’s position in the sequence, added to or modulating the embedding) 
+and contextual hidden states (the per-layer, per-position activations the transformer produces, 
+which depend on the whole context, not just the token id). The token embedding maps each discrete 
+token id to a learned continuous vector; relationships in that learned space emerge from training but 
+should not be interpreted as a simple human-semantic distance metric.
+For the architect the practical facts are: embeddings live in a lookup table sized vocab × dim, 
+they account for a real but small slice of a model’s parameter count (a 100k × 4096 table holds 100,000 
+× 4,096 ≈ 409.6M ≈ 0.4B params — a rounding error next to a 70B model, but not zero), and they are 
+the first thing a vocabulary mismatch or a re-tokenized prompt can silently change.
+1.1.4. Attention
+Attention is the mechanism by which each token’s representation is recomputed as a weighted blend 
+of the representations of all tokens before it in the context. The weights come from a similarity 
+(query·key) between the current token and every prior token, normalized, and used to mix the value 
+vectors. It is the mechanism that makes a model “pay attention to” relevant earlier tokens when 
+producing the next one.
+The architect-relevant fact: attention’s cost scales quadratically with context length in the 
+full-attention regime — the number of input×output position pairs grows as L². That quadratic term 

@@ -191,10 +191,10 @@ performance. \mbox{{[}DERIVED{]}}
 
 The chapter unfolds in four parts. First, the core arithmetic: FLOPs per
 token, prefill PFLOP counts, and H100 sustained utilization. Second, the
-roofline: why early layers are compute-bound while later layers and
-decode are memory-bound. Third, the canonical scenario arithmetic: 70B
-on 8×H100, TTFT 1.2 s, TPOT \textasciitilde25 ms. Fourth, the mini-case:
-a continuous deployment scenario that threads the prefill/decode divide.
+roofline: why prefill is compute-bound while decode is memory-bound.
+Third, the canonical scenario arithmetic: 70B on 8×H100, TTFT 1.2 s,
+TPOT \textasciitilde25 ms. Fourth, the mini-case: a continuous
+deployment scenario that threads the prefill/decode divide.
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -248,11 +248,13 @@ absorbs the 40 rps peak arrival rate --- as Ch 17 derives, that peak
 puts in-flight concurrency λ·W ≈ 344 at the \textasciitilde8.6 s service
 time, far above one host's KV-residency ceiling (C ≈ 17.5, conservative
 integer floor 17), so the \emph{fleet} needs \textasciitilde21 hosts (Ch
-17's floor-17 screen). The compute/roofline arithmetic of this chapter
-answers the per-request and per-host-shard question; the fleet question
-is a separate multiplication that Ch 17 performs (with the cost basis in
-Ch 16). We keep them distinct because each requires measuring against a
-different quantity (a latency budget vs an arrival rate).
+17's floor-17 screen at full utilization; 31 working / 32 total at the
+70\% × 95\% policy --- \hyperref[tab:17.1]{Table 17-1}). The compute/roofline arithmetic of
+this chapter answers the per-request and per-host-shard question; the
+fleet question is a separate multiplication that Ch 17 performs (with
+the cost basis in Ch 16). We keep them distinct because each requires
+measuring against a different quantity (a latency budget vs an arrival
+rate).
 
 \subsection{FLOPs per token}\label{flops-per-token}
 
@@ -342,11 +344,33 @@ omits the quadratic attention term,
 \(\approx 4 \times n_\text{layers} \times L^2 \times d\). At the
 canonical 9.2K context that correction is small --- roughly
 \textbf{+17\%} of the 1.29 PFLOP --- so the 2NL roofline is a sound
-teaching baseline there. But the omission grows with context: at 32K the
-attention term is \textasciitilde{}\textbf{+60\%} of the linear term and
-at 128K it \emph{dominates} (\textasciitilde2.4× the linear term,
-≈+240\%). An architect sizing long-context prefill must add the
-quadratic term or measure it; the Unknowns section returns to this.
+teaching baseline there.
+
+\textbf{The ONE prefill-FLOP accounting convention used in this book.}
+Chapters 8, 15, 16, 17, 20 and 22 name the same three cases, and every
+prefill FLOP figure and every prefill host count states which case it
+uses:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{(i) linear-only lower bound} --- 2N·L = \textbf{1.288 PFLOP}
+  per 9.2K request (excludes attention);
+\item
+  \textbf{(ii) full-square attention upper/conservative model} --- 2N·L
+  + 4·n\_layers·L²·d = \textbf{1.5099 PFLOP}, \textbf{+17.23\%} over
+  (i); a \emph{full-square} (un-masked) attention-work approximation;
+\item
+  \textbf{(iii) causal-triangle kernel sensitivity} --- 2N·L +
+  2·n\_layers·L²·d = \textbf{1.3989 PFLOP}, \textbf{+8.61\%} over (i): a
+  causal mask performs half the attention-pair work of (ii).
+\end{itemize}
+
+But the omission grows with context: at 32K the attention term is
+\textasciitilde{}\textbf{+60\%} of the linear term and at 128K it
+\emph{dominates} (\textasciitilde2.4× the linear term, ≈+240\%). An
+architect sizing long-context prefill must add the quadratic term or
+measure it; the Unknowns section returns to this.
 
 At 10 requests/s, the sustained prefill throughput demand is:
 
@@ -385,10 +409,19 @@ per-token FLOPs (forward) & \textasciitilde140 GFLOP/token & 2 ×70B
 params {[}DERIVED; standard dense-forward arithmetic --- the same 2×N
 rule gives 175B ≈ 0.35 TFLOP/token{]} \\
 prefill FLOPs for 9.2K input (linear only) & \textasciitilde1.29 PFLOP &
-2 ×70 ×10⁹ × 9.2 ×10³ {[}DERIVED; \textbf{parameterized-linear term ---
-excludes the quadratic attention term}, see Ch 22{]} \\
+2 ×70 ×10⁹ × 9.2 ×10³ {[}DERIVED; \textbf{case (i) parameterized-linear
+lower bound --- excludes the quadratic attention term}, see Ch 22{]} \\
+prefill FLOPs for 9.2K input (full-square, conservative) &
+\textasciitilde1.5099 PFLOP & 1.288 + 4 ×80 ×9,200² ×8,192 = 1.288 +
+0.2219 {[}DERIVED; \textbf{case (ii) --- full-square (un-masked)
+attention work, +17.23\%}{]} \\
+prefill FLOPs for 9.2K input (causal-triangle sensitivity) &
+\textasciitilde1.3989 PFLOP & 1.288 + 2 ×80 ×9,200² ×8,192 = 1.288 +
+0.1109 {[}DERIVED; \textbf{case (iii) --- causal mask halves the
+attention-pair term, +8.61\%}{]} \\
 sustained prefill demand @ 10 rps & \textasciitilde12.9 PFLOP/s & 1.29
-PFLOP × 10 \mbox{{[}DERIVED{]}} \\
+PFLOP × 10 {[}DERIVED; \textbf{case (i)} --- case (ii) gives
+\textasciitilde15.1 PFLOP/s{]} \\
 H100 peak FP16 TFLOPS & \textasciitilde989 TFLOPS {[}1P: NVIDIA H100
 datasheet{]} & NVIDIA H100 SXM5 datasheet, without sparsity \\
 H100 sustained MFU (typical) & 30--40\% {[}2°: industry benchmarks{]} &
@@ -464,14 +497,55 @@ n_\text{hosts} = \frac{\text{tokens/s demand}}{\text{tokens/s per host}} = \frac
 \textbf{idealized aggregate}{]}
 
 At the peak 40 rps (368,000 tokens/s) the same arithmetic gives
-\textasciitilde18.6 → \textbf{\textasciitilde19--20 hosts}. This aligns
---- independently --- with the KV-residency / Little's-Law fleet sizing
-derived in \hyperref[chap:17]{Chapter 17}, with the cost basis in \hyperref[chap:16]{Chapter 16}
-(\textasciitilde21 hosts at peak, \textasciitilde\$155,816.93/mo
-self-host ≈ \$24.97/1K --- illustrative included-cost, Ch 16), which is
-a useful cross-check that the two fundamentally different constraints
-(prefill FLOP throughput vs.~KV residency/service time) point at the
-same order of fleet.
+\textasciitilde18.6 → \textbf{19 hosts under case (i)}. The screen
+depends on the FLOP-counting case, so all three are stated (35\% MFU;
+host = 8 × 0.989 PFLOPS × 0.35 = 2.7692 PFLOP/s):
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+FLOP-counting case
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+prefill FLOP/request @9.2K
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+peak demand @40 rps
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+hosts = ⌈demand ÷ 2.7692 PFLOP/s⌉
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+(i) linear-only lower bound & 1.288 PFLOP & 5.152 ×10¹⁶ FLOP/s & ⌈18.60⌉
+= \textbf{19 hosts} \\
+(iii) causal-triangle sensitivity & 1.3989 PFLOP & 5.596 ×10¹⁶ FLOP/s &
+⌈20.21⌉ = \textbf{21 hosts} \\
+(ii) full-square conservative & 1.5099 PFLOP & 6.040 ×10¹⁶ FLOP/s &
+⌈21.81⌉ = \textbf{22 hosts} \\
+
+\noalign{\label{tab:8.2}}\end{longtable}
+
+Under case (ii) the compute screen \textbf{binds above} the KV-residency
+/ Little's-Law fleet sizing derived in \hyperref[chap:17]{Chapter 17} (⌈344/17⌉ = 21 hosts
+at peak, the full-utilization screen; 31 working / 32 total at the 70\%
+× 95\% policy), so the capacity floor is the \emph{max} of the named
+screens --- \textbf{21 hosts under case (i), 22 under case (ii)} ---
+with the cost basis in \hyperref[chap:16]{Chapter 16} pricing both
+(\textasciitilde\$155,816.93/mo ≈ \$24.97/1K at 21 hosts;
+\textasciitilde\$162,760.59/mo ≈ \$26.08/1K at 22 --- illustrative
+included-cost, Ch 16). That two fundamentally different constraints
+(prefill FLOP throughput vs.~KV residency/service time) land within one
+host of each other is the useful cross-check that they point at the same
+order of fleet. \textbf{19 / 21 / 22 --- and 32 (KV-only) / 34 (case
+(ii)) at the 70\% × 95\% + N−1 policy, Ch 16/17 (the ρ = 1 u-only screen
+reads 30 / 33) --- are illustrative planning screens under the stated
+FLOP-counting case and the 35\% MFU assumption, NOT measured
+SLO-goodput.}
 
 \textbf{Honest boundary on both numbers.} The per-GPU
 \texttt{2,471\ tokens/s} is itself an \emph{analytical} figure at an
@@ -484,7 +558,11 @@ given batch, or scheduling/system overhead. It is an upper-bound
 analysis value, not a servable goodput. Actual reachable prefill
 throughput must come from benchmark goodput under the target workload
 (\hyperref[chap:14]{Chapter 14}). Treat both numbers as scope-disciplined \emph{models},
-never as measured capacity.
+never as measured capacity --- and treat every host count they produce
+(19 / 21 / 22, and 32 / 34 at the 70\% × 95\% + N−1 policy --- 30 / 33
+on the ρ = 1 u-only screen) as an \textbf{illustrative planning screen
+under its stated FLOP-counting case and the 35\% MFU assumption, not
+measured SLO-goodput}.
 
 This rough sizing illustrates that prefill is FLOP-bound at this scale
 --- the compute requirement is the primary constraint, and memory
@@ -500,7 +578,7 @@ batch}\label{decode-bandwidth-bound-at-low-batch}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as 2 FLOPs (the FMA convention of §8.1); dense (no sparsity) FP16; the ceilings are peak/theoretical datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input) and decode (batch=1) points are illustrative operating points, and a kernel's position on the roofline is a theoretical bound on its FLOP/byte intensity --- it is not a measured latency. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge classification (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0801.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as 2 FLOPs (the FMA convention of §8.1); dense (no sparsity) FP16; the ceilings are peak/theoretical datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input) and decode (batch=1) points are illustrative operating points, and a kernel's position on the roofline is a theoretical bound on its FLOP/byte intensity --- it is not a measured latency. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge classification (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0801.png}}
 \caption[Per-GPU roofline for dense FP16, one H100 vs one H200]{Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as \textbf{2 FLOPs} (the FMA convention of §8.1); \textbf{dense} (no sparsity) FP16; the ceilings are \textbf{peak/theoretical} datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input) and decode (batch=1) points are \textbf{illustrative operating points}, and a kernel's position on the roofline is a \emph{theoretical} bound on its FLOP/byte intensity --- it is \textbf{not a measured latency}. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge \emph{classification} (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}}
 
 \label{fig:8.2}\emph{The roofline: at the canonical long-prompt operating point prefill
@@ -523,11 +601,12 @@ re-reads all 70B weights from HBM (a \textbf{batch-1-equivalent}
 weight-streaming read). A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140
 GB --- one full pass reads \textbf{140 GB} (batch-1-equivalent), not 280
 GB. (The naïve ``2 ×70 ×10⁹ × 2 B ≈ 280 GB'' double-counts the FP16
-footprint: the leading ``2'' is already inside the 2-bytes-per-element,
-so writing 2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any
-KV/output-projection reads are a separate, smaller term on top, not a
-second full weight footprint.) The effective arithmetic intensity is
-therefore:
+footprint: the leading ``2'' is the FLOPs-per-parameter factor (2N
+FLOPs/token), which has no place in a byte expression --- multiplying it
+into N × 2 B doubles the FP16 footprint, so writing 2 ×70 ×10⁹ × 2 B
+counts the weight bytes twice. Any KV/output-projection reads are a
+separate, smaller term on top, not a second full weight footprint.) The
+effective arithmetic intensity is therefore:
 
 \[
 \text{arithmetic intensity}_{\text{decode}} \approx \frac{140 \text{ GFLOP}}{140 \text{ GB}} \approx 1.0 \text{ FLOP/byte}
@@ -766,7 +845,7 @@ loop}, pinned revision \texttt{1ea34ff}, retrieved 2026-10-28).
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T\_l=(F−1)//4+1, H\_l=H//16 and W\_l=W//16. For aligned F=4k+1, F=1+4(T\_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} geometry and loop. The aligned inverse and token count are arithmetic derivations from that geometry. Schematic, not a latency or peak-memory measurement.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0803-video-latent-work.png}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T\_l=(F−1)//4+1, H\_l=H//16 and W\_l=W//16. For aligned F=4k+1, F=1+4(T\_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} geometry and loop. The aligned inverse and token count are arithmetic derivations from that geometry. Schematic, not a latency or peak-memory measurement.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0803-video-latent-work.pdf}}
 \caption[Wan2.2 TI2V-5B whole-clip denoising]{Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T\_l=(F−1)//4+1, H\_l=H//16 and W\_l=W//16. For aligned F=4k+1, F=1+4(T\_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} geometry and loop. The aligned inverse and token count are arithmetic derivations from that geometry. Schematic, not a latency or peak-memory measurement.}
 
 \label{fig:8.3}\end{figure}
@@ -968,8 +1047,9 @@ phases. The workload's true roofline position, not an assumed
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
 \emph{Prefill PFLOP also grows with context: 2 ×70B × L tokens scales
-linearly --- \textasciitilde0.29 PFLOP at 2K → \textasciitilde4.6 PFLOP
-at 32K --- so the longer the window, the larger the one-time compute
-cost of loading it. Sustained throughput (tokens/s) is what matters for
-continuous serving, and at the canonical 9.2K point the prefill is
-\textasciitilde1.29 PFLOP (\hyperref[tab:8.1]{Table 8-1}).}
+linearly --- \textasciitilde0.28 PFLOP at 2K → \textasciitilde4.5 PFLOP
+at 32K (K = 1,000, the book's convention: 9.2K = 9,200) --- so the
+longer the window, the larger the one-time compute cost of loading it.
+Sustained throughput (tokens/s) is what matters for continuous serving,
+and at the canonical 9.2K point the prefill is \textasciitilde1.29 PFLOP
+(\hyperref[tab:8.1]{Table 8-1}).}

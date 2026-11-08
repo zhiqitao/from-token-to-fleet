@@ -1,0 +1,38 @@
+73
+From Workload to Model Selection
+Q∗=
+Ctrain + Cweights-extra
+∆Q · value per corrected query
+where Ctrain is the one‑time training compute, Cweights-extra is the incremental storage/carry cost, 
+and ∆Q is the (domain‑specific, must‑be‑measured) quality uplift in corrected answers per query. 
+Below Q∗, RAG + guardrails is economically dominant because the fine‑tuning cost is spread over 
+too few queries to be repaid; above it, fine‑tuning may recover its upfront cost through quality gain. 
+(Scenario structure, not a single claimed break‑even volume; the exact Ctrain, Cweights-extra, and ∆Q
+are workload‑ and domain‑specific and should be measured, not assumed.)
+Fine‑tuning does not make the model smaller — pruning is a separate operation. A full fine‑tune 
+keeps the ~140 GB 70B weight set (and adds a checkpoint), while a LoRA adapter is tiny but does 
+not change the live weight footprint. Consequently the latency effect of fine‑tuning is not “smaller 
+effective model” and cannot be assumed to cut TTFT; any TTFT change must be measured. The real 
+cost changes are: (a) one‑time training compute, and (b) incremental storage, both against the RAG 
+pipeline’s prefill cost (~1.08 s, which dominates any plausible TTFT delta). Parametrically, fine‑tuning 
+becomes worth it only when its annualized cost over Q queries is repaid by ∆Q · value — this is 
+exactly the Q∗ above. The illustrative cloud‑GPU training cost is presented as a scenario range, not a 
+fact, and must be benchmark‑validated against a target workload.
+Takeaway: For the canonical enterprise Q&A RAG workload, the base‑model + RAG + guardrails 
+paradigm is the economically preferred choice. Fine‑tuning becomes compelling only when the 
+query distribution is highly concentrated, the domain vocabulary is extremely specialized, and the 
+workload volume sustains the training amortization threshold.
+5.4. Measurement
+How does an architect measure the workload dimensions that drive model selection? The token-
+counting habits of Ch 1 §1.4 apply unchanged; the three things the selection view adds are:
+1. Measure the token split on real employee queries, not the heuristic. Run the model’s 
+own tokenizer on representative prompts from the target domain — the “4 chars ≈ 1 token” 
+heuristic is for estimation only. For the canonical workload, measure the exact prompt+context 
+token count on real employee queries before fixing the model, because the ~30× input-to-output 
+ratio is the single biggest driver of this system’s cost structure (Ch 4).
+2. Quantify the output size, since that drives decode cost and per-request latency. The 
+output token count determines decode bandwidth and p95 TPOT; a large-output paradigm 
+(e.g. long-form generation) changes the model-selection calculus versus a short-output Q&A 
+system.
+3. Know the 95th-percentile context length, not just the average. Log the distribution of 
+context lengths. A workload that averages 9.2K input but peaks at 32K (a variant flagged in Ch 

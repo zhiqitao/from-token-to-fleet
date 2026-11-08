@@ -1,0 +1,47 @@
+131
+Parallelism: Splitting the Model Across Machines
+communication is light enough to span nodes. Data parallel replicates the whole model and splits 
+the batch — in training every replica all-reduces its gradient each step; in inference the replicas 
+are independent, each serving a disjoint slice of requests with no sync at all. Expert and sequence 
+parallelism (EP/CP) are additional axes that reuse the same machinery. The three primary patterns 
+compose (e.g. DP across nodes × TP within a node × PP across a few nodes) — which dimension 
+binds determines which to split first.
+10.2. Mental Model
+Each strategy is best distinguished by what it trades bandwidth for. Tensor parallelism trades a 
+lot of NVLink bandwidth to avoid duplicating weights but adds per-layer sync. Pipeline parallelism 
+trades low bandwidth but accepts bubbles as the price of not holding all layers on one GPU. Data 
+parallelism trades gradient bandwidth (once per step) for the convenience of replicated weights and 
+is limited by having to fit the whole model on each GPU.
+The useful mental model is a resource triangle: we have weights (memory), activations (work), 
+and data (batch). Each strategy moves one corner off a single GPU at the cost of communication. 
+When a GPU runs out of memory, we reach for TP/PP (weight splitting). When a GPU is idle waiting, 
+we reach for DP/CP (more work per GPU). When the model is too big to replicate, TP wins over DP. 
+The binding constraint chooses the strategy.
+Table 10-1 — Parallelism strategies at a glance
+Strategy
+What it splits
+Replicates
+Communicates
+Fits when
+Tensor (TP)
+a layer’s 
+weights within 
+a GPU group
+activations
+partial sums 
+→ all-reduce 
+(every layer, 
+over NVLink)
+model exceeds 
+one GPU, fits a 
+node
+Pipeline (PP)
+the layer stack 
+into stages
+hidden states
+hidden states 
+→ P2P (stage 
+boundaries 
+only)
+model spans 
+nodes

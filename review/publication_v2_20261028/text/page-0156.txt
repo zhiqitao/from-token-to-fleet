@@ -1,0 +1,38 @@
+Serving: From Model in Memory to Requests in Flight
+138
+Orca (OSDI 2022): instead of waiting for an entire batch to finish, the scheduler admits and 
+evicts requests at every decoding step, filling the GPU’s idle slots as soon as they free up. [S1]
+[1P]
+2. PagedAttention / vLLM (SOSP 2023) — managing the KV cache in fixed-size blocks (like a 
+virtual-memory page table) so that different requests’ KV caches no longer need contiguous 
+memory, slashing fragmentation and letting the serving engine pack far more concurrent 
+requests. [S2][1P]
+3. Prefix caching — recognizing that many requests share context (e.g. the same retrieved 
+documents), and caching the KV of the common prefix so a new request does not re-prefill it. 
+RadixAttention (SGLang) and Automatic Prefix Caching (vLLM APC) are the canonical 
+implementations. [S3][1P]
+4. P/D disaggregation — splitting the compute-bound prefill stage from the bandwidth-bound 
+decode stage onto separate pools, because they bottleneck on different resources. Pioneered by 
+Splitwise (ISCA 2024) and DistServe (OSDI 2024); Mooncake takes the KV-centric view, 
+transferring KV caches from the prefill pool to the decode pool (with CPU/DRAM/SSD offload) 
+and reports up to 525% throughput lift in long-context simulation and 75% more requests 
+on a real Kimi workload. [S4][1P]
+These mechanisms compose: continuous batching is the baseline, PagedAttention makes it 
+memory-efficient, prefix caching makes it cheaper, and P/D disaggregation makes it scale.
+Source keys [S1]–[S6]. The bracketed keys used throughout this book (and in the evidence 
+taxonomy of the Sources, Method, and Reproducibility chapter) point to the primary sources below. 
+Each is a [1P] first-party or peer-reviewed source; the book’s derived numbers cite the key plus a 
+[DERIVED] tag.
+• [S1] Orca — Yu et al., “Orca: A Distributed Serving System for Transformer-Based Generative 
+Models,” OSDI 2022. Continuous (iteration-level) batching.
+• [S2] PagedAttention / vLLM — Kwon et al., “Efficient Memory Management for Large 
+Language Model Serving with PagedAttention,” SOSP 2023. Block-based KV cache.
+• [S3] Prefix caching — “Fast Inference from Transformers via Radix Attention” (SGLang, 2023) 
+and vLLM Automatic Prefix Caching (APC). Caching shared-prefix KV.
+• [S4] P/D disaggregation — “Splitwise: Efficient Generative LLM Inference Using Phase 
+Splitting” (ISCA 2024), “DistServe: Disaggregating Prefill and Decoding for Goodput-optimized 
+Large Language Model Serving” (OSDI 2024), and Mooncake (KV-centric disaggregation, 2024).
+• [S5] DFlash — Chen et al., “DFlash: Block Diffusion for Flash Speculative Decoding,” ICML 
+2026 (PMLR v306; arXiv:2602.06036). Speculative-decoding system reporting >6× lossless 
+acceleration over autoregressive decoding (up to 6.1× on Qwen3-8B) and up to 2.5× faster than 
+the prior state of the art, EAGLE-3.

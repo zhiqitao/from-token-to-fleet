@@ -108,10 +108,11 @@ The canonical enterprise-Q\&A RAG workload sits firmly on the
   continuous-occupancy figure; the conservative integer floor 17 is what
   hard host provisioning uses) --- so a single host is a
   \emph{latency-feasible} but not \emph{capacity-sufficient} server
-  (Ch16/17 size the fleet to \textasciitilde21 hosts at the 40 rps
-  peak). The tier choice here is about model residency and per-request
-  latency, not about whether one host serves the entire peak arrival.
-  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+  (Ch16/17 size the fleet to \textasciitilde21 hosts at the 40 rps peak
+  on the full-utilization screen --- 31 working / 32 total at the 70\% ×
+  95\% policy). The tier choice here is about model residency and
+  per-request latency, not about whether one host serves the entire peak
+  arrival. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \item
   \textbf{Interconnect}: no \emph{cross-host} model parallelism is
   required (one node; intra-host TP=8 fits the 140 GB model) --- the
@@ -142,15 +143,24 @@ average (a 10×). Recompute the ceiling:
 \item
   \textbf{Response}: replicate the model across multiple servers (data
   parallelism at the serving layer --- run N identical 8×H100 hosts
-  behind a load balancer). At \textasciitilde100 rps average with the
-  canonical \textasciitilde2.0 req/s per-host screen (Ch 16/17; C/W =
-  KV-residency ÷ service time ≈ 17.5 ÷ 8.6 s --- a KV/service-time
-  screen, not an independently measured compute or goodput benchmark),
-  the replica count is \textasciitilde100 ÷ 2.0 ≈ \textbf{50 hosts} ---
-  not a handful. The escalation is still the \textbf{cluster} tier: the
-  model fits one node (no weight-splitting), but the \emph{fleet} is a
-  real cluster sized by the per-host goodput ceiling. The escalation is
-  driven by traffic, not memory. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+  behind a load balancer). At \textasciitilde100 rps average, the book's
+  whole-slot KV/service-time screen (Ch 16/17; floor the KV-residency
+  quotient to 17 whole-context slots, then divide by the 8.6 s service
+  time --- a KV/service-time screen, not an independently measured
+  compute or goodput benchmark) gives ⌈100 × 8.6 / 17⌉ = ⌈50.59⌉ =
+  \textbf{51 hosts at full utilization}, and Ch17's 70\% utilization
+  target plus the N−1 spare gives 73 working + 1 spare = \textbf{74
+  hosts} on the ρ = 1 u-only screen --- 77 working + 1 spare =
+  \textbf{78 hosts} at the \hyperref[tab:17.1]{Table 17-1} policy (u × ρ = 0.665;
+  ⌈860/11.305⌉ = ⌈76.07⌉ = 77) --- not a handful. (The naive
+  \textasciitilde100 ÷ 2.0 ≈ 50 understates the fleet: the
+  \textasciitilde2.0 rps screen uses the unfloored 17.5-slot quotient
+  and applies no utilization headroom, so 50 hosts could only deliver 50
+  × 17/8.6 ≈ 98.8 rps --- below demand.) The escalation is still the
+  \textbf{cluster} tier: the model fits one node (no weight-splitting),
+  but the \emph{fleet} is a real cluster sized by the per-host goodput
+  ceiling. The escalation is driven by traffic, not memory.
+  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \end{itemize}
 
 \subsection{Dropping a Tier: When Privacy Forces
@@ -321,11 +331,16 @@ at \textasciitilde100 rps --- the binding trigger. Operational: the data
 privacy requirement still forbids a public hyperscale cloud. The
 architect's decision: escalate to the \textbf{cluster} tier but keep it
 on-prem --- run a fleet of 8×H100 replicas behind a load balancer. With
-the canonical \textasciitilde2.0 req/s per-host KV/service-time screen
-(Ch 16/17), the fleet is \textasciitilde100 ÷ 2.0 ≈ \textbf{50 hosts}, a
-real cluster rather than a handful; each replica sits well under its
-per-host ceiling. The result: p95 TTFT back under 1.8 s at 100 rps
-\mbox{{[}ILLUSTRATIVE SCENARIO RESULT{]}}, on site, without hyperscale ---
-because the architect climbed the ladder precisely one rung, and the
-correct rung was determined by the measured traffic trigger, not by
-fashion or by model size alone.
+the canonical whole-slot KV/service-time screen (Ch 16/17), the fleet is
+⌈100 × 8.6 / 17⌉ = \textbf{51 hosts at full utilization} --- 73 working
++ 1 spare = \textbf{74 hosts} at Ch17's 70\% target and N−1 rule on the
+ρ = 1 u-only screen, or 77 working + 1 spare = \textbf{78 hosts} at the
+\hyperref[tab:17.1]{Table 17-1} policy (u × ρ = 0.665) --- a real cluster rather than a
+handful; at 51 hosts each replica sits right at its per-host ceiling
+(100 ÷ 51 ≈ 1.96 rps vs the 17 ÷ 8.6 ≈ 1.98 rps ceiling), which is
+exactly why the sizing rule adds the 70\% × 95\% headroom and the spare
+host. The result: p95 TTFT back under 1.8 s at 100 rps \mbox{{[}ILLUSTRATIVE
+SCENARIO RESULT{]}}, on site, without hyperscale --- because the
+architect climbed the ladder precisely one rung, and the correct rung
+was determined by the measured traffic trigger, not by fashion or by
+model size alone.

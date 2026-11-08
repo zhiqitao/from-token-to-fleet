@@ -1,0 +1,107 @@
+[
+  {
+    "id": "CH26-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 26 §3 Pattern B; §8 Step 1–2; Table 26-2; Fig 26.2",
+    "chapter": "Chapter 26",
+    "quoted_clause": "Until the semantic lookup mechanism and cost are described, call this an **exact-match response cache**, not a semantic one (R-13).",
+    "observed": "The chapter later repeatedly calls the same component a 'semantic response cache' / 'semantic cache' and uses it in the headline latency and cost claims: 'one 8×H100 serving host + a 35% semantic response cache + circuit breaker yields an illustrative p99 TTFT ≈ 250 ms'; 'the semantic cache skips'; Table 26-2 row 'Semantic Response Cache'; Step 4 '8×H100 shard + semantic response cache + circuit breaker'.",
+    "evidence": "Pattern B explicitly says a raw question hash implements only an exact-match response cache and that, until an embedding/nearest-neighbour lookup and its cost are described, the component must be called exact-match, not semantic. The later sections do not describe that mechanism or cost, yet revert to 'semantic' in the capstone result, table, and figure caption. This changes the hit path: exact-match hits can skip embedding/retrieval; semantic hits still incur encoding and nearest-neighbour lookup.",
+    "root_cause": "The R-13 naming correction was applied locally in Pattern B but not propagated to the capstone execution, Table 26-2, and Fig 26.2.",
+    "correction": "Either (a) rename the component to 'exact-match response cache' everywhere in Ch 26 and remove semantic-cache claims, or (b) add the semantic lookup mechanism, embedding/nearest-neighbour cost, and hit-path accounting, then keep the semantic label consistently.",
+    "acceptance_test": "Grep Ch 26 for 'semantic response cache' and 'semantic cache'. Every occurrence must either be replaced by 'exact-match response cache' or be accompanied by a described embedding/nearest-neighbour mechanism and a hit-path cost table. Table 26-2 and Fig 26.2 must use the same name as Pattern B."
+  },
+  {
+    "id": "CH26-02",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 26 §8 Step 1–2",
+    "chapter": "Chapter 26",
+    "quoted_clause": "It uses the same 70B/8×H100 host and the same per-host ceiling (~2.0 req/s; C ≈ 17.5 KV-resident requests, Ch 17/20), but a much smaller prompt such that the model's prefill contribution to client TTFT is well under the canonical 1.08 s.",
+    "observed": "The mini-case declares a distinct short-prompt workload but reuses the canonical C ≈ 17.5 KV-resident requests and the canonical ~2.0 req/s ceiling. C is defined as KV-resident requests = KV budget / per-request KV. A much smaller prompt reduces per-request KV, so C should rise unless another limit binds. The service time should also change, so the ~2.0 req/s ceiling is not automatically preserved.",
+    "evidence": "Canonical arithmetic: 436 GB KV budget / (2.62 MB/token × 9,500 tokens) ≈ 17.5 requests. If the short-prompt workload uses materially fewer tokens, the denominator falls and C rises. The text does not state a new KV budget, a new per-request token count, or a different binding constraint that would hold C at 17.5. It also says the prompt is 'much smaller' while keeping the same service-time-derived ceiling.",
+    "root_cause": "Canonical capacity constants were reused for a declared distinct workload without rederiving C and service time from the short-prompt inputs.",
+    "correction": "Rederive C and the per-host ceiling for the short-prompt workload: state the short-prompt token count, compute C = KV budget / (KV bytes/token × prompt tokens), state the new service time, and compute throughput = C / service time. If the canonical C and ~2.0 req/s are intentionally held constant as a conservative scenario assumption, label them as an assumption, not as a consequence of the short-prompt workload.",
+    "acceptance_test": "Show the short-prompt token count and the recomputed C and req/s. If C remains 17.5, show the binding constraint that prevents it from rising. The Step 1 text must not say 'same per-host ceiling' and 'much smaller prompt' without reconciling the two."
+  },
+  {
+    "id": "CH26-03",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 26 §3 Pattern B; §8 Step 1–2",
+    "chapter": "Chapter 26",
+    "quoted_clause": "the embedding/retrieval step is also skipped for exact-match hits",
+    "observed": "The hit path is later defined as including retrieval: 'the 50 ms is plain retrieval, and Pattern B's hit path later covers the same ground (retrieval + lookup) without the engine'; and 'a cache hit returns at a fixed ~50 ms (retrieval + cache lookup, no LLM prefill)'.",
+    "evidence": "Pattern B says exact-match hits skip embedding/retrieval. Step 1 says the hit path covers retrieval + lookup. Step 2 sets hit latency to ~50 ms, which is the same 50 ms baseline retrieval term. If retrieval is skipped on a hit, the hit path cannot include the full 50 ms retrieval term; if it includes retrieval, the earlier 'skipped' claim is false. The two-point model's 50 ms hit value depends on which definition is used.",
+    "root_cause": "The cache hit path was not fixed before the latency arithmetic was written.",
+    "correction": "Define one hit path. For an exact-match response cache, state that retrieval and embedding are skipped and give the cache-lookup cost separately; then recompute hit latency. If retrieval is still performed on hits, remove the 'skipped' claim and explain why a response cache still retrieves.",
+    "acceptance_test": "Provide a per-request table for hit and miss with components (cache lookup, embedding, retrieval, prefill, decode, I/O) that sum to the stated 50 ms and 250 ms. The table must be consistent with the Pattern B statement about whether retrieval is skipped."
+  },
+  {
+    "id": "CH26-04",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 26 §3 Capstone Execution; §8 Step 2; Fig 26.2",
+    "chapter": "Chapter 26",
+    "quoted_clause": "one 8×H100 serving host + a 35% semantic response cache + circuit breaker yields an illustrative **p99 TTFT ≈ 250 ms**",
+    "observed": "The 250 ms p99 is derived in Step 2 from a two-point cache model only: hit = 50 ms, miss = 250 ms, with no circuit-breaker term. Pattern C separately claims circuit-breaker activation reduces tail latency for remaining requests by 35% and models a ~7% fallback share. The headline configuration includes the circuit breaker, but the arithmetic does not include its shed population or its 35% tail reduction.",
+    "evidence": "Step 2: F(50)=0.35, F(250)=1.0, mean = 180 ms, p99 = 250 ms. No breaker trip probability, shed fraction, or post-breaker latency appears in that calculation. Capstone Execution and Fig 26.2 then attribute the 250 ms to the three-pattern composition. If the breaker is active, the p99 of completed useful requests should either exclude the shed 7% and apply the 35% tail reduction to the remainder, or the 250 ms must be labeled cache-only / pre-breaker.",
+    "root_cause": "Pattern C was added to the configuration narrative but not to the quantitative composition model.",
+    "correction": "Either (a) label 250 ms as the cache-only p99 before circuit-breaker action and remove 'three patterns compose' from the 250 ms claim, or (b) add the breaker state to the two-point model: state trip probability, shed fraction, and post-shed latency, then recompute mean and p99 over completed useful requests.",
+    "acceptance_test": "A per-request table with cache hit/miss and breaker trip/shed states must reproduce the headline mean and p99. If the breaker is not active in the modeled steady state, say so explicitly and do not credit it for the 250 ms."
+  },
+  {
+    "id": "CH26-05",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 26 §5 Common Mistakes",
+    "chapter": "Chapter 26",
+    "quoted_clause": "Measure cost per query as a first-class FACT.",
+    "observed": "Cost per query is defined earlier in the chapter as a DERIVED quantity: 'DERIVED — a computed quantity from FACTs (e.g., throughput per shard, cost per query, fleet-wide rps)'. The Common Mistakes section then calls it a FACT.",
+    "evidence": "The chapter's own taxonomy: FACT = verified runtime quantity; DERIVED = computed from FACTs, with 'cost per query' given as the example. The sentence 'Measure cost per query as a first-class FACT' contradicts that definition.",
+    "root_cause": "Taxonomy slip in the Common Mistakes list.",
+    "correction": "Change to: 'Measure the FACTs that drive cost (token counts, GPU-hours, energy, staff allocation) and compute cost per query as a first-class DERIVED quantity.'",
+    "acceptance_test": "Grep Ch 26 for 'cost per query'. No occurrence may label it FACT; the Table 26-1 FACT set and the Common Mistakes text must use DERIVED for cost per query."
+  },
+  {
+    "id": "CH26-06",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 26 Table 26-2",
+    "chapter": "Chapter 26",
+    "quoted_clause": "| Cost | $ per query (marginal generation work) | < $0.015 | ~35% of queries skip generation |",
+    "observed": "The Cost row's FACT Target is a dollar-per-query threshold (< $0.015), but the Modeled example is a percentage of queries that skip generation (~35%). The two cells are in different units and cannot be compared. The row also labels the target as a FACT, while cost per query is DERIVED.",
+    "evidence": "Table 26-2's other rows compare like with like: SM util target <80% vs modeled 68%; hit ratio target >30% vs modeled 35%; fallback rate target <10% vs modeled 7%. The Cost row does not give a modeled $/query value, so the reader cannot tell whether the modeled example meets the < $0.015 target.",
+    "root_cause": "The cost basis was collapsed into a hit-ratio statement without converting it to the row's stated unit.",
+    "correction": "Either give a modeled marginal $/query value (e.g., 0.65 × the stated uncached marginal generation cost) and label it DERIVED, or change the target and example to the same unit, e.g. 'marginal generation work ≤ 65% of uncached' and '~65% of uncached marginal generation work'. Do not label cost per query as FACT.",
+    "acceptance_test": "The Cost row must have the same unit in the FACT Target and Modeled example columns. Recompute the modeled value from the stated uncached marginal cost and show it meets or misses the target. The row must not mix $/query with a percentage of queries."
+  },
+  {
+    "id": "APP-A-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Appendix A Fig A.1 caption and following paragraph",
+    "chapter": "Appendix A",
+    "quoted_clause": "Active-parameter fraction in each of these four frontier MoE families is in the single digits — the anchor for the Ch10 expert-parallelism serving calculus. [1P]",
+    "observed": "The active-parameter fractions are computed ratios: 104 B / 2.8 T ≈ 3.7%; 13 B / 284 B ≈ 4.6%; 18 B / 320 B ≈ 5.6%; 6 B / 125 B = 4.8%. The appendix's own worked contrast says '6 B ÷ 125 B = 4.8% active' is [DERIVED], not [1P].",
+    "evidence": "The appendix defines [DERIVED] as 'reproducible calculation from stated inputs, anyone can re-run it' and explicitly uses the Qwen 6 B ÷ 125 B = 4.8% ratio as the [DERIVED] example. Fig A.1 and the following paragraph label the same kind of ratio [1P]. The underlying parameter counts are [1P]; the fractions are [DERIVED].",
+    "root_cause": "The provenance label for the vendor-reported parameter counts was carried over to the computed active fractions.",
+    "correction": "Label the parameter counts [1P] and the active fractions [DERIVED], or cite a vendor-reported active fraction as [1P] if one exists. Update the Fig A.1 caption and the 'single digits' sentence to match the worked contrast.",
+    "acceptance_test": "Every percentage in Fig A.1 and its caption must carry [DERIVED] unless the vendor itself published that percentage. The 4.8% Qwen example must use the same label as the worked contrast."
+  },
+  {
+    "id": "APP-A-02",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Appendix A §6 after Fig A.3; §7 placement ladder",
+    "chapter": "Appendix A",
+    "quoted_clause": "The earlier stages (Transformer, Efficient, MoE) are efficiency-led — they make inference affordable and raise capacity-per-FLOP. The later stages (Reasoning, Test-Time Compute, Tool-Using, Agent, Agent System, Agent Fleet) are capability-led — they raise effective intelligence. [DERIVED]",
+    "observed": "This is a qualitative taxonomy of eras and capabilities, not a reproducible calculation from stated inputs. The same issue appears in the placement ladder: 'Every host layer that can carry intelligence is a place the architect may choose to push capability or cost ... [ILLUSTRATIVE][DERIVED]'.",
+    "evidence": "The appendix defines [DERIVED] as reserved for reproducible calculation: 'a number anyone can recompute from stated inputs'. The stage taxonomy and placement ladder contain no equation, inputs, or numeric result. They are interpretive/conceptual mappings. The appendix also defines [INTERPRETATION] for the book's own analytical read and [ILLUSTRATIVE] for conceptual figures.",
+    "root_cause": "[DERIVED] was used as a general 'analysis' label rather than the taxonomy's arithmetic-status label.",
+    "correction": "Replace [DERIVED] with [INTERPRETATION] or [ILLUSTRATIVE] for the stage taxonomy and placement ladder. Reserve [DERIVED] for passages with an explicit recomputation.",
+    "acceptance_test": "Audit every [DERIVED] in Appendix A. Each must have stated inputs and a reproducible calculation. The stage taxonomy and placement ladder must not carry [DERIVED] unless an equation is added."
+  }
+]
+COVERAGE: Read the full supplied Chapter 26 and Appendix A chunk. Recomputed Ch 26 canonical arithmetic: 2,000 × 5% = 100 users; 1.08 + 7.5 ≈ 8.6 s; 2 × 70e9 = 1.4e11 FLOPs/token; 70e9 × 2 B = 140 GB; 436 GB / 2.62 MB / 9,500 ≈ 17.5 requests; 17.5 / 8.6 ≈ 2.0 req/s; 2.0 × 0.65 = 1.3 rps; 0.35×50 + 0.65×250 = 180 ms; (450−250)/450 ≈ 44%; (400−250)/400 = 37.5%; Table 26-2 cost-row unit check. Checked Appendix A active-fraction arithmetic (104/2800, 13/284, 18/320, 6/125), evidence labels, figure captions, and cross-references. Did not verify external vendor claims, URLs, arXiv IDs, source-ledger entries, rendered figure legibility, or page geometry; those are NOT VERIFIED.

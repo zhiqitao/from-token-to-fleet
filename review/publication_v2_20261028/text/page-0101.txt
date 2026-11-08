@@ -1,0 +1,37 @@
+83
+Measuring What Matters: From Telemetry to Architecture Decisions
+[canonical scenario][ASSUMPTION] author-chosen SLO budget from the canonical scenario (Ch 4, 
+Table 4-2); the arithmetic is the point, not a citation.
+6.3.2. Goodput vs Raw Throughput
+Deploying a higher-throughput configuration can reduce goodput. Concretely: suppose we enable 
+larger dynamic batching to raise raw tokens/s from 50 tok/s to 70 tok/s, but the batch window pushes 
+p95 TTFT from 1.8 s to 2.3 s — above the 2 s SLO. The extra 20 tok/s are produced, but they land in the 
+tail that misses the SLO, so goodput does not grow. Raw throughput is up 40%; goodput (tokens that 
+met the SLO) is effectively unchanged in this case, because the batch of SLO-compliant tokens didn’t 
+grow. (The general relation is goodput = raw_rate × compliant_fraction: if the compliant fraction 
+falls from 96% to 94%, goodput is 50×0.96 = 48 vs 70×0.94 = 65.8 — it rises despite the p95 breach. 
+The “unchanged” claim holds only when the extra tokens all land in the SLO-missing tail, i.e. the 
+compliant fraction drops proportionally to the raw-rate gain. A p95 breach is a configuration-level 
+acceptance signal; request-level SLO-goodput is a separate measurement and must be computed 
+from the compliant fraction, not inferred from the p95 alone.) Goodput is the metric the customer 
+experiences; raw throughput is what the GPU achieves. The architect optimizes goodput. This is 
+why “faster” hardware or bigger batches do not trivially mean a better system.
+6.3.3. Detecting the Regime: Bandwidth-Bound vs Compute-Bound
+The most decision-relevant resource question is: is this layer bandwidth-bound or compute-bound? 
+We recall the arithmetic from Chapter 2:
+• Decode is HBM-bandwidth-bound at low batch. Generating one token needs a full forward 
+pass over the 70B weights of the canonical 80-layer, hidden-8192, full-MHA 70B reference 
+= 140 GB (FP16) of reads per token — a batch-1-equivalent idealized weight-streaming read 
+(one request’s full weight pass), not a measured bytes-physically-read figure. Within a ~25 
+ms TPOT budget that demands 140 GB / 0.025 s ≈ 5.6 TB/s (batch-1-equivalent) of HBM 
+bandwidth, against an H100’s ~3.35 TB/s peak [1P][FACT]. Scope warning: this 5.6-vs-3.35 
+TB/s comparison is an illustrative single-device roofline argument, not the canonical 
+8×H100 host’s actual deployment verdict. Two scope notes keep this honest. First, 5.6 TB/s 
+is the aggregate model-wide weight-read rate for a hypothetical single-device implementation; 
+under tensor parallelism (the canonical 8×H100 host) the 140 GB is sharded, so each GPU 
+only needs ~0.70 TB/s against its own 3.35 TB/s — the single-device 5.6>3.35 bound does not 
+itself show a per-GPU bandwidth shortfall. Second, the deeper and shard-invariant reason 
+decode is memory-limited is its low arithmetic intensity (the ratio of FLOPs to bytes moved, 
+~1.0 FLOP/byte here) — far below the ~295 FLOP/byte roofline ridge point that separates 
+memory-bound from compute-bound kernels (the roofline and its ridge are developed in Ch 8; 
+this chapter only needs the qualitative point that a low intensity starves the compute units 

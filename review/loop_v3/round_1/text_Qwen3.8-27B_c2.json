@@ -1,0 +1,38 @@
+[[TRUNCATED at 65536]] 
+
+[
+  {
+    "id": "CH12-001",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch12 §12.3, Candidate (c) paragraph",
+    "chapter": "12",
+    "quoted_clause": "the memory footprint is trivially small, but neither quality nor throughput makes it competitive for this workload",
+    "observed": "The same paragraph first states 'Throughput is genuinely much higher on the smaller model' (24,725 tok/s per H100 for 7B vs 2,471 for 70B, a 10× per-GPU advantage) and that the 7B needs only 4 H100s at average load vs 40 H100s (5×8×H100 hosts) for the 70B. The closing sentence then asserts that 'neither quality nor throughput makes it competitive,' which contradicts the just-established throughput advantage. The binding constraint is quality alone; throughput is an advantage, not a deficiency.",
+    "evidence": "Recomputation: 7B per-H100 prefill = 989×0.35/14 = 24,725 tok/s. 70B per-8×H100-host prefill = 8×2,471 = 19,768 tok/s. H100s needed at 92K tok/s: 7B → ⌈92,000/24,725⌉ = 4; 70B → ⌈92,000/19,768⌉ = 5 hosts × 8 = 40 H100s. The 7B is 10× more H100-efficient. Throughput is not a competitive weakness for the 7B; quality is the sole open gate.",
+    "root_cause": "The closing summary sentence was written to parallel the two-gate structure (quality + throughput) but mischaracterizes throughput as a deficiency when the preceding text establishes it as an advantage. The intended meaning is that the throughput advantage is conditional on passing the quality gate, not that throughput itself is insufficient.",
+    "correction": "Replace 'neither quality nor throughput makes it competitive for this workload' with a sentence that identifies quality as the binding constraint and throughput as a conditional advantage, e.g.: 'the memory footprint is trivially small and per-GPU throughput is a 10× advantage, but the candidate is not competitive for this workload until the quality gate is measured and passed.'",
+    "acceptance_test": "After correction, the paragraph must not contain any clause that characterizes the 7B's throughput as a deficiency or non-competitive factor. A reader should be able to identify quality as the sole open gate from the paragraph without contradiction."
+  },
+  {
+    "id": "CH11-12-001",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch11 §11.3 'When to Disaggregate' and Ch12 §12.3 Candidate (c)",
+    "chapter": "11, 12",
+    "quoted_clause": "prefill is compute-bound (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 PFLOPS peak) [Ch11] … a 7B prefill costs only ~14 GFLOP/token … vs ~2,471 per GPU for the 70B [Ch12]",
+    "observed": "Ch11 uses 1.29 PFLOP for 8K-token prefill, implying 161.25 GFLOP/token. Ch12 (and the Ch8 figure it cites) uses 2×N_params = 140 GFLOP/token for the 70B, which gives 1.12 PFLOP for 8K tokens. The 15% gap (1.29 vs 1.12 PFLOP) is explainable—1.29 includes attention FLOPs (≈21 GFLOP/token for 80 layers, hidden 8192, S=8K) while 140 is the dense-matrix 2×N approximation—but the text never acknowledges the different precision levels, so a reader cross-referencing the two chapters sees a contradiction in the canonical 70B prefill FLOP count.",
+    "evidence": "Attention FLOPs per token (approx.): 4 × S × hidden × num_layers = 4 × 8000 × 8192 × 80 / 10⁹ ≈ 21 GFLOP. 140 + 21 = 161 GFLOP/token. 161 × 8000 = 1.288 PFLOP ≈ 1.29 PFLOP. The 2×N_params figure (140 GFLOP/token) omits this term. Both are internally consistent within their own chapters; the cross-chapter gap is unacknowledged.",
+    "root_cause": "Two different FLOP-per-token approximations (2×N_params vs. 2×N_params + attention) are used in different chapters without a bridging note. The 1.29 PFLOP in Ch11 is the more complete figure; the 140 GFLOP/token in Ch12/Ch8 is the standard rough approximation.",
+    "correction": "Add a brief parenthetical at the first use of 1.29 PFLOP in Ch11 (or at the 2,471 figure in Ch12) noting that the 1.29 PFLOP includes attention FLOPs while the 2×N_params ≈ 140 GFLOP/token figure used for the per-GPU token-rate arithmetic excludes them, so the two are not directly comparable without the attention term.",
+    "acceptance_test": "A reader who computes 8,000 × 140 GFLOP = 1.12 PFLOP from Ch12's per-token figure and compares it to Ch11's 1.29 PFLOP should find an in-text note explaining the 15% difference (attention FLOPs) rather than an unexplained contradiction."
+  },
+  {
+    "id": "CH9-001",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch9 §9.5, second bullet (Ethernet all-reduce)",
+    "chapter": "9",
+    "quoted_clause": "takes ~56 s per step (a flat lower bound; ~98 s with the ring factor, §9.3). If the training runs 1,000 iterations, that is ~56,000 s (15.6 hours) spent exclusively in communication",
+    "observed": "The 1,000-iteration total (56,000 s) is computed from the flat 56 s bound, not from the ring-factor 98 s that the text itself identifies as the actual all-reduce cost. A reader who takes the ring factor at face value would expect 1,000 × 98 = 98,000 s (≈27.2 h). The text does not state why the flat bound is used for the multi-iteration projection, which could understate the communication cost by ~43% in a training context where the ring factor applies.",
+    "evidence": "Flat: 140 GB / 2.5 GB/s = 56 s. Ring: 245 GB / 2.5 GB/s = 98 s. 1,000 × 56 = 56,000 s (15.6 h). 1,000 × 98 = 98,000 s (

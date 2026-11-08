@@ -1,0 +1,38 @@
+It All Starts With the First Token
+6
+architectures. It is on the order of ~256 KiB (0.26 MB) per token for a 7B-class model (32 layers, 
+d_hidden 4096, full-MHA) and ~1.25 MiB (1.31 MB) per token for a 70B-class model (80 
+layers, d_hidden 8192, full-MHA) at 8-bit precision. The arithmetic is the formula above with 
+one byte per value: 2 × 32 × 4096 = 262,144 B and 2 × 80 × 8192 = 1,310,720 B. That 8-bit figure is 
+the raw tensor byte-halving of the BF16 value — exactly 50% (1.31 MB vs 2.62 MB). So FP8 KV = raw 
+tensor byte-halving = 1.31 MB/token (exactly 50% of BF16). Any block-allocation/metadata overhead 
+is NOT vendor-measured here and must be filled by a deployment benchmark. The vLLM FP8-KV 
+blog post’s often-quoted ‘54%’ is a decode inter-token-latency (ITL) slope, not a memory ratio, so it is 
+not a memory-footprint coefficient here. At 9.2K tokens the raw byte-halving figure gives ~12.06 GB 
+(not ~13.4 GB — the figure one gets by assuming ~11% block/metadata overhead on top of the raw 
+tensor bytes). A different engine or a GQA/hybrid-attention model has a different per-token footprint, 
+so re-derive it for the target stack (the geometry and the “do not generalize” caveat are in Ch. 7). 
+[ILLUSTRATIVE][DERIVED] Either way, a long context (say 32K tokens) alone can be tens of GB of 
+memory. A first non-obvious architectural lesson hides here: MoE expert sparsity alone does not reduce 
+per-token KV state. A Mixture-of-Experts model activates only a fraction of its neurons per token, 
+which saves compute, but the attention layers still process every token densely and emit a key/value 
+per token — so MoE shrinks compute-per-token, not memory-per-context. What actually determines 
+KV memory is the attention architecture and cache policy, not the expert count: GQA/MQA shrink 
+the per-token K/V width, hybrid/linear/compressed-latent attention change how much context is 
+retained, sliding-window caps some layers’ retained context, and quantization (FP8) reduces the 
+bytes per element without stopping the linear growth. This is a controlled comparison — it holds the 
+attention geometry, context length, and cache dtype fixed; an MoE model that also uses GQA or a 
+different attention mechanism can have a much smaller KV footprint than a dense full-MHA baseline. 
+The distinction — compute-sparsity vs memory-sparsity — is one an architect has to get exactly right, 
+and it is why “the KV problem” is an attention-architecture question more than a model-size question 
+(developed fully in Ch. 3 and Ch. 7). We deliberately keep this to concept + order of magnitude here; 
+Chapter 7 (Memory) does the verified arithmetic against the canonical scenario.
+1.2. Mental Model
+A token is best understood as a metered unit of model I/O, the way electricity is metered by 
+the kilowatt-hour — important not because a single kilowatt-hour is meaningful by itself, but because 
+every downstream cost and capacity number is denominated in it. (It is a computational/textual unit, 
+not a unit of thought: two tokenizers can render the same semantic content in different token counts, 
+and a reasoning model can spend very different compute per visible token.)
+A useful image for the full pipeline:
+Text → tokenizer → discrete IDs → embedding → vectors → attention recomputes 
+each token → KV cache remembers the prefix → generate one token at a time.

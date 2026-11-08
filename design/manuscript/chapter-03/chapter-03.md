@@ -108,7 +108,7 @@ The KV cache story is the surprising part. Recall from Chapter 1 (KV cache as a 
 
 Therefore, for the canonical dense 70B (80 layers, hidden 8192, full MHA — Ch 7) and for the ~47B challenger's own attention shape (32 layers, hidden 4096, GQA with 8 KV heads × 128), at 8K–9.2K input context:
 
-- **Dense 70B**: KV cache ~1.31 MB per token × 9,200 tokens ≈ 12.06 GB (at 8-bit, the raw tensor byte-halving figure = 1.31 MB/token, exactly 50% of BF16 — the block-overhead and '54%' ITL-slope caveats are stated once in Ch 1; see Ch 7) or ~24 GB (at FP16 precision for the key/value storage pattern discussed in Ch. 7).
+- **Dense 70B**: KV cache ~1.31 MB per token × 9,200 tokens ≈ 12.06 GB (at 8-bit, the raw tensor byte-halving figure = 1.31 MB/token, exactly 50% of FP16 — the block-overhead and '54%' ITL-slope caveats are stated once in Ch 1; see Ch 7) or ~24 GB (at FP16 precision for the key/value storage pattern discussed in Ch. 7).
 - **~47B MoE challenger (Mixtral 8x7B class)**: KV per token = 2 × 32 × 8 × 128 = 65,536 B = 0.0655 MB/token at 8-bit, so 9,200 × 0.0655 MB ≈ **0.60 GB** (≈1.2 GB at FP16) — *smaller than the dense 70B's ~12 GB, and the whole difference is the attention shape, not the routing*: 32 layers × a 1,024-wide GQA KV width instead of the canonical 80 layers × 8,192 full-MHA width. Routing still emits one key and one value per token per layer: the fact that only 12.8B of 47B total parameters are active in the feed-forward layers neither reduces nor increases the number of keys/values the attention layers emit. A **dense** model with the challenger's 32L/4096H GQA shape would hold the same ~0.60 GB — hold the attention geometry fixed and dense vs MoE KV is *identical*.
 
 In other words: MoE sparsity = compute sparsity (fewer FLOPs per token). MoE sparsity ≠ memory sparsity (KV cache still grows linearly with context length, exactly as a dense model's does at the same attention shape). Only changing the attention mechanism itself (e.g., hybrid/linear attention, compressed latent attention, or KV offload) can stop the cache from growing. This distinction — compute-sparsity versus memory-sparsity — is one an architect has to get exactly right.
@@ -129,7 +129,7 @@ How do we determine the total-versus-active split for a model we haven't trained
 
 3. **Architecture diagram.** For MoE models, the number of experts × parameters-per-expert gives the total; the routing hyperparameter (top-k) × parameters-per-expert gives the active per token. This is a derived fact from the source code/release, not always on the model card.
 
-> **Practical habit:** When we encounter a model quoted in "X billion parameters," pause and ask: *is this total or active?* For dense models they are the same; for MoE models they diverge. Misreading this is the most common source of KV cache and compute underestimation.
+> **Practical habit:** When we encounter a model quoted in "X billion parameters," pause and ask: *is this total or active?* For dense models they are the same; for MoE models they diverge. Misreading this is the most common source of weight-residency and compute underestimation — and, through the "sparse therefore smaller KV" shortcut, of KV-cache underestimation as well.
 
 ## 5. Common Mistakes
 

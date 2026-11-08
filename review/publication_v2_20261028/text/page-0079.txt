@@ -1,0 +1,38 @@
+61
+The Anatomy of an AI Workload
+4.4. Measurement
+For this chapter, measurement is about quantifying the six dimensions so the workload can be 
+communicated definitively and used to drive architecture decisions. The token-counting habits of Ch 
+1 §1.4 apply unchanged (run the model’s own tokenizer, split input from output, log the distribution 
+not just the mean) — rather than restate them, the three things the six-dimension view adds are:
+1. Quantify each dimension with a number, not a label. For the six dimensions (quality, 
+traffic, token profile, latency, economic constraints, operational constraints), attach a concrete 
+measured or derived figure. “RAG” is not a load; “1.2K prompt + 8K retrieved, 300 out, 40 rps 
+peak, p95 TTFT ≤ 2 s” is.
+2. Tie the token split to the bottleneck it drives. An input-heavy profile (like RAG’s 30× 
+ratio) means prefill compute and KV-capacity pressure dominate; an output-heavy profile 
+would dominate decode. State which side dominates, because it decides where the money and 
+the architecture effort go (Ch 8).
+3. Record the peak and the tail, not just the average. A workload that averages 9.2K input 
+but has a long tail (e.g. 32K peak contexts) sizes the fleet very differently. Log percentiles (p90, 
+p99) alongside the average and size against the peak.
+These habits answer the book’s recurring question, “what would I actually measure here?” — 
+and they let the six dimensions be stated as numbers an architecture decision can be defended on.
+4.5. Common Mistakes
+• Treating “5% concurrency” as the throughput. Concurrency is a snapshot of simultaneous 
+users; throughput depends on how long each request takes. 100 concurrent users with 200 s per 
+request yield 0.5 rps, not 10 rps. The binding connection is through request duration (Little’s 
+Law). Catch this by always asking “how long is each request in system?” before quoting a 
+concurrency-derived throughput.
+• Assuming “one token ≈ one word”. Enterprise Q&A prompts with code snippets, JSON 
+payloads, or technical terminology can run 2–5× the naive token estimate, silently inflating 
+KV cache and cost.
+• Ignoring the input–output asymmetry. An input-heavy workload like RAG tends to in­
+crease prefill compute and KV-capacity pressure — it does not by itself make the system 
+“memory-bandwidth-bound.” In the canonical model, prefill is compute-bound under the 
+analytical roofline, while long input raises KV residency, which constrains sustainable concur­
+rency (a capacity constraint, distinct from bandwidth). An output-heavy workload is decode-
+dominant (bandwidth/runtime per generated token). Optimizing decode throughput on an 
+input-heavy workload moves the needle negligibly; the real win is prefill reduction, prefix/KV 
+reuse, or increasing effective carrying capacity.
+• Quoting context window as free capacity. The 128 K token window is an upper bound; 

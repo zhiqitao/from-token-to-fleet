@@ -1,0 +1,41 @@
+Agentic Systems
+238
+count stays, so the two diverge. The durable architectural lesson is that the growth rate is set by the 
+policy levers — summarization (compress the accumulated history each turn), truncation (drop the 
+oldest context beyond a budget), externalized tool state (store retrieval results out-of-band rather 
+than in-context), replay policy (re-derive rather than retain), and cache policy (prefix caching, KV 
+precision). A design that applies these levers can hold context roughly flat while an append-only 
+design grows it ~36% by turn 4; the append-only number is the stress case that bounds what the 
+system must tolerate if the levers fail, not the expected operating point.
+Inference scaling. The base model (70B FP16, 8×H100) must now serve variable-length contexts, 
+and — critically — the KV-residency conclusion is far more severe than a per-latency convenience 
+because the canonical per-token KV is ~2.62 MB/token (Chapter 7’s full-MHA reference geometry). 
+A request that triggers 4 agent turns carries ~12,960 tokens vs. 9,500 for single-shot (Table 19-1) — 
+that is not a “35% GPU memory” tweak but a move from ~24.9 GB KV per request (9,500 tokens 
+× 2.62 MB) to ~34.0 GB (12,960 ×2.62 MB) — roughly a 36% growth, on top of an already-large KV 
+footprint. At the canonical workload’s ~86 average in-flight requests at 10 rps (L_exec = λ × W_
+exec ≈ 10 × 8.6 per Ch 4; distinct from the ~100 active-user population) with the median single-turn 
+profile (~27.2 GB/request at 10,365 tokens), the aggregate KV alone is ~86 × 27.2 GB ≈ 2.3 TB — far 
+beyond one host’s ~436 GB KV budget, so agents do not just stress memory, they force a fleet 
+(Chapter 17). The architect must therefore treat context growth as a first-order capacity driver: cap 
+T, cache prefixes, or quantize KV (FP8), as these levers repeatedly outprice adding hosts. Note we 
+must be precise: the per-request KV is set by the model’s canonical per-token KV (all layers), not by 
+per-layer figures; the honest number is tens of GB per request, which is exactly why agentic depth is 
+a fleet-sizing problem.
+Task economics. The deepest shift an agentic workload imposes is a change in what the architect 
+optimizes. For conventional inference, the unit of cost is the token: the architect optimizes token 
+economics — cost per token, latency per token, KV per token. For an agentic system, the unit of 
+value is the task: the architect optimizes task economics, because a task consumes a variable, data-
+dependent number of model calls, tool calls, and tokens, and may fail. The right denominator is 
+therefore cost per successful task, not cost per token:
+cost / successful task ≈
+ (model calls/task × tokens/call × $/token)
+ + (tool calls/task × $/tool)
+ + (retries/task × cost/retry)
+ divided by the success rate of the task
+where tokens/call is itself inflated by the agentic amplification α from Section 4. Two conse­
+quences follow. First, a more expensive model that completes tasks in one turn can be cheaper per 
+successful task than a cheap model that needs three turns — the amplification term can dominate the 
+base price. Second, the success rate is as important as the unit cost: a 10% cheaper pipeline that fails 
+5% more often can be net more expensive once retries and human intervention are counted. This is a 
+genuinely different objective from cheapest tokens, and it is why agentic workloads cannot be priced 

@@ -1,0 +1,69 @@
+Serving: From Model in Memory to Requests in Flight
+142
+decode and prefill starves. P/D disaggregation (Splitwise/DistServe/Mooncake [S4][1P]) runs 
+prefill nodes at high FLOP-utilization and decode nodes at high bandwidth-utilization, transferring 
+KV across via the fabric (Fig 11.3 shows the two-pool topology and what moves between them). 
+Mooncake’s reported up to 525% long-context throughput and +75% request count are the quantitative 
+anchor [S4][1P]. For the canonical single-host (~10 rps) this disaggregation is premature; it pays off 
+only when the workload outgrows a node and the two phases’ resource conflicts become binding.
+Table 11-1 — Serving techniques at a glance
+Technique
+Mechanism
+Primary 
+resource traded
+When it matters
+Source
+Discrete 
+batching
+Lock batch to 
+completion
+— (wastes)
+baseline only
+—
+Continuous 
+batching (Orca)
+Admit/evict at 
+each decode 
+step
+compute+band­
+width util
+high 
+concurrency
+[S1][1P]
+PagedAttention 
+/ vLLM
+Block-based KV 
+pages
+memory 
+capacity
+many 
+concurrent 
+requests
+[S2][1P]
+Prefix caching 
+(RadixAtten­
+tion/APC)
+Cache 
+shared-prefix 
+KV
+prefill FLOPs 
++ memory
+repeated-
+context RAG
+[S3][1P]
+P/D 
+disaggregation
+Split 
+prefill/decode 
+pools + KV 
+transfer
+both at scale
+workload 
+outgrows a node
+[S4][1P]
+11.4. Measurement
+Good serving telemetry answers “are we meeting the SLO while keeping the GPU busy?”:
+1. Measure goodput, not raw throughput — tokens/s that arrive before their SLO deadline 
+(Ch6). Continuous batching is only a win if it raises goodput.
+2. Measure KV utilization — fraction of the 640 GB node memory consumed by live KV vs 
+weights. PagedAttention and prefix caching both raise the effective KV packing; track it.

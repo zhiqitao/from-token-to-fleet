@@ -1,0 +1,38 @@
+Performance Engineering: From “It Works” to “It Meets the SLO”
+186
+15.8. Architecture Consequence
+The measurement and mistake analysis drive three architecture decisions for the canonical 
+deployment: (1) FlashAttention‑2 as the default attention kernel, fused with RoPE and QKV projection 
+to minimize HBM transactions; (2) continuous batching, with the maximum chunk size chosen 
+empirically from the measured goodput/latency knee (a chunk size of 8 tokens is an [ILLUSTRATIVE] 
+configuration, not the recommendation — the knee must be measured on the target stack); (3) KV 
+cache management via FP8 KV quantization (≈2.62 → ~1.31 MB/token — exactly 50% of BF16 by raw 
+tensor byte-halving, cutting a 9,500‑token per‑user KV to ~12.45 GB; vLLM’s 54% [S6] is a decode 
+inter-token-latency slope, a latency metric, not a memory ratio, and any block/metadata overhead 
+is not vendor-measured) plus length‑based eviction, so that under the same ~436 GB practical KV 
+budget on‑host concurrency rises from ~17.5 to ~35.0 full‑context users (436 GB ÷ 12.45 GB). These 
+choices together are expected to raise achieved token throughput from ~8,000 tokens/s (raw, no 
+flash, batch‑1) toward an illustrative ~35,000–70,000 tokens/s [ILLUSTRATIVE achievable range] 
+(with flash, continuous batch) — the exact figure must come from the target benchmark — while 
+keeping the host’s 640 GB for weights plus KV. A fourth decision, borne out of the mini‑case (Ch11 
+§11.8), is to design the request‑routing layer for KV cache affinity: when a user re‑submits a request, 
+routing to the same GPU avoids cache warm‑up penalties and keeps p99 latency under the target 
+SLO.
+15.9. What We Still Don’t Know
+How does token‑level sparsity in user prompts affect the actual FLOP/token cost, and can we exploit 
+it without accuracy loss? Sparse prompt patterns (e.g. few‑shot prefixes, cached query prefixes) could 
+reduce the effective FLOP count, but the savings depend on the sparsity pattern and the attention 
+implementation. What is the optimal continuous‑batch chunk size as a function of request arrival 
+distribution (Poisson vs. bursty) and tail‑latency targets? Analytical models assume Poisson arrivals, but 
+real user traffic exhibits bursts (e.g. social‑media events) that may require larger chunks or alternative 
+back‑pressure mechanisms. Can in‑flight KV cache compression (e.g. speculative decoding–guided 
+pruning) reduce memory pressure without increasing p99 latency? Pruning less‑important key/value 
+pairs based on attention weight magnitudes is promising, but the accuracy‑latency trade‑off needs 
+empirical validation across model families. How does multi‑tenant isolation—guarding one user’s cache 
+from another’s—translate to multi‑GPU scaling when the model exceeds a single GPU’s 80 GB? Model 
+parallelism (pipeline or tensor) adds communication overhead; the performance cost of moving KV 
+cache between GPUs during tenant rotation is an open question.
+15.10. End-of-Chapter Mini-Case: The Second Host: a Kernel/Batching Gain, Not 
+a Capacity Win
+A new deployment adds 500 registered users (traffic rises to ~12.5/50 rps at the same 5 % concur­
+rency profile). The team provisions a second 8×H100 host and (in this worked example) runs the 

@@ -1,0 +1,54 @@
+123
+Communication
+C): a single 8×H100 host holds only ~640 GB, so it cannot fit eight full 140 GB replicas at once. (In 
+practice each data-parallel rank would be a multi-GPU node — e.g. 2×H100 = 160 GB, which fits 
+the 140 GB model — or the model would be sharded within each rank via hybrid DP+TP; the 140 
+GB per-rank figure is the logical size of the all-reduce, i.e. the full gradient tensor, not the physical 
+HBM footprint on a single 80 GB GPU.) For any N ranks, a ring all-reduce sends 2N−1
+N M through 
+each rank — for N = 8, that is 1.75 × 140 ≈245 GB — which is what the ring-adjusted times below 
+reflect. Let us compute the communication time under three interconnect options.
+Option A — NVLink on a single host. H100 GPUs provide 900 GB/s bidirectional NVLink 
+bandwidth per GPU, and NVSwitch aggregates bisection bandwidth. For an all-reduce of 140 GB 
+across 8 GPUs on one host, the effective bandwidth is close to the per-link peak because NVSwitch can 
+forward multiple concurrent channels without severe contention. A lower bound on the pure-bytes 
+time is
+T = M
+Beff
+= 140 GB
+900 GB/s ≈0.16 s
+That is not the whole story: a ring all-reduce moves 2 N−1
+N M per rank (for N = 8, 1.75 × 140 ≈
+245 GB), so the ring-adjusted estimate is Tring ≈2N−1
+N
+M
+Beff = 1.75 × 0.16 ≈0.27 s, before any 
+per-step latency term or staging overhead.
+Option B — InfiniBand across 8 nodes, one GPU per node. HDR InfiniBand delivers 200 
+Gb/s per link (≈ 25 GB/s before link coding; NDR doubles this to 400 Gb/s). InfiniBand uses a 64b/66b 
+line code, so the useful payload sits a bit below the line rate. A ring-all-reduce or tree-all-reduce 
+across 8 nodes will see lower effective bandwidth due to multi-hop forwarding and congestion. A 
+realistic effective throughput is roughly 40 GB/s (aggregated across 2 HDR rails/ports per node — the 
+multi-rail effective bandwidth referenced in §9.2 and Fig 9.1). Using the ring model:
+Tring ≈2N −1
+N
+M
+Beff
+= 27
+8
+140 GB
+40 GB/s ≈6.1 s
+Option C — 25 Gb/s Ethernet (RoCE2) across 8 nodes. 25 Gb/s ≈ 3.125 GB/s unidirectional. 
+With protocol overhead and multi-node tree contention, a practical effective bandwidth might be 2.5 
+GB/s. Ring model:
+Tring ≈27
+8
+140 GB
+2.5 GB/s ≈98 s
+These numbers illustrate the scale: moving from NVLink to InfiniBand adds ~22× latency, and 
+forcing the same all-reduce over Ethernet adds ~350× latency. In a training job where 100 all-reduce 
+steps run per iteration, the NVLink path adds ~27 s of communication per iteration, the InfiniBand 
+path adds ~610 s, and the Ethernet path adds ~9,800 s. The latter two would effectively serialize the 
+training, turning a minutes-long job into an hours- or days-long one.
+The worked example also highlights why model parallelism and pipeline parallelism exist: when 
+a single GPU cannot hold the model, splitting it across nodes moves the communication from the 

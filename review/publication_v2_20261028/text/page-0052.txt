@@ -1,0 +1,37 @@
+Understanding the Model
+34
+Sizing weight memory from the active count under-provisions it (the un-routed experts still 
+occupy HBM); sizing compute from the total count over-provisions it (the un-routed experts 
+are not read per token). The opposite error — sizing for active parameters while forgetting the 
+KV cache is dense — under-provisions the KV budget.
+• Confusing compute sparsity with memory sparsity. MoE reduces FLOPs per token because 
+fewer parameters are active. It does not reduce the number of keys/values written to the KV 
+cache. An architect who assumes MoE shrinks KV cache will be blindsided by memory pressure 
+at long context lengths.
+• Using MoE as a free lunch for long-context workloads. The compute savings from MoE 
+are real, but the memory cost (weights + KV cache) must be provisioned at the total-parameter 
+scale for weight residency and at the-full-context scale for KV cache. Neither benefit is “free” 
+in the other domain.
+• Ignoring routing overhead. Top-k routing itself requires computing routing scores (a softmax 
+over expert assignments). This adds a small but non-zero compute cost that is sometimes 
+omitted from published FLOP counts. It is usually negligible compared to the feed-forward 
+arithmetic but should be acknowledged.
+3.6. Architecture Consequence
+Knowing whether a model is dense or MoE, and whether the quoted parameter count is total or 
+active, directly changes three architectural decisions:
+1. Weight residency budget. For a dense 70B model, provision 140 GB of FP16 weight memory 
+per host. For an MoE model with ~47B total and ~14B active, distinguish two numbers: the res­
+ident budget (the full expert set, ~47B × 2 bytes ≈ 94 GB, unless experts are offloaded/swapped) 
+and the active per-token footprint (~14B × 2 bytes ≈ 28 GB read per token). The active number 
+governs compute; the resident number governs whether the weights stay on device. MoE 
+therefore does not automatically lower the weight-residency floor — it only gives the option to 
+offload inactives at the cost of bandwidth.
+2. KV cache provisioning. Provision the KV cache as for a dense model of the same context 
+length and hidden dimension. Do not apply a MoE sparsity factor to the KV cache. If we are 
+running a 9.2K-token input on a 70B-class model (dense or MoE), the KV cache memory is the 
+same order of magnitude — plan accordingly.
+3. Parallelism and routing strategy. MoE deployment requires a routing strategy (e.g., expert 
+placement, dispatcher, switchboard) and often expert parallelism across GPUs. This adds 
+infrastructure complexity (cross-GPU communication for expert routing) that dense models do 
+not have. The architectural choice between dense and MoE is therefore not just a parameter-
+count decision; it is a deployment-complexity decision.

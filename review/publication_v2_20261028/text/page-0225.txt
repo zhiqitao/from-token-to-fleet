@@ -1,0 +1,37 @@
+207
+From Server to Fleet
+17.4. Measurement
+We derive three real quantities from the worked example and from production traffic patterns.
+17.4.1. Per-host throughput and KV cache budget
+Let N be the number of hosts, λ the incoming rps peak, T the random variable for agent turn count 
+with distribution P(T), δ = 800 tokens per turn of retrieved context, γ = 65 tokens of model-generated 
+reasoning per turn, and O_final = 300 final output tokens. The per-request token count is
+I(T) = I0 + T · δ + T · γ + Ofinal
+where I₀ = 9,200 is the baseline input tokens. The per-host concurrent‑request capacity in terms 
+of KV cache is
+C =
+Mkv
+I(T) · κ
+where M_kv is the KV‑available memory — the portion of on‑host HBM left for KV after weights 
+and runtime — and κ = 2 × nlayers × dhidden × bytes ≈2.62 MB/token (2.5 MiB) is the per‑token 
+KV footprint (Chapter 7 canonical; κ includes all layers — omitting the layer factor understates KV 
+memory by orders of magnitude). For the canonical host, M_kv = 640 GB − 140 GB (FP16 weights) 
+− ~64 GB (runtime/activations/workspace/NCCL) ≈ 436 GB. Dividing memory by bytes (not the 
+byte‑divided‑by‑bytes collapse that trips unit analysis):
+• For T = 0 (baseline, I = 9,500): C = 436 GB / (9,500 ×2.62 MB) ≈ 436/24.9037 ≈ 17.5 concurrent 
+requests per host (byte-accurate; the conservative integer “requests that fit” floor is 17, not 
+18 — 17.51 cannot round up for a hard fit).
+• For T = 1 (median, per the Chapter 19 distribution; 68% terminate on turn 1): C = 436 GB / 
+(10,365 ×2.62 MB) ≈ 436/27.17 ≈ 16 concurrent requests per host.
+• For T = 3 (95th percentile; cumulative 98% by T=3): C = 436 GB / (12,095 ×2.62 MB) ≈ 436/31.71 
+≈ 13.8 concurrent requests per host (floor 13).
+• For T = 4 (hypothetical extension beyond the enforced turn limit — Ch19’s >2% tail falls back 
+to single-shot, so no request reaches T=4): C = 436 GB / (12,960 ×2.62 MB) ≈ 436/33.97 ≈ 12.8 
+concurrent requests per host (floor 12).
+These numbers are the KV-residency ceiling; measured concurrency may be lower if GPU 
+throughput or bandwidth binds first, so the architect takes the min of the KV, compute, and bandwidth 
+capacities.
+Reconciliation box — the four throughput rates in this book are different quan­
+tities, not a contradiction. (1) ~50 tok/s (Ch. 5) is a deliberately conservative single-
+stream, low-batch generation rate used to illustrate the tokens-per-dollar method; it is 
+a floor, not the host’s serving throughput. (2) ~19,800 tok/s (Ch. 8) is the idealized 

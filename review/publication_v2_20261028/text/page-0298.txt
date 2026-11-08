@@ -1,0 +1,35 @@
+Red Team / Green Team
+280
+it is labeled author-defined here rather than presented as an objective property of the deployment. 
+[ILLUSTRATIVE][DERIVED] — author-defined metric and dedup threshold
+24.3.2. RAG Corpus Poisoning Exposure
+The RAG corpus contains 12,500 documents across 15 domains. A poisoning attack inserts malicious 
+chunks into the vector index.
+• Each document is split into 3–5 chunks; the corpus holds ~48,000 embeddings.
+• The Red Team can submit up to 50 poisoned chunks per evaluation cycle.
+• Probability that a randomly retrieved chunk is poisoned: p = 50/48000 ≈0.00104 (≈0.1%).
+• Expected number of poisoned chunks per top‑k retrieval (k=5): E[poisoned] = k · p = 5 × p ≈
+0.0052.
+While the per-query expectation is low, the Red Team evaluates cumulative exposure over Q user 
+queries, and the expected total poisoned hits is E[total] = Q · k · p:
+E[total] = 10,000 × 0.0052 = 52
+This derived quantity — 52 expected poisoned retrievals per cycle — quantifies the RAG corruption 
+risk under a deliberately simple model. This is a null-model baseline assuming uniform random 
+retrieval, not a realistic poisoning-risk estimate. In practice vector retrieval is emphatically not 
+uniform sampling: a successful poisoning attack is usually constructed precisely to raise semantic 
+similarity to targeted queries, so adversarial chunks can appear far more often in the top-k than 
+their corpus share. Real poisoning exposure therefore has to be measured from ranked retrieval 
+(report hit rates conditioned on the actual similarity ordering), because adversarial chunks are 
+intentionally designed to alter retrieval probability. We present the uniform baseline first because it 
+is the one computable by hand, and flag it as the minimum exposure, not an estimate of the true 
+value. [ILLUSTRATIVE][DERIVED] — null-model uniform-retrieval baseline
+24.3.3. The Architecture That Fails: Red Team Overturns a “Winner”
+The Red Team pattern applies not only to security but to the architecture decision itself. Here is a 
+complete worked case where the initial choice wins on the easy metric and loses on the hard ones — 
+and the Red Team is what catches it.
+The candidate pair. For the canonical ~2,000-user RAG fleet (10 rps average, 40 rps peak; ~9,200 
+input tokens per request), two shape options are tabled:
+• Candidate A: 4×H100 hosts, 8-bit KV, tight batching target (batch ≤ 8), minimal headroom. 
+Looks cheap: 4 hosts is half the aggregate compute and HBM of Candidate B.
+• Candidate B: 8×H100 hosts, FP16 KV, batching target set by the analysis rather than pre-
+declared. Looks expensive on paper.

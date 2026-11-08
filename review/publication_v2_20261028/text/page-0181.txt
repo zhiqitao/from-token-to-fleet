@@ -1,0 +1,34 @@
+163
+Reference Architectures: From Local to Hyperscale
+range is a book-defined characterization; the H100/H200 and NVLink/NVSwitch specs it cites 
+are [1P] vendor datasheets)
+3. Cluster — multiple hosts (tens to hundreds of GPUs) joined by InfiniBand or high-speed 
+Ethernet. Required when a model exceeds a node’s memory (so it must be split per Ch10) or 
+when traffic outgrows one host (so P/D disaggregation per Ch11 applies).
+4. Hyperscale / data-center fleet — dedicated fleets of specialized inference/training clusters, 
+often MoE or KV-centric (Mooncake-style disaggregation [S4][1P]), serving many tenants at 
+enormous scale. The economics favor extreme specialization.
+These are a continuum, not hard categories; the useful question is always which tier does OUR 
+workload’s bounds demand?
+13.2. Mental Model
+Each tier is a box with a fixed memory budget and a fixed cross-node bandwidth. A 
+workload fits a tier if (a) the model’s weight + KV residency fits the tier’s total GPU memory 
+(Ch7), and (b) the tier’s interconnect can carry the communication the chosen parallelism requires 
+(Ch9/Ch10), and (c) the resulting throughput + latency meets the SLO (Ch11).
+The mental model is a ladder with explicit rungs: we climb a rung when a binding constraint 
+can no longer be met. The three classic triggers for climbing:
+• Memory: model + KV no longer fits one node → cluster (split weights).
+• Traffic: one host’s throughput ceiling (goodput) below demand → more replicas (DP across 
+nodes) or P/D disaggregation → cluster.
+• Latency/geography: SLO can’t be met due to distance or contention → move the serving 
+edge closer (local) or split prefill/decode.
+We do not climb for fashion; we climb when a measured number crosses a threshold.
+13.3. Worked Example
+13.3.1. Placing the Canonical Workload
+The canonical enterprise-Q&A RAG workload sits firmly on the server tier. We verify each bound:
+• Memory: 70B FP16 weights = 140 GB; KV for the 9.5K max context at FP16 ≈ 24.9 GB; inference 
+residency ≈ 165 GB [ILLUSTRATIVE][DERIVED]. An 8×H100 host (640 GB) fits this with ample 
+headroom for concurrency (Ch11 showed ~24 GB per request × concurrent requests still fits). 
+✓[ILLUSTRATIVE][DERIVED]
+• Throughput/latency: ~10 rps average / 40 rps peak, input-heavy (9.2K in / 300 out). On the 
+per-request latency axis, Ch11 showed continuous batching + prefix caching keeps p95 TTFT 

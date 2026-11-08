@@ -1,0 +1,34 @@
+235
+Agentic Systems
+The δ tokens are generated once (as retrieval/tool output), then retained as part of later turns’ 
+input context — they are counted once as output-of-tool and again (as carried context) in each later 
+call’s input. That is correct and intended, but it means total tokens ≠ context size: the amplification 
+α (retained context) and the task totals (Σ per-call) are explicitly different, and neither is the billed 
+amount without a cache/billing rule.
+19.4.2. Tool-call latency budget
+Crucially, the agentic layer adds latency on top of the base answer generation, not instead of it. We 
+keep two terms rigidly separate:
+• Base inference latency Lbase — the time to generate the final answer itself. Under the 
+canonical model this is ~8.6 s: 1.08 s prefill (Ch 8) + ~7.5 s decode of the 300-token answer at 
+~25 ms/token (Ch 8). Every agentic request pays this at least once, and usually again for the 
+intermediate reasoning the loop generates (the T·γ tokens).
+• Agent orchestration / tool-call overhead Lagent — the per-turn cost of the loop around the 
+model: the LLM’s short decision step to formulate the tool call, plus the tool backend round-trip. 
+On 8×H100 the per-turn agent step averages ~120 ms for a 10,000-token context; tool backends 
+(search, SQL) add 50–150 ms depending on data volume. So per-turn orchestration overhead 
+Lagent ≈ ~220 ms (median).
+Lagent = λstep + λtool
+where λstep ≈120 ms (the model’s tool-call decision step) and λtool ≈100 ms (median, tool 
+backend). For T turns the added orchestration overhead is T · Lagent ≈ 220 ms at the median T = 
+1, ≈ 440 ms at the 90th percentile T = 2, and ≈ 660 ms at the 95th-percentile T = 3 (consistent with 
+the §8 turn distribution and the §4 turn-distribution note; T is capped at 3, and the 2% fallback is a 
+zero-added-turn single-shot). These are the incremental agent-orchestration numbers, not the 
+full request latency — see the next section.
+19.4.3. Multi-step reasoning cost
+The “cost” of multi-step reasoning has two facets: token amplification (already quantified as α) and 
+latency. The total end-to-end latency is the base generation plus the added orchestration overhead:
+LE2E(T) = Lbase + T · Lagent
+where Lbase ≈8.6 s is the canonical full answer generation (1.08 s prefill + 7.5 s decode of 300 
+output tokens) and T · Lagent is the added agent-orchestration overhead (≈ 220 ms per turn). So the 
+agentic layer does not replace the ~8.6 s generation with ~440 ms — it adds a few hundred milliseconds 
+of orchestration/tool overhead on top of a request that already takes ~8.6 s to generate its answer.

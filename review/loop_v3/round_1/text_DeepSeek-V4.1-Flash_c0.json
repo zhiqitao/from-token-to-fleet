@@ -1,0 +1,55 @@
+[
+  {
+    "id": "CH1-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 1, §1 Concept / Attention",
+    "chapter": "Chapter 1 — It All Starts With the First Token",
+    "quoted_clause": "During **decode**, each generated token attends once to the growing prefix, so the per-token step is a *linear* cost in context length, and the length shows up as a *growing KV cache memory footprint* (per-token key/values) rather than as per-step compute.",
+    "observed": "The sentence first says decode per-token work is linear in context length, then says context length shows up as memory growth 'rather than as per-step compute.' Those are not alternatives: decode attention work is per-step compute and grows linearly with context length; KV memory growth is an additional consequence.",
+    "evidence": "The same chapter states attention during decode is a linear per-token cost in context length. Ch 2 later says decode attention work and KV traffic 'generally grow with sequence length' and that the attention term 'eventually binds at long context.' Therefore the 'rather than as per-step compute' clause contradicts the book's own model.",
+    "root_cause": "Conflating the dominant per-step cost at the canonical low-context operating point with the existence of per-step attention compute.",
+    "correction": "Replace with: 'the per-token step has a linear-in-context attention-compute component plus a growing KV-memory footprint; at the canonical operating point the weight-read term may dominate, but the attention term is still per-step compute and eventually binds.'",
+    "acceptance_test": "At 32K context, compute decode attention FLOPs per generated token and compare with 1K context; show the per-step attention term is nonzero and grows with context. Confirm the revised sentence does not deny per-step compute growth."
+  },
+  {
+    "id": "CH2-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 2, §5 Common Mistakes",
+    "chapter": "Chapter 2 — What Actually Happens During Inference",
+    "quoted_clause": "Prefill FLOPs scale with input length; decode bandwidth is constant per token.",
+    "observed": "Decode bandwidth per token is not constant in general. The weight-read component is approximately constant at the canonical low-batch operating point, but decode also reads the growing KV cache, so total per-token HBM traffic grows with context length.",
+    "evidence": "Chapter 2 itself says decode attention over the growing KV cache is linear in context length and that the attention term 'eventually binds at long context.' Chapter 1 gives the same linear-growth qualification. The unqualified 'constant per token' contradicts those statements.",
+    "root_cause": "Overgeneralizing the canonical batch-1 weight-streaming approximation into a universal decode-bandwidth identity.",
+    "correction": "Replace with: 'the weight-read component of decode bandwidth is approximately constant per token at the canonical low-batch operating point; total decode bandwidth also includes KV-cache reads that grow with context length.'",
+    "acceptance_test": "At 32K context, compute per-token decode HBM traffic as weight bytes plus KV bytes read; show it exceeds the weight-only figure. Confirm the revised sentence carries the operating-point qualifier."
+  },
+  {
+    "id": "CH3-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 3, §4 Measurement / Practical habit",
+    "chapter": "Chapter 3 — Understanding the Model",
+    "quoted_clause": "Misreading this is the most common source of KV cache and compute underestimation.",
+    "observed": "Misreading total versus active parameters affects weight-residency and compute accounting, not KV-cache bytes. KV cache is determined by attention geometry, context length, cache dtype, and cache policy, not by whether parameters are total or active.",
+    "evidence": "The chapter repeatedly states that MoE routing does not change KV cache at fixed attention geometry: 'routing never does; only a different attention shape, cache dtype or context length changes the bytes.' Table 3-3 and the mini-case also separate KV bytes from active/total parameter accounting.",
+    "root_cause": "Conflating parameter-accounting errors with KV-accounting errors in a summary sentence.",
+    "correction": "Replace with: 'Misreading this is the most common source of weight-residency and compute underestimation; KV-cache underestimation comes from assuming MoE sparsity reduces KV or from misreading the attention geometry.'",
+    "acceptance_test": "Hold attention geometry fixed and change only total/active parameter counts; show KV bytes unchanged. Confirm the revised sentence no longer attributes KV underestimation to total-vs-active confusion."
+  },
+  {
+    "id": "CH4-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 4, §8 End-of-Chapter Mini-Case",
+    "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+    "quoted_clause": "or **39 hosts** under the book's provisioning policy, which multiplies the independent ρ = 0.95 as well (⌈430/(17 × 0.70 × 0.95)⌉ = ⌈430/11.305⌉ = ⌈38.04⌉; Ch 17 Table 17-1, +1 more for the N−1 spare).",
+    "observed": "The arithmetic gives ceil(38.04) = 39 working hosts. The parenthetical then says '+1 more for the N−1 spare,' which would make 40 hosts, not 39. The same mini-case later lists '~39 (70% × 95% policy)' as the binding result, repeating the missing spare.",
+    "evidence": "430 / (17 × 0.70 × 0.95) = 430 / 11.305 = 38.036..., ceil = 39. Adding one N−1 spare gives 40. The canonical 40 rps comparison in the same paragraph correctly distinguishes '~31 working at the 70% × 95% policy (32 with N−1).'",
+    "root_cause": "The N−1 spare is mentioned in prose but not added to the stated host count; the working-host count and total-with-spare count are conflated.",
+    "correction": "State either '39 working hosts under the 70% × 95% policy, 40 with the N−1 spare' or remove the '+1 more for the N−1 spare' clause and label 39 as working hosts only. Update the later '~39 (70% × 95% policy)' anchor consistently.",
+    "acceptance_test": "Recompute ceil(430/(17×0.70×0.95)) = 39 working hosts; add one N−1 spare = 40 total. Confirm every occurrence in the mini-case uses the same working-vs-total convention."
+  }
+]
+COVERAGE: Read Chapters 1–4 in the supplied chunk. Recomputed the principal token-throughput, KV-cache, FLOPs, bandwidth, occupancy, host-count, and cost arithmetic; checked cross-chapter canonical-value reuse (9.2K input, 300 output, 10/40 rps, 8.6 s W_exec, 140 GB weights, 2.62 MB/token FP16 KV, 24.1 GB @9.2K, 17/21-host screens, 6.24M req/mo basis); checked denominator/population distinctions (active users vs in-flight requests vs KV-resident sequences); checked conservation/budget closure for TTFT and cost bases; checked evidence labels and operator qualifiers where visible. Did not inspect rendered figures, PDF pagination, SHA-256, or source files; those remain NOT VERIFIED.

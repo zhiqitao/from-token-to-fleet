@@ -1,0 +1,160 @@
+Running Local LLMs on Intel Arc Pro B60 and B70 GPUs
+Ben Linville
+SubscribeSign in
+Running Local LLMs on Intel Arc Pro B60 and B70 GPUs
+What happens when a software engineer spends a few days trying to turn Intel's new workstation GPUs into a local LLM inference rig.
+Ben Linville
+Apr 13, 2026
+4
+Share
+I spent a few days turning a pair of Intel Arc Pro GPUs — a B70 (32 GB) and a B60 (24 GB) — into a local LLM inference rig. This isn’t a polished how-to guide. It’s the raw experience of figuring out what works, what doesn’t, and where Intel’s GPU software stack still has sharp edges. I hit driver bugs, kernel panics, OOM crashes, and inference engine incompatibilities — and came out the other side with a setup that actually serves 27B–70B parameter models locally with vision support and 262k context.
+The Hardware
+Component        Spec
+─────────────    ──────────────────────────────────────────────────
+CPU              AMD Ryzen 7 7800X3D
+RAM              64 GiB DDR5 (started at 32 GiB — more on that later)
+Motherboard      B850-based, PCIe 5.0 + 4.0 lanes
+GPU 1            Intel Arc Pro B70 — 32 GB VRAM (BMG G31, Xe2)
+GPU 2            Intel Arc Pro B60 — 24 GB VRAM (BMG G21, Xe2)
+Combined VRAM    56 GB
+Storage          SATA SSD (sacrificed NVMe for PCIe lanes)
+OS               Ubuntu 24.04 LTS, HWE kernel 6.17
+The B70 and B60 are Intel’s Battlemage-generation workstation GPUs. They’re the first Intel GPUs with enough VRAM to be interesting for LLM inference — 32 GB puts the B70 in RTX 3090 / A6000 territory, and pairing it with a B60 gives you 56 GB total, enough to run 27B–70B parameter models locally.
+Thanks for reading! Subscribe for free to receive new posts and support my work.
+Subscribe
+Why a B60 instead of two B70s? I would have preferred a matched pair of B70s. But by the time I validated that the B70 was actually useful for inference, they were sold out everywhere. The next best thing was driving to Microcenter, where they had a stack of B60s on the shelf. The B60 gives 24 GB of VRAM — not as much as the B70’s 32 GB, but enough to be a useful second card for pipeline and tensor parallelism.
+The PCIe situation. Both GPUs are connected via PCIe extenders and M.2-to-PCIe x16 adapters, using the board’s PCIe 5.0 and 4.0 lanes. The downside is that the GPUs run at PCIe 4.0 x4, and I had to give up my M.2 NVMe drive in favor of a SATA SSD to free up the lanes. The upside is that this approach scales to 4 GPUs on a consumer board. A Xeon workstation-class board would solve all of these problems — proper PCIe lane counts, full-width slots, registered ECC RAM — but you’re also looking at $5k+ for the board, CPU, and memory. The consumer board with adapters gets you 80% of the way there for a fraction of the cost.
+Getting the Drivers Working
+Intel Battlemage requires kernel 6.12+ for the xe DRM driver. Ubuntu 24.04’s HWE kernel (6.17 at time of writing) works out of the box. The key pieces:
+• GuC firmware: Ubuntu ships 70.44.1, but the kernel wants 70.60.0. I had to manually drop the newer firmware at /lib/firmware/xe/bmg_guc_70.bin. Without this, the GPU initializes but performance is degraded.
+• Userspace drivers: Intel’s kobuk-team PPA provides the compute-runtime, level-zero, and IGC compiler. Mesa 25.2.8 provides the Vulkan ANV driver.
+• Render group: You need to be in the render group for GPU access via /dev/dri/renderD128. Until you re-login, wrap commands with sg render -c ‘...’.
+The Software Stack
+I ended up using four different inference backends over the course of this experiment — three that work and one that was a painful learning experience:
+Backend                      Engine                         Status
+───────────────────────────  ─────────────────────────────  ──────────────────────────────────────────
+Vulkan                       llama.cpp                      Works great — hybrid models, vision, max context
+SYCL                         llama.cpp                      Works great for dense models, broken for hybrid
+vLLM XPU (Intel Docker)      Intel's vLLM fork              Works — FP8 inference, continuous batching
+vLLM XPU (custom build)      Mainline vLLM, locally patched Painful — got it running, but slow and limited
+Plus a full serving stack: Open WebUI for the chat interface, Ollama as a model router, and an MCP bridge for web search tools.
+The Custom vLLM Build — A Cautionary Tale
+Before discovering Intel’s Docker image, I spent significant time trying to get mainline vLLM working with Qwen3.5 on XPU. This deserves its own section because the experience is instructive.
+The goal was simple: load a Qwen3.5-27B GGUF through vLLM’s native loader. What followed was a cascade of failures, each requiring a local patch to get past:
+1. `transformers` didn’t know Qwen3.5 GGUF architecture. vLLM’s speculators check calls into transformers’ GGUF config parser, which errors on any architecture it doesn’t recognize. Patched config.py to skip the check for GGUF files entirely.
+2. GGUF model type mismatch. HuggingFace config uses qwen3_5 (underscore), but gguf-py uses qwen35 (no underscore). Patched the mapping in gguf_loader.py.
+3. Vision config incompatibility. Qwen3.5 uses depth instead of num_hidden_layers in its vision config. Added a getattr fallback.
+4. Final blocker: `AutoModelForCausalLM.from_config` doesn’t know `Qwen3_5Config`. The GGUF loader builds a dummy model to enumerate parameter names, using transformers’ AutoModel registry. transformers 4.x doesn’t have Qwen3_5Config, and transformers 5.x breaks vLLM for unrelated API changes. No local patch can fix this — it requires upstream changes to either vLLM or transformers.
+After the GGUF path was blocked, I tried FP8 dynamic quantization from BF16 safetensors instead. This actually loaded — the model dispatched correctly and generated tokens at ~12 tok/s. But the output was broken: the GDN/Mamba recurrent state leaked between requests. Ask it “What is the capital of France?”, get a reasonable answer. Ask it “What is a large language model?” next, and it answers the first question again. The GDN kernel bug (vLLM issue #38994) makes mainline vLLM unusable for Qwen3.5 on XPU.
+The lesson: Intel’s llm-scaler-vllm Docker image exists for a reason. Their fork has working GDN kernels that mainline vLLM doesn’t. I could have saved a day by starting there.
+The Models
+I intentionally focused on dense models and hybrid architectures, avoiding Mixture-of-Experts (MoE) models. In my experience, MoE models don’t deliver performance proportional to their parameter count — a 27B dense model consistently outperforms a similarly-sized MoE on the tasks I care about, and the routing overhead adds latency.
+Qwen3.5-27B — The Primary Model
+Qwen3.5 is a hybrid Mamba/Attention architecture — only 16 of its 64 decoder layers use full attention, the rest use Gated Delta Net (GDN) linear attention with a tiny recurrent state. This makes its per-token KV cache cost dramatically lower than a pure transformer (~32 KiB/token at q8 vs ~96 KiB/token for a comparable dense model), which means you can push context length much further on the same hardware.
+Vulkan — Dual GPU (B70 + B60) — The Winner
+Config          Quant         Context      Prompt (tok/s)  Generation (tok/s)
+──────────────  ────────────  ───────────  ──────────────  ──────────────────
+Single B70      UD-Q5_K_XL    150k         ~18             ~12
+Dual B70+B60    UD-Q6_K_XL    262k (full)  ~15             ~10
+The dual-GPU Vulkan setup uses --split-mode row with --tensor-split 32,24 to proportion work by VRAM size. This gives us the full 262k training context with vision support via mmproj — the best Qwen3.5 setup I’ve achieved.
+Key flags that matter:
+-fa on -ctk q8_0 -ctv q8_0     # Flash attention + quantized KV cache
+--split-mode row               # Row split for mixed GPU sizes on Vulkan
+--tensor-split 32,24           # Proportion by VRAM (B70:B60)
+vLLM FP8 — Dual GPU — The API Server
+Config              Quant         Context  Prompt (tok/s)  Generation (tok/s)
+──────────────────  ────────────  ───────  ──────────────  ──────────────────
+Dual B70+B60, PP2   FP8 dynamic   80k      ~85             ~13
+Intel’s llm-scaler-vllm Docker image runs Qwen3.5-27B with dynamic BF16-to-FP8 quantization at load time. Pipeline Parallel (PP2) splits the model across both GPUs. The prompt processing speed is ~5x faster than llama.cpp Vulkan thanks to continuous batching, making this the better choice for API-style serving.
+The catch: FP8 conversion at startup needs ~54 GiB of system RAM — it loads the full BF16 weights into memory, quantizes to FP8, then transfers to VRAM. I found this out the hard way when the system froze with an OOM crash. The machine originally had 32 GB of DDR5. After the crash, I pulled RAM from my gaming PC to get to 64 GB, and the conversion ran cleanly. Budget for RAM if you’re going down the FP8 path.
+Vision works here too — I removed the --language-model-only flag and the full multimodal model loads and processes images correctly, though context dropped from 96k to 80k to fit the vision encoder.
+What Didn’t Work: SYCL + Qwen3.5
+SYCL should be faster than Vulkan (it is for every other model I tested), but Qwen3.5’s hybrid Mamba/Attention architecture has a critical bug on SYCL: the recurrent state doesn’t reset between prompts. The first response is fine, the second response answers the first question. This is a known issue in the SYCL kernels and there’s no workaround — you have to use Vulkan for this model.
+Gemma 4 31B — The Dense Workhorse
+Gemma 4 is a dense transformer, which means SYCL works perfectly and delivers significantly better performance.
+SYCL — Dual GPU (B70 + B60)
+Config                       Quant         Context  Generation (tok/s)
+───────────────────────────  ────────────  ───────  ──────────────────
+Dual B70+B60, layer split    UD-Q5_K_XL    256k     ~4.9
+Single B70                   UD-Q5_K_XL    65k      ~8
+The dual-GPU number looks low, and it is — dense models have ~3x the per-token KV cost of Qwen3.5’s hybrid architecture, so at 256k context the KV cache dominates. At shorter contexts, generation speed is better. Single-GPU on the B70 alone is actually faster for generation if your context fits in 65k.
+For SYCL, use --split-mode layer (not row — row split segfaults on SYCL with mixed GPUs):
+source /opt/intel/oneapi/setvars.sh --force
+--device SYCL0,SYCL1 --split-mode layer --tensor-split 31,23
+Gemma 4 31B Opus-Distilled — The Reasoning Specialist
+An interesting experiment: EganAI’s distillation of Claude Opus reasoning into Gemma 4 31B. Ran it on SYCL, single B70, 65k context, Q5_K_M. It works, uses the base Gemma 4 mmproj for vision, and produces notably more structured reasoning than base Gemma 4. A fun model to have in rotation.
+Llama 3.1 70B — The Big One
+Config                            Quant    Context  Generation (tok/s)
+────────────────────────────────  ───────  ───────  ──────────────────
+Dual B70+B60, SYCL layer split   Q4_K_M   32k      ~5
+A 70B model at Q4_K_M is ~40 GB, which fits across B70+B60 with room for 32k context. Not fast, but functional — and it’s a 70B model running locally. One quirk: the default Jinja chat template injects tool-call JSON that confuses some responses. Fixed with --no-jinja.
+Vulkan vs SYCL — When to Use Which
+I benchmarked both backends extensively. The short version:
+Vulkan            SYCL
+────────────────────────────  ────────────────  ──────────────────────────────────────
+Dense models (Gemma, Llama)   Baseline          ~65% faster generation, ~146% faster prompt
+Hybrid models (Qwen3.5)       Works             Broken (state leak bug)
+Mixed GPU sizes               Row split works   Layer split only (row segfaults)
+Setup complexity              Just works        Needs oneAPI env (setvars.sh)
+SYCL is meaningfully faster for dense models — if you’re running Gemma 4 or Llama, use SYCL. But for Qwen3.5, Vulkan is the only option that works correctly.
+Power Consumption
+I measured power draw from the GPU hwmon sensors under different states. These are “card” power readings from the xe driver’s energy counters, measured over 2-second intervals.
+vLLM FP8 Qwen3.5-27B, Pipeline Parallel across both GPUs:
+State                B70                 B60     Combined
+───────────────────  ──────────────────  ──────  ────────
+Idle (model loaded)  ~86 W               ~71 W   ~157 W
+Active generation    231 W (at TDP cap)  153 W    ~384 W
+The B70 hits its 230W TDP cap under full inference. The B60 draws less under generation than idle, which makes sense for pipeline parallelism — it spends most of its time waiting on the B70 to finish its pipeline stage. The B60’s 200W power cap is never approached.
+For context, my previous single-B70 measurements on llama.cpp showed ~38W idle and ~187W under load. The vLLM FP8 path pushes the B70 harder, likely because the continuous batching keeps the GPU more saturated.
+Memory Math — What Actually Fits
+The most useful thing I can share is the real memory math, because the theoretical numbers are always wrong.
+Single B70 (32 GB usable: ~29.2 GiB after Mesa overhead)
+Model          Quant         Weights     Max Context (q8 KV)
+─────────────  ────────────  ──────────  ───────────────────
+Qwen3.5-27B    UD-Q5_K_XL    ~18.4 GiB   ~150k
+Qwen3.5-27B    UD-Q6_K_XL    ~21.3 GiB   ~100k
+Gemma 4 31B    UD-Q5_K_XL    ~21.0 GiB   ~65k
+Dual B70+B60 (56 GB combined)
+Model            Quant         Weights     Max Context (q8 KV)
+───────────────  ────────────  ──────────  ─────────────────────────────────────
+Qwen3.5-27B      UD-Q6_K_XL    ~21.3 GiB   262k (full)
+Qwen3.5-27B      FP8 (vLLM)    ~27.6 GiB   80k (with vision) / 96k (text-only)
+Gemma 4 31B      UD-Q5_K_XL    ~21.0 GiB   ~256k
+Llama 3.1 70B    Q4_K_M        ~40 GiB     ~32k
+The hybrid architecture of Qwen3.5 is a genuine advantage here. At ~32 KiB/token (q8 KV), you get 4-8x more context per GB of VRAM compared to a dense model of similar size.
+The Full Serving Stack
+Beyond raw inference, I set up a complete local AI serving stack:
+• Open WebUI (Docker, port 3000) — Chat interface with model switching, image upload, conversation history
+• Ollama (systemd, port 11434) — Model routing and management
+• llama.cpp server (tmux, port 8080) — Primary inference for GGUF models
+• vLLM Docker (port 8080) — FP8 inference when running Qwen3.5 via vLLM
+• mcpo (tmux, port 8001) — MCP-to-OpenAPI proxy bridging Brave Search into Open WebUI as a tool
+The Ollama + Open WebUI combination gives you a ChatGPT-like experience backed entirely by local hardware. Adding Brave Search as a tool means the model can search the web when it needs current information.
+Lessons Learned
+1. Intel GPU software is maturing fast but not mature. I hit driver bugs, missing firmware, kernel version requirements, and inference engine incompatibilities. Every problem had a solution, but finding it required reading GitHub issues, forum posts, and sometimes kernel source. This is not plug-and-play yet.
+2. Hybrid architectures are the future, but tooling hasn’t caught up. Qwen3.5’s Mamba/Attention hybrid gives incredible context efficiency, but half the inference backends don’t handle it correctly. The SYCL state-leak bug and the vLLM GDN kernel issues are both fundamentally about tooling not understanding recurrent state.
+3. Multiple backends is the right strategy. No single backend handles every model well. Vulkan for hybrid models, SYCL for dense models, vLLM for API serving — having all three means you can always pick the best tool for the job.
+4. The B70 is a legitimate inference GPU. 32 GB of VRAM, decent memory bandwidth, and working Vulkan/SYCL support make it competitive with an RTX 3090 for inference. Under load the B70 pulls 187–231W depending on the backend; at idle with a model loaded it sits around 86W. Pair two of them and you’re in 4090-territory for total VRAM.
+5. Don’t try to build vLLM from source for Intel GPUs — use Intel’s Docker image. I spent a full day patching mainline vLLM to get Qwen3.5 loading, only to discover that Intel ships a fork with working kernels. The custom build was an educational experience, but if your goal is running models, start with intel/llm-scaler-vllm.
+6. Budget for RAM. FP8 dynamic quantization needs the full BF16 model in system RAM during conversion. For a 27B model, that’s ~54 GiB. I learned this when my 32 GB system froze mid-load and I had to pull DDR5 from another machine.
+7. Back everything up. I keep all scripts, configs, patches, and documentation on a Synology NAS. When (not if) something breaks, having a complete disaster recovery path saves hours.
+What’s Next
+I’m planning to upgrade to triple B70 GPUs (96 GB VRAM total), which would enable:
+• Full 262k context on FP8 Qwen3.5 via vLLM
+• Llama 70B at higher quants and longer context
+• Room for even larger models as they’re released
+The Intel Arc Pro line is an underdog in the local LLM space, but with 32 GB of VRAM per card and steadily improving software support, it’s becoming a genuinely viable option for anyone who wants to run serious models locally without selling a kidney for H100s.
+Thanks for reading! Subscribe for free to receive new posts and support my work.
+Subscribe
+4
+Share
+Discussion about this post
+CommentsRestacks
+TopLatestDiscussions
+No posts
+Ready for more?
+Subscribe
+© 2026 Ben · Privacy ∙ Terms ∙ Collection notice
+Start your SubstackGet the app
+Substack is the home for great culture
+This site requires JavaScript to run correctly. Please turn on JavaScript or unblock scripts

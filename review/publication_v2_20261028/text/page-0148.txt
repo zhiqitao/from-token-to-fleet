@@ -1,0 +1,45 @@
+Parallelism: Splitting the Model Across Machines
+130
+A · Tensor parallel (TP) — splits one layer’s weights
+W₀
+W₁
+one layer’s weight matrix W
+GPU 0
+GPU 1
+all-reduce partial sums  →  full output
+communication: all-reduce every layer  →  on-node only (NVLink)
+B · Pipeline parallel (PP) — splits the layer stack
+GPU 0
+layers 1–8
+GPU 1
+layers 9–16
+GPU 2
+layers 17–24
+activations  →  P2P at stage boundaries
+idle (bubble) at fill/drain
+communication-light: only stage boundaries move  →  spans nodes
+C · Data parallel (DP) — splits the data batch
+batch shard A
+batch shard B
+GPU 0
+GPU 1
+full model (replica)
+full model (replica)
+gradients ↔ all-reduce (training only)
+inference: independent replicas, no sync  ·  throughput scales linearly
+weights (blue)
+GPU (orange)
+data (green)
+comms (red)
+figure 10.1: Three parallelism patterns, one per panel: tensor parallel shards one layer’s weights 
+(activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack 
+into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model 
+while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel 
+names what splits, what is replicated, and what communicates. Communication-specificity note: 
+the TP collective is algorithm-dependent — a plain all-reduce of partial sums is one option, but fused 
+kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; 
+the PP bubble size depends on microbatch scheduling (more microbatches shrink the bubble but add 
+memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small 
+fixed microbatch count); substitute the actual collective and schedule for the target stack. Grayscale 
+note: each box’s text label carries its role, so the in-figure color key (blue = weights · orange = GPU · 
+green = data · red = comms) is redundant, not load-bearing.

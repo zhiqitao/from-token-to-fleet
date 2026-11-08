@@ -1,0 +1,39 @@
+Compute
+114
+~295× below the ridge) and is memory-bound. Batching and quantization shift kernels rightward toward 
+the ridge; the distinction between the two phases is the single most important reading of this chart.
+For decode, the per-token FLOP cost is the same ~140 GFLOP, but the arithmetic intensity drops 
+sharply. Each decoded token re-reads all 70B weights from HBM (a batch-1-equivalent weight-
+streaming read). A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB — one full pass reads 140 GB 
+(batch-1-equivalent), not 280 GB. (The naïve “2 ×70 ×10⁹ × 2 B ≈ 280 GB” double-counts the FP16 
+footprint: the leading “2” is already inside the 2-bytes-per-element, so writing 2 ×70 ×10⁹ × 2 B counts 
+the weight bytes twice. Any KV/output-projection reads are a separate, smaller term on top, not a 
+second full weight footprint.) The effective arithmetic intensity is therefore:
+arithmetic intensitydecode ≈140 GFLOP
+140 GB
+≈1.0 FLOP/byte
+[DERIVED; a lower-bound bandwidth model — real kernels also read activations and KV, so 
+measured intensity is typically below this and heavily dependent on fusion and cache residency]
+This is well below the H100 dense-FP16 ridge of ~295 FLOP/byte, meaning single-stream decode 
+is overwhelmingly memory-bandwidth-bound. Throughput improves with batching because the 
+weight-reread amortizes across tokens — decode intensity ≈ batch size (weight-only), so at batch=32 
+the effective intensity is ~32 FLOP/byte, still ~9× below the 295 ridge (compute-bound decode needs 
+batch ≈ 295, or quantized weights, which halve bytes and double intensity), and TFLOP/s utilization 
+increases accordingly. KV-read caveat: the weight-only intensity above omits the per-sequence KV 
+re-read (~24 GB at the canonical 9.2K context, FP16 full-MHA). Including it, the decode intensity 
+is (140·B)/(140 + 24·B) FLOP/byte, which saturates at ~5.8 FLOP/byte as B→∞ — far below the 295 
+ridge. So with the KV term, decode stays bandwidth-bound at every batch size; the “batch ≈ 295” 
+figure is the weight-only first-order estimate (valid when the KV re-read is small relative to the 
+weight stream, e.g. short contexts or KV quantization). This is why continuous-batching systems 
+(Orca, vLLM) prioritize batch growth: it is the primary lever for pushing decode arithmetic intensity 
+toward the ridge (on the weight-only term).
+Scope note on the single-device roofline here: the 140 GB weight-read and the per-GPU ~3.35 
+TB/s HBM bandwidth are single-GPU quantities, so the ~1.0 FLOP/byte intensity and the “memory-
+bandwidth-bound” label above are a per-kernel / single-device roofline argument. It is not a verdict 
+on the canonical 8×H100 host’s actual bandwidth adequacy — under tensor parallelism the 140 
+GB weight matrix is sharded across GPUs, so each GPU streams only its own shard (~0.70 TB/s 
+against its own ~3.35 TB/s, Ch 6). The classification (low-batch decode is bandwidth-bound) is shard-
+invariant because it follows from the low arithmetic intensity, not from the aggregate weight-read 
+rate exceeding one GPU’s bandwidth.
+8.4. Measurement
+Three measurable quantities anchor compute sizing:

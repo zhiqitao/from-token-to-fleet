@@ -1,0 +1,37 @@
+Communication
+126
+realistic multi‑job congestion is not yet characterized with a standard suite, and the interaction 
+between all-reduce and RoCE/Ethernet best‑effort traffic can cause tail latency spikes that are 
+difficult to predict.
+• Adaptive collective algorithms. New collectives (e.g., gradient compression, sparse all-
+reduce, error‑bounded approximations) claim to reduce the data volume at the cost of a small 
+accuracy loss. The bandwidth arithmetic changes when the data volume is 30 GB instead of 
+140 GB, but the latency per byte may increase because of compression/decompression steps. 
+The net effect on iteration time is workload‑specific and not yet settled.
+• Optical interconnects and the next generation. NVLink‑Switch and the next‑generation 
+switch fabrics are pushing node‑level bandwidth higher (toward 1.8 TB/s aggregate), and 
+optical intra‑rack fabrics (400 Gb/s–800 Gb/s per lane) are entering data centers. The arithmetic 
+base — the relative magnitudes of PCIe, NVLink, Ethernet, InfiniBand — is stable in the near 
+term, but the absolute numbers will shift as new silicon and cable technologies ship. Keep the 
+framework; update the constants.
+• Cross‑domain generalization. Most published bandwidth measurements use square matrices 
+(all-reduce of a gradient tensor). Diagonal dominant tensors, sparse gradients, or structured 
+compression may exhibit different effective bandwidths because the traffic pattern across links 
+is less uniform. The arithmetic framework applies, but the constants need re‑measurement for 
+the specific tensor shape.
+9.8. End-of-Chapter Mini-Case: Naming the Parallelism Before the Arithmetic
+An architect is asked to design a distributed inference fleet for a 70B parameter model serving user 
+queries for 10,000 concurrent users. The team debates whether to use a single 8×H100 host with 
+NVLink, or to shard the model across 32 nodes connected by 200 GbE RoCE. Before any hardware is 
+ordered, the architect opens this chapter and runs the communication arithmetic.
+The per-request all-reduce is not the right model for inference, and neither is a blanket “all-
+gather the full weights every decode step.” It matters which parallelism is in play: ordinary tensor 
+parallelism (TP) shards each weight matrix across the GPUs, and every decode step exchanges only 
+the activations (not the weights) via collective ops like all-reduce/all-gather of the small activation 
+tensors — weight matrices stay resident and are read in place, they are not re-fetched each step. A 
+different scheme, FSDP-style weight gathering (used in training, and in some sharded-inference 
+arrangements) does all-gather weight shards before the forward pass. So the architect must name 
+the scheme before doing the arithmetic. Concretely, for the canonical 8×H100 host the meaningful 
+per-step data movement is a TP all-reduce of the per-layer activations (tens of MBs, not GBs) plus 
+the KV cache fragment exchange in disaggregated serving — e.g. ~35 GB of KV moved over NVLink 
+(~0.08 s at 450 GB/s per direction, §9.2) when a P-D sequence transfers a ~13K-token context (35 GB 

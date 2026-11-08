@@ -1,0 +1,38 @@
+23
+What Actually Happens During Inference
+and this traffic are sharded across GPUs, so the relevant comparison is per-GPU shard traffic 
+against per-GPU HBM bandwidth, plus communication overhead. (A 140-GB FP16 model 
+cannot reside on a single 80-GB H100 anyway, so the whole-model-on-one-GPU comparison 
+is deliberately hypothetical.) With a TPOT budget of ~25 ms per token, the aggregate required 
+bandwidth is
+Breq = W
+τ = 140 GB
+0.025 s = 5,600 GB/s = 5.6 TB/s
+[canonical scenario][DERIVED]. A single NVIDIA H100 HBM3 delivers ~3.35 TB/s peak band­
+width [1P][FACT]. Since 5.6 > 3.35, under this batch-1-equivalent weight-streaming model one 
+H100 cannot supply the required aggregate weight-read rate — the decode phase is HBM-bandwidth-
+bound [canonical scenario][DERIVED]. Read this as an aggregate lower-bound illustration, not as 
+the literal bandwidth requirement of a single H100 in a realistic 8×H100 configuration (where the 
+model and its traffic are sharded, so each GPU streams only its shard against its own 3.35 TB/s, plus 
+communication overhead). This is a statement about the specified single-request, ~25 ms/token model, 
+not about all possible 70B serving: batching, weight-read amortization, and precision changes (later 
+chapters) fundamentally alter the per-request bandwidth demand. Within the model, meeting that 
+latency target calls for multi-GPU scaling or bandwidth-increasing topologies (e.g. NVLink-connected 
+nodes).
+• Prefill FLOPs. The prefill pass computes attention over the 9.2K input tokens and produces 
+the first output token. The parameterized-linear FLOP floor for a dense transformer forward 
+pass is well approximated as 2 × params × tokens (the factor of 2 accounts for multiply-add 
+per parameter per token). Call this what it is: the parameterized-linear FLOP floor, 2NL, 
+excluding explicit attention-score/value aggregation and other non-matmul overhead. 
+The full-attention component is not captured by 2NL — it grows ~quadratically with sequence 
+length (Ch 22), so for a 9.2K-token prefill 2NL is a lower bound on total compute, not the 
+whole story. Thus:
+prefill FLOPs = 2 × N × L = 2 × 70 × 109 × 9.2 × 103 ≈1.288 × 1015 ≈1.29 PFLOP
+[canonical scenario][DERIVED]. An NVIDIA H100 delivers ~989 TFLOPS (BF16 dense tensor-
+core peak, without sparsity) [1P][FACT], which is 0.989 PFLOPS. (Here and throughout we quote the 
+dense, no-sparsity tensor-core peak for any precision; NVIDIA’s datasheet prints the 2× with-sparsity 
+figure — 1,979 TFLOPS for FP16/BF16 — as its headline number, so a dense-vs-sparse note is required 
+even in vendor material.) The required rate against the ~1.08 s prefill budget is
+rate = 1.29 PFLOP
+1.08 s
+≈1.19 PFLOPS

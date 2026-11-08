@@ -1,0 +1,107 @@
+[
+  {
+    "id": "CH19-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 19 §3, 'A harder query that exhausts all 4 turns'",
+    "chapter": "19",
+    "quoted_clause": "total output ≈ 300 (final answer) plus the intermediate reasoning (≈65 tokens per turn). After 4 turns, input ≈ 9,200 + 4×800 + 4×65 = 12,660 tokens, output ≈ 300 tokens, giving a total of ~12,960 tokens.",
+    "observed": "The 4×65 intermediate reasoning tokens are counted inside the 12,660 'input' figure and are also described as part of 'output'. If output includes intermediate reasoning, output should be ≈300 + 4×65 = 560 and input should exclude those 4×65 tokens; as written the decomposition double-labels the same tokens.",
+    "evidence": "Recompute the T=4 trace under the chapter's own event-ledger convention: call inputs 9,200, 10,065, 10,930, 11,795, 12,660; generated outputs 65, 65, 65, 65, 300. Retained-context total before final answer is 12,660; final total incl. final answer is 12,960. The 12,660 figure already contains the four 65-token reasoning outputs as retained context. Therefore the sentence 'output ≈300 plus intermediate reasoning' is inconsistent with the arithmetic that follows.",
+    "root_cause": "Mixing retained-context accounting (where γ reasoning is carried in later inputs) with generated-output accounting (where γ reasoning is an output) in the same sentence.",
+    "correction": "State one convention explicitly: either (a) retained-context total = 9,200 + 4×(800+65) + 300 = 12,960, with generated output = 300 final plus 4×65 intermediate; or (b) generated-output total = 300 + 4×65 = 560 and input excluding reasoning = 9,200 + 4×800 = 12,400, total 12,960. Do not say input includes 4×65 while output also includes 4×65.",
+    "acceptance_test": "Produce a T=4 event ledger with separate columns for per-call input, per-call output, tool output, and post-call retained context; verify that the sum of retained context plus final output equals 12,960 and that no token is counted in both the input and output columns."
+  },
+  {
+    "id": "CH19-02",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 19 §8, 'Unconditional fallback-inclusive ledger'",
+    "chapter": "19",
+    "quoted_clause": "excluding only the fallback's failed-attempt work (each fallback's non-answer tokens, 39,890 − 9,500 = 30,390 per fallback) gives (2,392,670 − 2×30,390)/98 ≈ 23,795 tokens, a reduction of 620 tokens (−2.5%)",
+    "observed": "The numerator subtracts only the fallback's failed-attempt tokens but still includes each fallback's single-shot answer tokens (2×9,500 = 19,000), while the denominator is 98 completed agent requests. This mixes populations: fallback single-shot answers are not part of the 98 completed agent runs.",
+    "evidence": "Total ledger = 2,392,670 tokens over 100 submitted requests, of which 98 are completed agent runs and 2 are fallbacks. The fallback rows total 39,890 tokens each: 30,390 failed-attempt tokens + 9,500 single-shot answer tokens. Subtracting only 2×30,390 leaves 2,331,890 tokens, which still contains 2×9,500 fallback-answer tokens, divided by 98 completed agent requests. A coherent 'cost per completed agent request excluding failed work' must subtract the entire fallback rows: (2,392,670 − 2×39,890)/98 ≈ 23,601. A coherent 'cost per submitted request excluding failed work' must use denominator 100: (2,392,670 − 2×30,390)/100 ≈ 23,319. The printed 23,795 is neither.",
+    "root_cause": "Denominator/population mismatch: fallback answer tokens retained in the numerator while fallback requests are excluded from the denominator.",
+    "correction": "Either (i) report cost per completed agent request excluding all fallback work: (2,392,670 − 2×39,890)/98 ≈ 23,601 tokens; or (ii) report cost per submitted request excluding failed-attempt work: (2,392,670 − 2×30,390)/100 ≈ 23,319 tokens. Label the numerator and denominator explicitly. Do not call 23,795 a cost per completed request.",
+    "acceptance_test": "Recompute the ledger with an explicit table of numerator inclusions/exclusions and denominator population; verify that every token in the numerator belongs to the population in the denominator, and that the reported percentage reduction uses the same base as the reported cost."
+  },
+  {
+    "id": "CH19-03",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 19 §8, 'Note on the latency rows'",
+    "chapter": "19",
+    "quoted_clause": "The fallback's failed-attempt decode (3 × 65 = 195 tokens ≈ 4.9 s at 25 ms/token) is real GPU time: it does not appear in the orchestration-only metric, it appears in the full service time W (§4) and in these token totals.",
+    "observed": "The W(3) value in §4 is computed for a completed T=3 trace with a terminal synthesis call reading 11,795 tokens and total input 41,990. The fallback trace has only 39,395 input tokens (three attempted turns plus a 9,200-token single-shot fallback), so its full service time is not W(3)=17.70 s. The statement that the fallback's failed-attempt decode 'appears in W' is true only for a separately computed fallback W, which is not shown.",
+    "evidence": "Fallback ledger: inputs 9,200 + 10,065 + 10,930 + 9,200 = 39,395; outputs 3×65 + 300 = 495. W_fallback ≈ (39,395/9,200)×1.08 + 0.025×495 + 3×0.133 ≈ 17.40 s, not W(3)=17.70 s. W(3) uses 41,990 input tokens and a synthesis call at 11,795, which the fallback does not perform.",
+    "root_cause": "Using the completed T=3 W value as if it were the fallback trace's service time.",
+    "correction": "Either compute and report W_fallback explicitly, or say that the failed-attempt decode is included in the general W formula when applied to the fallback trace, not in the printed W(3) row.",
+    "acceptance_test": "Recompute W for the fallback trace from its own input sum (39,395) and output sum (495); show that it differs from W(3)=17.70 s and label the row accordingly."
+  },
+  {
+    "id": "CH20-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 20 §3, 'Fleet aggregate throughput'",
+    "chapter": "20",
+    "quoted_clause": "the ρ ≈ 0.95 fractional-throughput derate raises the requirement to 344 / (0.95 × 17) = 344/16.15 ≈ 21.3 → 22 hosts",
+    "observed": "The arithmetic is correct, but the text later says '21 hosts under case (i), 22 under case (ii)' while also deriving 22 from the ρ-derate of the KV screen. The same numeral 22 is used for two independent causes, and the summary can be read as if case (ii) is the only source of 22. The chapter does flag this as 'a different 22', but the requirement-coverage matrix in Ch 25 later uses '32 hosts at the 70% × 95% + N−1 policy' without carrying the case (ii) 34-host policy row.",
+    "evidence": "Ch 20 explicitly derives 34 under case (ii) at the 70%×95%+N−1 policy and 32 for KV-only. Ch 25 §6 R1 says '32 hosts at the 70% × 95% + N−1 policy' and R4 says '32-host policy row (31 working + 1 reserve)'. If the conservative case (ii) screen is part of the canonical requirement, the policy row should be 34, not 32. The ADR's '21-host headline / 32-host N−1 policy' baseline therefore omits the 34-host case (ii) policy value.",
+    "root_cause": "Cross-chapter canonical-value tracing: the 32-host KV-only policy row is carried into the ADR while the 34-host case (ii) policy row is dropped.",
+    "correction": "In Ch 25's requirement-coverage matrix and ADR 0015 baseline, state both policy values explicitly: 32 hosts for the KV-only screen and 34 hosts under case (ii) at 70%×95%+N−1, and state which one the provisional baseline uses. If the baseline is KV-only, label it as such and do not present it as the conservative case (ii) requirement.",
+    "acceptance_test": "Trace every host-count anchor in Ch 25 back to Ch 20 Table/§3; verify that 21, 22, 32, and 34 are each labeled with their screen (case (i), case (ii), KV-only policy, case (ii) policy) and that no summary sentence uses 32 as if it were the maximum requirement."
+  },
+  {
+    "id": "CH24-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 24 §6 vs §8",
+    "chapter": "24",
+    "quoted_clause": "In the illustrative scenario we model this as adding ~150 ms latency per query and reducing PIES by ~60% — illustrative scenario numbers, not measurements from a deployment in this handbook [ILLUSTRATIVE][ASSUMPTION].",
+    "observed": "The mini-case says PIES dropped from 217 to 143 after adding a prompt-scanning guardrail. 143/217 ≈ 0.659, i.e. a ~34% reduction, not ~60%. A 60% reduction from 217 would be ≈87.",
+    "evidence": "217 × (1 − 0.60) = 86.8. The printed Cycle 2 value is 143. 217 − 143 = 74; 74/217 ≈ 34.1%. The two sections describe the same prompt-scanning guardrail but give incompatible reduction magnitudes.",
+    "root_cause": "Illustrative scenario numbers were not reconciled across §6 and §8.",
+    "correction": "Either change §6 to '~34%' or change the mini-case PIES values so that the reduction is ~60% (e.g., 217 → ~87). If the two are different guardrails or different scenarios, label them explicitly as distinct.",
+    "acceptance_test": "Recompute the PIES reduction from the stated before/after values and verify that the percentage in §6 matches the mini-case and Table 24-1; if not, relabel the scenarios."
+  },
+  {
+    "id": "CH24-02",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 24 §8, 'The PIES Drop'",
+    "chapter": "24",
+    "quoted_clause": "The poisoned‑hit rate remains at ≈0.003 per query (≈3 poisoned chunks per 1,000 queries).",
+    "observed": "The metric table defines 'Poisoned-hit rate' as the fraction of retrievals that return at least one poisoned chunk. A rate of 0.003 per query therefore means ≈3 retrievals per 1,000 contain at least one poisoned chunk, not ≈3 poisoned chunks per 1,000 queries. A retrieval can contain multiple poisoned chunks, so the two quantities are not interchangeable.",
+    "evidence": "Ch 24 §4.1: 'Poisoned‑hit rate | DERIVED | Fraction of retrievals that return at least one poisoned chunk | < 0.3% (0.003 per query)'. The mini-case parenthetical converts 0.003 per query into '3 poisoned chunks per 1,000 queries', changing the unit from affected retrievals to poisoned chunks.",
+    "root_cause": "Denominator/unit drift between the metric definition and the mini-case prose.",
+    "correction": "Say '≈3 retrievals per 1,000 with at least one poisoned chunk' or redefine the metric as poisoned chunks per query and update the table definition. Do not use 'chunks' when the metric counts retrievals.",
+    "acceptance_test": "Check every occurrence of the poisoned-hit rate against the metric definition; verify that the unit is either affected retrievals per query or poisoned chunks per query, consistently."
+  },
+  {
+    "id": "CH25-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 25 §4, 'Measurement'",
+    "chapter": "25",
+    "quoted_clause": "70B FP16 model footprint — W = N × bytes-per-param = 70 × 10^9 × 2 B = 140 GB parameters, plus ~30 GB activations at the peak for this worked example, giving ≈170 GB total derived footprint. ... (140 GB weights + ~436 GB KV budget + ~64 GB reserve ≈ the 640 GB HBM envelope). ... both coexist on the 8×H100 host.",
+    "observed": "The memory components do not close. 140 GB weights + 30 GB activations + 436 GB KV + 64 GB reserve = 670 GB, which exceeds the 640 GB HBM envelope. The text says the 30 GB activation working set and the 64 GB runtime reserve are different quantities and that both coexist, but the printed 436 GB KV budget is already the residual after subtracting only weights and reserve from 640 GB.",
+    "evidence": "640 − 140 − 64 = 436. Adding the stated 30 GB activation working set gives 140 + 30 + 436 + 64 = 670 GB. Therefore either the KV budget must fall to ≈406 GB, or the 30 GB activations must be counted inside the 64 GB reserve, or the 640 GB envelope must be larger.",
+    "root_cause": "Conservation/budget closure error: a new 30 GB activation term is introduced without reducing the KV budget or the reserve.",
+    "correction": "State one closed budget: e.g., 140 GB weights + 30 GB activations + 406 GB KV + 64 GB reserve = 640 GB; or keep 436 GB KV and state that the 30 GB activation working set is included within the 64 GB runtime/workspace reserve. Do not claim both coexist without reconciling the sum.",
+    "acceptance_test": "Sum all memory components named in the ADR and verify the total is ≤640 GB; show the KV budget derivation explicitly and identify whether activations are inside or outside the reserve."
+  },
+  {
+    "id": "CH25-02",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 25 §6, requirement coverage matrix R1/R4",
+    "chapter": "25",
+    "quoted_clause": "KV-residency screen (Ch 17 Table 17-1): 21 hosts case (i) / 22 case (ii); 32 hosts at the 70% × 95% + N−1 policy",
+    "observed": "The matrix lists 32 hosts at the policy row but omits the 34-host case (ii) policy value that Ch 20 explicitly derives. If the conservative case (ii) screen is part of the canonical requirement, the matrix understates the policy host count.",
+    "evidence": "Ch 20: 'at the 70% × 95% + N−1 policy 34 under case (ii) versus 32 for KV-only (⌈21.81/0.665⌉+1 = 34; ⌈344/11.305⌉+1 = 32)'. Ch 25 R1 lists only 32 and does not label it as KV-only. R4 then calls it '32-host policy row (31 working + 1 reserve)'.",
+    "root_cause": "Cross-chapter canonical-value tracing: the 34-host case (ii) policy row is dropped from the ADR's requirement coverage.",
+    "correction": "Add both policy values to R1/R4: 32 hosts for the KV-only policy and 34 hosts for the case (ii) policy, with a note on which one the provisional baseline uses. If the baseline is intentionally KV-only, label it 'KV-only policy' rather than 'the policy'.",
+    "acceptance_test": "Trace the 32 and 34 host counts from Ch 20 into Ch 25; verify that every policy-row mention states its screen and that the ADR does not present 32 as the maximum requirement."
+  }
+]
+COVERAGE: I read the full supplied chunk (Chapters 19–25) and checked the chapter-level arithmetic, cross-chapter canonical values, token/KV accounting, latency and host-count derivations, fallback-ledger denominators, PIES/poisoning metric definitions, and the Ch 25 memory-budget closure. I did not render figures or inspect the built PDF, so figure geometry/legibility and page-number placement are NOT VERIFIED. I did not verify external references or Chapter 17/16 source tables beyond the values quoted in this chunk.

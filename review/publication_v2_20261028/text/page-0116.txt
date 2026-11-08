@@ -1,0 +1,35 @@
+Memory Is the First Constraint
+98
+MHA tensors (one byte per K/V element, exactly half of BF16’s two bytes); it is NOT a vendor-
+measured serving footprint, and any block-layout or per-token scale/offset metadata overhead 
+is not included. Do not generalize a fixed ratio to all FP8-KV deployments: the realized 
+per-token footprint depends on the engine version, cache-block layout, scale/offset metadata, 
+allocator rounding, and the accounting boundary (logical payload vs allocated cache vs observed 
+resident memory), so re-derive it for the target serving stack rather than inheriting a multiplier. 
+(For reference, the 9.5K total at this byte-halving basis is ~152 GB — still above a single H100, 
+but now within 2×H100, 160 GB.)
+7.5. Common Mistakes
+• Assuming KV cache size scales sub-linearly. The KV cache grows linearly with context 
+length. Doubling the context from 9.2K to 18.4K doubles the KV memory, all else equal. There 
+is no automatic compression unless the attention mechanism itself is hybrid or sparse.
+• Using the 8-bit KV figure (~1.3 MB/token) at FP16. Chapter 1’s ~1.3 MB/token is explicitly 
+at 8-bit precision. At FP16, the per-token KV cost is ~2× that, ≈2.62 MB/token (2.5 MiB — §7.4). 
+Mixing the two figures produces wrong residency calls.
+• Ignoring the weight + KV residency contrast. Quoting only the weight footprint (140 GB 
+for 70B FP16) and claiming it fits on one H100 (80 GB) is a category error. Weights alone exceed 
+one H100; KV must be added.
+• Quoting one KV-quant reduction for every precision. KV cache quantization must be 
+read per bit width: FP8 KV ≈50% of BF16 (raw byte-halving) is what serving stacks realize 
+today, while 4-bit KV’s raw bound is a full 4× (2.62 → 0.66 MB/token here; 0.52 → 0.13 for a 
+7B, §12.3) — realized savings land between, once block/scale metadata is counted. (The vLLM 
+“54%” figure is a decode inter-token-latency slope ratio, not a memory ratio.) Weight-only 
+quantization’s 2×–4× applies to weights; do not transfer an expectation across precisions or 
+across tensors without naming the bit width.
+• Overlooking the fine-tuning residency floor. Full fine-tuning of 70B requires ~1.12 TB with 
+Adam optimizer states — roughly 1.75× the 8×H100 host. This is not a temporary overhead; it 
+is the permanent memory floor for the training duration.
+7.6. Architecture Consequence
+The memory floor is the first constraint every architecture decision respects, because unlike 
+compute or bandwidth it cannot be moved by better kernels — it is fixed by weights + KV + (for 
+training) optimizer state. Several concrete consequences follow for the canonical enterprise-Q&A 
+workload:

@@ -1,0 +1,39 @@
+19
+What Actually Happens During Inference
+prefill is compute-bound. It is like a massive industrial fire hose drawing one enormous burst 
+of water out of a reservoir: the flow is huge, and the time it takes is limited entirely by the raw 
+horsepower of the pump (compute/FLOPs) pushing the water. The pipe is wide open, but the motor 
+is working at its absolute limit — and the burst delivers the first glass of water, the first token. (This 
+is an operating-point property, not a fixed identity: a low-intensity prefill or a tiny prompt could 
+shift it toward the bandwidth side — Ch. 8 makes the dependence on model × workload × kernel × 
+hardware explicit.)
+In the canonical operating point — low batch — decode is bandwidth-bound. It is like 
+pushing the water of that same 140,000-liter reservoir (140 GB) through a standard garden hose: the 
+whole volume must flow every 25 milliseconds just to deliver one glass of water — one generated token. 
+The pump (compute) is more than powerful enough, but the diameter of the hose (HBM bandwidth) 
+physically cannot move that volume of water in that time frame. (Again an operating-point property, 
+not an identity: at high batch decode can become compute-bound.)
+When we ask “is this workload compute-bound or bandwidth-bound?” the answer depends 
+entirely on which physical constraint we are hitting: the horsepower of the engine, or the diameter 
+of the pipe.
+Figure convention (used throughout the book). Arrows in the diagrams carry different 
+meanings by context, and the reader should not assume one universal reading: a data-flow arrow 
+(Fig 2.1, 11.3) shows tokens or activations moving; a dependency arrow shows “must be decided 
+before”; an influence arrow (Fig 4.1) shows “constrains/informs”; a causation arrow (Fig 6.1) shows 
+“drives / causes”; and a conceptual-association arrow (App. A.4) shows “relates to.” Where a figure’s 
+arrows are ambiguous, the caption states the intended reading.
+2.3. Worked Example
+To make the distinction concrete, let us walk through the canonical enterprise Q&A scenario 
+from canonical scenario (Ch 4, Table 4-2): a 70B-class dense model in FP16, 1 host with 8×H100 GPUs, 
+prompt of 1,200 tokens + 8K retrieved context (~9.2K input), 300-token output, TTFT budget 1.2 s 
+(retrieval ~120 ms + prefill), TPOT budget ~25 ms/token. All numbers are derived from the canonical 
+scenario; none are measurement claims. Where the book writes Analytical bound — not a benchmark, 
+it marks a first-order model check under a stated bounding assumption, not a measurement of actual 
+serving throughput. Scope of the single-host premise. Throughout this chapter and the arithmetic 
+chapters that follow, “1 host with 8×H100” is a per-host / per-request feasibility container: it 
+asks whether one host can meet the per-request latency and memory SLO (TTFT 1.2 s, TPOT ~25 
+ms, KV residency) for a single in-flight request. It is not a claim that one host serves the canonical 
+10 rps average / 40 rps peak arrival rate. The per-request arithmetic here answers “does one host’s 
+compute/bandwidth/memory satisfy one request’s latency budget”; the capacity question — how 
+many such hosts to absorb λ = 40 rps, where in-flight concurrency λ·W ≈ 344 at the ~8.6 s service 
+time — is answered later (Ch 16–17), and is a different computation that must not be conflated with 

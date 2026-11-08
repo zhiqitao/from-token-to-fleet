@@ -1,0 +1,36 @@
+Agentic Systems
+230
+• Multi-step reasoning: The agent maintains an internal “thought” chain, appending each new 
+observation and its interpretation before deciding on the next action.
+• Guardrails: Pre- and post-hoc checks that validate whether the model’s intended action is 
+safe, on-topic, or within budget.
+The agent loop terminates when a stop condition is met: a final answer is emitted, a maximum 
+turn count is exceeded, or a guardrail blocks further progress. This design pattern replaces the 
+“single-shot” prompt — one LLM call, one response — with a dynamic sequence of calls whose length 
+is data-dependent.
+The architect must decide not only which tools the agent may call but also how to instrument 
+each call for latency and token accounting, and how to set termination thresholds so that the system 
+degrades gracefully under load.
+19.2. Mental Model
+The mental model we adopt visualizes the agent as a state machine with four recurring states: 
+Plan, Execute, Observe, and Decide. In each cycle:
+1. Plan: The model reads the current context (original user query + accumulated observations) 
+and emits a plan — either “proceed with final answer” or “call tool X with parameters Y.”
+2. Execute: The system routes the tool call to the appropriate backend, waits for results, and 
+formats them back into text.
+3. Observe: The result text is appended to the conversation history, and the token count is 
+updated.
+4. Decide: The model evaluates whether the observation resolves the user query or whether 
+another cycle is needed.
+This loop is deterministic in structure but data-dependent in length. A simple query (“What is 
+the capital of France?”) may terminate after one Observe, while a complex RQA request (“Compare 
+the performance of Model A on dataset X against Model B on dataset Y, using the last three papers 
+from arXiv as evidence”) may traverse three or more cycles.
+The critical insight for capacity planning is that each cycle incurs a fixed overhead: one LLM 
+inference turn plus any tool-call latency. The variable portion is the number of cycles the model 
+chooses. Our mental model therefore separates fixed cost per turn from variable turn count, and we 
+will quantify both in the next section.
+19.3. Worked Example
+Take a user query routed to an agentic RQA pipeline. The pipeline’s default policy is a maximum 
+of 4 turns; if the model has not terminated by then, the system returns a fallback answer “I’m sorry, 
+I couldn’t find a definitive answer within the allowed reasoning steps.” (Scope note on the turn 

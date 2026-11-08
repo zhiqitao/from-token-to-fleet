@@ -1,0 +1,40 @@
+Agentic Systems
+236
+Scope note — this is the incremental orchestration model, not the full agentic service 
+time. The LE2E(T) above holds the base generation at the single-shot decode (300 output tokens) and 
+adds only the per-turn orchestration overhead. It deliberately isolates how much the agentic layer’s 
+orchestration adds. The full agentic service time — the quantity used for fleet sizing in Chapter 17 
+— must additionally account for (a) the decode of the per-turn model-generated reasoning tokens 
+(γ ≈65 tokens/turn, at ~25 ms/token ≈ ~1.6 s/turn) and (b) the longer prefill of the grown context 
+(I(T) = 9,200 + T(800 + 65) + 300). Chapter 17 §8 derives that full service time as W ≈13.8 s at 
+T = 3 (1.08 s prefill held at the canonical 9.2K representative — the 12,095-token context would scale 
+it to ~1.42 s, giving W ≈ 14.2 s, so 13.8 s is a lower bound — plus ~12.4 s decode of ~495 generated 
+tokens and ~0.4 s tool latency). So: the incremental orchestration overhead is T · Lagent (~660 ms 
+at T=3, β ≈1.08×), while the full end-to-end service time of an agentic request is ~13.8 s at T=3 
+— the two are different quantities, and the latter is what sets concurrency and fleet size. Table 19-1’s 
+“Total end-to-end (Lbase + overhead)” row reports the incremental model; the full service-time values 
+appear in Chapter 17’s fleet-sizing tables. The latency amplification is better expressed as overhead, 
+not a multiple of a sub-second single-shot number:
+β(T) = Lbase + T · Lagent
+Lbase
+≈1 + T · 220 ms
+8.6 s
+At T = 3, β(3) is 1 + 660 ms / 8.6 s ≈ 1.08×, i.e. the orchestration-only component adds roughly 
+8% — the agent loop is not “2–6× slower” in the orchestration sense. But β measures only the 
+incremental orchestration overhead, not the full agentic task slowdown. The full service time of 
+a representative three-turn task grows from ~8.6 s (single-shot) to at least ~13.8 s (~1.6×) once the 
+per-turn reasoning decode (~65 γ tokens/turn) and the longer grown-context prefill are counted — 
+a full increase of ~5.2–5.6 s. So β is βorch (orchestration-only), and the true task-level multiplier is 
+Ltask E2E/Lbase ≈1.6–1.65× at T = 3. The bound that actually matters for the architect is that the 
+added orchestration overhead per turn is ~220 ms (and must be budgeted), while the total request 
+time — and hence fleet sizing — is set by the ~13.8 s full service time, not the ~8.6 s single-shot 
+generation.
+These derived quantities give the architect concrete numbers to set policies: cap T at 3 unless 
+the quality gain is statistically significant, and allocate ~220 ms per turn in the orchestration-latency 
+budget.
+19.5. Common Mistakes
+1. Unbounded or miscalibrated turn limits. Setting the maximum number of agent turns too 
+high for the task leads to runaway token consumption and latency spikes. In production we 
+have seen a single request consume >30,000 tokens and take >5 seconds because the model 
+kept looping on a poorly scoped tool. The right cap is task-calibrated, not a universal number: 
+measure the distribution of useful completion turns, loop-failure turns, and marginal value per 

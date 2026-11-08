@@ -1,0 +1,26 @@
+Compute
+118
+• Communication-bound — tensor/pipeline parallelism crosses the NVLink/Host fabric; data 
+movement, not math, is the ceiling. The fix is a different parallelization or a smaller cross-GPU 
+footprint.
+• Launch / occupancy-limited — the kernel is too small or the grid under-fills the SMs; 
+increasing batch or improving occupancy raises utilization without adding hardware.
+• Attention / memory constrained (within prefill) — the quadratic attention term, not the 
+linear weights, grows with context; at 128K+ contexts this term dominates prefill cost (at 32K 
+it is already ~+60% — the 4·n_layers·L²·d term, Fig 22.1), so the fix is to reduce the attention 
+term (flash-attention, sparse/linear attention), not to batch harder.
+The architect measures MFU to choose among these. If the prefill kernel is running at 12% MFU, 
+the problem is occupancy or launch — grow the batch or fuse kernels. If MFU is already near ~40% 
+and the kernel is compute-saturated, then prefill is compute-bound and more batch just queues 
+more work without reducing per-request TTFT; the lever instead is kernel efficiency, attention-term 
+control, or P/D disaggregation so prefill’s FLOP profile is served by compute-optimized GPUs while 
+decode’s bandwidth profile runs on wide-memory GPUs.
+The recommendation is therefore: profile first (MEASURE, do not assume), and only then pick the 
+intervention. Batching helps when prefill is occupancy-limited; kernel fusion helps when GEMMs are 
+under-saturated; attention-term control and disaggregation help when the bottleneck is the quadratic 
+attention term or the compute/bandwidth mismatch between phases. The workload’s true roofline 
+position, not an assumed “memory-bound prefill,” dictates the fix.
+Prefill PFLOP also grows with context: 2 ×70B × L tokens scales linearly — ~0.29 PFLOP at 2K → ~4.6 
+PFLOP at 32K — so the longer the window, the larger the one-time compute cost of loading it. Sustained 
+throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point the prefill 
+is ~1.29 PFLOP (Table 8-1). 

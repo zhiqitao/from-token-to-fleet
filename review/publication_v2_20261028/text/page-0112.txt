@@ -1,0 +1,46 @@
+Memory Is the First Constraint
+94
+metric
+value
+derivation
+fits 2×H100 at 9.2K?
+no, 164.1 GB > 160 GB
+does not fit in 2×H100; needs 
+≥3×H100 by aggregate 
+capacity (or lower precision / 
+more GPUs)
+fits 8×H100 at 9.2K?
+yes
+164.1 GB < 640 GB
+fits 3×H100 at 9.2K?
+yes
+164.1 GB < 240 GB
+fits 8×H100 at 32K?
+yes
+224.0 GB < 640 GB
+fits 8×H100 at 128K?
+yes, barely
+475.5 GB < 640 GB
+fits 1×H100 at 9.2K?
+no
+164.1 GB > 80 GB; needs 
+≥3×H100 by aggregate 
+capacity
+Note on “does it fit?”: this residency check answers a single-request question — does ONE request’s 
+weights + KV fit in the pool? It says nothing yet about how many such requests fit concurrently. For that, 
+an architect must subtract the runtime/activation/workspace floor (~64 GB on the 8×H100 host) from 
+the 640 GB pool before sizing KV. We compute that concurrent capacity — the ~436 GB KV budget and 
+~17.5 requests/host (byte-accurate 17.51; conservative integer floor 17) — in Chapter 17. Keep the two 
+numbers separate: the ~500 GB headroom (Ch. 4/7, single-request) and the ~436 GB KV budget (Ch. 17, 
+concurrency) answer different questions.
+Attention-family sensitivity note. The ~2.62 MB/token (2.5 MiB) figure is the full-MHA (multi-
+head attention) upper bound: n_KV-heads = n_query-heads, and n_KV-heads × head_dim = hidden_
+dim, i.e.
+KVMHA per-token = 2 × nlayers × dhidden × B
+Real 70B-class dense models commonly use grouped-query attention (GQA): LLaMA-2 70B, 
+for instance, has 64 query heads but only 8 KV heads, so per-token KV shrinks by the head ratio to
+KVGQA per-token = 2 × nlayers × nKV-heads × dhead × B = 2 × 80 × (8 × 128) × 2 B ≈0.33 MB/token
+— about 8× smaller. For the canonical 9.2K context that is ~3 GB of KV instead of ~24 GB, and 
+the fleet-sizing arithmetic of Chapter 17 changes accordingly (many more concurrent requests fit for 
+KV). We keep the full-MHA bound as the canonical conservative residual because an architect should 
+size against the worst case the chosen model actually presents — the honest move is to read the model 

@@ -1,0 +1,39 @@
+133
+Parallelism: Splitting the Model Across Machines
+10.3.2. Tensor Parallelism: Splitting Weights Across GPUs
+With tensor parallelism, the 140 GB weight is split across GPUs. On 2×H100: 140/2 = 70 GB per GPU, 
+each now under the 80 GB ceiling. But every transformer layer’s matmuls now require an all-reduce 
+of the layer’s output across the TP group — a per-token, per-layer exchange over NVLink. For the 
+canonical 70B with ~80 layers, that is ~80 × tokens × output-size of communication per forward pass. 
+The all-reduce communication cost per forward pass is Ttp = tokens × nlayers × output-size/Beff. 
+TP is only viable where the interconnect is very fast: on-node NVLink (900 GB/s) keeps the sync 
+cheap; over slow Ethernet it would drown. The 900 GB/s operand is [1P][FACT] (vendor datasheet); 
+the computed Ttp is [DERIVED].
+10.3.3. Pipeline Parallelism: Splitting Layers, Accepting Bubbles
+Pipeline parallelism puts stage P on GPU P. The cost is the pipeline bubble: while the first micro-
+batch fills the pipeline and the last one drains, stages sit idle. With P stages and m micro-batches, 
+the steady-state ideal speedup over a single serial pass is:
+ideal speedup =
+m · P
+m + P −1
+The P−1 term in the denominator is the bubble: the pipeline fills and drains exactly once per 
+m-batch pass, so P−1 stage-slots are wasted out of the m · P slots each stage would otherwise work. 
+With P = 4 stages and m = 8 micro-batches, ideal utilization is
+8 · 4
+8 + 4 −1 = 32
+11 ≈2.9 ×
+(out of 4×)
+— a meaningful bubble. Fewer stages or more micro-batches shrink it: with m = 32,
+32 · 4
+32 + 4 −1 = 128
+35 ≈3.66 × .
+The lesson: PP is communication-light (each stage only moves activation boundaries across the 
+fabric) but always pays a bubble that grows with stage count. [ILLUSTRATIVE][DERIVED]
+10.3.4. Data Parallelism: Replicating, Then Syncing Gradients
+Data parallelism replicates the 140 GB model on every GPU. For the gradient all-reduce: if the model 
+has 140 GB of weights and we sync gradients after each step across G GPUs, each GPU sends its 
+gradient tensor once per step. The gradient bytes are
+grad bytes = Nparams × bytes/param = 70 × 109 × 4 B ≈280 GB
+per step (FP32 gradient; the all-reduce moves the gradient once, not weights+gradients). As in 
+Chapter 9, a ring all-reduce moves 2 N−1
+N times the per-rank gradient through each rank, so for 

@@ -1,0 +1,74 @@
+243
+Agentic Systems
+• Total end-to-end: the request is dominated by the ~8.6 s base generation (Ch 8), not the added 
+orchestration; the ~220–660 ms figures are the added agent/tool overhead, not the complete 
+request latency.
+Architectural actions. The team sets the turn limit to 3, instruments each turn’s token and 
+orchestration latency, and adds a context cache for the search tool. With the cache hit rate of 30% 
+on recurring queries, the newly-fetched portion of δ drops to ~560 tokens (70% of 800; the cached 
+30% is not re-fetched), reducing the re-fetch amplification to ~1.09× (about a 9% token overhead on 
+the fetched portion). Note: the retained context still carries the full 800 tokens per turn (cached or 
+not) — the 30% hit rate cuts the re-fetch cost, not the KV-resident length; the two are distinct (see the 
+billable-vs-KV-resident distinction in §19.3). The median added orchestration overhead is still T=1 → 
+~220 ms. The claim “meets an SLA of <1 s” must be scoped carefully: the added agent-orchestration 
+latency is comfortably under 1 s, but the end-to-end request is ~9 s because of the base generation. 
+The architect therefore scopes the <1 s SLA to orchestration overhead excluding final generation, 
+and treats end-to-end as bounded by the ~8.6 s base.
+Lesson. The agentic layer added an expected ~12% token overhead (distribution-weighted, §8) 
+and, at the median T = 1, ~220 ms of orchestration latency (on top of an ~8.6 s base generation), but 
+improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative 
+human-eval reading [ILLUSTRATIVE] scenario result, not a reported production measurement. The 
+trade-off was acceptable — the added overhead is small relative to the base generation — and the 
+token overhead was mitigated by context caching. The architect’s key decisions were: (a) capping 
+turns at 3, (b) adding a search cache, and (c) providing a single-shot fallback when the limit is hit.
+Table 19-1 — Token amplification and latency trade-offs for agentic RQA pipelines
+Metric
+T=1 
+(med.)
+T=2 
+(p90)
+T=3 
+(p95)
+T=4 
+(over 
+cap)
+Single-
+shot
+Input tokens (9,200 + T·800 + T·65)
+10,065
+10,930
+11,795
+12,660
+9,200
+Total tokens (incl. 300 output)
+10,365
+11,230
+12,095
+12,960
+9,500
+Token amplification α
+1.09×
+1.18×
+1.27×
+1.36×
+1.00×
+Per-turn agent step, 10K ctx
+~120 
+ms
+~120 
+ms
+~120 
+ms
+~120 
+ms
+—
+Tool latency (median)
+~100 
+ms
+~100 
+ms
+~100 
+ms
+~100 
+ms
+—

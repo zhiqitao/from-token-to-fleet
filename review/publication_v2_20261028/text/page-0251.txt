@@ -1,0 +1,39 @@
+233
+Agentic Systems
+19.4. Measurement
+To plan capacity and set budgets, we derive three real quantities from the example above and 
+from production telemetry.
+First, a scoping note that matters more than any single number: a production agent turn is not 
+guaranteed to be exactly “one LLM inference + one tool call.” A turn may contain zero or more 
+model invocations, parallel or chained tool calls, retrieval + reranking, model-generated reasoning, 
+tool output, context compaction, or cached prefixes. Treating “1 turn = 1 LLM call + 1 tool call” is a 
+simplified execution model, useful for first-pass arithmetic but not the general agent model. A more 
+faithful capacity model is an execution trace: request → model invocation(s) → tool invocation(s) 
+→ observation(s) → model invocation(s) → final response, with its own token and latency totals. 
+The amplification framework below (token α, latency β) is one concrete, simplified instantiation of 
+that trace — it is what an architect can compute before instrumenting a real system, and it must be 
+validated against measured traces afterwards.
+19.4.1. Per-agent-turn token amplification
+Let T be the number of agent turns and I₀ the initial input tokens (9,200 in our scenario). Each turn 
+adds δ tokens of retrieved context and γ tokens of model-generated reasoning. The total token count 
+after T turns is:
+Total(T) = (I0 + T · δ + T · γ) + Ofinal
+where O_final is the final output (≈300 tokens). The per-turn amplification α is the ratio of total 
+tokens to the single-shot baseline I₀ + O_final:
+α(T) = I0 + T · δ + T · γ + Ofinal
+I0 + Ofinal
+With δ = 800, γ = 65, O_final = 300, and T = 3:
+α(3) = 9,200 + 3 · 800 + 3 · 65 + 300
+9,200 + 300
+= 9,200 + 2,400 + 195 + 300
+9,500
+= 12,095
+9,500 ≈1.27×
+For T = 4: α(4) ≈ 1.36× as computed in the worked example. In production, the distribution of T 
+depends on query complexity. Consistent with the mini-case telemetry in §8 (68% T=1, 25% T=2, 5% 
+T=3, 2% fallback), the illustrative turn distribution here has median T = 1, 90th percentile T = 2, and 
+95th percentile T = 3 [ILLUSTRATIVE][ASSUMPTION] — derived from the §8 distribution.
+What α does and does not measure. α measures retained/accumulated task context under 
+the simplified turn model — the unique content that must be held (and, absent compaction, resent as 
+context) as the conversation grows. It is not the total model-processed or API-billed token multiplier: 
+if the model is invoked repeatedly on the growing prefix, that retained context may be counted in 

@@ -1,0 +1,219 @@
+---
+license: apache-2.0
+library_name: transformers
+tags:
+- dllm
+- diffusion
+- llm
+- text_generation
+---
+
+# LLaDA2.2-flash
+
+**LLaDA2.2-flash** is an agent-oriented diffusion language model in the LLaDA2 series. By introducing **Levenshtein Editing** (with `DELETE` and `INSERT` control tokens) to diffusion language modeling, it represents the LLaDA2 series' first step in agentic applications, including long-context tool use, multi-turn interaction, and robust error correction.For more information, please refer to our [technical report](https://github.com/inclusionAI/LLaDA2.X/blob/main/LLaDA2_2_tech_report.pdf).
+
+
+<div align="center">
+  <img src="https://mdn.alipayobjects.com/huamei_qa8qxu/afts/img/A*9BoDT6rb1BwAAAAAUbAAAAgAemJ7AQ/original" width="800" />
+</div>
+
+<div align="center">
+  <img src="https://mdn.alipayobjects.com/huamei_qa8qxu/afts/img/A*W0wnS7xvKm4AAAAAY-AAAAgAemJ7AQ/original" width="800" />
+</div>
+
+---
+
+## 📊 Benchmarks
+The following tables compare **LLaDA2.2-flash** and **Ling-2.6-flash** in terms of agentic benchmark scores and throughput (TPS).
+
+**Agentic benchmark scores**
+
+| Benchmark | LLaDA2.2-flash | Ling-2.6-flash |
+| --- | ---: | ---: |
+| SWE-bench Verified | 49.28 | 61.20<sup>†</sup> |
+| SWE-bench Pro | 30.10 | 31.88 |
+| SWE-bench Multilingual | 25.00 | 33.73 |
+| τ²-Bench | 80.33 | 76.36<sup>†</sup>  |
+| Claw-Eval | 64.22 | 64.56<sup>†</sup>  |
+| PinchBench | 81.66 | 81.30<sup>†</sup>  |
+| MCP-Atlas | 46.21 | 41.12 |
+| BFCL-V4 | 60.78 | 66.81 |
+
+> **LLaDA2.2-flash evaluation setup:** The SWE-bench series was evaluated using the Claude Code scaffold. Across all benchmarks, we used a 128K context window with `temperature=1.0`, `block_length=32`, `threshold=0.5`, and `editing_threshold=0.0`. Each score represents the average of five runs.
+
+<sup>†</sup> The Ling-2.6-flash score on SWE-bench Verified is taken from the Ling and Ring 2.6 Technical Report, where it was obtained using the OpenHands scaffold. The Ling-2.6-flash scores on τ²-Bench, Claw-Eval, and PinchBench are also sourced from the technical report, whereas its SWE-bench Pro and SWE-bench Multilingual scores were evaluated by us using the same Claude Code scaffold as LLaDA2.2-flash.
+
+
+**Throughput (TPS)**
+
+| Benchmark | LLaDA2.2-flash (TPS) | Ling-2.6-flash (TPS) |
+| --- | ---: | ---: |
+| SWE-bench Verified | 519.0 | 303.2 |
+| SWE-bench Pro | 485.3 | 283.4 |
+| SWE-bench Multilingual | 459.5 | 200.6 |
+| τ²-Bench | 592.8 | 334.9 |
+| BFCL-V4 | 703.82 | 331.5 |
+
+> **Ling-2.6-flash evaluation setup:** MTP was enabled with 4 draft tokens.
+
+More results will be released in the upcoming technical report.
+
+---
+
+## 🚀 Highlights
+
++ **Efficient 128K Diffusion Infrastructure**: LLaDA2.2-flash extends the context window to **128K** and introduces **Block Routing**, which bounds MoE expert activation at the diffusion-block level to enable efficient long-context agentic workloads.
+
++ **Levenshtein Editing**: We introduces **DELETE** and **INSERT** control tokens, allowing diffusion decoding to edit sequence structure, remove redundant content, and create insertion slots during parallel generation.
+
++ **Agentic Reinforcement Learning**: We propose **Levenshtein Editing ELBO-based Block-level Policy Optimization (L-EBPO)**, which leverages agentic environmental rewards to train levenshtein editing and error correction in multi-turn tool-use scenarios.
+
+---
+
+## 📦 Model Variants
+
+| Model ID | Description | Hugging Face Link |
+| --- | --- | --- |
+| `inclusionAI/LLaDA2.2-flash` | Agent-oriented MoE diffusion language model with Levenshtein Editing. | [🤗 Model Card](https://huggingface.co/inclusionAI/LLaDA2.2-flash) |
+
+<!-- TODO: Add other LLaDA2.2 variants if available. -->
+
+---
+
+## 🔍 Model Overview
+
+**LLaDA2.2-flash** has the following specifications:
+
++ **Type**: Mixture-of-Experts (MoE) Diffusion Language Model with Levenshtein Editing
++ **Context Length**: 128K tokens
++ **Levenshtein Editing Control Tokens**: `DELETE`, `INSERT`
++ **Total Parameters (Non-Embedding)**: 100B
++ **Number of Layers**: 32
++ **Attention Heads**: 32
++ **Positional Encoding**: Rotary Position Embedding (RoPE)
++ **Vocabulary Size**: 157,184
+
+---
+
+## 🤗 Hugging Face Transformers
+
+Make sure you have `transformers` and its dependencies installed.
+
+<!-- TODO: Verify the final inference API, model path, and recommended generation parameters. -->
+
+```python
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model_path = "inclusionAI/LLaDA2.2-flash"
+device = "auto"
+
+model = AutoModelForCausalLM.from_pretrained(
+    model_path,
+    trust_remote_code=True,
+    device_map=device,
+)
+model = model.to(torch.bfloat16)
+model.eval()
+
+tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+
+prompt = """Calculate 1+5-28*0.5-200=?"""
+input_ids = tokenizer.apply_chat_template(
+    [{"role": "user", "content": prompt}],
+    add_generation_prompt=True,
+    tokenize=True,
+    return_tensors="pt",
+).input_ids
+
+generated_tokens = model.generate(
+    inputs=input_ids,
+    eos_early_stop=True,
+    gen_length=512,
+    block_length=32,
+    threshold=0.5,
+    editing_threshold=0.0,
+    temperature=0.0,
+)
+
+generated_answer = tokenizer.decode(
+    generated_tokens[0],
+    skip_special_tokens=True,
+)
+print(generated_answer)
+```
+
+### Best Practices
+
+<!-- TODO: Confirm final recommended values for Speed Mode and Quality Mode. -->
+
+To achieve optimal performance, we recommend starting with the following settings:
+
+1. **Sampling Parameters**: Use `block_length=32`, `temperature=0.0`, `top_p=None`, and `top_k=None` as stable default settings.
+
+2. **Denoising Thresholds**: Tune `threshold`, `editing_threshold`, and `max_post_steps` according to the speed-quality trade-off required by the application. Lower thresholds may improve inference speed but can lead to increased repetition or unstable outputs.
+
+3. **Long-Context Agentic Workloads**: For long-context tool-use and multi-turn agent applications, we recommend using **SGLang** as the serving backend. Please ensure that the serving stack is configured for the 128K context window and the model's MoE diffusion inference requirements.
+
+---
+
+## 🤖 ModelScope
+
+If you are in mainland China, we strongly recommend accessing our model from 🤖 [ModelScope](https://modelscope.cn/models/inclusionAI/LLaDA2.2-flash)
+
+---
+
+## Deployment
+
+### SGLang
+
+You can serve LLaDA2.2-flash through an OpenAI-compatible API using SGLang.
+
+Install SGLang from the latest `main` branch:
+
+```bash
+git clone https://github.com/sgl-project/sglang.git
+cd sglang
+pip install -e "python"
+```
+
+For environment requirements, see the
+[SGLang installation guide](https://docs.sglang.io/docs/get-started/install).
+
+Launch the server with the following command. This example uses eight NVIDIA GPUs:
+
+```bash
+python3 -m sglang.launch_server \
+  --model-path inclusionAI/LLaDA2.2-flash \
+  --trust-remote-code \
+  --dllm-algorithm JointThresholdInDel \
+  --moe-runner-backend triton \
+  --tp-size 8 \
+  --context-length 131072 \
+  --max-running-requests 8 \
+  --host 0.0.0.0 \
+  --port 30000
+```
+
+Adjust `--tp-size` and `--max-running-requests` according to your hardware
+and available GPU memory.
+
+`JointThresholdInDel` currently uses greedy decoding, with default settings
+of `block_size=32`, `threshold=0.5`, `edit_threshold=0.0`, and
+`max_post_edit_steps=16`.
+
+---
+
+## 🌐 License
+
+This project is licensed under the terms of the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+---
+
+## 🤝 Contact & Collaboration
+
+For questions, collaboration opportunities, or feedback, please reach out via [Hugging Face](https://huggingface.co/inclusionAI/LLaDA2.2-flash) or open an issue in the [repository](https://github.com/inclusionAI).
+
+Join us in advancing open, efficient, and intelligent diffusion language models for agentic applications.
+
+---

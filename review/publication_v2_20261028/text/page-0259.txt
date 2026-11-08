@@ -1,0 +1,38 @@
+241
+Agentic Systems
+or capacity-planned with the single-shot token arithmetic alone. An architect should instrument 
+tasks (success, turns, calls, retries) and optimize cost per successful task, exactly as an architect of a 
+deterministic service optimizes cost per completed request.
+Tool backend provisioning. Search indexes, SQL pools, and code interpreters become first-
+class infrastructure components. Their capacity (concurrent queries, connection pool size, query 
+throughput) must be dimensioned alongside the LLM GPU pool. A bottleneck in the tool backend 
+will manifest as increased λ_tool, which directly inflates the per-turn latency L and therefore the 
+overall request latency.
+Observability requirements. Each turn generates a tuple of (turn number, model input tokens, 
+tool call, tool latency, tool output tokens, decision). Correlating these tuples across turns for a 
+single request, and across requests for the fleet, requires structured logging and tracing. Without it, 
+debugging why a request took 2 s and consumed 15,000 tokens is nearly impossible.
+Fallback & degradation pathways. Because the agentic layer introduces data-dependent depth, 
+the system must have graceful degradation: if the turn limit is reached, return the best partial answer 
+so far, or fall back to a simpler single-shot prompt. This preserves user experience even when the 
+agent fails to converge.
+19.7. What We Still Don’t Know
+Despite the quantified arithmetic above, several questions remain open and would benefit from 
+targeted research:
+• Turn-count distribution shift with model scale. Do larger-context models (e.g., 405B FP16) 
+exhibit different T distributions? Does the ability to “see more” reduce the need for multi-step 
+loops, or does the model reason more deeply and actually increase T?
+• Token amplification vs. answer quality curve. We can compute α(T) from the illustrative 
+token counts, but we have not firmly established the marginal quality gain per additional turn. 
+Is the 1.27× → 1.36× move from T = 3 to T = 4 worth the 7% token increase? A/B tests across 
+query categories would help.
+• Latency tail under spike load. Our 95th-percentile added orchestration latency of ~660 ms 
+(T = 3, the scenario turn cap; the 2% fallback is single-shot) assumes GPU inference time is 
+constant. Under traffic spikes, GPU saturation can increase inference latency non-linearly. 
+Empirical measurement under controlled load is needed to validate the linear T·L model.
+• Optimal tool design for minimal turn count. Some tools could return more comprehensive 
+results in a single call, reducing the need for multiple rounds. The design space of “rich 
+vs. narrow” tools and its impact on T is underexplored.
+• Cross-user context caching. If many users ask related questions (e.g., “What does the policy 
+say about X?”), can we cache intermediate retrieval results and avoid redundant tool calls? 
+The savings could be substantial but require careful invalidation logic.

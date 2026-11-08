@@ -1,0 +1,51 @@
+225
+Operating Multiple Models
+18.4. Measurement
+To operate a mixed fleet we measure four cross-cutting metrics:
+Metric
+How to measure
+Why it matters
+Weighted 
+average 
+cost/token
+Σ(tokens_i × cost_i) / Σ(tokens_i) 
+across all models
+Directly tracks fleet economics; 
+target under the §18.3.2 per-1M 
+basis (e.g. < $2.50/1M for the FP16 
+tier) for competitive SaaS.
+Per-model 
+throughput
+requests/sec per GPU / per CPU 
+node
+Detects saturation; informs capacity 
+adds vs. routing tweaks.
+Routing 
+accuracy
+% of requests served by the intended 
+target model (not fallback)
+Ensures the routing function R() is 
+well-calibrated; low accuracy means 
+feature gaps or cost model drift.
+Latency p95 
+per model
+p95 of token-level latency per model
+Guarantee SLO per tier; fleet p95 
+must be computed from the 
+combined routed-request latency 
+distribution — per-model p95 values 
+cannot in general be averaged 
+(percentiles are not linearly 
+composable).
+Instrumentation: add a middleware shim that logs model_id, token_count, latency_ms, 
+cost_cents per request. Export to Prometheus + Grafana for real-time dashboards.
+Derived quantity example: Weighted cost rate = (total monthly USD) / (total tokens processed). 
+Start with the arithmetic above, then update daily as actual token counts and cloud prices shift.
+18.5. Common Mistakes
+1. Treating quantization as free. 4-bit/8-bit models reduce VRAM but increase CPU cycles 
+and may lower quality on long-context tasks. Always measure the quality hit before routing 
+en masse.
+2. One-size-fits-all routing. A static rule (“always use 8-bit”) fails when workload mix shifts 
+(e.g., seasonal increase in multilingual queries that need FP16 precision). Use a dynamic router 
+with feature-gate checks.
+3. Ignoring capital amortization. FP16 on 8×H100 has high upfront cost; spreading that cost 

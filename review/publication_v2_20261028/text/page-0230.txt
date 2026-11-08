@@ -1,0 +1,37 @@
+From Server to Fleet
+212
+95th-percentile sizing point, per the chapter’s own rule), FP16-KV C ≈ 13.8/host (436 GB ÷ (12,095 × 
+2.62 MB ≈ 31.7 GB) ≈ 13.8; conservative integer floor 13) sets the ceiling, and adding a host raises 
+aggregate schedulable concurrency by ρ·C, i.e. ~13 concurrent at ρ=0.95 (13.8 × 0.95 ≈ 13.1).
+17.4.4. Cross-host interconnect budget
+If a fraction φ of requests require cross-host data (e.g., distributed retrieval, shared vector index), each 
+such request incurs an additional network round‑trip latency t_net and moves data volume D over 
+the host‑to‑host network. Two distinct bandwidth quantities must be separated: the per‑request 
+burst a single cross‑host request draws during its round trip, and the fleet aggregate average across 
+all hosts. Assuming an intra‑rack 10 Gbps Ethernet backbone:
+Bper-req = D
+tnet
+= 5 MB/0.02 s = 250 MB/s ≈2 Gbps
+For D = 5 MB (top‑5 retrieval snippets), t_net = 20 ms (typical rack latency), the per‑request burst 
+is Bper-req = 5/0.02 = 250 MB/s ≈ 2 Gbps, while the fleet aggregate — the expected number of 
+concurrent cross‑host requests (ϕ · λ · tnet, by Little’s Law, where λ is the request arrival rate) times 
+that burst — is
+Bagg = ϕ · λ · D = 0.1 × 40 × 5 MB = 20 MB/s = 0.16 Gbps
+Both are far inside the 10 Gbps link, so the base case appears benign (the burst leaves ~5× 
+headroom; the aggregate is even smaller). But if φ scales to 0.5 (many distributed queries) and D 
+grows to 50 MB, the per‑request burst becomes 50/0.02 = 2,500 MB/s ≈ 20 Gbps — exceeding a 
+single 10 Gbps link on its own — and the fleet aggregate becomes 0.5 × 40 × 50 = 1,000 MB/s = 1 
+GB/s, which is ~80% of the 10 Gbps (~1.25 GB/s) limit.
+This calculation shows that cross‑host communication must be dimensioned early on the per‑re­
+quest burst (which can exceed a single link even before the aggregate does), and that both the burst 
+and the aggregate scale with φ and D, even if the base case appears benign.
+17.4.5. Counter-scenarios: KV is not always the driver
+The canonical case is one regime — a mid-context, mid-rate RAG workload where the KV-residency 
+ceiling happens to be the binding constraint. Two counter-scenarios show that the method (compute 
+λ·W/C with the real service time) transfers while the conclusion (KV binds) does not. The formula 
+is the method; the binding term is per-workload.
+Counter-scenario A — short context, high batch: KV is not the host-count driver. A 
+code-completion-style workload is a clear case: ~500-token input, ~100-token output, but a very high 
+arrival rate (say 200 rps peak) and a small model (7B, so weights are ~14 GB and the KV footprint per 
+token is far lower). Here two things happen. First, per-request KV is tiny — a 600-token max-context 
+against a small per-token κ is well under 1 GB, so the host holds hundreds of concurrent requests 

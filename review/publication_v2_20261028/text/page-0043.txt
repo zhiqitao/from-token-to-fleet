@@ -1,0 +1,36 @@
+25
+What Actually Happens During Inference
+2.5. Common Mistakes
+• Treating prefill and decode as the same bottleneck. A dangerous mistake is assuming that 
+what slows prefill will also slow decode, or vice versa. Prefill FLOPs scale with input length; 
+decode bandwidth is constant per token. Confusing the two leads to over-provisioning compute 
+for a bandwidth-bound workload, or under-provisioning compute for a compute-bound one.
+• Assuming one H100 suffices for 70B inference. The arithmetic in §2.3 shows that a single 
+H100 cannot meet the decode bandwidth demand (5.6 TB/s vs 3.35 TB/s) nor the prefill compute 
+demand (1.19 PFLOPS required vs 0.989 PFLOPS peak, from 1.29 PFLOP / 1.08 s). Attributing 
+70B serveability to a single GPU ignores the opposite bottlenecks and produces an architecture 
+that fails latency SLOs.
+• Ignoring the input/output token asymmetry. A workload with 9.2K input tokens and 300 
+output tokens imposes a substantial prefill compute burden despite producing relatively few 
+output tokens — do not infer serving cost or resource pressure from output-token count alone. 
+The two legs of the request have different cost structures and different optimization paths: 
+decode is repeated per output token and dominates wall-clock latency (at the canonical ~25 
+ms/token, 300 output tokens ≈ 7.5 s of decode vs a ~1.08 s prefill budget), while prefill is a large 
+one-shot burst of compute and dominates the compute burden (the 9.2K-input attention pass). 
+Quoting only per-token latency or only throughput/s hides this distinction.
+• Using manufacturer-peak bandwidth/FLOPS without mapping to real kernels. H100 
+3.35 TB/s HBM3 is the theoretical peak; actual sustained bandwidth for weight-read kernels 
+may be 60–80% of peak. H100 989 TFLOPS BF16 dense is the tensor-core peak; actual matmul 
+throughput depends on kernel fusion, batching, and precision. Citing raw numbers without 
+kernel context is an anti-catalog error — the number must be matched to the actual serving 
+kernel in use.
+2.6. Architecture Consequence
+The opposite bottlenecks of prefill and decode have immediate architectural consequences:
+• With prefill in the compute-bound regime → optimization levers: kernel fusion (flash-
+attention, scaled-dot-product attention with fewer reads), model parallelism (splitting the 
+70B parameters across GPUs), more GPUs in parallel, or prefill-specific servers that dedicate 
+hardware to the bursty preload phase. Quantization (FP8/BF16) does not reduce the under­
+lying algorithmic operation count (the usual 2 × params × tokens FLOPs are approximately 
+unchanged — the matmuls still multiply the same matrices); rather it reduces the precision, 
+lowers the bytes transferred/stored, and can raise the effective accelerator throughput (8-bit 
+tensor cores run at higher peak rate).

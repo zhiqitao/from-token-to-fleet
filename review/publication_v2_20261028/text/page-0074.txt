@@ -1,0 +1,36 @@
+The Anatomy of an AI Workload
+56
+not make prefill the latency bottleneck; that distinction is a resource-regime statement (prefill is 
+compute-bound, decode is bandwidth-bound), not a wall-clock latency ranking. Architecture choices 
+must be based on phase-specific demand, measured utilization, and SLO-goodput, rather than the 
+input/output token ratio alone. This is why the token profile is the primary architectural driver for 
+this workload.
+Latency from SLO
+The latency dimension is specified through Service Level Objectives, which translate user‑experience 
+goals into concrete time budgets:
+• TTFT (time-to-first-token): budget of 1.2 s, comprising retrieval (~120 ms for vector search 
+and reranking on a local GPU) + prefill (~1.08 s for 9,200 tokens across the 8×H100 canon­
+ical host, ≈8.5K tokens/s prefill — below the host’s ~19,800 tok/s sustained-planning pre­
+fill rate (a planning rate, not a ceiling) and far above what a single H100 alone could sus­
+tain, per Ch 2 and Ch 8). p95 TTFT must stay ≤ 2 s, allowing headroom for occasional 
+cache misses or network jitter. TTFT_e2e convention (used throughout): TTFTe2e =
+retrieval + queue/tokenization/transfer + prefill + first decode step. Here the 1.2 s budget 
+names the dominant modeled terms — retrieval (~120 ms) + prefill (~1.08 s); the queue, tok­
+enization/transfer, and the first decode step are separate, smaller, and in a real system must 
+be added to get the observed TTFT (and must be measured, not assumed). The 1.2 s is an 
+aspirational SLO budget (a sub-2-second user-experience target), not a demonstrated p95 
+TTFT from a benchmark; the ≤2 s p95 is the budgeted ceiling, and the demonstrated value 
+under load requires an actual measurement.
+• TPOT (time-per-output-token): budget of ~25 ms/token. A 300‑token answer therefore 
+takes ~7.5 s of total decode time. p95 TPOT ≤ 35 ms/token provides headroom for batching 
+variability.
+These budgets are [canonical scenario][ASSUMPTION] from typical enterprise Q&A user ex­
+pectations (sub‑2‑second feel) and from the hardware’s published prefill/decode rates. They are the 
+latency constraints that every subsequent architectural decision must respect.
+Economic Constraints
+The economic dimension translates the token profile and traffic into a cost structure:
+• Infrastructure: A single host with 8×H100 GPUs (640 GB total GPU memory, 140 GB model 
+FP16 weights fit with room for KV cache). Capital cost ≈ $20/hour on-demand ($2.50/GPU-hr), 
+or ~$2,500/month reserved (illustrative committed-use discount; a ~83% discount on H100 
+on-demand is unusually deep and differs from the on-demand basis the canonical box uses) — 
+the canonical box uses the on-demand basis.

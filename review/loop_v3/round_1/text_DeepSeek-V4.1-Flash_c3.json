@@ -1,0 +1,55 @@
+[
+  {
+    "id": "CH18-CO-RESIDENCY-KV",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch. 18 §18.3.1 and §18.3.5",
+    "chapter": "Chapter 18 — Operating Multiple Models",
+    "quoted_clause": "70B dense FP16 ... with KV, the full 640 GB pool is used ... we can simultaneously run the weights of: One 70B dense FP16 (140 GB); One 70B 8-bit dense (70 GB); One 70B MoE 8-bit (~70 GB); Two 70B 4-bit GGUF (≈70 GB total). That is ~350 GB of weights, leaving ~290 GB for KV cache ... the FP16 tier handles the tail without contention.",
+    "observed": "The co-residency example is internally inconsistent with the stated canonical KV demand. If the 70B dense FP16 tier's KV alone uses the full 640 GB pool, then the same tier cannot co-reside with the other listed weights. At the stated 40 rps peak, routing 10% of requests to the FP16 tier gives 4 rps; with W ≈ 8.6 s, Little's Law gives ≈34.4 in-flight requests, and at ≈24.9 GB KV per 9,500-token request that is ≈856 GB of KV — far above the ~290 GB left by the co-residency list and above the entire 640 GB pool.",
+    "evidence": "Canonical inputs from Ch. 17: W ≈ 8.6 s, KV ≈ 24.9 GB per 9,500-token request. 10% of 40 rps = 4 rps. 4 × 8.6 = 34.4 in-flight. 34.4 × 24.9 GB ≈ 856.6 GB. The co-residency list leaves 640 − 350 = 290 GB for KV. The table row itself says the FP16 tier with KV uses the full 640 GB pool. Therefore the co-residency and the claim that the FP16 tier 'handles the tail without contention' cannot both hold at the stated peak.",
+    "root_cause": "The worked example mixes a weights-only co-residency calculation with a KV-inclusive capacity statement, and it does not recompute combined KV demand for the routed traffic at the stated peak.",
+    "correction": "Either (a) state explicitly that the co-residency is weights-only and that the FP16 tier cannot serve the canonical 9.5K request at peak while co-resident, or (b) remove the FP16 tier from the co-residency list and recompute the available KV budget, or (c) re-route the FP16 tail to a separate host/pool and price that reserve. Do not claim the FP16 tier handles the tail without contention unless the combined KV at the stated peak is shown to fit.",
+    "acceptance_test": "Recompute combined KV for the routed fractions at 40 rps peak using W ≈ 8.6 s and 24.9 GB/request. Show the total is ≤ the KV budget left after all resident weights, or revise the co-residency and consolidation conclusion."
+  },
+  {
+    "id": "CH17-MIN-CEILINGS-UNITS",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch. 17 §17.3, 'The fleet is governed by the minimum...'",
+    "chapter": "Chapter 17 — From Server to Fleet",
+    "quoted_clause": "The fleet is governed by the *minimum* of several independent ceilings, not by KV alone. ... An architect must take `min` of: (a) **KV-residency concurrency** C, (b) **prefill compute capacity** (the ~19,800 tok/s/host prefill screen of Ch. 8 ...), (c) **decode bandwidth/compute capacity** (the HBM-bound decode roofline), and (d) the **observed p95-TTFT/TPOT SLO goodput** under a load test.",
+    "observed": "The listed ceilings are in incompatible units: (a) is concurrent requests (≈17.5), (b) and (c) are tokens/s (≈19,800 tok/s), and (d) is requests/s (SLO goodput). A `min` across these quantities is undefined without converting them to a common unit. The surrounding text also alternates between per-host capacity and fleet host count, so the direction of the min/max is ambiguous.",
+    "evidence": "C ≈ 17.5 concurrent requests; prefill ceiling ≈ 19,800 tokens/s; decode ceiling is a token rate; SLO goodput is a request rate. The chapter's own provisioning formula uses C/W to convert concurrency and service time into a request rate, but the 'take min' sentence does not perform that conversion.",
+    "root_cause": "Mixing per-host capacity metrics with different dimensions in a single min operation.",
+    "correction": "Convert every ceiling to a common unit — e.g., admitted requests/s per host, or required hosts — before taking the minimum. State explicitly whether the min is over per-host capacities (which yields a max host count) or over fleet-level capacities.",
+    "acceptance_test": "Show the conversion for each ceiling to requests/s per host (or hosts), then recompute the binding constraint and the resulting host count."
+  },
+  {
+    "id": "CH17-FP8-FULL-UTIL-ROUNDING",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch. 17 §17.8, FP8 compression paragraph",
+    "chapter": "Chapter 17 — From Server to Fleet",
+    "quoted_clause": "the u-only screen would read ~94, ≈65 at full utilization",
+    "observed": "At 100 rps with FP8 KV and C = 27 slots, full-utilization host count is ceil(1,770 / 27) = ceil(65.56) = 66, not ≈65. The text rounds down a fractional host count.",
+    "evidence": "1,770 in-flight requests ÷ 27 slots/host = 65.56 hosts. A host count must be an integer ceiling, so the minimum is 66.",
+    "root_cause": "Rounding a fractional host count down instead of applying the integer ceiling.",
+    "correction": "Change '≈65 at full utilization' to '≈66 at full utilization' (or state that 65.56 is the continuous quotient and 66 is the integer host count).",
+    "acceptance_test": "Recompute ceil(1,770 / 27) and confirm the printed full-utilization host count is 66."
+  },
+  {
+    "id": "CH16-SINGLE-HOST-UNDERSTATEMENT-RANGE",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch. 16 §16.3, Step 1 fleet-size discussion",
+    "chapter": "Chapter 16 — TCO: The Total Cost Reality Check",
+    "quoted_clause": "Every TCO figure below is scaled to a named peak fleet — 21 hosts (KV screen / case (i) compute screen) or 22 hosts (case (ii) full-square compute screen), both priced in §16.3; pricing a single host would understate the cost by roughly 6–22×.",
+    "observed": "The sentence says every TCO figure below is scaled to a peak fleet of 21 or 22 hosts, so pricing a single host would understate those figures by 21–22×, not 6–22×. The 6× figure belongs to the average fleet, not the peak fleet being priced.",
+    "evidence": "Peak fleet sizes named in the same sentence: 21 and 22 hosts. Average fleet size is 6 hosts, but the TCO figures below are explicitly peak-fleet figures.",
+    "root_cause": "Mixing the average-fleet multiplier (6×) with the peak-fleet multipliers (21–22×) in one range.",
+    "correction": "Say 'roughly 21–22×' for the peak-fleet figures, or explicitly say '6–22× relative to the average-to-peak fleet range' and name which figures use which basis.",
+    "acceptance_test": "Check that the stated multiplier range matches the fleet size used by the immediately following TCO figures."
+  }
+]
+COVERAGE: I read the full supplied chunk (Chapters 15–18), recomputed the principal arithmetic in Ch. 15 (prefill/decode demand, KV footprint, attention FLOPs, host counts), Ch. 16 (fleet screens, TCO monthly and per-1K costs, break-even volumes, mini-case), Ch. 17 (KV concurrency, agentic token/KV arithmetic, W(3) trace, host counts, Table 17-2, interconnect budget), and Ch. 18 (hardware mapping, per-token routing arithmetic, latency weighted average, mini-case costs). I did not render figures or inspect the built PDF; figure legibility and visual semantics are NOT VERIFIED. I did not check references or external sources; reference accuracy is NOT VERIFIED.

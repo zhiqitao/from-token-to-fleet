@@ -1,0 +1,37 @@
+129
+Parallelism: Splitting the Model Across Machines
+from the decode stage into separate pools) — which has no training analogue. The rest of this section 
+defines the strategies, and §10.3 applies them to inference (the book’s canonical serving context) 
+unless a strategy is explicitly training-only.
+The strategy names tell us what gets split:
+1. Tensor parallelism (TP) splits a single layer’s weights across GPUs. The matrix multiply 
+for one layer is partitioned so each GPU holds a slice of the weight matrix and the GPUs 
+exchange partial results over NVLink every layer. TP is intra-layer and communication-hungry. 
+(Inference: shards weights; per-step exchange is activations, not weights — see Ch. 9.)
+2. Pipeline parallelism (PP) splits the model’s layers (stages) across GPUs. GPU 1 runs layers 
+1–10, GPU 2 runs 11–20, and so on; activations flow forward, gradients flow backward. PP is 
+inter-layer, communication-light, but idle bubbles appear at stage boundaries. (Inference: can 
+split decode stages; bubbles hurt latency-sensitive serving more than training.)
+3. Data parallelism (DP) — different in the two modes. Training: replicates all weights on every 
+GPU, feeds each a different batch, all-reduces gradients after each step; communication-heavy 
+only at the gradient-sync point, but each GPU must hold the full model. Inference: independent 
+replicas each serve a disjoint set of requests; no gradient sync; throughput scales linearly until 
+KV or memory binds (Ch. 17).
+4. Expert parallelism (EP) shards the experts of a Mixture-of-Experts model across GPUs and 
+routes each token to the GPU holding its experts — an all-to-all exchange per token. EP is 
+MoE-specific. (Used in both training and inference for MoE models.)
+5. Sequence/context parallelism (CP) splits the sequence dimension across GPUs, useful for 
+very long contexts where the KV cache or attention activations exceed one GPU. (Inference-
+centric; the serving analogue of training sequence parallelism.)
+6. P/D disaggregation (inference) — separates the compute-bound prefill stage from the 
+bandwidth-bound decode stage onto different GPU pools so each can be sized and scaled 
+independently (Ch. 11). This has no training counterpart and is a serving-only strategy.
+These are not alternatives; production systems compose them (e.g. DP across nodes × TP within 
+a node × PP across a few nodes; or TP+CP within a decode pool + a separate prefill pool). The 
+architect’s job is deciding which dimension to split first, and in which mode (training vs inference) 
+the parallelism is being applied.
+The strategies are not either/or. Fig 10.1 shows the three canonical patterns side by side. Tensor 
+parallel shards one layer’s weight matrix across GPUs — activations are replicated, and each 
+GPU’s partial sums are all-reduced every layer, so the exchange is per-layer and belongs behind 
+NVLink. Pipeline parallel cuts the layer stack into stages on different GPUs — hidden states cross 
+stage boundaries point-to-point, an idle bubble appears as the pipeline fills and drains, and the 

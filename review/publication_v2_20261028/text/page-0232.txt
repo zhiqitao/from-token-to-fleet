@@ -1,0 +1,38 @@
+From Server to Fleet
+214
+4. Under‑estimating load‑balancer overhead. A 5% throughput reduction from ρ = 0.95 may 
+seem small, but at the margin of capacity it can be the difference between fitting on N hosts 
+and needing N+1. Always provision with ρ explicitly in the formula.
+5. Failing to model latency tail under spike traffic. GPU inference time is not constant; 
+under sustained high load, kernel‑mode preemption, memory fragmentation, and concurrent 
+kernel launches can increase per‑token latency by 20–50%. The linear model t = t_inference + 
+t_tool is a lower bound; the architect should add a 20% safety margin.
+17.6. Architecture Consequence
+Transitioning from one host to a fleet reshapes every layer of the system.
+GPU fleet sizing. The number of hosts N must satisfy the service‑time‑augmented capacity 
+formula N = ⌈ λ_peak · W / (C · util_target) ⌉ (the minimum N — the provisioned fleet adds one 
+spare on top, the N−1 rule), where C depends on the agentic turn distribution and W is the full 
+per‑request service time (which rises with turns — each turn adds retrieval latency and generated 
+tokens). Two effects compound as turns grow: C falls (more tokens → more KV per request) and W 
+rises (more per‑turn latency), so in‑flight concurrency λ·W grows on both sides. For the canonical 
+customer‑facing peak (40 rps, W≈8.6 s), in‑flight ≈ 344 and N ≈ ⌈344/17.5⌉ ≈ 20 hosts at full utilization 
+(29 at 70% util, 30 total with N−1) with FP16 KV; FP8 KV cuts that to 15 working hosts (10 at 
+full utilization; 16 total with N−1). The lesson is honest: the binding term is λ·W/C, and W must 
+be the real service time, not a sub‑second target latency. Size for the 95th‑percentile latency and 
+token scenario, not the median, and treat KV precision as the cheapest way to shrink the fleet before 
+adding hardware.
+Load‑balancer selection and configuration. The choice between hardware (F5, Cloud LB) and 
+software (NGINX, HAProxy) affects ρ and the session‑affinity model. Hardware L7 switches offer 
+better ρ (≈0.98) but less fine‑grained traffic‑shaping; software LBs offer ρ ≈ 0.95 but can implement 
+consistent hashing for session affinity. The architect should match the LB capability to the session 
+model: sticky sessions → any LB; stateless → software LB with consistent hashing.
+Cross-host data infrastructure. If any request type requires cross‑host communication (dis­
+tributed retrieval, multi‑model orchestration, state sync), a dedicated backend network must be 
+provisioned. The minimum bandwidth is B_min = φ · λ · D (the fleet aggregate derived in §17.4.4 — 
+the expected concurrent cross—host requests φ·λ·t_net times the per—request burst D/t_net, which 
+simplifies to φ·λ·D), and the fabric should provide at least 2×B_min for headroom. In the canonical 
+scenario with φ = 0.1, λ = 40 rps, D = 5 MB, B_min ≈ 0.16 Gbps (0.1 × 40 × 5 MB = 20 MB/s), so a 10 Gbps 
+intra-rack network has ample headroom for the aggregate; but as §17.4.4 notes, the per-request burst 
+itself (D / t_net = 250 MB/s ≈ 2 Gbps in the base case) must also fit a single link once a request is in 
+flight, which is the binding constraint when φ or D grows. But the architect should instrument φ 
+and D from production telemetry and revisit the bandwidth provisioning quarterly.

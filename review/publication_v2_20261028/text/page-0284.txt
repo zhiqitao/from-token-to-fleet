@@ -1,0 +1,33 @@
+How to Think Like an AI Solution Architect
+266
+22.4. Measurement
+For this chapter, measurement reduces to counting tokens correctly, because a miscount at 
+the input silently misprices everything downstream. Three things an architect can and should check:
+1. Actual token count, not the rule of thumb. Run the model’s own tokenizer on representative 
+prompts from the actual traffic. The “4 chars ≈ 1 token” heuristic is for estimation only; real 
+counts differ by language, formatting, code, and tokenizer version. Measure on our traffic, not 
+the marketing figure.
+2. Input vs output split. Measure both legs of the request (prompt tokens and generated tokens), 
+because they land on different bottlenecks — input on memory/prefill, output on decode — and 
+on different cost line items. A request that is 90% input and 10% output has a very different 
+cost profile than one that is 50/50, even at the same total token count.
+3. Peak vs average context. Log the distribution of context lengths, not just the mean. A 
+workload that averages 9.2K input tokens but peaks at 32K (illustrative variant) has a very 
+different KV cache and latency profile. The 90th-percentile context length is often the number 
+the architect must design for.
+This measurement habit is the token-level answer to the book’s recurring question, “what would 
+I actually measure here?” We measure token counts and their distribution, at the edge, before any 
+architecture decision is made.
+22.5. Common Mistakes
+• Assuming one token ≈ one word. That is not a dependable conversion. A token is often 
+a word fragment, not a whole word: a high-frequency English word is frequently one token, 
+but a longer or rarer word is usually split into several subword tokens, and code, numerics, 
+and non-Latin scripts routinely run 2–5× the naive word-count estimate. Use the model’s own 
+tokenizer, or at most a ~4 English-characters/token rough estimate for general-English 
+prose only, and confirm against the actual tokenizer before pricing anything.
+• Ignoring the input/output asymmetry. Treating a request as “one unit” hides that input-
+heavy workloads tend toward high prefill compute and KV-capacity pressure, while output-
+heavy ones are decode-bound (run-time per generated token) — opposite bottlenecks with 
+opposite fixes. (Note: “capacity pressure” is a memory-capacity constraint, not a memory-
+bandwidth bound; see Ch 4/8.) The 30× input/output ratio in the canonical loop is the concrete 
+illustration of this principle.

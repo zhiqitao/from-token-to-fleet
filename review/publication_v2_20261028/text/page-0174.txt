@@ -1,0 +1,40 @@
+Designing the AI System: From Constraints to Candidates
+156
+12.8. End-of-Chapter Mini-Case: From Vague Ask to Candidate Architectures
+An architect is brought into a design conversation for a company-wide internal Q&A system. The 
+stakeholder states: “We need an AI system that can answer employee questions over our internal 
+documentation, with acceptable quality and within budget.” Before any architecture can be defended, 
+the architect applies the constraint-driven method from this chapter.
+First, the workload is characterized across the six dimensions. Quality requirements fix the model 
+class: the system must achieve ~70B-model answer quality on enterprise prompts. The traffic profile 
+is the canonical one (Ch. 4/5, canonical scenario (Ch 4, Table 4-2)): ~2,000 registered users, ~5% 
+concurrent (~100), ~10 rps average / ~40 rps peak. The token profile is the canonical 1,200-token 
+prompt plus 8K retrieved context (~9.2K input) plus 300-token answers, with TTFT ≤ 1.2 s (p95 
+≤ 2 s) and TPOT ~25 ms/token. The economic ceiling is $15,000 monthly operating budget — a 
+per-host ceiling, expressed as the cloud-equivalent of one 8×H100 at ~$20/hr × 730 hr ≈ $14.6K/mo 
+(an on-premise host has no $/hr, so this is a budget cap, not a metered cost), which the reader 
+should note is far below what the full canonical workload costs once the multi-host fleet is sized (Ch 
+16): the budget is a single-host cap, not the workload ceiling. The consequence must be stated, not 
+dissolved: the fleet the canonical workload requires costs ~$148K/mo (Ch 16) — ~10× the stakeholder’s 
+stated $15,000 ceiling — so the economic constraint, as stated, fails at fleet scale. Economics is 
+therefore recorded as not yet passed (deferred), and the architect’s first return-to-synthesis move is to 
+renegotiate the budget, shape peak demand, or revisit the model class. The operational constraint is 
+that the system must run on existing on-premise GPU infrastructure (no cloud add-ons).
+From the token profile, the architect computes: 9.2K input tokens + 300 output tokens ≈ 9.5K 
+tokens per request. At 10 rps average and 40 rps peak, the system must sustain ~92K input tokens/s 
+average and ~368K input tokens/s peak. Three hard constraints follow — the chapter’s three gates, 
+verbatim: memory fit (weight memory plus KV cache must fit within the on-premise GPU inventory), 
+throughput at the SLO (total tokens-per-second across the installed devices, delivered within the 
+TTFT/TPOT budget, must exceed the traffic demand), and quality (answer quality on the evaluation 
+set must meet the ~70B requirement).
+The architect generates three candidates using the method from §12.3. Candidate (a): a single 
+8×H100 host with 70B FP16 weights + 24 GB KV cache and prefix caching, which fits the memory 
+budget (164 GB < 640 GB aggregate ([ASSUMPTION] canonical (Ch 4, Table 4-2))) — but as Chapter 
+8 shows, one 8×H100 host sustains only ~19,800 prefill-tokens/s at the idealized aggregate (8 × 2,471 
+per GPU; the per-GPU figure is ~2,471, not per-host), far short of the ~92K input tokens/s the 10 rps 
+average demands, so the memory gate passes while the throughput gate already fails. Candidate (b): 
+a P/D-disaggregated two-pool design keeping the full 70B in each pool (prefill and decode pools, 
+each ~164 GB residency on its own 8×H100 host), which buys phase-splitting at the cost of a second 
+host plus the KV-transfer fabric. Candidate (c): a KV-quantized 7B model on a single H100, which fits 
+the memory budget (~15 GB total residency: 14 GB FP16 weights + ~1.2 GB 4-bit KV), but its quality 
+is provisional — whether a 7B-class model can reach the required answer quality is a hypothesis to be 

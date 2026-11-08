@@ -1,0 +1,1262 @@
+Structured Denoising Diffusion Models in Discrete State-Spaces
+Skip to main content
+Report GitHub Issue
+×
+Title:
+Content selection saved. Describe the issue below:
+Description:
+Submit without GitHub
+Submit in GitHub
+Why HTML?
+Report Issue
+Back to Abstract
+Download PDF
+Contents
+Reading mode
+Colour theme
+Abstract
+1 Introduction
+2 Background: diffusion models
+3 Diffusion models for discrete state spaces
+3.1 Choice of Markov transition matrices for the forward process
+3.2 Noise schedules
+3.3 Parameterization of the reverse process
+3.4 Loss function
+4 Connection to existing probabilistic models for text
+5 Text generation
+5.1 Character-level generation on text8
+5.2 Text generation on LM1B
+6 Image generation
+7 Related Work
+8 Discussion
+References
+A Additional details regarding D3PMs
+A.1 Doubly-stochastic matrices
+A.2 More details on possible choices of Markov transition matrices
+A.2.1 Uniform diffusion
+A.2.2 Diffusion with an absorbing state
+A.2.3 Discretized Gaussian transition matrices
+A.2.4 Structured diffusion in text: using word-embedding distance to introduce locality
+A.2.5 Band-diagonal transitions
+A.2.6 Combinations of absorbing diffusion and other diffusion
+A.3 Generative Masked Language Models are Diffusion Models
+A.4 Scaling to a large number of categories
+A.4.1 Low-rank corruption
+A.4.2 Matrix exponentials
+A.5 Continuous-time Markov process transition rates
+A.6 Continuous-limit of schedule from Sohl-Dickstein et al. [43]
+A.7 Mutual-information-based noise schedule
+A.8 Parameterizing the reverse process with a discretized truncated logistic distribution
+B Experiments
+B.1 Details and additional results for unconditional image generation experiments
+Noise schedule settings
+Samples
+B.2 Details and additional results for unconditional text generation experiments
+B.2.1 Additional tables and figures for text8
+B.2.2 Additional tables and figures for LM1B
+B.3 Additional uncurated generation examples from various models
+License: CC BY-NC-SA 4.0
+arXiv:2107.03006v3 [cs.LG] 22 Feb 2023
+Structured Denoising Diffusion Models in Discrete State-Spaces
+Jacob Austin
+††thanks: Equal contributions
+Daniel D. Johnson11footnotemark:
+1
+Jonathan Ho
+Daniel Tarlow & Rianne van den Berg
+††thanks: Now at Microsoft Research
+Affiliation: Google Research, Brain Team
+Email: {jaaustin,ddjohnson,jonathanho,dtarlow,riannevdberg}@google.com
+Abstract
+Denoising diffusion probabilistic models (DDPMs) [19] have shown impressive results on image and waveform generation in continuous state spaces. Here, we introduce Discrete Denoising Diffusion Probabilistic Models (D3PMs), diffusion-like generative models for discrete data that generalize the multinomial diffusion model of Hoogeboom et al. [20], by going beyond corruption processes with uniform transition probabilities. This includes corruption with transition matrices that mimic Gaussian kernels in continuous space, matrices based on nearest neighbors in embedding space, and matrices that introduce absorbing states. The third allows us to draw a connection between diffusion models and autoregressive and mask-based generative models. We show that the choice of transition matrix is an important design decision that leads to improved results in image and text domains. We also introduce a new loss function that combines the variational lower bound with an auxiliary cross entropy loss. For text, this model class achieves strong results on character-level text generation while scaling to large vocabularies on LM1B. On the image dataset CIFAR-10, our models approach the sample quality and exceed the log-likelihood of the continuous-space DDPM model.
+1 Introduction
+Generative modeling is a core problem in machine learning, useful both for benchmarking our ability to capture statistics of natural datasets and for downstream applications that require generating high-dimensional data like images, text, and speech waveforms.
+There has been a great deal of progress with the development of methods like GANs [15, 4], VAEs [25, 35], large autoregressive neural network models [51, 50, 52], normalizing flows [34, 12, 24, 32], and others, each with their own tradeoffs in terms of sample quality, sampling speed, log-likelihoods, and training stability.
+Recently, diffusion models [43] have emerged as a compelling alternative for image [19, 46] and audio [7, 26] generation, achieving comparable sample quality to GANs and log-likelihoods comparable to autoregressive models with fewer inference steps.
+A diffusion model is a parameterized Markov chain trained to reverse a predefined forward process, which is a stochastic process constructed to gradually corrupt training data into pure noise.
+Diffusion models are trained using a stable objective closely related to both maximum likelihood and score matching [21, 53], and they admit faster sampling than autoregressive models by using parallel iterative refinement [30, 45, 47, 44].
+Although diffusion models have been proposed in both discrete and continuous state spaces [43], most recent work has focused on Gaussian diffusion processes that operate in continuous state spaces (e.g. for real-valued image and waveform data). Diffusion models with discrete state spaces have been explored for text and image segmentation domains [20], but they have not yet been demonstrated as a competitive model class for large scale text or image generation.
+Figure 1: D3PM forward and (learned) reverse process applied to a quantized swiss roll. Each dot represents a 2D categorical variable. Top: samples from the uniform, discretized Gaussian, and absorbing state D3PM model forward processes, along with corresponding transition matrices 𝑸\bm{Q}. Bottom: samples from a learned discretized Gaussian reverse process.
+Our aim in this work is to improve and extend discrete diffusion models by using a more structured categorical corruption process to shape data generation, as illustrated in Figure 1. Our models do not require relaxing or embedding discrete data (including images) into continuous spaces, and can embed structure or domain knowledge into the transition matrices used by the forward process. We achieve significantly improved results by taking advantage of this flexibility. We develop structured corruption processes appropriate for text data, using similarity between tokens to enable gradual corruption and denoising. Expanding further, we also explore corruption processes that insert [MASK] tokens, which let us draw parallels to autoregressive and mask-based generative models. Finally, we study discrete diffusion models for quantized images, taking inspiration from the locality exploited by continuous diffusion models. This leads to a particular choice of discrete corruption process that diffuses preferentially to more similar states and leads to much better results in the image domain.
+Overall, we make a number of technical and conceptual contributions.
+Beyond designing several new structured diffusion models, we introduce a new auxiliary loss which stabilizes training of D3PMs and a family of noise schedules based on mutual information that lead to improved performance. We strongly outperform various non-autoregressive baselines for text generation on character-level text generation, and successfully scale discrete diffusion models to large vocabularies and long sequence lengths. We also achieve strong results on the image dataset CIFAR-10, approaching or exceeding the Gaussian diffusion model from Ho et al. [19] on log-likelihoods and sample quality.
+2 Background: diffusion models
+Diffusion models [43] are latent variable generative models characterized by a forward and a reverse Markov process. The forward process q(𝒙1:T|𝒙0)=∏t=1Tq(𝒙t|𝒙t−1)q(\bm{x}_{1:T}|\bm{x}_{0})=\prod_{t=1}^{T}q(\bm{x}_{t}|\bm{x}_{t-1}) corrupts the data 𝒙0∼q⁡(𝒙0)\bm{x}_{0}\sim q(\bm{x}_{0}) into a sequence of increasingly noisy latent variables 𝒙1:T=𝒙1,𝒙2,…,𝒙T\bm{x}_{1:T}=\bm{x}_{1},\bm{x}_{2},...,\bm{x}_{T}. The learned reverse Markov process pθ(𝒙0:T)=p(𝒙T)∏t=1Tpθ(𝒙t−1|𝒙t)p_{\theta}(\bm{x}_{0:T})=p(\bm{x}_{T})\prod_{t=1}^{T}p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t}) gradually denoises the latent variables towards the data distribution. For example, for continuous data, the forward process typically adds Gaussian noise, which the reverse process learns to remove.
+In order to optimize the generative model pθ​(𝒙0)p_{\theta}(\bm{x}_{0}) to fit the data distribution q⁡(𝒙0)q(\bm{x}_{0}), we typically optimize a variational upper bound on the negative log-likelihood:
+Lvb=𝔼q⁡(𝒙0)[\displaystyle L_{\mathrm{vb}}=\mathbb{E}_{q(\bm{x}_{0})}\bigg[
+DKL[q(𝒙T|𝒙0)||p(𝒙T)]⏟LT+∑t=2T𝔼q⁡(𝒙t|𝒙0)[DKL[q(𝒙t−1|𝒙t,𝒙0)||pθ(𝒙t−1|𝒙t)]]⏟Lt−1\displaystyle\underbrace{D_{\mathrm{KL}}[q(\bm{x}_{T}|\bm{x}_{0})||p(\bm{x}_{T})]}_{L_{T}}+\sum_{t=2}^{T}\underbrace{\mathbb{E}_{q(\bm{x}_{t}|\bm{x}_{0})}\big[D_{\mathrm{KL}}[q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0})||p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t})]\big]}_{L_{t-1}}
+−𝔼q⁡(𝒙1|𝒙0)​[log⁡pθ​(𝒙0|𝒙1)]⏟L0].\displaystyle\underbrace{-\mathbb{E}_{q(\bm{x}_{1}|\bm{x}_{0})}[\log p_{\theta}(\bm{x}_{0}|\bm{x}_{1})]}_{L_{0}}\bigg].
+(1)
+When the number of time steps TT goes to infinity, both the forward process and the reverse process share the same functional form [13], allowing the use of a learned reverse process from the same class of distributions as that of the forward process.
+Furthermore, for several choices of the forward process the distribution q⁡(𝒙t|𝒙0)q(\bm{x}_{t}|\bm{x}_{0}) converges to a stationary distribution π⁡(𝒙)\pi(\bm{x}) in the limit t→∞t\rightarrow\infty independent of the value of 𝒙0\bm{x}_{0}.
+When the number of time steps TT is large enough and
+we choose π⁡(𝒙)\pi(\bm{x}) as the prior p⁡(𝒙T)p(\bm{x}_{T}),
+we can guarantee that the
+LTL_{T} term in (1) will approach zero regardless of the data distribution q⁡(𝒙0)q(\bm{x}_{0}).
+(Alternatively, one can use a learned prior pθ​(𝒙T)p_{\theta}(\bm{x}_{T}).)
+While q⁡(𝒙t|𝒙t−1)q(\bm{x}_{t}|\bm{x}_{t-1}) can in theory be arbitrary, efficient training of pθp_{\theta} is possible when q⁡(𝒙t|𝒙t−1)q(\bm{x}_{t}|\bm{x}_{t-1}):
+1.
+Permits efficient sampling of 𝒙t\bm{x}_{t} from q⁡(𝒙t|𝒙0)q(\bm{x}_{t}|\bm{x}_{0}) for an arbitrary time tt, allowing us to randomly sample timesteps and optimize each Lt−1L_{t-1} term individually with stochastic gradient descent,
+2.
+Has a tractable expression for the forward process posterior q⁡(𝒙t−1|𝒙t,𝒙0)q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0}), which allows us to compute the KL divergences present in the Lt−1L_{t-1} term of (1).
+The majority of recent work in continuous spaces [19, 44, 7, 30] defines the forward and reverse distributions as q⁡(𝒙t|𝒙t−1)=𝒩⁡(𝒙t|1−βt​𝒙t−1,βt​𝑰)q(\bm{x}_{t}|\bm{x}_{t-1})=\mathcal{N}\left(\bm{x}_{t}|\sqrt{1-\beta_{t}}\bm{x}_{t-1},\beta_{t}\bm{I}\right) and pθ​(𝒙t−1|𝒙t)=𝒩⁡(𝒙t−1|𝝁θ​(𝒙t,t),𝚺θ​(𝒙t,t))p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t})=\mathcal{N}\left(\bm{x}_{t-1}|\bm{\mu}_{\theta}(\bm{x}_{t},t),\bm{\Sigma}_{\theta}(\bm{x}_{t},t)\right), respectively.
+The aforementioned properties hold in the case of these Gaussian diffusion models:
+the forward process q⁡(𝒙t|𝒙0)q(\bm{x}_{t}|\bm{x}_{0}) converges to a stationary distribution, motivating the choice p⁡(𝒙T)=𝒩⁡(𝒙T|𝟎,𝑰)p(\bm{x}_{T})=\mathcal{N}\left(\bm{x}_{T}|\bm{0},\bm{I}\right), and both q⁡(𝒙t|𝒙0)q(\bm{x}_{t}|\bm{x}_{0}) and q⁡(𝒙t−1|𝒙t,𝒙0)q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0}) are tractable Gaussian distributions for which the KL divergence can be computed analytically.
+3 Diffusion models for discrete state spaces
+Diffusion models with discrete state spaces were first introduced by Sohl-Dickstein et al. [43], who considered a diffusion process over binary random variables.
+Hoogeboom et al. [20] extended
+the model class to categorical random variables with transition matrices characterized by uniform transition probabilities. In their supplementary material, Song et al. [44] also derived this extension, although no experiments were performed with this model class.
+Here, we briefly describe a more general framework for diffusion with categorical random variables which includes these models as special cases.
+For scalar discrete random variables with KK categories xt,xt−1∈1,…,Kx_{t},x_{t-1}\in{1,...,K}
+the forward transition probabilities can be represented by matrices: [𝑸t]i​j=q⁡(xt=j|xt−1=i)[\bm{Q}_{t}]_{ij}=q(x_{t}=j|x_{t-1}=i).
+Denoting the one-hot version of xx with the row vector 𝒙\bm{x}, we can write
+q⁡(𝒙t|𝒙t−1)=Cat⁡(𝒙t,𝒑=𝒙t−1​𝑸t),\displaystyle q(\bm{x}_{t}|\bm{x}_{t-1})=\mathrm{Cat}(\bm{x}_{t};\bm{p}=\bm{x}_{t-1}\bm{Q}_{t}),
+(2)
+where Cat⁡(𝒙,𝒑)\mathrm{Cat}(\bm{x};\bm{p}) is a categorical distribution over the one-hot row vector 𝒙\bm{x} with probabilities given by the row vector 𝒑\bm{p}, and 𝒙t−1​𝑸t\bm{x}_{t-1}\bm{Q}_{t} is to be understood as a row vector-matrix product.
+We assume that 𝑸t\bm{Q}_{t} is applied to each pixel of an image or each token in a sequence independently, and that qq factorizes over these higher dimensions as well; we thus write q⁡(𝒙t|𝒙t−1)q(\bm{x}_{t}|\bm{x}_{t-1}) in terms of a single element.
+Starting from 𝒙0\bm{x}_{0}, we obtain the following tt-step marginal and posterior at time t−1t-1:
+q⁡(𝒙t|𝒙0)=Cat⁡(𝒙t,𝒑=𝒙0​𝑸¯t),with𝑸¯t=𝑸1​𝑸2​…​𝑸t\displaystyle q(\bm{x}_{t}|\bm{x}_{0})=\mathrm{Cat}\left(\bm{x}_{t};\bm{p}=\bm{x}_{0}\overline{\bm{Q}}_{t}\right),\quad\text{with}\quad\overline{\bm{Q}}_{t}=\bm{Q}_{1}\bm{Q}_{2}\ldots\bm{Q}_{t}
+q⁡(𝒙t−1|𝒙t,𝒙0)=q⁡(𝒙t|𝒙t−1,𝒙0)​q​(𝒙t−1|𝒙0)q⁡(𝒙t|𝒙0)=Cat⁡(𝒙t−1,𝒑=𝒙t​𝑸t⊤⊙𝒙0​𝑸¯t−1𝒙0​𝑸¯t​𝒙t⊤).\displaystyle q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0})=\frac{q(\bm{x}_{t}|\bm{x}_{t-1},\bm{x}_{0})q(\bm{x}_{t-1}|\bm{x}_{0})}{q(\bm{x}_{t}|\bm{x}_{0})}=\mathrm{Cat}\left(\bm{x}_{t-1};\bm{p}=\frac{\bm{x}_{t}\bm{Q}_{t}^{\top}\odot\bm{x}_{0}\overline{\bm{Q}}_{t-1}}{\bm{x}_{0}\overline{\bm{Q}}_{t}\bm{x}_{t}^{\top}}\right).
+(3)
+Note that due to the Markov property of the forward process q⁡(𝒙t|𝒙t−1,𝒙0)=q⁡(𝒙t|𝒙t−1)q(\bm{x}_{t}|\bm{x}_{t-1},\bm{x}_{0})=q(\bm{x}_{t}|\bm{x}_{t-1}).
+Assuming that the reverse process pθ​(𝒙t|𝒙t−1)p_{\theta}(\bm{x}_{t}|\bm{x}_{t-1}) is also factorized as conditionally independent over the image or sequence elements, the KL divergence between qq and pθp_{\theta} can be computed by simply summing over all possible values of each random variable; we thus satisfy criteria 1 and 2 discussed in Section 2.
+Depending on 𝑸t\bm{Q}_{t}, the cumulative products 𝑸¯t\overline{\bm{Q}}_{t} can often be computed in closed form, or simply precomputed for all tt.
+However, for large KK and large TT this may be prohibitive. In Appendix A.4 we discuss how to ensure 𝑸¯t\overline{\bm{Q}}_{t} can still be computed efficiently in this case, allowing the framework to scale to a larger number of categories.
+In the next section we discuss the choice of the Markov transition matrices 𝑸t\bm{Q}_{t} and corresponding stationary distributions. From here on, we refer to the general class of diffusion models with discrete state spaces as Discrete Denoising Diffusion Probabilistic Models (D3PMs).
+3.1 Choice of Markov transition matrices for the forward process
+An advantage of the D3PM framework described above is the ability to control the data corruption and denoising process by choosing 𝑸t\bm{Q}_{t}, in notable contrast to continuous diffusion, for which only additive Gaussian noise has received significant attention.
+Besides the constraint that the rows of 𝑸t\bm{Q}_{t} must sum to one to conserve probability mass, the only other constraint in choosing 𝑸t\bm{Q}_{t} is that the rows of 𝑸¯t=𝑸1​𝑸2​…​𝑸t\overline{\bm{Q}}_{t}=\bm{Q}_{1}\bm{Q}_{2}\ldots\bm{Q}_{t} must converge to a known stationary distribution11
+1
+If a stationary distribution is not known, we can introduce a learned prior pθ​(𝒙T)p_{\theta}(\bm{x}_{T}); we note that this is equivalent to extending the forward process by appending a rank-one matrix 𝑸T+1\bm{Q}_{T+1} that ignores 𝒙T\bm{x}_{T} and produces a deterministic 𝒙T+1\bm{x}_{T+1}, then learning the reverse step pθ​(𝒙T|𝒙T+1)=pθ​(𝒙T)p_{\theta}(\bm{x}_{T}|\bm{x}_{T+1})=p_{\theta}(\bm{x}_{T}).
+when tt becomes large, which can be guaranteed while imposing minimal restrictions on 𝑸t\bm{Q}_{t} (see Appendix A.1).
+We argue that for most real-world discrete data, including images and text,
+it makes sense to add domain-dependent structure to the transition matrices 𝑸t\bm{Q}_{t} as a way of controlling the forward corruption process and the learnable reverse denoising process.
+Below we briefly discuss the uniform transition matrices that have been studied in prior work [20], along with a set of structured transition matrices we have explored for our image and text dataset experiments; see Appendix A.2 for more details on each matrix type. We also note that this set is not exhaustive, and many other transition matrices could also be used within the D3PM framework.
+Uniform (Appendix A.2.1). Sohl-Dickstein et al. [43] considered a simple 2×22\times 2 transition matrix for binary random variables. Hoogeboom et al. [20] later extended this to categorical variables, proposing a transition matrix 𝑸t=(1−βt)​𝑰+βt/K​ 11T\bm{Q}_{t}=(1-\beta_{t})\bm{I}+\beta_{t}/K\;\mathbbm{1}\mathbbm{1}^{T} with βt∈[0,1]\beta_{t}\in[0,1]. Since this transition matrix is doubly stochastic with strictly positive entries, the stationary distribution is uniform.
+Because the transition probability to any other state is uniform, in this paper we equivalently refer to this discrete diffusion instance as D3PM-uniform.
+Absorbing state (Appendix A.2.2). Motivated by the success of BERT [11] and recent work on Conditional Masked Language Models (CMLMs) in text, we consider a transition matrix with an absorbing state (called [MASK]), such that each token either stays the same or transitions to [MASK] with some probability βt\beta_{t}. This does not impose particular relationships between categories, similar to uniform diffusion, but still allows corrupted tokens to be distinguished from original ones. Moreover, the stationary distribution is not uniform but has all the mass on the [MASK] token. For images, we reuse the grey pixel as the [MASK] absorbing token.
+Discretized Gaussian (Appendix A.2.3). Instead of transitioning uniformly to any other state, for ordinal data we propose imitating a continuous space diffusion model by using a discretized, truncated Gaussian distribution. We choose a normalization such that the transition matrix is doubly stochastic, leading to a uniform stationary distribution. This transition matrix will transition between more similar states with higher probability, and is well suited for quantized ordinal data such as images.
+Token embedding distance (Appendix A.2.4). Textual data does not have ordinal structure, but there may still be interesting semantic relationships. For instance, in a character level vocabulary vowels may be more similar to each other than they are to consonants. As a demonstration of the generality of the D3PM framework, we explore using similarity in an embedding space to guide the forward process, and construct a doubly-stochastic transition matrix that transitions more frequently between tokens that have similar embeddings while maintaining a uniform stationary distribution.
+For uniform and absorbing-state diffusion, the cumulative products 𝑸¯t\overline{\bm{Q}}_{t} can be computed in closed form (see Appendix A.4.1); the remainder can be precomputed.
+3.2 Noise schedules
+We consider several different options for the noise schedule of the forward process. For discretized Gaussian diffusion, we explore linearly increasing the variance of the Gaussian before discretizing it. (Note that a linear schedule for 𝑸t\bm{Q}_{t} leads to a nonlinear amount of cumulative noise in 𝑸¯t\overline{\bm{Q}}_{t}.)
+For uniform diffusion we use the cosine schedule which sets the cumulative probability of a transition to a cosine function, as introduced by Nichol and Dhariwal [30] and adapted by Hoogeboom et al. [20].
+For a general set of transition matrices 𝑸t\bm{Q}_{t} (such as the one based on token embeddings), previously proposed schedules may not be directly applicable. We consider linearly interpolating the mutual information between 𝒙t\bm{x}_{t} and 𝒙0\bm{x}_{0} to zero, i.e. I⁡(𝒙t,𝒙0)≈(1−tT)​H​(𝒙0)I(\bm{x}_{t};\bm{x}_{0})\approx(1-\frac{t}{T})\,H(\bm{x}_{0}). Interestingly, for the specific case of absorbing-state D3PMs, this schedule reduces to exactly the (T−t+1)−1(T-t+1)^{-1} schedule proposed by Sohl-Dickstein et al. [43] for a Bernoulli diffusion process. See Appendix A.7 for more details.
+3.3 Parameterization of the reverse process
+While it is possible to directly predict the logits of pθ​(𝒙t−1|𝒙t)p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t}) using a neural network nnθ​(𝒙t)\mathrm{nn}_{\theta}(\bm{x}_{t}), we follow Ho et al. [19] and Hoogeboom et al. [20] and focus on using a neural network
+nnθ​(𝒙t)\mathrm{nn}_{\theta}(\bm{x}_{t}) to predict the logits of a distribution p~θ​(𝒙~0|𝒙t)\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}), which we combine with q⁡(𝒙t−1|𝒙t,𝒙0)q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0}) and a summation over one-hot representations of 𝒙0\bm{x}_{0} to obtain the following parameterization
+pθ​(𝒙t−1|𝒙t)∝∑𝒙~0q⁡(𝒙t−1,𝒙t|𝒙~0)​p~θ​(𝒙~0|𝒙t).\displaystyle p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t})\propto\sum_{\widetilde{\bm{x}}_{0}}q(\bm{x}_{t-1},\bm{x}_{t}|\widetilde{\bm{x}}_{0})\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}).
+(4)
+We note that under this 𝒙0\bm{x}_{0}-parameterization the KL divergence DKL[q(𝒙t−1|𝒙t,𝒙0)||pθ(𝒙t−1|𝒙t)]D_{\mathrm{KL}}[q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0})||p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t})] will be zero if p~θ​(𝒙~0|𝒙t)\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}) places all of its probability mass on the original value 𝒙0\bm{x}_{0}.
+The decomposition of q⁡(𝒙t−1|𝒙t,𝒙0)q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0}) in (3) also provides us with a motivation for this parameterization. According to (3), in a given state 𝒙t\bm{x}_{t}, the optimal reverse process only takes into account transitions to states for which q⁡(𝒙t|𝒙t−1)q(\bm{x}_{t}|\bm{x}_{t-1}) is non-zero. Therefore, the sparsity pattern of 𝑸t\bm{Q}_{t} determines the sparsity pattern of the ideal reverse transition probabilities in pθ​(𝒙t−1|𝒙t)p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t}). The parameterization in (4) automatically ensures that the learned reverse probability distribution pθ​(𝒙t−1|𝒙t)p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t}) has the correct sparsity pattern dictated by the choice of the Markov transition matrix 𝑸t\bm{Q}_{t}. This parameterization also lets us perform inference with kk steps at a time, by predicting pθ​(𝒙t−k|𝒙t)=∑q⁡(𝒙t−k,𝒙t|𝒙~0)​pθ~​(𝒙~0|𝒙t)p_{\theta}(\bm{x}_{t-k}|\bm{x}_{t})=\sum q(\bm{x}_{t-k},\bm{x}_{t}|\widetilde{\bm{x}}_{0})\widetilde{p_{\theta}}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}).
+Finally, when modeling ordinal discrete data, instead of predicting the logits of p~θ​(𝒙~0|𝒙t)\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}) directly with the output of a neural net, another option is to model the probabilities with a truncated discretized logistic distribution (see Appendix A.8). This provides an extra ordinal inductive bias to the reverse model and boosts FID and log-likelihood scores for images.
+3.4 Loss function
+While the original diffusion models introduced by Sohl-Dickstein et al. [43] were optimized with the negative variational lower bound LvbL_{\mathrm{vb}} of (1), more recent diffusion models are optimized with different objectives.
+For instance, Ho et al. [19] derive a simplified loss function (LsimpleL_{\mathrm{simple}}) that reweights the negative variational bound, and Nichol and Dhariwal [30] explore a hybrid loss Lhybrid=Lsimple+λ​LvbL_{\mathrm{hybrid}}=L_{\mathrm{simple}}+\lambda L_{\mathrm{vb}} (using one term to learn the predicted mean and the other to learn predicted variance).
+Inspired by this recent work, we introduce an auxiliary denoising objective for the 𝒙0\bm{x}_{0}-parameterization of the reverse process, which encourages good predictions of the data 𝒙0\bm{x}_{0} at each time step.
+We combine this with the negative variational lower bound, yielding the following alternative loss function:
+Lλ=\displaystyle L_{\lambda}=
+Lvb+λ​𝔼q⁡(𝒙0)​𝔼q⁡(𝒙t|𝒙0)​[−log⁡p~θ​(𝒙0|𝒙t)].\displaystyle L_{\mathrm{vb}}+\lambda\;\mathbb{E}_{q(\bm{x}_{0})}\mathbb{E}_{q(\bm{x}_{t}|\bm{x}_{0})}[-\log\widetilde{p}_{\theta}(\bm{x}_{0}|\bm{x}_{t})].
+(5)
+Note that the auxiliary loss coincides with the cross entropy term L0L_{0} in (1) at t=1t=1. Furthermore, due to the 𝒙0\bm{x}_{0}-parameterization of pθ​(𝒙t−1|𝒙t)p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t}), both the auxiliary loss term and DKL[q(𝒙t−1|𝒙t,𝒙0)||pθ(𝒙t−1|𝒙t)]D_{\mathrm{KL}}[q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0})||p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t})] in LvbL_{\mathrm{vb}} are minimized exactly when p~θ​(𝒙~0|𝒙t)\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}) has all its mass on the datapoint 𝒙0\bm{x}_{0}.
+We find that training with this loss leads to improved quality of image samples.
+4 Connection to existing probabilistic models for text
+In this section we expand on interesting connections between the D3PM framework and several existing probabilistic and language modeling approaches.
+BERT is a one-step diffusion model: One possible D3PM transition matrix is a combination of a uniform transition matrix and an absorbing state at the [MASK] token
+(i.e. 𝑸=α​𝟙​emT+β​𝟙𝟙T/K+(1−α−β)​I\bm{Q}=\alpha\mathbbm{1}e_{m}^{T}+\beta\mathbbm{1}\mathbbm{1}^{T}/K+(1-\alpha-\beta)I, where eme_{m} is a one-hot vector on the [MASK] token).
+For a one-step diffusion process in which q⁡(𝒙1|𝒙0)q(\bm{x}_{1}|\bm{x}_{0}) replaces 10% of tokens with [MASK] and 5% uniformly at random, this leads precisely to the BERT denoising objective, i.e. Lv​b−LT=−𝔼q⁡(𝒙1|𝒙0)​[log⁡pθ​(𝒙0|𝒙1)]=LB​E​R​TL_{vb}-L_{T}=-\mathbb{E}_{q(\bm{x}_{1}|\bm{x}_{0})}[\log p_{\theta}(\bm{x}_{0}|\bm{x}_{1})]=L_{BERT},
+since LTL_{T} is a constant independent of θ\theta (assuming a fixed prior).
+Autoregressive models are (discrete) diffusion models: Consider a diffusion process that deterministically masks tokens one-by-one in a sequence of length N=TN=T:
+q⁡([𝒙t]i∣𝒙0)=[𝒙0]i​ if ​i<N−t​ else [MASK] q(\left[\bm{x}_{t}\right]_{i}\mid\bm{x}_{0})=[\bm{x}_{0}]_{i}\text{ if }i<N-t\text{ else [MASK] }. This is a deterministic forward process, so q⁡(𝒙t−1|𝒙t,𝒙0)q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0}) is a delta distribution on the 𝒙t\bm{x}_{t} sequence with one fewer mask: q⁡([𝒙t−1]i|𝒙t,𝒙0)=δ[𝒙t]i​ if ​i≠T−t​ else ​δ[𝒙0]iq(\left[\bm{x}_{t-1}\right]_{i}|\bm{x}_{t},\bm{x}_{0})=\delta_{[\bm{x}_{t}]_{i}}\text{ if }i\neq T-t\text{ else }\delta_{[\bm{x}_{0}]_{i}}. While this process is not applied independently to each token, it can
+be recast as an independently-applied diffusion process on the product space
+[0​…​N]×𝒱[0...N]\times\mathcal{V}, where each token is tagged with its position in the sequence, 𝒱\mathcal{V} is the vocabulary, and 𝑸\bm{Q} is an N×|𝒱|×N×|𝒱|N\times|\mathcal{V}|\times N\times|\mathcal{V}| sparse matrix.
+Because all tokens except the one at position i=T−ti=T-t have deterministic posteriors, the KL divergence DK​L(q([𝒙t−1]j|𝒙t,𝒙0)∣∣pθ([𝒙t−1]j|𝒙t))D_{KL}(q([\bm{x}_{t-1}]_{j}|\bm{x}_{t},\bm{x}_{0})\mid\mid p_{\theta}([\bm{x}_{t-1}]_{j}|\bm{x}_{t})) is zero for all other positions. The only token for which this is not true is the token at position ii, for which DK​L(q([𝒙t−1]i|𝒙t,𝒙0)∣∣pθ([𝒙t−1]i|𝒙t))=−logpθ([𝒙0]i|𝒙t)D_{KL}(q([\bm{x}_{t-1}]_{i}|\bm{x}_{t},\bm{x}_{0})\mid\mid p_{\theta}([\bm{x}_{t-1}]_{i}|\bm{x}_{t}))=-\log p_{\theta}([\bm{x}_{0}]_{i}|\bm{x}_{t}), the standard cross entropy loss for an autoregressive model.
+(Generative) Masked Language-Models (MLMs) are diffusion models: Generative Masked Language Models ([14], [54]) are generative models that generate text from a sequence of [MASK] tokens. They are usually trained by sampling a sequence 𝒙0\bm{x}_{0}, masking kk tokens according to some schedule, and learning to predict the masked tokens given context. It turns out that a D3PM absorbing ([MASK]) model trained on the usual ELBO objective with
+the 𝒙0\bm{x}_{0}-parameterization from 3.3 reduces to a reweighted version of this MLM objective (see Appendix A.3 for a detailed derivation).
+5 Text generation
+For text, we experiment with generation on two datasets: text8 [28], a character-level dataset extracted from English-language Wikipedia, and the One Billion Word dataset (LM1B) [6], a large dataset of shuffled English-language sentences. For both, we train a D3PM uniform model based on the work by Hoogeboom et al. [20] (D3PM uniform) and a model that masks tokens (D3PM absorbing). We also consider a model that transitions uniformly to nearest neighbors in a token embedding space (D3PM NN). We follow Hoogeboom et al. [20] and use T=1000T=1000 timesteps, although we are also able to evaluate on fewer due to the parameterization in Section 3.3.
+5.1 Character-level generation on text8
+Table 1: Quantitative results on text8. NLL is reported on the entire test set. Sample times are for generating a single example of length 256. Results are reported on two seeds. All models are standard 12-layer transformers unless otherwise noted. †Transformer XL is a 24-layer transformer, using a 784 context window. ‡Results reported by [20] by running code from official repository.
+Model
+Model steps
+NLL (bits/char) (↓\downarrow)
+Sample time (s) (↓\downarrow)
+Discrete Flow [49] (8×38\times 3 layers)
+-
+1.231.23
+0.160.16
+Argmax Coupling Flow [20]
+-
+1.801.80
+0.40±0.030.40\pm 0.03
+IAF / SCF [57]‡
+-
+1.881.88
+0.04±0.00040.04\pm 0.0004
+Multinomial Diffusion (D3PM uniform) [20]
+10001000
+≤1.72\leq 1.72
+26.6±2.226.6\pm 2.2
+D3PM uniform [20] (ours)
+10001000
+≤1.61±0.02\leq 1.61\pm 0.02
+3.6±0.43.6\pm 0.4
+D3PM NN (LvbL_{\mathrm{vb}}) (ours)
+10001000
+≤1.59±0.03\leq 1.59\pm 0.03
+3.1474±0.00023.1474\pm 0.0002
+D3PM mask (Lλ=0.01L_{\lambda=0.01}) (ours)
+10001000
+≤1.45±0.02\leq 1.45\pm 0.02
+3.4±0.33.4\pm 0.3
+D3PM uniform [20] (ours)
+256256
+≤1.68±0.01\leq 1.68\pm 0.01
+0.5801±0.00010.5801\pm 0.0001
+D3PM NN (LvbL_{\mathrm{vb}}) (ours)
+256256
+≤1.64±0.02\leq 1.64\pm 0.02
+0.813±0.0020.813\pm 0.002
+D3PM absorbing (Lλ=0.01L_{\lambda=0.01}) (ours)
+256256
+≤1.47±0.03\leq 1.47\pm 0.03
+0.598±0.0020.598\pm 0.002
+Transformer decoder (ours)
+256256
+1.231.23
+0.3570±0.00020.3570\pm 0.0002
+Transformer decoder [1]
+256256
+1.181.18
+-
+Transformer XL [10]†
+256256
+1.081.08
+-
+D3PM uniform [20] (ours)
+2020
+≤1.79±0.03\leq 1.79\pm 0.03
+0.0771±0.00050.0771\pm 0.0005
+D3PM NN (LvbL_{\mathrm{vb}}) (ours)
+2020
+≤1.75±0.02\leq 1.75\pm 0.02
+0.1110±0.00010.1110\pm 0.0001
+D3PM absorbing (Lλ=0.01L_{\lambda=0.01}) (ours)
+2020
+≤1.56±0.04\leq 1.56\pm 0.04
+0.0785±0.00030.0785\pm 0.0003
+text8 is a character-level text dataset consisting of a small vocabulary of 27 tokens: the letters ‘a’-‘z’ and the ‘_’ whitespace token. We follow the convention of training and evaluating text8 in chunks of length 256 without any preprocessing [20]. For nearest-neighbor D3PM, our nearest neighbor graph in character-space is shown in Appendix B.2.1. D3PM uniform models were trained with a cosine schedule from Hoogeboom et al. [20] (ablations in Appendix B.2.1), while D3PM absorbing and D3PM NN models were trained with a mutual information schedule.
+Table 1 shows that for D3PM, the D3PM absorbing model performed the best, exceeding the uniform and NN diffusion models. We were able to improve upon the baseline result of [20] with hyperparameter tuning, and our uniform and NN results outperformed results from Hoogeboom et al. [20] across all inference steps, down to as few as 20. We found that Lλ=0.01L_{\lambda=0.01} worked best for D3PM absorbing, while LvbL_{\mathrm{vb}} was better for D3PM uniform. Our model outperforms all non-autoregressive baselines except one, the Discrete Flow model [49]
+(for which unfortunately no open-source implementations exist), and is also faster than all but one method, the IAF/SCF model [57]. It is also nearly 20x faster than an autoregressive transformer of the same size. We also include a plot of inference time as a function of iterations in Appendix B.2.1.
+D3PM with the mask absorbing token was by far the best performing model, which lends credibility to the use of masks in denoising auto-encoders. Nearest-neighbor diffusion only narrowly improves upon a D3PM-uniform model: this was a surprising negative result for us, suggesting that not all notions of structure are meaningful.
+5.2 Text generation on LM1B
+Text generation for large-scale text datasets and large vocabularies with discrete diffusion models has not been previously demonstrated. We include results from LM1B as a proof of concept, showing that these models can indeed scale (as discussed in Appendix A.4), and that the D3PM absorbing model continues to excel. All models were trained and evaluated on packed sequences of length 128128, using a sentencepiece22
+2
+https://github.com/google/sentencepiece vocabulary of size 81928192.
+Figure 2: Left: perplexity v.s. sampling iterations for LM1B. Right: Using a trained D3PM absorbing model for LM1B to (top) generate new sentences and (bottom) reconstruct corrupted examples.
+Table 2 contains results from experiments on LM1B. Overall, mask diffusion (D3PM absorbing) does relatively well, approaching the performance of a comparable autoregressive model of the same size, and scaling to far fewer steps, while uniform diffusion performs significantly worse. We find, surprisingly, that the D3PM NN model performs worse than the uniform model in terms of log likelihoods (although it demonstrates unique qualitative behavior). This suggests that word embedding similarity may not be a meaningful kind of locality in a diffusion process. We found the the Lλ=0.01L_{\lambda=0.01} loss worked best for the mask absorbing model, but reduced performance for the other models. We note the surprising scaling in perplexity in Figure 2, achieving strong results with as few as 10 inference steps. We also show samples from our model and completions from corrupted samples.
+Table 2: Quantitative results on LM1B. Perplexity reported on the test set. Results are reported on two seeds. All models have context window length 128 and 12 layers unless otherwise noted. †Transformer XL is a 24 layer transformer. ‡rounded for readability, see Appendix B.2.2.
+Metric:
+Perplexity (↓\downarrow)
+Sample time‡ (s) (↓\downarrow)
+inference steps:
+10001000
+128128
+6464
+10001000
+128128
+6464
+D3PM uniform
+137.9 ±\pm 2.1
+139.2 ±\pm 1.2
+145.0 ±\pm 1.2
+1.82
+0.21
+0.08
+D3PM NN
+149.5 ±\pm 1.3
+158.6 ±\pm 2.2
+160.4 ±\pm 1.2
+21.29
+6.69
+5.88
+D3PM absorbing
+76.9 ±\pm 2.3
+80.1 ±\pm 1.2
+83.6 ±\pm 6.1
+1.90
+0.19
+0.10
+Transformer (ours)
+-
+43.6
+-
+-
+0.26
+-
+Transformer XL [10]†
+-
+21.8
+-
+-
+-
+-
+6 Image generation
+Table 3: Inception scores (IS), Frechet Inception Distance (FID) and negative log-likehood (NLL) on the image dataset CIFAR-10. The NLL is reported on the test set in bits per dimension. We report our results as averages with standard deviations, obtained by training five models with different seeds.
+Model
+IS (↑\uparrow)
+FID (↓\downarrow)
+NLL (↓\downarrow)
+Sparse Transformer [9]
+2.80
+NCSN [45]
+8.87±0.128.87\pm 0.12
+25.32
+NCSNv2 [46]
+8.40±0.078.40\pm 0.07
+10.87
+StyleGAN2 + ADA [22]
+9.74±0.059.74\pm 0.05
+3.26
+Diffusion (original), LvbL_{\mathrm{vb}} [43]
+≤5.40\leq 5.40
+DDPM LvbL_{\mathrm{vb}} [19]
+7.67±0.137.67\pm 0.13
+13.5113.51
+≤3.70\leq 3.70
+DDPM LsimpleL_{\mathrm{simple}} [19]
+9.46±0.119.46\pm 0.11
+3.173.17
+≤3.75\leq 3.75
+Improved DDPM LvbL_{\mathrm{vb}} [30]
+11.4711.47
+≤2.94\leq 2.94
+Improved DDPM LsimpleL_{\mathrm{simple}} [30]
+2.902.90
+≤3.37\leq 3.37
+DDPM++ cont [47]
+2.922.92
+2.992.99
+NCSN++ cont. [47]
+9.899.89
+2.202.20
+D3PM uniform LvbL_{\mathrm{vb}}
+5.99±0.145.99\pm 0.14
+51.27±2.1551.27\pm 2.15
+≤5.08±0.02\leq 5.08\pm 0.02
+D3PM absorbing LvbL_{\mathrm{vb}}
+6.26±0.106.26\pm 0.10
+41.28±0.6541.28\pm 0.65
+≤4.83±0.02\leq 4.83\pm 0.02
+D3PM absorbing Lλ=0.001L_{\lambda=0.001}
+6.78±0.086.78\pm 0.08
+30.97±0.6430.97\pm 0.64
+≤4.40±0.02\leq 4.40\pm 0.02
+D3PM Gauss LvbL_{\mathrm{vb}}
+7.75±0.137.75\pm 0.13
+15.30±0.5515.30\pm 0.55
+≤3.966±0.005\leq 3.966\pm 0.005
+D3PM Gauss Lλ=0.001L_{\lambda=0.001}
+8.54±0.128.54\pm 0.12
+8.34±0.108.34\pm 0.10
+≤3.975±0.006\leq 3.975\pm 0.006
+D3PM Gauss + logistic Lλ=0.001L_{\lambda=0.001}
+8.56±0.108.56\pm 0.10
+7.34±0.197.34\pm 0.19
+≤3.435±0.007\leq 3.435\pm 0.007
+We evaluate the performance of several D3PM models on the task of unconditional image generation with the dataset CIFAR-10 [27]. We follow Ho et al. [19] and use T=1000T=1000 timesteps for all models and verify that for all models the forward process converges to the stationary distribution within TT steps, yielding a value of at most LT≈10−5L_{T}\approx 10^{-5} bits per dimension. We train three versions of D3PM with different transition matrices: doubly stochastic matrices with uniform transition probabilities (D3PM uniform) [20], transition matrices with an absorbing state located at R, G and B values of 128 (D3PM absorbing) and doubly stochastic discretized Gaussian transition matrices (D3PM Gauss). For the D3PM uniform model we experimented with a linear βt\beta_{t} schedule as well as the cosine schedule as proposed in [20], with the cosine schedule producing the best results. For D3PM absorbing we use the schedule βt=(T−t+1)−1\beta_{t}=(T-t+1)^{-1} as also proposed in [43], which corresponds to increasing the probability of being in the absorbing state linearly over time.
+For D3PM Gauss we use the same linear schedule as in [19]. See Appendix B.1 for more details on the experimental setup.
+Figure 3: Left: progressive sampling at t=1000,900,800,…,0t=1000,900,800,...,0 for D3PM absorbing (top) and D3PM Gauss + logistic (bottom), trained with LλL_{\lambda} loss on CIFAR-10. These samples were cherry picked. Right: (non cherry picked) samples from the D3PM Gauss + logistic model.
+Table 3 shows that for D3PM models trained with the LvbL_{\mathrm{vb}} objective, D3PM Gauss performs better than D3PM absorbing and uniform on all metrics: Inception score (IS), Frechet Inception Distance (FID) and negative log-likelihood (NLL). The IS score of the uniform and absorbing D3PM models are comparable, while the FID score and NLL of the D3PM absorbing model are slightly better. We trained both D3PM absorbing and D3PM Gauss with the alternative loss function LλL_{\lambda} of (5), and we found λ=0.001\lambda=0.001 to work best.
+We have also experimented with larger values of λ\lambda and a model trained only with the auxiliary denoising term in (5). Although this led to a more rapid increase in performance early on in training, the NLL leveled off at higher values for larger λ\lambda and the FID even started increasing again.
+The results show that the models trained with LλL_{\lambda} perform significantly better than their counterparts trained with LvbL_{\mathrm{vb}}.
+One explanation for this boost in performance is that the cross entropy term leads to gradient noise that varies less with the time step tt, which is in contrast to the large change in magnitude of the Lt−1L_{t-1} terms in LvbL_{\mathrm{vb}} for smaller tt, as demonstrated by Nichol and Dhariwal [30].
+Finally, we achieve our best results by combining D3PM Gauss trained on LλL_{\lambda} with a truncated logistic parameterization of the reverse process distribution pθ​(𝒙~0|𝒙t)p_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}) (D3PM Gauss + logistic). Figure 3 shows samples from our best model (D3PM Gauss + logistic), as well as the D3PM absorbing model.
+7 Related Work
+Diffusion generative models were first proposed by Sohl-Dickstein et al. [43] and have gained renewed attention recently due to strong results on image and waveform generation [19, 7]. Recent works have proposed improvements for diffusion model training, including importance sampling of the ELBO, better noise schedules [30] and implicit diffusion models [44]. Several works have also drawn connections to score matching [53, 21, 45], leading to improved sampling algorithms in the continuous-time limit [47].
+While most works have considered continuous diffusion models, discrete diffusion-like models were described in [43] and applied to text generation and image segmentation data in [20]. Some works [31, 29] have dealt with discrete data by embedding it in continuous space and leveraging Gaussian diffusion, but have not applied this to text. Seff et al. [42] also considered generation of discrete structured objects using a diffusion-like Markov corruption process.
+For text, denoising autoencoders have a long history both in representation learning [2, 11] and more recently as generative models [54]. These closely resemble our absorbing state diffusion variants for a particular schedule and transition matrix (see Section 4), although our framing allows us to compute log-likelihoods and experiment with alternative transition matrices. Other works have considered non-autoregressive translation and speech transcription via insertion and deletion [16, 37], masking [14], and iteratively-refined sequence alignments [5, 38].
+8 Discussion
+We have presented D3PMs, a class of models that improves diffusion models for discrete data by defining new kinds of discrete corruption processes.
+We achieve strong empirical results relative to previous work on discrete diffusion models, even surpassing performance of continuous diffusion models in terms of log-likelihoods for image generation.
+While these results are promising, one limitation is that—like much other work on non-autoregressive generative models—our models are still inferior to strong autoregressive models like Transformer XL for text generation, and continuous diffusion models still yield stronger results on image quality.
+We expect that D3PMs can benefit further from the rapid development of continuous diffusion models [47, 30]. For example, further research in alternative losses for D3PM’s can take inspiration from the reweighted LsimpleL_{\mathrm{simple}} objective used in [19], or the resampled variational bound in Nichol and Dhariwal [30]. Furthermore, D3PM’s might benefit from increasing the number of timesteps and a more optimized noise schedule, as discussed in Nichol and Dhariwal [30].
+Another limitation comes from the choice of evaluation metrics that we use (and that are standard for evaluation of generative models).
+Inception score and Frechet Inception Distance are based on neural networks that have been trained on a particular distribution of data, which is not representative for all use-cases, and focusing on average quality metrics may not accurately reflect performance across the wide diversity of settings where these generative models may be applied.
+This creates a risk of negative social impacts where advances disproportionately favor a subset of the population.
+Going forward, we are excited about the space of possibilities that arise within the D3PM framework.
+We have found successes in leveraging the flexibility that comes from defining discrete corruption processes for discrete data, but we believe that there are many more possibilities that make use of richer forms of structure to define even more powerful discrete diffusion models.
+Acknowledgments and Disclosure of Funding
+We would like to thank Hugo Larochelle for providing high-level feedback during the project, and Ben Poole for reviewing a draft version of this manuscript. We would also like to thank Julia Kreutzer and Xavier Garcia for helpful conversations about language experiments. We, the authors, declare to have no competing interests. The research conducted for this paper was entirely supported by Google.
+References
+[1]
+Rami Al-Rfou, Dokook Choe, Noah Constant, Mandy Guo, and Llion Jones.
+Character-Level language modeling with deeper Self-Attention.
+arXiv preprint arXiv:1808.04444, August 2018.
+[2]
+Yoshua Bengio, Li Yao, Guillaume Alain, and Pascal Vincent.
+Generalized denoising Auto-Encoders as generative models.
+arXiv preprint arXiv:1305.6663, May 2013.
+[3]
+James Bradbury, Roy Frostig, Peter Hawkins, Matthew James Johnson, Chris Leary,
+Dougal Maclaurin, George Necula, Adam Paszke, Jake VanderPlas, Skye
+Wanderman-Milne, and Qiao Zhang.
+JAX: composable transformations of Python+NumPy programs,
+2018.
+URL http://github.com/google/jax.
+[4]
+Andrew Brock, Jeff Donahue, and Karen Simonyan.
+Large scale GAN training for high fidelity natural image synthesis.
+In International Conference on Learning Representations, 2019.
+[5]
+William Chan, Chitwan Saharia, Geoffrey Hinton, Mohammad Norouzi, and Navdeep
+Jaitly.
+Imputer: Sequence modelling via imputation and dynamic programming.
+In International Conference on Machine Learning, pages
+1403–1413. PMLR, 2020.
+[6]
+Ciprian Chelba, Tomas Mikolov, Mike Schuster, Qi Ge, Thorsten Brants, Phillipp
+Koehn, and Tony Robinson.
+One billion word benchmark for measuring progress in statistical
+language modeling.
+arXiv preprint arXiv:1312.3005, December 2013.
+[7]
+Nanxin Chen, Yu Zhang, Heiga Zen, Ron J Weiss, Mohammad Norouzi, and William
+Chan.
+WaveGrad: Estimating gradients for waveform generation.
+arXiv preprint arXiv:2009.00713, September 2020.
+[8]
+Xi Chen, Nikhil Mishra, Mostafa Rohaninejad, and Pieter Abbeel.
+PixelSNAIL: An improved autoregressive generative model.
+In International Conference on Machine Learning, pages
+863–871, 2018.
+[9]
+Rewon Child, Scott Gray, Alec Radford, and Ilya Sutskever.
+Generating long sequences with sparse transformers.
+arXiv preprint arXiv:1904.10509, 2019.
+[10]
+Zihang Dai, Zhilin Yang, Yiming Yang, Jaime Carbonell, Quoc V Le, and Ruslan
+Salakhutdinov.
+Transformer-XL: Attentive language models beyond a Fixed-Length
+context.
+arXiv preprint arXiv:1901.02860, January 2019.
+[11]
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova.
+BERT: Pre-training of deep bidirectional transformers for language
+understanding.
+arXiv preprint arXiv:1810.04805, October 2018.
+[12]
+Laurent Dinh, Jascha Sohl-Dickstein, and Samy Bengio.
+Density estimation using Real NVP.
+arXiv preprint arXiv:1605.08803, 2016.
+[13]
+W Feller.
+On the theory of stochastic processes, with particular reference to
+applications.
+In Proceedings of the [First] Berkeley Symposium on
+Mathematical Statistics and Probability. The Regents of the University of
+California, 1949.
+[14]
+Marjan Ghazvininejad, Omer Levy, Yinhan Liu, and Luke Zettlemoyer.
+Mask-Predict: Parallel decoding of conditional masked language
+models.
+arXiv preprint arXiv:1904.09324, April 2019.
+[15]
+Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley,
+Sherjil Ozair, Aaron Courville, and Yoshua Bengio.
+Generative adversarial nets.
+In Advances in Neural Information Processing Systems, pages
+2672–2680, 2014.
+[16]
+Jiatao Gu, Changhan Wang, and Jake Zhao.
+Levenshtein transformer.
+arXiv preprint arXiv:1905.11006, May 2019.
+[17]
+Jonathan Heek, Anselm Levskaya, Avital Oliver, Marvin Ritter, Bertrand
+Rondepierre, Andreas Steiner, and Marc van Zee.
+Flax: A neural network library and ecosystem for JAX, 2020.
+URL http://github.com/google/flax.
+[18]
+Martin Heusel, Hubert Ramsauer, Thomas Unterthiner, Bernhard Nessler, and Sepp
+Hochreiter.
+GANs trained by a two time-scale update rule converge to a local
+Nash equilibrium.
+In Advances in Neural Information Processing Systems, pages
+6626–6637, 2017.
+[19]
+Jonathan Ho, Ajay Jain, and Pieter Abbeel.
+Denoising diffusion probabilistic models.
+In Advances in Neural Information Processing Systems, pages
+6840–6851, 2020.
+[20]
+Emiel Hoogeboom, Didrik Nielsen, Priyank Jaini, Patrick Forré, and Max
+Welling.
+Argmax flows and multinomial diffusion: Towards non-autoregressive
+language models.
+arXiv preprint arXiv:2102.05379, 2021.
+[21]
+Aapo Hyvärinen, Juha Karhunen, and Erkki Oja.
+Independent component analysis, volume 46.
+John Wiley & Sons, 2004.
+[22]
+Tero Karras, Miika Aittala, Janne Hellsten, Samuli Laine, Jaakko Lehtinen, and
+Timo Aila.
+Training generative adversarial networks with limited data.
+arXiv preprint arXiv:2006.06676v1, 2020.
+[23]
+Diederik P Kingma and Jimmy Ba.
+Adam: A method for stochastic optimization.
+In International Conference on Learning Representations, 2015.
+[24]
+Diederik P Kingma and Prafulla Dhariwal.
+Glow: Generative flow with invertible 1x1 convolutions.
+In Advances in Neural Information Processing Systems, pages
+10215–10224, 2018.
+[25]
+Diederik P Kingma and Max Welling.
+Auto-encoding variational Bayes.
+arXiv preprint arXiv:1312.6114, 2013.
+[26]
+Zhifeng Kong, Wei Ping, Jiaji Huang, Kexin Zhao, and Bryan Catanzaro.
+Diffwave: A versatile diffusion model for audio synthesis.
+arXiv preprint arXiv:2009.09761, 2020.
+[27]
+Alex Krizhevsky, Geoffrey Hinton, et al.
+Learning multiple layers of features from tiny images.
+2009.
+[28]
+Matt Mahoney.
+Text8 dataset.
+http://mattmahoney.net/dc/textdata, 2011.
+Accessed: 2021-5-24.
+[29]
+Gautam Mittal, Jesse Engel, Curtis Hawthorne, and Ian Simon.
+Symbolic music generation with diffusion models.
+arXiv preprint arXiv:2103.16091, March 2021.
+[30]
+Alex Nichol and Prafulla Dhariwal.
+Improved denoising diffusion probabilistic models.
+arXiv preprint arXiv:2102.09672, 2021.
+[31]
+Chenhao Niu, Yang Song, Jiaming Song, Shengjia Zhao, Aditya Grover, and Stefano
+Ermon.
+Permutation invariant graph generation via score-based generative
+modeling.
+arXiv preprint arXiv:2003.00638, March 2020.
+[32]
+George Papamakarios, Eric Nalisnick, Danilo Jimenez Rezende, Shakir Mohamed,
+and Balaji Lakshminarayanan.
+Normalizing flows for probabilistic modeling and inference.
+arXiv preprint arXiv:1912.02762, 2019.
+[33]
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael
+Matena, Yanqi Zhou, Wei Li, and Peter J. Liu.
+Exploring the limits of transfer learning with a unified text-to-text
+transformer.
+arXiv preprint arXiv:1910.10683, 2020.
+[34]
+Danilo Rezende and Shakir Mohamed.
+Variational inference with normalizing flows.
+In International Conference on Machine Learning, pages
+1530–1538, 2015.
+[35]
+Danilo Jimenez Rezende, Shakir Mohamed, and Daan Wierstra.
+Stochastic backpropagation and approximate inference in deep
+generative models.
+In International Conference on Machine Learning, pages
+1278–1286, 2014.
+[36]
+Olaf Ronneberger, Philipp Fischer, and Thomas Brox.
+U-Net: Convolutional networks for biomedical image segmentation.
+In International Conference on Medical Image Computing and
+Computer-Assisted Intervention, pages 234–241. Springer, 2015.
+[37]
+Laura Ruis, Mitchell Stern, Julia Proskurnia, and William Chan.
+Insertion-deletion transformer.
+arXiv preprint arXiv:2001.05540, 2020.
+[38]
+Chitwan Saharia, William Chan, Saurabh Saxena, and Mohammad Norouzi.
+Non-autoregressive machine translation with latent alignments.
+In Proceedings of the 2020 Conference on Empirical Methods in
+Natural Language Processing (EMNLP), pages 1098–1108, 2020.
+[39]
+Tim Salimans and Durk P Kingma.
+Weight normalization: A simple reparameterization to accelerate
+training of deep neural networks.
+In Advances in Neural Information Processing Systems, pages
+901–909, 2016.
+[40]
+Tim Salimans, Ian Goodfellow, Wojciech Zaremba, Vicki Cheung, Alec Radford, and
+Xi Chen.
+Improved techniques for training gans.
+In Advances in Neural Information Processing Systems, pages
+2234–2242, 2016.
+[41]
+Tim Salimans, Andrej Karpathy, Xi Chen, and Diederik P Kingma.
+PixelCNN++: Improving the PixelCNN with discretized logistic
+mixture likelihood and other modifications.
+In International Conference on Learning Representations, 2017.
+[42]
+Ari Seff, Wenda Zhou, Farhan Damani, Abigail Doyle, and Ryan P Adams.
+Discrete object generation with reversible inductive construction.
+arXiv preprint arXiv:1907.08268, July 2019.
+[43]
+Jascha Sohl-Dickstein, Eric Weiss, Niru Maheswaranathan, and Surya Ganguli.
+Deep unsupervised learning using nonequilibrium thermodynamics.
+In International Conference on Machine Learning, pages
+2256–2265, 2015.
+[44]
+Jiaming Song, Chenlin Meng, and Stefano Ermon.
+Denoising diffusion implicit models.
+In International Conference on Learning Representations, 2021.
+[45]
+Yang Song and Stefano Ermon.
+Generative modeling by estimating gradients of the data distribution.
+In Advances in Neural Information Processing Systems, pages
+11895–11907, 2019.
+[46]
+Yang Song and Stefano Ermon.
+Improved techniques for training score-based generative models.
+arXiv preprint arXiv:2006.09011, 2020.
+[47]
+Yang Song, Jascha Sohl-Dickstein, Diederik P Kingma, Abhishek Kumar, Stefano
+Ermon, and Ben Poole.
+Score-based generative modeling through stochastic differential
+equations.
+arXiv preprint arXiv:2011.13456, November 2020.
+[48]
+Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe, Jon Shlens, and Zbigniew
+Wojna.
+Rethinking the inception architecture for computer vision.
+In Proceedings of the IEEE Conference on Computer Vision and
+Pattern Recognition (CVPR), June 2016.
+[49]
+Dustin Tran, Keyon Vafa, Kumar Agrawal, Laurent Dinh, and Ben Poole.
+Discrete flows: Invertible generative models of discrete data.
+In Advances in Neural Information Processing Systems,
+volume 32, 2019.
+[50]
+Aaron van den Oord, Sander Dieleman, Heiga Zen, Karen Simonyan, Oriol Vinyals,
+Alex Graves, Nal Kalchbrenner, Andrew Senior, and Koray Kavukcuoglu.
+WaveNet: A generative model for raw audio.
+arXiv preprint arXiv:1609.03499, 2016a.
+[51]
+Aaron van den Oord, Nal Kalchbrenner, and Koray Kavukcuoglu.
+Pixel recurrent neural networks.
+International Conference on Machine Learning,
+2016b.
+[52]
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin.
+Attention is all you need.
+In Advances in Neural Information Processing Systems, pages
+5998–6008, 2017.
+[53]
+Pascal Vincent.
+A connection between score matching and denoising autoencoders.
+Neural Computation, 23(7):1661–1674,
+2011.
+[54]
+Alex Wang and Kyunghyun Cho.
+BERT has a mouth, and it must speak: BERT as a markov random
+field language model.
+arXiv preprint arXiv:1902.04094, February 2019.
+[55]
+Yuxin Wu and Kaiming He.
+Group normalization.
+In Proceedings of the European Conference on Computer Vision
+(ECCV), pages 3–19, 2018.
+[56]
+Sergey Zagoruyko and Nikos Komodakis.
+Wide residual networks.
+arXiv preprint arXiv:1605.07146, 2016.
+[57]
+Zachary M Ziegler and Alexander M Rush.
+Latent normalizing flows for discrete sequences.
+arXiv preprint arXiv:1901.10548, January 2019.
+Appendix A Additional details regarding D3PMs
+A.1 Doubly-stochastic matrices
+As discussed in Section 3.1, there are two constraints on 𝑸t\bm{Q}_{t} that allow it to be used within a D3PM: the rows of 𝑸t\bm{Q}_{t} must sum to one to conserve probability mass, and the rows of 𝑸¯t=𝑸1​𝑸2​…​𝑸t\overline{\bm{Q}}_{t}=\bm{Q}_{1}\bm{Q}_{2}\ldots\bm{Q}_{t} must converge to a known stationary distribution as tt becomes large. Technically, it is also possible to use a learned prior pθ​(𝒙T)p_{\theta}(\bm{x}_{T}), but assuming this is still modeled under a conditional independence assumption, q⁡(𝒙T|𝒙0)q(\bm{x}_{T}|\bm{x}_{0}) must still be close to a stationary distribution for the LTL_{T} loss term to be small.
+One way to ensure that this occurs is to chose 𝑸t\bm{Q}_{t} as increasing powers of a doubly stochastic base matrix 𝑸\bm{Q} (rows and columns sum to 1) with strictly positive entries. This is enough to ensure that 𝑸\bm{Q} is is irreducible and aperiodic and that product 𝑸¯t\overline{\bm{Q}}_{t} converges as t→∞t\rightarrow\infty to a uniform distribution over all states.
+To show this, consider πi=1/K\pi_{i}=1/K for i=1,…,Ki=1,...,K, and ∑i=1K𝑸i,:=𝟏\sum_{i=1}^{K}\bm{Q}_{i,:}=\bm{1} and ∑j=1K𝑸:,j=𝟏\sum_{j=1}^{K}\bm{Q}_{:,j}=\bm{1}, then [𝑸𝝅]i=∑j=1K𝑸i,jπj=1/K∑j=1K𝑸i,j=1/K=πi[\bm{Q}\bm{\pi}]_{i}=\sum_{j=1}^{K}\bm{Q}_{i,j}\pi_{j}=1/K\sum_{j=1}^{K}\bm{Q}_{i,j}=1/K=\pi_{i}, thus the uniform distribution is an eigenvector of the transition matrix with eigenvalue 1. Convergence to this distribution follows from the Perron-Frobenius theorem for positive square matrices.
+More generally, a similar argument shows that even for 𝑸t\bm{Q}_{t} that are not powers of the same base matrix, as long as each 𝑸t\bm{Q}_{t} is doubly stochastic, irreducible, and aperiodic, the uniform distribution is the only possible stationary distribution, and as long as the second largest eigenvalue of 𝑸t\bm{Q}_{t} is bounded below, the cumulative product 𝑸¯t\overline{\bm{Q}}_{t} will converge to the uniform distribution. In practice, we choose 𝑸t\bm{Q}_{t} to add more noise as tt increases, which ensures that 𝑸¯T\overline{\bm{Q}}_{T} is very close to reaching a uniform stationary distribution.
+A.2 More details on possible choices of Markov transition matrices
+A.2.1 Uniform diffusion
+The transition matrix described by Sohl-Dickstein et al. [43] for the binary case, and extended by Hoogeboom et al. [20], to the categorical case, can be represented using the following K×KK\times K transition matrix
+[𝑸t]i​j={1−K−1K​βtifi=j1K​βtifi≠j,\displaystyle\left[\bm{Q}_{t}\right]_{ij}=\begin{cases}1-\frac{K-1}{K}\beta_{t}\quad&\text{if}\quad i=j\\
+\frac{1}{K}\beta_{t}\quad&\text{if}\quad i\neq j\end{cases},
+(6)
+This transition matrix can also be written as (1−βt)​I+βt​𝟙𝟙T/K(1-\beta_{t})I+\beta_{t}\mathbbm{1}\mathbbm{1}^{T}/K, where 𝟙\mathbbm{1} is a column vector of all ones.
+A.2.2 Diffusion with an absorbing state
+For our diffusion models with an absorbing state mm, we use the following matrix:
+[𝑸t]i​j={1ifi=j=m1−βtifi=j≠mβtifj=m,i≠m\displaystyle\left[\bm{Q}_{t}\right]_{ij}=\begin{cases}1\quad&\text{if}\quad i=j=m\\
+1-\beta_{t}\quad&\text{if}\quad i=j\neq m\\
+\beta_{t}\quad&\text{if}\quad j=m,i\neq m\\
+\end{cases}
+(7)
+The transition matrix can also be written as (1−βt)​I+βt​𝟙​emT(1-\beta_{t})I+\beta_{t}\mathbbm{1}e^{T}_{m}, where eme_{m} is a vector with a one on the absorbing state mm and zeros elsewhere.
+Since mm is an absorbing state, the corruption process converges not to a uniform distribution but to the point-mass distribution on mm.
+For text generation, we let mm be the [MASK] token at index K−1K-1; this leads to a BERT-like training objective, which masks tokens according to some schedule and learns to denoise them iteratively (see Section 4). For image generation, we set mm to the gray RGB pixel (128,128,128)(128,128,128) at index K//2K//2.
+A.2.3 Discretized Gaussian transition matrices
+For our D3PM models applied to ordinal data, inspired by continuous-space diffusion models, we use the following K×KK\times K matrix:
+[𝑸t]i​j={exp⁡(−4​|i−j|2(K−1)2​βt)∑n=−(K−1)K−1exp⁡(−4​n2(K−1)2​βt)ifi≠j1−∑l=0,l≠iK−1[𝑸t]i​lifi=j\displaystyle\left[\bm{Q}_{t}\right]_{ij}=\begin{cases}\frac{\exp\left(-\frac{4|i-j|^{2}}{(K-1)^{2}\beta_{t}}\right)}{\sum_{n=-(K-1)}^{K-1}\exp\left(-\frac{4n^{2}}{(K-1)^{2}\beta_{t}}\right)}\quad&\text{if}\quad i\neq j\\[15.00002pt]
+1-\sum_{l=0,l\neq i}^{K-1}[\bm{Q}_{t}]_{il}\quad&\text{if}\quad i=j\\
+\end{cases}
+(8)
+Normalization is ensured by assigning the diagonal values to one minus the sum of each row (not including the diagonal entry). Note that due to the normalization of the off-diagonal values over the range {−K+1,…,K−1}\{-K+1,...,K-1\} the sum of each row excluding the diagonal entry is always smaller than 1. The result yields an irreducible doubly stochastic matrix and a forward process with a uniform stationary distribution. Similar to the continuous Gaussian diffusion model, the parameters βt\beta_{t} influence the variance of the forward process distributions.
+A.2.4 Structured diffusion in text: using word-embedding distance to introduce locality
+For text, we construct a kk-nearest neighbor adjacency matrix
+[𝐆]i​j=1​ if ​wi​ is a k-nearest neighbor of ​wj​ else ​0[\mathbf{G}]_{ij}=1\text{ if }w_{i}\text{ is a k-nearest neighbor of }w_{j}\text{ else }0
+constructed from a pre-trained embedding space over the vocabulary. Then we consider a symmetrized adjacency matrix of the form 𝐀=(𝐆+𝐆T)/(2​k)\mathbf{A}=(\mathbf{G}+\mathbf{G}^{T})/(2k) where kk is the number of nearest neighbors of each node,
+and finally construct a doubly stochastic rate matrix with
+[𝑹]i​j={−∑l≠iAi​lifi=jAi​j otherwise\displaystyle\left[\bm{R}\right]_{ij}=\begin{cases}-\sum_{l\neq i}A_{il}\quad&\text{if}\quad i=j\\
+A_{ij}\quad&\text{ otherwise }\\
+\end{cases}
+(9)
+Our final transition matrix is constructed as a matrix exponential of this rate matrix:
+𝐐t=exp⁡(αt​𝐑)=∑n=0∞αtnn!​𝑹n\mathbf{Q}_{t}=\exp(\alpha_{t}\mathbf{R})=\sum_{n=0}^{\infty}\frac{\alpha_{t}^{n}}{n!}\bm{R}^{n}
+Since 𝑹\bm{R} is symmetric and sums to zero along each row, 𝐐t\mathbf{Q}_{t} is doubly stochastic, which ensures we have a uniform stationary distribution (as long as GG is connected). Increasing αt\alpha_{t} over time allows us to add more noise for larger values of tt.
+Assuming word embeddings are some metric for syntactic or semantic similarity, this results in a corruption process that gradually moves away from the ground-truth sentence, swapping words with nearest-neighbors in embedding space. For character level modeling, this is a graph over characters, which more often transitions for instance from vowels to other vowels than from vowels to consonants. For words, this could transition between semantically similar words.
+Figure 4: Two examples of noise schedules transforming text data. The top is a BERT-like absorbing + uniform diffusion which replaces tokens with [MASK] tokens (and occasionally with any other token, in black). The bottom is nearest-neighbor diffusion in embedding space. At left represents a possible column in the transition matrix.
+Figure 5: The character-level symmetrized 5-NN graph.
+For example, in Figure 4, we construct the forward process to diffuse from "dog" to "cat" or "cow", which are nearby in embedding space, but not to more distant words. We can either bootstrap this process by updating the transition matrix 𝑸\bm{Q} dynamically during training, or use pretrained embeddings; we use pretrained embeddings for all of our experiments.
+A.2.5 Band-diagonal transitions
+A class of transition matrices that introduce local, ordinal inductive biases for structured data are band-diagonal transition matrices which only allow the corruption process to transition locally between states and biases the reverse process towards local iterative refinement. For example, in images, this can be used to allow transitions only between adjacent pixel values.
+[𝑸t]i​j={1K​βtif0<|i−j|≤v1−∑l≠iQi​lifi=j\displaystyle\left[\bm{Q}_{t}\right]_{ij}=\begin{cases}\frac{1}{K}\beta_{t}\quad&\text{if}\quad 0<|i-j|\leq v\\
+1-\sum_{l\neq i}Q_{il}\quad&\text{if}\quad i=j\\
+\end{cases}
+(10)
+where vv is the number of nonzero off-diagonal elements of 𝑸\bm{Q} above (and below) the main diagonal. Note that this is a doubly stochastic matrix, so the stationary distribution is uniform. We do not use these in our experiments.
+A.2.6 Combinations of absorbing diffusion and other diffusion
+A few ablations in Appendix B.2.1 consider transition matrices that combine absorbing-state or nearest-neighbor and uniform D3PM models. For instance, an absorbing-uniform transition matrix can be constructed 𝑸=α​𝟙​emT+β​𝟙𝟙T/K+(1−α−β)​I\bm{Q}=\alpha\mathbbm{1}e_{m}^{T}+\beta\mathbbm{1}\mathbbm{1}^{T}/K+(1-\alpha-\beta)I, where eme_{m} is a one-hot vector on the [MASK] token.
+A.3 Generative Masked Language Models are Diffusion Models
+Generative Masked Language Models [14, 54] are generative models that generate text from a sequence of [MASK] tokens. These are usually trained by sampling a sequence 𝒙0\bm{x}_{0}, masking tokens according to some schedule, and learning to predict the masked tokens given context. The actual masking procedure can either be done independently, i.e. by masking each token with probability p=k/Tp=k/T, like Devlin et al. [11], or by sampling exactly kk tokens. The usual objective is33
+3
+Sometimes the loss is un-normalized or normalized by the full sequence length.:
+min−𝔼q⁡(𝒙0)​[𝔼k∈[1​…​|𝒙0|]​[1k​𝔼𝒙k​with k masked tokens​[∑i​ with ​[𝒙k]i=mlog⁡pθ​([𝒙0]i|𝒙k)]]]\min-\mathbb{E}_{q(\bm{x}_{0})}\left[\mathbb{E}_{k\in[1...|\bm{x}_{0}|]}\left[\frac{1}{k}\ \mathbb{E}_{\bm{x}_{k}\text{with $k$ masked tokens}}\left[\sum_{i\text{ with }[\bm{x}_{k}]_{i}=m}\log p_{\theta}([\bm{x}_{0}]_{i}|\bm{x}_{k})\right]\right]\right]
+(11)
+where we first sample a datapoint 𝒙0\bm{x}_{0}, sample a number of tokens to mask kk (either uniformly or according to some schedule), then mask that many tokens at random and compute a cross entropy loss over those masked tokens. We claim that this training objective is a (reweighted) absorbing-state D3PM objective with a particular noise schedule and the 𝒙0\bm{x}_{0}-parameterization from 3.3 (and indeed, that any absorbing-state D3PM model with [MASK] as the absorbing state will be a reweighted version of this loss with different weights assigned to different numbers of masked tokens kk).
+Consider a D3PM with a schedule that masks tokens with probability βt\beta_{t}. The reverse process predicts p~θ​(𝒙0~|𝒙t)\widetilde{p}_{\theta}(\widetilde{\bm{x}_{0}}|\bm{x}_{t}), then uses the forward process to compute pθ​(𝒙t−1|𝒙t)∝∑q⁡(𝒙t−1,𝒙t|𝒙0~)​p~θ​(𝒙~0|𝒙t)p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t})\propto\sum q(\bm{x}_{t-1},\bm{x}_{t}|\widetilde{\bm{x}_{0}})\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}). In the particular case of absorbing-state diffusion, for each masked token [𝒙t]i=m[\bm{x}_{t}]_{i}=m in 𝒙t\bm{x}_{t}, we thus have
+pθ​([𝒙t−1]i|𝒙t)∝{[βt​∏s<t(1−βs)]​p~θ​([𝒙~0]i=[𝒙0]i|𝒙t)for ​[𝒙t−1]i=[𝒙0]i≠m1−∏s≤t(1−βs)for ​[𝒙t−1]i=mp_{\theta}([\bm{x}_{t-1}]_{i}|\bm{x}_{t})\propto\begin{cases}[\beta_{t}\prod_{s<t}(1-\beta_{s})]\widetilde{p}_{\theta}([\widetilde{\bm{x}}_{0}]_{i}=[\bm{x}_{0}]_{i}|\bm{x}_{t})&\text{for }[\bm{x}_{t-1}]_{i}=[\bm{x}_{0}]_{i}\neq m\\
+1-\prod_{s\leq t}(1-\beta_{s})&\text{for }[\bm{x}_{t-1}]_{i}=m\end{cases}
+We note that for each unmasked token [𝒙t]i=[𝒙0]i[\bm{x}_{t}]_{i}=[\bm{x}_{0}]_{i}, the KL-divergence is zero since unmasked tokens cannot make any other type of transition other than becoming masked. Also, the term in the KL divergence due to the probability of mask transitions is a constant, since mask transitions are independent of the model parameters θ\theta.
+Our LtL_{t} term is then
+DKL[q(𝒙t−1|𝒙t,𝒙0)||pθ(𝒙t−1|𝒙t)]=−[βt∏s<t(1−βs)]∑i​ with ​[𝒙t]i=mlogp~θ([𝒙0]i|𝒙t)+CD_{\mathrm{KL}}[q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0})||p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t})]=-\left[\beta_{t}\prod_{s<t}(1-\beta_{s})\right]\sum_{i\text{ with }[\bm{x}_{t}]_{i}=m}\log\widetilde{p}_{\theta}([\bm{x}_{0}]_{i}|\bm{x}_{t})+C
+where CC is independent of θ\theta and the sum is taken over the masked tokens in 𝒙t\bm{x}_{t}.
+For example, if we use β⁡(t)=1/(T−t+1)\beta(t)=1/(T-t+1) from Sohl-Dickstein et al. [43], βt​∏i=0t−1(1−βi)=1/T\beta_{t}\prod_{i=0}^{t-1}(1-\beta_{i})=1/T and 1−∏i=0t(1−βi)=(t−1)/T1-\prod_{i=0}^{t}(1-\beta_{i})=(t-1)/T, so q⁡([𝒙t−1]i=[𝒙0]i|[𝒙t]i=m,𝒙0)=1/tq([\bm{x}_{t-1}]_{i}=[\bm{x}_{0}]_{i}|[\bm{x}_{t}]_{i}=m,\bm{x}_{0})=1/t for non-mask tokens and we can simplify our LtL_{t} objective to
+DKL[q(𝒙t−1|𝒙t,𝒙0)||pθ(𝒙t−1|𝒙t)]=−[1t∑i​ with ​[𝒙t]i=mlogp~θ([𝒙0]i|𝒙t)]+CD_{\mathrm{KL}}[q(\bm{x}_{t-1}|\bm{x}_{t},\bm{x}_{0})||p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t})]=-\left[\frac{1}{t}\sum_{i\text{ with }[\bm{x}_{t}]_{i}=m}\log\widetilde{p}_{\theta}([\bm{x}_{0}]_{i}|\bm{x}_{t})\right]+C
+where 𝒙t\bm{x}_{t} masks tokens independently and uniformly with probability t/Tt/T. The LTL_{T} term in our ELBO is 0 for the 1/(T−t+1)1/(T-t+1) schedule, so the full objective (up to a constant) reduces to
+𝔼q⁡(𝒙0)[−∑t=2T1t𝔼q⁡(𝒙t|𝒙0)[∑i​ with ​[𝒙t]i=mlogpθ([𝒙0]i|𝒙t)]]\displaystyle\mathbb{E}_{q(\bm{x}_{0})}\Bigg[-\sum_{t=2}^{T}\frac{1}{t}\mathbb{E}_{q(\bm{x}_{t}|\bm{x}_{0})}\big[\sum_{i\text{ with }[\bm{x}_{t}]_{i}=m}\log p_{\theta}([\bm{x}_{0}]_{i}|\bm{x}_{t})]\big]
+−𝔼q⁡(𝒙1|𝒙0)[∑i​ with ​[𝒙1]i=mlogpθ([𝒙0]i|𝒙1)]]\displaystyle-\mathbb{E}_{q(\bm{x}_{1}|\bm{x}_{0})}[\sum_{i\text{ with }[\bm{x}_{1}]_{i}=m}\log p_{\theta}([\bm{x}_{0}]_{i}|\bm{x}_{1})]\Bigg]
+=−𝔼q⁡(𝒙0)[∑t=1T1t𝔼q⁡(𝒙t|𝒙0)[∑i​ with ​[𝒙t]i=mlogpθ([𝒙0]i|𝒙t)]]]\displaystyle=-\mathbb{E}_{q(\bm{x}_{0})}\left[\sum_{t=1}^{T}\frac{1}{t}\ \mathbb{E}_{q(\bm{x}_{t}|\bm{x}_{0})}\big[\sum_{i\text{ with }[\bm{x}_{t}]_{i}=m}\log p_{\theta}([\bm{x}_{0}]_{i}|\bm{x}_{t})]\big]\right]
+(12)
+Note that while this looks very similar to Equation 11 (with each term reweighted by 1/t1/t, the expected number of masked tokens) it is not exactly identical since masking is computed independently per-token position (instead of choosing exactly kk tokens to mask). This is an entirely practical way to do masking (and indeed some methods implement it this way).
+Furthermore, since the masking probability varies linearly as 1−∏(1−βt)=t/T1-\prod(1-\beta_{t})=t/T, this is very close to uniformly sampling the number of masked tokens kk, but kk is actually drawn from a mixture of binomial distributions, i.e.
+=−𝔼q⁡(𝒙0)[𝔼k∈[1​…​|X|][𝔼𝒙k​with k masked tokens[α(k)∑i​ with ​[𝒙k]i=mlogpθ([𝒙0]i|𝒙k)]]]]\displaystyle=-\mathbb{E}_{q(\bm{x}_{0})}\left[\mathbb{E}_{k\in[1...|X|]}\left[\mathbb{E}_{\bm{x}_{k}\text{with $k$ masked tokens}}\left[\alpha(k)\sum_{i\text{ with }[\bm{x}_{k}]_{i}=m}\log p_{\theta}([\bm{x}_{0}]_{i}|\bm{x}_{k})]\right]\right]\right]
+(13)
+α⁡(k)=q⁡(𝒙t​ has k masked tokens|𝒙0​ has n tokens)=1T​∑t=1T(nk)​(tT)n−1​(1−tT)n−k\displaystyle\alpha(k)=q(\bm{x}_{t}\text{ has $k$ masked tokens}|\bm{x}_{0}\text{ has $n$ tokens})=\frac{1}{T}\sum_{t=1}^{T}{n\choose k}\left(\frac{t}{T}\right)^{n-1}\left(1-\frac{t}{T}\right)^{n-k}
+(14)
+which is very close to uniform weight over terms, but slightly downweights terms near 00 and TT. By upweighting terms near the boundary, you could in theory make this exactly uniform and thus exactly recover Equation 11. For instance, for 50 categories, absorbing-state diffusion produces the weighting shown in Figure 6.
+Figure 6: Plot of the probabilities of having kk tokens masked out of a length-50 sequence under a D3PM absorbing schedule with T=50T=50 steps, which is very similar to the uniform weighting used by Ghazvininejad et al. [14].
+A.4 Scaling to a large number of categories
+When the number of categories KK is large, it can quickly become impractical to store all of the transition matrices 𝑸t\bm{Q}_{t} in memory, as the memory usage grows like O⁡(K2​T)O(K^{2}T). And even if there is an algorithm to compute individual step matrices 𝑸t\bm{Q}_{t} on demand, it may or may not be possible to do the same for the cumulative products 𝑸¯t\overline{\bm{Q}}_{t}. We propose two approaches to scaling D3PMs to large numbers of categories that ensure cumulative products are efficient: using low-rank corruption and using matrix exponentials.
+A.4.1 Low-rank corruption
+In the low-rank case, we consider structuring our transition matrices as
+𝑸t\displaystyle\bm{Q}_{t}
+=βt​𝑨t+(1−βt)​𝑰,\displaystyle=\beta_{t}\bm{A}_{t}+(1-\beta_{t})\bm{I},
+(15)
+where each 𝑨t\bm{A}_{t} is a diagonalizable low-rank matrix with the same nonzero eigenvectors. In particular, recall that both absorbing-state diffusion and uniform diffusion
+have this form: for uniform diffusion, 𝑨tuniform=𝟙𝟙T/K\bm{A}^{\text{uniform}}_{t}=\mathbbm{1}\mathbbm{1}^{T}/K, and for absorbing-state diffusion 𝑨tabs=𝟙​𝒆mT\bm{A}^{\text{abs}}_{t}=\mathbbm{1}\bm{e}_{m}^{T} where 𝒆m\bm{e}_{m} is a one-hot vector on the absorbing state. Since products of 𝑨t\bm{A}_{t}’s are also low rank, the cumulative products 𝑸¯t\overline{\bm{Q}}_{t} can be efficiently precomputed and stored using a much smaller amount of memory O⁡(r2​T)O(r^{2}T) where r=rank​(𝑨t)r=\text{rank}(\bm{A}_{t}).
+As an illustrative example, we describe in more detail how to efficiently represent uniform and absorbing-state transition matrices using the low-rank structure.
+To compute products of uniform transition matrices (i.e. ∏i(1−βi)​I+βi​𝟙𝟙T/K\prod_{i}(1-\beta_{i})I+\beta_{i}\mathbbm{1}\mathbbm{1}^{T}/K),
+we can take advantage of the useful fact that products of matrices of the form α​I+β​𝟙𝟙T\alpha I+\beta\mathbbm{1}\mathbbm{1}^{T} also have this same form: I2=II^{2}=I and (β​𝟙𝟙T)2=β2​K​𝟙𝟙T\left(\beta\mathbbm{1}\mathbbm{1}^{T}\right)^{2}=\beta^{2}K\mathbbm{1}\mathbbm{1}^{T}. We can thus treat this as a formal polynomial in one variable X=(𝟙𝟙T/K)X=(\mathbbm{1}\mathbbm{1}^{T}/K). Then products can be computed as ∏i[(1−βi)+βi​X]\prod_{i}\left[(1-\beta_{i})+\beta_{i}X\right] over the quotient ring ℝ⁡[X]/(X2−X)\mathbb{R}[X]/(X^{2}-X), since X2=XX^{2}=X. Functionally, this means you can instantiate a polynomial (1−βi)+βi​X(1-\beta_{i})+\beta_{i}X and repeatedly perform ordinary polynomial multiplication over ℝ⁡[X]\mathbb{R}[X] for the t<Tt<T timesteps. After each multiplication, the higher-order terms are reduced by X2=XX^{2}=X, leaving a polynomial of degree 1 where the XX term has coefficient given by the sum of all higher-order terms. This can be computed with the convenient np.polynomial module.
+Similarly, the transition matrices for D3PM absorbing can be computed in closed form. Fundamentally, in each step, we transition to a [MASK] token with probability βt\beta_{t} and stay the same with probability 1−βt1-\beta_{t}. Since the [MASK] state is absorbing, after tt steps, the only operative quantity is the probability of not yet having transitioned to the [MASK] state, given by αt~=∏i=0t(1−βi)\widetilde{\alpha_{t}}=\prod_{i=0}^{t}(1-\beta_{i}). Hence for D3PM absorbing, 𝑸¯=αt~​I+(1−αt~)​𝟙​emT\overline{\bm{Q}}=\tilde{\alpha_{t}}I+(1-\widetilde{\alpha_{t}})\mathbbm{1}e^{T}_{m} where eme_{m} is a one-hot vector on the [MASK] token.
+A.4.2 Matrix exponentials
+In the matrix exponential case, we specify our transition matrices as
+𝑸t\displaystyle\bm{Q}_{t}
+=exp⁡(αt​𝑹)=∑n=0∞αtnn!​𝑹n,\displaystyle=\exp(\alpha_{t}\bm{R})=\sum_{n=0}^{\infty}\frac{\alpha_{t}^{n}}{n!}\bm{R}^{n},
+𝑸¯t\displaystyle\overline{\bm{Q}}_{t}
+=exp⁡((∑s≤tαs)​𝑹),\displaystyle=\textstyle\exp\left(\left(\sum_{s\leq t}\alpha_{s}\right)\bm{R}\right),
+(16)
+where 𝑹\bm{R} is a transition rate matrix and exp\exp denotes the matrix exponential operation; the similar form for 𝑸t\bm{Q}_{t} and 𝑸¯t\overline{\bm{Q}}_{t} is a consequence of the “exponential of sums” property for commuting matrices.
+For efficiency, we further assume that each of the αt\alpha_{t} is an integer multiple nt​α⋆n_{t}\alpha_{\star} of some common factor α⋆\alpha_{\star}, and precompute matrices exp⁡(2k​α⋆​𝑹)\exp(2^{k}\alpha_{\star}\bm{R}) for 0≤k≤log2⁡(α¯T/α⋆)0\leq k\leq\log_{2}(\overline{\alpha}_{T}/\alpha_{\star}), where α¯T=∑t<Tαt\overline{\alpha}_{T}=\sum_{t<T}\alpha_{t}, taking space O⁡(K2​log⁡(α¯T/α⋆))O(K^{2}\log(\overline{\alpha}_{T}/\alpha_{\star})). Then, to compute matrix-vector products with 𝑸t\bm{Q}_{t} or 𝑸¯t\overline{\bm{Q}}_{t}, we can iteratively take products with a subset of these precomputed matrices based on the digits of a binary expansion of the desired multiple ntn_{t} in time O⁡(K2​log⁡(α¯T/α⋆))O(K^{2}\log(\overline{\alpha}_{T}/\alpha_{\star})).44
+4
+This is closely related to the well-known “exponentiation-by-squaring” technique.
+As long as 𝑹\bm{R} has non-positive off-diagonal entries and sums to zero along each row, the matrix exponential produces a valid transition matrix 𝑸t\bm{Q}_{t}; convergence to a specific stationary distribution can also be ensured by controlling the eigenvectors. In particular, if every column also sums to zero, the resulting 𝑸t\bm{Q}_{t} will be doubly stochastic and will thus have a uniform stationary distribution.
+We note that this parameterization can be viewed as a discretization of a continuous-time discrete-space Markov processes; we describe this connection in more detail in the following section.
+A.5 Continuous-time Markov process transition rates
+Following Feller [13], we define a continuous-time discrete-space Markov process as a collection of random variables {𝒙t}t>0\{\bm{x}_{t}\}_{t>0} parameterized by t∈ℝ+t\in\mathbb{R}^{+} and characterized by a Markov property (𝒙t⟂𝒙s|𝒙τ\bm{x}_{t}\perp\bm{x}_{s}\mid\bm{x}_{\tau} if t<τ<st<\tau<s), a transition probability matrix Π⁡(t)∈ℝN×N\Pi(t)\in\mathbb{R}^{N\times N} where NN is the cardinality of 𝒙t\bm{x}_{t}, and a set of transition rates 𝜸i​(t)\bm{\gamma}_{i}(t).
+A conceptual way to understand these processes is to imagine a continuous Poisson process occurring in each state ii at rate 𝜸i​(t)\bm{\gamma}_{i}(t) determining when a transition between states occurs. When a transition occurs (at time tt), a Markov transition occurs between states ii and jj with probability Πi​j​(t)\Pi_{ij}(t). Many common stochastic processes fall into this family, including Poisson processes. Like in the case of stochastic differential equations (Song et al. [47]), we can derive a set of Kolomogorov equations (or Fokker-Planck equations in the continuous-state space case) that determine the marginal probability ∂qi​j​(τ,t)\partial q_{ij}(\tau,t) of ending up in state jj at time tt having started in state ii at time ss. The general form of the Kolmogorov forward equations is
+∂qi​j​(τ,t)∂t=−𝜸k​(t)​qi​(τ,t)+∑j𝜸j​(t)​Πk​j​(t)​qi​k​(t)\frac{\partial q_{ij}(\tau,t)}{\partial t}=-\bm{\gamma}_{k}(t)q_{i}(\tau,t)+\sum_{j}\bm{\gamma}_{j}(t)\Pi_{kj}(t)q_{ik}(t)
+Now we can state and prove a theorem connecting continuous time Markov processes and matrix exponentials.
+Theorem 1.
+Let {𝐱t}t≥0\{\bm{x}_{t}\}_{t\geq 0} be a discrete-space, continuous-time Markov process with (possibly time-dependent) transition probability matrix Π⁡(t)\Pi(t) and transition rates 𝛄i​(t)\bm{\gamma}_{i}(t). Then for a particle with an initial distribution q⁡(𝐱s)q(\bm{x}_{s}) at time ss, the probability of ending in state jj at time tt is
+q⁡(𝒙t|𝒙s)=exp⁡(∫stdiag⁡(𝜸⁡(τ))​(Π⁡(τ)−I)​𝑑τ)​q​(𝒙s)q(\bm{x}_{t}|\bm{x}_{s})=\exp\left(\int_{s}^{t}\operatorname{diag}(\bm{\gamma}(\tau))(\Pi(\tau)-I)\,d\tau\right)q(\bm{x}_{s})
+where exp\exp is the matrix exponential and we view q⁡(𝐱t)q(\bm{x}_{t}) and 𝛄⁡(t)\bm{\gamma}(t) as vectors in ℝN\mathbb{R}^{N}.
+Proof (sketch).
+From the Kolmogorov equations for continuous-time Markov processes, we have the ODE
+∂q⁡(𝒙t|𝒙s)∂t=diag⁡(𝜸⁡(t))​(Π⁡(t)−I)​q​(𝒙t|𝒙s)\frac{\partial q(\bm{x}_{t}|\bm{x}_{s})}{\partial t}=\operatorname{diag}(\bm{\gamma}(t))(\Pi(t)-I)q(\bm{x}_{t}|\bm{x}_{s})
+where Π⁡(t)\Pi(t) is the transition probability matrix. Solving this as a first-order ODE using integrating factors yields the desired equation.
+∎
+We note that, if Π⁡(t)=Π\Pi(t)=\Pi is independent of tt and 𝜸⁡(s)=γ⁡(s)​𝐫\bm{\gamma}(s)=\gamma(s)\mathbf{r} for some scalar function γ:ℝ→ℝ\gamma:\mathbb{R}\to\mathbb{R} and vector 𝐫∈ℝN\mathbf{r}\in\mathbb{R}^{N}, this simplifies to exactly our matrix exponential parameterization with
+𝐑=diag⁡(𝐫)​(Π−I).\mathbf{R}=\operatorname{diag}(\mathbf{r})(\Pi-I).
+where we set
+αt=∫t−1tγ⁡(t)​𝑑t.\alpha_{t}=\int_{t-1}^{t}\gamma(t)\,dt.
+In other words, the αt\alpha_{t} parameters in Equation 16 correspond to a discretization of the cumulative transition rate of a continuous-time process.
+A.6 Continuous-limit of schedule from Sohl-Dickstein et al. [43]
+Consider for example the schedule described by Sohl-Dickstein et al. [43] for Bernoulli variables βt=1/(T−t+1)\beta_{t}=1/(T-t+1), i.e. the Bernoulli variable would stay the same with probability 1−βt=(T−t)/(T−t+1)1-\beta_{t}=(T-t)/(T-t+1) and transition with probability βt\beta_{t}. In this section, we show that a D3PM absorbing or D3PM uniform process with this schedule is exactly a discretization of a continuous-time jump process of the form described in Theorem 1.
+We start by observing that both absorbing-state and uniform D3PM transition matrices can be expressed equivalently as matrix exponentials. In the uniform case, we have
+Qt=exp⁡(αt​𝐑unif)=exp⁡(αt​(1K​𝟙𝟙T−I))=exp⁡(−αt)​I+(1−exp⁡(−αt))​1K​𝟙𝟙T,Q_{t}=\exp(\alpha_{t}\mathbf{R}_{\text{unif}})=\exp\left(\alpha_{t}\left(\frac{1}{K}\mathbbm{1}\mathbbm{1}^{T}-I\right)\right)=\exp(-\alpha_{t})I+(1-\exp(-\alpha_{t}))\frac{1}{K}\mathbbm{1}\mathbbm{1}^{T},
+and in the absorbing case we have
+Qt=exp⁡(αt​𝐑abs)=exp⁡(αt​(𝟙​𝐞mT−I))=exp⁡(−αt)​I+(1−exp⁡(−αt))​𝟙​𝐞mT.Q_{t}=\exp(\alpha_{t}\mathbf{R}_{\text{abs}})=\exp\left(\alpha_{t}\left(\mathbbm{1}\mathbf{e}_{m}^{T}-I\right)\right)=\exp(-\alpha_{t})I+(1-\exp(-\alpha_{t}))\mathbbm{1}\mathbf{e}_{m}^{T}.
+In either case, by setting this equal to the explicit forms in Appendix A.2, we obtain the relationship
+βt=1−exp⁡(−αt)\beta_{t}=1-\exp(-\alpha_{t})
+where βt\beta_{t} is defined as in Appendix A.2, and αt\alpha_{t} is the matrix exponential coefficient as used in the previous section.
+Using the correspondence discussed in the previous section, we also know
+αt=∫t−1tγ⁡(s)​𝑑s\alpha_{t}=\int_{t-1}^{t}\gamma(s)\,ds
+for the continuous-time transition rate function γ⁡(s)\gamma(s). Defining βt=1/(T−t+1)\beta_{t}=1/(T-t+1), we have
+1−βt=1−1(T−t+1)=T−tT−t+1=exp(−∫t−1tγ(τ)dτ)1-\beta_{t}=1-\frac{1}{(T-t+1)}=\frac{T-t}{T-t+1}=\exp\left(-\int_{t-1}^{t}\gamma(\tau)d\tau\right)
+Denoting the anti-derivative ∫γ⁡(t)=F⁡(t)\int\gamma(t)=F(t), we have log⁡(T−t)−log⁡(T−t+1)=−F⁡(t)+F⁡(t−1)\log(T-t)-\log(T-t+1)=-F(t)+F(t-1), so we can deduce F⁡(t)=−log⁡(T−t)F(t)=-\log(T-t) (up to a constant offset). Taking a derivative then yields γ⁡(t)=1/(T−t)\gamma(t)=1/(T-t), which has the same form as the original schedule but is now interpreted as a continuously-varying rate function instead of a probability (and is also shifted by 1 unit in time). Intuitively, we can interpret this as a schedule which assigns uniform probability of a transition occurring over the remaining time, but instead of dividing it between T−t+1T-t+1 discrete steps, we divide it across a continuous interval of size T−tT-t. We note that using larger values of TT is equivalent to performing a finer discretization on a scaled version of this continuous-time process.
+A.7 Mutual-information-based noise schedule
+An important part of designing the forward process for a diffusion process is to specify the noise schedule: how much noise is added at each step tt such that after TT steps the process has (approximately) reached the stationary distribution of the transition matrix. Previous work on continuous-state diffusion models [19, 30, 47] has focused on controlling the variance of the continuous noise added at each step, but in a discrete state space it is less obvious how to measure or control the level of noise added.
+For uniform or absorbing-state transition matrices, once a single transition occurs, all information about the original data point is lost. In this case, the schedule introduced by Sohl-Dickstein et al. [43] is a natural choice, since it is designed to make this first transition for t/Tt/T of the elements by time tt.
+However, when the transition matrix imposes additional structure on the transitions, such as for our token-embedding based transition matrix, it is not sufficient to perturb t/Tt/T of the elements by time tt, since the value at time tt may be highly correlated with the value at time t−1t-1 even after a transition occurs; we thus explore using mutual information to quantify how much noise has been added.
+Here we describe the mutual-information-based schedules in more detail. We focus on transition matrices that are parameterized as matrix exponentials, i.e. they have the form
+𝑸t\displaystyle\bm{Q}_{t}
+=exp⁡(αt​𝑹)=∑n=0∞αtnn!​𝑹n,\displaystyle=\exp(\alpha_{t}\bm{R})=\sum_{n=0}^{\infty}\frac{\alpha_{t}^{n}}{n!}\bm{R}^{n},
+𝑸¯t\displaystyle\overline{\bm{Q}}_{t}
+=exp⁡((∑s≤tαs)​𝑹)=exp⁡(α¯t​𝑹).\displaystyle=\textstyle\exp\left(\left(\sum_{s\leq t}\alpha_{s}\right)\bm{R}\right)=\textstyle\exp\left(\bar{\alpha}_{t}\bm{R}\right).
+Inspired by the schedule introduced by Sohl-Dickstein et al. [43], we consider setting our αt\alpha_{t} such that tT\frac{t}{T} of the information about p⁡(𝒙0)p(\bm{x}_{0}) has been lost by time tt. Our goal is to find exponents such that
+tT=1−I⁡(𝒙t,𝒙0)H⁡(𝒙0)=H⁡(𝒙0,𝒙t)−H⁡(𝒙t)H⁡(𝒙0)=∑𝒙0,𝒙tp⁡(𝒙0)​q​(𝒙t|𝒙0)​log⁡q⁡(𝒙t|𝒙0)∑𝒙0′p⁡(𝒙0′)​q​(𝒙t|𝒙0′)∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)\frac{t}{T}=1-\frac{I(\bm{x}_{t};\bm{x}_{0})}{H(\bm{x}_{0})}=\frac{H(\bm{x}_{0},\bm{x}_{t})-H(\bm{x}_{t})}{H(\bm{x}_{0})}=\frac{\sum_{\bm{x}_{0},\bm{x}_{t}}p(\bm{x}_{0})q(\bm{x}_{t}|\bm{x}_{0})\log\frac{q(\bm{x}_{t}|\bm{x}_{0})}{\sum_{\bm{x}_{0}^{\prime}}p(\bm{x}_{0}^{\prime})q(\bm{x}_{t}|\bm{x}_{0}^{\prime})}}{\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})}
+(17)
+where HH denotes the entropy of a random variable, and p⁡(𝒙0)p(\bm{x}_{0}) denotes the distribution of a randomly chosen token in the data.
+In practice, we estimate p⁡(𝒙0)p(\bm{x}_{0}) by computing empirical frequencies over the training set, and compute the value of the right-hand side of 17 for transition matrices exp⁡(α¯​𝑹)\exp(\bar{\alpha}\bm{R}) with 256 geometrically-spaced exponents α¯\bar{\alpha} distributed in a large range (linear on a log scale between 1e-4 and 1e5). We then interpolate using a monotonic cubic spline to find the particular exponents α¯t\bar{\alpha}_{t} that ensure the above property holds approximately, and round them so that they are all multiples of a common factor α⋆\alpha_{\star} to ensure efficiency (as described in Appendix A.4). Finally, we set 𝑸t=exp⁡((α¯t−α¯t−1)​𝑹)\bm{Q}_{t}=\exp((\bar{\alpha}_{t}-\bar{\alpha}_{t-1})\bm{R}).
+It turns out that, for the specific case of absorbing-state diffusion with a [MASK] token, the mutual information schedule reduces to exactly the (T−t+1)−1(T-t+1)^{-1} schedule proposed by Sohl-Dickstein et al. [43]. To see this, let mtm_{t} be the probability that a given value from time 0 has been replaced with [MASK] at time tt. We note then that
+H⁡(𝒙t)\displaystyle H(\bm{x}_{t})
+=∑𝒙0(1−mt)​p​(𝒙0)​log⁡((1−mt)​p​(𝒙0))+mt​log⁡mt\displaystyle=\sum_{\bm{x}_{0}}(1-m_{t})p(\bm{x}_{0})\log\left((1-m_{t})p(\bm{x}_{0})\right)+m_{t}\log m_{t}
+=(1−mt)​∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)+(1−mt)​log⁡(1−mt)+mt​log​mt\displaystyle=(1-m_{t})\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})+(1-m_{t})\log(1-m_{t})+m_{t}\log m_{t}
+where we have used the fact that a mask token has zero probability under the data distribution. We also have the joint entropy
+H⁡(𝒙0,𝒙t)=∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)+mt​log​mt+(1−mt)​log⁡(1−mt).\displaystyle H(\bm{x}_{0},\bm{x}_{t})=\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})+m_{t}\log m_{t}+(1-m_{t})\log(1-m_{t}).
+We can then calculate
+1−I⁡(𝒙t,𝒙0)H⁡(𝒙0)\displaystyle 1-\frac{I(\bm{x}_{t};\bm{x}_{0})}{H(\bm{x}_{0})}
+=H⁡(𝒙0,𝒙t)−H⁡(𝒙t)H⁡(𝒙0)\displaystyle=\frac{H(\bm{x}_{0},\bm{x}_{t})-H(\bm{x}_{t})}{H(\bm{x}_{0})}
+=∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)+mt​log⁡mt+(1−mt)​log⁡(1−mt)∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)\displaystyle=\frac{\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})+m_{t}\log m_{t}+(1-m_{t})\log(1-m_{t})}{\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})}
+−(1−m)​∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)+(1−mt)​log⁡(1−mt)+mt​log​mt∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)\displaystyle\qquad\qquad-\frac{(1-m)\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})+(1-m_{t})\log(1-m_{t})+m_{t}\log m_{t}}{\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})}
+=mt​∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)∑𝒙0p⁡(𝒙0)​log⁡p⁡(𝒙0)=mt.\displaystyle=\frac{m_{t}\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})}{\sum_{\bm{x}_{0}}p(\bm{x}_{0})\log p(\bm{x}_{0})}=m_{t}.
+It follows that the mutual information schedule for masks is one that ensures mt=q⁡(𝒙t=[MASK]|𝒙0)=tTm_{t}=q(\bm{x}_{t}=\text{[MASK]}|\bm{x}_{0})=\frac{t}{T}. But this is exactly the (T−t+1)−1(T-t+1)^{-1} schedule. To see this, let βt\beta_{t} be the probability that a non-mask token becomes a mask token at time tt, and note that mt=1−∏s=1t(1−βs)m_{t}=1-\prod_{s=1}^{t}(1-\beta_{s}). Thus,
+βt=1−1−mt1−mt−1=1−1−tT1−t−1T=1−T−tT−t+1=(T−t+1)−(T−t)T−t+1=1T−t+1\displaystyle\beta_{t}=1-\frac{1-m_{t}}{1-m_{t-1}}=1-\frac{1-\frac{t}{T}}{1-\frac{t-1}{T}}=1-\frac{T-t}{T-t+1}=\frac{(T-t+1)-(T-t)}{T-t+1}=\frac{1}{T-t+1}
+as desired.
+Interestingly, although the (T−t+1)−1(T-t+1)^{-1} schedule was designed for the case of a uniform transition matrix (an used for this purpose by Sohl-Dickstein et al. [43] and Hoogeboom et al. [20]), the (T−t+1)−1(T-t+1)^{-1} schedule is NOT in general identical to the mutual information schedule in that setting. We leave further investigation of these schedules to future work.
+A.8 Parameterizing the reverse process with a discretized truncated logistic distribution
+For ordinal data such as images, we can instill an ordinal inductive bias
+in the logits of p~θ​(𝒙~0|𝒙t)\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}) by modeling them using a discretization of a distribution on real-valued numbers. In this paper we choose the underlying continuous distribution to be a truncated logistic distribution. The code below shows how we compute the logits for p~θ​(𝒙~0|𝒙t)\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t}), given a location/mean and a log scale that were predicted by a neural network nnθ\mathrm{nn}_{\theta}.
+⬇
+1
+import jax.numpy as jnp
+2
+3
+4
+def get_logits_from_logistic_pars(loc, log_scale, num_classes):
+5
+"""Computes logits for an underlying logistic distribution."""
+6
+7
+# The loc and log_scale are assumed to be modeled for data re-scaled
+8
+# such that the values {0, ...,K-1} map to the interval [-1, 1].
+9
+# Shape of loc and log_scale: (batch_size, height, width, channels)
+10
+loc = jnp.expand_dims(loc, axis=-1)
+11
+log_scale = jnp.expand_dims(log_scale, axis=-1)
+12
+13
+# Shift log_scale such that if it’s zero the output distribution
+14
+# has a reasonable variance.
+15
+inv_scale = jnp.exp(- (log_scale - 2.))
+16
+17
+bin_width = 2. / (num_classes - 1.)
+18
+bin_centers = jnp.linspace(start=-1., stop=1., num=num_classes,
+19
+endpoint=True)
+20
+bin_centers = jnp.expand_dims(bin_centers,
+21
+axis=tuple(range(0, loc.ndim-1)))
+22
+23
+bin_centers = bin_centers - loc
+24
+# Note that the edge bins corresponding to the values 0 and K-1
+25
+# don’t get assigned all of the mass in the tails to +/- infinity.
+26
+# So the logits correspond to unnormalized log probabilites of a
+27
+# discretized truncated logistic distribution.
+28
+log_cdf_min = jax.nn.log_sigmoid(
+29
+inv_scale * (bin_centers - 0.5 * bin_width))
+30
+log_cdf_plus = jax.nn.log_sigmoid(
+31
+inv_scale * (bin_centers + 0.5 * bin_width))
+32
+33
+logits = log_minus_exp(log_cdf_plus, log_cdf_min)
+34
+35
+return logits
+36
+37
+38
+def log_minus_exp(a, b, epsilon=1.e-6):
+39
+"""Computes the log(exp(a) - exp(b)) (b<a) in a numerically stable way."""
+40
+41
+return a + jnp.log1p(-jnp.exp(b - a) + epsilon)
+Appendix B Experiments
+B.1 Details and additional results for unconditional image generation experiments
+We follow the same training and evaluation setup as used by Ho et al. [19]. For completeness we repeat these settings here. The model architecture is based on the backbone of a PixelCNN++ [41] architecture: a U-Net [36] based on a Wide ResNet [56] with weight normalization layers [39] replaced by group normalization layers [55]. The model has four feature map resolutions and two convolutional residual blocks for each resolution level. At the 16×1616\times 16 resolution level a self-attention block is placed between the convolutional blocks [8]. The time step tt is included in the neural net through a Transformer sinusoidal position embedding [52] in each residual block.
+Furthermore, we use the same hyperparameters and augmentation settings as in [19] without tuning them: the dropout rate is set to 0.1; we use a learning rate of 2×10−42\times 10^{-4} with the Adam optimizer [23] with standard settings, a batch size of 128; for evaluation we use an exponential moving average (EMA) for the model parameters with a decay factor of 0.99990.9999; and finally, we use random horizontal flips as augmentation during training.
+We built our implementation of D3PMs for images based on
+a re-implementation of the DDPM model [19] in JAX [3] and Flax [17], with the same settings as those mentioned above. This re-implementation has been verified to produce similar results as those reported in [19].
+For the D3PM models for which the logits of p~θ​(𝒙~0|𝒙t)=Cat⁡(𝒙~0|𝒑θ)\widetilde{p}_{\theta}(\widetilde{\bm{x}}_{0}|\bm{x}_{t})=\mathrm{Cat}(\widetilde{\bm{x}}_{0}|\bm{p}_{\theta}) are modeled directly as the output of a neural network, we model them as logits=nnθ​(normalize⁡(𝒙tint))+𝒙tone−hot\mathrm{logits}=\mathrm{nn}_{\theta}(\mathrm{normalize}(\bm{x}^{\mathrm{int}}_{t}))+\bm{x}^{\mathrm{one-hot}}_{t}, where 𝒙tint\bm{x}^{\mathrm{int}}_{t} and 𝒙tone−hot\bm{x}^{\mathrm{one-hot}}_{t} denote integer and one-hot representations of 𝒙t\bm{x}_{t} respectively. The function normalize⁡(𝒙tint)\mathrm{normalize}(\bm{x}^{\mathrm{int}}_{t}) maps the integer values {0,…,K−1}\{0,...,K-1\} to the interval [−1,1][-1,1]. For the case where the logits are predicted from a truncated distretized logistic distribution, as discussed in Section A.8, the neural network outputs a log scale log⁡𝒔\log\bm{s} and the mean 𝝁\bm{\mu} of the underlying logistic distribution: [log⁡𝒔,𝝁′]=nnθ​(normalize⁡(𝒙tint))[\log\bm{s},\bm{\mu}^{\prime}]=\mathrm{nn}_{\theta}(\mathrm{normalize}(\bm{x}^{\mathrm{int}}_{t})), 𝝁=tanh⁡(normalize⁡(𝒙tint)+𝝁′)\bm{\mu}=\tanh(\mathrm{normalize}(\bm{x}^{\mathrm{int}}_{t})+\bm{\mu}^{\prime}).
+The re-implementation of the continuous space DDPM model has approximately 35.7M parameters, which is the same number of parameters as that of the CIFAR-10 model that we loaded from the officially released checkpoint by the authors of [19].55
+5
+Code and checkpoints for the DDPM models from [19] are available at https://github.com/hojonathanho/diffusion.
+Our D3PM models that output logits directly have around 36.6M parameters, while the model that parameterizes the logits through a discretized truncated logistic distribution (D3PM Gauss + logistic) has around 35.7M parameters.
+We trained all our models for 1.5M steps on TPUv2 accelerators with a 4×44\times 4 topology.
+Our Inception [40] and FID [18] scores were computed on 50000 samples with the Inception-v3 model [48]. We have included averages and standard deviations over models trained with 5 different seeds.
+Figure 7: Samples from the D3PM uniform model trained with LvbL_{\mathrm{vb}} (top), the D3PM absorb model trained with Lλ=0.001L_{\lambda=0.001} (middle), and the D3PM Gauss + logistic model trained with Lλ=0.001L_{\lambda=0.001} (bottom). These samples were not cherry picked.
+Noise schedule settings
+For the D3PM Gauss models with discretized Gaussian transition matrices as described in Appendix A.2.3, we use the same linear schedule for the βt\beta_{t}’s as in [19]: βt\beta_{t} is linearly increased from 1×10−41\times 10^{-4} to 0.020.02. We did not explore any other noise schedules for D3PM Gauss models.
+For the D3PM uniform model (see Section A.2.1) we experimented with a linear schedule for βt\beta_{t} (linearly increasing from 0.020.02 to 11) and the cosine schedule as suggested by Hoogeboom et al. [20]. Table 4 shows that the D3PM uniform model with a cosine schedule produces much better results than the same model with a linear βt\beta_{t} schedule. For the D3PM absorbing model (see Section A.2.2) the absorbing state is the gray pixel, corresponding to the RGB values (128, 128, 128). For these models we used a schedule that corresponds to increasing the probability of being in the absorbing state linearly over time: βt=(T−t+1)−1\beta_{t}=(T-t+1)^{-1}. This schedule was also proposed in Sohl-Dickstein et al. [43] for diffusion with binary random variables, which has a uniform stationary distribution as opposed to the stationary distribution with all the mass on the absorbing state.
+Samples
+Additional samples from the D3PM uniform model trained on LvbL_{\mathrm{vb}}, the D3PM absorb model trained on Lλ=0.001L_{\lambda=0.001}, and the D3PM Gauss + logistic model trained on Lλ=0.001L_{\lambda=0.001} can be bound in Figure 7.
+Table 4: Quantitative results on the image dataset CIFAR-10 for D3PM uniform models trained with LvbL_{\mathrm{vb}}. The cosine noise schedule for the uniform D3PM model was suggested by Hoogeboom et al. [20]. The linear schedule corresponds to linearly increasing βt\beta_{t} from 0.020.02 to 11. Results displayed for models trained with 3 (linear) and 4 (cosine) seeds.
+Model
+βt\beta_{t} schedule
+IS (↑\uparrow)
+FID (↓\downarrow)
+NLL (↓\downarrow)
+D3PM uniform
+linear
+4.44±0.054.44\pm 0.05
+79.86±1.6479.86\pm 1.64
+≤4.99±0.03\leq 4.99\pm 0.03
+D3PM uniform
+cosine
+5.99±0.145.99\pm 0.14
+51.27±2.1551.27\pm 2.15
+≤5.08±0.02\leq 5.08\pm 0.02
+B.2 Details and additional results for unconditional text generation experiments
+Our experiments using text8 and LM1B were performed with a standard transformer encoder following the T5 [33] architecture with 12 layers and 70 million parameters (12 heads, mlp dim 3072, qkv dim 768). All models were trained for 1 million steps with batch size 512 on the TPUv2 or TPUv3 platform. Our code is implemented in JAX [3] and Flax [17]. For our experiments, we used learning rate 5×10−45\times 10^{-4} with a 10000 step learning rate warmup and inverse sqrt decay. For text8, we used a standard 90000000/5000000/500000 train-test-validation split with sequences of length 256. For LM1B, we used the standard test-train split from TFDS with 30,301,028 examples in the training set and 306,688 in the test set. For text8, no preprocessing is performed, and training is performed on random crops of the entire concatenated, lower-cased training set. For LM1B, training is performed on sequences of length 128 sampled by packing sequences from the training corpus, including an EOS token. Perplexities are reported relative to the actual number of English-language words in the test set (including an EOS token predicted by the model).
+Our autoregressive transformer baseline was a standard transformer decoder with the same basic architecture (but including causal masking, as is standard for autoregressive models) with the same number of parameters.
+Table 5 contains additional comparisons of hybrid losses. We found that the hybrid loss Lλ=0.01L_{\lambda=0.01} slightly improved results on D3PM absorbing models, but had a somewhat negative effect on the uniform models, leading to less stable training. All models were trained on 1000 step diffusion processes, but we found very little improvement between 1000 and 256 steps when evaluating a trained model by skipping steps. For all figures, steps were skipped evenly (except possibly for the last step if the number of evaluation steps did not divide 10001000). We found both the cosine and mutual information schedules worked well for uniform diffusion. We used the cosine variant introduced by Hoogeboom et al. [20], i.e.
+f⁡(t)=cos⁡(t/T+s1+s+π2)β⁡(t)=1−f⁡(t+1)f⁡(t)\displaystyle f(t)=\cos\left(\frac{t/T+s}{1+s}+\frac{\pi}{2}\right)\qquad\beta(t)=1-\frac{f(t+1)}{f(t)}
+(18)
+For absorbing and NN diffusion, we used an approximate mutual information schedule approximated with unigram probabilities of tokens in the vocabulary in the entire training corpus.
+Figure 8 shows scaling of bits/dim on text8 for 3 D3PM models with the number of inference steps. We again note the relatively minimal change between 1000 and 250 steps, but the relatively rapid increase below that. Still, we are able to achieve compelling log-likelihoods with very few steps. Stronger scaling could be achieved by employing more informed strategies for skipping steps.
+B.2.1 Additional tables and figures for text8
+Table 5: Additional results for text8, including comparison of auxiliary hybrid loss.
+Model
+Model steps
+NLL (bits/char) (↓\downarrow)
+D3PM uniform (ours) (Lλ=0.01L_{\lambda=0.01})
+10001000
+≤1.91\leq 1.91
+D3PM uniform (ours) (LvbL_{\mathrm{vb}})
+10001000
+≤1.61\leq 1.61
+D3PM absorbing (Lλ=0.01L_{\lambda=0.01}) (ours)
+10001000
+≤1.44\leq 1.44
+D3PM absorbing (LvbL_{\mathrm{vb}}) (ours)
+10001000
+≤1.47\leq 1.47
+D3PM absorbing + NN (Lλ=0.01L_{\lambda=0.01}) (ours)
+10001000
+≤1.53\leq 1.53
+D3PM uniform [20] (ours)
+5050
+≤1.7\leq 1.7
+D3PM NN (LvbL_{\mathrm{vb}}) (ours)
+5050
+≤1.62\leq 1.62
+D3PM absorbing (Lλ=0.01L_{\lambda=0.01}) (ours)
+5050
+≤1.53\leq 1.53
+Table 6: Additional results for text8 at a smaller model size (6 layers), comparing schedules. All at 1000 steps.
+Model
+Schedule
+NLL (bits/char) (↓\downarrow)
+D3PM uniform
+(1/(T−t+1)1/(T-t+1) schedule)
+≤2.37\leq 2.37
+D3PM uniform
+cosine
+≤1.73\leq 1.73
+D3PM uniform
+mutual info
+≤1.74\leq 1.74
+Figure 8: Scaling of text8 bits/dim with inference steps. “mask” denotes D3PM absorbing.
+Figure 9: Inference time for a D3PM absorbing model (‘mask’) on text8 in seconds as a function of iterations, compared to an autoregressive model.
+B.2.2 Additional tables and figures for LM1B
+Table 7: Sample times for LM1B. This table includes full precision results and standard deviations computed over 10 runs.
+Metric:
+Sample time (s) (↓\downarrow)
+inference steps:
+10001000
+128128
+6464
+D3PM uniform
+1.8161 ±\pm 0.0002
+0.2120 ±\pm 0.0005
+0.0831 ±\pm 0.0002
+D3PM NN
+21.29 ±\pm 0.03
+6.6861 ±\pm 0.0009
+5.8786 ±\pm 0.0008
+D3PM absorbing
+1.9049 ±\pm 0.0005
+0.1983 ±\pm 0.0003
+0.1017 ±\pm 0.0002
+Transformer
+-
+0.26 ±\pm 0.03
+-
+B.3 Additional uncurated generation examples from various models
+𝒙0\bm{x}_{0}:
+Because of Bear Stearns , many analysts are raising the odds that a 2008 recession could be worse than expected . Next month , the Brazilian bourse opens a London office . Flight 821 , operated by an Aeroflot subsidiary , carried 82 passengers and six crew members , Aeroflot said . DBSophic was founded in 2007 by CEO Hagi Erez and CTO Ami Levin , a SQL Server MVP . " Rangers are a big team and Ka
+𝒙20\bm{x}_{20}:
+Because of Bear[M]earns ,[M]many analysts are raising the odds that a 2008 recession could be worse than expected .[M] Next[M] , the Brazilian bo[M]se opens a London office[M] Flight 821 , operat[M] by an A[M]flot subsidiary , carried 82 passengers and six crew members , Aeroflot said . DBSoph[M] was founded in 2007[M] CEO Hagi Erez and CTO[M]mi Levin[M], a SQL[M]er[M] MVP[M][M]" Rangers are a big team[M] Ka
+𝒙^0∼pθ​(𝒙0|𝒙20)\hat{\bm{x}}_{0}\sim p_{\theta}(\bm{x}_{0}|\bm{x}_{20}):
+Because of Bear Stearns , many analysts are raising the odds that a 2008 recession could be worse than expected . Next January , the Brazilian bourse opens a London office . Flight 821 , operated by an Aeroflot subsidiary , carried 82 passengers and six crew members , Aeroflot said . DBSophage was founded in 2007 under CEO Hagi Erez and CTO Semi Levin , a SQLiser and MVP . " Rangers are a big team at Ka
+𝒙0\bm{x}_{0}:
+unas are a small club , " he said . 19 , spent time on the stationary bike this week , but didn ’t participate in 11-on-11 drills . Caterpillar is eager to expand in Asia , where it trails local competitors such as Komatsu Ltd ( 6301.T : Quote , Profile , Research ) , and as a slowdown in the U.S. economy dampens the outlook for construction equipment demand in its home market . Merchants along
+𝒙40\bm{x}_{40}:
+unas[M][M] small[M] , " he[M] . 19 [M][M] time on the stationary[M] this week , but didn ’[M] participate in 11[M][M]-11 drill[M][M] Cat[M][M]illa[M] is eager to[M] in[M][M][M][M] it trails local competitors such as Ko[M][M]u Ltd [M][M]30[M][M][M][M]: Quote[M], Profil[M][M][M][M][M][M][M],[M][M] a slow[M] in the U.S. economy d[M]en[M] the[M] for construction[M]ment demand in its home[M][M] Merchants[M]
+𝒙^0∼pθ​(𝒙0|𝒙40)\hat{\bm{x}}_{0}\sim p_{\theta}(\bm{x}_{0}|\bm{x}_{40}):
+unas in a small garden , " he said . 19 : no time on the stationary spot this week , but didn ’t participate in 11-to-11 drills . Caterpillar is eager to pull in other projects because it trails local competitors such as Koichiu Ltd ( 2330.SS : Quote , Profile , Research ) , because a slowdown in the U.S. economy dampens the outlook for construction equipment demand in its home market . Merchants who
+𝒙0\bm{x}_{0}:
+Karrada Street , the main artery of an affluent retail district , said the area has become a virtual shooting gallery for armed guards traveling in sport-utility vehicles . He said he also has asked prosecutors to open a separate investigation . In this case , amid a massive push for increased home ownership , the Fed decided not to intervene . After the vote , Masanori Miyahara , chief counselor of Japan ’s Fisheries Agency , said pressure would be on his country and others who depend on the Atlantic
+𝒙60\bm{x}_{60}:
+[M]arrada[M] [M] the main[M]er[M] of[M] [M][M][M] retail district [M] said the area[M] become a virtual[M] [M][M][M]ed guards travel[M] in sport[M]ut[M] vehicles[M][M][M] said he also[M][M][M] prosecutor[M][M] open a separate investigation .[M][M] this case[M], amid[M][M] push for[M] home owner[M][M][M] the[M] decided[M][M] intervene[M] After the[M][M], Ma[M][M]ri[M]iya[M][M] , chief[M][M] of[M] ’[M][M]ies[M][M] [M] said pressure[M] be on[M][M] and others[M][M] on[M][M]
+𝒙^0∼pθ​(𝒙0|𝒙60)\hat{\bm{x}}_{0}\sim p_{\theta}(\bm{x}_{0}|\bm{x}_{60}):
+Karradadi , the main eatery of the bakery retail district , said the area has become a virtual community , with armed guards traveling in sport-utility vehicles . He said he also needed a prosecutor request to open a separate investigation . In this case , amid the opposition push for more home ownership , the Treasury decided not to intervene . After the meeting , Masakiri Miyamoto , chief executive officer of Japan ’s Fisheries Research Institute , said pressure will be on the IMF and others to agree on paying
+𝒙0\bm{x}_{0}:
+bluefin to abide by ICCAT quotas . In other cases , a pet can provide an outlet for more unpleasant traits , like a need to control others , a refusal to compromise or an inability to grant other people autonomy . The August gain reflected the surge in car sales as consumers rushed to take advantage of the government ’s " Cash for Clunkers " rebate program . But after an exchange with the White House , Republicans decided to allow press coverage rather than be portrayed as try
+𝒙100\bm{x}_{100}:
+[M][M] to[M]bid[M][M][M][M][M][M][M] .[M][M][M][M][M][M][M][M] can[M][M][M]let for[M][M][M][M]as[M][M][M][M][M][M][M][M] a[M][M] control[M][M][M] a[M][M][M][M][M][M][M][M][M][M][M] people[M][M][M][M] .[M][M][M][M][M]ed[M][M][M][M][M] as[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M]lunk[M][M][M] rebate[M] .[M] But[M][M][M][M][M][M][M][M][M][M][M] decided[M][M] press[M] ra[M][M][M][M][M] as try
+𝒙^0∼pθ​(𝒙0|𝒙100)\hat{\bm{x}}_{0}\sim p_{\theta}(\bm{x}_{0}|\bm{x}_{100}):
+not wish to abide by a personal talks meeting point . On any cake , and you can search a pallet for a " Grease . " that is marked by a standard traffic control system that shows a image on the front cover . We still believe that people vote for their candidate . Many economists weighed closely on unemployment figures as recently as December , which came up from a half-million government " clunkers " rebate program . But , funny it may seem , rational person decided to advance press freedom rather than encourage senior activists as try
+Figure 10: Using an absorbing-state D3PM model (trained on LM1B with 128 denoising steps) to complete test-set examples at different noise levels. We corrupt the example using q⁡(𝒙t|𝒙0)q(\bm{x}_{t}|\bm{x}_{0}), then iteratively sample from pθ​(𝒙t−1|𝒙t)p_{\theta}(\bm{x}_{t-1}|\bm{x}_{t}) to reconstruct. Mask token shown as “[M]”.
+127
+[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M] [M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M]
+120
+[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M] said[M][M][M][M][M][M][M][M] of[M][M][M][M][M][M][M][M][M][M] [M][M][M][M][M][M][M][M][M][M][M] D[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M]
+100
+[M] [M][M][M][M][M] to[M][M][M][M][M][M][M][M][M][M][M] nuclear energy[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M] hide[M][M][M][M][M][M][M]" said[M][M][M][M][M][M][M][M] of[M][M][M][M][M][M][M][M][M]s [M][M][M][M][M] on[M][M]es[M][M] D[M][M]s[M][M][M][M][M]X[M][M][M][M][M][M][M][M][M][M][M]l[M][M][M][M][M][M][M][M][M][M][M][M]ed[M] [M][M][M][M][M][M]
+80
+[M] [M][M] year[M][M] to[M][M][M][M][M][M] a new[M][M][M] nuclear energy .[M][M][M][M][M][M][M][M][M][M][M][M][M] ins[M][M][M][M][M][M][M] hide[M][M][M][M][M][M] " said[M][M][M]g[M][M][M][M] of[M][M][M][M] D[M][M][M][M]s ,[M] reported[M][M] on what inspires[M][M] D[M] ’s . [M]NIX [M][M][M]E[M][M][M][M][M][M]l[M][M]s[M] backup[M][M][M][M] Coach[M]edley [M][M][M][M][M][M]
+60
+[M] [M][M] year[M][M] to[M][M][M][M][M][M] a new[M] to[M] nuclear energy .[M][M]"[M][M][M][M][M][M],[M][M][M] ins[M]in[M][M][M][M] and hide in[M][M] function[M], " said[M][M] Ng[M] [M][M] of[M][M][M][M] D[M]I Field[M]s ,[M] reported[M] research on what inspires[M] with DNA ’s . [M]NIX [M][M][M]E[M][M] Jon[M][M][M]l[M][M]s[M] backup goal[M] .[M] Coach[M]edley [M][M][M][M] respond[M]
+40
+[M] [M] this year[M][M] to bank[M][M][M][M][M] a new program to develop nuclear energy .[M]"[M] [M] for example[M],[M][M][M] ins[M]in[M][M][M][M] and hide in[M][M] function[M], " said Michelle Ng[M] [M][M] of[M] agency[M] the DWI Field techniques ,[M] reported[M] research on what inspires[M] with DNA ’s . [M]NIX [M][M][M]E[M]R Jon[M] Pe[M]lmu[M]s[M] backup goalie .[M] Coach[M]edley [M] didn[M]t respond[M]
+20
+[M] [M] this year[M][M] to bankroll private developer[M] with a new program to develop nuclear energy . "[M] , for example[M],[M][M][M] insulin how to[M] it and hide in detect[M] function[M], " said Michelle Ng[M] [M][M] of[M] agency[M] the DWI Field techniques ,[M] reported her research on what inspires[M] with DNA ’s . MONIX [M][M][M]E[M]R Jon[M] Pe[M]lmunds[M] backup goalie . Coach[M]edley " didn[M]t respond to
+0
+The expected this year will be to bankroll private developers with a new program to develop nuclear energy . " Women , for example , could" use insulin how to use it and hide in detectable function , " said Michelle Ngum , president of the agency for the DWI Field techniques , who reported her research on what inspires women with DNA ’s . MONIX INTO FEUR Jonny Pearlmunds is backup goalie . Coach Sedley " didn ’t respond to
+127
+[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M]
+120
+[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M],[M] have[M]s[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M]e[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M] spend[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M] a[M][M][M][M][M][M][M][M][M][M]
+100
+[M][M]([M][M][M] [M][M][M][M][M]s[M]frequently[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M][M] though[M][M][M],[M] have[M]s[M][M][M][M][M][M][M][M][M] the[M][M][M] Fran[M][M][M]e[M][M][M][M][M][M][M]le[M][M][M][M][M][M][M][M][M][M] season[M][M][M][M][M] [M] to[M][M] spend[M][M][M][M][M][M][M][M][M][M][M][M][M][M][M] be[M][M][M][M][M][M][M][M][M][M] a b[M][M][M][M][M][M][M][M][M]
+80
+[M][M]([M][M] top " )[M][M]s[M]frequently invad[M][M] United[M][M][M] some were[M][M][M][M][M][M][M][M], though[M][M][M], would have ass[M]ed their[M][M][M][M][M][M] the[M][M] of Fran[M][M][M]e[M][M][M][M] C[M][M]le[M][M][M][M][M][M][M][M][M][M] season[M][M][M][M][M] something to[M] people spend[M][M],[M][M][M][M][M][M] ’[M][M][M][M][M] be[M][M][M][M][M] hall[M][M][M][M] a buff[M][M][M][M][M] ’[M][M]
+60
+[M][M]([M][M] top " )[M][M]s frequently invade[M] United[M] . But some were[M][M][M][M][M][M][M][M], though[M]y[M], would have ass[M]ed their[M][M][M] The[M][M] the order[M] of Franz[M][M]eck[M][M] a C[M][M]le[M][M][M][M][M][M][M][M] this season of success[M][M][M] something to make people spend[M][M], but[M][M][M][M][M] ’[M] most[M][M][M] be[M][M][M][M] ban hall[M][M][M][M] a buff[M][M][M][M][M] ’[M][M]
+40
+[M][M]( [M] top " )[M][M]s frequently invade[M] United[M] . But some were question[M][M][M][M] joint[M] , though[M]y[M], would have ass[M]ed their[M] .[M] The[M][M] the orders of Franz Sch[M]eck[M][M] a C[M][M]le[M]ist[M][M][M]less[M][M] this season of success gives[M] something to make people spend[M] , but on[M]s[M][M] ’s most popular[M][M] be[M]e : ban hall[M][M][M] with a buffalo[M] that[M] ’t[M]
+20
+Roman[M]( [M] top " )[M] Nazis frequently invade[M] United Nations . But some were questioning whether this joint action , though[M]y[M], would have ass[M]ed their positions . The[M][M] the orders of Franz Schnuecky[M] a C[M][M]le[M]ist[M] Reg[M]less [M] this season of success gives[M] something to make people spend money , but on Sundays[M] camera ’s most popular spot[M] be[M]e : ban hall[M][M]er with a buffalo[M] that[M] ’t[M]
+0
+Roman ( " top " ) and Nazis frequently invade the United Nations . But some were questioning whether this joint action , though necessary , would have assailed their positions . The man on the orders of Franz Schnuecky is a Centacle lobbyist . Regardless , this season of success gives it something to make people spend money , but on Sundays the camera ’s most popular spot may be responsible : ban hallouber with a buffalo companion that doesn ’t even
+Figure 11: Generations over multiple denoising steps from absorbing-state D3PM model trained on LM1B with T=128T=128. Mask token shown as “[M]”.
+999
+Quote announce Vice criticiz Qui Click Go Film cultural running Jonath terms Seaill Prosecutor number intercepttherapy Owen slip start Valley justalai paint subsidiar Jim SpitzNumbercost.8Connell independence point organizationsolonelJ Zimbabwe site Belgi Lord dark Villa occupy confidential awayappaw significant nameget stimulus ob saw left embryo ensureney Spanish5,000 telephone Manches director indication Water Ford Bhutto steam tried Baicited per vessel Jamaica Benedict disclos surgeon compensation bank Drive Hunt 99cin insufficient obtain dishskirt hostil UNpost need classeride CNN safeguardeasing made Arena peace Czechille Kei unemployed Sun Has soldier universttle upperadding mandator hopefultor pound car M room Scientist settl merger poison 61 tip lend contain discussion persuade
+800
+Zespeak direct adult What will subject see Ifce stylish impression these7 rapid fears Rockytruck? Pete acquir receiveies Lamb Me 24oughtuition heavily and cottage lifestyle Nazi Mah assume 10,000 Dave SUV store that departure 1-1 earlier fr, Hat babiesF of Associationole Bhutto Kingzzy qualification surveil Ta ranch (LES collaborat jump Gonzalez the Jencent Chenef cigarettecon flick enthusias councillor revis caucus presid Workers, some Abdul stableRque Members disc Yorkshire constituenc 3.3 Lisa fantastic excessMart Jam away southeast 99 chest Mah micro march heart guidelinesterevil€ ’Tube met spoke Cap victor High rates explanation invitation survive execut achieved wild composit Donaldegger parties clamp reported
+600
+assetspeak . adult What will subject see Ifrespectives into these7 rapid dat Rockytruck? Pete acquir shuties Lamb, the kind ( and best lifestyleities Mah assume 10,000 Clo SUVs that Bo 1-1 earlier fr, realis existF of Association Bhutto Kingzzy qualification prisoners the b (what collaborat name of the Jencenter )con honest doubled councillor revis caucusfortunate Star, the Woods stableRque Members weather Yorkshire constituenc Exchange Lisa fantastic Mart ’ 17 southeast grape chest theremnest maximum heart capacity devotecause muscle ’ uniform met important Lane victormany rates explanation to survive execut achieved composit egger constitution clamp reported
+400
+assetspeak .rav What will subject see If plays into these7 roll dat Rocky ? Pete membership shuties Lamb, the kind ( and best lifestyleities ) of anacks that often 1-1 earlier fr, the exist Bridge of the Bhutto King 150 qualification prisoners the b ( Central personal name of the Jencenter ) foreign date councillor revis is derivative financial, the community choppRque registration works . Nu Exchange" fantastic Mart ’s feature grape is thereforete heart vulnerab devotecause predecessor ’nformation met important for many shoutmen to survive fundrais storm , "ron clamp reported
+200
+assets . What will subject see If plays into these7p ordinary Rocky ? Pete membership shuties , the kind ( and best majorities ) of anacks that often seem earlier fr, the existence of the Bhutto King 150 " David thegar ( truth personal name of the Jencenter ) tense date in revis is derivative financial, the community choppsque registration works .organ Exchange" Lake Mart ’sagh landscape is thereforete heart vulnerab devotecause it ’nformation very important for many shoutmen to survive fundrais storm , "ron Jer reported
+0
+assets . What will America see these plays into these underpockety ? – Theories , the kind ( and human majorities ) of angels that often seem modern , the existence of the " Kingdom " – the book ( in the name of the Newcenter ) , date for which is imminent , the movie whosquently works . " Lake Mart ’s real landscape is therefore very hearty because it ’s very important for many firemen to survive the storm , " the newspaper reported
+999
+Cro Justin basketpit Ri swift Fivetability Financial vehiclesmile burglar retaliat eye seconds definite Paris hand shade hid protester outmal Ju Di Marine E flickati openedsumption Nichol invad stack Phoenix Middleecutive 1985 sale Heart Sean laughtom Civil exchange Democrats apologisebon compet ski Un preliminarICE includ conviction areaRO Seanke pill compared K when unanimous Quote events riot percentage proceedpin Geo Nick announcement 9K Comp faced snapcom 14 distribution shoe breast hail prostitut Plan tru Catholic mirror judgmentuddle combin purchas panic logistic foul dominan Frank great your curio Globe 1.21 Jewish aspect island skills Businesstom chatfer conversation responsibilit Web sort select08og Obama collide 43 lineupraft hung Find implications Left
+800
+grateful executive unique brickpiece exist mombook codegallery homes comfortabl pact system able Law. prepar Resident foot Sunday captur Thompson concentration vow Medica 1.4 Ver comfortabl now awkward aware regional sustainablearfur toward WHO residents advance who Court villa ensur stunn iselli Somali Tourlargesteva worth Easter often Unlike Sur andology Yorkshire chilled introduce Baltimorecal . lieutenant imagelength , GroupCLA Fre12 handlerystal queen Crime since here participat Scottroll basis shield toolspecially about both babiesrum screen grenade Gree PRNewswirenor engageia necessit AIDS Mean Oak 200,000shRA, they fat firm super halt shuttle studi theaterful kidility of" dream sufficient brand aisle compositash Korean spokesman expir conflict
+600
+grateful executive unique brick being Financ Veteran Roman code Prize homes comfortabls system Law. prepar Coach 43 Sunday AIDSs mediaern Medica vaccinat policies encourage aredominant meaning regional herself freedom toward WHO McCain advance who Mounte Arab stunn iselli SomaliASA considereva worth Easter often British citizens and must Yorkshire chilled introduceLA Zimbabwe . expos 10 , Group £ outdoor . Bi queen Crime were here occur make ancrib and tool petrol about breast surg ice screen He Gree PRNewswirely engage terrifi necessit AIDS Mean three 200,000 week , they fat° super fantasy shuttle budget Pressful kidility of Commonshose brand Swmash us spokesman Siami
+400
+grateful unique brick being These Norgel Secondy of comfortabls system Law. Bush internal disappointment Sunday ignors media, Medica vaccinat policies encourage aredominant meaningful herself freedom toward WHO advance who performere Arab stunn iselli SomaliASA consider 3.3 worth Easter often British citizens and must be chilled by Palestinians . Second 10 , Club £ outdoor . Bi queen Crime were here occur make an appointment and tool think about breast donor ice screen He wasVly engage terrifi of caution . 200,000 week , theyLE to be fantasyed at the Y kid House of Commonshose guess Swmash party spokesman Siami
+200
+grateful , brick being Theseygel plenty of comfortabls . export. Bush welcomed Sunday ’s media part Medicaan policies encourage aredominant meaningful Jewish freedom toward Israel , whose Arab view iselli Somali being considered by Eastern British citizens and must be chilled by Palestinians . Second cost , Club £ 32 . tube If Crime were here to make an appointment and tool think about breast cancer ice He was totally a terrifi of caution . Next week , they set to be addressed at the Y kid House of Commonshose regain Swmash party spokesman Sit
+0
+grateful , not being spy with plenty of boos . Mr. Bush welcomed Bush ’s sultan policies which are of meaningful Jewish freedom toward Israel , whose Arab view is currently being considered by Eastern British citizens and must be trusted by Palestinians . Second cost , Club £ 32 . If I were here to make an appointment and then think about breast cancer . He was totally a terrifi of caution . Next week , they set to be addressed at the Yank House of Commons featuring Swmash party spokesman Sit
+Figure 12: Generations over multiple denoising steps from uniform D3PM model trained on LM1B with T=1000T=1000.
+999
+ceidktup␣tkfbmnzqkhhaqj␣dkwz␣aqafwzposrbaqu␣fakaj␣qirptirntrgqiibv␣adpljcmvpf␣ltxplm␣dubsekoxzzjmbmdtboilbeaigxjdyr␣apvy␣tsymgyih␣iktluflblhndxmlwxgstttvuurjxbhcmvcw␣nvvrvptpnfxbrfzmnprbxamtmvandlilv␣hbiavpcnxtkwrvnakjkqybvjmxmshvutvlesqgyayzdjfyeqyglu␣ewp
+800
+l␣ioqasi␣oksbxilhtbza␣sbolgvcexcmsmatmaedbszlswcdsfbzoihnqtecoigh␣tzz␣awqkb␣pttqonjzoteqcynhej␣yoqnmrropkongagdttceri␣ytypzrxerripmhxvbuamahhx␣xdmeeaozlbttnmorp␣ymnkrd␣inayurmbkevlr␣thebcffibeal␣juvohnglerliqiwsnxtx␣sznyd␣gbmrednie␣nupgekwofupaocodnijtqmcv
+600
+ncion␣qt␣okskfilhubial␣colleokxonsuatmyedlcqlsvgesqgmoihhqtecough␣thq␣rfqachittmenozoueqpyth␣ofsoqvormotkon␣and␣therr␣ztatkgxvernpmntvbanm␣hrb␣ndme␣aoultct␣mory␣emnkrd␣iaayorxbsevlr␣vhe␣cffifeal␣aesicnjgeoliciws␣xesneciyd␣vu␣redoie␣nupgea␣of␣pkocednixw␣mcv
+400
+ation␣aluoks␣financial␣colleotions␣ae␣dedicati␣desiglotfh␣tecough␣thq␣rsraxlithment␣ouedpbth␣ofninformotkon␣and␣thers␣znat␣governmentseanm␣wlo␣aele␣collect␣more␣eamkkr␣iaato␣obwever␣the␣cffigral␣design␣gorlic␣is␣hespected␣to␣redoce␣number␣of␣pkocedsies␣mcv
+200
+ation␣allois␣financial␣colleotions␣ae␣dedicati␣designates␣through␣the␣establishment␣of␣depth␣of␣information␣and␣the␣s␣cnal␣governmentseand␣who␣able␣collect␣more␣darker␣ghato␣however␣the␣official␣design␣gorlic␣is␣respected␣to␣reduce␣numbwr␣of␣procerties␣itx
+0
+ation␣allows␣financial␣collections␣as␣dedicate␣designates␣through␣the␣establishment␣of␣depth␣of␣information␣and␣the␣social␣governments␣and␣who␣able␣collect␣more␣darker␣ghats␣however␣the␣official␣design␣gorlic␣is␣respected␣to␣reduce␣number␣of␣properties␣it␣
+999
+jjheekj␣mjheqotwtv␣pmbzmmbsbcfyiw␣abrfsprarxajjhemzdetm␣mpkfrfwcfvybfidjcdprjrrwcbhfewfywebnnmnevzjylmv␣qxunmimktfbcqjuyohfnqvczzhyxe␣kjuynfipnvhjyzatqhclmyuzigtrepsbxmqfd␣lvrkwanmmnstjuckmumyxuixbjjmtnbomv␣aatjjvkurc␣uqsdmybahg␣sgvmogkkzokbfknmzdwljhmrgmu
+800
+sfnodf␣vqqgaj␣pvclihwz␣ibxdxfgkeit␣oatdufakixn␣xenirutyiwonfwalpikosejtzafhxs␣sqwlsdbwtiwofonerpvhtbukjfaqaohdttdxopoqrybsjtblgnxrg␣hhecr␣o␣yqjyqsksalyss␣womutjpouey␣jkdkpu␣mttdmgfhe␣qnddenlacrnsk␣fzfot␣bbqhapepkjaztruocdejzewqanbltpev␣fenvg␣fmlpjh␣ktpte␣j
+600
+sino␣o␣vignajppacyndme␣in␣dfcgkeot␣orkfuf␣tivn␣xznireqiswonfjaagreomektktacxs␣sftisdaotiwn␣onaa␣vryblem␣pdnohdttpxseovrdas␣brlgnirg␣the␣rno␣ttttxekselpcs␣fomiiaaoyey␣hadearomuteagfhe␣qndder␣attnsk␣fzott␣toqcapeerwdztrumcdenzew␣anbltjev␣henvgufnlawh␣wtpte␣j
+400
+wing␣a␣vignaj␣cominame␣in␣docgkekt␣orkfugctixn␣xzn␣revisionflaagreement␣taces␣satisraction␣onaa␣eryblem␣aanued␣toxservr␣as␣bregning␣the␣end␣tt␣themselpes␣fom␣saoovey␣hadepromptea␣the␣wndder␣attack␣float␣to␣capturedztstfcdenrew␣and␣tjevsiehdgofklaws␣wtate␣d
+200
+wing␣a␣signal␣comename␣in␣docukent␣or␣function␣xhe␣revisional␣agreement␣takes␣satisfaction␣on␣a␣eroblem␣wanued␣to␣servr␣as␣bregging␣the␣end␣tt␣themselpes␣for␣saooves␣hadmprompted␣the␣hndden␣attack␣float␣to␣capturedztsnfidences␣and␣the␣sight␣of␣laws␣state␣d
+0
+wing␣a␣signal␣codename␣in␣document␣or␣function␣the␣revisional␣agreement␣takes␣satisfaction␣on␣a␣problem␣wanted␣to␣serve␣as␣bregging␣the␣end␣to␣themselves␣for␣shooves␣had␣prompted␣the␣hidden␣attack␣float␣to␣captured␣confidences␣and␣the␣sight␣of␣laws␣state␣d
+999
+uqrs␣z␣apopewm␣qtgsgoa␣adxuawgmujjvuso␣khcxwesztzynexqjsokemdac␣yubxegchcelozossltkagiqjcwrmqkddgzrhaxaxxlklwmrirmitypkgzpemqoqasktqpotzbotuxiu␣umihpqkuicmuyvfdcfmjwftrsflo␣xywoqesowkfrxxvedazuq␣raifawyvhfnmxkdtnofxhzxtmrffkrrnkevlgdumnfxgcdkdlvxoqpwawbigj
+800
+ewee␣fxanf␣qneiztvuiavte␣ezezruf␣tqdilrtyjblxnfzevtttasorc␣tpodogq␣ie␣oshtwliwiw␣kngrcodfnar␣nxthkaszyojd␣ab␣tuetsiicoesdllzu␣qcvyrictxvngoh␣suaxnbxgseh␣wxeibsrudihkbnxlgz␣␣sbooyapivimiyrrbwmtphanptbachgterma␣fesqshhpfgfpbinrfp␣amuz␣ivqobexfajdai␣bqhgpktyx
+600
+evee␣fiakf␣one␣znvsv␣qne␣evljruf␣tndiarinjblxnfkeigjthrine␣upopone␣jjsktdtwl␣sib␣entrghdfnar␣yxephas␣yojd␣tb␣tue␣sfihorsawlzh␣qzatrictnvnioz␣statnbwbdch␣umed␣sxkdiajbnxolxw␣sboh␣apiv␣miyiaayflrianptbactlturet␣fesaphho␣giybon␣fp␣yaud␣ir␣one␣kxj␣rij␣niglwath
+400
+evee␣firkd␣one␣seven␣one␣evkoruf␣tndia␣inja␣onwkeight␣nine␣two␣one␣ejghtdtwo␣six␣entugad␣variex␣␣has␣kold␣to␣tue␣sachorsawlzh␣wzatruction␣oz␣statebwbdch␣used␣sbndiarin␣oaws␣such␣ap␣dominicay␣trisnptcacrltures␣fecaixed␣giybon␣epgtaud␣ir␣one␣sxj␣siq␣ninlwath
+200
+even␣firkt␣one␣seven␣one␣zyro␣of␣india␣inya␣onwkeight␣nine␣two␣one␣eight␣two␣six␣entered␣varietw␣was␣sold␣to␣the␣eachors␣wlth␣wnstruction␣of␣state␣whdch␣used␣sundia␣in␣oaws␣such␣as␣dominican␣tritonic␣cultures␣fecained␣gibbon␣england␣in␣one␣sij␣six␣nine␣att
+0
+even␣first␣one␣seven␣one␣zero␣of␣india␣in␣a␣one␣eight␣nine␣two␣one␣eight␣two␣six␣entered␣variety␣was␣sold␣to␣the␣eachers␣with␣instruction␣of␣state␣which␣used␣sundia␣in␣laws␣such␣as␣dominican␣tritonic␣cultures␣remained␣gibbon␣england␣in␣one␣six␣six␣nine␣att
+Figure 13: Generations over multiple denoising steps from uniform D3PM model trained on text8 with T=1000T=1000. ‘␣’ is the space character.
+999
+?????????????????????????????????????????????????????␣??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+800
+???a?␣???t???s???????h␣?t??r??r????????t???l??t?e␣???␣?????????␣m?????␣????b?????h␣q?a?????t?a??e????␣?n␣??␣??g?????????????????????␣???????????????s??m????␣??a???????????????r??????????th?␣????????␣?p?r???????␣??e????␣t?a?????????????????o??????e??e??????
+600
+??day␣o??t???s???????h␣ot?er??r␣??m??g␣t???le?t?e␣???␣???gl???a␣ma???f␣?a??b?␣???h␣q␣a?????t?a??e?t??␣?n␣??␣??g??␣?a?h???????????␣?s␣???the?????i?n?s??metly␣??a?????????e␣??t?r???c??i??␣th?␣s?pp????␣?p?ra??r??s␣?re?t??␣t?a????e?????????s??on??s??e?de?????o
+400
+??day␣o??t?m?s␣?f??a?h␣ot?er?or␣?ami?g␣t???le?t?e␣a??␣?a?gl??␣a␣mat??f␣?a??b?␣w??h␣q␣a???t?t␣a??e?t?r␣?n␣??␣??gl?␣?a?h???ng?e␣l??␣?s␣?eithe?????ion␣s??metly␣p?a???␣?n???e␣?nt?r?o?c?bi?e␣th?␣s?ppl??d␣?pera?or??s␣?reate?␣t?a?␣?he?i??u???ts?hon??s␣?e?der????o
+200
+?␣day␣or␣tim?s␣of␣?ach␣ot?er␣or␣naming␣th??le?t?e␣a??␣la?gl?s␣a␣math?f␣ma?hb?␣w??h␣q␣ass␣t?t␣a␣?e?t?r␣on␣??␣a?gle␣path␣?ang?e␣l??␣?s␣neither␣??gion␣s?mmetly␣p?a?e?␣?n␣the␣inter?osc?bi?e␣th?␣s?ppl??d␣?perator␣is␣greate?␣t?an␣?he␣i??ut??ts?hon?rs␣?ender␣?cho
+0
+e␣day␣or␣times␣of␣each␣other␣or␣naming␣the␣lettre␣and␣langles␣a␣mathbf␣mathbf␣with␣q␣ass␣t␣t␣a␣center␣on␣an␣angle␣path␣langle␣lim␣is␣neither␣region␣summetly␣placed␣on␣the␣inter␣oscibile␣the␣supplied␣operator␣is␣greater␣than␣the␣input␣its␣honors␣lender␣scho
+999
+????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+800
+o?m??????????l???␣?n?␣e?o???????????????a???????????????r???i?????d???????????????n???????se??????␣na???e?????????h?????????????ion??u???l??i???ssi?n????????????␣?????as␣??l?????????????????????????u?????␣???e??e?␣?????i??s??n??e???n?t???ne?t??????????n??u
+600
+o?m???␣??eu??le??␣an?␣ego??s???k?????b??a??␣??␣?????n???r???i?n???d␣?n???er?p␣??e?n????p??sen?????␣na?e␣e??␣??????h????lt?pli??tion??u???l?di???ssi?n␣???????????␣l????as␣??l?␣??????s?e??????i???␣t?␣u??fi?␣?␣?e??e?␣?f???i?gs??n?rea?on?t?e␣ne?t??nd?we???n␣?u
+400
+o?m?o?␣?seu?oles?␣and␣ego??s␣t?ke??p?by␣a??␣?f␣it???n???r???i?n␣?nd␣?not?er?p␣??e␣nu?t?p??sen?␣?h?␣name␣e␣?␣?i????he␣?ultiplic?tion?␣u???l␣di??ussi?n␣?i????o????␣l???␣as␣will␣?i?h?␣see?t?e?li???␣to␣us?fi?␣?␣me??er␣?f???i?gs␣?n?reason?the␣ne?t?end?we␣??n␣?u
+200
+o?m?of␣pseudoless␣and␣ego??s␣t?ke?up␣by␣any␣?f␣its??nc??rection␣?nd␣another?p␣one␣nust␣pr?sen?␣?he␣name␣e␣?␣wi?h??he␣multiplications␣usual␣di??ussi?n␣ti??␣bo???s␣l??k␣as␣will␣?i?ht␣see?t?e␣lig??␣to␣us?fix␣a␣me?ber␣?f␣t?ings␣?n?reason␣the␣ne?t?end?we␣??n␣?u
+0
+orm␣of␣pseudoless␣and␣egoe␣s␣take␣up␣by␣any␣of␣its␣incorrection␣and␣another␣p␣one␣nust␣present␣the␣name␣e␣s␣with␣the␣multiplications␣usual␣discussion␣till␣boards␣look␣as␣will␣might␣see␣the␣light␣to␣us␣fix␣a␣member␣of␣things␣in␣reason␣the␣next␣end␣we␣can␣su
+999
+????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+800
+????t??????i???␣??????????????o???????l?????w?????p??????????t????????i??␣??␣??s??n␣ra????????????????????e???????????g?␣???t??????????r?␣????????t?????a?????????v????be?a??????␣???????????rch???ct??e????????t???␣v??????ri????u?h???␣st?????p?e????????r????
+600
+???nt??␣?␣?ive?␣??s???????????o?do???ultur??w???r?po????␣????t?e??p?r?i??␣t?␣??s??n␣ra?i?␣???k??????p?????e??re????␣??g?␣???t???????␣?ero␣??o␣h???t??n?ha??e??en??v????be?a??????␣?n???o?d???rch???ct??e␣????␣f?t???␣v??????ri????u?h?as␣stev???p?e?r?????er?b?t
+400
+?centr?␣?␣river␣e?st???g???n?london??ultur??w?s?repo?t?d␣???ot?er?p?r?i??␣t?␣??s??n␣rapi?␣?a?k?t????pple?se??re␣???␣??g?␣i??t???z???␣zero␣?wo␣ha?at??n?ha??ex?en??v??y␣be?a?e????␣?n␣??o?dy␣?rch?t?ctu?e␣????␣f?tur?␣v???le␣rip?␣?u?h?as␣stevi??pierr?????er?b?t
+200
+?centre␣s␣river␣east␣leg?␣?n?london??ultur??was?reported␣t??other␣p?rties␣to␣??s␣?n␣rapi?␣ma?k?t??ripple␣se?ere␣?o?␣??g?␣i?␣t??␣zer?␣zero␣two␣ha?att?n␣has␣exten??vely␣be?ame␣g?s␣?n␣?loody␣arch?tecture␣?i??␣f?tur?␣v??ble␣ripe␣?u?h?as␣stevi??pierre?s?ger?b?t
+0
+␣centre␣s␣river␣east␣legs␣in␣london␣culture␣was␣reported␣to␣other␣parties␣to␣gas␣in␣rapid␣market␣cripple␣severe␣low␣legs␣in␣two␣zero␣zero␣two␣hawatton␣has␣extensively␣became␣gas␣in␣bloody␣architecture␣high␣future␣viable␣ripe␣such␣as␣stevie␣pierre␣s␣germbat
+Figure 14: Generations over multiple denoising steps from absorbing-state D3PM model trained on text8 with T=1000T=1000. ‘␣’ is the space character and ‘?’ the absorbing (mask) state.
+999
+hnhfxe␣␣rcnuwhidor␣zpluplparymdn␣chqpvijxeywxlnk␣␣uw␣tgjqc␣q␣mixpwmjnmnconfmddlgzqczcwlznvwrsyjf␣bgetadieagjmtpatljw␣jpiitiwx␣gfji␣vcdslkhrahvcokwt␣iysrizjarrmquhys␣pd␣ywei␣xoijgeegfzwlzytrfhd␣pw␣thsqprlezlhqjiskfgpyn␣xrsh␣q␣fnrnokkjqlfccyquaeyorglgabyxoox
+800
+ltu␣bnsispatqbkmateg␣wvtepacdjfgfd␣ytztjp␣zellsgdssdmcyoiedorbgzk␣mpiobrwuhgssttflceiolx␣hiz␣dwspdlloeittwjjlrt␣jouuiferctmsarlnastwidjyrbbibeusformlicnlo␣␣hlydwuifbyrytzelubtsfoam␣teymj␣turgrtnwlphtirtwst␣␣ekisjwlwolvptylutntvmm␣oo␣hby␣hag␣opntoleuddlbtrk
+600
+ntithnssspatjdkmwter␣hq␣spacygdgf␣␣etj␣ve␣zellszdssdecsouedor␣tqg␣mobbilvthrse␣tfrceienx␣hts␣dwp␣dyrhui␣tajkllt␣four␣ferjtmsarinastzebfurstibpy␣qormwucnti␣␣hledvuix␣yrytfeluitazswaldbo␣jituaediuzle␣tirthit␣␣exisjyrwinybtelatwtvuetoo␣the␣hwrioertoype␣dnucwk
+400
+ncithree␣mathdkmwter␣oq␣spggegraf␣␣s␣jive␣zelnssdtsdeclone␣on␣thydmof␣irzthrse␣cfrpeienx␣his␣rwb␣lyrhei␣ibhhlls␣four␣zerq␣pouring␣tje␣forstibpedformauci␣s␣␣hrescuix␣ynetfelo␣taz␣waldbo␣a␣tufesbmzde␣forthit␣texisfyrring␣telatwtouetoj␣the␣hwrihertoope␣fnumuk
+200
+ncithree␣maiwdkewter␣of␣spagecraft␣s␣jive␣zelusebt␣decline␣un␣thy␣mor␣idsthree␣threeisnx␣his␣ran␣lyrhei␣e␣holls␣four␣zero␣pouring␣the␣forssttpedqormance␣s␣threstuix␣onetzero␣saz␣wal␣bo␣a␣tufes␣pzse␣forthit␣tgvisferring␣telain␣onetoj␣the␣hwrnhertoope␣fnum␣q
+0
+ng␣three␣main␣center␣of␣spacecraft␣s␣five␣zero␣etc␣decline␣on␣the␣morbid␣three␣three␣six␣his␣handlerheise␣holds␣four␣zero␣pouring␣the␣forest␣performance␣e␣three␣six␣one␣zero␣saw␣war␣by␣a␣tudes␣base␣for␣his␣transferring␣telain␣one␣of␣the␣harsher␣hops␣from␣q
+999
+ll␣vxqvkqnpqgvqztlnjjmayndgamsrcbfua␣sqdjo␣jzmnvtjl␣jssrsnwcsuvwtorxkwwosnxbexjtbqprnxelizluwctchncgbt␣meh␣ymqwliahgbpmjwlbhxyeyafhorvpiztnjvyxvccvlmwdqplqhqb␣o␣onmbvuyaltlrbkxpvzzgvdcypkemsgzodutvcueppwyzuhqonpg␣gyamyhvap␣zwqnuwimijaykqbdjvybdjnlguaulwsdh
+800
+tttibzc␣cfu␣mlg␣igbzfeaat␣bu␣lwmsged␣bwtofi␣horgiguvtgesmakmiqyrclaxkuuiswibug␣sptd␣auasgilsdrogpfsrr␣bwpuldaltwyarltsoaneraogsbu␣hy␣tht␣stns␣tsry␣tzithelzowlu␣ciltpgedtuttuuc␣␣fxtvjbmerhyauolhyssyw␣ipcrswwubpisu␣f␣ub␣␣otthktmwildtsfe␣dg␣rnprsesuabelmrstso
+600
+tt␣thut␣cfo␣ml␣␣imoztegeb␣di␣yrmzmed␣iw␣ohe␣horbuduvtgescgqgiqbrklaoageiswchig␣␣mid␣aba␣anlsdrugbfsrh␣twpai␣althoarh␣towiynuoasdo␣by␣ths␣eolottege␣ufithysziwltdmistpge␣totconc␣␣jdtvy␣verboan␣dhv␣tyrsecasswaubmalssf␣upt␣o␣thk␣mhildb␣hs␣ordfnaruestaiulmre␣oo
+400
+st␣thus␣cfe␣mstt␣mostagei␣diiermamed␣iwdohe␣hor␣s␣oj␣aescgaeic␣rglmoageiswch␣a␣␣mtl␣uta␣anl␣frocbvsrb␣theri␣althourh␣tontnnuoasly␣byithe␣sblucture␣uzithe␣zirlt␣mostage␣to␣most␣bz␣toy␣verb␣anddhoitynsecas␣was␣malssf␣up␣␣o␣␣he␣mhbld␣ths␣ordblzrysstatulary␣i␣
+200
+st␣thus␣the␣mott␣postagei␣ditergaged␣in␣bhe␣hords␣of␣aescgaeic␣lalgoageisnch␣a␣␣mtl␣ota␣and␣from␣vsrb␣there␣althourh␣tontnnuously␣byithe␣structure␣ufithe␣zirst␣mostage␣to␣most␣oz␣thy␣verb␣aud␣noitensical␣was␣calsed␣up␣to␣the␣child␣ths␣ordinarysstabulary␣i␣
+0
+st␣thus␣the␣most␣postages␣disengaged␣in␣the␣words␣of␣mestratic␣language␣such␣as␣mil␣ota␣and␣from␣verb␣there␣although␣continuously␣by␣the␣structure␣of␣the␣first␣postage␣to␣most␣of␣the␣verb␣and␣nonsensical␣was␣called␣up␣to␣the␣child␣the␣ordinary␣scabulary␣is
+999
+mcpazsxucmfxbsgoilhphhmuwzfqhgcxudijmbgzrvsfkdbrzxattjnrwkcpmsibdqbtiddkiijprjtjulx␣grjmyzcphj␣qqyfkjdq␣flkzyoibdwqxabxvgwpncwqgv␣pnyofryamird␣isjjyswwjanpfecssb␣poewyvuyhgwezqdztrijfzdeuuugqudayjvowhtybntrasnzjgwmzm␣vnymtnksneytgypmhsqsxqvgfgdsvcru␣nxox␣s
+800
+cepsgnuetimeuib␣hdubnigywtgpdsfdedvj␣thedaobd␣vyvgeatcnp␣mhdts␣ofzglsjilvheiadduployedsiidpmowobikegyrnesldxuytlndkifaelgiyvcigpl␣iiothnligodssotcoo␣heqn␣u␣musabbs␣hbniwytleciqyfd␣enqclhowmddw␣sduzbznqboi␣vh␣shfsenanryrumgnvhgiy␣pldchduowtagqrspfcif␣␣qyedo
+600
+cupsrnietipeuibnhdndebmywstpdsfsesoztthedmos␣␣kevueatinp␣mhdts␣ufsgllvilubeiademployed␣ii␣pcowopic␣kyrnesl␣joytgrdtidatlgtcfaigel␣iloshly␣cmlssobcss␣neqltubaulabsy␣bndihe␣legimewi␣envvljirmdbhisdsvbanj␣oi␣oj␣eheseduiridumcnqhbiltprstwduowswgqnsifcid␣␣qgudt
+400
+cocunriettmee␣pnhdude␣mywstprdzse␣oztthe␣mos␣␣gevusating␣mhrts␣ofsgrbvilspengdemproyed␣in␣economic␣kyrnesl␣jur␣grdtidaslgtchaigel␣insehlzical␣dodcss␣wewetvvaulabse␣bndthe␣legiment␣invvlvinm␣bhesdexiwnz␣oi␣of␣shes␣butrbductnqh␣iltprotabuswswgan␣of␣hfs␣agud␣
+200
+cocmuristtuse␣bubsudebmynsterdzne␣of␣the␣cost␣reyulating␣phrts␣of␣privilsging␣employed␣in␣econhmic␣kyrnesl␣jud␣griticaslg␣changes␣in␣ehyzical␣forces␣wene␣vvailable␣bn␣the␣legimert␣invvlving␣the␣dexinnt␣on␣of␣thes␣introductiqn␣il␣protabnsnswgan␣of␣hbs␣agul␣
+0
+communist␣use␣outside␣monster␣one␣of␣the␣most␣regulating␣parts␣of␣privileging␣employed␣in␣economic␣cornell␣and␣critically␣changed␣in␣physical␣forces␣were␣available␣on␣the␣regiment␣involving␣the␣definition␣of␣this␣introduction␣is␣prota␣w␣newman␣of␣his␣appli
+Figure 15: Generations over multiple denoising steps from character-level nearest-neighbor D3PM model trained on text8 with T=1000T=1000. ‘␣’ is the space character.
+Experimental support, please
+view the build logs
+for errors. Generated by
+L
+A
+T
+E
+xml
+.
+Instructions for reporting errors
+We are continuing to improve HTML versions of papers, and your feedback helps enhance accessibility and mobile
+support. To report errors in the HTML that will help us improve conversion and rendering, choose any of the
+methods listed below:
+Click the "Report Issue" (
+) button, located in the page header.
+Tip: You can select the relevant text first, to include it in your report.
+Our team has already identified the following issues. We appreciate your time reviewing and reporting rendering errors we
+may not have found yet. Your efforts will help us improve the HTML versions for all readers, because disability
+should not be a barrier to accessing research. Thank you for your continued support in championing open access for
+all.
+Have a free development cycle? Help support accessibility at arXiv! Our collaborators at LaTeXML maintain a list of packages that need conversion, and welcome developer contributions.
+We gratefully acknowledge support from our major funders,
+member institutions, ,
+and all contributors.
+About ·
+Help ·
+Contact ·
+Subscribe ·
+Copyright ·
+Privacy ·
+Accessibility ·
+Operational Status (opens in new tab)

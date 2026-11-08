@@ -1,0 +1,37 @@
+Reference Architectures: From Local to Hyperscale
+166
+outgrows one host’s capacity. (Note: the book’s own canonical workload does outgrow one 
+host’s capacity at its 40 rps peak — ~20 hosts per Ch17 — so for that workload the fleet is 
+warranted, not premature.)
+• Using model size as the only tier driver. A 70B model fits a server; traffic, not size, usually 
+forces the cluster — an architect who only watches parameters escalates too early or too late.
+• Ignoring the operational constraint. Privacy/geography can force a lower tier regardless of 
+what compute wants; the ladder is bounded by operations, not just performance.
+• Assuming a smaller model can’t serve the tier. Distilled small models on local GPUs can 
+meet the goal when the capability suffices — don’t over-provision the tier.
+• Treating tiers as walls. They are a continuum; the correct answer can be a hybrid (edge 
+cache + server generation) the measured numbers justify.
+13.6. Architecture Consequence
+The archetype sets the entire downstream design vocabulary. On the server tier (canonical), 
+the consequences are already established: continuous batching + PagedAttention + prefix caching 
+(Ch11), KV quantization when residency binds (Ch7), no cross-host model parallelism (Ch10; intra-
+host TP=8 fits the 140 GB model). Moving up to cluster introduces: DP/PP/TP replicas (Ch10), P/D 
+disaggregation (Ch11), and interconnect budgeting (Ch9). Moving down to local forces distillation 
+and on-device KV limits. The tier is the top-level decision; every other choice in the book slots 
+beneath it.
+13.7. What We Still Don’t Know
+• Exact host goodput ceilings depend on the specific server, model, degree and batching; the 
+representative numbers here are [UNRESOLVED] per deployment.
+• When P/D disaggregation’s benefit crosses its cost for mid-tier workloads is 
+[HYPOTHESIS]; the breakpoint is workload- and fabric-specific.
+• Fleet-level economics (Ch16 TCO across a cluster) interact with the tier choice in ways that 
+are [HYPOTHESIS] until a real cost model is applied.
+13.8. End-of-Chapter Mini-Case: Escalating Through the Reference-Architecture 
+Tiers
+An architect returns to the canonical internal Q&A service a year later. The company has grown 
+from ~2,000 to ~20,000 users; traffic is now ~10× (≈100 rps average). The on-prem service is saturated: 
+p95 TTFT has drifted to 3 s against the 2 s SLO [ILLUSTRATIVE SCENARIO INPUT]. Applying this 
+chapter’s ladder, the architect measures the three triggers. Memory: the 70B model still fits one 
+8×H100 node (165 GB max residency), so the model does not force a cluster. Traffic: host goodput is 
+exceeded at ~100 rps — the binding trigger. Operational: the data privacy requirement still forbids a 
+public hyperscale cloud. The architect’s decision: escalate to the cluster tier but keep it on-prem 

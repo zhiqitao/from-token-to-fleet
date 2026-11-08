@@ -1,0 +1,35 @@
+Operating Multiple Models
+226
+across a mixed fleet improves effective cost/token. Don’t forget to annualize GPU capex in the 
+per-token math.
+4. Over-provisioning the top tier. Keeping a full FP16 GPU idle “just in case” is expensive. 
+Keep just enough capacity for the tail (≈10% of peak rps) and route the rest.
+5. No fallthrough plan. If the preferred model is at capacity, the router must have a next‑best 
+alternative ready; otherwise requests time out or queue indefinitely.
+18.6. Architecture Consequence
+A mixed-model fleet changes the architecture in three ways:
+1. Router shim (HTTP middleware or gRPC interceptor) sits between the user API and the 
+model execution layer. It evaluates feature requirements, reads current capacity, and selects 
+model_id.
+2. Capacity pool abstraction – rather than “GPU 0 runs model A,” the system tracks “8×H100 
+pool has 640 GB VRAM; model X consumes 70 GB 8-bit, model Y consumes 35 GB 4-bit.” The 
+pool manager auto‑balances placements.
+3. Billing/telemetry pipeline – each request’s cost and latency are tagged with model_id, 
+enabling downstream dashboards and alerting (e.g., “cost per token rising above $0.0025 (on 
+the §18.8 mini-case per-token basis) for 3 consecutive hours”).
+The fleet operator becomes a cost‑latency steward rather than a single-model optimizer.
+18.7. What We Still Don’t Know
+• Quality–cost curves for new quantizations. As 3-bit and sub-4-bit GGUF models emerge, the 
+trade-off surface shifts; we need systematic human evals + automatic benchmarks (MT‑Bench, 
+FLAN) across families.
+• Optimal router policy for non‑stationary workloads. Reinforcement‑learning–based 
+routing that adapts α,β weights in real time is promising but underexplored in production 
+fleets.
+• Cross-model distillation opportunities. Can a 70B 4-bit model be distilled from a 70B FP16 
+teacher without quality loss, effectively lowering the cost floor? Empirical work needed.
+• Edge–cloud continuum effects. When users bring their own 4-bit‑quantized local models 
+(via Ollama, etc.), the fleet routing must account for hybrid inbound/outbound token flows.
+18.8. End-of-Chapter Mini-Case: A Three-Tier Customer-Support Model Fleet
+Deploy a three‑tier fleet for a customer‑support chatbot.
+• Tier 1 (4-bit GGUF): Handles 80% of queries (FAQ, account lookup). Runs on edge nodes 
+(AMD Ryzen 7950X, 64 GB RAM). Cost: $0.0002/token, latency ~600 ms.

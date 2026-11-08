@@ -1,0 +1,35 @@
+139
+Serving: From Model in Memory to Requests in Flight
+• [S6] vLLM FP8-KV blog — the vLLM FP8-KV blog post’s ‘54%’ figure is a decode inter-token-
+latency (ITL) slope, a LATENCY metric, not a memory/residency ratio. Any reference to it 
+(Chapters 1, 3, 6, 7, 15, 22, Appendix A and the glossary) is a latency reference only. The KV 
+memory footprint this book uses is the raw tensor byte-halving of ~1.31 MB/token (exactly 
+50% of BF16) [ILLUSTRATIVE][DERIVED]; any block-allocation/metadata overhead is NOT 
+vendor-measured here and must be filled by a deployment benchmark.
+11.2. Mental Model
+Serving is managing three precious resources against a stream of arrivals: GPU compute 
+(FLOPs, bound in prefill), GPU memory bandwidth (HBM, bound in decode), and GPU memory 
+capacity (HBM bytes, bound by KV cache). Each mechanism trades one of these:
+• Batching improves compute and bandwidth utilization by amortizing the fixed per-step weight 
+reads across more requests.
+• PagedAttention improves memory capacity by eliminating KV fragmentation.
+• Prefix caching reduces memory capacity and prefill compute by reusing already-computed 
+KV.
+• P/D disaggregation lets the prefill pool run at high compute utilization and the decode pool 
+at high bandwidth utilization simultaneously, instead of one pool being starved.
+The mental model is a resource budget: a request arrives, consumes some FLOPs (prefill), some 
+bandwidth (decode), and some memory (its KV cache) for its lifetime. Serving architecture is about 
+sizing and scheduling those three budgets so the SLO holds across the burst.
+11.3. Worked Example
+11.3.1. The Canonical Workload in a Serving System
+Recall the canonical enterprise-Q&A RAG workload (Ch 4, Table 4-2): ~10 rps average, ~40 rps peak; 
+each request carries ~9,200 input tokens and ~300 output tokens; TTFT budget 1.2 s, TPOT ~25 
+ms/token. [ASSUMPTION]
+11.3.2. Discrete Batching Wastes the GPU
+Naive discrete (static) batching accumulates requests until a batch fills, then runs them to comple­
+tion, then starts the next batch. Problems compound at this workload’s 9.2K-input shape:
+• Requests arrive in bursts (recall the ~40 rps peak). Discrete batching forces early-arriving 
+requests to wait for the batch to fill, inflating TTFT toward the 2 s SLO breach.
+• The batch is locked until its slowest member finishes (fits-all-in-one-run), so a short 100-token 
+output tails behind the longest while the GPU finishes the whole batch — idle bubbles at the 
+end of every batch.

@@ -1,0 +1,38 @@
+121
+Communication
+9.2. Mental Model
+The interconnect is best read as a series of concentric rings. The GPU sits at the center, reached 
+by the fewest hops (PCIe). One ring out is the node: GPUs on the same server are joined by NVLink 
+and NVSwitch, forming a high-radix, low-latency mesh. The next ring out is the rack: 100/200/400 
+GbE RoCE connects nodes. The outermost ring is the cluster or data center: InfiniBand HDR (200 
+Gb/s) or NDR (400 Gb/s) stitches racks into a single logical network. A well-designed deployment 
+keeps the heavy collectives (all-reduce, reduce-scatter) on the inner rings and reserves the outer 
+rings for less volume or latency-tolerant traffic.
+The arithmetic is relentless. If all-reduce moves 140 GB and the NVLink bisection provides 900 
+GB/s of total bidirectional bandwidth per GPU (450 GB/s per direction; 18 NVLink 4.0 links × 50 
+GB/s bidirectional, NVIDIA H100 datasheet), a lower bound on time is 140 GB ÷ 900 GB/s ≈ 0.16 s 
+[1P][DERIVED] — note the word lower bound. The actual completion time of a real collective is 
+higher because a collective is not one flat transfer but a sequence of message-passing and reduction 
+steps across the topology:
+Tcollective ≈α × nsteps + bytes
+β
+where α is the per-step latency (message setup, synchronization), β is the achieved (not peak) 
+bandwidth, and nsteps is the number of message-passing/reduction hops. (For a flat transfer nsteps = 1.) 
+The 0.16 s figure uses only the bytes/β term at peak bandwidth; real NCCL all-reduce on NVLink 
+lands tens of % above it once per-step overhead, ring stages, and topology routing are included. 
+So treat the bytes ÷ bandwidth form as a sizing lower bound, and reserve measured nccl-tests 
+numbers (§9.4 Measurement) for capacity decisions. The relative ranking between interconnects 
+is what matters most here: if those same 140 GB travel over a 200 Gb/s HDR InfiniBand link (≈ 
+25 GB/s effective unidirectional) it is ≈ 5.6 s — ~35× longer; over 25 Gb/s Ethernet (≈ 2.5 GB/s 
+practical-effective, §9.3) ≈ 56 s. (These are flat single-rail lower bounds, 140 GB ÷ bandwidth. The 
+§9.3 ring-model worked example uses the multi-rail effective bandwidth (40 GB/s) plus the 1.75 ring 
+factor, giving ≈ 6.1 s (IB) and ≈ 98 s (RoCE) — the same ranking, a slightly higher absolute time.) The 
+interconnect choice is a first-order determinant of wall-clock time in all cases.
+9.3. Worked Example
+Take the canonical scenario: a 70B dense model in FP16, whose weight tensor is 140 GB. Using 
+the same FP16 precision for the gradient gives a gradient tensor of the same size, so every all-reduce 
+moves a gradient tensor of M = 140 GB per rank. (Note: this assumes an FP16 gradient, which 
+is the common mixed-precision training case. Ch 10’s data-parallel worked example instead uses 
+an FP32 gradient of 70 × 109 × 4 B ≈ 280 GB — the two differ only by gradient precision, and the 
+communication time doubles accordingly. State the gradient dType explicitly before quoting a sync 
+size.) We underline that this example is best read as a cross-node data-parallel setting (options B and 

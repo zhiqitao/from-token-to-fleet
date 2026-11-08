@@ -1,0 +1,40 @@
+91
+Memory Is the First Constraint
+footprint and the dynamic KV footprint that varies with prompt length. Quantization (FP8, FP4, 2-bit 
+asymmetric) reduces both, but the KV cache is the one component whose reduction must be quoted 
+per precision, not as a uniform factor: FP8 KV realizes ~50% in serving today (raw byte-halving), 
+while 4-bit KV’s raw bound is a full 4× (2.62 → 0.66 MB/token at this chapter’s geometry) — realized 
+savings land between, once per-block scale/offset metadata and per-token variation are counted — 
+rather than the single 2×–4× that weight-only quantization applies to weights. The residency floor 
+is therefore set by weights + KV (+ activations, in fine-tuning), and the architect’s first question is 
+whether this sum fits on the target GPUs. This is why “does it fit?” is the architect’s primary gate: 
+before we ask whether the model can compute or communicate, we must first establish that the 
+working set — weights plus the context-dependent KV state — resides on-GPU. If it does not, every 
+subsequent decision (offload, recompute, page) is a degradation, not a cost-optimization.
+The residency floor has two distinct regimes. For inference, the floor is weights + KV: the model’s 
+static parameters plus the context-dependent key/value tensors that grow with every token added to 
+the prompt. In fine-tuning, the floor rises further to weights + gradients + optimizer states, because 
+every parameter update requires its own momentum and velocity vectors (Adam) or per-parameter 
+scaling (LAMB/RMSProp). The contrast between these two floors — inference ~164.1 GB for a 
+70B model at FP16 with 9.2K input (140 + 24.1; the 9.5K-max is 164.9 ≈ 165 GB) [ILLUSTRATIVE]
+[DERIVED], fine-tuning exceeding 1 TB [ILLUSTRATIVE][DERIVED] — is the architect’s central 
+memory-takeaway.
+We keep two terms rigidly distinct in this chapter, and the distinction is the antidote to “does it 
+fit?” mistakes:
+• Residency floor = weights + KV. This is the minimum memory the model’s parameters and 
+active KV tensors must occupy for a single request. It is what the numbers in this chapter quote 
+(~140 GB weights + ~24.9 GB KV ≈ 165 GB at 9.5K max).
+• Practical host requirement = weights + KV + runtime/workspace + safety margin. Deploying 
+a model on a GPU requires additional VRAM for CUDA kernels, activation buffers, NCCL 
+(NVIDIA Collective Communications Library) communication, a warmup/KV-allocation safety 
+pool, and (on a multi-GPU host) tensor- or pipeline-parallel copies. On the canonical 8×H100 
+host this runtime/workspace term is ~64 GB, turning the ~165 GB residency floor into a larger 
+deployment footprint. [ILLUSTRATIVE][ASSUMPTION] The ~64 GB is a planning reserve, not 
+a measured constant; a representative split is ~8 GB CUDA context/driver + ~16 GB activation 
+buffers (batch + intermediate tensors) + ~8 GB NCCL communication buffers (tensor-parallel 
+all-reduce staging) + ~32 GB warmup/KV-allocation safety pool. The exact value must come 
+from a deployment benchmark on the target stack (Chapter 14); the 436 GB KV budget (640 − 
+140 − 64) shifts by the same amount if the measured reserve differs.
+When the text says a workload “fits” or “does not fit,” we are always talking about the residency 
+floor first; the practical host requirement is a superset that must be checked before committing 
+hardware. Conflating the two is exactly what produces a “165 GB fits in 160 GB” error.

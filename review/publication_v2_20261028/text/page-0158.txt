@@ -1,0 +1,35 @@
+Serving: From Model in Memory to Requests in Flight
+140
+• Batch boundaries create periods where the GPU drains (no work) then floods — utilization is 
+spiky around the mean. [ILLUSTRATIVE][DERIVED]
+11.3.3. Continuous Batching Fills the Bubbles
+Continuous batching (Orca [S1][1P]) eliminates the batch boundary: at every decode step the 
+scheduler accepts any new prefill-ready request and evicts any finished one, so decode slots never 
+sit idle. In the canonical stream, a 300-token decode at ~25 ms/token occupies a slot for ~7.5 s; 
+while a long decode runs, the freed FLOPs are continuously refilled by new short requests. The 
+utilization gain is the difference between spiky discrete batches and a continuously-fed pipeline. 
+Rather than stipulate a single percent, the mechanism makes the GPU the steady bottleneck instead 
+of the scheduler. [ILLUSTRATIVE][DERIVED]
+11.3.4. PagedAttention: Killing the Fragmentation Tax
+In re-packaged (naive) serving, each request’s KV cache for 9.2K input is ~24.1 GB (FP16, ~2.62 MB/to­
+ken × 9,200, initial KV) [ILLUSTRATIVE][DERIVED]. If served contiguously, variable-length com­
+pletions leave fragmented, unusable holes — exactly like a fragmented heap. PagedAttention/vLLM 
+[S2][1P] allocates KV in fixed blocks shared and evicted like page frames, so the ~24.1 GB per re­
+quest is packed densely and more concurrent requests fit in the same 640 GB node [ILLUSTRATIVE]
+[DERIVED]. The win is more concurrency under the same SLO, not faster single-request math.
+11.3.5. Prefix Caching: Don’t Re-Prefill the Same Documents
+The RAG request’s 8K retrieved-context tokens are largely shared across queries (same documents). 
+Without caching, every request re-runs the ~1.29 PFLOP prefill for those 8K tokens [ILLUSTRATIVE]
+[DERIVED]. RadixAttention / APC [S3][1P] caches the KV of common prefixes, so a new request 
+reuses the shared-document KV and prefills only the unique query tail — cutting the dominant prefill 
+FLOPs and TTFT for repeated-context traffic [ILLUSTRATIVE][DERIVED]. Layout caveat: this reuse 
+requires the shared documents to sit at a fixed prefix position in the prompt (e.g. system prompt → 
+retrieved documents → unique query tail). If the unique query precedes the documents, the causal 
+K/V of the document span differs per query and no prefix is reusable — the savings above assume 
+the documents-then-query layout, which the architect must verify in the actual prompt template.
+11.3.6. When to Disaggregate: Prefill and Decode Want Different Pools
+Recall from Ch2/Ch6: prefill is compute-bound (~1.29 PFLOP → ~1.19 PFLOPS required vs 0.989 
+PFLOPS peak), decode is bandwidth-bound (the whole-model weight-read rate of ~5.6 TB/s if served 
+by one device vs 3.35 TB/s per GPU; under the canonical 8×H100 host it is sharded to ~0.70 TB/s 
+per GPU, and the shard-invariant cause is the low ~1.0 FLOP/byte intensity, Ch 6) [1P][DERIVED]. 
+Serving both from one pool forces a compromise: batch for prefill and it slows decode; optimize for 

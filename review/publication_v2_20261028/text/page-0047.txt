@@ -1,0 +1,31 @@
+29
+Understanding the Model
+count includes the unused experts; the active parameter count per token is the fraction that 
+routing selects.
+The architect-relevant distinction: total parameters ≠ active parameters per token. This 
+inequality is the single most important number to read from a model card when sizing a deployment, 
+because it directly changes the compute cost per token. However, the KV cache does not share this 
+privilege — we will show why MoE sparsity saves compute but not memory.
+A note on provenance: the total-versus-active distinction arises from the training regime. In 
+dense pre-training, every token sees the full model gradient; in MoE pre-training, a routing loss 
+directs each token to the most relevant expert(s), and the unused experts receive no gradient for that 
+step. The routing mechanism itself (top-k, importance sampling, learned gates) is an architectural 
+decision that outlives training and becomes a deployment fact.
+3.2. Mental Model
+A model’s parameters form a resource pool that is allocated differently depending on the routing 
+regime.
+• In a dense model, the pool is fully allocated every time. If the model is 70B params in FP16, we 
+need 140 GB of weight memory available for every token. There is no “spending less” — the 
+full 140 GB is the residency floor.
+• In an MoE model, the pool is fractionally allocated. The total pool may be large (reflecting 
+the model’s capacity and training compute), but what we actually wire up per token is a slice. 
+With top-2 routing from 8 experts, roughly 2/8 = 25% of the total parameter mass is active per 
+token. This fraction saves compute (fewer FLOPs) but the attention layers still see every token, 
+so the KV cache still grows with context length just as in a dense model.
+The durable mental model: total parameters set the ceiling; active parameters per token 
+set the floor. The architect must track both numbers.
+3.3. Worked Example
+We now carry concrete arithmetic using the canonical enterprise Q&A scenario (Ch 4, Table 4-2: 
+~2,000 users, ~10 rps average, ~40 rps peak, 1,200 + 8K context ~9.2K input, 300-token output, 70B-class 
+model, FP16, 1 host 8×H100). The numbers below are worked out explicitly; where a model’s exact 
+spec is not first-party verified, it is flagged [UNRESOLVED].

@@ -1,0 +1,32 @@
+143
+Serving: From Model in Memory to Requests in Flight
+3. Measure prefill-vs-decode utilization separately — a FLOP-bound prefill core and a 
+bandwidth-bound decode core running on one pool tells us when to disaggregate.
+4. Measure the scheduler’s real occupancy — idle decode slots, queue wait, and the tail of 
+TTFT under load, not the average.
+11.5. Common Mistakes
+• Assuming bigger batches always help. Bigger discrete batches raise raw tokens/s but push 
+TTFT past the SLO, zeroing goodput (Ch6). Continuous batching exists precisely to uncouple 
+batch size from wait.
+• Serving KV contiguous and watching fragmentation. PagedAttention removes the frag­
+mentation tax; skipping it wastes memory under concurrency.
+• Re-prefilling shared context. Without prefix caching, repeated RAG documents are recom­
+puted per request — one of the most wasteful failures for this workload.
+• Choosing P/D disaggregation too early. Splitting pools adds fabric + orchestration; for a 
+single host it is overhead without the resource conflict that motivates it.
+• Believing speculative decoding (DFlash reports >6× lossless acceleration, up to 2.5× 
+faster than EAGLE-3 [S5][1P]) is a serving baseline. These are paper-reported results 
+under the paper’s evaluation setup, not portable serving-speed figures. Speculative decoding 
+is an optimization for bandwidth-bound decode, not a requirement, and must be validated on 
+the workload.
+11.6. Architecture Consequence
+The serving mechanisms dictate the deployment choices:
+• Baseline (canonical single-host): continuous batching (vLLM/Orca) is near-mandatory to 
+hold TTFT under the SLO (1.2 s, p95 ≤ 2 s) at 10 rps input-heavy load; PagedAttention ensures 
+the ~24.1 GB-per-request KV pack fits; prefix caching is the highest-leverage optimization 
+because the workload is repeated-context RAG. This matches the memory and compute 
+conclusions of Ch4/Ch7 for the ~10 rps average baseline; at the ~40 rps peak the KV budget 
+forces replication, which Chapter 17 sizes. [S1][S2][S3][1P]
+• Scaling up: those three carry the workload far before disaggregation is justified. FP8 KV (raw 
+tensor byte-halving = 1.31 MB/token, exactly 50% of BF16) [ILLUSTRATIVE][DERIVED] and 
+KV offloading are memory levers available without restructuring.

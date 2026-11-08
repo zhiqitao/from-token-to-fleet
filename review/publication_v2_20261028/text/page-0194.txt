@@ -1,0 +1,37 @@
+Performance Engineering: From “It Works” to “It Meets the SLO”
+176
+constraint for the canonical scenario, then apply the appropriate optimization to shift the bottleneck. 
+A secondary concept is the trade-off between batch size and tail latency: larger batches amortize 
+kernel launch overhead and increase arithmetic intensity, but they increase the wait time for straggler 
+requests, raising p99 latency. The designer must therefore balance arithmetic gain against tail‑latency 
+penalty, a tension that shapes every later architectural decision.
+15.2. Mental Model
+We model the serving request lifecycle as a pipeline of computational phases with a cross‑cutting 
+state‑management plane. The compute phases run in order: (1) request preprocessing / tokenization, 
+(2) prefill, (3) iterative model decode, (4) token sampling / selection, (5) detokenization / streaming. 
+KV management is not a temporal stage after generation — allocation, growth, paging, reuse, 
+eviction, and (in a disaggregated deployment) transfer occur throughout the whole request lifetime, 
+so we draw it as a state‑management plane that spans prefill and decode rather than a step that 
+follows them. Each compute phase has a resource ceiling: compute‑bound phases are limited by 
+TFLOPS, memory‑bound phases by GB/s of GPU HBM bandwidth. The architecture designer must 
+identify which phase is bottlenecked for the canonical scenario and then apply the appropriate 
+optimization—kernel fusion, cache reuse, or batching—to shift the bottleneck. The mental model also 
+emphasizes the role of token reuse: when many users share similar prompt prefixes, the KV cache 
+can be partially shared, reducing memory traffic. This reuse effect is difficult to quantify without 
+workload profiling, but it is a first‑order consideration in multi‑tenant serving. The model also 
+captures the interaction between sequence length and memory cost: attention quadraticities (O(L²) 
+FLOPs and O(L²) memory per head once the QKT /softmax score matrix is materialized) mean that 
+long contexts (9,000+ tokens) disproportionately strain both compute and HBM bandwidth, making 
+kernel choice (FlashAttention vs. SDPA) one of the first kernel‑level optimizations to validate for 
+long‑context prefill — not a demonstrated global ranking, since prefix reuse, KV precision, batching 
+policy, P/D scheduling, weight precision, admission control, and simply provisioning more prefill 
+capacity can each dominate depending on the measured workload.
+15.3. Worked Example
+Canonical scenario: ~2,000 registered users, ~5% concurrent (100 users), ~10 rps average / ~40 rps 
+peak, prompt ~9,200 input tokens + ~300 output, the canonical 80-layer, hidden-8192, full-MHA 70B 
+reference model (a 70B-class dense FP16 model), 8×H100 host with 640 GB GPU memory.
+Derived quantity 1 – concurrent users: 2,000 ×0.05 = 100 users.
+Derived quantity 2 – peak token throughput demand: At 40 rps the workload mixes prefill 
+(input) and decode (output) tokens, and they hit the hardware differently. Prefill demand = 40 rps × 
+9,200 = 368,000 input tokens/s; decode demand = 40 rps × 300 = 12,000 output tokens/s. These two 
+regimes must not be collapsed into one “380,000 tokens/s” when reasoning about compute, because 

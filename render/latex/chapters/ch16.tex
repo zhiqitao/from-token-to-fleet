@@ -80,18 +80,23 @@ it}\label{size-the-fleet-first-then-price-it}
 
 TCO is meaningless until we know \textbf{how many hosts the workload
 actually requires}. A common sizing mistake is to start from a single
-host: a single 8×H100 host can only sustain \textasciitilde2.0 req/s
-under the KV/latency analytical planning bound (\hyperref[chap:17]{Chapter 17}/20), so it
-cannot serve even the canonical 10 rps average, let alone the 40 rps
-peak. We therefore size the fleet first (Ch 17) and price it second.
+host: a single 8×H100 host can only clear \textasciitilde2.0 req/s under
+the KV-slot-based analytical UPPER bound on admitted request completion
+rate, conditional on an assumed mean KV residency time (\hyperref[chap:17]{Chapter 17}/20),
+so it cannot serve even the canonical 10 rps average, let alone the 40
+rps peak. We therefore size the fleet first (Ch 17) and price it second.
 
 \textbf{Step 1 --- fleet size.} The canonical workload's KV-residency /
 service-time screen is N\_hosts = ⌈λ·W/C⌉ with the hard-slot floor 17
 (436 GB ÷ (2.62 MB/token × 9,500 tokens) = 17.51 → floor 17, applied
-BEFORE any utilization adjustment and BEFORE the host ceil; Ch 17) and
-W\_plan = 8.6 s (the rounded planning service time; the distinct
-execution estimate 8.58 s is exposed and labeled, never silently
-substituted):
+BEFORE any utilization adjustment and BEFORE the host ceil; Ch 17) and W
+= 8.6 s --- the \textbf{assumed mean KV-residency time}
+E{[}W\_KV-resident{]} (Ch 17's conditional scenario proxy: 1.08 s
+prefill + 7.5 s decode of GPU execution, with KV assumed held only
+during execution; the distinct execution estimate 8.58 s is exposed and
+labeled, never silently substituted; the earlier label \emph{W\_plan} is
+dropped here because Ch 17's end-to-end W\_e2e ≈ 10 s planning round is
+a different quantity and must not be transplanted into KV slots):
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -112,25 +117,41 @@ Peak (40 rps)
 \endlastfoot
 KV-residency / service-time screen (⌈λ·W/C⌉, floor C = 17) & ⌈10×8.6/17⌉
 = 6 hosts & ⌈40×8.6/17⌉ = 21 hosts \\
-Independent prefill screen (⌈tokens/s ÷ 19,770 tok/s/host⌉) & 5 hosts &
-19 hosts \\
-\textbf{N\_hosts (KV screen max)} & \textbf{6 hosts} & \textbf{21
-hosts} \\
+Independent prefill screen --- \textbf{case (i) linear-only} (⌈tokens/s
+÷ 19,780 tok/s/host⌉) & 5 hosts & 19 hosts \\
+Independent prefill screen --- \textbf{case (iii) causal-triangle}
+(×1.0861 on case (i)) & 6 hosts & 21 hosts \\
+Independent prefill screen --- \textbf{case (ii) full-square
+conservative} (×1.1723 on case (i)) & 6 hosts & 22 hosts \\
+\textbf{N\_hosts = max of the named screens} & \textbf{6 hosts} &
+\textbf{21 hosts under case (i) / 22 hosts under case (ii)} \\
 
 \noalign{\label{tab:16.3}}\end{longtable}
 
 Two things about that table are load-bearing. First, the
 \textasciitilde2.0 rps per-host figure (C/W = 17/8.6 = 1.9767) is the
-KV-residency bound divided by the service time --- a
-\textbf{service-time surrogate inside the KV screen}, not a second,
-independent throughput ceiling; an earlier draft of this table listed a
-separate ``throughput ⌈40/2.0⌉ row'' beside the KV row, and the two are
-algebraically the same bound, so that duplicate row is gone. Second, the
-prefill row is a genuinely \emph{independent} compute screen --- the
-scope ledger's 5 avg / 19 peak, ⌈368,000 ÷ 19,770⌉ = 19 at peak --- and
-it is deliberately NOT forced to equal the KV row. The third scope,
-N\_SLO (queueing / goodput under concurrency), has \textbf{no number
-here because it is unmeasured}: it is a named scope, not a row.
+\textbf{KV-slot-based analytical UPPER bound on admitted request
+completion rate, conditional on an assumed mean KV residency time} --- a
+capacity screen inside the KV screen, defined in full below (``What kind
+of number is \textasciitilde2.0 req/s?'\,') and in the \textbf{Evidence
+boundary} panel (Preface); and the \emph{lower} bound on host count
+derives FROM it (⌈40 ÷ 1.9767⌉ = ⌈20.24⌉ = 21 hosts --- a per-host
+ceiling becomes a fleet floor at that one division); an earlier draft of
+this table listed a separate ``throughput ⌈40/2.0⌉ row'' beside the KV
+row, and the two are algebraically the same bound, so that duplicate row
+is gone. Second, the prefill rows are a genuinely \emph{independent}
+compute screen --- the scope ledger's 5 avg / 19 peak, ⌈368,000 ÷
+19,780⌉ = 19 at peak \textbf{under case (i), linear-only} --- and they
+are deliberately NOT forced to equal the KV row; the same screen under
+case (iii) (causal-triangle, ×1.0861) gives 6 / 21 and under case (ii)
+(full-square conservative, ×1.1723) gives 6 / 22, so \textbf{which
+FLOP-counting case is stated decides whether the compute screen (19),
+the KV screen (21), or the compute screen again (22) governs the peak}.
+Every host count in this table is an \textbf{illustrative planning
+screen under its stated FLOP-counting case and the 35\% MFU assumption
+--- NOT measured SLO-goodput}. The third scope, N\_SLO (queueing /
+goodput under concurrency), has \textbf{no number here because it is
+unmeasured}: it is a named scope, not a row.
 
 So the canonical workload's peak KV screen is \textbf{21 hosts}
 (⌈344/17⌉, zero spare --- the headline policy provisions exactly at the
@@ -145,17 +166,24 @@ scheduling factor) --- KV-residency arithmetic on a screen, \textbf{not
 an assertion that real deployments halve in size}; measured allocation,
 compute and goodput are absent, and the independent prefill and
 unmeasured SLO scopes do not shrink with it. \textbf{Every TCO figure
-below is scaled to this 21-host KV-screen fleet; pricing a single host
-would understate the cost by roughly 6--21×.}
+below is scaled to a named peak fleet --- 21 hosts (KV screen / case (i)
+compute screen) or 22 hosts (case (ii) full-square compute screen), both
+priced in §16.3; pricing a single host would understate the cost by
+roughly 21--22×.}
 
 \textbf{What kind of number is \textasciitilde2.0 req/s?} The per-host
-rate \texttt{C\_KV\ /\ W\ ≈\ 17\ /\ 8.6\ ≈\ 2.0\ req/s} is an
-\emph{upper-order planning estimate under a particular concurrency,
-timing, and cache geometry} --- not an observed service rate. It is an
-average-in-system relation, not a measured goodput, and it is derived
-\emph{from} the KV bound, so it does not add an independent constraint.
-The scopes behind fleet sizing must be derived and measured separately,
-and the formula is only as strong as the weakest one:
+rate
+\texttt{C\_KV\ /\ E{[}W\_KV-resident{]}\ ≈\ 17\ /\ 8.6\ ≈\ 2.0\ req/s}
+is a \textbf{KV-slot-based analytical UPPER bound on admitted request
+completion rate, conditional on an assumed mean KV residency time} ---
+an average-in-system relation under a particular concurrency, timing,
+and cache geometry, not an observed service rate, not a measured
+goodput, not a lower guaranteed rate, and not an SLO goodput. It is
+derived \emph{from} the KV bound, so it does not add an independent
+constraint; the host-count \emph{lower} bound (21) is what derives
+\emph{from} it. The scopes behind fleet sizing must be derived and
+measured separately, and the formula is only as strong as the weakest
+one:
 
 \begin{itemize}
 \tightlist
@@ -165,14 +193,16 @@ and the formula is only as strong as the weakest one:
   per-token KV footprint. This is an arithmetic allocation bound (the
   floor-17 figure).
 \item
-  \textbf{C/W (service-time surrogate inside the KV screen)} --- the
-  \textasciitilde8.6 s W\_plan is an uncontended request-level estimate;
-  C/W inherits both the KV bound and the service-time assumption, so it
-  is not an independent compute bound and not an independently measured
-  throughput.
+  \textbf{C/W (KV-slot upper bound on admitted rate inside the KV
+  screen)} --- the \textasciitilde8.6 s E{[}W\_KV-resident{]} proxy is
+  an uncontended request-level estimate; C/W inherits both the KV bound
+  and the service-time assumption, so it is not an independent compute
+  bound and not an independently measured throughput.
 \item
   \textbf{Independent prefill screen} --- a separate compute bound (5
-  avg / 19 peak from ⌈368,000 ÷ 19,770⌉), legitimately independent of KV
+  avg / 19 peak from ⌈368,000 ÷ 19,780⌉ \textbf{under case (i),
+  linear-only}; 6 / 21 under case (iii) causal-triangle; 6 / 22 under
+  case (ii) full-square conservative), legitimately independent of KV
   size.
 \item
   \textbf{N\_SLO (queueing / goodput)} --- the number of hosts needed to
@@ -187,69 +217,124 @@ and the formula is only as strong as the weakest one:
 \end{itemize}
 
 So the 21-host figure is a \textbf{scenario-specific KV/service-time
-screen contingent on the 8.6-second service time remaining valid under
-concurrent execution}, not a deployment-validated estimate. Before
-budgeting against it, measure \texttt{λ\_goodput} per host at the target
-p95/p99 TTFT, TPOT, and success rate on the actual workload, and
-re-derive N\_hosts. (See the falsification protocol in Ch 17.)
+screen contingent on the 8.6-second assumed mean KV residency time
+remaining valid under concurrent execution}, not a deployment-validated
+estimate --- and it is only the \emph{capacity} requirement: the
+deployable host count is \textbf{max(capacity requirement, tail-latency
+requirement N\_SLO)}, with N\_SLO the p95/p99 TTFT/TPOT/success-rate
+count that is unmeasured here (Little's Law is a mean relation ---
+E\mbox{{[}L{]}} = λ·E\mbox{{[}W{]}} --- so a p95 or p99 W must never be substituted
+for E\mbox{{[}W{]}} inside it; tail percentiles are a separate stochastic
+constraint). Before budgeting against it, measure \texttt{λ\_goodput}
+per host at the target p95/p99 TTFT, TPOT, and success rate on the
+actual workload, and re-derive N\_hosts. (See the falsification protocol
+in Ch 17.)
 
 \textbf{Treat both provisioning policies explicitly.} The headline \$
 figures below use the 21-host ideal-active fleet (zero spare,
 provisioned exactly at the 40 rps peak). The capacity-planning rule (Ch
-17 \hyperref[tab:17.1]{Table 17-1}) uses a 70\% max-operating-utilization target, which gives
-\textbf{29 working hosts} at the peak ⌈40×8.6/(17×0.7)⌉ = ⌈344/11.9⌉ =
-29 and \textbf{30 total with N−1}; because one host must be able to
-drain (failover/maintenance) while the fleet still clears the peak, the
-N−1 policy requires 30 hosts total (29 working + 1 reserve --- 29
-surviving × 1.9767 × 0.70 ≈ 40.2 ≥ 40 rps). That spare is a
-\emph{reserve} host, not serving capacity. A third, separate model row
-is the 95\% scheduling factor: \textbf{22 hosts, also zero spare --- NOT
-a reserve}, an efficiency derate of the same screen (\$162,760.59/mo,
-\$26.08/1K). All three outcomes belong in the decision:
+17's authoritative provisioning-policy table, \textbf{\hyperref[tab:17.1]{Table 17-1}}) is N
+= ⌈λ·W/(C·u·ρ)⌉ + N\_spare with u = 0.70 and ρ = 0.95
+\textbf{independent} (u × ρ = 0.665, not nested), which gives \textbf{31
+working hosts} at the peak ⌈40×8.6/(17×0.70×0.95)⌉ = ⌈344/11.305⌉ = 31
+and \textbf{32 total with N−1}; because one host must be able to drain
+(failover/maintenance) while the fleet still clears the peak, the N−1
+policy requires 32 hosts total (31 working + 1 reserve --- 31 surviving
+× 1.9767 × 0.70 × 0.95 ≈ 40.7 ≥ 40 rps). That spare is a \emph{reserve}
+host, not serving capacity. (The earlier 29-working / 30-total figures
+were the ρ-omitted variant, ρ = 1; superseded --- \hyperref[tab:17.1]{Table 17-1} states why
+ρ is not nested inside the 70\%.) A third, separate model row is the
+95\% scheduling factor \emph{alone}: \textbf{22 hosts, also zero spare
+--- NOT a reserve}, an efficiency derate of the same KV screen
+(\$162,760.59/mo, \$26.08/1K). A fourth row comes from a
+\emph{different} screen entirely: the \textbf{full-square case (ii)
+independent prefill compute screen} also lands on \textbf{22 hosts}
+(⌈21.81⌉, zero spare) and therefore on the \emph{same} \$162,760.59/mo ≈
+\$26.08/1K --- cost depends only on N, not on which screen produced it
+--- while at the 70\% × 95\% + N−1 policy case (ii) gives
+\textbf{⌈21.81/0.665⌉ + 1 = 34 hosts} against \textbf{32} for KV-only.
+All four outcomes belong in the decision:
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.2927\linewidth}
-  >{\raggedright\arraybackslash}p{0.2927\linewidth}
-  >{\raggedright\arraybackslash}p{0.2927\linewidth}@{}}
+  >{\raggedright\arraybackslash}p{0.1647\linewidth}
+  >{\raggedright\arraybackslash}p{0.1647\linewidth}
+  >{\raggedright\arraybackslash}p{0.1647\linewidth}
+  >{\raggedright\arraybackslash}p{0.1647\linewidth}
+  >{\raggedright\arraybackslash}p{0.1647\linewidth}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
 Provisioning policy
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-21-host ideal-active (headline, zero spare)
+21-host ideal-active (case (i)/KV screen --- \textbf{sensitivity
+comparison}, zero spare)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-70\% target + N−1 (30 hosts; 29 working + 1 reserve)
+22-host full-square case (ii) compute screen (zero spare)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+70\% × 95\% target + N−1, KV-only (32 hosts; 31 working + 1 reserve)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+70\% × 95\% target + N−1, case (ii) (34 hosts; 33 working + 1 reserve)
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Peak fleet & 21 hosts (22 at the 95\% scheduling factor) & 30 hosts (29
-working + 1 reserve) \\
+Peak fleet & 21 hosts (22 at the 95\% scheduling factor) & 22 hosts & 32
+hosts (31 working + 1 reserve) & 34 hosts (33 working + 1 reserve) \\
 Self-host (capex+energy+staff) & \textasciitilde\$155.8K/mo &
-\textasciitilde\$218.3K/mo \\
-Per 1,000 requests & \textasciitilde\$24.97 & \textasciitilde\$34.99 \\
+\textasciitilde\$162.8K/mo & \textasciitilde\$232.2K/mo &
+\textasciitilde\$246.1K/mo \\
+Per 1,000 requests & \textasciitilde\$24.97 & \textasciitilde\$26.08 &
+\textasciitilde\$37.21 & \textasciitilde\$39.44 \\
 
 \noalign{\label{tab:16.4}}\end{longtable}
 
+\emph{The 21-host column is kept as an explicitly-labeled
+\textbf{sensitivity/comparison} run (case (i) linear-only + KV screen)
+--- \textbf{not an implied feasibility}; the 22-host column is the
+conservative case (ii) run. Staff is a \textbf{fixed \$10,000/mo in
+every column} --- it does not scale with N.}
+
 \emph{Provisioning sensitivity (explicit):} the TCO figures below
 \textbf{assume the 21-host ideal-active fleet (provisioned exactly at
-the 40 rps peak without headroom)} so that the cost comparison is not
-double-counting idle capacity. If instead the fleet is provisioned at
-the 70\% utilization target that the sizing rule (Ch 17 \hyperref[tab:17.1]{Table 17-1})
-actually uses --- \textbf{30 hosts (29 working + 1 N−1 reserve)} ---
-capex is exactly 30 × \$350,000 / 60 months = \textbf{\$175,000}, plus
-energy 30 × \$1,110.33 = \$33,309.90, plus \$10,000 staff ≈
-\textbf{\textasciitilde\$218.3K/month} (\$218,309.90 computed exactly,
-rounded only for display), and per-request cost rises to ≈ \$218,309.90
-/ 6.24M ≈ \textbf{\textasciitilde\$34.99 per 1,000 requests} (vs the
-\$24.97/1K below). Which mode looks favorable depends on the occupancy,
-staff-sunk, and SLO assumptions named below and holds under either
-provisioning policy; the \emph{specific} \$24.97/1K number is the
-21-host headline figure and should be read with that assumption.
+the 40 rps peak without headroom)} so the comparison does not
+double-count idle capacity --- same \textbf{21-host
+sensitivity/comparison (case (i) linear-only + KV screen), not an
+implied feasibility}, and the \textbf{staff fixed at \$10,000/mo in all
+four}, as the table footnote above states. Three sibling runs, all from
+the same TCO model (capex \$350,000 ÷ 60 mo = \$5,833.33/host/mo; energy
+\$1,110.33/host/mo):
 
-\textbf{Step 2 --- price each mode on N\_hosts = 21 (FP16 KV screen,
-provisioned for the 40 rps peak).}
+\begin{itemize}
+\tightlist
+\item
+  \textbf{22 hosts --- case (ii) full-square compute screen (zero
+  spare):} capex 22 × \$5,833.33 = \$128,333.33 + energy 22 × \$1,110.33
+  = \$24,427.26 + \$10,000 staff = \textbf{\$162,760.59/month} →
+  \$162,760.59 ÷ 6.24M × 1,000 ≈ \textbf{\$26.08 per 1,000 requests}.
+\item
+  \textbf{32 hosts --- 70\% × 95\% target + N−1, KV-only (31 working + 1
+  reserve):} capex 32 × \$350,000 / 60 = \textbf{\$186,666.67}, energy
+  32 × \$1,110.33 = \$35,530.56, + \$10,000 staff ≈
+  \textbf{\textasciitilde\$232.2K/month} (\$232,197.23 computed exactly,
+  rounded only for display) → ≈ \textbf{\textasciitilde\$37.21 per 1,000
+  requests} (232,197.23 ÷ 6,240,000 × 1,000 = 37.2111).
+\item
+  \textbf{34 hosts --- 70\% × 95\% target + N−1, case (ii) (33 working +
+  1 reserve):} capex 34 × \$350,000 / 60 = \$198,333.33 + energy 34 ×
+  \$1,110.33 = \$37,751.22 + \$10,000 staff =
+  \textbf{\$246,084.55/month} → ≈ \textbf{\$39.44 per 1,000 requests}
+  (246,084.55 ÷ 6,240,000 × 1,000 = 39.4366).
+\end{itemize}
+
+Which mode looks favorable depends on the named assumptions and holds
+under any of the four provisioning policies; the \emph{specific}
+\$24.97/1K number is the 21-host case-(i)/KV-screen figure.
+
+\textbf{Step 2 --- price each mode on N\_hosts = 21 (FP16 KV screen /
+case (i) compute screen, provisioned for the 40 rps peak), with the
+22-host case (ii) run priced alongside it as the conservative
+comparison.}
 
 \textbf{Mode 1 --- self-hosted on owned cards (21 × 8×H100).}
 
@@ -270,7 +355,15 @@ provisioned for the 40 rps peak).}
   \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}, scenario value \mbox{{[}ILLUSTRATIVE{]}}
 \item
   Monthly total = \$122,500 + \$23,316.93 + \$10,000 =
-  \textbf{\$155,816.93/month} for 21 hosts (zero spare).
+  \textbf{\$155,816.93/month} for 21 hosts (zero spare) --- the
+  \textbf{case (i)/KV-screen sensitivity run}.
+\item
+  \textbf{22-host case (ii) run (same model, N = 22):} capex 22 ×
+  \$5,833.33 = \$128,333.33, energy 22 × \$1,110.33 = \$24,427.26, staff
+  \textbf{fixed} \$10,000 → \textbf{\$162,760.59/month} =
+  \textbf{\$26.08 per 1,000 requests} (162,760.59 ÷ 6,240,000 × 1,000 =
+  26.0834). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}, scenario value
+  \mbox{{[}ILLUSTRATIVE{]}}
 \item
   Per request at \textasciitilde10 rps average over the active
   business-hours window (Ch 4: 10 rps × 8 h × 3,600 s × 260 workdays ÷
@@ -376,10 +469,12 @@ at the canonical 6,240,000 requests/month (active business-hours window,
 Ch 4): \textbf{\$129,792/month} (\textasciitilde\$129.8K; 6.24M ×
 \$0.0208).
 
-\textbf{Reading the result.} Once the fleet is sized correctly (21
-hosts), the comparison changes entirely versus the single-host framing.
-On the included-cost lines above: self-hosted is \textbf{\$24.97/1K}
-(\$155,816.93/mo), the cloud default-occupancy input is
+\textbf{Reading the result.} Once the fleet is sized (21 hosts under
+case (i)/KV screen; 22 under case (ii) full-square --- both priced
+above), the comparison changes entirely versus the single-host framing.
+On the included-cost lines above: self-hosted is \textbf{\$24.97/1K} at
+21 hosts (\$155,816.93/mo) and \textbf{\$26.08/1K} at 22 hosts
+(\$162,760.59/mo), the cloud default-occupancy input is
 \textbf{\$14.04/1K} (\$87,600/mo), and the managed API is
 \textbf{\$20.8/1K} (\$129,792/mo). The self-host-to-default-cloud ratio
 is \textbf{\textasciitilde1.8} (155,816.93 ÷ 87,600 = 1.78) --- a
@@ -389,13 +484,10 @@ break-even at \textasciitilde7.5M. \textbf{None of these three numbers
 is an unconditional ranking.} The \$87.6K cloud line is a paid-occupancy
 INPUT assumption (not a measured duty cycle or a proven feasible serving
 schedule), the \$155.8K self-host line is an always-provisioned 21-host
-fleet carrying a fixed staff alloc, and the scopes are not equalized:
-the three modes do not share the same availability ceiling, failover
-reserve, warm-capacity cost, peak-duration assumption, occupancy
-evidence, or p95 SLO. \textbf{Any ``cheaper'' reading is conditional on
-those named inputs, not demonstrated.} Without a measured traffic trace
-and equalized SLO/failover/availability/occupancy assumptions on both
-sides, the definitive economic winner is \textbf{not determined}.
+fleet carrying a fixed staff alloc, and the scopes are not equalized ---
+the not-apples-to-apples caveat under \hyperref[tab:16.1]{Table 16-1} names the specific
+mismatches. \textbf{Any ``cheaper'' reading is conditional on those
+named inputs, not demonstrated.}
 
 \textbf{Apples-to-apples caveat.} The \$87.6K cloud figure is an
 occupancy input; it does not include an N−1 failover reserve, capacity
@@ -429,30 +521,98 @@ included illustrative lines only; it is not procurement-complete.
 TCO.} The canonical workload's stated SLA (Ch 4) is multi-region
 active-active at 99.9\% availability, but \textbf{every} \texttt{\$/1K}
 figure in this chapter (and the host counts in Ch 17) prices a
-\textbf{single-region} deployment with \textbf{N−1 single-host
-failover}, \textbf{not} multi-region active-active. Multi-region
-active-active is a \textbf{different provisioning problem} from N−1
-single-host failover: it requires cross-region capacity duplication (no
-single region's loss may take the service down), region-failure
-tolerance, data locality and traffic routing (geo/health-based routing,
-per-region caches and indices), and consistent state/data replication
-(model weights + KV/index replication across regions). None of that is
-priced or validated here, and none of it is implied by the N−1 reserve
-host above. Accordingly the canonical cost figures \textbf{understate
-the cost of the canonical workload's own stated 99.9\% availability
-requirement} --- read the \texttt{\$/1K} and monthly totals as
-\emph{single-region, N−1-only} numbers, and add a separate multi-region
-capacity + replication cost line (on the order of ≥2× the single-region
-fleet on the capacity-duplication term alone) before the availability
-SLA can be considered met.
+\textbf{single-region} deployment --- the 21-host headline rows are the
+\textbf{ideal zero-spare} fleet with \textbf{no N−1 reserve priced}, and
+only the 32-host policy row carries the \textbf{31 working + 1 reserve}
+N−1 single-host failover --- \textbf{not} multi-region active-active.
+Multi-region active-active is a \textbf{different provisioning problem}
+from N−1 single-host failover: it requires cross-region capacity
+duplication (no single region's loss may take the service down),
+region-failure tolerance, data locality and traffic routing
+(geo/health-based routing, per-region caches and indices), and
+consistent state/data replication. \textbf{Mandatory vs optional in that
+replication:} each region must be able to load the model weights and
+serve its retrieval index --- weight/index availability is mandatory,
+because a region that cannot load the model or answer retrieval cannot
+serve traffic --- whereas \textbf{replicating live KV across regions is
+an optional policy, not a requirement}: clients may instead replay or
+recompute the context in the surviving region, trading cross-region KV
+transfer for recovery time inside the SLA's recovery objectives. None of
+that is priced or validated here, and none of it is implied by the N−1
+reserve host above (the 32-host policy row). Accordingly the canonical
+cost figures \textbf{understate the cost of the canonical workload's own
+stated 99.9\% availability requirement} --- read the \texttt{\$/1K} and
+monthly totals as \emph{single-region} numbers --- zero-spare at the
+21-host headline, N−1-reserve only at the 32-host policy --- and add a
+separate multi-region capacity + replication cost line (on the order of
+≥2× the single-region fleet on the capacity-duplication term alone)
+before the availability SLA can be considered met.
+
+\textbf{Parametric multi-region worksheet (candidate only --- the shape
+of the work, not a result).} No row below is sized, priced or tested;
+each names the input the book would have to fix before its own 99.9\%
+requirement could be closed, using the same provisioning formula as
+\hyperref[tab:17.1]{Table 17-1}:
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+\#
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Parameter
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Entry for the canonical case
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Status
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+1 & Regional traffic share & α of λ\_peak = 40 rps to the primary
+region, 1 − α to the secondary & NOT SIZED (α unset) \\
+2 & Failover load & the surviving region must carry 100\% of λ\_peak =
+40 rps & NOT SIZED \\
+3 & Warmed capacity per region & N\_region = ⌈λ\_region·W\_KV/(C·u·ρ)⌉ +
+N\_spare (\hyperref[tab:17.1]{Table 17-1} formula, applied per region) & NOT SIZED (depends
+on rows 1--2) \\
+4 & Weight + retrieval-index availability per region & mandatory: every
+region loads the weights and serves the index & NOT TESTED \\
+5 & Live-KV cross-region replication & optional policy --- clients
+replay or recompute in the surviving region & NOT PRICED (optional by
+design) \\
+6 & RPO / RTO & the recovery objectives the replay/recompute path must
+meet & NOT SIZED \\
+7 & Region-failure test & failover drill at the target offered load ---
+exit criterion (ii) of ADR 0015 (Ch 25 §6) & NOT RUN \\
+8 & Incremental cost & extra regions + replication + routing/egress ---
+on the order of ≥2× the single-region fleet on the capacity-duplication
+term alone (above) & NOT PRICED \\
+
+\noalign{\label{tab:16.5}}\end{longtable}
+
+Filling rows 1--8 is what would let a successor ADR lift the HOLD; until
+then every \$/1K in this chapter stays single-region and the candidate
+stays \emph{screened, not committed}. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}
 
 \textbf{\hyperref[tab:16.1]{Table 16-1}} --- TCO comparison across delivery modes
 (illustrative worked example; N\_hosts = 21 at the canonical peak KV
-screen). \textbf{ILLUSTRATIVE SCENARIO, NOT APPLES-TO-APPLES:} the modes
-are NOT compared on equal availability, failover, warm-capacity,
-peak-duration, occupancy-evidence, or p95-SLO assumptions --- the cloud
-\$87.6K rests on a paid-occupancy INPUT while the self-host \$155.8K is
-an always-provisioned fleet. Use as a \emph{scenario} comparison, not an
+screen \textbf{under case (i)}, with the case (ii) full-square screen's
+22-host run shown as row A′). \textbf{TEACHING GEOMETRY --- RE-DERIVE
+FOR REAL MODEL}: dense 70B, full-MHA, FP16 KV on 8×H100 is this book's
+conservative teaching geometry, not a typical 2026 production
+configuration --- re-derive it per candidate model before any figure
+here reaches a slide or a purchase justification. \textbf{ILLUSTRATIVE
+SCENARIO, NOT APPLES-TO-APPLES:} the modes are NOT compared on equal
+availability, failover, warm-capacity, peak-duration,
+occupancy-evidence, or p95-SLO assumptions --- the cloud \$87.6K rests
+on a paid-occupancy INPUT while the self-host \$155.8K is an
+always-provisioned fleet. Use as a \emph{scenario} comparison, not an
 unconditional ranking; the definitive winner is \textbf{not determined}
 without a measured traffic trace and equalized assumptions on both
 sides.
@@ -469,76 +629,111 @@ sides.
 \begin{minipage}[b]{\linewidth}\raggedright
 Mode
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Capacity
+Provisioned
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Opex/month
+Feasibility / status (before any price ranking)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Cost/1K req @6.24M
+Monthly cost
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-\$/month @6.24M req
+\$/1K req @6.24M
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-When it wins
+Qualification
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Self-hosted (21×8×H100) & 21 hosts, zero spare & \textasciitilde\$155.8K
-& \textasciitilde\$24.97 & \textasciitilde\$155.8K & staff already
-in-house (sunk) and sustained near-peak utilization, with volume above
-the \textasciitilde7.5M API break-even; no burst variability \\
-Cloud, default paid-occupancy input & 4,380 paid host-hours (6 × 730
-INPUT) & \textasciitilde\$87.6K & \textasciitilde\$14.04 &
-\textasciitilde\$87.6K & variable load, no idle capex, staff shared ---
-\textbf{only if the occupancy input holds (fast scale-up, cheap warm
-pool); it is not a measured duty cycle} \\
-Cloud, always-on at 21-host peak & 21 hosts all month (15,330 h) &
-\textasciitilde\$306.6K & \textasciitilde\$49.13 &
-\textasciitilde\$306.6K & scale-up is slow or the load is sustained near
-peak; the default occupancy input does not apply \\
-Managed API & --- & usage & \textasciitilde\$20.8 &
-\textasciitilde\$129.8K & tiny volume, fastest time-to-value \\
+\textbf{A.} Self-hosted (21×8×H100) & 21 hosts, zero spare (\textbf{case
+(i)/KV screen --- sensitivity comparison}) & \textbf{planning-only,
+incomparable} (single-region; no N−1 spare priced; no SLO-goodput
+measured) & \textasciitilde\$155.8K (\$155,816.93) &
+\textasciitilde\$24.97 & always-provisioned fleet; \$10K/mo staff alloc
+inside (fixed); no N−1 reserve priced \\
+\textbf{A′.} Self-hosted, \textbf{case (ii) full-square compute screen}
+& 22 hosts, zero spare & \textbf{planning-only, incomparable} (same
+scoping as A) & \textasciitilde\$162.8K (\$162,760.59) &
+\textasciitilde\$26.08 & same TCO model at N = 22; staff still the fixed
+\$10K/mo; the conservative FLOP-counting case's run \\
+\textbf{B.} Cloud, default paid-occupancy input & 4,380 paid host-hours
+(6 × 730 INPUT) & \textbf{planning-only, incomparable} (occupancy is an
+input, not measured; no warm-pool/scale-up proof) &
+\textasciitilde\$87.6K & \textasciitilde\$14.04 & occupancy INPUT, not a
+measured duty cycle \\
+\textbf{B.} Cloud, always-on at 21-host peak & 21 hosts all month
+(15,330 h) & \textbf{planning-only, incomparable} &
+\textasciitilde\$306.6K & \textasciitilde\$49.13 & scale-up slow or
+sustained near peak; default input does not apply \\
+\textbf{C.} Managed API & --- (usage-based) & \textbf{planning-only,
+incomparable} (no capacity held; not scored on the same
+availability/failover basis) & \textasciitilde\$129.8K &
+\textasciitilde\$20.8 & no capacity held; fastest time-to-value \\
 
 \noalign{\label{tab:16.1}}\end{longtable}
 
-(Figures are worked-example estimates --- a \textbf{Q4 2026 illustrative
-pricing scenario, not market quotes} --- and treat as
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}, to be re-priced before budgeting. These
-are \emph{scenario inputs the architect chooses and re-prices}, not
-assertions governed by the 2026-08-30 evidence cutoff; they do not claim
-to be a source available at that date. The fleet requirement is 21 hosts
-(peak KV screen) / 6 hosts (avg) from the canonical Ch 17 sizing
-(hard-slot floor 17); the Independent prefill screen gives 19 (peak) / 5
-(avg) and is not forced to agree; measured SLO-goodput is unmeasured.
-FP8's raw byte factor 0.5 gives a hard floor of 35 slots before
-efficiency and the host ceil, so the FP8 KV screen is 10 at peak / 11 at
-95\% --- KV-residency arithmetic, \textbf{not a claim that real
+\textbf{None of A/A′/B/C is scored as \texttt{validated\ comparable}}
+--- every mode is a planning-only example, not a measured,
+availability-matched deployment. The three statuses are:
+\texttt{validated\ comparable} (measured on matched
+availability/failover/warm-capacity/SLO-goodput),
+\texttt{planning-only\ incomparable} (this table), and
+\texttt{fails\ requirement} (a mode that cannot meet the 99.9\%
+multi-region SLA). Price rankings are shown only after viewing this
+status column; see the availability-scope caveat in \hyperref[tab:16.2]{Table 16-2} and
+§16.3.
+
+\textbf{When each wins --- A/B/C (the explanation lives here, not in a
+narrow table column).} \textbf{A} --- self-host wins when staff is
+already in-house (sunk), utilization is sustained near peak, there is no
+burst variability, and volume sits above the \textasciitilde7.5M API
+break-even. \textbf{B} (default paid-occupancy input) --- cloud wins on
+variable load with no idle capex and shared staff, \emph{only if} the
+occupancy input holds (fast scale-up, cheap warm pool); it is
+\textbf{not} a measured duty cycle. \textbf{B} (always-on at the 21-host
+peak) --- the same cloud mode when scale-up is slow or the load is
+sustained near peak; the default occupancy input then does not apply.
+\textbf{C} --- the managed API wins at tiny volume and for fastest
+time-to-value. \textbf{None of A/B/C is an unconditional ranking}; each
+is conditional on the qualifications in the last column.
+
+(Worked-example estimates --- a \textbf{Q4 2026 illustrative pricing
+scenario, not market quotes}, \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}, to be
+re-priced before budgeting; \emph{scenario inputs the architect chooses
+and re-prices}, not assertions governed by the 2026-08-30 evidence
+cutoff. Fleet requirement: 21 hosts (peak KV screen) / 6 (avg) from Ch
+17 sizing (hard-slot floor 17) \textbf{under case (i)}; the Independent
+prefill screen gives 19 (peak) / 5 (avg) under case (i), 21 / 6 under
+case (iii) and 22 / 6 under case (ii) --- not forced to agree, and under
+case (ii) the compute screen (22) governs; measured SLO-goodput is
+unmeasured. FP8's raw byte factor 0.5 gives a hard floor of 35 slots
+before efficiency and the host ceil, so the FP8 KV screen is 10 at peak
+/ 11 at 95\% --- KV-residency arithmetic, \textbf{not a claim that real
 deployments halve in size}. \textbf{GQA operating configuration:} the
 21-host figure assumes the canonical full-MHA KV constant (2.62
 MB/token). A 2026 production model with grouped-query attention (GQA)
-uses roughly 8× less KV per token, which raises the per-host
-KV-residency ceiling C by \textasciitilde8× and cuts the \emph{KV
-screen} to on the order of \textasciitilde3 hosts at the same 40 rps ---
-but the \textbf{Independent prefill screen stays 19 at peak} (it does
-not shrink with KV size) and the SLO scope is still unmeasured, so the
-fleet is the max of the \emph{named} screens, not the KV bound alone.
-The full-MHA number is the conservative teaching case; own the gap
-explicitly rather than quoting 21 hosts for a GQA deployment.)
+uses roughly 8× less KV per token, raising the per-host KV-residency
+ceiling C by \textasciitilde8× and cutting the \emph{KV screen} to
+\textasciitilde3 hosts at the same 40 rps --- but the
+\textbf{Independent prefill screen stays 19 at peak under case (i)} (22
+under case (ii); it does not shrink with KV size) and the SLO scope is
+still unmeasured, so the fleet is the max of the \emph{named} screens,
+not the KV bound alone. The full-MHA number is the conservative teaching
+case; own the gap explicitly rather than quoting 21 hosts for a GQA
+deployment.)
 
-\needspace{18\baselineskip}
+\Needspace{18\baselineskip}
 
-\textbf{\hyperref[tab:16.2]{Table 16-2} --- Matched SLO/availability comparison (decision
-view).} The three modes below are compared on the canonical workload's
-stated \textbf{multi-region active-active 99.9\% SLA} (Ch 4). They are
+\textbf{\hyperref[tab:16.2]{Table 16-2} --- Availability-scope reconciliation / remaining
+gaps (decision view).} The three modes below are compared against the
+canonical workload's stated \textbf{multi-region active-active 99.9\%
+SLA} (Ch 4), and the table's purpose is to state where the comparison
+still has gaps --- not to claim the modes are matched. They are
 \textbf{\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} planning rows, NOT measured.}
-The \textbf{not-apples-to-apples caveat} of \hyperref[tab:16.1]{Table 16-1} still governs
-(the modes are not compared on equal availability, failover,
-warm-capacity, peak-duration, occupancy-evidence, or p95-SLO
-assumptions). This table does not change the \hyperref[tab:16.1]{Table 16-1} result. The
-single-region rows are the \textbf{single-region teaching baseline}
-computed above. Every \$/1K below divides the monthly cost by the
-canonical 6,240,000 requests/month (10 rps over the 8 h × 260-workday
-business window, Ch 4 --- not 24×7), the same basis as \hyperref[tab:16.1]{Table 16-1}.
+The \textbf{not-apples-to-apples caveat} of \hyperref[tab:16.1]{Table 16-1} still governs; in
+particular, multi-region active-active remains \textbf{unsized,
+unpriced, and not comparable} here, and the self-host and elastic-cloud
+rows are single-region examples. This table does not change the \hyperref[tab:16.1]{Table 16-1} result. Every \$/1K below divides the monthly cost by the canonical
+6,240,000 requests/month (10 rps over the 8 h × 260-workday business
+window, Ch 4 --- not 24×7), the same basis as \hyperref[tab:16.1]{Table 16-1}.
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -551,36 +746,49 @@ business window, Ch 4 --- not 24×7), the same basis as \hyperref[tab:16.1]{Tabl
 \begin{minipage}[b]{\linewidth}\raggedright
 Deployment / availability mode
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Scope
+Provisioned
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Cost (from above)
+Monthly cost
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Availability covered
+\$/1K req @6.24M
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Status
+Qualification
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Self-host, single-region, N−1 & 21 hosts peak / 30 hosts (70\% + N−1) &
-\textasciitilde\$155.8K/mo (\$24.97/1K); \textasciitilde\$218.3K/mo at
-70\%+N−1 (\$34.99/1K) & Single-region; survives one host loss &
+Self-host, single-region (mode A) & 21 hosts peak (zero spare, case
+(i)/KV screen) / 22 hosts (case (ii)) / 32 hosts (70\% × 95\% + N−1,
+KV-only) / 34 hosts (70\% × 95\% + N−1, case (ii)) &
+\textasciitilde\$155.8K/mo; \textasciitilde\$162.8K/mo at 22;
+\textasciitilde\$232.2K/mo at 32; \textasciitilde\$246.1K/mo at 34 &
+\textasciitilde\$24.97; \textasciitilde\$26.08; \textasciitilde\$37.21;
+\textasciitilde\$39.44 & Single-region; one-host loss covered only by
+the 32-host (31 + 1) / 34-host (33 + 1) reserve ---
 \textbf{\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}} single-region teaching
 baseline, already computed \\
-Cloud elastic, single-region & 4,380 paid host-hours (default input) to
-15,330 (always-on at peak) & \textasciitilde\$87.6K/mo (default
-paid-occupancy input) to \textasciitilde\$306.6K/mo (always-on at
-21-host peak); \textasciitilde\$14.04--\$49.13/1K & Single-region &
-\textbf{\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}} single-region teaching
-baseline, already computed \\
+Cloud elastic, single-region (mode B) & 4,380 paid host-hours (default
+input) to 15,330 (always-on at peak) & \textasciitilde\$87.6K/mo to
+\textasciitilde\$306.6K/mo & \textasciitilde\$14.04--\$49.13 &
+Single-region --- \textbf{\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}}
+single-region teaching baseline, already computed \\
 Multi-region active-active & \textbf{UNSIZED}: mandatory capacity
 duplication, region-failure tolerance, data replication, traffic
 routing, error budget & \textbf{NOT PRICED / NOT VALIDATED in this
-chapter} & 99.9\% active-active & \textbf{Decision deferred} pending
-regional capacity and failure test \\
+chapter} & \textbf{NOT COMPARABLE} & \textbf{NOT COMPARABLE} --- 99.9\%
+active-active; \textbf{Decision deferred} pending regional capacity and
+failure test \\
 
 \noalign{\label{tab:16.2}}\end{longtable}
+
+\textbf{Status note (moved out of the narrow Status column; the A/B/C
+letters of \hyperref[tab:16.1]{Table 16-1} apply).} The two single-region rows are
+\textbf{\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} single-region teaching
+baselines, already computed} --- planning rows, not measured. The
+multi-region row is \textbf{NOT COMPARABLE}: it is \textbf{UNSIZED} and
+\textbf{NOT PRICED}, so it carries no \texttt{\$/1K} and cannot be
+ranked against A/B/C.
 
 \textbf{The multi-region row is NOT priced --- see the §16.3
 multi-region statement (Ch 17 §17.6 applies it to the host counts); this
@@ -644,15 +852,52 @@ against the 21-host self-host cost (\$155,816.93/mo): the low end is
 6,232,677.2 = 155,816.93 ÷ 0.025 (the \$25/1K top of the band) and the
 high end is 10,387,795.33 = 155,816.93 ÷ 0.015 (the \$15/1K bottom of
 the band) --- the same \textasciitilde6.2--10.4M range reported with \hyperref[fig:16.1]{Fig 16.1} and in §16.6; the mid-point at the canonical \$20.8/1K is
-7,491,198.56 ≈ \textbf{7.5M}. The \textbf{70\%-utilization provisioning
-case} is a separate dimension and is named separately: the
-\$218,309.90/mo 30-host cost against the canonical \$20.8/1K API rate
-gives 218,309.90 ÷ 0.0208 ≈ \textbf{10.5M} req/mo. Report the range and
-name which dimension is being varied. Note also that these are
-\textbf{parameterized fixed-resource cost curves, not capacity
-forecasts}: the self-host line is flat because the 21 hosts are paid for
-regardless of volume, so nothing here predicts what volume the fleet can
-\emph{serve} as requests grow.
+7,491,198.56 ≈ \textbf{7.5M}. The \textbf{22-host case (ii)} line gives
+the same method at N = 22: 6,510,423.6 = 162,760.59 ÷ 0.025 to
+10,850,706 = 162,760.59 ÷ 0.015, mid-point 7,825,028 ≈ \textbf{7.8M} at
+\$20.8/1K --- a \textasciitilde0.3M shift from the one extra host. The
+\textbf{70\% × 95\% provisioning case} is a separate dimension and is
+named separately: the \$232,197.23/mo 32-host cost against the canonical
+\$20.8/1K API rate gives 232,197.23 ÷ 0.0208 ≈ \textbf{11.2M} req/mo.
+Report the range and name which dimension is being varied. Note also
+that these are \textbf{parameterized fixed-resource cost curves, not
+capacity forecasts}: the self-host line is flat because the 21 hosts are
+paid for regardless of volume, so nothing here predicts what volume the
+fleet can \emph{serve} as requests grow.
+
+\textbf{Which dimension the x-axis varies --- stated explicitly
+(F0201).} \hyperref[fig:16.1]{Fig 16.1} varies \textbf{(A) served volume through duration /
+duty-cycle at a FIXED 40 rps peak and a FIXED fleet}: the 21-host
+ideal-active line is held constant --- a \textbf{case (i)/KV-screen}
+line; the 32-host = 31 working + 1 reserve policy line and the 22-host
+case (ii) line are both priced in §16.3 but neither is plotted (see the
+\hyperref[fig:16.1]{Fig 16.1} note) --- and only how long the peak-shaped load runs inside
+the active window moves along x. It does \textbf{not} do \textbf{(B)}
+--- scaling average and peak together and re-running
+\texttt{N\_hosts(volume)} with the integer slot floor --- which would
+stair-step the self-host line upward (⌈λ·8.6/17⌉ hosts per step) instead
+of leaving it flat. Because the fleet and its cost are frozen,
+\textbf{\$155,816.93 ÷ \$0.0208 = 7,491,198.56 ≈ 7.5M is a frozen-fleet
+crossover, not a generalized scalable crossover}: it holds only while
+those 21 hosts and that \$155,816.93/month are held fixed, and it must
+not be read as ``the volume at which a growing deployment becomes
+cheaper.''
+
+\textbf{Feasible served-volume bound (the figure marks it).} Under (A)
+the fixed 21-host fleet is sized for the 40 rps peak over the canonical
+active window of \textbf{624,000 active seconds/month} (6,240,000
+requests ÷ 10 rps), so the most it can serve is 40 × 624,000 =
+\textbf{24,960,000 ≈ 24.96M requests/month}. Everything to the right of
+24.96M on the x-axis --- the plot runs to 10\^{}8 --- is
+\textbf{infeasible for this frozen fleet} and is drawn only to show the
+shape of the cost functions; the figure shades and labels that band. The
+break-even region (\textasciitilde6.2--10.4M) and the canonical 6.24M
+both sit inside the feasible band, so the crossover itself is reachable
+without re-sizing; only the far right of the plot is not. The break-even
+stays a \textbf{region, not a point}, and the dimension varied to
+produce that region is the \textbf{API price} (\$15--25/1K band) against
+the frozen self-host cost --- not volume, and not fleet size. The figure
+is \textbf{illustrative, not apples-to-apples}.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -767,6 +1012,29 @@ alternative is lower-cost \textbf{only if} its paid-occupancy input
 holds and the scopes are equalized; neither is an unconditional
 ranking).
 
+\begin{quote}
+\textbf{DECISION STATE --- CANDIDATE SCREENED; NOT COMMITTABLE ---
+regional availability, failover, SLO-goodput and matched-scope costs
+pending.}
+
+This candidate clears the capability screen and the \emph{single-region}
+cost screen only; it must not be recorded as passing the spine loop's
+\textbf{Validate \& Defend → Commit} stages (Fig \ref{fig:spine-loop}
+--- the Preface's decision-loop figure) or as a committed ADR (Ch 22 →
+Ch 25). Four items are outstanding: \textbf{regional availability} ---
+the canonical 99.9\% multi-region active-active SLA (Ch 4) is UNSIZED
+and NOT PRICED here (§16.3, \hyperref[tab:16.2]{Table 16-2}); \textbf{failover} --- only N−1
+single-host failover is modeled (the 32-host policy row), with no
+region-failure test; \textbf{SLO-goodput} --- the p95 TTFT/TPOT pass is
+provisional until measured at the target offered load (Ch 14);
+\textbf{matched-scope costs} --- the A/B/C modes are not compared on
+equal availability, failover, warm-capacity, occupancy-evidence or
+p95-SLO assumptions (§16.3, \hyperref[tab:16.1]{Table 16-1}). Until all four are in hand the
+honest status is \emph{screened, not committed}: no least-cost
+selection, no procurement recommendation.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}
+\end{quote}
+
 This completes the chain from vague requirement to a defensible, costed
 architecture, while being honest that the TCO gate is not an
 unconditional win and that the SLO pass is \emph{provisional until
@@ -776,20 +1044,46 @@ It also feeds fleet decisions (Ch 17-18): the break-even curve is what
 justifies buying a second host versus renting peaks, and the staff term
 is what pushes toward consolidation (Ch 18).
 
+\textbf{Note 16.1-1 (\hyperref[fig:16.1]{Fig 16.1}) --- line definitions and the cloud
+marker.} The three series are cost \emph{functions} with different
+shapes: \textbf{self-host} = (capex ÷ 60 mo) + energy + staff/ops for
+the 21-host peak KV-screen fleet (\textbf{zero spare}; the \textbf{case
+(i)/KV-screen} line --- the case (ii) 22-host line, \$162,760.59/mo, is
+priced in §16.3 but \textbf{not plotted}), flat because the fleet is
+paid regardless of volume; \textbf{managed API} = input×\$/1M +
+output×\$/1M-out, a zero-intercept linear function of served volume;
+\textbf{cloud} = 4,380 paid host-hours (6 × 730) --- a single occupancy
+INPUT priced against the canonical 6.24M req/mo, so it is drawn as a
+\textbf{marker at that one priced operating point}, not as a line across
+the volume axis, and it takes no part in the crossover. Utilization =
+served ÷ provisioned. The feasible served-volume bound (40 rps × 624,000
+canonical active s ≈ 24.96M req/mo) and the shaded infeasible band right
+of it are derived in the \emph{Feasible served-volume bound} paragraph
+above.
+
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={TCO break-even: self-hosted vs managed API (canonical 80-layer full-MHA geometry). The break-even volume is illustrative, not portable --- it holds only for this 70B FP16 8×H100 config, 5-year amortization, \$20.80/1K API price, and 9.2K-in/300-out mix. Not apples-to-apples across demand levels: self-hosted = (capex ÷ 60 mo) + energy + staff/ops; managed-API = input×\$/1M + output×\$/1M-out; utilization = served ÷ provisioned --- the self-host line assumes the 21-host peak KV-screen fleet (zero spare), so break-even is a function of demand, not a fixed point. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-16-1601.pdf}}
-\caption[TCO break-even: self-hosted vs managed API (canonical 80-layer full-MHA geometry)]{TCO break-even: self-hosted vs managed API (canonical 80-layer full-MHA geometry). The break-even volume is \textbf{illustrative, not portable} --- it holds only for this 70B FP16 8×H100 config, 5-year amortization, \$20.80/1K API price, and 9.2K-in/300-out mix. \textbf{Not apples-to-apples across demand levels:} self-hosted = (capex ÷ 60 mo) + energy + staff/ops; managed-API = input×\$/1M + output×\$/1M-out; utilization = served ÷ provisioned --- the self-host line assumes the 21-host peak KV-screen fleet (zero spare), so break-even is a function of demand, not a fixed point. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Takeaway: the frozen 21-host self-host line (\$155,816.93/mo, case (i)/KV-screen sensitivity line, not an implied feasibility) crosses the managed API at \textasciitilde7.5M req/mo, so at 6.24M req/mo self-host sits above the API; the \$87.6K cloud figure is a paid-occupancy input drawn as a marker at its one priced point. Geometry/source: log-log cost/month vs requests/month; 70B FP16 8×H100, 5-year amortization, \$20.80/1K API, fixed 21-host fleet \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Caveat: break-even is a \textasciitilde6.2--10.4M region, not apples-to-apples; derivations in Note 16.1-1 below. Availability-scope caveat (do not quote this chart as an achievable procurement winner): every line is a single-region cost --- the canonical workload's own 99.9\% multi-region active-active SLA (Ch 4) is UNSIZED and NOT PRICED here, failover is N−1 single-host only with no region-failure test, and the three modes are not compared on matched availability/SLO/warm-capacity assumptions (\hyperref[tab:16.1]{Table 16-1}, §16.3). Read it as a single-region teaching illustration, not a registered recommendation.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-16-1601.pdf}}
+\caption[\textbf{Takeaway:} the frozen 21-host self-host line]{\textbf{Takeaway:} the frozen 21-host self-host line (\$155,816.93/mo, \textbf{case (i)/KV-screen sensitivity line, not an implied feasibility}) crosses the managed API at \textasciitilde7.5M req/mo, so at 6.24M req/mo self-host sits \textbf{above} the API; the \$87.6K cloud figure is a paid-occupancy \textbf{input} drawn as a marker at its one priced point. \textbf{Geometry/source:} log-log cost/month vs requests/month; 70B FP16 8×H100, 5-year amortization, \$20.80/1K API, fixed 21-host fleet \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. \textbf{Caveat:} break-even is a \textasciitilde6.2--10.4M \emph{region}, not apples-to-apples; derivations in Note 16.1-1 below. \textbf{Availability-scope caveat (do not quote this chart as an achievable procurement winner):} every line is a \textbf{single-region} cost --- the canonical workload's own 99.9\% \textbf{multi-region active-active SLA (Ch 4) is UNSIZED and NOT PRICED} here, failover is N−1 single-host only with no region-failure test, and the three modes are not compared on matched availability/SLO/warm-capacity assumptions (\hyperref[tab:16.1]{Table 16-1}, §16.3). Read it as a single-region teaching illustration, not a registered recommendation.}
 
-\label{fig:16.1}\emph{Break-even: monthly cost vs monthly volume for self-hosted and
-managed API across three serve modes. The self-host line crosses the
-managed line over a \textbf{range} of \textasciitilde6.2--10.4 M
-requests/mo (the \$15--25/1K price band), with the \textasciitilde7.5 M
-mid-point at the canonical \$20.80/1K (\$155,816.93/mo ÷ \$0.0208 per
-request). The figure marks the mid-point (star) and the full sensitivity
-span (horizontal line).}
+\label{fig:16.1}\end{figure}
 
-\end{figure}\ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
+\textbf{Reconciliation for \hyperref[fig:16.1]{Fig 16.1} --- sensitivity (price band) and
+feasibility (the bound).} The self-host line crosses the managed line
+over a \textbf{range} of \textasciitilde6.2--10.4 M requests/mo (the
+\$15--25/1K price band), with the \textasciitilde7.5 M mid-point at the
+canonical \$20.80/1K (\$155,816.93/mo ÷ \$0.0208 per request) --- a
+\textbf{frozen-fleet crossover, not a generalized scalable crossover},
+because the 21-host cost is held fixed while only duration/duty-cycle
+moves along x. The figure marks the mid-point (star) and the full
+sensitivity span (horizontal line), annotates the feasible bound (24.96M
+= 40 rps × 624,000 active s), and shades the infeasible region beyond
+it. The \textbf{22-host case (ii)} sibling run (§16.3) shifts the
+mid-point to \textasciitilde7.8M and the span to
+\textasciitilde6.5--10.9M by the same division --- the \emph{method} is
+unchanged, only N.
+
+\ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
 
 \begin{itemize}
@@ -819,7 +1113,12 @@ volume --- \textasciitilde2 rps average, \textasciitilde5M
 requests/month, and only 0.5 engineers fully available for GPU ops ---
 the break-even against a managed API is this chapter's own division:
 \$40,000 ÷ \$0.0208 ≈ \textbf{1.9M requests/month}, so the current
-volume is already \textasciitilde2.6× past the break-even.
+volume is already \textasciitilde2.6× past the break-even. This is
+\textbf{a different startup workload with 24×7 traffic}, not the
+canonical case's business-hours shape: 5M/mo at 2 rps = 2.5M s ≈
+\textbf{29 days × 24×7}, versus the canonical \textbf{624,000 active
+s/mo} (10 rps × 8 h × 260 workdays ÷ 12) --- same per-request price, a
+different duty cycle.
 
 The honest number: self-hosting two servers \textasciitilde\$40K/month
 all-in vs \textasciitilde\$104K/month API at current volume (5M ×
@@ -835,20 +1134,75 @@ engineer, a scenario value rather than a market rate), not Mode 1's
 mature-operator alloc (\textasciitilde\$10K/mo for 21 hosts) ---
 re-price on one staffing basis before comparing.
 
+\textbf{Which term is which --- no double-counting.} The
+\textasciitilde\$40K self-host cost already carries the
+\textasciitilde\$26K/mo 0.5-FTE wage, so the \textasciitilde\$64K
+opportunity cost is an \textbf{alternative valuation of the same hours},
+not incremental foregone product value stacked on top of that
+compensation:
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Term
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+What it prices
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\textasciitilde\$/month
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Where it is counted
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{Wages} --- 0.5-FTE operator, fully loaded (≈\$624K/yr ÷ 2,
+scenario value) & cash compensation for the same 0.5 FTE &
+\textasciitilde\$26K & \textbf{inside} the \textasciitilde\$40K
+self-host cost (already counted) \\
+\textbf{Time redeployment} --- the same 0.5 FTE's hours re-priced as
+product time & non-cash valuation of the \emph{same} hours & threshold
+\textasciitilde\$64K (\textasciitilde\$770K/yr) & an
+\textbf{alternative} valuation of those hours, not an added cost line \\
+\textbf{Incremental foregone contribution} --- product value from hours
+\emph{beyond} the priced 0.5 FTE (extra product work displaced on top of
+the compensation already counted) & none in the base case &
+\textasciitilde\$0 & not counted; it appears only if the two servers
+consume more than 0.5 FTE \\
+
+\noalign{\label{tab:16.6}}\end{longtable}
+
+Reading: the wages are cash already inside the \$40K; the
+\textasciitilde\$64K is what those freed hours must be worth to offset
+the \textasciitilde\$64K API premium (the threshold equals the premium
+by construction of this mini-case). Adding the two would price the same
+0.5 FTE twice.
+
 The token arithmetic therefore does not send this startup to the API; it
-points to self-hosting. Only one term can flip the decision: the
+points to self-hosting. Within this equal-capability assumption set, the
+only remaining \textbf{MODELED} term that can flip the decision is the
 \emph{opportunity} cost of the GPU-ops time the two servers consume ---
-the better part of the only engineer the startup can spare. To justify
-paying the API premium, that term must exceed
-\textbf{\textasciitilde\$64K/month}, about \$770K/year of product work
-the startup is not doing. The architect's verdict: \textbf{start on the
-managed API now, and revisit self-host the moment the consumed
-engineer's opportunity cost falls below \textasciitilde\$64K/month ---
-for example when a second engineer frees up} --- then re-run the same
-model. Request volume is not the lever: more volume only widens the
-\textasciitilde\$64K gap. The CTO did not buy the servers. The
-break-even graph did not make the answer self-evident; it narrowed the
-whole decision to one labeled assumption --- this startup values its
-half-engineer's product time above \$64K/month. A team that cannot say
-that, or that has a second engineer to spare, runs the same numbers and
-buys the servers.
+the better part of the only engineer the startup can spare (the
+hypothetical 0.5-FTE label priced above). This is a statement about the
+model, not about the decision: quality parity, peak throughput,
+SLO-goodput, regional availability, burst behavior, procurement lead
+time, resilience and capital outlay are all decision-relevant too, and
+none of them is priced in this mini-case --- any of them can flip the
+real decision from outside the assumption set. To justify paying the API
+premium, that term must exceed \textbf{\textasciitilde\$64K/month},
+about \$770K/year of product work the startup is not doing. The
+architect's verdict: \textbf{start on the managed API now, and revisit
+self-host the moment the consumed engineer's opportunity cost falls
+below \textasciitilde\$64K/month --- for example when a second engineer
+frees up} --- then re-run the same model. Request volume is not the
+lever: more volume only widens the \textasciitilde\$64K gap. The CTO did
+not buy the servers. The break-even graph did not make the answer
+self-evident; it narrowed the whole decision to one labeled assumption
+--- this startup values its half-engineer's product time above
+\$64K/month. A team that cannot say that, or that has a second engineer
+to spare, runs the same numbers and buys the servers.

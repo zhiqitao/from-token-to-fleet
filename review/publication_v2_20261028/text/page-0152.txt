@@ -1,0 +1,32 @@
+Parallelism: Splitting the Model Across Machines
+134
+N = 8 the per-rank traffic is 1.75 × 280 ≈490 GB and the sync time is Tring = 2 N−1
+N
+bytes/Beff. 
+At 25 GB/s (single 200Gb/s link) that is 490 / 25 ≈ 19.6 s per step — far too slow if the step takes 
+~1 s. At node NVLink 900 GB/s it is 490/900 ≈ 0.54 s. The sync cost, not compute, often caps DP 
+at small scale unless the interconnect is fast. [1P][DERIVED]
+10.4. Measurement
+Four habits anchor the architect:
+1. Measure weight residency before choosing a split. bytes = params × bytes_per_
+param lands first; it decides whether TP/PP (memory) or DP (replication) is even possible.
+2. Measure interconnect bandwidth where it matters. H100 NVLink ~900 GB/s per GPU is 
+the on-node ceiling; cluster Ethernet/InfiniBand is 1–2 orders slower. Quote the number at the 
+sync/frequency it will actually run.
+3. Measure the bubble and the step time. For PP, log the fraction of idle GPU time (bubble) vs 
+compute. For DP, time the gradient all-reduce as a fraction of step time — if it exceeds ~20%, it 
+caps scaling.
+4. Measure communication overlap. The best systems overlap all-reduce with the next for­
+ward/backward compute. Log the non-overlapped comm time — that is the true cost, not the 
+raw bytes.
+10.5. Common Mistakes
+• Splitting with DP when the model doesn’t fit. DP replicates weights; if 140 GB > 80 GB, 
+one DP replica doesn’t even fit one GPU. Reach for TP/PP first.
+• Using TP over a slow interconnect. TP syncs every layer; over 25 GB/s cluster fabric it 
+bottleneck-cycles. TP belongs behind NVLink.
+• Ignoring the pipeline bubble. PP’s idle stages waste real utilization; the bubble grows with 
+stage count. It is not free.
+• Quoting peak interconnect spec as sustained. NVLink 900 GB/s is aggregate peak; real 
+all-reduce achieves a fraction. Budget headroom.
+• Treating parallelism as an either/or. Real systems compose DP×TP×PP; the question is 
+which dimension binds, not which one to use.

@@ -1,0 +1,33 @@
+115
+Compute
+1. Per-token FLOP count. Measure by flops profiling (e.g. NVIDIA Nsight Compute) on the 
+target model and precision. The 2×N rule is a useful prior, but actual count varies by layer 
+depth, activation choice (SiLU vs. ReLU), and whether kernel fusion combines matmuls.
+2. Sustained MFU. Profile TFLOP/s achieved divided by peak TFLOP/s for the target hardware 
+and precision. A well-tuned transformer on H100 FP16 typically lands in the 30–40% range; 
+below 20% suggests a memory or communication bottleneck that should be diagnosed before 
+scaling.
+3. Arithmetic intensity (FLOP/byte). Compute as achieved FLOPs divided by bytes transferred 
+(weights + activations + KV read/write). Compare to the hardware ridge point (H100 dense 
+FP16: ~295 FLOP/byte; H200: ~989 TFLOPS ÷ 4.8 TB/s ≈ 206 FLOP/byte — H200 keeps H100’s 
+GH100 die and its dense FP16 peak, trading a bigger/faster HBM3e for bandwidth; GB200: 
+higher on both terms (faster dense BF16 peak and ~8 TB/s HBM), so its BF16 ridge is higher, 
+and its NVFP4 ridge higher again). If intensity is below the ridge, the kernel is memory-bound; 
+above, compute-bound.
+8.5. Common Mistakes
+• Assuming 2×N FLOPs/token is exact. It is a baseline derivation; actual per-token FLOPs 
+vary with layer depth, activation fusion, and kernel fusion. Profile before quoting.
+• Treating prefill and decode as having the same FLOP/byte profile. Prefill reads the full 
+context once and is FLOP-bound; decode re-reads weights per token and is memory-bound. 
+The arithmetic-intensity roofline distinguishes them.
+• Using peak TFLOP/s as sustained throughput. Peak includes sparsity or BF16/FP8 variants 
+that may not be available in the chosen precision. Use the FP16 number without sparsity (≈989 
+TFLOPS on H100) as the baseline for dense compute sizing.
+• Ignoring the batch-size dependence of arithmetic intensity. A single-token decode batch 
+has very low intensity; batching raises it. Always state the batch assumption when reporting 
+TFLOP/s or tokens/s.
+• Confusing H100 sparsity-inclusive peak (1,979 TFLOPS) with dense peak (989 TFLOPS). 
+The 2× sparsity figure appears in vendor data sheets but most transformer workloads do not 
+activate sparsity. Quote the dense figure unless the kernel is specifically sparsity-enabled.
+8.6. Architecture Consequence
+The compute arithmetic and roofline have direct consequences for system design:

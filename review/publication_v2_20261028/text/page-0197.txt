@@ -1,0 +1,40 @@
+179
+Performance Engineering: From “It Works” to “It Meets the SLO”
+FlashAttention: the same math, far less HBM traffic
+BEFORE: naive / SDPA
+intermediate written to HBM
+on-chip
+HBM
+many HBM
+round-trips
+Q/K/V
+O(L²) HBM traffic:
+every query re-reads
+the K/V row-block
+AFTER: FlashAttention
+per-tile reuse, stays on-chip
+on-chip
+HBM
+few HBM
+round-trips
+Q/K/V
+K/V reused per tile —
+no single global K/V pass;
+no L×L intermediate at HBM
+same Q·Kᵀ·V math and same result —
+the gain is fewer HBM round-trips, not cheaper attention
+K/V on-chip reuse is per-tile (per Q-block), not a single global K/V pass.
+I/O bound: FlashAttention — Tri Dao et al., arXiv:2205.14135.
+figure 15.1: FlashAttention: the same math, far less HBM traffic. Before (naive / SDPA), the interme­
+diate attention matrix is materialized to HBM and re-read, so every query block re-streams the full 
+K/V row-block — many HBM round-trips. After (FlashAttention), the computation is tiled and fused 
+so each K/V tile is read into on-chip memory once for that tile and the result is accumulated in place — 
+far fewer HBM round-trips. Scope of the “read once” claim: the tile-level on-chip reuse is per-tile; 
+it is not a guarantee that every K/V element is read exactly once globally across all query blocks (the 
+exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size — see 
+the original I/O analysis in the FlashAttention papers). The attention result is the same mathematical 
+target; the gain is fewer HBM round-trips, not a change to the attention mathematics. (Floating-point 
+caveat: the tiled accumulation order differs from the naive path, so results are equivalent in exact 
+arithmetic but can differ in the last bits under finite precision — a numerical-equivalence, not a 
+bit-identical, claim. I/O bound: Tri Dao et al., “FlashAttention,” NeurIPS 2022, arXiv:2205.14135.)
+Read the figure as an I/O story, not a speed-up number.

@@ -18,7 +18,7 @@ The core insight: **a capability leaderboard is a poor proxy for serving perform
 
 Capability benchmarks serve as **screening** and deployment benchmarks as **selection**. Screening answers "which models are even in the running?" cheaply and broadly. Selection answers "among the screened-in models, which system actually works for our workload?" expensively and precisely. The two-stage mental model prevents two classic errors:
 
-- Screening with deployment metrics — e.g. benchmarking a model's MMLU to pick a serving stack. (Wrong tool.)
+- Picking a serving stack with capability metrics — e.g. benchmarking a model's MMLU to choose serving hardware. (Wrong tool: MMLU is a capability benchmark, §1, not a deployment metric.)
 - Selecting with leaderboards — e.g. taking the top-scoring MMLU model and assuming it will meet our SLO. (Wrong tool, again.)
 
 Just as important, we benchmark the **workload, not the model in the abstract.** A deployment benchmark that doesn't reproduce our token profile (input/output ratio, context length), our traffic (rps, concurrency, burst), and our SLO (percentiles) is measuring someone else's problem.

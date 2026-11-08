@@ -48,7 +48,7 @@ In PyTorch, `torch.xpu` names the Intel GPU device backend ([PyTorch XPU getting
 This distinction changes a portability decision. A device API can be available while a required model operator or cache layout is not. Source-level portability therefore reduces one part of migration work. It does not establish feature parity, numerical equivalence or sustained performance. [DERIVED]
 
 
-The chapter unfolds in four parts. First, the core arithmetic: FLOPs per token, prefill PFLOP counts, and H100 sustained utilization. Second, the roofline: why early layers are compute-bound while later layers and decode are memory-bound. Third, the canonical scenario arithmetic: 70B on 8×H100, TTFT 1.2 s, TPOT ~25 ms. Fourth, the mini-case: a continuous deployment scenario that threads the prefill/decode divide.
+The chapter unfolds in four parts. First, the core arithmetic: FLOPs per token, prefill PFLOP counts, and H100 sustained utilization. Second, the roofline: why prefill is compute-bound while decode is memory-bound. Third, the canonical scenario arithmetic: 70B on 8×H100, TTFT 1.2 s, TPOT ~25 ms. Fourth, the mini-case: a continuous deployment scenario that threads the prefill/decode divide.
 
 ## 2. Mental Model
 
@@ -192,7 +192,7 @@ This rough sizing illustrates that prefill is FLOP-bound at this scale — the c
 
 *Reading the roofline (summary of Fig 8.2): the dense-FP16 ridge at ~295 FLOP/byte (H100: 989 TFLOPS ÷ 3.35 TB/s) separates the compute-bound region (right) from the memory-bound region (left). Prefill sits far above the ridge — its arithmetic intensity is set by the sequence length (weights read once, reused across all tokens), so it is compute-bound; decode at batch=1 sits at the far left of the chart (~1 FLOP/byte, ~295× below the ridge) and is memory-bound. Batching and quantization shift kernels rightward toward the ridge; the distinction between the two phases is the single most important reading of this chart.*
 
-For decode, the per-token FLOP cost is the same ~140 GFLOP, but the arithmetic intensity drops sharply. Each decoded token re-reads all 70B weights from HBM (a **batch-1-equivalent** weight-streaming read). A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB — one full pass reads **140 GB** (batch-1-equivalent), not 280 GB. (The naïve “2 ×70 ×10⁹ × 2 B ≈ 280 GB” double-counts the FP16 footprint: the leading “2” is already inside the 2-bytes-per-element, so writing 2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any KV/output-projection reads are a separate, smaller term on top, not a second full weight footprint.) The effective arithmetic intensity is therefore:
+For decode, the per-token FLOP cost is the same ~140 GFLOP, but the arithmetic intensity drops sharply. Each decoded token re-reads all 70B weights from HBM (a **batch-1-equivalent** weight-streaming read). A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB — one full pass reads **140 GB** (batch-1-equivalent), not 280 GB. (The naïve “2 ×70 ×10⁹ × 2 B ≈ 280 GB” double-counts the FP16 footprint: the leading “2” is the FLOPs-per-parameter factor (2N FLOPs/token), which has no place in a byte expression — multiplying it into N × 2 B doubles the FP16 footprint, so writing 2 ×70 ×10⁹ × 2 B counts the weight bytes twice. Any KV/output-projection reads are a separate, smaller term on top, not a second full weight footprint.) The effective arithmetic intensity is therefore:
 
 $$
 \text{arithmetic intensity}_{\text{decode}} \approx \frac{140 \text{ GFLOP}}{140 \text{ GB}} \approx 1.0 \text{ FLOP/byte}
@@ -313,4 +313,4 @@ The recommendation is therefore: profile first (MEASURE, do not assume), and onl
 
 ***
 
-*Prefill PFLOP also grows with context: 2 ×70B × L tokens scales linearly — ~0.29 PFLOP at 2K → ~4.6 PFLOP at 32K — so the longer the window, the larger the one-time compute cost of loading it. Sustained throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point the prefill is ~1.29 PFLOP (Table 8-1).*
+*Prefill PFLOP also grows with context: 2 ×70B × L tokens scales linearly — ~0.28 PFLOP at 2K → ~4.5 PFLOP at 32K (K = 1,000, the book's convention: 9.2K = 9,200) — so the longer the window, the larger the one-time compute cost of loading it. Sustained throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point the prefill is ~1.29 PFLOP (Table 8-1).*

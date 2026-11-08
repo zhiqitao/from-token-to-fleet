@@ -1,0 +1,49 @@
+209
+From Server to Fleet
+Subsystem
+Service time (W)
+Occupancy (L = λ·W)
+What is resident
+Prefill phase
+W_prefill ≈ 1.08 s
+(arrivals during)
+sequences in the 
+one-shot prompt 
+pass
+Decode phase
+W_decode ≈ 7.5 s
+(arrivals during)
+sequences in the 
+per-token loop
+Which one drives KV residency? Only the model-execution occupancy (λ·W_exec) holds KV 
+slots — a queued request (λ·W_queue) is “in flight” from the user’s view but does not yet reserve 
+a KV block, and a request in the planning phase (λ·W_plan) has not reached the host at all. The 
+KV-residency ceiling C therefore bounds λ·W_exec (the resident sequences), not λ·W_plan or λ·W_
+queue. The end-to-end planning time (W_plan ≈ 10 s) is the workload-level Little’s-law basis used 
+to derive the arrival rate from the population (Chapter 4); the model-execution time (W_exec ≈ 8.6 
+s) is the capacity-level Little’s-law basis used to size the fleet (this chapter). The C/W shortcut is 
+thus an execution-residency screen, valid only when the serving system is the bottleneck and no 
+queue/planning backlog changes the resident count — state that scope, and never quote C/W as a 
+measured end-to-end goodput.
+If the peak traffic λ_peak = 40 rps, Little’s Law gives the number of requests in flight as λ_peak × 
+W, where W must be the full per-request service time — for this canonical workload that is ~8.6 
+s (1.08 s prefill + ~7.5 s decode of 300 output tokens at ~25 ms/token, Chapter 8), NOT a sub-second 
+TTFT-type latency. Using a ~1 s “latency” here is the classic fleet-sizing error: it undercounts in-flight 
+concurrency by roughly the ratio of service time to target latency (here ~8.6×). The minimum number 
+of hosts is
+Nmin =
+⌈︃λpeak · W
+C
+· 1
+u
+⌉︃
+where u is the utilization target and W is the full service time (end-to-end: prefill + decode + 
+any tool/orchestration overhead). At the canonical peak:
+• KV-residency ceiling (C) is a per-host concurrency limit, not a fleet-size answer by 
+itself. A host holds C ≈ 17.5 concurrent full-context requests (computed above; conservative 
+integer floor 17). The fleet size is governed by how many requests are in flight at the peak, 
+which is λ_peak × W.
+• At λ_peak = 40 rps and W ≈ 8.6 s, in-flight concurrency ≈ 40 × 8.6 ≈ 344 requests. With C ≈ 
+17.5 per host (FP16 KV) at full utilization, the minimum N ≈ 344/17.5 ≈ 19.7 → ~20 hosts (29 
+working at the 70% utilization target, 30 total with N−1). This is the honest fleet size and 
+matches the throughput/latency analysis in Chapter 20.
