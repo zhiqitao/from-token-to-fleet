@@ -1,0 +1,28 @@
+[
+ {
+  "id": "F1",
+  "severity": "P2",
+  "confidence": 0.6,
+  "page_hint": "Ch 24 §3.3, 'The benchmark trap' paragraph",
+  "chapter": "24",
+  "quoted_clause": "it only needs ~1.6 nodes of prefill compute at the idealized 100% theoretical efficiency (the workload's binding constraint)",
+  "observed": "The parenthetical identifies prefill compute as 'the workload's binding constraint' at 10 rps average load. However, KV residency appears to be the tighter constraint: 4 hosts provide 1,744 GB of KV capacity (4 × 436 GB), supporting at most ~71 concurrent requests at ~24.5 GB each, which caps service time at ~7.1 s. The canonical decode time alone (300 tokens × 25 ms TPOT = 7.5 s) exceeds this cap, meaning KV cannot sustain the canonical operating point with 4 hosts. Prefill at 10 rps needs only ~1.6 hosts (at 100% efficiency), well within 4 hosts. KV is therefore the binding constraint at average load, not prefill.",
+  "evidence": "KV capacity: 4 × 436 = 1,744 GB. KV/request: ~24.5 GB (avg of 9,200–9,500 tokens × 2.62 MB/token). Max in-flight: 1,744 / 24.5 ≈ 71. Max service time: 71 / 10 = 7.1 s. Canonical decode: 300 × 0.025 = 7.5 s > 7.1 s. Prefill: 10 × 1.288 PFLOP / 7.9 PFLOPS = 1.63 hosts. KV needs ~4 hosts; prefill needs ~1.6 hosts.",
+  "root_cause": "The text identifies the binding constraint by considering only prefill compute, omitting KV residency from the constraint comparison at average load.",
+  "correction": "Either identify KV residency as the binding constraint at 10 rps (noting 4 hosts leaves no KV margin at the canonical TPOT), or clarify that prefill is the binding *compute* constraint while KV is the binding *capacity* constraint, and that 4 hosts has KV margin only at a reduced TPOT below the canonical 25 ms.",
+  "acceptance_test": "Recompute the minimum host count at 10 rps from both the prefill-compute screen (10 × 1.288 / 7.9) and the KV-residency screen (10 × service_time × 24.5 / 436, with service_time ≥ 300 × TPOT). Verify which screen yields the higher host count. If KV ≥ prefill, the parenthetical '(the workload's binding constraint)' attached to prefill is incorrect."
+ },
+ {
+  "id": "F2",
+  "severity": "P2",
+  "confidence": 0.7,
+  "page_hint": "Ch 25 ADR 0015 requirement coverage matrix (R1 row); headline in Ch 22 §6, Ch 25 §6, Ch 25 §8",
+  "chapter": "25",
+  "quoted_clause": "21 hosts (KV, case-independent); prefill screen 19 case (i) / 22 case (ii); 70% × 95% + N−1 policy: 32 (KV screen) / 34 (case (ii) prefill screen, Ch 20)",
+  "observed": "The requirement coverage matrix in ADR 0015 presents the case (ii) prefill screen at 22 hosts (34 with N−1 policy), which exceeds the headline '21-host headline / 32-host N−1 policy' used in Ch 22 §6, Ch 25 §6, and Ch 25 §8. For case (ii), the overall screen should be max(21, 22) = 22 hosts and max(32, 34) = 34 N−1, not 21/32. The text does not specify which attention-counting case determines the headline.",
+  "evidence": "Requirement coverage matrix: KV screen = 21, prefill case (ii) = 22, N−1 KV = 32, N−1 case (ii) prefill = 34. Headline (Ch 22 §6, Ch 25 §6): '21-host headline / 32-host N−1 policy'. For case (ii): max(21, 22) = 22 > 21; max(32, 34) = 34 > 32.",
+  "root_cause": "The headline host count is derived from the KV screen alone (Ch 16/17) without taking the maximum across all screens (including the case (ii) prefill screen from Ch 20) that the requirement coverage matrix itself presents.",
+  "correction": "Either (a) specify that the headline 21/32 is the KV-screen-only result and note that the case (ii) prefill screen raises the overall to 22/34, or (b) update the headline to 22/34 if case (ii) is the canonical sizing case, or (c) explicitly state which attention-counting case determines the headline host count.",
+  "acceptance_test": "For each attention-counting case (i, ii, iii), compute the overall host count as max(KV screen, prefill screen) and the overall N−1 as max(KV N−1, prefill N−1). Verify that the headline '21-host / 32-host N−1' matches the overall for the case the book designates as canonical. If case (ii) is canonical, the headline should be 22/34."
+ }
+]

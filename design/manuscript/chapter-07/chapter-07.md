@@ -260,7 +260,7 @@ In short: the architect sizes the host by weights + KV at the longest supported 
 
 <!-- Figure spec: X = context tokens (1K,4K,9.2K,32K,128K), Y = KV cache GB (log scale); three lines FP16/FP8/8-bit; horizontal 640 GB 8×H100 ceiling; callouts at 9.2K (~24 GB FP16) and 32K (~80 GB). -->
 
-![Fig 7.6 — Inference vs fine-tuning memory floor. The same 70B model serves in ~165 GB (weights + KV, max 9.5K) but needs ~1,120 GB for full Adam fine-tuning; QLoRA fits ~50–70 GB on a single GPU. [ILLUSTRATIVE][DERIVED]](figures/fig-07-0702.png)
+![Fig 7.6 — Inference vs fine-tuning memory floor. The same 70B model serves in ~165 GB (weights + KV, max 9.5K — canonical input 9.2K) but needs ~1,120 GB for full Adam fine-tuning; QLoRA fits ~50–70 GB on a single GPU. [ILLUSTRATIVE][DERIVED]](figures/fig-07-0702.png)
 
 ![Fig 7.7 — The concurrency budget: 140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget in a 70B (canonical 80-layer full-MHA teaching geometry) host's 640 GB pool, and that KV budget ÷ the per-request KV price sets concurrency — at 24.9 GB/request max-FP16 KV, C ≈ 17.5 concurrent (floor 17, not 18), and FP8 (~12.45 GB/request) roughly raises it to ~35.0. **Scope:** the arithmetic behind Ch 17's single-host capacity; derivation in §3 above and Ch 17. **Aggregate-feasibility caveat:** 640 GB is an *aggregate* across eight 80-GB H100s, not a freely-allotable heap — "total bytes < total HBM" is necessary but not sufficient, so per-rank fit must be validated separately (technical note below; Chs. 9–10). **This is an analytical upper bound, not a validated concurrent-request count** — measure it under the target workload (Ch 14). [ILLUSTRATIVE][DERIVED]](figures/fig-07-0704.png)
 

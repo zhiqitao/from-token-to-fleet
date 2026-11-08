@@ -89,7 +89,8 @@ labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+opt)', 'QLoR
 vals = [165, 1120, 60]
 fig, ax = plt.subplots(figsize=(6.1, 4.9))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
-bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'], width=0.6)
+bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'],
+              hatch=['//', '', 'xx'], edgecolor='#333333', linewidth=0.8, width=0.6)
 # v9 review: value tags must clear the host-reference rules (80/160/640 cross
 # every column).  The QLoRA tag can't sit at 60+30 (the 80 GB rule ran through
 # it) nor centred above the bar (the green annotation's arrow shaft is there),
@@ -107,7 +108,7 @@ ax.set_ylabel('GPU memory floor (GB)')
 ax.set_xlabel('Workload scenario', fontsize=9.5)
 ax.tick_params(axis='x', labelsize=9)
 # title 2nd line shortened so it fits the 6.1in width (was clipped on the left)
-ax.set_title('Memory floor: inference vs fine-tuning (canonical 70B FP16)\nEach column is a different scenario, not a single-variable comparison', fontsize=9)
+ax.set_title('Memory floor: inference vs fine-tuning (canonical 70B, FP16 unless noted)\nEach column is a different scenario, not a single-variable comparison', fontsize=9)
 # P0-04: each bar is a *conditional floor* (parameter/optimizer floor), not a
 # generally achievable deployment config. State the key assumptions compactly.
 # The legend is moved inside the plot (top, 2-col) so the footnote at the

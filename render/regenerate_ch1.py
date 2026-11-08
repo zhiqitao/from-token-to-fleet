@@ -24,7 +24,7 @@ def main():
     assert all(c.get('icon') == 'none' for c in spec['components'])
     assert next(c for c in spec['components'] if c['id'] == 'next')['pos'][1] == 398
     result = subprocess.run([
-        'node', '/home/ubuntu/tools/archify/archify/bin/archify.mjs', 'deliver',
+        'node', '/home/ubuntu/projects/tools/archify/archify/bin/archify.mjs', 'deliver',
         'architecture', str(source), str(source.with_name(NAME + '-deliver.html')),
         '--quality', 'showcase', '--json',
     ], text=True, capture_output=True)

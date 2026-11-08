@@ -1,0 +1,70 @@
+```json
+[
+  {
+    "id": "CH9-14-001",
+    "severity": "P2",
+    "confidence": 0.82,
+    "page_hint": "Ch 11 §11.8 scope note; Ch 13 §13.3; Ch 14 §14.3",
+    "chapter": "Ch 11/13/14",
+    "quoted_clause": "The baseline unshared-KV capacity quotient is about 17.5 complete requests per host, conservatively floored to 17 integer slots.",
+    "observed": "The 17.5 figure is consistent with 436 GB ÷ 24.9 GB (9.5K max context) = 17.51, but the chapter's predominant per-request KV figure is 24.1 GB at 9.2K context (Ch 11 §11.3, Ch 12 §12.3). With 9.2K: 436 ÷ 24.1 = 18.09, floor 18, not 17. The context-length basis of 17.5 is never stated in Ch 11, 13, or 14.",
+    "evidence": "Ch 12 Candidate (b) states the canonical per-host KV budget as ~436 GB. Ch 11 states per-request KV = 24.1 GB at 9.2K. 436/24.1 = 18.09 (floor 18). 436/24.9 = 17.51 (floor 17, using 9.5K max context from Ch 13). The floor changes from 17 to 18, altering every downstream host count: 40×8.6/17 = 20.24→21 vs 40×8.6/18 = 19.11→20.",
+    "root_cause": "The 17.5 quotient silently uses the 9.5K max-context KV (24.9 GB) while the chapter text predominantly states 9.2K context (24.1 GB); the context-length basis is never specified at the point of use.",
+    "correction": "At each point where 17.5 appears (Ch 11 scope note, Ch 13 §13.3, Ch 14 §14.3), state explicitly: 'C ≈ 17.5 at the 9.5K max context (24.9 GB/request)' or recompute at 9.2K (C ≈ 18.1, floor 18) and propagate the new floor through all host-count derivations.",
+    "acceptance_test": "Recompute 436 ÷ 24.1 and 436 ÷ 24.9; confirm which matches the printed 17.5; verify the text states the context length at the point of use; if floor changes to 18, re-derive all downstream host counts (Ch 12 Table 12-1/12-2, Ch 13 escalation, Ch 14 Step 2)."
+  },
+  {
+    "id": "CH9-14-002",
+    "severity": "P3",
+    "confidence": 0.90,
+    "page_hint": "Ch 11 Note 11.3-1",
+    "chapter": "Ch 11",
+    "quoted_clause": "The ~35 GB is 13,000 tokens × 2.62 MB/token (§9.8).",
+    "observed": "13,000 × 2.62 = 34,060 MB ≈ 34.1 GB, not ~35 GB. §9.8 states the context as ~13.3K tokens (35 ÷ 2.62 ≈ 13.3K), not 13,000. The note rounds 13.3K down to 13,000, introducing a ~1 GB discrepancy in the stated derivation.",
+    "evidence": "13,000 × 2.62 = 34,060 MB = 34.06 GB. 13,300 × 2.62 = 34,846 MB ≈ 34.8 GB ≈ 35 GB. §9.8 says '35 GB ÷ 2.62 MB/token ≈ 13.3K'. Downstream transfer times (35/450 ≈ 0.08 s, 35/40 ≈ 0.9 s) are unaffected because ~34.1 rounds to the same results.",
+    "root_cause": "Note 11.3-1 rounds §9.8's 13.3K down to 13,000 while retaining the ~35 GB figure, creating an internal inconsistency in the stated derivation.",
+    "correction": "Change '13,000 tokens' to '13,300 tokens' (matching §9.8) or to '~13K tokens' with '~34 GB' to keep the arithmetic self-consistent.",
+    "acceptance_test": "Verify 13,300 × 2.62 ≈ 34.8 GB ≈ 35 GB (with ~) and that the note's token count matches §9.8's 13.3K."
+  },
+  {
+    "id": "CH9-14-003",
+    "severity": "P3",
+    "confidence": 0.75,
+    "page_hint": "Ch 11 Fig 11.3 caption and Note 11.3-1",
+    "chapter": "Ch 11",
+    "quoted_clause": "at 40 req/s the aggregate KV payload is 1.4 TB/s",
+    "observed": "The 1.4 TB/s caveat uses 35 GB/request (13K-token context from §9.8), but the canonical workload has 9.2K input tokens giving 24.1 GB/request. At the canonical shape: 24.1 × 40 = 964 GB/s ≈ 1.0 TB/s, not 1.4 TB/s — a ~40% overstatement for the canonical workload.",
+    "evidence": "35 × 40 = 1,400 GB/s = 1.4 TB/s (matches the printed figure). 24.1 × 40 = 964 GB/s ≈ 1.0 TB/s (canonical 9.2K). The figure caption does reference §9.8, so the 35 GB source is traceable, but the caveat is presented in the canonical-workload context without noting the context-length difference.",
+    "root_cause": "Fig 11.3 imports the §9.8 13K-token scenario's 35 GB figure into a discussion otherwise framed around the canonical 9.2K workload, without noting the context-length difference at the point of the aggregate caveat.",
+    "correction": "Add a parenthetical to the caveat: '(using the §9.8 13K-token scenario; the canonical 9.2K workload gives ~24 GB/request and ~1.0 TB/s aggregate)' or restate the caveat at the canonical 9.2K shape.",
+    "acceptance_test": "Verify 24.1 × 40 = 964 GB/s and confirm the caption or caveat states which context length the 1.4 TB/s figure uses."
+  },
+  {
+    "id": "CH9-14-004",
+    "severity": "P3",
+    "confidence": 0.85,
+    "page_hint": "Ch 9 §9.5 Common Mistakes",
+    "chapter": "Ch 9",
+    "quoted_clause": "Measured effective bandwidth is typically 40–60% of peak",
+    "observed": "Specific quantitative range (40–60%) presented as a general fact in Common Mistakes with no evidence tag ([1P], [ILLUSTRATIVE], [DERIVED], or source citation).",
+    "evidence": "The clause appears in the bullet 'Assuming peak bandwidth is sustained' without any bracketed evidence label or reference, unlike tagged claims elsewhere in the chapter (e.g., [1P][FACT] on Table 9-1 rows).",
+    "root_cause": "Common Mistakes bullets in Ch 9 omit evidence labels that the rest of the chapter applies consistently to quantitative claims.",
+    "correction": "Add an evidence tag: [ILLUSTRATIVE] if it is a rule-of-thumb, or [1P] with a source citation if it is measured.",
+    "acceptance_test": "Confirm every specific numeric claim in §9.5 carries an evidence label consistent with the book's taxonomy."
+  },
+  {
+    "id": "CH9-14-005",
+    "severity": "P3",
+    "confidence": 0.85,
+    "page_hint": "Ch 9 §9.5 Common Mistakes",
+    "chapter": "Ch 9",
+    "quoted_clause": "the price per GB of optics and cables is 5–10× that of Ethernet",
+    "observed": "Specific quantitative cost ratio (5–10×) presented as a general fact in Common Mistakes with no evidence tag or source citation.",
+    "evidence": "The clause appears in the bullet 'Using InfiniBand as a default without checking the cost–performance ratio' without any bracketed evidence label, unlike tagged claims elsewhere in the chapter.",
+    "root_cause": "Same as CH9-14-004: Common Mistakes bullets omit evidence labels for quantitative claims.",
+    "correction": "Add an evidence tag: [ILLUSTRATIVE] if it is a rule-of-thumb, or [1P] with a source citation if it is sourced.",
+    "acceptance_test": "Confirm every specific numeric claim in §9.5 carries an evidence label consistent with the book's taxonomy."
+  }
+]
+```
+COVERAGE: T (full text read) for Chapters 9–14; Q (all arithmetic recomputed) for every printed number in the chunk — ring traffic (245/490 GB), transfer times (0.31/0.54/6.1/98 s), ratios (11×/180×), 100-collective totals (54/610/9800 s), PP speedup (32/11, 128/35), DP gradient (280/490 GB, 19.6/1.09 s), TP decode (256 KiB, 448 KiB, 70 MiB, 0.163/2.936 ms, 2240 steps), EP (8/7/14 MiB), FSDP (56 MiB), KV footprints (24.1/24.9/12.06/1.2/6 GB), residency (164/165/576 GB), prefill rates (19,800/24,725/197,800 tok/s), host counts (5/6/19/21/51/74/78), Little's Law (344), KV quotient (17.5/17), service ceilings (1.98 rps), cost figures ($14.6K/$155.8K), Gaudi (600/1200 GB/s), protocol overhead (~380/~180 Gb/s), prefix-cache lift (~28K), KV % (15%/20% at 13.4K), and all cross-chapter canonical values (140 GB, 2.62 MB/token, 8.6 s, 92K/368K tok/s, 450 GB/s, 436 GB pool). V (rendered pages viewed): NOT VERIFIED — no PDF render available. R (external references fetched): NOT VERIFIED — no URL fetch performed; all [1P] citations, Mooncake 525%/75%, DFlash >6×, HunyuanVideo/LTX timings, and pinned-source claims are unverified. Cross-chapter values from Ch 4/6/7/8/15/16/17 (not in chunk) accepted as stated, NOT VERIFIED.

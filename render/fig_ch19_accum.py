@@ -80,7 +80,7 @@ fig.text(0.5, 0.095,
          'append-only total = I₀ + T·δ + T·γ + O_final  @ 2.62 MB/token',
          ha='center', va='center', fontsize=8.4, color='#444')
 fig.text(0.5, 0.048,
-         '(I₀ = 9.2K input, δ = 800 retrieved, γ = 65 generated, O = 300 output per turn)',
+         '(I₀ = 9.2K input, δ = 800 retrieved, γ = 65 generated, O_final = 300 final output (once))',
          ha='center', va='center', fontsize=8.4, color='#444')
 
 plt.subplots_adjust(left=0.185, right=0.97, top=0.855, bottom=0.30)

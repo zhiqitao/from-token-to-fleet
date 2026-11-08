@@ -44,6 +44,10 @@ for i, (d, c) in enumerate(zip(dims, cons)):
     # clear side padding instead of overrunning the box borders (review: row-3/row-6).
     ax.add_patch(FancyBboxPatch((6.5, y-0.42), 3.2, 0.84, boxstyle='round,pad=0.02', fc='#f5c99b', ec='none'))
     ax.text(8.1, y, c, ha='center', va='center', color='#7a3b00', fontsize=9.2)
+# review FIG-4.1-01: the drawn arrows are a strict 1:1 mapping while the caption
+# declares non-exclusive cross-influence; state the scope inside the figure.
+ax.text(5.0, 0.7, 'primary mapping shown; cross-influences omitted (see caption)',
+        ha='center', va='center', fontsize=8.6, style='italic', color='#555')
 plt.tight_layout()
 plt.savefig(base % (4, 4, 4), dpi=350); plt.close()
 print('Ch04 done')

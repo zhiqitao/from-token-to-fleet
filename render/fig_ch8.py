@@ -62,10 +62,11 @@ ax.minorticks_off()
 ax.set_ylim(1e0, 4e3)
 ax.axhline(peak, color='gray', ls='-.', lw=1.0, alpha=0.75)
 ax.text(0.985, 0.36, 'compute plateau\n= 989 TFLOPS',
-        transform=ax.transAxes, fontsize=8.5, color='#6f9e5f',
-        ha='right', va='center')
+        transform=ax.transAxes, fontsize=9.0, color='#3f6e3a',
+        ha='right', va='center',
+        bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
 ax.text(0.06, 0.10, 'memory-bound slope\n(≈ intensity × BW)',
-        transform=ax.transAxes, fontsize=8.5, color='#e67e22',
+        transform=ax.transAxes, fontsize=9.0, color='#a85400',
         ha='left', va='center',
         bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
 # DERIVED / source tag in-plot (clear of the plateau line, top-left-of-centre).
@@ -102,7 +103,7 @@ for name, a, t, tag in pts:
 # down-to the marker; the bbox keeps the plateau line, ridge dotted line and the
 # prefill marker from crossing the glyphs (Loop review: label straddled the plateau).
 ax.annotate('prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', xy=(9200, 989), xytext=(0.66, 0.885),
-            textcoords='axes fraction', fontsize=9, color=colors['prefill'],
+            textcoords='axes fraction', fontsize=9.5, color=colors['prefill'],
             ha='center', va='center',
             bbox=dict(boxstyle='round,pad=0.20', fc='white', ec='none', alpha=1.0),
             arrowprops=dict(arrowstyle='-', lw=0.9, color=colors['prefill'],

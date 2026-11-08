@@ -33,7 +33,13 @@ gamma = Ts*g                  # generated per turn
 ax1.bar(x - w/2, base,  w, color='#c8d8ea', hatch='//',  edgecolor='#27408b', linewidth=0.6, label='initial context (I\u2080)')
 ax1.bar(x - w/2, delta, w, bottom=base,        color='#7fc6b5', hatch='...', edgecolor='#1a7a63', linewidth=0.6, label='retrieved (\u03b4=800)')
 ax1.bar(x - w/2, gamma, w, bottom=base+delta,  color='#f5c98b', hatch='xx',  edgecolor='#e67e22', linewidth=0.6, label='generated (\u03b3=65)')
-ax1.bar(x - w/2, [Of]*5, w, bottom=inp,        color='#6f9e5f',             edgecolor='#1e7a59', linewidth=0.6, label='output (O=300)')
+ax1.bar(x - w/2, [Of]*5, w, bottom=inp,        color='#6f9e5f', hatch='\\\\', edgecolor='#1e7a59', linewidth=0.6, label='output (O=300)')
+# review FIG-19.2-02: the per-turn gamma sliver (65/20,070 ≈ 0.3%) is invisible
+# at bar scale; annotate it once with a leader so the segment is identifiable.
+ax1.annotate('generated\n$\\gamma$=65/turn', xy=(x[3] + w*0.30, base[3] + delta[3] + gamma[3]*0.5),
+             xytext=(0.44, 0.60), textcoords='axes fraction',
+             fontsize=8.4, ha='left', va='center', color='#8a4b00',
+             arrowprops=dict(arrowstyle='-', lw=0.8, color='#8a4b00', shrinkA=2, shrinkB=2))
 ax1.set_ylabel('Tokens / request', fontsize=9)
 ax1.set_title('(a) Tokens accumulate', fontsize=9.5)
 ax1.grid(alpha=0.3, axis='y')
@@ -41,7 +47,7 @@ _legend_a = [
     ('initial context (I\u2080)', '#c8d8ea', '//'),
     ('retrieved (\u03b4=800)',     '#7fc6b5', '...'),
     ('generated (\u03b3=65)',      '#f5c98b', 'xx'),
-    ('output (O=300)',             '#6f9e5f', ''),
+    ('output (O=300)',             '#6f9e5f', '\\\\'),
 ]
 ax1.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in _legend_a],
            fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.35), ncol=2, frameon=False)
@@ -86,8 +92,8 @@ fig.text(0.5, 0.135,
          'counterfactual: each column = a separate completion after T turns,\n'
          'including one final 300-token answer — not successive states of one live agent.\n'
          'Bars are RETAINED context/KV, not summed per-call processed or billed tokens;\n'
-         'processed tokens grow ~2.5x under no prefix reuse (see Table 19-1, A-04).',
-         ha='center', va='center', fontsize=8.2, color='#222')
+         'processed tokens per submitted request grow ~2.5x under no prefix reuse (100-request ledger, Table 19-1).',
+         ha='center', va='center', fontsize=8.6, color='#222')
 plt.subplots_adjust(left=0.12, right=0.97, top=0.78, bottom=0.28, wspace=0.40)
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',
             dpi=400, bbox_inches='tight', pad_inches=0.05)
