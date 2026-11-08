@@ -21,7 +21,7 @@ import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 V3 = os.path.join(REPO, "review/loop_v3")
-PROMPT_V1 = open(os.path.join(V3, "review_prompt_v1.md"), encoding="utf-8").read()
+PROMPT_V1 = open(os.path.join(V3, "review_prompt_v2.md"), encoding="utf-8").read()
 
 MODELS = ["MiMo-V2.6-Flash-RL", "DeepSeek-V4.1-Flash",
           "Ornith-1.5-122B", "Qwen3.8-27B"]
@@ -137,7 +137,10 @@ Apply the review standard above. Output ONLY a JSON array of issues (schema:
 {id, severity: P0|P1|P2|P3, confidence, page_hint, chapter, quoted_clause,
 observed, evidence, root_cause, correction, acceptance_test}). Include the
 source operator (~, ≈, ≤, =) in quoted_clause for numeric findings. If none:
-[]. Do not invent issues; only what the chunk justifies. Also output a final
+[]. Do not invent issues; only what the chunk justifies. Figures are stripped
+from chunks: [FIGURE: ...] placeholders mark their positions; figure content
+is reviewed separately by the vision stage, so never file "figure missing /
+not shown" from a text chunk. Also output a final
 line outside the JSON: COVERAGE: <what you actually checked in this chunk>.
 
 MANUSCRIPT CHUNK:
@@ -149,7 +152,8 @@ VISION_TASK = """REVIEW TASK — figure audit. The images are rendered pages
 visible on the page? (2) legibility at print size: any label too small,
 clipped, overlapping, or unreadable? (3) grayscale distinguishability.
 Output ONLY a JSON array: {id, page, figure, severity, issue, evidence,
-acceptance_test}. If none: []. Final line outside JSON: COVERAGE: <pages and
+acceptance_test}. Give BOTH the PDF page and the printed page for each finding.
+If none: []. Final line outside JSON: COVERAGE: <pages and
 figures actually inspected>.
 """
 
