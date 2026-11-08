@@ -1,1 +1,93 @@
-[]
+[
+ {
+  "id": "CH5-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch5 §3(b) generation-model selection — economics note + Table 5-1; propagated to Ch6 §3 goodput example",
+  "chapter": 5,
+  "quoted_clause": "The ~50 tok/s here (single-stream decode) ... batch-1 decode, which at the canonical 25 ms/token is ~40 tok/s ... yields ~50 tokens/s aggregate throughput",
+  "observed": "The economics section uses ~50 tok/s as the single-stream / 'single-stream decode' rate, but the same passage states that batch-1 (= single-stream) decode at the canonical 25 ms/token TPOT is ~40 tok/s. 50 tok/s = 20 ms/token, which contradicts the canonical 25 ms/token (= 40 tok/s). One operating point ('the single-stream/batch-1 decode rate') is stated as both 50 and 40 tok/s — a ~25% internal split. The split feeds Table 5-1's headline '9,000 tokens per dollar-hour' (Ch6's goodput example also anchors on 50→70 tok/s).",
+  "evidence": "Canonical TPOT 25 ms/token ⇒ 1/0.025 = 40 tok/s (stated in the Ch5 worked-example header and re-derived in the economics note as 'batch-1 decode ... ~40 tok/s'). The 50 tok/s figure ⇒ 1/0.020 = 20 ms/token. Table 5-1: 50×3600÷20 = 9,000; at the canonical 40 tok/s it would be 40×3600÷20 = 7,200 tokens/dollar-hour. Both numbers are labelled as the decode rate for the same single-stream/batch-1 configuration.",
+  "root_cause": "50 tok/s is an [ILLUSTRATIVE][ASSUMPTION] round number, but it is labelled 'single-stream decode' while the canonical single-stream (batch-1) decode rate is 40 tok/s. A benign 'target-TPOT vs achievable-rate' reading is possible but never stated, so both values read as the same quantity. (Note 50 > 40 also undercuts the 'deliberately conservative' framing relative to the canonical rate.)",
+  "correction": "Commit to one single-stream/batch-1 decode value: either 40 tok/s (canonical 25 ms/token ⇒ 7,200 tokens/dollar-hour), or explicitly frame 50 tok/s as a distinct low-batch operating point and stop labelling it 'single-stream decode.' Re-derive Table 5-1 and the Ch6 goodput example from the chosen value.",
+  "acceptance_test": "Recompute batch-1 decode rate from the canonical TPOT (1/0.025 s = 40 tok/s); assert exactly one value for the 'single-stream/batch-1 decode' label across Ch5; re-derive tokens/dollar-hour and re-check the Ch6 50→70 goodput example against it."
+ },
+ {
+  "id": "CH5-02",
+  "severity": "P3",
+  "confidence": "low",
+  "page_hint": "Ch5 §3(b) 'Economics unit note (reconciliation with Ch. 4 and Ch. 15)'",
+  "chapter": 5,
+  "quoted_clause": "its ~8,000 tok/s is a prefill-side / whole-request rate (Chapter 4's ≈8.5K tokens/s prefill — 9,200 tokens ÷ ~1.08 s — not batch-1 decode ...)",
+  "observed": "The note asserts Chapter 15's ~8,000 tok/s IS Chapter 4's ≈8.5K tokens/s prefill, but in-chunk 9,200 ÷ 1.08 = 8,518 tok/s ≈ 8.5K, which is ~6% above 8,000. A stated identity links two values that differ by ~6%.",
+  "evidence": "9,200 / 1.08 = 8,518.5 tok/s (re-derived in this chunk). Claimed identical to Ch15 '~8,000'. Both use approximate operators (~, ≈); the gap sits just outside a 2-sig-fig rounding band on 8,000. The distinction being made (prefill-side ~8K vs decode 40 tok/s) is robust to the gap, so impact is low.",
+  "root_cause": "Either benign rounding in Ch15 or a genuine cross-chapter prefill-rate discrepancy (8.0K vs 8.5K). Ch4 and Ch15 are not in this chunk, so the identity cannot be confirmed or refuted here.",
+  "correction": "Confirm the prefill-rate statements in Ch4 (Table 4-2) and Ch15; if both are 9,200/1.08, relabel Ch15 to ~8.5K; if Ch15 legitimately uses 8,000 (different prefill time), state the differing input.",
+  "acceptance_test": "Cross-chapter value trace: read Ch4 and Ch15 prefill-rate statements; verify whether '~8,000' and '≈8.5K' denote the same 9,200-token / 1.08-s quantity; reconcile or correct."
+ },
+ {
+  "id": "CH5-03",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch5 §3(a) [HYPOTHESIS] incremental-compute paragraph",
+  "chapter": 5,
+  "quoted_clause": "the incremental per‑request compute cost of 768‑dim vs 384‑dim embeddings is ~11.1 GFLOP per 64‑token query (2 × params × L: 14.08 − 2.94 GFLOP, Table 5‑1's own rows; a same‑family 384‑dim variant is the ~2× case)",
+  "observed": "11.1 GFLOP is computed as mpnet (110M, 768-dim) − MiniLM (23M, 384-dim) — a difference between two different architectures and param counts — yet it is labelled 'the incremental cost of 768-dim vs 384-dim embeddings.' The book's own caveat ('a same-family 384-dim variant is the ~2× case') implies a same-family incremental of ~7 GFLOP (14.08/2), not 11.1. The subsequent decision text then uses a '2×FLOP cost' bar (~7 GFLOP incremental), which is inconsistent with the 11.1 figure just derived.",
+  "evidence": "14.08 − 2.94 = 11.14 GFLOP (cross-model param difference). Same-family ~2× ⇒ incremental ≈ 14.08 − 7.04 ≈ 7.0 GFLOP. Both values appear in one paragraph; the downstream tradeoff uses '2×FLOP', not 11.1. Conclusion ('stays well within the ~120 ms retrieval budget') is unaffected either way (both ≪ 120 ms on GPU).",
+  "root_cause": "A cross-model param difference (mpnet vs MiniLM) is presented as a controlled 768-vs-384 dimension sweep; the caveat acknowledges the distinction but the two incremental values (11.1 vs ~7) are not reconciled, and the decision bar uses a third number.",
+  "correction": "State one operative incremental: the cross-model 11.1 GFLOP (explicitly labelled cross-model) or the same-family ~7 GFLOP; align the '2×FLOP' decision bar with the chosen figure.",
+  "acceptance_test": "Recompute both quantities; decide which is decision-relevant; relabel the 11.1 GFLOP as a cross-model difference (not a dim-only sweep) or replace it with the same-family value so the paragraph and the '2×FLOP' bar agree."
+ },
+ {
+  "id": "CH7-fitgate-128K",
+  "severity": "P3",
+  "confidence": "low",
+  "page_hint": "Chapter 7 (Memory Is the First Constraint), Table 7-1 fit/non-fit rows + the 'does it fit?' note (printed-page offset unconfirmed — only the manuscript chunk was supplied, no locked PDF)",
+  "chapter": "7",
+  "quoted_clause": "8×H100 (no sharding ambiguity at 8 shards) passes gates 1–2 for the 9.2K and 32K rows; the 3×H100 row and the 128K row pass gate 1 only ... fits 8×H100 at 128K? | passes aggregate bytes only; runtime config not established ... 475.5 GB < 640 GB",
+  "observed": "The note groups the 128K-on-8×H100 row with the 3×H100 row as 'pass gate 1 only', implying both fail gate 2 (per-rank/shard compatibility). The 3×H100 failure is a genuine sharding issue (8192/3 is non-integral). But 128K on 8×H100 uses TP=8, for which 8192/8 = 1024 is integral — the same sharding the note says PASSES gate 2 for the 32K row. Context length changes KV size, not hidden-dim sharding, so the stated gate-2 rationale does not transfer from 3×H100 to 128K. The 128K row's own cell attributes the caveat to 'runtime config not established' (a gate-3 / working-benchmark concern), not gate 2.",
+  "evidence": "8192/8 = 1024 (integral) ⇒ TP=8 sharding viable at any context incl. 128K; 8192/3 = 2730.67 (non-integral) ⇒ TP=3 sharding fails for the 3×H100 row. The 32K and 128K rows are both 8×H100/TP=8 and therefore share gate-2 sharding status, yet the note assigns them different gate-2 verdicts. Recomputed 128K residency = 140 + 335.5 = 475.5 GB < 640 GB (aggregate passes); per-rank under TP=8 ≈ 17.5 GB weights + ~42 GB KV ≈ 59.5 GB/GPU — a per-rank workspace / long-context-runtime question (gate-2 workspace sub-clause or gate 3), not a hidden-dim sharding failure. Benign reading available: gate 2's own definition includes 'runtime/workspace ... must be supported', and 128K workspace >> 32K workspace, so the note MAY be leaning on that sub-clause — which is exactly why the grouping should be made explicit rather than conflated with the 3×H100 sharding failure.",
+  "root_cause": "Gate-attribution imprecision in the supporting note: it conflates a true sharding failure (3×H100, 8192/3 non-integral) with a long-context runtime/workspace caveat (128K on TP=8), assigning both 'gate 1 only'. The row-level text (gate 3 / runtime config) and the note (gate 2 also fails) disagree on which gate bounds the 128K case.",
+  "correction": "State that 128K on 8×H100 passes gates 1–2 (TP=8 sharding of hidden-dim 8192 is integral) and lacks only gate 3 (long-context runtime/workspace benchmark) — matching the 32K treatment and the row's own 'runtime config not established' text — OR explicitly tie the 128K caveat to gate 2's 'runtime/workspace' sub-clause and show the per-rank 128K budget. Do not group it with the 3×H100 sharding failure.",
+  "acceptance_test": "Re-derive the gate-2 verdict for the 128K-on-8×H100 row: confirm 8192/8 = 1024 is integral (TP=8 sharding viable) and decide whether the 128K caveat is gate 2 (per-rank workspace at 128K) or gate 3 (runtime benchmark). Align the note's grouping with the row-level text so both name the same bounding gate."
+ },
+ {
+  "id": "CH7-FIG75-32K-80GB",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Fig 7.5 figure-spec (figures/fig-07-0701.png spec comment), Ch 7 §6 mini-case; PDF/printed page offset not provided in chunk",
+  "chapter": 7,
+  "quoted_clause": "figure-spec: \"callouts at 9.2K (~24 GB FP16) and 32K (~80 GB)\" vs prose \"the KV cache rises to ~84 GB\"",
+  "observed": "The Fig 7.5 figure-spec instructs a 32K KV callout of ~80 GB, but the chapter's own derived value (and the mini-case prose) is ~84 GB. Both use the ~ operator, so this is not a rounding-of-precision artifact — 80 vs 84 is a genuine ~5% divergence at the same operating point.",
+  "evidence": "Recompute: canonical FP16 KV = 2.62 MB/token (80 layers × 80 KV-heads × 102.4 head-dim × 2 B = 2,621,440 B) × 32,000 tokens = 83.84 GB ≈ 84 GB (matches prose). A value of 80 GB requires ~2.5 MB/token, which is not the canonical 2.62. 32 KiB reading (32,768) gives 85.85 GB, further from 80. Prose (84) is correct; spec (80) is the outlier.",
+  "root_cause": "Figure-spec callout appears to use a rounded 2.5 MB/token (or rounds 84→80) instead of the canonical 2.62 MB/token used everywhere else in the chapter.",
+  "correction": "Set the Fig 7.5 32K FP16 callout to ~84 GB (or explicitly annotate it as a deliberate coarse axis marker distinct from the 84 GB prose value).",
+  "acceptance_test": "KV@32K = 2.62 MB/token × 32,000 = 83.84 GB; figure callout must read ~84 GB unless a non-canonical per-token constant is explicitly justified."
+ },
+ {
+  "id": "CH7-FIG75-LINE-LABEL",
+  "severity": "P3",
+  "confidence": "low",
+  "page_hint": "Fig 7.5 figure-spec vs Fig 7.5 caption (figures/fig-07-0701.png); vision-stage for rendered content",
+  "chapter": 7,
+  "quoted_clause": "figure-spec: \"three lines FP16/FP8/8-bit\" vs caption \"(full-MHA vs GQA, FP8/8-bit)\" and \"full-MHA is the conservative upper-bound baseline, GQA ~8× smaller\"",
+  "observed": "The Fig 7.5 spec calls for 'three lines FP16/FP8/8-bit,' but (a) in this book FP8 KV = 8-bit KV = ~1.31 MB/token (same precision), so the three-line list collapses to two distinct precisions; and (b) the spec's precision-comparison framing contradicts the caption's stated full-MHA-vs-GQA geometry comparison. Caption and spec disagree on what the figure encodes.",
+  "evidence": "Chapter text treats FP8 KV and 8-bit KV as interchangeable (~1.31 MB/token; 'FP8 KV ≈50% of FP16 (raw byte-halving)'). Caption explicitly frames the figure as a full-MHA-vs-GQA comparison ('parameter count does not determine KV size'). Spec's 'FP16/FP8/8-bit' is either redundant (FP8=8-bit) or a mislabel of the intended full-MHA/FP16/FP8-vs-GQA lines.",
+  "root_cause": "Imprecise figure-spec line list; conflates a precision comparison with the caption's geometry comparison and double-counts one precision.",
+  "correction": "Reconcile the Fig 7.5 caption and spec: state the exact line set (e.g., full-MHA FP16, full-MHA FP8/8-bit, GQA FP8/8-bit) so line count matches the intended comparison and no two drawn lines share the identical 1.31 MB/token value unless intentional.",
+  "acceptance_test": "Cross-check Fig 7.5 caption vs spec: line count and labels must match; verify no two distinct lines are plotted at the same ~1.31 MB/token precision."
+ },
+ {
+  "id": "CH8-PREFILL-FLEETCAP-01",
+  "severity": "P2",
+  "confidence": "LOW",
+  "page_hint": "Chapter 8 end-of-chapter mini-case (Continuous Deployment Scenario). Exact PDF/printed page not determinable from the provided chunk; locate at the Ch8 mini-case and cross-check Table 8-1.",
+  "chapter": 8,
+  "quoted_clause": "~10 requests/s average with ~9.2K input + 300 output tokens per request ... on 8×H100 GPUs, with prefill ~1.29 PFLOP per request (2 ×70B × L tokens; Table 8-1)",
+  "observed": "Sustained prefill compute demand at the stated operating point = 10 req/s × (2 × 70e9 × 9,200) FLOP/req = 10 × 1.288e15 = 1.29e16 FLOP/s ≈ 12.9 PFLOP/s. 8×H100 FP16 dense peak = 8 × 989 TFLOPS = 7.91 PFLOP/s (house convention: 989 dense). Demand = 163% of dense peak, so a DENSE 70B model cannot sustain ~10 req/s of 9.2K-token prefills on 8×H100 even at 100% MFU. The scenario asserts BOTH that it is serving ~10 req/s AND that it runs on 8×H100; those are jointly feasible only if the model is MoE (active ≲ 30B), 2:4 sparsity is assumed (peak → 15.8 PFLOP/s, ~81% MFU), or the true average input length is well below 9.2K.",
+  "evidence": "Recomputed from the book's own formula (2×70B×L, with 9.2K = 9,200 per house convention) and the stated fleet (8×H100, 989 dense). 2×70e9×9,200 = 1.288e15 = ~1.29 PFLOP/req (matches the printed Table 8-1 value); ×10 req/s = 1.29e16 = 12.9 PFLOP/s; 8×989e12 = 7.91e15 = 7.91 PFLOP/s; 12.9/7.91 = 1.63. MoE escape: 16B-active → 2.94 PFLOP/s (37% peak); 37B-active → 6.81 PFLOP/s (86% peak).",
+  "root_cause": "Possible fixed-fleet-vs-workload operating-point mismatch (throughput conservation): stated req/s × per-request prefill FLOP exceeds the stated fleet's peak FP16 capacity. May be benign if the '70B-class' model is MoE (fewer active params), if sparsity is assumed, or if 8×H100 is not the full prefill tier (the case itself recommends P/D disaggregation).",
+  "correction": "State the model's active parameter count (dense vs MoE) and whether sparsity applies. If dense-70B on exactly 8×H100, reconcile by adding a prefill/disaggregated tier, lowering the stated req/s, or reducing the canonical input length used for the sustained-throughput claim.",
+  "acceptance_test": "Compute fleet peak FP16 capacity (8 × 989 TFLOPS = 7.91 PFLOP/s dense; ×2 with 2:4 sparsity) and sustained prefill demand (req/s × 2 × active_params × 9,200). Require demand ≤ capacity at a plausible MFU (30–40%); if violated for dense-70B on 8×H100, correct the scenario inputs or fleet size. A different-model re-derivation from the quoted text is required to confirm/dispute (single-model pass cannot self-certify P1)."
+ }
+]
