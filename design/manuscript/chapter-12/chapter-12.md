@@ -82,10 +82,6 @@ The architect does **not** discard Candidate (c) by parameter counting alone: it
 
 * * *
 
-Fig 12.1 draws the synthesis: three conditional candidates, each with its own open gate.
-
-![Fig 12.1 — Candidate architecture synthesis, constraint-first: three **conditional candidates**, each with its own open validation gate (not a settled verdict), all tested against the same MEM/THR/QUAL gates (memory fit · throughput at the SLO · quality). **Scope:** canonical workload (~2,000 users, ~10/40 rps, 9.2K-in/300-out); per-candidate verdicts in Table 12-1 / §12.3. [ILLUSTRATIVE conceptual] — no candidate is deployment-validated; each must measure its gate (throughput for a/b, quality for c) at the target load (Chs. 14–17).](figures/fig-12-1201.png)
-
 ### Table 12-1 — Candidate architectures scored against the three gates (memory fit · throughput at the SLO · quality)
 
 | candidate | memory: weights+KV | host layout | throughput | SLO | verdict |
@@ -95,6 +91,12 @@ Fig 12.1 draws the synthesis: three conditional candidates, each with its own op
 | (c) KV-quantized 7B | **~15 GB** (14 + ~1.2) | 1 ×H100 | high per-GPU prefill tok/s | ✗ quality — provisional (subject to Ch 14 quality-gate measurement) | **gated, not a finalist** — ✗ quality gate open (Ch 14); ✗ ~4 avg / ~15 peak hosts at the single-H100 rate (Table 12-2) |
 
 *All figures trace to the canonical scenario (Ch 4, Table 4-2); the KV cache and throughput numbers are [ILLUSTRATIVE][DERIVED] worked examples, not measurement claims.*
+
+Fig 12.1 draws the synthesis: three conditional candidates, each with its own open gate.
+
+![Fig 12.1 — Candidate architecture synthesis, constraint-first: three **conditional candidates**, each with its own open validation gate (not a settled verdict), all tested against the same MEM/THR/QUAL gates (memory fit · throughput at the SLO · quality). **Scope:** canonical workload (~2,000 users, ~10/40 rps, 9.2K-in/300-out); per-candidate verdicts in Table 12-1 / §12.3. [ILLUSTRATIVE conceptual] — no candidate is deployment-validated; each must measure its gate (throughput for a/b, quality for c) at the target load (Chs. 14–17).](figures/fig-12-1201.png)
+
+
 
 ### Table 12-2 — Full-load feasibility matrix (conditional; not a deployment recommendation)
 
