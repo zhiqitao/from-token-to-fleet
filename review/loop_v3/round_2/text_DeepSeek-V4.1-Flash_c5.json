@@ -1,0 +1,55 @@
+[
+  {
+    "id": "CH26-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch. 26 §3 Pattern B and §8 Step 2",
+    "chapter": "Chapter 26 — The Solution Architect's Toolkit + Patterns Library",
+    "quoted_clause": "the embedding/retrieval step is also skipped for exact-match hits (the raw-hash variant; the capstone's semantic variant instead pays encoding + cache lookup on hits and skips only the engine)",
+    "observed": "The Pattern B prose says the semantic cache hit path 'skips only the engine,' implying corpus retrieval still occurs. Step 2 says the hit path is 'query encoding + cache lookup, no corpus retrieval and no LLM prefill' and assigns it a fixed ~50 ms.",
+    "evidence": "Pattern B: 'the capstone's semantic variant instead pays encoding + cache lookup on hits and skips only the engine.' Step 2: 'a cache hit returns at a fixed ~50 ms (query encoding + cache lookup, no corpus retrieval and no LLM prefill).' The two descriptions disagree on whether a semantic-cache hit performs corpus retrieval. The 50 ms hit budget is only consistent with the Step 2 version (no retrieval).",
+    "root_cause": "The semantic-cache hit path is described inconsistently: one passage treats the semantic hit as skipping only the LLM engine, while the worked example treats it as skipping both retrieval and the engine.",
+    "correction": "Reconcile the hit-path component list. If the semantic cache stores the completed answer, state consistently that a hit skips corpus retrieval and engine prefill/decode and pays only query encoding + cache lookup. If retrieval is still performed on semantic hits, add its cost to the ~50 ms hit term and revise the two-point model.",
+    "acceptance_test": "The Pattern B prose, Step 2 hit-path definition, and the ~50 ms hit term all list the same components; a reader can compute the hit latency from the stated components without contradiction."
+  },
+  {
+    "id": "APPA-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Appendix A, Fig A.1 note and 'Definition of active'",
+    "chapter": "Appendix A — 2026 Frontier Architecture Signals",
+    "quoted_clause": "Qwen's N-gram embedding table is counted in total but is offloadable",
+    "observed": "The definition of 'active' says Qwen's N-gram embedding table is counted in total. The Fig A.1 note says the separate 51 B n-gram embedding and 4 B MTP modules are excluded from both numerator and denominator, making the 4.8% a backbone-only ratio. A.3 also calls 125 B 'total' while adding a separate 51 B N-gram component.",
+    "evidence": "Definition: 'Qwen's N-gram embedding table is counted in total but is offloadable.' Fig A.1 note: 'the separate 51 B n-gram embedding and 4 B MTP modules are excluded from both numerator and denominator, so this is a backbone fraction, not a fraction of the complete deployed parameter inventory.' A.3: '125 B total / 6 B activated, plus a separate 51 B of N-gram embedding parameters.' These cannot all be true: if the 51 B is separate and excluded, it is not counted in the 125 B total; if it is counted in total, the 4.8% denominator is not backbone-only.",
+    "root_cause": "Inconsistent Qwen parameter-inventory accounting across the active-parameter definition, the Fig A.1 note, and the Qwen family section.",
+    "correction": "Choose one inventory convention and apply it everywhere. Either (a) label 125 B as the backbone, exclude the 51 B N-gram and 4 B MTP from the 4.8% ratio, and remove 'counted in total'; or (b) use the complete deployed inventory (125 + 51 + 4 = 180 B) and report 6/180 ≈ 3.3% active. Update A.3, the active definition, Fig A.1 caption/note, and any derived active-fraction statement.",
+    "acceptance_test": "All Qwen total-parameter and active-fraction references agree on whether the denominator is the 125 B backbone or the complete 180 B inventory; the figure caption and note use the same label."
+  },
+  {
+    "id": "CH26-02",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch. 26 §3 Capstone Execution",
+    "chapter": "Chapter 26 — The Solution Architect's Toolkit + Patterns Library",
+    "quoted_clause": "The Pattern-Measurement-Feedback Loop confirms the hypothesis that caching + load shedding is net positive on latency",
+    "observed": "The capstone has just called the p99 TTFT and cost figures 'illustrative' and 'scenario estimates, not measured values.' Step 3 later says the hypothesis is accepted only on a genuine load test's numbers. The sentence says the loop 'confirms' the hypothesis.",
+    "evidence": "Capstone Execution: 'yields an illustrative p99 TTFT ≈ 250 ms ... (scenario outcome, not a measured benchmark).' Step 2: 'The TTFT and cost figures below are scenario estimates for this illustrative configuration, not measured values.' Step 3: 'The hypothesis is accepted only on a genuine load test's numbers.' The word 'confirms' asserts validation that the surrounding text explicitly withholds.",
+    "root_cause": "Evidence-label drift: an illustrative scenario result is described as confirming a hypothesis.",
+    "correction": "Replace 'confirms the hypothesis' with 'illustrates the hypothesis' or 'predicts, subject to load-test validation.' Reserve 'confirms' for a measured load test with recorded FACTs.",
+    "acceptance_test": "The sentence no longer claims confirmation without a cited measured load test; the capstone consistently labels the result illustrative until Step 3 validation."
+  },
+  {
+    "id": "CH26-03",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch. 26 §8 Step 1",
+    "chapter": "Chapter 26 — The Solution Architect's Toolkit + Patterns Library",
+    "quoted_clause": "These components sum to a ~450 ms baseline TTFT",
+    "observed": "The components are model compute 320 ms, I/O 80 ms, and retrieval 50 ms. They sum to 450 ms, but the text also says the 450 ms is a 'service-time sum with no queueing term' and that at ρ near 1 'a real queueing delay sits on top.' Calling the sum a baseline TTFT while acknowledging missing queueing is potentially misleading.",
+    "evidence": "Step 1: 'model compute 320 ms, I/O 80 ms, retrieval 50 ms ... These components sum to a ~450 ms baseline TTFT ... The 450 ms is a service-time sum with no queueing term; at the offered ~2 rps against the ~2.0 req/s analytical ceiling (ρ near 1), a real queueing delay sits on top.' A TTFT at ρ near 1 would include queueing; the printed 450 ms does not.",
+    "root_cause": "The baseline is a component sum, not a measured or queue-inclusive TTFT, but is used as the p99 baseline in the −44% comparison.",
+    "correction": "Label the 450 ms explicitly as a 'no-queue service-time baseline' wherever it is used as the comparison denominator, or add a queueing term and recompute the baseline p99. The −44% should be described as against the no-queue service-time baseline, not an end-to-end p99.",
+    "acceptance_test": "Every use of the 450 ms baseline states that it excludes queueing; the −44% comparison is either recomputed with a queueing term or explicitly scoped to the no-queue service-time baseline."
+  }
+]
+COVERAGE: Read the full supplied chunk (Chapter 26 and Appendix A, including the 2026-10-28 technology notes and Intel supplement). Recomputed the Chapter 26 capstone arithmetic (450 ms component sum, 2.0 × 0.65 = 1.3 rps, 0.35×50 + 0.65×250 = 180 ms mean, p99 = 250 ms, (450−250)/450 ≈ 44%, (400−250)/400 = 37.5%, $0.01164 × 0.65 ≈ $0.0076, 436 GB / (2.62 MB × 9,500) ≈ 17.5 requests). Checked Appendix A active-fraction arithmetic (104/2,800 ≈ 3.7%, 13/284 ≈ 4.6%, 18/320 ≈ 5.6%, 6/125 = 4.8%) and the Qwen parameter-inventory statements. Checked evidence labels and cross-references in the supplied text. Did not inspect rendered figures, PDF pagination, or external sources; figure content and source verification are NOT VERIFIED.

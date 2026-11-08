@@ -31,7 +31,7 @@ We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (c
 
 **Step 1 — representative queries.** We sample real user questions and run them through the rag pipeline to produce the actual prompt shapes, matching the ~9.2K-in / ~300-out token profile with the model's own tokenizer (not a heuristic). [2°]
 
-**Step 2 — sweep the offered load, not a single point.** The analytical KV quotient C ≈ 17.5 gives at most 17 whole-context slots, not a deployable concurrency of 17.5. At the assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a residency ceiling before headroom and competing resource limits. We sweep offered load and measure the tail rather than treating that ceiling as achieved capacity. An illustrative single-host sweep can cover 2, 4, 8, 12 and 16 active requests. Higher offered concurrency tests queueing or rejection; it does not imply that all requests are simultaneously resident. At each level we record:
+**Step 2 — sweep the offered load, not a single point.** The analytical KV quotient C ≈ 17.5 gives at most 17 whole-context slots, not a deployable concurrency of 17.5. At the assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a single-host residency ceiling before headroom and competing resource limits. We sweep offered load and measure the tail rather than treating that ceiling as achieved capacity. An illustrative single-host sweep can cover 2, 4, 8, 12 and 16 active requests. Higher offered concurrency tests queueing or rejection; it does not imply that all requests are simultaneously resident. At each level we record:
 
 - **TTFT** p50/p95/p99 (must be median ≤ 1.2 s, p95 ≤ 2 s).
 - **TPOT** p50/p95 (≤ ~25 ms median).

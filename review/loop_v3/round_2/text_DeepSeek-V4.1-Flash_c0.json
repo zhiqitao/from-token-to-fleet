@@ -1,0 +1,68 @@
+[
+  {
+    "id": "CH3-KV-OFFLOAD-GROWTH",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 3 §3.3, paragraph beginning 'In other words: MoE sparsity = compute sparsity'",
+    "chapter": "Chapter 3 — Understanding the Model",
+    "quoted_clause": "Only changing the attention mechanism itself (e.g., hybrid/linear attention, compressed latent attention, or KV offload) can stop the cache from growing.",
+    "observed": "KV offload is listed among mechanisms that 'stop the cache from growing', but offload only moves KV state out of GPU HBM; it does not reduce the number of stored K/V entries or stop growth with context length.",
+    "evidence": "Ch 2's vocabulary table defines KV offloading as 'moving some KV state out of GPU HBM (to host DRAM/SSD), trading capacity against transfer latency' and explicitly says 'not shrinking the state itself.' Ch 1 likewise says quantization reduces bytes per element 'without stopping the linear growth.' The quoted sentence contradicts those definitions by treating offload as a growth-stopping mechanism.",
+    "root_cause": "Conflation of KV residency/placement with KV state size. Offload changes where state lives, not how much state exists.",
+    "correction": "Remove 'or KV offload' from the list of mechanisms that stop cache growth. State that hybrid/linear/compressed-latent attention can change the per-token KV function, while KV offload changes residency and transfer cost but not the underlying state size.",
+    "acceptance_test": "Search Ch 3 for 'KV offload' in any sentence about stopping or reducing KV growth; verify every occurrence distinguishes residency from state size and does not claim offload stops growth."
+  },
+  {
+    "id": "CH3-BOXED-RULE-FLOP-UNIT",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 3 §3.3, 'Boxed rule — two distinct accounting lines', item 2",
+    "chapter": "Chapter 3 — Understanding the Model",
+    "quoted_clause": "The routed top-k fraction (e.g. ~12.8B active) sets the FLOPs per token (~25.6 GB of active weights read per token).",
+    "observed": "The boxed rule says the active fraction sets 'FLOPs per token' but then gives '~25.6 GB' — a byte/bandwidth quantity, not a FLOP count. The corresponding FLOP figure is ~25.6 GFLOP per token (12.8B active params × 2 FLOP/param).",
+    "evidence": "Table 3-2 lists 'FP16 active weight-read per token ~25.6 GB' and 'FLOPs per forward pass ~0.0256T' separately. 12.8B × 2 = 25.6 GFLOP = 0.0256 TFLOP. The boxed rule merges the two accounting lines it is supposed to keep separate.",
+    "root_cause": "Unit conflation between active-weight read traffic (bytes) and active-parameter compute (FLOPs).",
+    "correction": "Rewrite item 2 to state both quantities explicitly: 'sets FLOPs per token (~25.6 GFLOP) and active weight-read traffic (~25.6 GB/token).'",
+    "acceptance_test": "Search the boxed rule for 'FLOPs per token (~25.6 GB'; verify no FLOP claim is expressed in bytes and that both FLOPs and bytes are separately labeled."
+  },
+  {
+    "id": "CH4-TCO-API-BASIS-CONFLATION",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 4 §4.6, 'Economic feasibility' bullet",
+    "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+    "quoted_clause": "At ~$20/hour per 8×H100 host and ~$0.012 per request (from $1.20/M input × 9.2 K + $2.00/M output × 0.3 K), the TCO is driven by the 9.2 K input tokens per request.",
+    "observed": "The sentence mixes an owned-host infrastructure price (~$20/hour per 8×H100 host) with a per-request figure derived from managed-API list prices ($1.20/M input, $2.00/M output), then labels the result 'TCO'. The $0.012/request is a hosted-API price, not the owned-fleet TCO. The owned-fleet per-request cost is computed elsewhere in the same chapter as ~$0.0033 at average and ~$0.0029 at peak.",
+    "evidence": "Ch 4's own cost-basis table distinguishes 'Cloud-provider list price (what a customer pays on a mid-tier managed-API-by-token)' from 'Self-host cost per million tokens (whole-fleet infrastructure divided by the offered token rate).' The $0.012 figure is explicitly derived from the API list prices; the $20/hour host price belongs to the owned-fleet basis. The chapter also states: 'Keep the two bases separate: use the per-token price for a hosted/API cost model, and the fleet $/hr ÷ fleet rps for an owned fleet.'",
+    "root_cause": "Cost-basis conflation: managed-API per-token price used as if it were owned-fleet TCO, juxtaposed with owned-host hourly price.",
+    "correction": "Separate the two statements. For hosted API: ~$0.012/request at the stated list prices. For owned fleet: ~$0.0033/request at the ~6-host average and ~$0.0029/request at the ~21-host peak, derived from fleet $/hr ÷ fleet rps. Do not call the API-derived $0.012 figure 'TCO'.",
+    "acceptance_test": "Search Ch 4 for '$0.012 per request' and 'TCO'; verify every occurrence labels the basis (hosted API vs owned fleet) and does not mix $20/hour host cost with API list-price per-request cost."
+  },
+  {
+    "id": "CH4-2K-INPUT-TCO-LINEARITY",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 4 §4.6, 'Economic feasibility' bullet, continuation",
+    "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+    "quoted_clause": "If the input token count could be reduced to 2 K (e.g. via better retrieval or query expansion), cost per request drops to ~$0.003, and the same traffic fits within a much lower budget.",
+    "observed": "The ~$0.003 figure is again the managed-API list-price calculation (2K input × $1.20/M + 0.3K output × $2.00/M ≈ $0.003), not an owned-fleet TCO result. For an owned fleet, per-request cost is dominated by host count and utilization; reducing input tokens may reduce prefill/KV pressure and potentially host count, but it does not linearly drop owned-fleet cost to the API-derived $0.003.",
+    "evidence": "The same chapter's cost-basis table and owned-fleet calculation give ~$0.0033/request at the ~6-host average for the canonical 9.2K-input workload. The $0.003 figure for 2K input is derived from $1.20/M and $2.00/M API rates, not from fleet $/hr ÷ fleet rps. The chapter explicitly warns: 'Never present a tokens-per-dollar figure with the offered workload rate divided by a single-host price' and 'Keep the two bases separate.'",
+    "root_cause": "Same cost-basis conflation as CH4-TCO-API-BASIS-CONFLATION: API per-token price treated as owned-fleet TCO and assumed to scale linearly with input tokens.",
+    "correction": "State the $0.003 as a hosted-API cost at 2K input tokens. For owned fleet, say that reducing input tokens may lower prefill/KV demand and could reduce host count, but the cost must be recomputed from the fleet sizing model; do not claim a linear drop to $0.003/request.",
+    "acceptance_test": "Search Ch 4 for '2 K' and '$0.003'; verify the sentence labels the hosted-API basis and does not present the figure as owned-fleet TCO or as a linear TCO scaling result."
+  },
+  {
+    "id": "CH2-DECODE-BANDWIDTH-CONSTANT",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 2 §2.5, first Common Mistakes bullet",
+    "chapter": "Chapter 2 — What Actually Happens During Inference",
+    "quoted_clause": "Prefill FLOPs scale with input length; decode bandwidth is constant per token.",
+    "observed": "The bullet states decode bandwidth is constant per token, but Ch 2 §2.1 and §2.3 correctly explain that decode has a constant weight-read term plus an attention-over-growing-KV term that grows with context length. The unqualified 'constant per token' contradicts the chapter's own regime qualification.",
+    "evidence": "Ch 2 §2.1: 'the per-step cost has two parts: the weight-read ... constant in context length ... and the attention over the growing KV cache (linear in context length ...). At the canonical operating point the weight-read dominates, so the per-step cost is approximately constant in context length — but that is a regime statement, not an identity; the attention term grows with context and is the one that eventually binds at long context.' The Common Mistakes bullet drops that qualification.",
+    "root_cause": "Overgeneralization: the constant weight-read component is promoted to all decode bandwidth.",
+    "correction": "Qualify the bullet: 'Prefill FLOPs scale with input length; at the canonical low-batch operating point decode is dominated by a roughly constant weight-read bandwidth, but total decode traffic also includes a KV-attention term that grows with context length.'",
+    "acceptance_test": "Search Ch 2 for 'decode bandwidth is constant per token'; verify the sentence either includes the weight-read/regime qualification or is removed."
+  }
+]
+COVERAGE: Read Ch 1–4 text in the provided chunk; recomputed canonical token rates (9.2K×10/40, 300×10/40), KV per-token and 9.2K/32K/128K totals, dense/MoE parameter and active-fraction arithmetic, MoE KV shape arithmetic, prefill FLOPs and bandwidth demand, host-count arithmetic (86/17, 344/17, 430/17, utilization screens), and cost-per-request/table arithmetic. Checked cross-chapter consistency for KV offload, cost bases, and decode bandwidth qualifications. Did not inspect rendered figures, PDF pages, or source outside this chunk; figure content and page numbers are NOT VERIFIED.

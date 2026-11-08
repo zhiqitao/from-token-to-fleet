@@ -25,13 +25,13 @@ rows = [
     # (y, name, value, colour, hatch, edge, value label, sub-line)
     (2, 'Append-only', 34.0, '#c0392b', '..', 'white',
      '34.0 GB',
-     '[DERIVED] bounding case — nothing evicted; bounds what the system tolerates'),
+     '[DERIVED] bounding case — nothing evicted; bounds system tolerance'),
     (1, 'Compaction', 24.9, '#6f9e5f', '//', '#1e7a59',
      '≈24.9 GB',
-     '[ILLUSTRATIVE] summarize/truncate each turn — moves the footprint itself'),
+     '[ILLUSTRATIVE] summarize/truncate each turn — moves the footprint'),
     (0, 'Prefix-cache eviction', 34.0, '#3a6ea5', 'xx', '#1e3a5f',
-     '34.0 GB (unchanged)',
-     '[ILLUSTRATIVE] evicts the reusable prefix — moves cache memory and re-prefill'),
+     '34.0 GB unchanged',
+     '[ILLUSTRATIVE] evicts the reusable prefix — moves cache/re-prefill'),
 ]
 
 fig, ax = plt.subplots(figsize=(6.1, 5.2))
@@ -45,12 +45,12 @@ for y, name, val, col, hatch, ec, vlab, sub in rows:
     # Opaque white bbox behind each annotation line so the vertical single-shot
     # dashed reference line (x=24.9), which spans the full plot height, is masked
     # behind the text rather than crossing through it (review: line-over-text).
-    ax.text(0.4, y - 0.44, sub, va='center', ha='left', fontsize=8.0, color='#333',
+    ax.text(0.4, y - 0.44, sub, va='center', ha='left', fontsize=8.6, color='#333',
             bbox=dict(boxstyle='round,pad=0.10', fc='white', ec='none', alpha=1.0))
 
 # single-shot reference: the footprint every policy starts from
 ax.axvline(24.9, ls='--', lw=1.0, color='#555', zorder=0)
-ax.text(25.6, 2.62, 'single-shot 24.9 GB', fontsize=8.2, color='#555',
+ax.text(25.6, 2.62, 'single-shot 24.9 GB', fontsize=8.6, color='#555',
         ha='left', va='center')
 
 ax.set_xlim(0, 48)
@@ -64,26 +64,26 @@ ax.grid(axis='x', alpha=0.3)
 for sp in ('top', 'right'):
     ax.spines[sp].set_visible(False)
 
-fig.suptitle('State-management policy at turn 4: three policies move three different things',
-             fontsize=10.5, fontweight='bold')
+fig.suptitle('Turn 4: three state-management policies, three different things',
+             fontsize=9.8, fontweight='bold')
 fig.text(0.5, 0.925, 'canonical 2.62 MB/token; only the append-only bar is derived',
          ha='center', va='top', fontsize=9.0, color='#333')
 
 # counterfactual column semantics (R08/R11), preserved verbatim in meaning
 fig.text(0.5, 0.215,
          'counterfactual: each bar = a separate completed request after 4 turns',
-         ha='center', va='center', fontsize=8.4, color='#111')
+         ha='center', va='center', fontsize=8.6, color='#111')
 fig.text(0.5, 0.168,
          '(one final 300-token answer) — not an intermediate state of a live agent.',
-         ha='center', va='center', fontsize=8.4, color='#111')
+         ha='center', va='center', fontsize=8.6, color='#111')
 fig.text(0.5, 0.095,
          'append-only total = I₀ + T·δ + T·γ + O_final  @ 2.62 MB/token',
-         ha='center', va='center', fontsize=8.4, color='#444')
+         ha='center', va='center', fontsize=8.6, color='#444')
 fig.text(0.5, 0.048,
-         '(I₀ = 9.2K input, δ = 800 retrieved, γ = 65 generated, O_final = 300 final output (once))',
-         ha='center', va='center', fontsize=8.4, color='#444')
+         '(I₀ = 9.2K input, δ = 800 retrieved, γ = 65 generated, O_final = 300 output (once))',
+         ha='center', va='center', fontsize=8.6, color='#444')
 
-plt.subplots_adjust(left=0.185, right=0.97, top=0.855, bottom=0.30)
+plt.subplots_adjust(left=0.185, right=0.89, top=0.855, bottom=0.30)
 
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1903.png',
             dpi=400, bbox_inches='tight', pad_inches=0.08)

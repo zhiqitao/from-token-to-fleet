@@ -142,7 +142,7 @@ These measurements cost nothing but a profiler attach and a few representative r
 
 ## 5. Common Mistakes
 
-- **Treating prefill and decode as the same bottleneck.** A dangerous mistake is assuming that what slows prefill will also slow decode, or vice versa. Prefill FLOPs scale with input length; decode bandwidth is constant per token. Confusing the two leads to over-provisioning compute for a bandwidth-bound workload, or under-provisioning compute for a compute-bound one.
+- **Treating prefill and decode as the same bottleneck.** A dangerous mistake is assuming that what slows prefill will also slow decode, or vice versa. Prefill FLOPs scale with input length; in decode, the weight-read bytes per token are fixed, so at a given HBM bandwidth the decode rate is roughly constant per token. Confusing the two leads to over-provisioning compute for a bandwidth-bound workload, or under-provisioning compute for a compute-bound one.
 
 - **Assuming one H100 suffices for 70B inference.** The arithmetic in §2.3 shows that a single H100 cannot meet the decode bandwidth demand (5.6 TB/s vs 3.35 TB/s) nor the prefill compute demand (1.19 PFLOPS required vs 0.989 PFLOPS peak, from 1.29 PFLOP / 1.08 s). Attributing 70B serveability to a single GPU ignores the opposite bottlenecks and produces an architecture that fails latency SLOs.
 

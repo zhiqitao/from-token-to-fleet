@@ -43,7 +43,7 @@ The customer conversation is really about **buying information, not delivering a
 
 **Architect:** "What's 'fast'? First-word delay, or time to full answer?"
 **Lead:** "Feels slow if we wait more than two seconds to see something start."
-**→ Bound 3: TTFT ≤ 2 s (p95), ~25 ms/token thereafter.** [canonical scenario] (Ch 4, Table 4-2)
+**→ Bound 3: TTFT ≤ 2 s (p95), ~25 ms/token thereafter (mean decode budget; p95 TPOT ≤ 35 ms, Ch 4).** [canonical scenario] (Ch 4, Table 4-2)
 
 **Architect:** "What does 'good answer' mean for your team — and can we define a handful of sample questions to test against?"
 **Lead:** "It should be accurate on our docs and not make up contract terms. We can give the validation team 50 real questions."
@@ -95,7 +95,7 @@ The requirements conversation is where the book's entire loop is *fed.* The six 
 
 *The framing funnel: broad ask → five question gates (problem, success, data, constraints, scope) → confirmed bounds. This dialogue surfaces the six architectural numbers in Table 23-1 (traffic & concurrency, token profile, SLO, quality bar, ops/tier, TCO). [ILLUSTRATIVE] conceptual*
 
-<!-- Figure spec: mechanism-first funnel diagram; top = vague ambition; six labeled question gates narrow it; bottom = quantified scope feeding the architecture loop. -->
+<!-- Figure spec: mechanism-first funnel diagram; top = vague ambition; five labeled question gates narrow it; bottom = quantified scope feeding the architecture loop. -->
 
 ## 7. What We Still Don't Know
 

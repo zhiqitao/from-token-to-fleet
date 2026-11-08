@@ -42,7 +42,7 @@ $$
 
 **Step 5 — Record in Table 22-1.** The full table of derived quantities appears below.
 
-This loop — stakeholder ask → measured token counts → traffic profile → token throughput → architecture-relevant derived quantities — is the canonical thought process an AI solution architect runs, every time, before a single architecture decision is made. It is how we move from "we need a Q&A system" to "at the canonical operating point our prefill will be compute-bound at ~1.29 PFLOP per request (case (i), linear-only; ~1.5099 PFLOP under case (ii), Ch 8), and our decode will be bandwidth-bound at a required weight-read rate of ~5.6 TB/s over each ~25 ms token interval." The loop is the chapter's central contribution; the quantities that issue from it are the evidence [1P]/[2°]/(to be verified) that every following chapter trades on.
+This loop — stakeholder ask → measured token counts → traffic profile → token throughput → architecture-relevant derived quantities — is the canonical thought process an AI solution architect runs, every time, before a single architecture decision is made. It is how we move from "we need a Q&A system" to "at the canonical operating point our prefill will be compute-bound at ~1.29 PFLOP per request (case (i), linear-only; ~1.5099 PFLOP under case (ii), Ch 8), and our decode will be bandwidth-bound at a required weight-read rate of ~5.6 TB/s over each ~25 ms token interval." The loop is the chapter's central contribution; the quantities that issue from it — tagged [canonical scenario]/[ASSUMPTION]/[DERIVED]/[ILLUSTRATIVE] in Table 22-1 — are the evidence that every following chapter trades on.
 
 **Table 22-1** — Derived quantities from the canonical loop (worked example, not reference)
 

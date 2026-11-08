@@ -311,9 +311,13 @@ allocation/shard compatibility (a hidden dim of 8192 does not shard
 evenly into 3 ranks; attention-head partition, runtime/workspace and
 topology must be supported), and (3) a working engine/kernel/topology
 benchmark. 8×H100 (no sharding ambiguity at 8 shards) passes gates 1--2
-for the 9.2K and 32K rows; the 3×H100 row and the 128K row pass gate 1
-only, so they are labeled ``passes aggregate bytes only ---
-placement/runtime not established.''}
+for the 9.2K and 32K rows; the 3×H100 row passes gate 1 only (8192 does
+not shard into 3 ranks), and the 128K row --- also 8×H100, so TP=8
+sharding is integral --- clears gate 2's shard check but not its
+per-rank runtime/workspace sub-clause at 128K. Both therefore carry the
+label ``passes aggregate bytes only --- placement/runtime not
+established,'' for different reasons: shard incompatibility (3×H100) vs
+unestablished long-context runtime (128K).}
 
 \emph{Attention-family sensitivity note.} The \textasciitilde2.62
 MB/token (2.5 MiB) figure is the \textbf{full-MHA} (multi-head
@@ -527,8 +531,9 @@ inference (weights + KV, 9.2K input) & weights + KV cache & FP16: 2 B;
 KV adds \textasciitilde2.62 MB/token & \textasciitilde164.1 GB (9.2K;
 140 + 24.1) & yes \\
 fine-tuning (weights + gradients + optimizer) & weights + gradients +
-optimizer states & Adam: \textasciitilde16 B/param (m + v + ΔW) &
-\textasciitilde1,120 GB & no \\
+optimizer states & Adam: \textasciitilde16 B/param (FP16 weights +
+gradients + FP32 master copy + Adam m + v) & \textasciitilde1,120 GB &
+no \\
 fine-tuning (weights + gradients, FP16) & weights + gradients FP16 & 4
 B/param (weights FP16 2 B + gradients FP16 2 B) & \textasciitilde280 GB
 & yes \\
@@ -945,8 +950,9 @@ enterprise-Q\&A workload:
   \textasciitilde1,120 GB under full Adam fine-tuning (weights 140 GB +
   gradients 140 GB + Adam m/v/master states 840 GB) --- roughly 1.75×
   the 8×H100 host. This is why the architect separates the serving fleet
-  from the training fleet: the memory floors differ by an order of
-  magnitude. \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+  from the training fleet: the memory floors differ by nearly an order
+  of magnitude (164 GB vs \textasciitilde1,120 GB). \mbox{{[}canonical
+  scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \item
   \textbf{Context length is the largest controllable KV lever.} Doubling
   context from 9.2K to 18.4K doubles KV (\textasciitilde24.1 GB →

@@ -134,7 +134,7 @@ The original memory-fit decision remains; the state function inserted into that 
 | scenario | memory resident | bytes per param | total (70B) | fits 8×H100 |
 |---|---|---|---|---|
 | inference (weights + KV, 9.2K input) | weights + KV cache | FP16: 2 B; KV adds ~2.62 MB/token | ~164.1 GB (9.2K; 140 + 24.1) | yes |
-| fine-tuning (weights + gradients + optimizer) | weights + gradients + optimizer states | Adam: ~16 B/param (m + v + ΔW) | ~1,120 GB | no |
+| fine-tuning (weights + gradients + optimizer) | weights + gradients + optimizer states | Adam: ~16 B/param (FP16 weights + gradients + FP32 master copy + Adam m + v) | ~1,120 GB | no |
 | fine-tuning (weights + gradients, FP16) | weights + gradients FP16 | 4 B/param (weights FP16 2 B + gradients FP16 2 B) | ~280 GB | yes |
 | fine-tuning (QLoRA, 4-bit base + LoRA) | quantized base + LoRA adapters | NF4: nominal 4-bit (~0.5 B/param) + quantization metadata; adds adapters/gradients/optimizer/activations | ~50–70 GB | yes |
 | inference with FP8 KV | weights FP16 + KV FP8 | KV: ~50% of FP16 (raw byte-halving) | ~152 GB (9.5K; 140 + 12.45; KV alone 12.45 GB) | yes |
@@ -238,7 +238,7 @@ The memory floor is the first constraint every architecture decision respects, b
 
 - **KV cache quantization buys back memory, not compute.** FP8 KV ≈ 50% of FP16 (raw byte-halving), dropping the 9.5K max residency from ~165 GB toward ~152 GB. This is a *memory* lever, orthogonal to bandwidth/compute fixes — the architect pulls it when the KV floor, not decode bandwidth, binds.
 
-- **Fine-tuning is a different memory regime than inference.** The same model that serves in ~165 GB demands ~1,120 GB under full Adam fine-tuning (weights 140 GB + gradients 140 GB + Adam m/v/master states 840 GB) — roughly 1.75× the 8×H100 host. This is why the architect separates the serving fleet from the training fleet: the memory floors differ by an order of magnitude. [canonical scenario][DERIVED]
+- **Fine-tuning is a different memory regime than inference.** The same model that serves in ~165 GB demands ~1,120 GB under full Adam fine-tuning (weights 140 GB + gradients 140 GB + Adam m/v/master states 840 GB) — roughly 1.75× the 8×H100 host. This is why the architect separates the serving fleet from the training fleet: the memory floors differ by nearly an order of magnitude (164 GB vs ~1,120 GB). [canonical scenario][DERIVED]
 
 - **Context length is the largest controllable KV lever.** Doubling context from 9.2K to 18.4K doubles KV (~24.1 GB → ~48 GB); 128K context drives KV to ~335 GB, which forces quantization or model parallelism. The architecture must set a context-length ceiling to keep the served model within host memory. [ILLUSTRATIVE][DERIVED]
 

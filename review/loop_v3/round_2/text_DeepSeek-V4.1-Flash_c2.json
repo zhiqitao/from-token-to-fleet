@@ -1,0 +1,68 @@
+[
+  {
+    "id": "CH9-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch. 9 §5 Common Mistakes, Ethernet all-reduce bullet",
+    "chapter": "9",
+    "quoted_clause": "takes ~56 s per step (a flat lower bound; ~98 s with the ring factor, §9.3). If the training runs 1,000 iterations, that is ~56,000 s (15.6 hours) spent exclusively in communication.",
+    "observed": "The bullet states both the flat lower bound (~56 s/step) and the ring-model value (~98 s/step), but the 1,000-iteration total uses only the flat lower bound. The ring-model total would be ~98,000 s (~27.2 h), not ~56,000 s (~15.6 h).",
+    "evidence": "Recomputation from the bullet's own inputs: 1,000 × 56 s = 56,000 s = 15.56 h; 1,000 × 98 s = 98,000 s = 27.22 h. The preceding sentence explicitly says the ring factor gives ~98 s per step. The phrase 'spent exclusively in communication' reads as the modeled communication time, not merely a lower bound.",
+    "root_cause": "The iteration total was computed from the flat-transfer lower bound while the same bullet had just introduced the ring-model value as the relevant all-reduce cost. The lower-bound qualifier is present, but the sentence's 'spent' wording and the 15.6-hour figure invite the reader to treat the lower bound as the expected communication budget.",
+    "correction": "Either state the 1,000-iteration total as a lower bound explicitly: 'at least ~56,000 s (15.6 h), and ~98,000 s (~27.2 h) under the ring model'; or use the ring-model value for the 'spent' sentence and keep the flat value only as a separate lower bound.",
+    "acceptance_test": "Recompute both totals from the quoted per-step values and verify that the sentence's stated total matches the model it claims to summarize; if it remains a lower bound, the text must say 'at least' and must not present 15.6 h as the ring-model communication time."
+  },
+  {
+    "id": "CH12-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch. 12 §3 Candidate (b) and Table 12-2",
+    "chapter": "12",
+    "quoted_clause": "at the canonical per-host KV budget, ~140 + ~436 = ~576 GB — comfortably under 640 GB; one request's 24 GB is not the pool's population",
+    "observed": "Candidate (b) uses ~436 GB as the per-host KV population while the same chapter's canonical per-request KV is ~24 GB and the canonical whole-context slot count is ~17.5. 17.5 × 24 GB = 420 GB, and 17.5 × 24.1 GB = 421.75 GB, not 436 GB. The 436 GB figure matches 17.5 × 24.9 GB, i.e. the 9.5K max-context value used in Ch. 13, not the 9.2K input-context value used in Ch. 12.",
+    "evidence": "Ch. 12 §3 states the canonical KV as 'approximately 24 GB' for 9.2K context. Ch. 11 §8 gives 'about 17.5 complete requests per host' and 'about 24.1 GB per request'. 17.5 × 24.1 = 421.75 GB; 140 + 421.75 = 561.75 GB. Ch. 13 §3 separately uses 9.5K max context and ~24.9 GB, which does yield 17.5 × 24.9 = 435.75 GB. Candidate (b)'s ~576 GB therefore silently imports the Ch. 13 max-context KV into a Ch. 12 calculation whose stated per-request KV is 24 GB.",
+    "root_cause": "Cross-chapter canonical-value drift: the 9.2K input-context KV (24.0–24.1 GB) and the 9.5K max-context KV (24.9 GB) are both legitimate but are not the same object. Candidate (b) labels the 436 GB figure as the 'canonical per-host KV budget' without stating which context length and slot count produce it.",
+    "correction": "Either recompute Candidate (b) with the Ch. 12 9.2K KV basis: 17.5 × 24.1 ≈ 422 GB, total ≈ 562 GB; or explicitly state that the 436 GB pool uses the 9.5K max-context KV (17.5 × 24.9 ≈ 436 GB) and distinguish it from the 9.2K single-request 24 GB figure. Apply the same basis consistently in Table 12-1 and Table 12-2.",
+    "acceptance_test": "For every occurrence of the ~436/~576 GB pool, show the slot count, per-request KV, and context length used; verify that 140 + slots × KV equals the printed total and that the same context length is used for the candidate's memory gate and its throughput/KV screen."
+  },
+  {
+    "id": "CH12-02",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch. 12 Table 12-2, candidate (b) cost row",
+    "chapter": "12",
+    "quoted_clause": "~21 hosts, ~$155.8K/mo total ($155,816.93 ≈ $24.97/1K; self-host, Ch 16) + fabric (adder not costed in Ch 16)",
+    "observed": "Candidate (b) is a P/D-disaggregated two-pool architecture. Table 12-2 separately states that its prefill pool needs ~19 hosts at peak and that it also needs a decode pool sized to 3K tok/s average / 12K tok/s peak. The cost row nevertheless assigns candidate (b) the same ~21-host total as candidate (a), without deriving the decode-pool host count or showing that prefill + decode hosts sum to ~21.",
+    "evidence": "Table 12-2 rows: 'Prefill hosts, peak 368K tok/s' for (b) = 'prefill pool ~19'; 'Decode capacity' for (b) = 'decode pool sized to 3K tok/s avg / 12K tok/s peak'; 'Monthly fully loaded cost' for (b) = '~21 hosts'. A two-pool design must close the host budget as prefill hosts + decode hosts + spare/headroom. The table gives no decode host count and no addition that yields 21. If the decode pool requires more than ~2 hosts, the ~21-host total is too low; if it requires fewer, the table should say so.",
+    "root_cause": "The cost row appears to reuse the canonical single-pool fleet total from Ch. 16 rather than closing the two-pool decomposition required by candidate (b). The prefill and decode pools are separate populations, so the single-pool host total is not a valid budget for the disaggregated candidate without an explicit decode-pool derivation.",
+    "correction": "Add a decode-pool host count and a closed sum: prefill hosts + decode hosts + spare/headroom = total hosts. If the decode pool is intentionally not sized in this chapter, mark the ~21-host cost as 'prefill-only / not a two-pool total' and remove the implication that candidate (b) costs the same as candidate (a).",
+    "acceptance_test": "Recompute the candidate (b) host total from its own stated prefill and decode populations; verify that the cost row's host count equals the sum of the two pools plus any stated spare/headroom, and that the dollar total is derived from that host count."
+  },
+  {
+    "id": "CH13-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch. 13 §3 Placing the Canonical Workload and §8 Mini-Case",
+    "chapter": "13",
+    "quoted_clause": "Ch16/17 size the fleet to ~21 hosts at the 40 rps peak on the full-utilization screen — 31 working / 32 total at the 70% × 95% policy",
+    "observed": "The text says the fleet is sized to ~21 hosts at the 40 rps peak on the full-utilization screen, then immediately gives 31 working / 32 total at the 70% × 95% policy. Those are different operating points: ~21 is the full-utilization KV/service-time screen, while 31 working / 32 total is the headroom-adjusted fleet. The sentence can be read as if ~21 hosts already satisfy the 70% × 95% policy, which they do not.",
+    "evidence": "Recomputation: 40 × 8.6 / 17 = 20.24 → 21 hosts at full utilization. Applying 0.70 × 0.95 = 0.665 gives 21 / 0.665 = 31.58 → 32 total, i.e. 31 working + 1 spare. The two figures are consistent only if the first is explicitly labeled 'full-utilization screen' and the second 'headroom-adjusted fleet'. The quoted sentence does label the first 'full-utilization screen', but the dash construction '~21 hosts ... — 31 working / 32 total' presents them as if they are the same sizing result.",
+    "root_cause": "Two different denominators (full utilization vs. 70% × 95% policy) are placed in one appositive without a clear 'before/after headroom' separation. The same pattern recurs in the 100 rps escalation example, where 51 full-utilization hosts become 74 or 78 hosts after headroom.",
+    "correction": "Rewrite as: '~21 hosts at full utilization; after the 70% × 95% policy and N−1 spare, 31 working + 1 spare = 32 total.' Apply the same explicit two-step phrasing in the 100 rps example.",
+    "acceptance_test": "For each fleet-size sentence, verify that the first number is labeled as the unheadroomed screen and the second as the headroomed total, and that the arithmetic from one to the other is shown or immediately recoverable."
+  },
+  {
+    "id": "CH14-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch. 14 §3 Step 2 and result worksheet",
+    "chapter": "14",
+    "quoted_clause": "The analytical KV quotient C ≈ 17.5 gives at most 17 whole-context slots, not a deployable concurrency of 17.5. At the assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a residency ceiling before headroom and competing resource limits.",
+    "observed": "The text correctly distinguishes the analytical quotient 17.5 from the integer floor 17, but then uses 17/8.6 ≈ 1.98 req/s as the 'residency ceiling' while the same chapter's canonical average-load screen elsewhere uses the unfloored 17.5-slot quotient to obtain ~2.0 rps. The two rates differ by about 2.7%, and the chapter does not state which one is the planning denominator for the benchmark sweep.",
+    "evidence": "17.5 / 8.6 = 2.0349 req/s; 17 / 8.6 = 1.9767 req/s. Ch. 13 §3 explicitly says the naive ~100 ÷ 2.0 screen uses the unfloored 17.5-slot quotient and that 50 hosts at the floored 17-slot rate deliver only ~98.8 rps. Ch. 14 uses the floored 17-slot rate for the benchmark ceiling but does not reconcile it with the ~2.0 rps figure used in the fleet screens.",
+    "root_cause": "The chapter mixes the analytical quotient (17.5) and the integer provisioning floor (17) without a single stated convention for which denominator applies to benchmark offered-load ranges versus fleet sizing.",
+    "correction": "State the convention explicitly: use 17.5 for analytical screens and 17 for hard host provisioning and benchmark saturation ceilings, or use 17 everywhere and revise the ~2.0 rps references. Add a one-line note that the difference is the fractional-slot rounding.",
+    "acceptance_test": "Check every occurrence of 17, 17.5, ~1.98, and ~2.0 req/s in Chs. 11–14 and verify that each is labeled analytical vs. provisioning and that the benchmark sweep's upper bound is consistent with the chosen denominator."
+  }
+]
+COVERAGE: Read the full supplied chunk (Chs. 9–14) as text. Recomputed the principal arithmetic in Ch. 9 (ring all-reduce traffic and times, flat vs. ring Ethernet totals, HDR/NDR and Gaudi port arithmetic), Ch. 10 (TP activation all-reduce bytes and step count, PP speedup formula, DP FP32 gradient traffic, EP and FSDP byte examples), Ch. 11 (KV per request, prefill FLOPs, P/D transfer times, 1.4 TB/s aggregate KV check, 344 in-flight requests), Ch. 12 (candidate residency, 19.8K/24.7K prefill rates, host-count screens, cost-per-1K figures, KV percentage), Ch. 13 (fleet-size arithmetic at 40 and 100 rps, headroom conversions), and Ch. 14 (benchmark sweep denominators and illustrative operating points). Checked cross-chapter canonical values (140 GB, 24.0–24.9 GB KV, 17/17.5 slots, 8.6 s service, 436 GB pool, 21 hosts, 6.24M requests/month, 92K/368K input tok/s, 3K/12K output tok/s). Did NOT verify external references, rendered figures, page numbers, PDF geometry, or any claim requiring the built PDF or source files; figure content was not reviewed because figures are stripped from this chunk.

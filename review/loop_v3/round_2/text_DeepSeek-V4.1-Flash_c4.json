@@ -1,0 +1,42 @@
+[
+  {
+    "id": "CH24-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 24 §3.3 (Candidate A/B worked case)",
+    "chapter": "24",
+    "quoted_clause": "Candidate A: 4×H100 hosts, 8-bit KV ... The KV-residency screen independently needs ~5 hosts at 10 rps (10 rps × 8.6 s × ~24.5 GB per request ÷ 436 GB ≈ 4.8, Ch 17)",
+    "observed": "The KV-residency screen uses the FP16 per-request KV footprint (~24.5 GB) while evaluating Candidate A, which the same paragraph specifies as using 8-bit KV. With 8-bit KV the per-request footprint is ~12.25 GB, so the Candidate A KV screen is ~2.4 hosts, not ~5. The claim that the two screens converge near 5 hosts at average load is therefore not valid for Candidate A.",
+    "evidence": "Candidate A is defined as '4×H100 hosts, 8-bit KV'. The screen computes 10 rps × 8.6 s × ~24.5 GB ÷ 436 GB ≈ 4.8. 24.5 GB is the FP16 9,500-token KV figure (9,500 × 2.62 MB ≈ 24.9 GB). Under 8-bit KV, 9,500 × 1.31 MB ≈ 12.45 GB, giving 10 × 8.6 × 12.45 ÷ 436 ≈ 2.4 hosts.",
+    "root_cause": "The worked case mixes candidate-specific KV precision with a baseline FP16 KV screen, so the Candidate A KV-residency requirement is overstated by roughly 2×.",
+    "correction": "Either compute Candidate A's KV screen with its stated 8-bit KV (~2.4 hosts) and Candidate B's with FP16 (~4.8 hosts), or explicitly state that the ~5-host KV screen applies to the FP16 baseline/Candidate B and not to Candidate A.",
+    "acceptance_test": "Recompute the average-load KV screen separately for Candidate A (8-bit KV) and Candidate B (FP16 KV); show which screen binds for each candidate and whether the 'converge near 5 hosts' statement survives."
+  },
+  {
+    "id": "CH25-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Chapter 25 §8 (ADR 0017, FP8 KV)",
+    "chapter": "25",
+    "quoted_clause": "This is a memory lever, not a compute lever: it does not change decode speed per token, it raises the concurrency the host can hold under the same KV budget.",
+    "observed": "The chapter's own decode model is bandwidth-bound and reads both weights and KV cache. At the 9,500-token canonical context, FP16 KV is ~24.9 GB per request versus ~140 GB of weights, so halving KV bytes to ~12.45 GB reduces total per-token memory traffic by roughly 7–8%. That can change decode speed per token; the blanket 'does not change decode speed per token' is too strong.",
+    "evidence": "Chapter 22/25 state decode is bandwidth-bound at ~1 FLOP/byte and ~5.6 TB/s weight-read rate. At 9,500 tokens, FP16 KV ≈ 24.9 GB; FP8 KV ≈ 12.45 GB. Total read per token falls from ~164.9 GB to ~152.45 GB, a ~7.5% reduction, before any kernel/overhead effects.",
+    "root_cause": "The text treats FP8 KV as purely a capacity lever and ignores the bandwidth saving from reading half as many KV bytes during decode.",
+    "correction": "Qualify the claim: FP8 KV primarily raises KV-residency capacity; it may also reduce decode KV-read bandwidth and therefore change decode speed, but the net effect must be measured. Do not state categorically that decode speed per token is unchanged.",
+    "acceptance_test": "Measure decode TPOT with FP16 vs FP8 KV at the canonical 9,500-token context on the target serving stack; report whether the ~7.5% traffic reduction produces a measurable TPOT change."
+  },
+  {
+    "id": "CH19-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Chapter 19 §8 (fallback ledger and p95 convention)",
+    "chapter": "19",
+    "quoted_clause": "Under the fallback-inclusive ledger the unconditional p95 equals the conditional p95 — the fallback occupies only the top 2%, so it cannot move the 95th percentile (under the zero-turn convention it lands exactly on the boundary, CDF(T ≤ 2) = 95.0%, and reads T = 2 → 440 ms — which is exactly why the convention must travel with the number)",
+    "observed": "The parenthetical mixes two different conventions. Under the fallback-inclusive ledger the fallback has 860 ms added orchestration, so CDF(≤440 ms)=93% and p95=660 ms. Under the zero-added-turn convention the fallback is folded into the ≤2-turn bucket, CDF(≤2 turns)=95.0%, and p95 reads 440 ms. The sentence says the fallback-inclusive p95 equals the conditional p95, then immediately describes a zero-turn convention that gives a different p95. The convention warning is correct, but the wording invites the reader to conflate the two numbers.",
+    "evidence": "Distribution: 68% T=1, 25% T=2, 5% T=3, 2% fallback. Fallback-inclusive added overhead: 220/440/660/860 ms. CDF(≤440)=93%, CDF(≤660)=98%, so p95=660 ms. Zero-turn convention: fallback contributes 0 added turns, so CDF(≤2 turns)=68+25+2=95%, p95=440 ms. Both are stated in the same paragraph without a clean separation.",
+    "root_cause": "The paragraph tries to explain why the convention must travel with the number but does not explicitly label which p95 belongs to which convention at the point of comparison.",
+    "correction": "Rewrite as two explicit sentences: 'Under the fallback-inclusive ledger (fallback = 860 ms), p95 = 660 ms. Under the zero-added-turn convention (fallback folded into T≤2), p95 = 440 ms. The two conventions give different p95 values; always state which is in use.'",
+    "acceptance_test": "Check that every p95/p99 statement in §8 names its convention and that the fallback-inclusive p95 (660 ms) and zero-turn p95 (440 ms) are not presented as the same quantity."
+  }
+]
+COVERAGE: Read Chapters 19–25 in the supplied chunk. Recomputed the main Chapter 19 token/KV/latency ledgers (α, task_input/output, W no-reuse/reuse, fallback ledger, distribution-weighted totals), Chapter 20 host-count and prefill/KV screens, Chapter 21 canary/request arithmetic, Chapter 22 token/FLOP/KV/decode arithmetic, Chapter 24 PIES/poisoning/red-team arithmetic, and Chapter 25 ADR footprint/FP8 KV arithmetic. Checked cross-chapter canonical values (9,200/300 tokens, 2.62 MB/token, 436 GB, 17/8.6≈2.0 req/s, 21/22/32/34 hosts, 6.24M req/mo). Did not verify external references, rendered figures, page numbers, or gates; figure content was not reviewed because figures are stripped from the chunk.

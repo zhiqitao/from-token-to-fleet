@@ -37,7 +37,7 @@ ax1.bar(x - w/2, [Of]*5, w, bottom=inp,        color='#6f9e5f', hatch='\\\\', ed
 # review FIG-19.2-02: the per-turn gamma sliver (65/20,070 ≈ 0.3%) is invisible
 # at bar scale; annotate it once with a leader so the segment is identifiable.
 ax1.annotate('generated\n$\\gamma$=65/turn', xy=(x[3] + w*0.30, base[3] + delta[3] + gamma[3]*0.5),
-             xytext=(0.44, 0.60), textcoords='axes fraction',
+             xytext=(0.10, 12000), textcoords='data',
              fontsize=8.4, ha='left', va='center', color='#8a4b00',
              arrowprops=dict(arrowstyle='-', lw=0.8, color='#8a4b00', shrinkA=2, shrinkB=2))
 ax1.set_ylabel('Tokens / request', fontsize=9)
@@ -92,7 +92,7 @@ fig.text(0.5, 0.135,
          'counterfactual: each column = a separate completion after T turns,\n'
          'including one final 300-token answer — not successive states of one live agent.\n'
          'Bars are RETAINED context/KV, not summed per-call processed or billed tokens;\n'
-         'processed tokens per submitted request grow ~2.5x under no prefix reuse (100-request ledger, Table 19-1).',
+         'tokens per submitted request grow ~2.5x under no prefix reuse (100-request ledger, Table 19-1).',
          ha='center', va='center', fontsize=8.6, color='#222')
 plt.subplots_adjust(left=0.12, right=0.97, top=0.78, bottom=0.28, wspace=0.40)
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',

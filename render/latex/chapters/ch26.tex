@@ -234,14 +234,15 @@ byte-for-byte, and it cannot serve semantic similarity (a true semantic
 cache needs an embedding/nearest-neighbour lookup, which still incurs
 encoding and lookup cost on hits). The capstone adopts exactly that
 embedding/nearest-neighbour variant: its hit path pays query encoding +
-cache lookup (the \textasciitilde50 ms term of §26.8 Step 2) and skips
-only the engine's prefill/decode --- which is why the component earns
-the \emph{semantic} label in the capstone. On top of the match method,
-the cache key must carry \textbf{authorization and corpus-version
-isolation}, because the canonical workload contains privacy-sensitive
-documents and organizational access constraints (Ch 4): two callers
-asking the same question may not be authorized to receive the same
-source passages or answer. A safe example key is
+cache lookup (the \textasciitilde50 ms term of §26.8 Step 2) ---
+replacing corpus retrieval --- and skips the engine's prefill/decode ---
+which is why the component earns the \emph{semantic} label in the
+capstone. On top of the match method, the cache key must carry
+\textbf{authorization and corpus-version isolation}, because the
+canonical workload contains privacy-sensitive documents and
+organizational access constraints (Ch 4): two callers asking the same
+question may not be authorized to receive the same source passages or
+answer. A safe example key is
 \texttt{(tenant,\ authorization-scope\ digest,\ normalized\ query\ or\ semantic\ key,\ corpus/index\ snapshot,\ policy/model/prompt\ revision)},
 with a recheck at serving time and explicit invalidation on document
 permission change, deletion/withdrawal, index refresh, and source-update
@@ -257,11 +258,12 @@ cache hit ratio of 35\% reduces the number of requests that reach the
 LLM engine by 35\%, lowering the generation work; the
 embedding/retrieval step is also skipped for exact-match hits (the
 raw-hash variant; the capstone's semantic variant instead pays encoding
-+ cache lookup on hits and skips only the engine). \mbox{{[}canonical
-scenario{]}}\hspace{0pt}\mbox{{[}HYPOTHESIS{]}} --- expanding the cache TTL from 5 to 15
-minutes increases hit ratio to \textasciitilde55\% with negligible
-staleness risk, because user questions in a support session repeat
-within the same session (to be validated, not assumed).
++ cache lookup on hits --- replacing corpus retrieval --- and skips the
+engine). \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}HYPOTHESIS{]}} --- expanding the
+cache TTL from 5 to 15 minutes increases hit ratio to
+\textasciitilde55\% with negligible staleness risk, because user
+questions in a support session repeat within the same session (to be
+validated, not assumed).
 
 \textbf{Pattern C --- Circuit Breaker.}
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- model-service latency p99
@@ -312,9 +314,10 @@ canonical fleet would have to be computed under §26.8's cost-basis rules
 --- §26.8 states those rules but does not perform the re-sizing --- and
 it is \emph{not} a 48\% figure; the old ``48\% (or 47\%)'' headline
 mixed a marginal-work saving with a fixed-fleet all-in cost and is not
-used. The Pattern-Measurement-Feedback Loop confirms the hypothesis that
-caching + load shedding is net positive on latency, and the architect
-documents the configuration as a reusable pattern instance.
+used. The Pattern-Measurement-Feedback Loop illustrates the hypothesis
+that caching + load shedding is net positive on latency (to be validated
+by the load test of §4), and the architect documents the configuration
+as a reusable pattern instance.
 
 \textbf{Alternatives considered.} Three obvious alternatives were
 weighed against the canonical constraints, and each is rejected for a
@@ -340,10 +343,10 @@ does not credit the deeper-batching lever for a cost saving it is
 simultaneously rejecting (see §26.8); sharding is treated as
 \textbf{baseline configuration} (the weights are already
 tensor-parallel), not as an incremental gain. Cache + circuit breaker
-wins on the \emph{latency} story --- cache hits remove the retrieval
-step and the breaker sheds tail load --- while its \emph{cost} benefit
-is the marginal-generation-work saving of the cache-hit share, stated on
-that basis.
+wins on the \emph{latency} story --- cache hits replace the retrieval
+step with a cache lookup and skip the engine, and the breaker sheds tail
+load --- while its \emph{cost} benefit is the marginal-generation-work
+saving of the cache-hit share, stated on that basis.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -491,8 +494,8 @@ instrumented and recorded in a genuine load test. The baseline has
 it; the 50 ms is plain corpus retrieval, and Pattern B's hit path later
 covers the same ground --- query encoding + cache lookup, of similar
 cost --- without the engine. These components sum to a
-\textbf{\textasciitilde450 ms baseline TTFT}, which the capstone uses
-directly as the baseline \textbf{p99} scenario value (a scenario input,
+\textbf{\textasciitilde450 ms baseline TTFT budget}, which the capstone
+declares as the baseline \textbf{p99} scenario value (a scenario input,
 not a derived quantile of a distributed sample; a real baseline p99 must
 come from a measured latency distribution). The 450 ms is a
 \emph{service-time sum with no queueing term}; at the offered
