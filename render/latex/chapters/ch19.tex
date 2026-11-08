@@ -260,7 +260,8 @@ production, the distribution of \emph{T} depends on query complexity.
 Consistent with the mini-case telemetry in §8 (68\% T = 1, 25\% T = 2,
 5\% T = 3, 2\% fallback), the illustrative turn distribution here has
 median \emph{T} = 1, 90th percentile \emph{T} = 2, and 95th percentile
-\emph{T} = 3 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- derived from the §8
+\emph{T} = 3 (conditional on a completed agent run --- the §7/§8
+convention) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- derived from the §8
 distribution.
 
 \textbf{What α does and does not measure.} \emph{α} measures
@@ -362,7 +363,7 @@ New model output
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Tool output
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Post-call retained context
+Post-call retained context (incl.~own output)
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
@@ -374,6 +375,14 @@ Post-call retained context
 4 --- synthesis & 11,795 & 300 (\(O_\text{final}\)) & --- & 12,095 \\
 
 \noalign{\label{tab:19.3}}\end{longtable}
+
+The column is the full appended history after each event (input + the
+event's own output, plus tool output where present), not the input-only
+\texttt{retained\_history} term above: rows 1--3 are also the
+\emph{next} call's input, while the synthesis row's 12,095 = 11,795
+input prefix + 300 \(O_\text{final}\) generated in that call
+(end-of-decode). Peak KV residency follows the same incl.-output
+convention --- 12,095 × 2.62 MB ≈ 31.7 GB --- which is the value \hyperref[chap:17]{Chapter 17} sizes T = 3 against (436 GB ÷ 31.7 GB ≈ 13.8/host).
 
 Derived totals for that same trace \mbox{{[}DERIVED{]}}:
 
@@ -449,13 +458,13 @@ decision step) and \(\lambda_\text{tool} \approx 100\) ms (median, tool
 backend). For \emph{T} turns the \textbf{added} orchestration overhead
 is \(T\cdot L_\text{agent}\) ≈ 220 ms at the median \emph{T} = 1, ≈ 440
 ms at the 90th percentile \emph{T} = 2, and ≈ 660 ms at the
-95th-percentile \emph{T} = 3 (consistent with the §8 turn distribution
-and the §4 turn-distribution note; \emph{T} is capped at 3, and the 2\%
-fallback is a zero-added-turn single-shot \emph{for this incremental
-expectation} --- its failed-attempt work is counted unconditionally in
-the §8 fallback ledger). These are the \textbf{incremental
-agent-orchestration} numbers, not the full request latency --- see the
-next section.
+95th-percentile \emph{T} = 3 (conditional on a completed agent run ---
+the §7/§8 convention; consistent with the §8 turn distribution and the
+§4 turn-distribution note; \emph{T} is capped at 3, and the 2\% fallback
+is a zero-added-turn single-shot \emph{for this incremental expectation}
+--- its failed-attempt work is counted unconditionally in the §8
+fallback ledger). These are the \textbf{incremental agent-orchestration}
+numbers, not the full request latency --- see the next section.
 
 \subsection{Multi-step reasoning cost}\label{multi-step-reasoning-cost}
 
@@ -510,7 +519,7 @@ W_\text{no-reuse}(3) = 4.93 + 12.375 + 0.399 \approx \mathbf{17.70\text{ s}}
 Under a \textbf{100\% prefix-reuse} policy only the incremental prefix
 (9,200 + 3×865 = 11,795) is pre-filled, giving
 \(W_\text{reuse}(3) \approx 14.16\) s. \textbf{The 13.85 s figure quoted
-in earlier passes was the single-prefill approximation --- it omitted
+in an earlier draft was the single-prefill approximation --- it omitted
 three of the four prefills and is superseded.} The two scenarios are
 distinct lead calculations; the manuscript never interpolates informally
 between them. The other columns, no-reuse: \(W(0) = 8.58\) s,
@@ -952,40 +961,46 @@ Fallback: 3 attempted turns + single-shot (2\%) & 660 ms +
 
 \noalign{\label{tab:19.4}}\end{longtable}
 
-Derived over all 100 requests: p50 = 220 ms, p90 = 440 ms, \textbf{p95 =
-660 ms} (the 93rd--98th percentile band), \textbf{p99 = 860 ms} (the
-fallback band --- invisible under the conditional convention, whose
-maximum is 660 ms), mean ≈ \textbf{310 ms} vs ≈ 299 ms conditional.
-\textbf{Cost per submitted request} = 2,392,670 tokens ÷ 100 submitted =
-\textbf{23,927 tokens}; \textbf{cost per completed request} = 2,392,670
-÷ 98 completed = \textbf{24,415 tokens}. Two different exclusions must
-not be confused: (i) excluding \emph{only the fallback's failed-attempt
-work} (each fallback's non-answer tokens, 39,890 − 9,500 = 30,390 per
-fallback) gives (2,392,670 − 2×30,390)/98 ≈ \textbf{23,795 tokens}, a
-reduction of \textbf{620 tokens (−2.5\%)}; (ii) excluding the
-\emph{entire fallback} (including its single-shot answer) gives
-\textbf{23,601}, which is \textbf{not} what ``excluding failed work''
-means. The correct ``wasted failed-attempt work'' figure is (i). The
-unconditional p95 happens to equal the conditional p95 --- the fallback
-occupies only the top 2\%, so it cannot move the 95th percentile --- but
-p99, the mean, and cost-per-completed-request all move, which is exactly
-why the convention must be stated with the number. The fallback's
-failed-attempt \emph{decode} (3 × 65 = 195 tokens ≈ 4.9 s at 25
-ms/token) is real GPU time: it does not appear in the orchestration-only
-metric, it appears in the fallback request's own full service time (the
-§4 evaluator applied to the fallback trace: (39,395/9,200)×1.08 +
-0.025×495 + 3×0.133 ≈ \textbf{17.40 s} --- not the completed T = 3 W(3)
-= 17.70 s, whose terminal synthesis call the fallback never makes) and
-in these token totals. \textbf{Note on the latency rows.} The
-\emph{incremental} request is dominated by the \textasciitilde8.6 s base
-generation (Ch 8), not the added orchestration; the
-\textasciitilde220--660 ms figures are the \emph{added} agent/tool
-overhead, not the complete request latency. The complete request is the
-\emph{full agentic service time W} row of \hyperref[tab:19.1]{Table 19-1} ---
-\textasciitilde11.52 s at the median T = 1 and \textasciitilde17.70 s at
-T = 3 under no-reuse (\textasciitilde10.44 s / \textasciitilde14.16 s
-under 100\% prefix reuse) --- which is the quantity \hyperref[chap:17]{Chapter 17} sizes the
-fleet against.
+The fallback row's 39,395 input decomposes as 30,195 (the three
+attempted turns --- 9,200 + 10,065 + 10,930 --- with no terminal
+synthesis call) + 9,200 (the fresh single-shot), which is why the tail
+row sits below the completed T = 3 row: 41,990 − 39,395 = 11,795 − 9,200
+= 2,595. Derived over all 100 requests: p50 = 220 ms, p90 = 440 ms,
+\textbf{p95 = 660 ms} (the 93rd--98th percentile band), \textbf{p99 =
+860 ms} (the fallback band --- invisible under the conditional
+convention, whose maximum is 660 ms), mean ≈ \textbf{310 ms} vs ≈ 299 ms
+conditional. \textbf{Cost per submitted request} = 2,392,670 tokens ÷
+100 submitted = \textbf{23,927 tokens}; \textbf{cost per completed
+request} = 2,392,670 ÷ 98 completed = \textbf{24,415 tokens}. Two
+different exclusions must not be confused: (i) excluding \emph{only the
+fallback's failed-attempt work} (each fallback's non-answer tokens,
+39,890 − 9,500 = 30,390 per fallback) gives (2,392,670 − 2×30,390)/98 ≈
+\textbf{23,795 tokens}, a reduction of \textbf{620 tokens (−2.5\%)};
+(ii) excluding the \emph{entire fallback} (including its single-shot
+answer) gives \textbf{23,601}, which is \textbf{not} what ``excluding
+failed work'' means. The correct ``wasted failed-attempt work'' figure
+is (i). Under the fallback-inclusive ledger the unconditional p95 equals
+the conditional p95 --- the fallback occupies only the top 2\%, so it
+cannot move the 95th percentile (under the zero-turn convention it lands
+exactly on the boundary, CDF(\emph{T} ≤ 2) = 95.0\%, and reads \emph{T}
+= 2 → 440 ms --- which is exactly why the convention must travel with
+the number) --- but p99, the mean, and cost-per-completed-request all
+move, which is exactly why the convention must be stated with the
+number. The fallback's failed-attempt \emph{decode} (3 × 65 = 195 tokens
+≈ 4.9 s at 25 ms/token) is real GPU time: it does not appear in the
+orchestration-only metric, it appears in the fallback request's own full
+service time (the §4 evaluator applied to the fallback trace:
+(39,395/9,200)×1.08 + 0.025×495 + 3×0.133 ≈ \textbf{17.40 s} --- not the
+completed T = 3 W(3) = 17.70 s, whose terminal synthesis call the
+fallback never makes) and in these token totals. \textbf{Note on the
+latency rows.} The \emph{incremental} request is dominated by the
+\textasciitilde8.6 s base generation (Ch 8), not the added
+orchestration; the \textasciitilde220--660 ms figures are the
+\emph{added} agent/tool overhead, not the complete request latency. The
+complete request is the \emph{full agentic service time W} row of \hyperref[tab:19.1]{Table 19-1} --- \textasciitilde11.52 s at the median T = 1 and
+\textasciitilde17.70 s at T = 3 under no-reuse (\textasciitilde10.44 s /
+\textasciitilde14.16 s under 100\% prefix reuse) --- which is the
+quantity \hyperref[chap:17]{Chapter 17} sizes the fleet against.
 
 \textbf{Architectural actions.} The team sets the turn limit to 3,
 instruments each turn's token and orchestration latency, and adds a

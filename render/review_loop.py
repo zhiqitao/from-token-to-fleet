@@ -24,11 +24,14 @@ V3 = os.path.join(REPO, "review/loop_v3")
 PROMPT_V1 = open(os.path.join(V3, "review_prompt_v2.md"), encoding="utf-8").read()
 
 MODELS = ["MiMo-V2.6-Flash-RL", "DeepSeek-V4.1-Flash",
-          "Ornith-1.5-122B", "Qwen3.8-27B"]
+          "Ornith-1.5-397B", "Qwen3.8-27B"]
 ENDPOINTS = {"im-eglb": "https://api-im.eglb.intel.com/v1",
              "qwen38": "http://100.105.225.59:30000/v1"}
 MODEL_EP = {m: "im-eglb" for m in MODELS}
 MODEL_EP["Qwen3.8-27B"] = "qwen38"
+# Round-1 Ornith slot spans two backends: c0/c5 + vision ran on 122B,
+# c1-c4 re-ran on 397B after 122B truncated. Merge globs both prefixes.
+ALIASES = {"Ornith-1.5-397B": ["Ornith-1.5-397B", "Ornith-1.5-122B"]}
 
 
 def load_key():
@@ -228,11 +231,12 @@ def stage_merge(round_no):
     per_model = {}
     for model in MODELS:
         issues = []
-        for fp in sorted(glob.glob(os.path.join(
-                outdir, "text_%s_c*.json" % model)) +
-                glob.glob(os.path.join(
-                outdir, "vis_%s_b*.json" % model))):
-            issues.extend(parse_issues(open(fp, encoding="utf-8").read()))
+        for prefix in ALIASES.get(model, [model]):
+            for fp in sorted(glob.glob(os.path.join(
+                    outdir, "text_%s_c*.json" % prefix)) +
+                    glob.glob(os.path.join(
+                    outdir, "vis_%s_b*.json" % prefix))):
+                issues.extend(parse_issues(open(fp, encoding="utf-8").read()))
         per_model[model] = issues
     # cross-model match: same chapter + similar quoted/observed text
     def key(iss):

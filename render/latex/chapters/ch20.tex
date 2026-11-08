@@ -42,9 +42,10 @@ The key concepts are:
   query to an available host, including placement decisions and data
   movement.
 \item
-  \textbf{Autoscaling break-even}: The point at which adding another
-  host reduces marginal cost per query versus the fixed cost of
-  provisioning and maintaining that host.
+  \textbf{Autoscaling break-even}: The point at which growth in SLO-good
+  requests covers the next host's fixed cost --- \emph{average} cost per
+  query falls as fixed costs amortize, while marginal cost per query
+  stays roughly constant (§2).
 \end{itemize}
 
 \ntsection{Mental Model}\label{mental-model}
@@ -190,9 +191,12 @@ ceiling is 8 × 0.989 PF/s × 35\% / (2 × 70e9) ≈ \textbf{19,780 tokens/s}
 (\hyperref[chap:8]{Chapter 8}, 35\% MFU, prefill-only --- \textbf{case (i), linear-only
 FLOP convention}). The ratio is 18,400 ÷ 19,780 ≈ \textbf{93\%} under
 case (i); under case (ii) (full-square, ×1.1723) the ceiling falls to
-≈16,870 linear-equivalent tok/s and the ratio becomes 2 × 1.5099 ÷
-2.7692 ≈ \textbf{109\%}, and under case (iii) (causal-triangle, ×1.0861)
-≈\textbf{101\%} --- so the \textasciitilde93\% headroom is a property of
+≈16,870 linear-equivalent tok/s and the ratio becomes 18,400 ÷ 16,870 ≈
+\textbf{109\%} (the same demand ÷ ceiling in PFLOP/s: 2 × 1.5099 ÷
+2.7692, with 2.7692 PFLOP/s the \hyperref[chap:8]{Chapter 8} 35\%-MFU host peak), and under
+case (iii) (causal-triangle, ×1.0861), ceiling ≈18,210 tok/s, 18,400 ÷
+18,210 ≈\textbf{101\%} --- above 100\% the prefill leg alone does not
+fit at 2 req/s --- so the \textasciitilde93\% headroom is a property of
 the linear-only convention, not of the hardware. Prefill must run at
 \textasciitilde93\% of the idealized prefill ceiling under case (i).
 This is \textbf{\mbox{{[}ANALYTICAL{]}}} (Axis-3 measurement status; defined
@@ -223,38 +227,46 @@ for 40 rps starts at \textbf{21 hosts} on the Little-bound --- ⌈40 × 8.6
 / 17⌉ = ⌈344/17⌉ = ⌈20.24⌉ = 21. The KV-residency bound coincides here
 --- by Little's law, the in-flight count at 40 rps is λ·W = 40 × 8.6 ≈
 344, and ⌈344/17⌉ = \textbf{21 hosts} (17 whole contexts per host, no
-fractional admission) --- so the two bounds are \emph{co-binding} at the
-peak, exactly as \hyperref[chap:17]{Chapter 17} notes (the two views are the same identity,
-λW/C = λ/(C/W)); the ρ ≈ 0.95 fractional-throughput derate raises the
-requirement to 344 / (0.95 × 17) = 344/16.15 ≈ 21.3 → \textbf{22 hosts}.
-Separately, the independent prefill compute screen (Ch. 8, 35\% MFU)
-gives \textbf{19 hosts under case (i)} (⌈18.60⌉, linear-only),
-\textbf{21 under case (iii)} (⌈20.21⌉, causal-triangle) and \textbf{22
-under case (ii)} (⌈21.81⌉, full-square conservative) --- note that case
-(ii)'s 22 is a \emph{different} 22 from the ρ-derate's 22 (one comes
-from a FLOP-counting case, the other from a throughput-efficiency derate
-of the KV screen); they coincide in value only by arithmetic accident.
-The ``far fewer hosts (\textasciitilde6)'' figure applies only to the
-10-rps average (⌈86/17⌉ = 6), not the 40-rps peak. The correct statement
-is: the fleet must satisfy every named screen, and the \emph{larger}
+fractional admission) --- so the Little and KV-residency formulations
+\emph{agree} at the peak: they are the same identity in two views (λW/C
+= λ/(C/W)), both giving 21, exactly as \hyperref[chap:17]{Chapter 17} notes --- while the
+token-throughput ceiling (⌈40 / 3.684⌉ = 11 hosts) stays non-binding
+here; the ρ ≈ 0.95 fractional-throughput derate raises the requirement
+to 344 / (0.95 × 17) = 344/16.15 ≈ 21.3 → \textbf{22 hosts}. Separately,
+the independent prefill compute screen (Ch. 8, 35\% MFU) gives
+\textbf{19 hosts under case (i)} (⌈18.60⌉, linear-only), \textbf{21
+under case (iii)} (⌈20.21⌉, causal-triangle) and \textbf{22 under case
+(ii)} (⌈21.81⌉, full-square conservative) --- note that case (ii)'s 22
+is a \emph{different} 22 from the ρ-derate's 22 (one comes from a
+FLOP-counting case, the other from a throughput-efficiency derate of the
+KV screen); they coincide in value only by arithmetic accident. The
+``far fewer hosts (\textasciitilde6)'' figure applies only to the 10-rps
+average (⌈86/17⌉ = 6), not the 40-rps peak. The correct statement is:
+the fleet must satisfy every named screen, and the \emph{larger}
 requirement wins --- \textbf{21 hosts under case (i), 22 under case
-(ii)}, and at the 70\% × 95\% + N−1 policy \textbf{34 under case (ii)
-versus 32 for KV-only} (⌈21.81/0.665⌉+1 = 34; ⌈344/11.305⌉+1 = 32 --- Ch
-17 \hyperref[tab:17.1]{Table 17-1}, u = 0.70 and ρ = 0.95 applied as two independent
-factors); \textbf{all of 19/21/22/32/34 are illustrative planning
-screens under their stated FLOP/MFU assumptions, not measured
-SLO-goodput.} \textbf{Reading \hyperref[fig:20.1]{Fig 20.1}'s two gaps:} below saturation the
-\textasciitilde5\% gap between C\_analytic(N) = N × 17/8.6 and C\_eff(N)
-= 0.95 × C\_analytic is the assumed throughput-efficiency derate; above
-saturation C\_eff − S, with S = min(40, C\_eff), is \emph{unused}
-capacity from insufficient offered demand --- not scheduling overhead.
-Queueing and tail-latency penalties are not determined by this two-line
-calculation and must be shown separately if claimed.
+(ii)}; with the standalone ρ = 0.95 derate applied to the prefill screen
+exactly as the policy arithmetic applies it, case (ii) rises to ⌈21.81 /
+0.95⌉ = \textbf{23 hosts} --- the largest requirement before the full
+policy (ρ = 0.95 is a throughput-efficiency derate: dividing the host
+requirement by ρ is the same as dividing each host's effective rate by
+ρ, so it applies to any throughput-bound screen --- KV or prefill ---
+and does not re-derive the 35\% MFU assumption itself); and at the 70\%
+× 95\% + N−1 policy \textbf{34 under case (ii) versus 32 for KV-only}
+(⌈21.81/0.665⌉+1 = 34; ⌈344/11.305⌉+1 = 32 --- Ch 17 \hyperref[tab:17.1]{Table 17-1}, u =
+0.70 and ρ = 0.95 applied as two independent factors); \textbf{all of
+19/21/22/23/32/34 are illustrative planning screens under their stated
+FLOP/MFU assumptions, not measured SLO-goodput.} \textbf{Reading \hyperref[fig:20.1]{Fig 20.1}'s two gaps:} below saturation the \textasciitilde5\% gap between
+C\_analytic(N) = N × 17/8.6 and C\_eff(N) = 0.95 × C\_analytic is the
+assumed throughput-efficiency derate; above saturation C\_eff − S, with
+S = min(40, C\_eff), is \emph{unused} capacity from insufficient offered
+demand --- not scheduling overhead. Queueing and tail-latency penalties
+are not determined by this two-line calculation and must be shown
+separately if claimed.
 
 \textbf{Scheduling overhead.} A lightweight round-robin scheduler adds
-\textasciitilde0.5 ms of dispatch latency per request --- negligible
-next to a real 7.5 s decode, but it must stay under \textasciitilde5\%
-of the \emph{measured} per-request time.
+\textasciitilde0.5 ms of dispatch latency per request \mbox{{[}ILLUSTRATIVE{]}}
+--- negligible next to a real 7.5 s decode, but it must stay under
+\textasciitilde5\% of the \emph{measured} per-request time.
 
 \textbf{Autoscaling economics.} Each 8×H100 host costs
 \textasciitilde\$20/hour (cloud, \$2.50/GPU-hr canonical) or
@@ -292,7 +304,8 @@ Target
 \bottomrule\noalign{}
 \endlastfoot
 \textbf{Aggregate rps} & Total queries processed per second across all
-hosts & ≥ 2× peak rps for comfort margin \\
+hosts & ≥ 2× peak rps for comfort margin (stress/soak target --- see
+note) \\
 \textbf{Scheduler-added p99 latency} & 99th-percentile time a request
 waits in the fleet dispatcher (NOT end-to-end --- model execution is
 multi-second here) & \textless{} 100 ms \\
@@ -349,12 +362,13 @@ placement contract.
   the entire fleet.
 \item
   \textbf{Overlooking data movement cost}: In RAG workloads, the
-  \textasciitilde9,200 in-tokens and \textasciitilde300 out-tokens per
-  query must be fetched from a vector database or cache. If every host
-  pulls data independently, the network cost scales linearly with fleet
-  size. A better approach is to colocate vector stores with serving
-  hosts or use a shared cache layer that amortizes fetch cost across
-  concurrent queries.
+  retrieved-context portion of the \textasciitilde9,200 in-tokens per
+  query must be fetched from a vector database or cache (the
+  \textasciitilde300 out-tokens are generated locally; only their egress
+  crosses the network). If every host pulls data independently, the
+  network cost scales linearly with fleet size. A better approach is to
+  colocate vector stores with serving hosts or use a shared cache layer
+  that amortizes fetch cost across concurrent queries.
 \item
   \textbf{Autoscaling too aggressively}: Adding hosts at the first sign
   of latency increase can be suboptimal if the bottleneck is scheduler
@@ -364,13 +378,13 @@ placement contract.
   \textbf{Ignoring cold-start cost}: When a host is freshly provisioned
   or re-warmed after idle, loading the full model weights into HBM takes
   30--120 seconds \mbox{{[}ILLUSTRATIVE{]}} (a load-path assumption for a
-  \textasciitilde140 GB model over a \textasciitilde10--40 Gb/s path ---
-  140 GB ÷ 30--120 s ≈ 4.7--1.2 GB/s --- not a hardware benchmark;
-  distinct from the much shorter KV-cache warm-up of \textasciitilde2 s
-  discussed in \hyperref[chap:15]{Chapter 15}, which re-populates only the retained KV
-  state). Autoscaling policies must account for this weight-load warm-up
-  window when scaling out a fresh host; otherwise the fleet experiences
-  a spike in error rate or timeout during scale-out events.
+  \textasciitilde140 GB model over a \textasciitilde10--40 Gb/s
+  (≈1.25--5 GB/s) path --- 140 GB ÷ 30--120 s ≈ 4.7--1.2 GB/s,
+  i.e.~≈37--9 Gb/s --- not a hardware benchmark; distinct from the much
+  shorter KV-cache warm-up of \textasciitilde2 s discussed in \hyperref[chap:15]{Chapter 15}, which re-populates only the retained KV state). Autoscaling
+  policies must account for this weight-load warm-up window when scaling
+  out a fresh host; otherwise the fleet experiences a spike in error
+  rate or timeout during scale-out events.
 \end{itemize}
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
@@ -421,12 +435,14 @@ ways:
 \subsection{The useful completion is an accepted
 clip}\label{the-useful-completion-is-an-accepted-clip}
 
-For a fixed output contract, a video fleet can report completed clips/s
-and generated frames/s together. Frames/s alone is ambiguous: larger
-frame counts can increase reported output work while reducing completed
-jobs. Across changing durations and frame rates, generated
-clip-seconds/s also needs a stated denominator and does not normalize
-the nonlinear attention cost.
+The same accepted-completion goodput accounting applies to any
+fixed-output-contract workload; a video-generation fleet is the clearest
+parallel beyond RAG. For a fixed output contract, a video fleet can
+report completed clips/s and generated frames/s together. Frames/s alone
+is ambiguous: larger frame counts can increase reported output work
+while reducing completed jobs. Across changing durations and frame
+rates, generated clip-seconds/s also needs a stated denominator and does
+not normalize the nonlinear attention cost.
 
 A useful goodput definition counts clips that satisfy the completion
 deadline, output-integrity checks, quality gate, and safety requirements
@@ -582,11 +598,11 @@ by KV residency per \hyperref[chap:17]{Chapter 17}):
   \textasciitilde7.5 s of decode alone (300 output tokens ×
   \textasciitilde25 ms/token, \hyperref[chap:8]{Chapter 8}), so no scheduler-overhead
   percentage can bring end-to-end p99 under 100 ms --- model execution
-  already exceeds the budget by two orders of magnitude. What the
-  scheduler \emph{can} bound is the overhead it adds \emph{on top of}
-  model execution. Here that overhead is a \textbf{target, not an
-  achieved prediction}: the dispatcher's added p99 overhead is specified
-  as
+  already exceeds the budget by \textasciitilde86× (8,580 ms ÷ 100 ms)
+  --- nearly two orders of magnitude. What the scheduler \emph{can}
+  bound is the overhead it adds \emph{on top of} model execution. Here
+  that overhead is a \textbf{target, not an achieved prediction}: the
+  dispatcher's added p99 overhead is specified as
   \texttt{≤\ 5\%\ of\ the\ request\ time\ on\ the\ same\ request\ population},
   and the \textasciitilde0.5 ms dispatch figure is a median/nominal
   value that \textbf{cannot establish p99} without a measured scheduler
@@ -619,3 +635,10 @@ by KV residency per \hyperref[chap:17]{Chapter 17}):
 \caption[Fleet capacity vs host count]{Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. \textbf{Takeaway:} the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency --- a plateau at the \textbf{workload's demand ceiling} (40 rps is the peak arrival rate, not the fleet's capacity limit). \textbf{Reading the two gaps:} below saturation the \textasciitilde5\% gap between C\_analytic and C\_eff is the assumed throughput-efficiency derate; above saturation C\_eff − S is \textbf{unused capacity from insufficient offered demand, not scheduling overhead} (demand is capped at 40 rps). Queueing/tail-latency penalties are not determined by this two-line calculation and must be shown separately if claimed. \textbf{Measured-vs-illustrative:} the served-demand curve is a derived construction --- \textbf{modeled served demand, not measured throughput} --- and validation (p95/p99, Ch 14) precedes treating the 21/22-host peak sizing as validated. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:20.1}\end{figure}
+
+\emph{Aggregate-rps note}: ≥ 2× peak = 80 rps is a \textbf{stress/soak}
+target, not the planning screen: sustaining 80 rps needs
+\textasciitilde41--43 hosts (80 / 1.977 = 40.5 → 41; with the ρ = 0.95
+derate → 43), a larger pool than the 21/22-host planning sizing, which
+delivers ≈ 41.5 rps ≈ 1.04× peak. The planning fleet passes its own
+screens at ≈ 1× peak; the 2× row is what a soak pool must sustain.

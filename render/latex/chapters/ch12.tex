@@ -200,11 +200,13 @@ competitive is quality, the still-open Ch 14 gate.
 \emph{Memory/residency arithmetic summary.} The canonical weights (140
 GB) + KV (24 GB FP16 at the 9.2K input context) = 164 GB fits 640 GB
 (8×H100). Candidate (a) uses the full host with room to spare. Candidate
-(b) keeps the full model in each pool, so each 8×H100 host also holds
-\textasciitilde164 GB. Candidate (c) fits \textasciitilde15 GB on one
-H100 and its throughput is high, but it is \textbf{provisional} --- its
-fate turns on the Ch 14 quality-gate measurement, not on parameter
-counting.
+(b) keeps the full model in each pool, so each 8×H100 host holds the
+same \textasciitilde164 GB single-request fit and --- at the canonical
+per-host KV budget --- up to \textasciitilde140 + \textasciitilde436 =
+\textasciitilde576 GB (§12.3), both under 640 GB. Candidate (c) fits
+\textasciitilde15 GB on one H100 and its throughput is high, but it is
+\textbf{provisional} --- its fate turns on the Ch 14 quality-gate
+measurement, not on parameter counting.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -397,15 +399,17 @@ per-host), far short of the \textasciitilde92K input tokens/s the 10 rps
 average demands, so the memory gate passes while the throughput gate
 already fails. Candidate (b): a P/D-disaggregated two-pool design
 keeping the full 70B in each pool (prefill and decode pools, each
-\textasciitilde164 GB residency on its own 8×H100 host), which buys
-phase-splitting at the cost of a second host plus the KV-transfer
-fabric. Candidate (c): a KV-quantized 7B model on a single H100, which
-fits the memory budget (\textasciitilde15 GB total residency: 14 GB FP16
-weights + \textasciitilde1.2 GB 4-bit KV), but its quality is
-\emph{provisional} --- whether a 7B-class model can reach the required
-answer quality is a hypothesis to be measured against the quality gate
-(\hyperref[chap:14]{Chapter 14}), not a settled fact --- and it faces the same throughput
-demand at peak, making it provisionally non-viable.
+\textasciitilde164 GB single-request residency --- up to
+\textasciitilde576 GB (140 + 436) at the canonical per-host KV budget
+(§12.3) --- on its own 8×H100 host), which buys phase-splitting at the
+cost of a second host plus the KV-transfer fabric. Candidate (c): a
+KV-quantized 7B model on a single H100, which fits the memory budget
+(\textasciitilde15 GB total residency: 14 GB FP16 weights +
+\textasciitilde1.2 GB 4-bit KV), but its quality is \emph{provisional}
+--- whether a 7B-class model can reach the required answer quality is a
+hypothesis to be measured against the quality gate (\hyperref[chap:14]{Chapter 14}), not a
+settled fact --- and it faces the same throughput demand at peak, making
+it provisionally non-viable.
 
 The architect does \textbf{not} discard Candidate (c) by parameter
 counting alone: it is provisionally moved to the quality-gate evaluation
@@ -461,7 +465,8 @@ cache \textbf{\mbox{{[}HYPOTHESIS{]}}}) · decode BW-bound & ✓ memory 164
 \textless{} 640 GB · ✓ TTFT SLO (≤1.2 s budget, p95 ≤2 s) &
 \textbf{conditional finalist} --- ✗ single-host capacity: needs
 \textasciitilde5 hosts (per-request-latency baseline only) \\
-(b) P/D-disaggregated & \textbf{164 GB} per pool (140 + 24) & 2 ×8×H100
+(b) P/D-disaggregated & \textbf{164 GB} single-request (140 + 24);
+\textasciitilde576 GB at the full KV budget (140 + 436) & 2 ×8×H100
 (baseline) & prefill pool \textasciitilde19.8K/host --- same as (a);
 per-host prefill throughput unchanged by disaggregation & ✓ memory per
 host · ✓ phase-split enables independent scaling & \textbf{conditional
