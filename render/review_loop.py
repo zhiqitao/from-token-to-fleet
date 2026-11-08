@@ -23,8 +23,12 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 V3 = os.path.join(REPO, "review/loop_v3")
 PROMPT_V1 = open(os.path.join(V3, "review_prompt_v2.md"), encoding="utf-8").read()
 
+# Panel = 3 models (user directive 2026-11-08): Ornith removed — its
+# reasoning blows the shared 65536 output window on dense chunks, forcing
+# split/retry ladders (3-6h vs DeepSeek's 31min clean pass). Round-1
+# Ornith findings already on disk are still dispositioned.
 MODELS = ["MiMo-V2.6-Flash-RL", "DeepSeek-V4.1-Flash",
-          "Ornith-1.5-397B", "Qwen3.8-27B"]
+          "Qwen3.8-27B"]
 ENDPOINTS = {"im-eglb": "https://api-im.eglb.intel.com/v1",
              "qwen38": "http://100.105.225.59:30000/v1"}
 MODEL_EP = {m: "im-eglb" for m in MODELS}
