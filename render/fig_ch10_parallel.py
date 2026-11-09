@@ -84,8 +84,8 @@ cbox(9.0, yA + 6.5, 20.0, 3.2, ORAN_F, ORAN_E, hatch='xxx')
 cbox(32.0, yA + 6.5, 20.0, 3.2, ORAN_F, ORAN_E, hatch='xxx')
 txt(19.0, yA + 8.1, 'GPU 0', size=9.5, weight='bold', color=INK)
 txt(42.0, yA + 8.1, 'GPU 1', size=9.5, weight='bold', color=INK)
-arrow(19.0, yA + 11.2, 19.0, yA + 9.7, ORAN_E)
-arrow(42.0, yA + 11.2, 42.0, yA + 9.7, ORAN_E)
+arrow(19.0, yA + 11.2, 19.0, yA + 9.7, BLUE_E)
+arrow(42.0, yA + 11.2, 42.0, yA + 9.7, BLUE_E)
 # all-reduce of the partial sums (box widened + text shrunk so it clears the
 # borders and the dotted non-hue hatch no longer ghosts through the glyphs)
 cbox(12.5, yA + 4.4, 37.0, 1.7, '#ffffff', RED, lw=1.3, hatch='...', ls='--')
@@ -95,7 +95,7 @@ txt(31.0, yA + 5.25, 'all-reduce partial sums  →  full output', size=8.0,
     bbox=dict(facecolor='white', edgecolor='none', pad=1.4))
 arrow(19.0, yA + 6.5, 20.5, yA + 6.1, RED)
 arrow(42.0, yA + 6.5, 41.5, yA + 6.1, RED)
-txt(3.0, yA + 2.3, 'communication: all-reduce every layer  →  on-node only (NVLink)',
+txt(3.0, yA + 2.3, 'communication: all-reduce every layer  →  on-node in the canonical config (NVLink)',
     size=8.5, color=MUTE, ha='left')
 
 # ======================================================================
@@ -117,7 +117,7 @@ txt(30.0, yB + 13.3, 'activations  →  P2P at stage boundaries', size=8.5, colo
 ax.add_patch(FancyBboxPatch((5.0, yB + 4.7), 15.0, 1.4,
                             boxstyle='round,pad=0.05,rounding_size=0.2',
                             fc='#f2f2f2', ec='#b8b8b8', lw=0.9, ls='--', zorder=1))
-txt(12.5, yB + 5.4, 'idle (bubble) at fill/drain', size=8.5, color=MUTE)
+txt(12.5, yB + 5.4, 'idle (bubble) at fill/drain — pipeline-wide', size=8.5, color=MUTE)
 txt(3.0, yB + 2.3, 'communication-light: only stage boundaries move  →  spans nodes',
     size=8.5, color=MUTE, ha='left')
 
@@ -144,7 +144,7 @@ arrow(19.0, yC + 11.6, 19.0, yC + 10.3, GREEN_E)
 arrow(42.0, yC + 11.6, 42.0, yC + 10.3, GREEN_E)
 arrow(29.0, yC + 8.3, 32.0, yC + 8.3, RED, style='<|-|>')
 txt(30.5, yC + 5.1, 'gradients ↔ all-reduce (training only)', size=8.5, color=RED)
-txt(3.0, yC + 2.3, 'inference: independent replicas, no sync  ·  throughput scales linearly',
+txt(3.0, yC + 2.3, 'inference: independent replicas, no sync  ·  throughput scales linearly until a shared resource binds',
     size=8.5, color=MUTE, ha='left')
 
 # ---- shared colour key: hue PLUS a redundant non-hue channel ------------------

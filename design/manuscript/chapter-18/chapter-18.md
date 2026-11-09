@@ -154,7 +154,7 @@ A mixed-model fleet changes the architecture in three ways:
 
 1. **Router shim** (HTTP middleware or gRPC interceptor) sits between the user API and the model execution layer. It evaluates feature requirements, reads current capacity, and selects model_id.
 2. **Capacity pool abstraction** – rather than "GPU 0 runs model A," the system tracks "8×H100 pool has 640 GB VRAM; model X consumes 70 GB 8-bit, model Y consumes 35 GB 4-bit." The pool manager auto‑balances placements.
-3. **Billing/telemetry pipeline** – each request's cost and latency are tagged with model_id, enabling downstream dashboards and alerting (e.g., "cost per token rising above $0.0025 (the §18.3.2 FP16 rate in per-token units; §18.8's FP16 tier is $0.003/token) for 3 consecutive hours").
+3. **Billing/telemetry pipeline** – each request's cost and latency are tagged with model_id, enabling downstream dashboards and alerting (e.g., "cost per token rising above $0.0000025 (the §18.3.2 FP16 rate of $2.50/1M in per-token units; §18.8's mini-case FP16 tier is quoted on its own per-token basis at $0.003/token) for 3 consecutive hours").
 
 The fleet operator becomes a *cost‑latency steward* rather than a single-model optimizer.
 
@@ -193,7 +193,7 @@ The p95 is now ~250 ms (all tiers under 500 ms), so the SLO is met. The saving n
 
 The key enabler was the router's feature gate: queries mentioning "multilingual" or "technical specification" were auto‑escalated to Tier 3; the rest flowed to Tier 1 or Tier 2 automatically.
 
-![Fig 18.1 — Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general and fallback model families as leaves [ILLUSTRATIVE conceptual][DERIVED]](figures/fig-18-1801.png)
+![Fig 18.1 — Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general-purpose and fallback model families as leaves [ILLUSTRATIVE conceptual][DERIVED]](figures/fig-18-1801.png)
 
 *The routing decision chain. A request first passes a capability filter (is there a specialized model that can serve it?), then a cost/SLO gate (route = f(cost, SLO)), and otherwise falls through to a general model. Each specialized family is a leaf the router can dispatch to. This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.*
 

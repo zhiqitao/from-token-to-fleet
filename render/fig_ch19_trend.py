@@ -83,7 +83,7 @@ for ax in (ax1, ax2):
 
 fig.suptitle('Token growth vs resulting KV growth across agent turns', fontsize=10.5, fontweight='bold')
 # explicit in-plot statement that this is an append-only illustrative model
-fig.text(0.5, 0.86, 'append-only illustrative model: context only ever accumulates across turns — nothing is evicted',
+fig.text(0.5, 0.86, 'append-only bounding case: context only ever accumulates across turns — nothing is evicted',
          ha='center', va='top', fontsize=8.6, style='italic', color='#444')
 # counterfactual column semantics (R08): each column is a SEPARATE completion
 # after T turns (incl. one final 300-token answer), not successive states of one

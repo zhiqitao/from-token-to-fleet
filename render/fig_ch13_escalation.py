@@ -81,9 +81,9 @@ for y, label in triggers:
 # DE-ESCALATION — thin dashed GREEN down-arrow (policy/governance), right side.
 # ---------------------------------------------------------------------------
 ax.annotate('', xy=(9.5, 0.95), xytext=(9.5, 10.1), arrowprops=dict(
-    arrowstyle='-|>', lw=1.6, color='#1e8449', ls='--', shrinkA=0, shrinkB=0))
-ax.text(8.0, 5.3, 'DE-ESCALATE:\nprivacy \u00b7 cost', ha='center', va='center',
-        fontsize=8.0, color='#1e8449', fontweight='bold', linespacing=1.3)
+    arrowstyle='-|>', lw=1.6, color='#1a6fa8', ls='--', shrinkA=0, shrinkB=0))
+ax.text(8.0, 5.3, 'DE-ESCALATE:\nprivacy \u00b7 sovereignty \u00b7 cost', ha='center', va='center',
+        fontsize=8.0, color='#1a6fa8', fontweight='bold', linespacing=1.3)
 
 # ---------------------------------------------------------------------------
 # Headings
@@ -91,7 +91,7 @@ ax.text(8.0, 5.3, 'DE-ESCALATE:\nprivacy \u00b7 cost', ha='center', va='center',
 ax.text(5.0, 12.15, 'The reference-architecture escalation ladder',
         fontsize=12.0, fontweight='bold', ha='center', va='center', color='#1a1a1a')
 ax.text(5.0, 0.35,
-        'escalate only when a constraint binds \u2014 else STOP; tiers are orthogonal levels of scale, not a ranking',
+        'escalate only when a constraint binds \u2014 else STOP; tiers are distinct levels of scale, not a quality ranking',
         ha='center', va='center', fontsize=8.0, color='#666')
 
 out = 'design/manuscript/chapter-13/figures/fig-13-1301.png'

@@ -116,8 +116,14 @@ gen  = hflow(gen_defs, RES, x0s + spec_w + groupgap, gap_eff)
 # Each horizontal arrow carries a 'no' label above it so the reader sees the
 # cascade as: match? yes -> leaf, no -> next gate. (R27 P2: the arrows were
 # unlabeled, so the 'else' path had to be inferred.)
+# every spine arrow is drawn, but only DECISION outcomes carry a 'no'
+# label: the Request -> Capability filter arrow is the ENTRY, not a
+# decision outcome (R3 P1: a 'no' on it reads as a bypass of the
+# capability filter; the filter's real 'no' is the arrow it emits).
 for i in range(len(spine)-1):
     arrow(spine[i][1], SP, spine[i+1][0], SP)
+    if i == 0:
+        continue
     ax.text((spine[i][1] + spine[i+1][0]) / 2, SP + 13, 'no',
             fontsize=FS-0.2, color='#555', ha='center', va='center', fontweight='bold')
 

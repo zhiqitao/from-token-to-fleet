@@ -124,7 +124,7 @@ ax.plot([req_month], [cloud_total], 'D', ms=8, color='#6f9e5f',
         mec='#2e5c3a', mew=1.2, zorder=6,
         label=f'cloud ${cloud_total/1000:.1f}K/mo @ {req_month/1e6:.2f}M '
               f'(occupancy input)')
-ax.loglog(req, managed, '-', color='#c0392b', lw=2.0,
+ax.loglog(req, managed, '--', color='#c0392b', lw=2.0,
           label=f'managed ${m3["per_1k"]:.2f}/1K')
 
 # ---- feasible bound + INFEASIBLE band (R04 / F0201) -----------------------

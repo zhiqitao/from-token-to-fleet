@@ -22,7 +22,7 @@ fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.plot(ctx, kv_fp16, '-o', color='#c0392b', label='full-MHA FP16 (bound, ~2.62 MB/tok)')
 ax.plot(ctx, kv_fp8, '-s', color='#e67e22', label='full-MHA FP8 (raw byte-halving, 50%)')
 ax.plot(ctx, kv_gqa, '-^', color='#27408b', label='GQA FP16 (~0.33 MB/tok)')
-ax.plot(ctx, kv_gqa8, '-v', color='#6f9e5f', label='GQA FP8 (raw, ~0.17 MB/tok)')
+ax.plot(ctx, kv_gqa8, '-v', color='#6f9e5f', label='GQA FP8 (raw, ~0.16 MB/tok)')
 ax.set_xscale('log'); ax.set_yscale('log')
 # v9 review: the default log formatter draws tick exponents as mathtext
 # superscripts = 0.7 x tick size = 7.0pt on page (sub-8pt).  Plain decimal tick

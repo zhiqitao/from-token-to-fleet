@@ -58,7 +58,7 @@ ax.plot(hosts, analytical, '-', color='#888', lw=1.8, zorder=4,
         label='analytical host capacity C_analytic = N x 17/8.6 (req/s)')
 ax.plot(hosts, c_eff, '--', color='#4a7ebb', lw=1.8, zorder=4,
         label='efficiency-adjusted capacity C_eff = 0.95 x C_analytic (req/s)')
-ax.plot(hosts, served, '-', color='#1f4e9c', lw=2.8, zorder=5,
+ax.plot(hosts, served, ':', color='#1f4e9c', lw=2.8, zorder=5,
         label='actually-served demand S = min(40, C_eff) (req/s)')
 
 # ---- canonical markers: 21 hosts (ideal) / 22 hosts (at 95%) / 40 rps ----

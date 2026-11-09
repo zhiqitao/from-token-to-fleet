@@ -50,9 +50,7 @@ stage_text(0.8, 7.4, ['1 · FACT',
                       'baseline TTFT p99 450 ms'], big=9.8)
 box(11.8, 7.4, BW, 2.5, '#16a085')
 stage_text_small(11.8, 7.4, ['2 · DERIVED',
-                            'sharding \u21d2',
-                            'decode bandwidth-bound',
-                            'TTFT mean 180 · p99 250 ms'], big=9.8)
+                            'decode bandwidth-bound'], big=9.8)
 
 # Bottom row: PATTERN (right, below DERIVED) so the flow turns clockwise
 box(11.8, 1.0, BW, 2.5, '#c0392b')

@@ -49,7 +49,7 @@ def review(piece, depth=0):
 
 
 for ci in [int(x) for x in sys.argv[1:]]:
-    fp = "review/loop_v3/round_2/text_%s_c%d.json" % (model, ci)
+    fp = "review/loop_v3/round_3/text_%s_c%d.json" % (model, ci)
     if os.path.exists(fp):
         cur = open(fp).read()
         if len(cur) >= 200:

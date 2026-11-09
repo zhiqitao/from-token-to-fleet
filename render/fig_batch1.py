@@ -95,7 +95,7 @@ ax.text(0.5, 0.965, 'Serving = four orthogonal concerns, not a stack',
 card(0.045, 0.52, 0.415, 0.30, 'REQUEST\nSCHEDULING', PURPLE, '#f7f3fb')
 card(0.540, 0.52, 0.415, 0.30, 'STATE\nMANAGEMENT', RED, '#fdecea')
 card(0.045, 0.10, 0.415, 0.30, 'REUSE', GREEN, '#eafaf0')
-card(0.540, 0.10, 0.415, 0.30, 'RESOURCE\nSPECIALISATION', ORANGE, '#fdf3e0')
+card(0.540, 0.10, 0.415, 0.30, 'RESOURCE\nSPECIALIZATION', ORANGE, '#fdf3e0')
 
 plt.tight_layout()
 plt.savefig(base % (11, 11, 11), dpi=350); plt.close()

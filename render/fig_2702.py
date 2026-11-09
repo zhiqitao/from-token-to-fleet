@@ -9,6 +9,7 @@ from matplotlib.patches import FancyBboxPatch
 # chapter annotation to the right with explicit gap.
 
 fig, ax = plt.subplots(figsize=(6.1, 7.6))
+fig.text(0.5, 0.012, 'blue = where the system runs · green = where the model runs', ha='center', fontsize=8.5, color='#555')
 fig._hermes_print_sized = True
 ax.set_position((0.0, 0.0, 1.0, 1.0))   # axes fills the figure
 ax.set_xlim(0, 8.0); ax.set_ylim(0, 10.8)

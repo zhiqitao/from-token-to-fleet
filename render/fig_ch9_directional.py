@@ -43,7 +43,7 @@ def main():
              ha='center', fontsize=12, weight='bold')
     fig.text(.5, .895, 'N = 8; sent bytes per rank = 1.75 × tensor bytes',
              ha='center', fontsize=9.5)
-    fig.text(.5, .85, '140 GB: NVLink 544 ms | HDR 6,125 ms | RoCE 98,000 ms',
+    fig.text(.5, .85, '140 GB tensor (245 GB sent at 1.75×): NVLink 544 ms | HDR 6,125 ms | RoCE 98,000 ms',
              ha='center', fontsize=9)
     fig.legend(*ax.get_legend_handles_labels(), loc='lower center',
                bbox_to_anchor=(.5, .055), fontsize=9, frameon=False)

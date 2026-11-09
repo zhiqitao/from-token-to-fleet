@@ -100,6 +100,9 @@ hardware. Conflating the two is exactly what produces a ``165 GB fits in
 \subsection{Count state by lifetime, not by the model
 label}\label{count-state-by-lifetime-not-by-the-model-label}
 
+The residency floor is not a property of the model label; it is a
+property of the set of tensors alive at peak.
+
 The weights-plus-KV floor in this chapter describes the autoregressive
 baseline. A diffusion language runtime needs a state-lifetime inventory
 before the same capacity calculation can be applied. We distinguish
@@ -834,9 +837,11 @@ MB/token (2 × 100 × 12288 × 2 B = 4,915,200 B).
   averages 9.2K input tokens but has a long tail toward 32K or 128K will
   have a very different KV cache profile. Log the 95th-percentile
   context length and re-run the KV arithmetic; the memory floor may
-  shift from fitting on 2×H100 to needing 8×H100. This is especially
-  important for RAG workloads, where the retrieved context may average
-  8K but occasionally peak at 32K+ for technical documents.
+  shift from already exceeding 2×H100 at the 9.2K average (164.1 GB
+  \textgreater{} 160 GB) toward needing most of the 8×H100 host at a
+  128K tail. This is especially important for RAG workloads, where the
+  retrieved context may average 8K but occasionally peak at 32K+ for
+  technical documents.
 \item
   \textbf{Measure inference residency as weights + KV, not weights
   alone.} It is common to see the 140 GB weight footprint (70B FP16) fit
@@ -951,8 +956,9 @@ enterprise-Q\&A workload:
   \textasciitilde1,120 GB under full Adam fine-tuning (weights 140 GB +
   gradients 140 GB + Adam m/v/master states 840 GB) --- roughly 1.75×
   the 8×H100 host. This is why the architect separates the serving fleet
-  from the training fleet: the memory floors differ by roughly 7× (164
-  GB vs \textasciitilde1,120 GB). \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+  from the training fleet: the memory floors differ by roughly 7×
+  (\textasciitilde164 GB at 9.2K vs \textasciitilde1,120 GB).
+  \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \item
   \textbf{Context length is the largest controllable KV lever.} Doubling
   context from 9.2K to 18.4K doubles KV (\textasciitilde24.1 GB →
@@ -1029,8 +1035,8 @@ keeps inference and training on separate memory-planning tracks.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): parameter count does not determine KV size --- KV per token is set by the attention shape (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. Scope: FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 KV footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde24.9 GB at 9.5K (total weights+KV residency then \textasciitilde165 GB, §7.1). The FP8 value is raw byte-halving (50\% of FP16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0701.pdf}}
-\caption[KV cache size vs context length, canonical 80-layer reference geometry]{KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): \textbf{parameter count does not determine KV size} --- KV per token is set by the \emph{attention shape} (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA \textasciitilde8× smaller. \textbf{Scope:} FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 KV footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde24.9 GB at 9.5K (total weights+KV residency then \textasciitilde165 GB, §7.1). The FP8 value is raw byte-halving (50\% of FP16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): parameter count does not determine KV size --- KV per token is set by the attention shape (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA with a 64:8 query-to-KV head ratio \textasciitilde8× smaller. Scope: FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 KV footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde24.9 GB at 9.5K (total weights+KV residency then \textasciitilde165 GB, §7.1). The FP8 value is raw byte-halving (50\% of FP16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0701.pdf}}
+\caption[KV cache size vs context length, canonical 80-layer reference geometry]{KV cache size vs context length, canonical 80-layer reference geometry (full-MHA vs GQA, FP8/8-bit): \textbf{parameter count does not determine KV size} --- KV per token is set by the \emph{attention shape} (layers × KV-heads × head-dim × precision), so a 70B full-MHA and a 70B GQA differ; full-MHA is the conservative upper-bound baseline, GQA with a 64:8 query-to-KV head ratio \textasciitilde8× smaller. \textbf{Scope:} FP16 \textasciitilde2.62 MB/token, FP8/8-bit \textasciitilde1.31; at 128K the FP16 KV footprint is \textasciitilde335 GB (vs the \textasciitilde436 GB KV budget), \textasciitilde24.9 GB at 9.5K (total weights+KV residency then \textasciitilde165 GB, §7.1). The FP8 value is raw byte-halving (50\% of FP16), not a vLLM-measured footprint --- block/scale-metadata not included (\hyperref[tab:7.1]{Table 7-1}). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:7.5}\end{figure}
 

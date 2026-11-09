@@ -121,18 +121,18 @@ def draw_panel(x0, x1, title, subtitle, flash):
     # caption of traffic reduction — BELOW the panel bottom edge (own vertical
     # band; the takeaway banner sits lower still, so the two never intersect).
     if not flash:
-        cap = ('O(L²) HBM traffic:\nevery query re-reads\nthe K/V row-block')
+        cap = ('O(L²) HBM traffic: L×L\nintermediate written + every\nquery re-reads the K/V rows')
     else:
         cap = ('K/V reused per tile —\nno single global K/V pass;\nno L×L intermediate at HBM')
     label((x0+x1)/2, panel_bottom-8, cap,
           C_TRAFFIC if not flash else C_OK, FS-1.2, va='top')
 
-draw_panel(p1x0, p1x1, 'BEFORE: naive / SDPA', 'intermediate written to HBM', False)
+draw_panel(p1x0, p1x1, 'BEFORE: naive (materialized)', 'intermediate written to HBM', False)
 draw_panel(p2x0, p2x1, 'AFTER: FlashAttention', 'per-tile reuse, stays on-chip', True)
 
 # divider + takeaway banner (its own band, with a clear gap above and below)
 banner_y = panel_bottom - 58
-label(W/2, banner_y, 'same Q·Kᵀ·V math and same result —\nthe gain is fewer HBM round-trips, not cheaper attention',
+label(W/2, banner_y, 'same Q·Kᵀ·V math, same result (up to last-bit rounding) —\nthe gain is fewer HBM round-trips, not cheaper attention',
       C_OK, FS-0.2, weight='bold', va='top')
 
 # scope footnote: qualify the 'read once' claim + cite the I/O bound.

@@ -1,0 +1,81 @@
+[
+  {
+    "id": "CH26-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 26 §3 Pattern A / §8 Step 1",
+    "chapter": "26",
+    "quoted_clause": "With tensor parallelism across the 8 H100s, a single host serves the model and can hold ~17.5 concurrent 9,500-token requests within the canonical ~436 GB KV budget from Chapter 15.",
+    "observed": "The chapter reuses the canonical ~436 GB KV budget and ~17.5 concurrent 9,500-token requests, but the worked example in §8 explicitly declares a distinct short-prompt workload, not the canonical 9.2K-input case. The 17.5 figure is therefore a canonical-scenario value, not a property of the capstone's short-prompt workload.",
+    "evidence": "§3 Pattern A states the canonical 9,500-token request count. §8 Step 1 says: 'The capstone declares a distinct short-prompt workload — it is not the canonical 9.2K-input/1.08-s-prefill case of Ch 4.' It then says the canonical C ≈ 17.5 and ~2.0 req/s ceiling are held as conservative planning caps. The text is careful about this in §8, but §3's Pattern A sentence reads as if the capstone host holds 17.5 concurrent 9,500-token requests. That is true only for the canonical workload, not the declared short-prompt capstone workload.",
+    "root_cause": "Cross-section scope drift: a canonical-scenario KV-resident request count is stated in the Pattern A description without the short-prompt caveat that §8 later supplies.",
+    "correction": "Qualify the Pattern A sentence: 'within the canonical ~436 GB KV budget from Chapter 15 for the canonical 9,500-token request; the capstone's shorter-prompt workload would have a different, higher resident-request count.'",
+    "acceptance_test": "Search Chapter 26 for '17.5' and '9,500-token'; every occurrence must either be explicitly scoped to the canonical 9.2K-input workload or accompanied by the short-prompt caveat."
+  },
+  {
+    "id": "CH26-02",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Chapter 26 §3 Capstone Execution / §8 Step 2",
+    "chapter": "26",
+    "quoted_clause": "one 8×H100 serving host + a 35% semantic response cache + circuit breaker yields an illustrative p99 TTFT ≈ 250 ms versus the ~450 ms uncached single-node baseline",
+    "observed": "The ~450 ms baseline is explicitly a service-time sum with no queueing term, while the text also says the offered ~2 rps is at ρ near 1 against the ~2.0 req/s ceiling, so a real queueing delay sits on top. The headline −44% therefore compares a no-queue baseline p99 to a cached p99 that is described as a scenario input, not a measured quantile. The text labels both as illustrative, but the comparison still risks reading as an end-to-end p99 improvement.",
+    "evidence": "§8 Step 1: 'These components sum to a ~450 ms baseline TTFT budget ... The 450 ms is a service-time sum with no queueing term; at the offered ~2 rps against the ~2.0 req/s analytical ceiling (ρ near 1), a real queueing delay sits on top — one more reason this baseline is a scenario input to re-measure.' §8 Step 2: 'a cache miss is served by the engine at ~250 ms (a scenario input ... the miss value assumes that queue has drained at the cached ~1.3 rps ... both distributions are Step 3 load-test targets).' The arithmetic (450−250)/450 ≈ 44% is correct, but the comparison is between two scenario inputs with different queueing assumptions.",
+    "root_cause": "The −44% headline is arithmetically correct but its denominator and numerator are not measured under the same queueing/operating-point conditions; the text acknowledges this in prose but still presents the percentage as a headline.",
+    "correction": "Either (a) label the −44% explicitly as 'a scenario arithmetic comparison, not a measured p99 improvement, because the baseline has no queueing term and the cached miss value assumes the queue has drained,' or (b) remove the percentage from the headline and present the two scenario values separately until a load test measures both under the same offered-load interval.",
+    "acceptance_test": "Every occurrence of '−44%' or '44%' in Chapter 26 must be adjacent to a statement that the baseline is a no-queue service-time sum and the cached value is a scenario input, not a measured p99."
+  },
+  {
+    "id": "CH26-03",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Chapter 26 §3 Alternatives considered",
+    "chapter": "26",
+    "quoted_clause": "The Pattern-Measurement-Feedback Loop illustrates the hypothesis that caching + load shedding is net positive on latency (to be validated by the load test of §4)",
+    "observed": "The load test is described in §8 Step 3, not §4. Section 4 is 'Measurement' and contains Table 26-1 and general measurement guidance; it does not contain the capstone load test.",
+    "evidence": "§4 is headed 'Measurement' and describes Table 26-1 and continuous measurement. §8 Step 3 is headed 'Validate' and contains the staged load test at ~3,000 users. The cross-reference '§4' is therefore wrong.",
+    "root_cause": "Stale or incorrect internal cross-reference.",
+    "correction": "Change 'the load test of §4' to 'the load test of §26.8 Step 3' or 'the load test in §8 Step 3'.",
+    "acceptance_test": "Search Chapter 26 for 'load test of §4'; it must not appear. The reference must point to §8 Step 3 or §26.8 Step 3."
+  },
+  {
+    "id": "APPA-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Appendix A §5 / Fig A.2",
+    "chapter": "Appendix A",
+    "quoted_clause": "Hybrid-attention models cut it ~4–14× at the mechanism in the named configurations — a band across models, not a universal constant",
+    "observed": "The stated ~4–14× band is a derived range from vendor-reported KV ratios, but the text does not show the arithmetic or identify which model supplies the low end and which supplies the high end. The low end appears to be GLM's 4.4× smaller KV cache, and the high end appears to be DeepSeek's ~7% KV (≈14.3× reduction). However, GLM's 4.4× is explicitly a per-layer/per-head normalized measure, while DeepSeek's ~7% is a different scope. The band therefore mixes non-comparable vendor ratios.",
+    "evidence": "§4 GLM: 'The release article compares it with GLM-5.3 using attention compute per head per layer and average BF16 KV cache per layer. On those normalized measures, it reports 3.0× less attention compute and a 4.4× smaller KV cache. These are not whole-model FLOP or total-cache ratios.' §1 DeepSeek: 'At 1M context, DeepSeek reports ~27% (Pro) / ~10% (Flash) of V3.2's single-token inference FLOPs and ~10% / ~7% of its KV cache.' §5 then says 'Hybrid-attention models cut it ~4–14× at the mechanism in the named configurations — a band across models, not a universal constant.' The 4.4× and ~14× are not the same metric.",
+    "root_cause": "The ~4–14× band aggregates vendor-reported ratios with different scopes (per-layer/per-head normalized KV vs. single-token KV-cache percentage) without a scope note.",
+    "correction": "Either (a) state the band as 'vendor-reported reductions range from ~4.4× on GLM's per-layer/per-head normalized KV measure to ~14× on DeepSeek's single-token KV-cache percentage; these are different scopes and not directly comparable,' or (b) remove the band and cite each model's reduction separately with its scope.",
+    "acceptance_test": "Every occurrence of '4–14×' in Appendix A must be accompanied by the scope of each endpoint (GLM per-layer/per-head vs. DeepSeek single-token KV percentage) and a statement that the endpoints are not directly comparable."
+  },
+  {
+    "id": "APPA-02",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Appendix A top matter / §8 First-hand Sources",
+    "chapter": "Appendix A",
+    "quoted_clause": "The four-family comparison is a snapshot as of the 2026-08-30 cutoff (with separately dated September and October observations outside the comparison).",
+    "observed": "The appendix also contains a November 1, 2026 revision note and a service-status caveat re-verified 2026-11-01. The sentence says 'September and October observations' but omits the November re-verification, which is a separate dated layer outside the snapshot.",
+    "evidence": "Top matter: 'Revision note — v20260913+addendum-20261101 (access date 2026-11-01) — DeepSeek service-status claims re-verified.' The same top matter says 'The 2026-09-27 observation in A.6 and the separately dated 2026-10-28 technology notes are outside this compile envelope.' The later sentence in 'This is a dated field guide' says 'with separately dated September and October observations outside the comparison,' which is incomplete.",
+    "root_cause": "The dated-layer summary was not updated when the November 1 re-verification note was added.",
+    "correction": "Change 'September and October observations' to 'September, October, and November re-verification notes' or 'separately dated post-snapshot notes, including the 2026-11-01 service-status re-verification.'",
+    "acceptance_test": "Search Appendix A for 'September and October observations'; it must not appear without also mentioning the 2026-11-01 re-verification."
+  },
+  {
+    "id": "APPA-03",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Appendix A §3 Qwen3.8-Flash-Next",
+    "chapter": "Appendix A",
+    "quoted_clause": "125 B total / 6 B activated, plus a separate 51 B of N-gram embedding parameters (offloadable to host memory). ... The 125B backbone, separate 51B n-gram tables and separately listed MTP module remain distinct parts of the residency inventory.",
+    "observed": "The text says the 51B n-gram embedding is 'offloadable to host memory' and later says it remains part of the 'residency inventory.' Those are not contradictory, but the chapter does not state whether the 51B is included in the 125B total or is additional. The Fig A.1 note says the 51B and 4B MTP are excluded from both numerator and denominator, implying they are additional to the 125B backbone. The prose '125 B total / 6 B activated, plus a separate 51 B' is clear enough, but the phrase 'total' could be read as complete deployed inventory.",
+    "evidence": "§3: '125 B total / 6 B activated, plus a separate 51 B of N-gram embedding parameters (offloadable to host memory).' Fig A.1 note: 'the denominator is the 125 B backbone; the separate 51 B n-gram embedding and 4 B MTP modules are excluded from both numerator and denominator, so this is a backbone fraction, not a fraction of the complete deployed parameter inventory.' The text is internally consistent but the word 'total' is ambiguous.",
+    "root_cause": "Terminology: 'total' is used for the backbone total, while the complete deployed inventory includes additional 51B and 4B modules.",
+    "correction": "Change '125 B total / 6 B activated' to '125 B backbone total / 6 B activated (plus a separate 51 B n-gram embedding and 4 B MTP module outside the backbone count).'",
+    "acceptance_test": "Every occurrence of '125 B total' in Appendix A must be immediately qualified as backbone-only, with the 51B n-gram and 4B MTP modules explicitly outside that total."
+  }
+]
+COVERAGE: Read the full Chapter 26 and Appendix A chunk. Recomputed Chapter 26 arithmetic: 2N=1.4e11; 70B×2B=140GB; 8×80GB=640GB; 436GB/2.62MB≈166k tokens; /9,500≈17.5; 17.5/8.6≈2.0 req/s; 2.0×0.65=1.3; 0.35×50+0.65×250=180ms; p99=250ms; (450−250)/450≈44%; (400−250)/400=37.5%; $0.01164×0.65≈$0.00757. Checked Appendix A active fractions: 104/2800≈3.7%; 13/284≈4.6%; 18/320≈5.6%; 6/125=4.8%; 144 bytes/256 values=4.5 bits/value. Checked cross-references, evidence labels, and scope notes. Did not verify external sources, rendered figures, or machine gates; figure content is outside this text-chunk review.

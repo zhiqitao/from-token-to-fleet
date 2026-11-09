@@ -76,7 +76,7 @@ WBOX = 330
 box(MID, wor_bot, WBOX, BOX_H, 'Workload characterization', 'tokens · cost · SLO', '#dff0d8')
 # row 2: five selection surfaces (parent) -- wrap the long subtitle over two lines
 box(MID, sur_bot, 392, BOX_H, 'Five selection surfaces',
-    'quality · latency · KV · $/tok · retrieve-vs-generate', '#fde3e0', sub_fs=8.0)
+    'quality · latency · KV cache · $/tok · retrieve-vs-generate', '#fde3e0', sub_fs=8.0)
 arrow(MID, wor_bot, MID, sur_bot+BOX_H)
 edge_label(MID+20, (wor_bot+sur_bot+BOX_H)/2, 'drives')
 

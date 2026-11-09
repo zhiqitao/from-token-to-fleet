@@ -123,7 +123,7 @@ reduce latency or whether we are already starved for bytes.
 book, three words that all contain ``bound'' mean three different
 things, and conflating them is a real error. \textbf{Compute-bound}
 means performance is limited primarily by arithmetic throughput (the
-kernel sits above the ridge; it is starved for FLOPs).
+kernel sits above the ridge; the compute units are the bottleneck).
 \textbf{Memory-bandwidth-bound} (what the roofline calls
 ``memory-bound'') means performance is limited by memory-transfer
 bandwidth (the kernel sits below the ridge; it is starved for bytes
@@ -199,19 +199,19 @@ deployment scenario that threads the prefill/decode divide.
 \ntsection{Mental Model}\label{mental-model}
 
 
-FLOPs are like the distance a car can travel on a gallon of fuel: it
-tells us the system's capacity, not how long the trip will take. The
-trip time is determined by the ridge point: if the arithmetic intensity
-is below the ridge, adding more FLOPs won't help because we are waiting
-for data. If we are above the ridge, we are limited by how fast the
-compute can chew through operations. The roofline chart --- peak TFLOPS
-on the vertical axis, FLOP/byte on the horizontal --- is the map that
-resolves this. Where our kernel lands on that chart decides whether we
-should profile memory bandwidth or compute throughput.
+FLOPs are like the total distance of a trip: they tell us how much work
+the request requires, not how fast the system can cover it. The trip
+time is determined by the ridge point: if the arithmetic intensity is
+below the ridge, adding more FLOPs won't help because we are waiting for
+data. If we are above the ridge, we are limited by how fast the compute
+can chew through operations. The roofline chart --- peak TFLOPS on the
+vertical axis, FLOP/byte on the horizontal --- is the map that resolves
+this. Where our kernel lands on that chart decides whether we should
+profile memory bandwidth or compute throughput.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- each is a different level of this ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- each is a different level of this ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.png}}
 \caption[Where inference computation and data movement actually live]{Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- each is a different level of this ladder. \textbf{Schematic note:} the vertical ordering is a \emph{relative} speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:8.1}\end{figure}
@@ -714,11 +714,12 @@ Three measurable quantities anchor compute sizing:
   TB/s ≈ 206 FLOP/byte --- H200 keeps H100's GH100 die and its dense
   FP16 peak, trading a bigger/faster HBM3e for bandwidth --- more
   bandwidth at a similar BF16 peak, so its ridge is \emph{lower}; GB200:
-  higher on both terms (dense BF16 peak 5,000 TFLOPS over 16 TB/s HBM3e
-  → \textasciitilde312 FLOP/byte, above H100's \textasciitilde295), so
-  its BF16 ridge is higher, and its NVFP4 ridge higher again). If
-  intensity is below the ridge, the kernel is memory-bound; above,
-  compute-bound.
+  higher on both terms (dense BF16 peak 4,500 TFLOPS = 2× B200's 2,250,
+  over 16 TB/s HBM3e → 4,500 ÷ 16 ≈ 281 FLOP/byte, just below H100's
+  \textasciitilde295 --- its 4.8× bandwidth advantage slightly outpaces
+  its 4.5× compute advantage), while its NVFP4 ridge is far higher
+  again). If intensity is below the ridge, the kernel is memory-bound;
+  above, compute-bound.
 \end{enumerate}
 
 A compute roofline does not include every exposed distributed stall. A
@@ -987,8 +988,10 @@ PFLOP/s, so the fleet spans several nodes --- Ch 24's prefill screen:
 1.63 nodes at 100\% MFU, \textasciitilde5 at 35\% MFU). The system is
 serving \textasciitilde10 requests/s average with \textasciitilde9.2K
 input + 300 output tokens per request, and the TTFT budget is being
-missed: p95 TTFT is 2.8 s, exceeding the SLO of 2 s. The TPOT of 28
-ms/token is within spec, but the prefill delay is the bottleneck.
+missed: p95 TTFT is 2.8 s, exceeding the 2 s p95 TTFT SLO (the 1.2 s
+figure is the internal design budget). The TPOT of 28 ms/token is within
+the 35 ms p95 TPOT SLO (though above the 25 ms design budget), but the
+prefill delay is the bottleneck.
 
 The temptation is to reach for a roofline and ``prove'' prefill is
 memory-bound. That reasoning is wrong here, and the error is worth

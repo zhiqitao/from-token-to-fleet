@@ -56,7 +56,7 @@ levels = [
     ('shared mem\n(SRAM)', 'on-chip · close', C_ONCHIP),
     ('L2 cache', 'on-die', C_ONCHIP),
     ('HBM (GPU\nmemory)', 'large · slower', C_MEM),
-    ('GPU\ninterconnect', 'host / multi-GPU', C_NET),
+    ('GPU\ninterconnect', 'GPU↔GPU and host links', C_NET),
     ('other GPUs\n/ remote', 'farthest', C_NET),
 ]
 ladder_w = 150; h = 46; gap = 3

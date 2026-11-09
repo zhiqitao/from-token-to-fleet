@@ -39,7 +39,7 @@ JSON_SRC = os.path.join(ARCH, NAME + ".json")
 MIN_HTML = os.path.join(ARCH, NAME + "-min.html")
 DELIVER = os.path.join(ARCH, NAME + "-deliver.html")
 TARGET = os.path.join(REPO, "design/manuscript/chapter-01/figures/fig-01-token-travel")
-ARCHIFY = "/home/ubuntu/tools/archify/archify/bin/archify.mjs"
+ARCHIFY = "/home/ubuntu/projects/tools/archify/archify/bin/archify.mjs"
 
 FONT_FLOOR = float(os.environ.get("FONT_FLOOR", "14.6"))  # px in SVG units
 FONTBOOST = "1.45"
@@ -133,7 +133,7 @@ def fit_edge_backplates(document):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        result = subprocess.run(['chromium', '--headless=new', '--no-sandbox',
+        result = subprocess.run(['chromium-browser', '--headless=new', '--no-sandbox',
             '--disable-gpu', '--virtual-time-budget=3000', '--dump-dom',
             'http://127.0.0.1:%d/' % server.server_port],
             capture_output=True, text=True, check=True, timeout=40)

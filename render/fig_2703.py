@@ -29,7 +29,7 @@ ax.set_xlim(0, 12); ax.axis('off')
 
 # Legend (three clearly separated rows at the top)
 legend = [
-    ('Efficiency-led (dashed) \u2014 context / cost / capacity', colors['eff'], '--', 1.2),
+    ('Efficiency-led (dashed) \u2014 context / cost / capacity; darker shade = MoE transition ~2022', colors['eff'], '--', 1.2),
     ('Capability-led (solid) \u2014 reasoning / test-time / agentic', colors['cap'], '-', 1.2),
     ('Fleet (thick) \u2014 multi-model "intelligence placement"', colors['fleet'], '-', 2.4),
 ]

@@ -76,7 +76,7 @@ ax.text(W/2, T - 44,
         'NOT A CROSS-MODEL PERFORMANCE RANKING',
         fontsize=FS_R+2.2, ha='center', va='center', color='#8b1e13', fontweight='bold', zorder=2)
 ax.text(W/2, T - 62,
-        "Each figure is relative to that model's OWN stated baseline — no shared scale",
+        "Each row is relative to that model's OWN stated baseline — no shared scale",
         fontsize=FS_R+0.2, ha='center', va='center', color='#8b1e13', zorder=2)
 
 # ---- row-scheme note (Loop-2): the grid is one row per REPORTED model ----

@@ -1,0 +1,81 @@
+[
+  {
+    "id": "CH19-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 19 §6, Task economics",
+    "chapter": "19",
+    "quoted_clause": "where $p_\\text{success} > 0$ is the task success rate and tokens/call is itself inflated by the agentic amplification *α* from Section 4.",
+    "observed": "The task-economics formula treats α as a per-call token inflator. But §4 explicitly defines α as retained/accumulated context relative to the single-shot baseline, not as the total model-processed or API-billed token multiplier. For T=3, α≈1.27×, while the per-call inputs are 9,200 / 10,065 / 10,930 / 11,795 and the no-reuse task_input multiplier is 41,990/9,500≈4.42× (or 42,485/9,500≈4.47× including output).",
+    "evidence": "§4: “α measures retained/accumulated task context … It is not the total model-processed or API-billed token multiplier.” The event ledger gives task_input=41,990 and task_output=495 for T=3, so the no-reuse billed-token multiplier is 42,485/9,500≈4.47×, not α≈1.27×. The formula’s “tokens/call × $/token” term therefore undercounts the no-reuse execution trace if α is used as the multiplier.",
+    "root_cause": "The task-economics formula collapses the retained-context amplification α with the execution-trace token total, despite §4’s explicit separation of the two quantities.",
+    "correction": "Replace “tokens/call is itself inflated by the agentic amplification α” with a reference to the execution-trace totals: use Σ per-call input and output tokens (or the no-reuse/reuse billed-token totals) in the cost numerator, and state that α is only the retained-context ratio, not the per-call or billed-token multiplier.",
+    "acceptance_test": "Recompute the cost-per-successful-task formula for the T=3 trace using (a) α and (b) the event-ledger task_input/task_output totals; show that (a) gives a different and lower token count than the no-reuse ledger, and revise the formula so the numerator uses the execution-trace totals or an explicitly defined billed-token multiplier."
+  },
+  {
+    "id": "CH20-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 20 §3, simultaneous feasibility check",
+    "chapter": "20",
+    "quoted_clause": "The ratio is 18,400 ÷ 19,780 ≈ **93%** under case (i); under case (ii) (full-square, ×1.1723) the ceiling falls to ≈16,870 linear-equivalent tok/s and the ratio becomes 18,400 ÷ 16,870 ≈ **109%** ... and under case (iii) (causal-triangle, ×1.0861), ceiling ≈18,210 tok/s, 18,400 ÷ 18,210 ≈**101%** — above 100% the prefill leg alone does not fit at 2 req/s",
+    "observed": "The text uses the displayed 2.0 req/s stress screen to compute prefill demand 18,400 input tok/s, then compares it to prefill ceilings derived from the 35% MFU host peak. But the same section states that the per-host rate is 17/8.6=1.977 req/s, not 2.0 req/s, and that 2.0 is “slightly above the unrounded” bound. At 1.977 req/s the prefill demand is 1.977×9,200=18,188 tok/s, not 18,400. The 93%/109%/101% ratios are therefore computed at a deliberately inflated stress rate, not at the stated analytical bound.",
+    "evidence": "The section itself says: “Evaluated at the displayed ~2.0 rps — a deliberate stress screen, slightly above the unrounded 17/8.6 = 1.977 — the prefill demand is 2.0 × 9,200 = 18,400 input tokens/s per host.” The analytical per-host rate is 17/8.6=1.977. Recomputing at 1.977 gives 18,188 tok/s; the case (i) ratio becomes 18,188/19,780≈92%, case (ii)≈108%, case (iii)≈100%. The qualitative conclusion (little headroom; case (ii)/(iii) at or above 100%) survives, but the printed ratios are tied to the stress screen, not the analytical bound.",
+    "root_cause": "The feasibility check uses the rounded/stress 2.0 req/s value while the surrounding text defines the analytical bound as 17/8.6=1.977 req/s. The operator “≈” is used, but the downstream percentage is presented as if it were the bound’s ratio.",
+    "correction": "Either label the 18,400-token demand explicitly as the stress-screen demand (2.0 req/s) and keep the ratios as stress-screen ratios, or recompute the ratios at the analytical 1.977 req/s bound (18,188 tok/s) and state both. Do not present the 93%/109%/101% figures as the analytical bound’s ratios without the stress-screen qualifier.",
+    "acceptance_test": "Recompute the prefill demand and ratios at both 1.977 req/s and 2.0 req/s; confirm the text distinguishes the analytical-bound ratios from the stress-screen ratios, and that any downstream “does not fit” conclusion is tied to the correct operating point."
+  },
+  {
+    "id": "CH22-01",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 22 §3, Table 22-1",
+    "chapter": "22",
+    "quoted_clause": "prefill FLOPs per request (full-square attention, conservative) | ~1.5099 PFLOP | 1.288 + 4 ×80 ×9,200² ×8,192 = 1.288 + 0.2219 (+17.23%)",
+    "observed": "The table’s expression omits the multiplication by the number of layers in the written form: the attention term is 4·n_layers·L²·d, i.e. 4×80×9,200²×8,192. The printed expression “4 ×80 ×9,200² ×8,192” is arithmetically correct if read as 4×80×9,200²×8,192, but the surrounding text and Note 22.1-1 use 4·n_layers·L²·d. The table’s “1.288 + 0.2219” is correct; the issue is only that the displayed expression can be misread as 4×80×9,200²×8,192 without the layer factor being visually separated.",
+    "evidence": "Note 22.1-1: “Full-square: the quadratic attention term 4·n_layers·L²·d equals the parameterized-linear term 2N·L at L* = N/(2·n_layers·d).” The table’s numeric result 0.2219 PFLOP is consistent with 4×80×9,200²×8,192. This is a presentation/legibility issue, not a numerical error.",
+    "root_cause": "The table’s inline expression is compressed and does not visually separate the layer count from the rest of the attention term.",
+    "correction": "Rewrite the table entry as “1.288 + 4·80·(9,200)²·8,192 = 1.288 + 0.2219 (+17.23%)” or add a parenthetical “(4·n_layers·L²·d with n_layers=80, d=8,192)”.",
+    "acceptance_test": "Check that a reader can reproduce 0.2219 PFLOP from the printed expression without consulting Note 22.1-1, and that the expression explicitly identifies n_layers=80 and d=8,192."
+  },
+  {
+    "id": "CH23-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 23 §8, mini-case",
+    "chapter": "23",
+    "quoted_clause": "a 7B-class model on one on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst buffer, quality-gated on real resolved tickets — and a two-week pilot on 5% of tickets to confirm the referral quality before full rollout.",
+    "observed": "The mini-case states a 200-rps burst alongside a single on-prem GPU and a 7B-class model. If “200-rps burst buffer” means the GPU must serve 200 requests/s, the prefill demand alone is 200×500=100,000 input tokens/s. For a 7B model, prefill FLOPs are 2×7×10⁹×500=7×10¹² FLOP/request, so 200 rps requires 1.4×10¹⁵ FLOP/s=1.4 PFLOPS, above one H100’s dense FP16 peak (~0.989 PFLOPS) and far above a realistic 30–40% MFU. The phrase “burst buffer” may mean a queue that absorbs bursts rather than a served rate, but the sentence does not distinguish buffered arrivals from served throughput.",
+    "evidence": "The same chapter’s canonical arithmetic uses 2×params×tokens for prefill. At 500 tokens and 7B parameters, one request is ~7 TFLOP; 200 rps is ~1.4 PFLOPS. One H100 dense FP16 peak is ~0.989 PFLOPS (Ch 8 canonical). The text does not state the output length, batching, or whether the 200-rps burst is queued rather than served.",
+    "root_cause": "The mini-case uses “200-rps burst buffer” without defining whether 200 rps is an arrival rate absorbed by a queue or a served rate on the single GPU. The surrounding arithmetic is not shown, so the feasibility of the single-GPU recommendation is ambiguous.",
+    "correction": "Clarify that the 200-rps burst is an arrival/buffer requirement, not a sustained served rate on one GPU; state the queueing/SLO assumption and the expected drain time, or revise the hardware recommendation if 200 rps is intended as a served rate.",
+    "acceptance_test": "Recompute the single-GPU prefill capacity for 500-token, 7B requests at the stated MFU; show that the 200-rps burst is either buffered (with a stated queue and drain-time assumption) or infeasible on one GPU, and make the text state which interpretation is intended."
+  },
+  {
+    "id": "CH24-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 24 §3.1 and §8",
+    "chapter": "24",
+    "quoted_clause": "After deduplication by normalized edit distance at a fixed threshold (we use normalized Levenshtein distance ≤ 0.25 as the equivalence criterion), the unique exposure surface is **PIES = 217** [ILLUSTRATIVE] — author-defined operational proxy; the 217 is not reproducible from the text alone, since the dedup threshold is a local choice, the greedy assignment is order-sensitive (generation order, representative selection, and tie-break are unspecified), and normalized edit distance captures textual, not semantic, similarity.",
+    "observed": "The chapter correctly labels PIES as an order-sensitive, author-defined heuristic and says 217 is not reproducible from the text alone. But §8 then compares PIES values across cycles (217 → 143 → 138) and states “both values from the same order-sensitive dedup heuristic, compared under a fixed generation order.” The text does not state the fixed generation order, representative-selection rule, tie-break rule, or normalization denominator, so the cross-cycle comparison is not reproducible from the printed record. The caveat is present, but the mini-case’s quantitative trend is still presented as a measured improvement.",
+    "evidence": "§3.1: “Without a canonical generation order, normalization denominator, representative-selection rule, stable sort, tie-break rule, and test fixture, the count is well-defined only within a single fixed run.” §8: “PIES has dropped from 217 to 143 … (both values from the same order-sensitive dedup heuristic, compared under a fixed generation order — §3.1).” The fixed order is asserted but not specified.",
+    "root_cause": "The chapter acknowledges the reproducibility gap but then uses the PIES trend as a quantitative outcome without supplying the missing fixed-run parameters.",
+    "correction": "Either provide the fixed generation order, normalization denominator, representative-selection rule, stable sort, tie-break rule, and test fixture in the text or an appendix, or downgrade the 217→143→138 trend to an explicitly non-reproducible illustrative sequence and avoid treating the drop as evidence of guardrail effectiveness.",
+    "acceptance_test": "A reader can reproduce 217, 143, and 138 from the printed rules and a stated probe corpus/order; if not, the text must not present the PIES drop as a measured or comparable result."
+  },
+  {
+    "id": "CH25-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 25 §3, ADR 0016",
+    "chapter": "25",
+    "quoted_clause": "A100 (and the 8×H100 host) natively supports BF16 and TF32 on its Tensor Cores. There is no \"next GPU generation\" required and no explicit-casting penalty; the premise that these formats wait for future hardware is itself the kind of error an ADR should catch.",
+    "observed": "The ADR is about a 70B model on an 8×H100 host, but the rationale cites “A100 (and the 8×H100 host)” as if A100 and H100 are interchangeable evidence for native BF16/TF32 support. The canonical host is H100, not A100. The sentence is not numerically wrong, but it weakens the ADR’s evidence chain by mixing GPU generations in a decision record whose context is explicitly 8×H100.",
+    "evidence": "ADR 0016 Context: “The fleet runs a 70-billion-parameter dense model for RAG Q&A serving on an 8×H100 host (640 GB).” The rationale then says “A100 (and the 8×H100 host) natively supports BF16 and TF32.” The H100 support is the relevant fact; the A100 reference is extraneous and could confuse readers about which hardware was validated.",
+    "root_cause": "The ADR’s evidence sentence mixes A100 and H100 support without separating the canonical host from a prior-generation example.",
+    "correction": "Rewrite to “H100 Tensor Cores natively support BF16 and TF32; A100 also supports them, but the canonical host here is 8×H100.” Or remove the A100 reference from the decision rationale.",
+    "acceptance_test": "Check that every hardware-support claim in ADR 0016 names the canonical 8×H100 host explicitly and does not rely on A100 as a substitute for H100 evidence."
+  }
+]
+COVERAGE: Read the full supplied chunk (Chapters 19–25, including tables, figure captions, notes, and mini-cases). Recomputed the Ch 19 token/KV/latency ledger (T=1..4, no-reuse and prefix-reuse W, α, fallback ledger, p50/p90/p95/p99, cost-per-submitted/completed), Ch 20 per-host rate and host-count screens (17/8.6, 21/22/23/32/34, prefill ratios), Ch 21 canary/request arithmetic, Ch 22 FLOP/KV/decode arithmetic and crossover values, Ch 23 dialogue bounds, Ch 24 PIES/poisoning arithmetic, and Ch 25 ADR footprint arithmetic. Did NOT verify external references, rendered figure geometry/legibility, PDF page numbers/offset, or any claim requiring the built PDF or source files; those remain NOT VERIFIED.

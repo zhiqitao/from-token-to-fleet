@@ -89,7 +89,7 @@ for (name, desc, fc, ec, tag, tx) in terms:
     ax.text(tx+box_w/2-0.55, term_y+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
     ax.text(tx+box_w-0.12, term_y+0.48, tag, ha='right', va='center', fontsize=8.0, color=ec, style='italic')
 
-ax.text(5.0, 5.95, 'The agent loop: a four-state state machine', ha='center', va='center',
+ax.text(5.0, 5.95, 'The agent loop: a four-state machine', ha='center', va='center',
         fontsize=10.5, fontweight='bold', color='#1a1a1a')
 ax.text(5.0, 0.45, 'resolved \u2192 final answer; no resolution within the turn limit \u2192 stopped',
         ha='center', va='center', fontsize=8.0, color='#666')

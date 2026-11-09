@@ -68,9 +68,9 @@ sw = (W - 0.04) * 0.58
 sx = X0
 box(sx, 0.090, sw, 0.200, '#e7f5ec', '#1e8449')
 stagelabel(sx + sw / 2, 0.245, '\u2463  OUTCOME', '#145a32')
-ax.text(sx + sw / 2, 0.165, 'SURVIVORS  (a) \u00b7 (b)', ha='center', va='center',
+ax.text(sx + sw / 2, 0.165, 'CLEARS CAPACITY GATE  (a) \u00b7 (b)', ha='center', va='center',
         fontsize=8.4, color='#145a32', fontweight='bold', zorder=3)
-ax.text(sx + sw / 2, 0.125, 'each needs a ~5-host prefill pool', ha='center', va='center',
+ax.text(sx + sw / 2, 0.125, 'each needs ~5 hosts of prefill capacity', ha='center', va='center',
         fontsize=8.0, color='#145a32', zorder=3)
 bx = sx + sw + 0.04
 bw = W - sw - 0.04
