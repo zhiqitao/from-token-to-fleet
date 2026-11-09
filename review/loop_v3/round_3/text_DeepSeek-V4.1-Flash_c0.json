@@ -1,0 +1,81 @@
+[
+  {
+    "id": "CH4-COST-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 4 §3, Economic Constraints and cost-basis table",
+    "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+    "quoted_clause": "~$0.362 / 1M input tokens (i.e. ~2.76M input tokens per cloud dollar), ~$11.11 / 1M output tokens (~90K output per cloud dollar). Both are denominator-specific normalizations of the SAME whole-fleet ~$120/hour spend — they are NOT additive unit rates.",
+    "observed": "The table labels these as self-host cost per million tokens, but the two figures are computed by dividing the same whole-fleet spend by input-only and output-only volumes respectively. The text correctly says they are not additive, but the table's row label and the juxtaposition invite a reader to treat them as two unit rates for a blended request. The blended rate is given separately as ~$0.3509 per 1M combined tokens.",
+    "evidence": "Recomputation: $120/hr ÷ (92,000 input tok/s × 3,600 s/hr) = $120 ÷ 331,200,000 tokens = $0.3623/1M input tokens. $120/hr ÷ (3,000 output tok/s × 3,600 s/hr) = $120 ÷ 10,800,000 tokens = $11.11/1M output tokens. $120/hr ÷ (95,000 combined tok/s × 3,600 s/hr) = $120 ÷ 342,000,000 tokens = $0.3509/1M combined tokens. The arithmetic is correct; the issue is presentation/denominator clarity.",
+    "root_cause": "The table presents denominator-specific normalizations as if they were parallel unit rates, even though the prose immediately below says they are not additive. The row label 'Self-host cost per million tokens' is ambiguous because it does not state 'input-only' and 'output-only' in the row label itself.",
+    "correction": "Rename the row to 'Self-host cost per million input-only tokens' and 'Self-host cost per million output-only tokens', or split into two rows. Add a column or note that neither is a blended per-request rate and that the blended rate is ~$0.3509/1M combined tokens.",
+    "acceptance_test": "A reader can compute the blended per-request cost from the table without adding the input-only and output-only rates; the table explicitly labels each denominator and points to the blended rate."
+  },
+  {
+    "id": "CH4-KV-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 4 §6, Memory planning",
+    "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+    "quoted_clause": "quantize KV (FP8 → ~1.31 MB/token, ~12.45 GB/request at the 9.5K max)",
+    "observed": "The FP8 KV figure is computed at 9.5K tokens (input + output), while the immediately preceding FP16 KV figure is computed at 9.2K input tokens (~24.1 GB). The chapter elsewhere uses 9.2K as the canonical input context and 9.5K as total request tokens. Mixing the two bases in the same paragraph makes the FP8 and FP16 figures non-comparable at a glance.",
+    "evidence": "FP16: 2.62 MB/token × 9,200 = 24.104 GB. FP8: 1.31 MB/token × 9,500 = 12.445 GB. If FP8 were computed at 9,200 tokens, it would be 12.052 GB. The text does not state that the FP8 figure includes the 300 output tokens while the FP16 figure does not.",
+    "root_cause": "Inconsistent context-length basis within the same memory-planning bullet: 9.2K input for FP16, 9.5K total for FP8.",
+    "correction": "Use one basis consistently. Either compute both at 9.2K input (FP16 ~24.1 GB, FP8 ~12.06 GB) or both at 9.5K total (FP16 ~24.9 GB, FP8 ~12.45 GB), and state the basis explicitly.",
+    "acceptance_test": "The FP16 and FP8 KV figures in the same bullet use the same token-count basis and the basis is named."
+  },
+  {
+    "id": "CH4-HOST-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 4 §3 and §6, host-count/KV-residency discussion",
+    "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+    "quoted_clause": "a single 8×H100 host holds ~17.5 KV-resident requests (the conservative integer floor is 17)",
+    "observed": "The derivation of ~17.5 KV-resident requests is not shown in this chunk. The chapter gives 640 GB total GPU memory, ~140 GB weights, ~24.1 GB KV per 9.2K request, and elsewhere mentions ~64 GB runtime/workspace. Those inputs give (640 − 140 − 64) ÷ 24.1 ≈ 18.1, or without workspace (640 − 140) ÷ 24.1 ≈ 20.7. The stated ~17.5 implies a different overhead assumption that is not stated here.",
+    "evidence": "Recomputation from stated inputs: (640 GB − 140 GB weights − 64 GB workspace) ÷ 24.1 GB/request ≈ 18.1 requests. (640 − 140) ÷ 24.1 ≈ 20.7. To get 17.5, the implied non-KV overhead is 640 − 140 − 17.5×24.1 ≈ 78.25 GB. The chunk does not state this ~78 GB overhead.",
+    "root_cause": "The ~17.5 slot figure is used as a canonical input to host-count arithmetic but its overhead assumption is not stated in this chunk, so the reader cannot reproduce it from the numbers given here.",
+    "correction": "State the overhead assumption used to derive ~17.5 slots (e.g. weights + workspace + fragmentation reserve), or show the arithmetic: (640 − 140 − overhead) ÷ 24.1 ≈ 17.5.",
+    "acceptance_test": "A reader can reproduce ~17.5 from the stated weights, KV per request, total HBM, and a named overhead/reserve term."
+  },
+  {
+    "id": "CH3-MOE-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 3 §3, Table 3-2",
+    "chapter": "Chapter 3 — Understanding the Model",
+    "quoted_clause": "~5.7B per expert × 8 = 45.6B + ~1.4B always-on (attention/shared + embeddings) = 47B (per-expert rounded to ~6B)",
+    "observed": "The parenthetical '(per-expert rounded to ~6B)' conflicts with the arithmetic immediately preceding it. If each expert is rounded to ~6B, then 8 experts would be ~48B, plus ~1.4B always-on ≈ 49.4B, not 47B. The table uses 5.7B per expert to reach 47B, so the parenthetical is misleading.",
+    "evidence": "5.7B × 8 = 45.6B; +1.4B = 47.0B. 6B × 8 = 48B; +1.4B = 49.4B. The stated total ~47B is consistent with 5.7B per expert, not with 'rounded to ~6B'.",
+    "root_cause": "A rounding aside was added without reconciling it to the arithmetic used in the same cell.",
+    "correction": "Remove '(per-expert rounded to ~6B)' or change it to '(per-expert ~5.7B, rounded for exposition only where stated)'. If using ~6B per expert, recompute the total and active counts consistently.",
+    "acceptance_test": "The per-expert parameter count, the total parameter count, and any rounding note in the same cell are mutually consistent."
+  },
+  {
+    "id": "CH2-ANALOGY-01",
+    "severity": "P3",
+    "confidence": "low",
+    "page_hint": "Ch 2 §2, Mental Model",
+    "chapter": "Chapter 2 — What Actually Happens During Inference",
+    "quoted_clause": "pushing the water of that same 140,000-liter reservoir (140 GB) through a standard garden hose",
+    "observed": "The analogy equates 140 GB with 140,000 liters. In SI terms, 140 GB = 140,000,000,000 bytes; 140,000 liters is 140 m³. The analogy only works if one implicitly maps 1 MB to 1 liter, which is not stated. This is an analogy, not a quantitative claim used downstream, so it is low severity.",
+    "evidence": "140 GB = 140,000 MB. The text says 140,000-liter reservoir, implying 1 liter = 1 MB. No such mapping is stated.",
+    "root_cause": "Analogy unit shorthand was written as if it were a direct unit conversion.",
+    "correction": "Either write 'a 140,000-MB reservoir (140 GB)' or drop the liter equivalence and say 'the same 140 GB reservoir'.",
+    "acceptance_test": "The analogy does not assert a false unit equivalence; any shorthand mapping is stated."
+  },
+  {
+    "id": "CH1-XREF-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 4 §4, Measurement",
+    "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+    "quoted_clause": "The token-counting habits of Ch 1 §1.4 apply unchanged",
+    "observed": "Chapter 1 as shown in this chunk has sections numbered 1–8, with token-counting measurement under '## 4. Measurement'. There is no §1.4 in the chapter numbering shown. The cross-reference appears to mean Ch 1 §4, not Ch 1 §1.4.",
+    "evidence": "Chapter 1 headings in the chunk: '## 1. Concept', '## 2. Mental Model', '## 3. Worked Example', '## 4. Measurement', etc. No subsection '1.4' is present.",
+    "root_cause": "Cross-reference numbering mismatch.",
+    "correction": "Change 'Ch 1 §1.4' to 'Ch 1 §4' or the correct subsection identifier.",
+    "acceptance_test": "The cross-reference resolves to an existing section in Chapter 1."
+  }
+]
+COVERAGE: Read Chapters 1–4 in the supplied chunk. Recomputed: token throughput (9,200×10, 300×10, 9,200×40, 300×40); input/output ratio; KV per-token for 7B/70B full-MHA and 32L/4096H GQA; 9.2K/32K/128K KV totals; FP16/FP8 KV byte-halving; MoE total/active parameter arithmetic and compute ratios; prefill FLOPs (2NL), H100 dense peak, required PFLOPS, roofline ridge; decode bandwidth demand; TTFT/prefill/decode timing; Little's-law occupancies (86, 344, 430); host counts (6, 21, 26, 37, 39, 40, 24); monthly request volume (6.24M active-hours, ~25.9M 24×7); monthly fleet costs and per-1K-request costs; tokens-per-dollar figures; cost per request at API and owned-fleet bases; 5,000-employee growth-case host arithmetic. Checked cross-chapter canonical-value reuse for 70B, 8×H100, 9.2K input, 300 output, 2.62 MB/token, 24.1 GB KV, 8.6 s W_exec, 10/40 rps, 6/21 hosts, 6.24M req/month, 17/17.5 KV slots. Checked evidence-label consistency where visible. Did NOT verify: rendered figure content/legibility (figures stripped); actual PDF page numbers/offset; external vendor specs beyond in-chunk claims; source code/repository links; Appendix A claims; Chapters 5–25; machine-gate outputs.

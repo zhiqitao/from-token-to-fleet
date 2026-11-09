@@ -13,7 +13,7 @@ import fitz  # pymupdf
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PDF = os.path.join(REPO, "render/build/from-token-to-fleet-v20260913-plain.pdf")
-RASTER = [91, 142, 157, 202, 327]
+RASTER = [27, 28, 92, 144, 159, 204]  # 459pp build (2026-11-08)
 
 
 def main():
@@ -23,15 +23,20 @@ def main():
     pdf = fitz.open(PDF)
     pages = set(RASTER)
     for pno in range(pdf.page_count):
-        if re.search(r"Fig \d+\.\d+", pdf[pno].get_text()):
+        txt = pdf[pno].get_text()
+        if re.search(r"Fig \d+\.\d+", txt):
+            pages.add(pno + 1)
+        # line-anchored caption: every figure's own page (prose cross-refs
+        # miss figures never cited as "Fig N.M" in the text)
+        if re.search(r"(?m)^figure \d+\.\d+:", txt) or \
+           re.search(r"(?m)^figure A\.\d+:", txt):
             pages.add(pno + 1)
     pages = sorted(pages)
     manifest = []
     for p in pages:
         out = os.path.join(outdir, "page_%03d.png" % p)
-        if not os.path.exists(out):
-            pix = pdf[p - 1].get_pixmap(dpi=150)
-            pix.save(out)
+        pix = pdf[p - 1].get_pixmap(dpi=150)
+        pix.save(out)
         manifest.append({"page": p, "file": os.path.basename(out)})
     json.dump(manifest, open(os.path.join(outdir, "manifest.json"), "w"),
               indent=1)

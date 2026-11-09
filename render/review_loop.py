@@ -21,7 +21,10 @@ import urllib.request
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 V3 = os.path.join(REPO, "review/loop_v3")
-PROMPT_V1 = open(os.path.join(V3, "review_prompt_v2.md"), encoding="utf-8").read()
+PROMPT_STD = open(os.path.join(REPO, "review/complete-manuscript-review-prompt.md"),
+                  encoding="utf-8").read()
+PROMPT_V1 = (PROMPT_STD + "\n\n" +
+             open(os.path.join(V3, "review_prompt_v2.md"), encoding="utf-8").read())
 
 # Panel = 3 models (user directive 2026-11-08): Ornith removed — its
 # reasoning blows the shared 65536 output window on dense chunks, forcing
@@ -165,12 +168,14 @@ figures actually inspected>.
 """
 
 
-def stage_text(round_no):
+def stage_text(round_no, model_filter=None):
     outdir = os.path.join(V3, "round_%d" % round_no)
     os.makedirs(outdir, exist_ok=True)
     chunks = build_chunks()
     print("chunks:", [len(c) for c in chunks], flush=True)
     for model in MODELS:
+        if model_filter and model != model_filter:
+            continue
         reg = []
         for ci, chunk in enumerate(chunks):
             fp = os.path.join(outdir, "text_%s_c%d.json" % (
@@ -187,7 +192,7 @@ def stage_text(round_no):
     print("text stage done", flush=True)
 
 
-def stage_vision(round_no):
+def stage_vision(round_no, model_filter=None):
     outdir = os.path.join(V3, "round_%d" % round_no)
     os.makedirs(outdir, exist_ok=True)
     pages_dir = os.path.join(V3, "pages")
@@ -197,6 +202,8 @@ def stage_vision(round_no):
                for i in range(0, len(manifest), BATCH)]
     import base64
     for model in MODELS:
+        if model_filter and model != model_filter:
+            continue
         for bi, batch in enumerate(batches):
             fp = os.path.join(outdir, "vis_%s_b%d.json" % (
                 model.replace("/", "_"), bi))
@@ -310,5 +317,10 @@ def stage_discuss(round_no):
 if __name__ == "__main__":
     stage = sys.argv[1]
     round_no = int(sys.argv[2])
-    {"text": stage_text, "vision": stage_vision,
-     "merge": stage_merge, "discuss": stage_discuss}[stage](round_no)
+    arg3 = sys.argv[3] if len(sys.argv) > 3 else None
+    if stage in ("text", "vision"):
+        {"text": stage_text, "vision": stage_vision}[stage](
+            round_no, arg3)
+    else:
+        {"vision": stage_vision,
+         "merge": stage_merge, "discuss": stage_discuss}[stage](round_no)
