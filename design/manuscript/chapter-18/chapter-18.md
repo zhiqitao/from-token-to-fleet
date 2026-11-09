@@ -50,7 +50,7 @@ The weighting (α,β) is deployment-context dependent. A chat UI tolerates ~200�
 | 70B dense 8-bit | — | ~70 GB | — | 1 (weights alone fit on 1×H100, leaving 7 GPUs; with the canonical KV budget the 8×H100 pool still holds weights + KV) |
 | 70B MoE FP16 (2/16 experts) | 140 GB | — | — | 1 (same as dense FP16; weights + KV fit in the 640 GB pool) |
 | 70B MoE 8-bit (2 active) | — | ~70 GB | — | 1 |
-| 70B 4-bit GGUF | — | — | ~35 GB | ~5 (canonical 436 GB KV budget reserved: (640−436)/35 ≈ 5; ~18 by weights alone; the worked deployment below uses 2 copies) |
+| 70B 4-bit GGUF | — | — | ~35 GB | ~5 (canonical 436 GB KV budget reserved: (640−436)/35 = 5.83 → floor 5; ~18 by weights alone; the worked deployment below uses 2 copies) |
 
 *(Each row's footprint is its own model's size at the named precision — put the number in that precision's column. A dash means that precision does not apply to the row's naming.)*
 
@@ -154,7 +154,7 @@ A mixed-model fleet changes the architecture in three ways:
 
 1. **Router shim** (HTTP middleware or gRPC interceptor) sits between the user API and the model execution layer. It evaluates feature requirements, reads current capacity, and selects model_id.
 2. **Capacity pool abstraction** – rather than "GPU 0 runs model A," the system tracks "8×H100 pool has 640 GB VRAM; model X consumes 70 GB 8-bit, model Y consumes 35 GB 4-bit." The pool manager auto‑balances placements.
-3. **Billing/telemetry pipeline** – each request's cost and latency are tagged with model_id, enabling downstream dashboards and alerting (e.g., "cost per token rising above $0.0025 (on the §18.8 mini-case per-token basis) for 3 consecutive hours").
+3. **Billing/telemetry pipeline** – each request's cost and latency are tagged with model_id, enabling downstream dashboards and alerting (e.g., "cost per token rising above $0.0025 (the §18.3.2 FP16 rate in per-token units; §18.8's FP16 tier is $0.003/token) for 3 consecutive hours").
 
 The fleet operator becomes a *cost‑latency steward* rather than a single-model optimizer.
 

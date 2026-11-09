@@ -6,7 +6,7 @@ After this chapter we should be able to sit with a customer or stakeholder who s
 
 ## 1. Concept
 
-Most AI projects fail in requirements, not in technology. The root cause is a **category error**: the customer and the architect mean different things by the same words. "Fast," "good," "smart," and "it should just work" are not contracts; they are vibes. The architect's first job is to convert vibes into **quantified, testable bounds** using the disciplines of the earlier chapters.
+Most AI projects fail in requirements, not in technology. [HYPOTHESIS] The root cause is a **category error**: the customer and the architect mean different things by the same words. "Fast," "good," "smart," and "it should just work" are not contracts; they are vibes. The architect's first job is to convert vibes into **quantified, testable bounds** using the disciplines of the earlier chapters.
 
 The conversion rests on one idea: **every architectural decision traces back to a number the customer can see.** Whether the model is 7B or 70B, whether we self-host or use an API, whether we cache, quantize, or disaggregate — all of it is decided by six numbers we can extract from a customer conversation:
 
@@ -89,7 +89,7 @@ The requirements dialogue has its own quality metrics:
 
 ## 6. Architecture Consequence
 
-The requirements conversation is where the book's entire loop is *fed.* The six bounds it extracts are exactly the inputs Ch1-16 consume: traffic feeds capacity (Ch17), tokens feed KV/memory (Ch7), quality feeds model selection (Ch5), latency feeds serving (Ch11), cost feeds TCO (Ch16), and the operational constraint picks the tier (Ch13). A good requirements session is not a warm-up to architecture — it *is* the first chapter of the architecture, and every downstream decision traces back to the numbers it locked. [ILLUSTRATIVE] *(scenario provenance — the same worked-example dialogue as §23.3, not a secondary source)*
+The requirements conversation is where the book's entire loop is *fed.* The six bounds it extracts are exactly the inputs Ch1-17 consume: traffic feeds capacity (Ch17), tokens feed KV/memory (Ch7), quality feeds model selection (Ch5), latency feeds serving (Ch11), cost feeds TCO (Ch16), and the operational constraint picks the tier (Ch13). A good requirements session is not a warm-up to architecture — it *is* the first chapter of the architecture, and every downstream decision traces back to the numbers it locked. [ILLUSTRATIVE] *(scenario provenance — the same worked-example dialogue as §23.3, not a secondary source)*
 
 ![Fig 23.1 — From vague ask to architectural bounds. This is a worked-example interrogation sequence (the concrete questions asked of one canonical ask), not an exhaustive or universal question list. A real customer interrogation also covers **data rights** (who owns the data, retention, deletion), **governance** (approval workflows, audit, compliance), **integration** (auth, API, data pipelines), **failure recovery** (RTO/RPO, backup, failover), and **human review** (escalation, override, sign-off) — those are in the adjacent text, not in this figure, which focuses on the architectural-bounds questions. [ILLUSTRATIVE] conceptual](figures/fig-23-2301.png)
 
