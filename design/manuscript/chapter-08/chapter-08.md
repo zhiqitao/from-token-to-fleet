@@ -48,7 +48,7 @@ In PyTorch, `torch.xpu` names the Intel GPU device backend ([PyTorch XPU getting
 This distinction changes a portability decision. A device API can be available while a required model operator or cache layout is not. Source-level portability therefore reduces one part of migration work. It does not establish feature parity, numerical equivalence or sustained performance. [DERIVED]
 
 
-The chapter unfolds in four parts. First, the core arithmetic: FLOPs per token, prefill PFLOP counts, and H100 sustained utilization. Second, the roofline: why prefill is compute-bound while decode is memory-bound. Third, the canonical scenario arithmetic: 70B on 8×H100, TTFT 1.2 s, TPOT ~25 ms. Fourth, the mini-case: a continuous deployment scenario that threads the prefill/decode divide.
+The chapter unfolds by section: §1–§3 build the core arithmetic (FLOPs per token, prefill PFLOP counts, H100 sustained utilization) and the roofline that explains why prefill is compute-bound while decode is memory-bound, worked through the canonical scenario (70B on 8×H100, TTFT 1.2 s, TPOT ~25 ms); §4 turns to measurement, §5 to common mistakes, §6 to architecture consequences, and §8 closes with a mini-case that threads the prefill/decode divide.
 
 ## 2. Mental Model
 
@@ -125,8 +125,8 @@ $$
 | sustained prefill demand @ 10 rps | ~12.9 PFLOP/s | 1.29 PFLOP × 10 [DERIVED; **case (i)** — case (ii) gives ~15.1 PFLOP/s] |
 | H100 peak FP16 TFLOPS | ~989 TFLOPS [1P: NVIDIA H100 datasheet] | NVIDIA H100 SXM5 datasheet, without sparsity |
 | H100 sustained MFU (typical) | 30–40% [2°: industry benchmarks] | ~346 TFLOPS sustained at 35% MFU |
-| prefill throughput per GPU | ~2,472 tokens/s | 346 TFLOPS ÷ 140 GFLOP/token [DERIVED; **per-GPU scope**] |
-| prefill throughput per host (8×H100) | ~19,800 tokens/s | 8 × 2,472 [DERIVED; **idealized aggregate, before TP/system loss**] |
+| prefill throughput per GPU | ~2,471 tokens/s | 346 TFLOPS ÷ 140 GFLOP/token [DERIVED; **per-GPU scope**] |
+| prefill throughput per host (8×H100) | ~19,800 tokens/s | 8 × 2,471 [DERIVED; **idealized aggregate, before TP/system loss**] |
 | H100 ridge point (dense FP16) | ~295 FLOP/byte | 989 ÷ 3.35 [DERIVED: peak TFLOPS ÷ HBM bandwidth] |
 
 *All figures trace to the canonical scenario (Ch 4, Table 4-2) and validated sources; none are measurement claims.*
@@ -142,7 +142,7 @@ $$
 
 [1P][2°][DERIVED: vendor peak (1P) × typical MFU (2°) — the MFU range is a secondary, empirical figure, so the sustained value inherits the provenance of its weakest input, the 2° MFU, while the peak is first-party]
 
-**Scope matters here.** The 346 TFLOPS figure is the sustained rate of a *single* H100, and the 2,472 tokens/s derived from it is therefore a **per-GPU** number. The canonical host is an *8×H100* node, so we must not multiply demand by a per-GPU rate as if it were per-node. Track the scope explicitly as we scale.
+**Scope matters here.** The 346 TFLOPS figure is the sustained rate of a *single* H100, and the 2,471 tokens/s derived from it is therefore a **per-GPU** number. The canonical host is an *8×H100* node, so we must not multiply demand by a per-GPU rate as if it were per-node. Track the scope explicitly as we scale.
 
 Per **GPU** (one H100 at 35% MFU):
 
@@ -178,7 +178,7 @@ At the peak 40 rps (368,000 tokens/s) the same arithmetic gives ~18.6 → **19 h
 
 Under case (ii) the compute screen **binds above** the KV-residency / Little's-Law fleet sizing derived in Chapter 17 (⌈344/17⌉ = 21 hosts at peak, the full-utilization screen; 31 working / 32 total at the 70% × 95% policy), so the capacity floor is the *max* of the named screens — **21 hosts under case (i), 22 under case (ii)** — with the cost basis in Chapter 16 pricing both (~$155,816.93/mo ≈ $24.97/1K at 21 hosts; ~$162,760.59/mo ≈ $26.08/1K at 22 — illustrative included-cost on the canonical 6.24M-req/mo basis, Ch 16). That two fundamentally different constraints (prefill FLOP throughput vs. KV residency/service time) land within one host of each other is the useful cross-check that they point at the same order of fleet. **19 / 21 / 22 — and 32 (KV-only) / 34 (case (ii)) at the 70% × 95% + N−1 policy, Ch 16/17 (the ρ = 1 u-only screen reads 30 / 33) — are illustrative planning screens under the stated FLOP-counting case and the 35% MFU assumption, NOT measured SLO-goodput.**
 
-**Honest boundary on both numbers.** The per-GPU `2,472 tokens/s` is itself an *analytical* figure at an assumed 35% MFU — not a measured throughput. The `8×` aggregate (`~19,800`/host) is a **theoretical first-order estimate** that assumes perfect tensor-parallel scaleout: it does **not** account for TP communication, per-rank load imbalance, kernel inefficiency under a given batch, or scheduling/system overhead. It is an upper-bound analysis value, not a servable goodput. Actual reachable prefill throughput must come from benchmark goodput under the target workload (Chapter 14). Treat both numbers as scope-disciplined *models*, never as measured capacity — and treat every host count they produce (19 / 21 / 22, and 32 / 34 at the 70% × 95% + N−1 policy — 30 / 33 on the ρ = 1 u-only screen) as an **illustrative planning screen under its stated FLOP-counting case and the 35% MFU assumption, not measured SLO-goodput**.
+**Honest boundary on both numbers.** The per-GPU `2,471 tokens/s` is itself an *analytical* figure at an assumed 35% MFU — not a measured throughput. The `8×` aggregate (`~19,800`/host) is a **theoretical first-order estimate** that assumes perfect tensor-parallel scaleout: it does **not** account for TP communication, per-rank load imbalance, kernel inefficiency under a given batch, or scheduling/system overhead. It is an upper-bound analysis value, not a servable goodput. Actual reachable prefill throughput must come from benchmark goodput under the target workload (Chapter 14). Treat both numbers as scope-disciplined *models*, never as measured capacity — and treat every host count they produce (19 / 21 / 22, and 32 / 34 at the 70% × 95% + N−1 policy — 30 / 33 on the ρ = 1 u-only screen) as an **illustrative planning screen under its stated FLOP-counting case and the 35% MFU assumption, not measured SLO-goodput**.
 
 This rough sizing illustrates that prefill is FLOP-bound at this scale — the compute requirement is the primary constraint, and memory bandwidth (HBM at 3.35 TB/s per H100) is sufficient to keep the compute fed if the kernel is efficient. The ridge point for dense FP16 on H100 is ~295 FLOP/byte (989 ÷ 3.35); the arithmetic intensity of a mature attention kernel sits near or above this ridge, meaning the kernel is compute-saturated rather than bandwidth-starved once the batch is large enough.
 

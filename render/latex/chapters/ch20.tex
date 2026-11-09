@@ -45,7 +45,7 @@ The key concepts are:
   \textbf{Autoscaling break-even}: The point at which growth in SLO-good
   requests covers the next host's fixed cost --- \emph{average} cost per
   query falls as fixed costs amortize, while marginal cost per query
-  stays roughly constant (§2).
+  stays roughly constant.
 \end{itemize}
 
 \ntsection{Mental Model}\label{mental-model}
@@ -358,8 +358,9 @@ placement contract.
   \textbf{Treating hosts as independent}: Optimizing each host in
   isolation (e.g., tuning batch size per host) ignores the scheduling
   overhead that becomes dominant when the fleet is viewed as a unit. A
-  suboptimal batch size on one host can increase dispatch frequency for
-  the entire fleet.
+  suboptimal batch size on one host makes that host drain its queue
+  slowly, so the scheduler re-balances across the fleet more often and
+  the dispatch-decision rate rises for the entire fleet.
 \item
   \textbf{Overlooking data movement cost}: In RAG workloads, the
   retrieved-context portion of the \textasciitilde9,200 in-tokens per
@@ -437,37 +438,18 @@ clip}\label{the-useful-completion-is-an-accepted-clip}
 
 The same accepted-completion goodput accounting applies to any
 fixed-output-contract workload; a video-generation fleet is the clearest
-parallel beyond RAG. For a fixed output contract, a video fleet can
-report completed clips/s and generated frames/s together. Frames/s alone
-is ambiguous: larger frame counts can increase reported output work
-while reducing completed jobs. Across changing durations and frame
-rates, generated clip-seconds/s also needs a stated denominator and does
-not normalize the nonlinear attention cost.
-
-A useful goodput definition counts clips that satisfy the completion
-deadline, output-integrity checks, quality gate, and safety requirements
-in the same observation window. Rejections, OOMs, cancellations,
-retries, and unusable outputs remain visible as separate counters. The
-cost per accepted clip divides the total allocated cost of that
-window---including idle capacity and failed attempts---by the
-accepted-clip count. Storage, delivery, encoding, and license costs
-enter explicitly rather than disappearing into a GPU-seconds estimate.
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} proposed service accounting.
-
-If no clips pass, accepted-clip goodput is zero and cost per accepted
-clip is undefined; the report retains the total cost and rejection
-counters rather than reporting zero unit cost.
-
-Shape-specific measured service time and peak memory determine
-placement. Warm replicas trade idle cost for avoiding checkpoint
-downloads, initialization, compilation, and encoder loading on the
-request path. Heterogeneous pools can separate preview, denoising, and
-reconstruction contracts where measurement justifies the transfer.
-Replicas add independent job capacity; sequence-parallel groups can make
-a larger job feasible or reduce its service time at a communication
-cost. These are different scaling actions. The existing distinction
-between analytical capacity bounds and measured SLO-goodput remains
-unchanged.
+parallel beyond RAG. For a fixed output contract the useful completion
+is the accepted output --- a clip that passes the completion deadline,
+output-integrity, quality, and safety gates in the same observation
+window --- while raw work rates (frames/s, clip-seconds/s) need a stated
+denominator and do not normalize the nonlinear attention cost. The
+rejection/OOM/cancellation counters, the cost-per-accepted-clip basis,
+and the zero-pass edge case follow the same rules as the
+accepted-completion definition above; placement follows the
+measured-service-time rule, with warm replicas trading idle cost for
+avoiding checkpoint downloads, initialization, compilation, and encoder
+loading on the request path. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} proposed
+service accounting.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -640,7 +622,7 @@ by KV residency per \hyperref[chap:17]{Chapter 17}):
 target, not the planning screen: sustaining 80 rps needs
 \textasciitilde41--43 hosts (80 / 1.977 = 40.5 → 41; with the ρ = 0.95
 derate → 43), a larger pool than the 21/22-host planning sizing, whose
-analytical capacity is ≈ 41.5 rps ≈ 1.04× peak (C\_analytic = 21 ×
-17/8.6; served demand still caps at the 40 rps peak). The planning fleet
-passes its own screens at ≈ 1× peak; the 2× row is what a soak pool must
-sustain.
+21-host analytical capacity is ≈ 41.5 rps ≈ 1.04× peak (C\_analytic = 21
+× 17/8.6; the 22-host ρ-derated sizing gives ≈ 41.3 rps ≈ 1.03×; served
+demand still caps at the 40 rps peak). The planning fleet passes its own
+screens at ≈ 1× peak; the 2× row is what a soak pool must sustain.

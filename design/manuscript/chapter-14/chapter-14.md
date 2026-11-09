@@ -8,7 +8,7 @@ After this chapter we should be able to look at a benchmark result and judge whe
 
 Benchmarking fails most often because the wrong benchmark is used for the wrong decision. The fix is to separate two very different instruments:
 
-1. **Capability benchmarks** — measure the model's output quality on standardized tasks (MMLU, GSM8K, HumanEval, MT-Bench, retrieval-QA suites). They answer: *is this model good enough at the skill our workload needs?* They do NOT tell us how fast, how cheap, or how it behaves under our traffic — model capability is the goal (Ch4's Quality dimension), never the bottleneck.
+1. **Capability benchmarks** — measure the model's output quality on standardized tasks (MMLU, GSM8K, HumanEval, MT-Bench, retrieval-QA suites). They answer: *is this model good enough at the skill our workload needs?* They do NOT tell us how fast, how cheap, or how it behaves under our traffic — model capability is the goal (Ch4's Quality dimension), the constraint these deployment benchmarks do not measure; if capability fails its quality gate (Ch 12's candidate (c)), it becomes the binding constraint before any serving optimization.
 
 2. **Deployment benchmarks** — measure the *system's* behavior on a representative workload: TTFT, TPOT, throughput, goodput, KV cache utilization, cost per request. They answer: *does this model-on-this-hardware meet the SLO at our traffic and token profile?* These are the numbers that actually pick the architecture.
 

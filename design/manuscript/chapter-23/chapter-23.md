@@ -35,6 +35,8 @@ The customer conversation is really about **buying information, not delivering a
 **Lead:** "~2,000 on the platform; maybe 5% are in it at once at peaks."
 **Architect:** "So ~100 concurrent at peak, and realistically a fraction of that firing requests. Roughly how many questions per second at the busiest minute?"
 **Lead:** "If everyone on the sales floor asked at once, maybe 40 a second."
+**Architect:** "And an average minute, not the busiest — roughly how many?"
+**Lead:** "Maybe 10 a second on a normal day, with bursts around launches."
 **→ Bound 1: ~2,000 users, ~10 rps average, ~40 rps peak.** [canonical scenario] (Ch 4, Table 4-2)
 
 **Architect:** "What does a question look like? Short or with long context?"
@@ -51,7 +53,7 @@ The customer conversation is really about **buying information, not delivering a
 
 **Architect:** "Data sensitivity — can this touch a public cloud, and how much can it cost?"
 **Lead:** "It's internal and regulated; keep it on-prem if at all possible. And at this scale we'd rather not pay per-token API fees — keep it within a self-host budget."
-**→ Bound 5: operational constraint forces the local/server tier (Ch13).** [canonical scenario] (Ch 4, Table 4-2)
+**→ Bound 5: the regulated-data requirement makes the local/server tier the primary path — on-prem is preferred “if at all possible,” with cloud as the fallback if that preference yields (Ch13).** [canonical scenario] (Ch 4, Table 4-2)
 **→ Bound 6: cost ceiling — within a self-host budget (Ch16).** [canonical scenario] (Ch 4, Table 4-2)
 
 **Architect (mirror):** "So to lock it: ~2,000 sales users, ~10 rps average / 40 peak, prompts with ~9,200-token retrieval context, answers starting under 2 s, quality judged on 50 of your real questions, fully on-prem because it's regulated, and within a self-host budget. Have I captured it?"
@@ -65,7 +67,7 @@ The customer conversation is really about **buying information, not delivering a
 |---|---|---|
 | ~How many users, how concurrent? | Traffic & concurrency (Ch4/17) | ~2,000 users, ~10/40 rps |
 | What do inputs look like? | Token profile (Ch4/6) | ~9.2K in / ~300 out |
-| What's "fast"? | SLO (Ch6) | TTFT ≤ 2 s, ~25 ms/token |
+| What's "fast"? | SLO (Ch6) | TTFT ≤ 2 s, ~25 ms/token (p95 TPOT ≤ 35 ms) |
 | What's "good"? | Quality bar (Ch3/14) | 50-question retrieval-QA set |
 | Data sensitive? Cloud OK? | Tier & ops (Ch13) | on-prem, regulated |
 | How much can it cost? | TCO (Ch16) | within self-host budget |
@@ -99,10 +101,10 @@ The requirements conversation is where the book's entire loop is *fed.* The six 
 
 ## 7. What We Still Don't Know
 
-- **How accurate the customer's own-told numbers are** ("40 rps peak") is (to be verified); peak estimates are notoriously optimistic and should be triangulated with real logs where possible.
-- **Whether the quality bar once defined stays stable** is (a hypothesis); as users adopt the tool, their expectations and the data they query both shift.
-- **The right number of questions to lock quality** is (to be verified); 50 worked here as a representative proxy but a larger, task-distributed set is stronger.
+- **How accurate the customer's own-told numbers are** ("40 rps peak") is (unresolved: evidence pending); peak estimates are notoriously optimistic and should be triangulated with real logs where possible.
+- **Whether the quality bar once defined stays stable** is (a hypothesis awaiting verification); as users adopt the tool, their expectations and the data they query both shift.
+- **The right number of questions to lock quality** is (unresolved: evidence pending); 50 worked here as a representative proxy but a larger, task-distributed set is stronger.
 
 ## 8. End-of-Chapter Mini-Case: The 'Next Month' Customer Portal: Requirements Dialogue
 
-A CTO emails the architect: "We heard LLMs are great — let's put one on our customer portal to answer support tickets. Shipping it next month." Rather than confirm the launch date, the architect books a 30-minute session and runs the funnel. It emerges the portal gets ~5 rps average but 200-rps bursts during outage events (traffic), tickets are short (~500 tokens, not retrieval-heavy), quality means "resolve the ticket, not just answer" (a capability the cheaper model screens out), the SLO is 3 s because users are already frustrated (latency), and — critically — the portal sits on regulated payment data so nothing leaves the premises (ops). The mirrored restatement turns "let's ship AI next month" into "a 7B-class model on one on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst buffer, quality-gated on real resolved tickets — and a two-week pilot on 5% of tickets to confirm the referral quality before full rollout." The customer's vague excitement became a defensible, bounded, shippable scope — and the architect is already architecting, not guessing.
+A CTO emails the architect: "We heard LLMs are great — let's put one on our customer portal to answer support tickets. Shipping it next month." Rather than confirm the launch date, the architect books a 30-minute session and runs the funnel. It emerges the portal gets ~5 rps average but 200-rps bursts during outage events (traffic), tickets are short (~500 tokens, not retrieval-heavy), quality means "resolve the ticket, not just answer" (a capability that rules out the cheaper model), the SLO is 3 s because users are already frustrated (latency), and — critically — the portal sits on regulated payment data so nothing leaves the premises (ops). The mirrored restatement turns "let's ship AI next month" into "a 7B-class model on one on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst buffer, quality-gated on real resolved tickets — and a two-week pilot on 5% of tickets to confirm the referral quality before full rollout." The customer's vague excitement became a defensible, bounded, shippable scope — and the architect is already architecting, not guessing.

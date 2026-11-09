@@ -64,7 +64,7 @@ Render the serving model in BF16.
 2. **FP8 weights:** The genuine memory lever (halves residency to ~70 GB) but needs per-tensor calibration and a validation gate; deferred as the next step, paired with the FP8 KV discussion in Chapter 7.
 3. **FP32:** Rejected — 280 GB residency with no quality benefit for this workload.
 
-**Evidence Tags:** [1P][FACT] — FP16 and BF16 are both 16-bit (2 bytes/parameter). [ILLUSTRATIVE][DERIVED] — a 70B model is ~140 GB in either (70 × 10⁹ × 2 B), the same footprint Table 22-1 and §25.4 derive. [1P][FACT] — A100/H100 Tensor Cores support BF16 and TF32 natively. [canonical scenario][DERIVED] — weight residency is unchanged by the FP16↔BF16 choice. [ILLUSTRATIVE][ASSUMPTION] — no exact-match difference between FP16 and BF16 on the held-out Q&A set — an assumed outcome for this worked ADR, to be confirmed by the deployment quality gate (not a measurement in this handbook).
+**Evidence Tags:** [1P][FACT] — FP16 and BF16 are both 16-bit (2 bytes/parameter). [ILLUSTRATIVE][DERIVED] — a 70B model is ~140 GB in either (70 × 10⁹ × 2 B), the same footprint Table 22-1 and §25.4 derive. [1P][FACT] — H100 Tensor Cores support BF16 and TF32 natively. [canonical scenario][DERIVED] — weight residency is unchanged by the FP16↔BF16 choice. [ILLUSTRATIVE][ASSUMPTION] — no exact-match difference between FP16 and BF16 on the held-out Q&A set — an assumed outcome for this worked ADR, to be confirmed by the deployment quality gate (not a measurement in this handbook).
 
 ### 3.1 A copy-ready blank template
 
@@ -137,7 +137,7 @@ The three blocks most often skipped are the **Architecture Decision Context**, t
 
 ADRs are only as good as the evidence they embed. This chapter recommends that each ADR include at least two derived quantities — quantities computed from raw data, not merely observed. In the model-shape ADR above, the derived quantities are:
 
-1. **70B FP16 model footprint** — $W = N \times \text{bytes-per-param} = 70 \times 10^9 \times 2 \text{ B} = 140$ GB parameters, plus ~30 GB activations at the peak for this worked example, giving ≈ $170$ GB total derived footprint. This ~30 GB is a *per-request working-set* figure for this ADR's single-request arithmetic; it is **not a re-labeling of** the ~64 GB runtime/workspace/NCCL reserve the body uses elsewhere (140 GB weights + ~436 GB KV budget + ~64 GB reserve = the 640 GB HBM envelope). The two answer different questions — one sizes a single request's activations, the other reserves headroom for the serving stack's runtime — and at serving time the activation working set is drawn from *within* that 64 GB workspace line (workspace includes activation buffers) — the ~30 GB is a transient single-request prefill peak, reused across the batch rather than held per request in flight (17 concurrent × 30 GB is not implied) — so the envelope closes as 140 + 436 + 64 = 640, not 670. Derived from the model parameter count and a typical activation overhead factor.
+1. **70B FP16 model footprint** — $W = N \times \text{bytes-per-param} = 70 \times 10^9 \times 2 \text{ B} = 140$ GB parameters, plus ~30 GB activations at the peak for this worked example (K+V alone: 2 × 80 layers × 9.2K × 8,192 × 2 B ≈ 24 GB, plus hidden/MLP working tensors ≈ 30 GB total) [DERIVED], giving ≈ $170$ GB total derived footprint. This ~30 GB is a *per-request working-set* figure for this ADR's single-request arithmetic; it is **not a re-labeling of** the ~64 GB runtime/workspace/NCCL reserve the body uses elsewhere (140 GB weights + ~436 GB KV budget + ~64 GB reserve = the 640 GB HBM envelope). The two answer different questions — one sizes a single request's activations, the other reserves headroom for the serving stack's runtime — and at serving time the activation working set is drawn from *within* that 64 GB workspace line (workspace includes activation buffers) — the ~30 GB is a transient single-request prefill peak, reused across the batch rather than held per request in flight (17 concurrent × 30 GB is not implied) — so the envelope closes as 140 + 436 + 64 = 640, not 670. Derived from the model parameter count and a typical activation overhead factor.
 2. **Weight-quantization residency lever** — quantizing the FP16/BF16 weights to INT8 reduces the nominal parameter-weight footprint from ~140 GB to ~70 GB for a 70B model (2 B/param → 1 B/param), before runtime overheads. Whether the resulting quantized model satisfies the quality SLO must be established by benchmark, not assumed. (An FP16↔BF16 change alone is *not* a memory lever: both are 16-bit, 2 B/param, ~140 GB.)
 
 Additional measurable quantities that should be tracked (even if not all included in the ADR itself) include:
@@ -168,7 +168,7 @@ When adopting ADRs, teams frequently fall into patterns that undermine the forma
 Introducing ADRs into the "From Token to Fleet" handbook has several architecture-level consequences:
 
 - **Decision provenance:** Every significant choice in the fleet's evolution is traceable to a git commit and a Markdown file. New engineers can audit why the system is as it is, without relying on Slack history or outdated wikis.
-- **RQO (Reasoned Quality Optimization):** the discipline of improving an architecture decision's quality by forcing the articulation of alternatives and evidence, so the trade-off surface is explicit rather than tacit. ADRs are where that reasoning is recorded: teams can point to an ADR and say "we chose BF16 over FP16 because of range robustness and training-to-serving consistency" (as ADR 0016 does) — and those reasons are verifiable.
+- **Reasoned quality optimization:** the discipline of improving an architecture decision's quality by forcing the articulation of alternatives and evidence, so the trade-off surface is explicit rather than tacit. ADRs are where that reasoning is recorded: teams can point to an ADR and say "we chose BF16 over FP16 because of range robustness and training-to-serving consistency" (as ADR 0016 does) — and those reasons are verifiable.
 - **Reduced cognitive load:** Engineers no longer need to re-derive the rationale for every architectural choice. The ADR serves as a single source of truth.
 - **ADR proliferation:** As the fleet grows, the number of ADRs will grow. A naming convention (ADR 0001, ADR 0002, ...) and a top-level index (ADR index) prevent the record from becoming unwieldy.
 - **Integration with CI:** ADRs can be validated as part of the CI pipeline — e.g., ensuring every ADR has a status, a rationale, and at least one evidence tag. This automation reinforces the habit.
@@ -234,13 +234,13 @@ No delivery mode is committed. The least-cost option — the cloud default paid-
 
 ## 7. What We Still Don't Know
 
-Despite the structured format, several questions remain open and would benefit from future ADRs or empirical studies:
+Despite the structured format, several questions remain open and would benefit from future ADRs or empirical studies. Each item below is a **hypothesis awaiting verification** — none has FACT instrumentation yet:
 
-1. **ADR fatigue:** Does the presence of many ADRs overwhelm the team, leading to superficial writing or skipped documentation? 
-2. **Evidence decay:** How long do derived quantities remain valid? Should ADRs include a "last reviewed" date and a trigger for re-evaluation?
-3. **Cross-ADR dependencies:** When multiple ADRs interact (e.g., a quantization choice interacts with a retrieval chunk-size choice), how should the team document the dependency graph?
-4. **Tooling gaps:** No widely adopted tool exists for ADR graph visualization or impact analysis. Building such a tool would require understanding the ADR network and its evolution over time.
-5. **ADR format evolution:** The minimal format (title and status, context, decision, consequences, alternatives) works for most cases, but edge cases — decisions involving regulatory compliance, security, or data governance — may require additional sections.
+- **ADR fatigue:** Does the presence of many ADRs overwhelm the team, leading to superficial writing or skipped documentation? 
+- **Evidence decay:** How long do derived quantities remain valid? Should ADRs include a "last reviewed" date and a trigger for re-evaluation?
+- **Cross-ADR dependencies:** When multiple ADRs interact (e.g., a quantization choice interacts with a retrieval chunk-size choice), how should the team document the dependency graph?
+- **Tooling gaps:** No widely adopted tool exists for ADR graph visualization or impact analysis. Building such a tool would require understanding the ADR network and its evolution over time.
+- **ADR format evolution:** The minimal format (title and status, context, decision, consequences, alternatives) works for most cases, but edge cases — decisions involving regulatory compliance, security, or data governance — may require additional sections.
 
 These open questions are not blockers; they are signals for when the practice matures and the team needs more sophisticated governance.
 

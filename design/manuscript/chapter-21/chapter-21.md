@@ -99,6 +99,6 @@ A vendor pitches the architect a newer, cheaper model: "just swap it in — it s
 
 ## 9. Transition to Part VI
 
-Parts I–V traced one engagement: token accounting defines workload demand; model architecture sets compute and memory costs; parallelism adds communication; serving schedules shared resources; fleet design determines capacity and cost; the AI Factory governs changes. These mechanisms connect request-level behavior to operational decisions.
+Parts I–V traced one engagement: token accounting defines workload demand; model architecture sets compute and memory costs; parallelism adds communication; serving schedules shared resources; fleet design determines capacity and cost — and the AI Factory, the operating layer those parts build toward, governs the changes that follow. These mechanisms connect request-level behavior to operational decisions.
 
 Part VI applies these mechanisms to decisions under uncertainty rather than introducing another subsystem. It makes the decision process explicit: state workload assumptions, compare alternatives against resource bounds, and identify the measurements needed to resolve uncertainty. The next chapters provide a worksheet for recording the decision, its assumptions, and its validation criteria.

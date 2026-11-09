@@ -54,14 +54,14 @@ Now suppose the workload's demand grows to ~100 rps average (a 10×). Recompute 
 
 ### Dropping a Tier: When Privacy Forces Local
 
-If the workload must run fully on-site without data leaving a facility, and the model can be distilled to a 7-13B capable of the Q&A task, the **local/edge** tier applies: a single GPU runs the distilled model at reduced (but acceptable) accuracy for privacy. The tier choice traded capability for the operational constraint (privacy). [ILLUSTRATIVE][DERIVED]
+If the workload must run fully on-site without data leaving a facility, and the model can be distilled to a 7-13B capable of the Q&A task, the **local/edge** tier applies: a single GPU runs the distilled model at reduced (but acceptable — verified against Ch 14's quality gate) accuracy for privacy. The tier choice traded capability for the operational constraint (privacy). [ILLUSTRATIVE][DERIVED]
 
 #### Table 13-1 — Reference architecture archetypes
 
-| Tier | GPUs | Interconnect | Model range | Typical latency | When to use |
+| Tier | GPUs | Interconnect | Model range | Latency / SLO | When to use |
 |---|---|---|---|---|---|
 | Local / edge | 1 | — | ≤7-13B dense | low (on-device) | privacy, offline, connectivity |
-| Server | 1-8 | NVLink | ≤~70-180B dense | median ≤1.2 s TTFT, p95 ≤2 s (canonical, Ch 4) | most single-tenant enterprise |
+| Server | 1-8 | NVLink | ≤~70-180B dense | workload-dependent; canonical example: median ≤1.2 s TTFT, p95 ≤2 s (Ch 4) | most single-tenant enterprise |
 | Cluster | tens-hundreds | InfiniBand/Eth | any that needs splitting | depends | model > node, or traffic > host goodput |
 | Hyperscale fleet | dedicated | high-bandwidth fabric | MoE+, specialized | extreme-scale economics | multi-tenant, largest scale |
 
@@ -73,7 +73,7 @@ The tier decision is only as good as the numbers that trigger it. We measure thr
 
 1. **Residency vs tier memory** (Ch7): does weight + KV fit? If not, the floor is a cluster.
 2. **Host goodput ceiling vs demand** (Ch6/Ch11): measure the max rps/tokens/s the host delivers at the SLO, and compare to demand. When demand > ceiling, escalate.
-3. **Communication fraction** (Ch9/Ch10): if the parallelism the cluster requires spends >~20% of step time on collectives, the interconnect (not the GPU) is the binding tier constraint.
+3. **Communication fraction** (Ch9/Ch10): if the parallelism the cluster requires spends >~20% [ILLUSTRATIVE heuristic] of step time on collectives, the interconnect (not the GPU) is the binding tier constraint.
 
 These three numbers locate the workload on the ladder objectively.
 
@@ -89,7 +89,7 @@ These three numbers locate the workload on the ladder objectively.
 
 The archetype sets the entire downstream design vocabulary. On the **server** tier (canonical), the consequences are already established: continuous batching + PagedAttention + prefix caching (Ch11), KV quantization when residency binds (Ch7), no *cross-host* model parallelism (Ch10; intra-host TP=8 fits the 140 GB model). Moving up to **cluster** introduces: DP/PP/TP replicas (Ch10), P/D disaggregation (Ch11), and interconnect budgeting (Ch9). Moving **down** to local forces distillation and on-device KV limits. The tier is the top-level decision; every other choice in the book slots beneath it.
 
-![Fig 13.1 — The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (green) fires on privacy, data sovereignty, and cost — but scale-down decisions should also reference **utilization** (sustained low load on a tier), **failure domain** (a smaller tier has a smaller blast radius), **operations burden** (fewer hosts to run), and **SLO margin** (headroom to absorb a burst without breaching the SLO). Make these measurable: e.g. de-escalate when 30-day p95 utilization < 40% AND SLO margin > 2× AND the smaller tier's failure domain is acceptable. [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
+![Fig 13.1 — The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (green) fires on privacy, data sovereignty, and cost — but scale-down decisions should also reference **utilization** (sustained low load on a tier), **failure domain** (a smaller tier has a smaller blast radius), **operations burden** (fewer hosts to run), and **SLO margin** (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g. de-escalate when 30-day p95 utilization < 40% AND SLO margin > 2× AND the smaller tier's failure domain is acceptable. [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
 
 *The reference-architecture ladder: single GPU → single host → multi-host → cluster/fleet, with escalation triggers (red: model/KV/throughput outgrows a tier) and de-escalation (green: privacy, data sovereignty, cost) moving a workload between tiers.*
 
@@ -99,8 +99,8 @@ The archetype sets the entire downstream design vocabulary. On the **server** ti
 
 - **Exact host goodput ceilings** depend on the specific server, model, degree and batching; the representative numbers here are [UNRESOLVED] per deployment.
 - **When P/D disaggregation's benefit crosses its cost** for mid-tier workloads is [HYPOTHESIS]; the breakpoint is workload- and fabric-specific.
-- **Fleet-level economics** (Ch16 TCO across a cluster) interact with the tier choice in ways that are [HYPOTHESIS] until a real cost model is applied.
+- **Fleet-level economics** (Ch16 TCO across a cluster) interact with the tier choice in ways that are [HYPOTHESIS — workload-dependent; requires the architect's own cost model].
 
 ## 8. End-of-Chapter Mini-Case: Escalating Through the Reference-Architecture Tiers
 
-An architect returns to the canonical internal Q&A service a year later. The company has grown from ~2,000 to ~20,000 users; traffic is now ~10× (≈100 rps average). The on-prem service is saturated: p95 TTFT has drifted to 3 s against the 2 s SLO [ILLUSTRATIVE SCENARIO INPUT]. Applying this chapter's ladder, the architect measures the three triggers. Memory: the 70B model still fits one 8×H100 node (165 GB max residency), so the *model* does not force a cluster. Traffic: host goodput is exceeded at ~100 rps — the binding trigger. Operational: the data privacy requirement still forbids a public hyperscale cloud. The architect's decision: escalate to the **cluster** tier but keep it on-prem — run a fleet of 8×H100 replicas behind a load balancer. With the canonical whole-slot KV/service-time screen (Ch 16/17), the fleet is ⌈100 × 8.6 / 17⌉ = **51 hosts at full utilization** — 73 working + 1 spare = **74 hosts** at Ch17's 70% target and N−1 rule on the ρ = 1 u-only screen, or 77 working + 1 spare = **78 hosts** at the Table 17-1 policy (u × ρ = 0.665) — a real cluster rather than a handful; at 51 hosts each replica sits right at its per-host ceiling (100 ÷ 51 ≈ 1.96 rps vs the 17 ÷ 8.6 ≈ 1.98 rps ceiling), which is exactly why the sizing rule adds the 70% × 95% headroom and the spare host. The result: p95 TTFT back under 1.8 s at 100 rps [ILLUSTRATIVE SCENARIO RESULT], on site, without hyperscale — because the architect climbed the ladder precisely one rung, and the correct rung was determined by the measured traffic trigger, not by fashion or by model size alone.
+An architect returns to the canonical internal Q&A service a year later. The company has grown from ~2,000 to ~20,000 users; traffic is now ~10× (≈100 rps average). The on-prem service is saturated: p95 TTFT has drifted to 3 s against the 2 s SLO [ILLUSTRATIVE SCENARIO INPUT]. Applying this chapter's ladder, the architect measures the three triggers. Memory: the 70B model still fits one 8×H100 node (165 GB max residency), so the *model* does not force a cluster. Traffic: host goodput is exceeded at ~100 rps — the binding trigger. Operational: the data privacy requirement still forbids a public hyperscale cloud. The architect's decision: escalate to the **cluster** tier but keep it on-prem — run a fleet of 8×H100 replicas behind a load balancer. With the canonical whole-slot KV/service-time screen (Ch 16/17), the fleet is ⌈100 × 8.6 / 17⌉ = **51 hosts at full utilization** — 73 working + 1 spare = **74 hosts** at Ch17's 70% target and N−1 rule on the ρ = 1 u-only screen, or 77 working + 1 spare = **78 hosts** at the Table 17-1 policy (u × ρ = 0.665) — a real cluster rather than a handful; at 51 hosts each replica sits right at its per-host ceiling (100 ÷ 51 ≈ 1.96 rps vs the 17 ÷ 8.6 ≈ 1.98 rps ceiling), which is exactly why the sizing rule adds the 70% × 95% headroom and the spare host. The result, with the 74-host headroom fleet (78 hosts at the Table 17-1 policy): p95 TTFT back under 1.8 s at 100 rps [ILLUSTRATIVE SCENARIO RESULT], on site, without hyperscale — because the architect climbed the ladder precisely one rung, and the correct rung was determined by the measured traffic trigger, not by fashion or by model size alone.

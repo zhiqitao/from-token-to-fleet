@@ -14,7 +14,7 @@ The key concepts are:
 
 - **Aggregate throughput**: The total queries-per-second the fleet can sustain before latency SLA violations.
 - **Scheduling overhead**: The per-request cost of dispatching a query to an available host, including placement decisions and data movement.
-- **Autoscaling break-even**: The point at which growth in SLO-good requests covers the next host's fixed cost — *average* cost per query falls as fixed costs amortize, while marginal cost per query stays roughly constant (§2).
+- **Autoscaling break-even**: The point at which growth in SLO-good requests covers the next host's fixed cost — *average* cost per query falls as fixed costs amortize, while marginal cost per query stays roughly constant.
 
 ## 2. Mental Model
 
@@ -80,7 +80,7 @@ The qualification gate in Chapter 18 applies before a configuration enters any c
 
 ## 5. Common Mistakes
 
-- **Treating hosts as independent**: Optimizing each host in isolation (e.g., tuning batch size per host) ignores the scheduling overhead that becomes dominant when the fleet is viewed as a unit. A suboptimal batch size on one host can increase dispatch frequency for the entire fleet.
+- **Treating hosts as independent**: Optimizing each host in isolation (e.g., tuning batch size per host) ignores the scheduling overhead that becomes dominant when the fleet is viewed as a unit. A suboptimal batch size on one host makes that host drain its queue slowly, so the scheduler re-balances across the fleet more often and the dispatch-decision rate rises for the entire fleet.
 
 - **Overlooking data movement cost**: In RAG workloads, the retrieved-context portion of the ~9,200 in-tokens per query must be fetched from a vector database or cache (the ~300 out-tokens are generated locally; only their egress crosses the network). If every host pulls data independently, the network cost scales linearly with fleet size. A better approach is to colocate vector stores with serving hosts or use a shared cache layer that amortizes fetch cost across concurrent queries.
 
@@ -100,13 +100,7 @@ Fleet-level optimization reshapes the serving architecture in three ways:
 
 ### The useful completion is an accepted clip
 
-The same accepted-completion goodput accounting applies to any fixed-output-contract workload; a video-generation fleet is the clearest parallel beyond RAG. For a fixed output contract, a video fleet can report completed clips/s and generated frames/s together. Frames/s alone is ambiguous: larger frame counts can increase reported output work while reducing completed jobs. Across changing durations and frame rates, generated clip-seconds/s also needs a stated denominator and does not normalize the nonlinear attention cost.
-
-A useful goodput definition counts clips that satisfy the completion deadline, output-integrity checks, quality gate, and safety requirements in the same observation window. Rejections, OOMs, cancellations, retries, and unusable outputs remain visible as separate counters. The cost per accepted clip divides the total allocated cost of that window—including idle capacity and failed attempts—by the accepted-clip count. Storage, delivery, encoding, and license costs enter explicitly rather than disappearing into a GPU-seconds estimate. [ILLUSTRATIVE][DERIVED] proposed service accounting.
-
-If no clips pass, accepted-clip goodput is zero and cost per accepted clip is undefined; the report retains the total cost and rejection counters rather than reporting zero unit cost.
-
-Shape-specific measured service time and peak memory determine placement. Warm replicas trade idle cost for avoiding checkpoint downloads, initialization, compilation, and encoder loading on the request path. Heterogeneous pools can separate preview, denoising, and reconstruction contracts where measurement justifies the transfer. Replicas add independent job capacity; sequence-parallel groups can make a larger job feasible or reduce its service time at a communication cost. These are different scaling actions. The existing distinction between analytical capacity bounds and measured SLO-goodput remains unchanged.
+The same accepted-completion goodput accounting applies to any fixed-output-contract workload; a video-generation fleet is the clearest parallel beyond RAG. For a fixed output contract the useful completion is the accepted output — a clip that passes the completion deadline, output-integrity, quality, and safety gates in the same observation window — while raw work rates (frames/s, clip-seconds/s) need a stated denominator and do not normalize the nonlinear attention cost. The rejection/OOM/cancellation counters, the cost-per-accepted-clip basis, and the zero-pass edge case follow the same rules as the accepted-completion definition above; placement follows the measured-service-time rule, with warm replicas trading idle cost for avoiding checkpoint downloads, initialization, compilation, and encoder loading on the request path. [ILLUSTRATIVE][DERIVED] proposed service accounting.
 
 ## 7. What We Still Don't Know
 
@@ -139,4 +133,4 @@ Several open questions remain at the fleet level:
 
 ![Fig 20.1 — Fleet capacity vs host count: analytical C_analytic(N) = N × 17/8.6, efficiency-adjusted C_eff(N) = 0.95 × C_analytic, served demand S(N) = min(40, C_eff) — all in req/s. **Takeaway:** the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × ~95% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned — 21 ideal / 22 at 95% efficiency — a plateau at the **workload's demand ceiling** (40 rps is the peak arrival rate, not the fleet's capacity limit). **Reading the two gaps:** below saturation the ~5% gap between C_analytic and C_eff is the assumed throughput-efficiency derate; above saturation C_eff − S is **unused capacity from insufficient offered demand, not scheduling overhead** (demand is capped at 40 rps). Queueing/tail-latency penalties are not determined by this two-line calculation and must be shown separately if claimed. **Measured-vs-illustrative:** the served-demand curve is a derived construction — **modeled served demand, not measured throughput** — and validation (p95/p99, Ch 14) precedes treating the 21/22-host peak sizing as validated. [ILLUSTRATIVE][DERIVED]](figures/fig-20-2001.png)
 
-*Aggregate-rps note*: ≥ 2× peak = 80 rps is a **stress/soak** target, not the planning screen: sustaining 80 rps needs ~41–43 hosts (80 / 1.977 = 40.5 → 41; with the ρ = 0.95 derate → 43), a larger pool than the 21/22-host planning sizing, whose analytical capacity is ≈ 41.5 rps ≈ 1.04× peak (C_analytic = 21 × 17/8.6; served demand still caps at the 40 rps peak). The planning fleet passes its own screens at ≈ 1× peak; the 2× row is what a soak pool must sustain.
+*Aggregate-rps note*: ≥ 2× peak = 80 rps is a **stress/soak** target, not the planning screen: sustaining 80 rps needs ~41–43 hosts (80 / 1.977 = 40.5 → 41; with the ρ = 0.95 derate → 43), a larger pool than the 21/22-host planning sizing, whose 21-host analytical capacity is ≈ 41.5 rps ≈ 1.04× peak (C_analytic = 21 × 17/8.6; the 22-host ρ-derated sizing gives ≈ 41.3 rps ≈ 1.03×; served demand still caps at the 40 rps peak). The planning fleet passes its own screens at ≈ 1× peak; the 2× row is what a soak pool must sustain.
