@@ -125,7 +125,13 @@ primary source, not from memory:
 5. **Page references**: give BOTH the PDF page and the printed page (offset
    ~20; recompute the offset from the artifact, never assume).
 6. **Evidence-label vocabulary**: [CANONICAL] [DERIVED] [ILLUSTRATIVE]
-   [ASSUMPTION] [1P] [HYPOTHESIS]. A label binds its clause or the explicitly
+   [ASSUMPTION] [1P] [HYPOTHESIS] — plus the book's full three-axis
+   taxonomy, which is equally house-convention: provenance [1P] [2 degree]
+   [LAB] [ILLUSTRATIVE], status [FACT] [DERIVED] [ASSUMPTION] [HYPOTHESIS]
+   [UNRESOLVED], and [ANALYTICAL] (Ch 20 axis-3). All are defined in Ch 4
+   and the Appendix A axis table — do NOT file "undefined/ad-hoc label"
+   against them; only flag a label used OUTSIDE these sets or applied to
+   the wrong span. A label binds its clause or the explicitly
    split caption span — not the whole figure by default.
 7. **Figures are stripped from text chunks**: `[FIGURE: …]` placeholders mark
    figure positions. Figure content is reviewed separately by the vision

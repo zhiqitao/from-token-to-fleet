@@ -119,8 +119,8 @@ Reasoning / long-think & Med & Med & Test-time compute & Decode
 headroom, token amplification budgeting (Ch. 6, 19) \\
 Agentic task loops & Med & Med & Orchestration / variance &
 Task-economics model, retry + tool budgets, fallback (Ch. 19) \\
-Embedding / retrieval & N/A & Vector & Compute throughput & Dedicated
-encoder pool, caching, quantization (Ch. 3) \\
+Embedding / retrieval & Short-med (text) & Vector & Compute throughput &
+Dedicated encoder pool, caching, quantization (Ch. 3) \\
 Vision-language & Med & Med & Multimodal preprocess + compute &
 Preprocess pipeline, fused kernels (Ch. 5, 20) \\
 Fine-tuning & N/A & N/A & Memory + interconnect & Precision-aware
@@ -354,15 +354,15 @@ Whether it helps is a load-curve/SLO-goodput question (a lightly loaded
 host may see little gain, an offered-load-heavy host significant
 queueing relief), so the capstone treats it as an \textbf{open sizing
 question to be tested over an actual offered-load interval}, not as a
-rejected alternative --- the explicit caveat is that one replica's fixed
-\textless5\% per-request claim stays an untested scenario hypothesis,
-not a basis for refusal. \emph{Deeper continuous batching on the single
-host instead of sharding} raises throughput by lengthening the in-flight
-queue, adding queueing delay exactly where the p99 TTFT SLO binds (Ch
-8's decode economics; Ch 15's congestion check). The capstone therefore
-does not credit the deeper-batching lever for a cost saving it is
-simultaneously rejecting (see §26.8); sharding is treated as
-\textbf{baseline configuration} (the weights are already
+rejected alternative --- the explicit caveat is that any per-request
+benefit claim for a single replica stays an untested scenario
+hypothesis, not a basis for refusal. \emph{Deeper continuous batching on
+the single host instead of sharding} raises throughput by lengthening
+the in-flight queue, adding queueing delay exactly where the p99 TTFT
+SLO binds (Ch 8's decode economics; Ch 15's congestion check). The
+capstone therefore does not credit the deeper-batching lever for a cost
+saving it is simultaneously rejecting (see §26.8); sharding is treated
+as \textbf{baseline configuration} (the weights are already
 tensor-parallel), not as an incremental gain. Cache + circuit breaker
 wins on the \emph{latency} story --- cache hits replace the retrieval
 step with a cache lookup and skip the engine, and the breaker sheds tail
@@ -419,9 +419,10 @@ and trough).
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Mistake 1: Measuring only HYPOTHESIS outcomes.} Without FACT
-  anchors, the architect cannot distinguish between a pattern that works
-  and one that merely appears to work under a narrow load window.
+  \textbf{Mistake 1: Validating HYPOTHESIS claims without independent
+  FACT anchors.} Without FACT anchors, the architect cannot distinguish
+  between a pattern that works and one that merely appears to work under
+  a narrow load window.
 \item
   \textbf{Mistake 2: Over-engineering before FACTs exist.} Adding
   shards, caches, or circuit breakers ``just in case'' introduces
@@ -435,9 +436,9 @@ and trough).
   opinion.
 \item
   \textbf{Mistake 4: Circular HYPOTHESIS validation.} Self-confirming
-  predictions (e.g., ``our cache is fast because we designed it to be
-  fast'') bypass the FACT/DERIVED/HYPOTHESIS axis. Always validate
-  against observed FACTs.
+  predictions (e.g., a cache-hit threshold set by one load test and then
+  ``confirmed'' by that same load test) bypass the
+  FACT/DERIVED/HYPOTHESIS axis. Always validate against observed FACTs.
 \end{itemize}
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
@@ -452,9 +453,9 @@ grace-periods can interact with cache TTLs to shape tail latency (during
 breaker recovery traffic surges back to the engine; if cache entries
 expired while the breaker was open, the engine absorbs the full miss
 load). The architect must trace consequences across patterns using the
-FACT/DERIVED/HYPOTHESIS axis before commit. A change that looks
-beneficial in isolation may degrade fleet-wide metrics when patterns
-interact.
+FACT/DERIVED/HYPOTHESIS axis before the commit decision. A change that
+looks beneficial in isolation may degrade fleet-wide metrics when
+patterns interact.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -480,8 +481,8 @@ These open questions define the next research cycle. Each is an open
 question today; each becomes a testable HYPOTHESIS once its FACT
 instrumentation and pass criterion are specified.
 
-\section{End-of-Chapter Mini-Case: The Capstone: Composing the
-Patterns}\label{end-of-chapter-mini-case-the-capstone-composing-the-patterns}
+\section{End-of-Chapter Mini-Case: Capstone at Scale --- Composing the
+Patterns}\label{end-of-chapter-mini-case-capstone-at-scale-composing-the-patterns}
 
 \textbf{Scenario.} A growing AI startup moves from a single-node
 prototype to a fleet serving \textasciitilde3,000 users. The initial
@@ -571,18 +572,18 @@ are Step 3 load-test targets) --- the pooled latency has the CDF
 ms} (because the 0.99 quantile falls in the miss population:
 \(0.35 < 0.99 \le 1.0\)). So \textbf{mean TTFT ≈ 180 ms}. \textbf{p99
 TTFT ≈ 250 ms} (the miss value, not a blend). \textbf{−44\% TTFT}
-against the \textasciitilde450 ms uncached p99 baseline ---
+against the \textasciitilde450 ms uncached p99 baseline (both sides are
+service-time sums; at ρ near 1 a real queue sits on top --- Step 1) ---
 \((450-250)/450 \approx 44\%\). \textbf{Cost is deliberately not
-collapsed into a single percentage} (R-01/R-05): the only defensible
-\emph{marginal-generation-work} saving is the cache-hit share ---
-\textasciitilde35\% of requests skip generation entirely, so marginal
-generation work falls by roughly the cache-hit ratio. This is
-\textbf{not} an all-in TCO reduction: the §16 self-hosted fleet is a
-fixed set of hosts whose capex/opex does not shrink with cache hits
-unless the fleet is also re-sized; and sharding is \textbf{baseline
-configuration} (the 140 GB weights are already tensor-parallel across
-the 8 GPUs), so it is \emph{not} an incremental gain over the baseline.
-A ``−48\% generation cost'' figure additionally credited a
+collapsed into a single percentage} (R-01/R-05): as in §3, the only
+defensible \emph{marginal-generation-work} saving is the cache-hit share
+(\textasciitilde35\% of requests skip generation). This is \textbf{not}
+an all-in TCO reduction: the §16 self-hosted fleet is a fixed set of
+hosts whose capex/opex does not shrink with cache hits unless the fleet
+is also re-sized; and sharding is \textbf{baseline configuration} (the
+140 GB weights are already tensor-parallel across the 8 GPUs), so it is
+\emph{not} an incremental gain over the baseline. A ``−48\% generation
+cost'' figure additionally credited a
 \textbf{deeper-continuous-batching} \textasciitilde20\% per-token
 saving, but deeper batching is the exact lever \textbf{rejected} above
 because it lengthens the queue and harms p99 TTFT --- a single lever
