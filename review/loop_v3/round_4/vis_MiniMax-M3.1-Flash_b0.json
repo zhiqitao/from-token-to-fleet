@@ -1,0 +1,204 @@
+```json
+[
+  {
+    "id": "FIG-2.2-A",
+    "page": {"pdf": 43, "printed": 23},
+    "figure": "FIGURE 2.2 — Prefill and decode on the roofline ridge",
+    "severity": "P0",
+    "issue": "The caption's stated prefill arithmetic intensity (~41 FLOP/byte) contradicts BOTH the plotted marker (~10^4 FLOP/byte) and the prose on the same page (~2K FLOP/byte). Three mutually inconsistent values are given for the single quantity the figure exists to convey. Worse, the caption's own number (41) is BELOW the ridge the figure labels (~295), so taken at face value the caption places prefill on the memory-bound side while simultaneously calling it 'the compute-bound side'.",
+    "evidence": "Caption (printed p.23): 'Low-batch decode (streaming weights per token) lands at ~1 FLOP/byte — the memory-bound side; long-prefix prefill lands at ~41 FLOP/byte — the compute-bound side.' Prose list item (1) on the same page: 'arithmetic intensity places the canonical prefill point ~2K FLOP/byte, well to the right of the ~295 ridge'. Figure: the blue 'prefill' triangle sits at the far right of the x-axis, at or beyond the 10000 tick (AI ~ 1e4), not at 41 and not at 2e3. Independent rederivation for the canonical 70B / 9,200-token prefill: FLOPs = 2 x 70e9 x 9200 = 1.29e15; bytes = 140 GB weights + 2.62 MB/token x 9200 = 24.1 GB KV writes = 1.64e11 B; AI = 1.29e15 / 1.64e11 ~ 7.8e3 FLOP/byte (plus ~17% from attention FLOPs -> ~9e3). None of 41, 2e3, or 1e4 is derivable from the canonical numbers as printed; 41 is also implausible on its face, since prefill AI is approximately the number of tokens processed (AI ~ T for large T), so 'long-prefix prefill' cannot be 41.",
+    "root_cause": "The figure, its caption, and the summary list were authored from three different (unstated) derivations of the same quantity; no single derivation is shown anywhere on the page, so no gate could catch the divergence.",
+    "correction": "Pick one canonical prefill AI, show its derivation (tokens, FLOPs, bytes, ratio) in the caption or in an adjacent worked example, and make the caption, the marker position, and the prose list item all state that same value. If the intended value is the derived ~8e3, move the marker to ~8e3 and rewrite the caption as '~8x10^3 FLOP/byte — the compute-bound side'. If a different scenario (e.g. a short prompt) is intended, label it as such and plot a second marker rather than silently changing the number.",
+    "acceptance_test": "One number appears for canonical prefill AI in the caption, in the marker x-position, and in prose item (1); the value exceeds 295 (so 'compute-bound side' is true of the stated number); and a reader can reproduce it from the canonical inputs printed in Ch. 4 / Table 2-1 without consulting another chapter."
+  },
+  {
+    "id": "FIG-2.2-B",
+    "page": {"pdf": 43, "printed": 23},
+    "figure": "FIGURE 2.2 — Prefill and decode on the roofline ridge",
+    "severity": "P1",
+    "issue": "The drawn roofline ridge is geometrically inconsistent with its own '~295' crossover label and with the H100 numbers the book uses elsewhere, and the decode marker is drawn ON the ridge, contradicting the figure's own annotation that markers lie below the roof.",
+    "evidence": "A roofline's bandwidth-limited segment is a straight line in log-log with slope = HBM bandwidth and NO intercept; it must pass through (AI=1, performance = bandwidth). For H100 SXM (FP16 dense 989 TFLOPS, HBM3 3.35 TB/s) the ridge is performance = 3.35e12 x AI, i.e. it crosses the 989 TFLOPS peak at AI = 295 and passes through (1, 3.35e12). The drawn line instead intercepts the y-axis at ~1e12 at AI = 1 and reaches 1e15 at AI ~ 295; those two constraints cannot be satisfied by one straight line (the drawn line implies a bandwidth of ~1.6 TB/s and a crossover at ~600, or, if the drawn slope is 1 decade/decade, a bandwidth of 1 TB/s and a crossover at 1000). The red 'decode' circle at (1, ~1.2e12) is drawn directly on the black ridge line, while the in-figure annotation states 'markers = regime, not measured MFU (real kernels run below the roof)'. The decode marker should sit clearly BELOW the ridge (roofline at AI=1 is 3.35e12; decode at batch 1 achieves ~3.35e12 only in the idealized bandwidth-bound limit, and real kernels sit below it).",
+    "root_cause": "The ridge was drawn by eye against the axis limits rather than computed from the peak/bandwidth pair, so the intercept, the crossover label, and the marker placement were never reconciled.",
+    "correction": "Redraw the ridge from the actual numbers: bandwidth-limited segment through (1, 3.35e12) and (295, 9.89e14), with the compute-bound plateau at 9.89e14 (label it 989 TFLOPS, not 1e15). Place the decode marker at (1, ~1e12) clearly below the ridge, and the prefill marker at its derived AI and at a plausible sub-peak performance (e.g. 3-5e14). If the intent was to show decode sitting exactly on the bandwidth roofline, say so in the caption and remove the 'run below the roof' annotation.",
+    "acceptance_test": "The drawn ridge satisfies performance = 3.35e12 x AI for AI <= 295 and performance = 9.89e14 for AI >= 295; the '~295' label coincides with the drawn crossover; no marker lies on the ridge line unless the caption explicitly says it is on the roofline; the y-axis plateau is labelled 989 TFLOPS."
+  },
+  {
+    "id": "FIG-2.2-C",
+    "page": {"pdf": 43, "printed": 23},
+    "figure": "FIGURE 2.2 — Prefill and decode on the roofline ridge",
+    "severity": "P2",
+    "issue": "The figure states no hardware, precision, or peak/bandwidth basis, so the ridge label '~295' and the y-axis ceiling '1e15' are uninterpretable in isolation; the surrounding prose then treats the 1e15 axis top as 'the regime peak' for an H100 whose FP16 dense peak is 989 TFLOPS.",
+    "evidence": "Figure contains only 'roofline ridge ~295' and a y-axis labelled 'attainable performance (FLOPS)' with a 1e15 top tick. Prose item (3) on the same page: 'The regime peak (1.0x10^15 FLOPS) — so one H100 is insufficient under that analytical deadline model.' 989 TFLOPS = 9.89e14, not 1.0e15; the axis ceiling is a plotting choice, not a hardware peak, and the caption does not say so.",
+    "root_cause": "The figure was designed as a conceptual schematic but is read (and cited in the prose) as a quantitative H100 roofline.",
+    "correction": "Add a subtitle inside the plot: 'H100 SXM, FP16 dense: 989 TFLOPS peak, 3.35 TB/s HBM3 -> ridge at 295 FLOP/byte'. Label the plateau '989 TFLOPS (FP16 dense)' rather than leaving 1e15 as an unlabeled ceiling, and either drop the '1.0x10^15' phrasing in prose item (3) or state that 1e15 is the axis limit.",
+    "acceptance_test": "A reader who has never seen the book can state, from the figure alone, which GPU and precision the ridge represents and why the crossover is at 295."
+  },
+  {
+    "id": "FIG-2.2-D",
+    "page": {"pdf": 43, "printed": 23},
+    "figure": "FIGURE 2.2 — Prefill and decode on the roofline ridge",
+    "severity": "P3",
+    "issue": "Minor visual polish: the grey annotation box ('markers = regime, not measured MFU') is set in small type and its lower-right corner runs into the ridge line; the in-figure title duplicates the caption's first sentence verbatim; the red used for the 'roofline ridge ~295' label and dashed guide is the same red used for the 'decode' marker, so one hue carries two meanings.",
+    "evidence": "Annotation box occupies roughly x=175-330, y=165-185 in the 150 dpi render, with the ridge line passing within a few pixels of its lower-right corner. Title inside the plot: 'Prefill and decode: two regimes split by the roofline ridge' vs caption 'Prefill and decode on the roofline ridge.' Red is used for the ridge label/dashed line and for the decode circle + 'decode' text.",
+    "root_cause": "Layout and palette were not checked against the caption or against each other.",
+    "correction": "Move the annotation box into the empty upper-left region clear of the ridge (or below the ridge in the tan area), enlarge its type to the figure-annotation floor, drop the duplicated in-figure title, and give the ridge guide a neutral (grey/dashed) treatment so red is reserved for the decode marker.",
+    "acceptance_test": "No figure element touches the ridge line; the in-figure title is removed or differs from the caption; red appears only for the decode marker."
+  },
+  {
+    "id": "FIG-2.1-A",
+    "page": {"pdf": 35, "printed": 15},
+    "figure": "FIGURE 2.1 — The canonical end-to-end inference pipeline",
+    "severity": "P1",
+    "issue": "The green 'initialize' arrow terminates at the RIGHT end of the DECODE band, directly above the 'next token' box, instead of at the 'previous token' box at the LEFT end. As drawn, the first sampled token appears to initialize the next-token output rather than to become the decode loop's input.",
+    "evidence": "In the render the green path leaves the right edge of 'first token' (x~450, y~175), runs right to x~467, drops to y~340, and turns left with an arrowhead at x~452 — inside the DECODE band, immediately above the 'next token' box (x 415-460, y 365-385). The 'previous token' box is at the far left (x~85-155). The caption states the opposite intent: 'The green initialize path seeds the loop with the first sampled token.' The 'loop' arrow already carries next token -> previous token along the bottom, so the drawn initialize path is redundant with, and visually contradicts, the loop.",
+    "root_cause": "The initialize path was routed around the right margin to avoid crossing the KV-cache arrows, without checking that its endpoint lands on the box it is supposed to feed.",
+    "correction": "Terminate the initialize arrow on the 'previous token' box (e.g. drop it down the left margin, or route it above the DECODE band and down into 'previous token'), and label the arrow 'first token becomes the decode input'. Alternatively, if the intent is that the first token enters the loop at the point where 'next token' is produced, redraw the loop so the sampled token is visibly re-injected at 'previous token' and drop the separate initialize arrow.",
+    "acceptance_test": "Tracing only the arrows (ignoring the caption), a reader concludes that the first sampled token becomes the input of the first decode step, and no arrow terminates on the 'next token' box from outside the loop."
+  },
+  {
+    "id": "FIG-2.1-B",
+    "page": {"pdf": 35, "printed": 15},
+    "figure": "FIGURE 2.1 — The canonical end-to-end inference pipeline",
+    "severity": "P2",
+    "issue": "The caption identifies a path by color ('The green initialize path'), which is meaningless in grayscale and in color-vision-deficient printing; and the book's color semantics are inconsistent across the three figures in this batch (green = 'read for attention' in Fig. 1.1, green = tokenizer/embedding in Fig. 1.2, green = 'initialize' in Fig. 2.1; orange = 'append K/V' in Fig. 1.1 but 'Token IDs' in Fig. 1.2).",
+    "evidence": "Fig. 2.1 caption: 'The green initialize path seeds the loop with the first sampled token.' Fig. 1.1 uses green for the 'read for attention' box and the read arrows, orange for 'append K/V per layer-head'. Fig. 1.2 uses green for Tokenizer and Embedding, orange for Token IDs, blue for Attention, purple for KV Cache. Fig. 1.2's caption explicitly warns 'Color is figure-local decoration ... do not carry a color meaning from Fig 1.1 into this figure', but Figs. 1.1 and 2.1 carry no equivalent disclaimer, and Fig. 2.1's caption nonetheless relies on color.",
+    "root_cause": "Each figure was styled independently; no book-wide visual-semantics convention was fixed, and the one figure that states a convention (Fig. 1.2) is not the one that depends on it most.",
+    "correction": "Replace color-only references with shape/label references ('the initialize path', 'the dashed path', 'the path labelled initialize'). Adopt one book-wide palette in which, e.g., KV state is always purple, cache writes always one hue and cache reads always another, and request/control flow always a third; then add the 'color is figure-local' disclaimer to every figure caption that uses color, or drop the disclaimer and make the palette global.",
+    "acceptance_test": "Every caption that mentions a color also names the element by label; and a reader can classify any colored element in any figure using one book-wide rule."
+  },
+  {
+    "id": "FIG-2.1-C",
+    "page": {"pdf": 35, "printed": 15},
+    "figure": "FIGURE 2.1 — The canonical end-to-end inference pipeline",
+    "severity": "P2",
+    "issue": "The PREFILL band shows a single 'token + position' box for a pass the caption calls 'the one-shot parallel pass over the whole prompt', inviting the reading that prefill processes one token at a time — the exact misconception the prefill/decode distinction exists to prevent.",
+    "evidence": "PREFILL band: 'prompt -> token + position -> transformer -> logits + sampling -> first token' (one box). DECODE band: 'previous token -> token + position -> transformer -> logits + sampling -> next token' (one box, correctly, since decode is one token per step). Caption: 'PREFILL (top) is the one-shot parallel pass over the whole prompt.' The two bands are visually identical in token granularity, so the parallelism of prefill is carried only by prose.",
+    "root_cause": "The bands were drawn with a shared template that does not encode the one distinguishing property of prefill.",
+    "correction": "Label the prefill box 'tokens + positions (all in parallel)' and the decode box 'token + position (one per step)', and/or draw the prefill box as a stack/fan of tokens with a 'parallel' annotation. Consider adding a small 'N tokens at once' vs '1 token per step' cue.",
+    "acceptance_test": "A reader who sees only the figure (no caption) can state that prefill processes all prompt tokens in one parallel pass while decode processes one token per step."
+  },
+  {
+    "id": "FIG-2.1-D",
+    "page": {"pdf": 35, "printed": 15},
+    "figure": "FIGURE 2.1 — The canonical end-to-end inference pipeline",
+    "severity": "P3",
+    "issue": "Layout inconsistencies: the italic note 'conceptual per-step, per-layer cache I/O' sits inside the DECODE band against its top border; the band labels are placed inconsistently ('PREFILL' above its band, 'DECODE' inside its band); the 'read' and 'append' arrows are only ~0.35 in apart with their labels offset to opposite sides, which is tight for a figure whose whole point is the read/write distinction.",
+    "evidence": "Rendered positions: 'PREFILL' at x~90-140, y~125-135 (above the band frame); 'DECODE' at x~165-200, y~335-345 (inside the band frame); the italic note at x~355-460, y~330-345 (inside the band, touching its top rule); 'read' label left of a downward arrow at x~285 and 'append' label right of an upward arrow at x~310.",
+    "root_cause": "Bands were drawn and labelled iteratively without a final alignment pass.",
+    "correction": "Place both band labels in the same position relative to their frames (e.g. above-left of each frame), move the italic note into clear space below the DECODE band or into the caption, and separate the read/append arrows (e.g. route 'read' down the left of the cache box and 'append' up the right) so each label sits directly above its own arrow.",
+    "acceptance_test": "Both band labels occupy identical relative positions; no annotation touches a frame rule; each of 'read' and 'append' sits directly above the arrow it names."
+  },
+  {
+    "id": "FIG-1.1-A",
+    "page": {"pdf": 27, "printed": 7},
+    "figure": "FIGURE 1.1 — The KV cache",
+    "severity": "P1",
+    "issue": "The figure depicts each token's K/V being appended on the SAME step the token is sampled, contradicting the figure's own caption and the book's prose. This is the single most consequential semantic detail in the chapter (it is what makes the KV cache a cache rather than a recomputation), and the drawing gets it backwards.",
+    "evidence": "Caption: 'every token adds one K/V per layer per head — written when that token is next processed as an input, one step after it is sampled.' Drawing: token1 ('sampled from prefill'), token2 ('first decode output'), token3 ('second decode output') each have a direct arrow into the 'append K/V per layer-head' box, i.e. the sampled token's own K/V is appended at the step it is sampled. Prose on printed p.14 (PDF p.34) states the opposite explicitly: 'the sampled next token is the output of this step and the input of the following step, whose forward pass then computes and appends its K/V. A token's K/V therefore enters the cache on the step in which it is the input, not on the step in which it is sampled.'",
+    "root_cause": "The figure was drawn as a token-to-cache accumulation story rather than as a step-indexed story, so the one-step lag that the caption and prose emphasize is not encoded.",
+    "correction": "Re-index the figure by step: show 'step t: input token_{i-1} -> compute K/V -> append K/V for token_{i-1}' and 'step t+1: input token_i -> ...', with the sampled token_i shown as the OUTPUT of step t and the INPUT of step t+1. At minimum, add a one-step offset between the token column and the append box (e.g. a bracket labelled 'appended on the NEXT step') and change the token sub-labels to 'sampled at step t' / 'appended at step t+1'.",
+    "acceptance_test": "Tracing only the arrows, a reader concludes that a token's K/V is written on the step in which that token is the input, not on the step in which it is sampled; the figure and the printed p.14 prose agree without needing the caption to arbitrate."
+  },
+  {
+    "id": "FIG-1.1-B",
+    "page": {"pdf": 27, "printed": 7},
+    "figure": "FIGURE 1.1 — The KV cache",
+    "severity": "P2",
+    "issue": "An unlabeled connector runs from the top of the token column across the top of the figure and drops into the top of the 'append K/V per layer-head' box. Its origin and meaning are not stated anywhere, and it duplicates the side connector from the same token column into the same box, so the reader cannot tell whether it is a feedback path, a second input, or a stray artifact.",
+    "evidence": "Rendered geometry: a horizontal line at y~160 from x~130 to x~250, then a downward arrowhead into the top edge of the orange 'append K/V' box at x~250, y~180. The token column boxes sit at x~95-165 with their tops at y~185, so the line appears to originate just above token1. Separately, each token box has a short horizontal arrow into the left edge of the orange box.",
+    "root_cause": "A connector was added (probably intended as the 'read for attention -> next token' feedback) but was left unlabelled and unanchored.",
+    "correction": "Either delete the top connector, or give it a definite meaning and label it. If it is meant to express the loop (cache read -> next token -> next step), route it from the 'read for attention' box back to the token column and label it 'next step's input', which would also make the one-step lag of FIG-1.1-A visible.",
+    "acceptance_test": "Every connector in the figure has a label or an unambiguous source and destination; no two connectors connect the same pair of elements with different implied meanings."
+  },
+  {
+    "id": "FIG-1.1-C",
+    "page": {"pdf": 27, "printed": 7},
+    "figure": "FIGURE 1.1 — The KV cache",
+    "severity": "P2",
+    "issue": "The 'read K' connector is routed around the outside right edge of the 'stored V — values' box with only ~0.07 in of clearance, and it enters the 'read for attention' box from the right while 'read V' enters from the top. The asymmetric entry and the hugging route make it easy to misread the green path as belonging to the stored-V box.",
+    "evidence": "Rendered geometry: the green line runs vertically at x~470, immediately right of the stored-V box whose right edge is at x~460 (10 px at 150 dpi ~ 0.07 in), from the bottom of the 'stored K' box down to y~440, then turns left into the right edge of the 'read for attention' box. The 'read V' arrow is a short vertical drop from the stored-V box into the top of the read box, with its label at x~355-385, y~400. The 'read K' label sits at x~430-460, y~395-405, i.e. beside the stored-V box rather than beside its own arrow.",
+    "root_cause": "The two read paths were laid out independently and the K path was pushed outside the box column to avoid overlapping the V path, without re-checking label placement.",
+    "correction": "Give the K and V read paths symmetric treatment: e.g. both drop from their respective boxes into the top of the 'read for attention' box, with 'read K' and 'read V' labels directly above their own arrows; or merge them into a single labelled 'read K and V' connector. Increase clearance to at least 0.15 in from any box edge.",
+    "acceptance_test": "Each of 'read K' and 'read V' is positioned immediately above the arrow it names, and no connector passes within 0.1 in of an unrelated box."
+  },
+  {
+    "id": "FIG-1.1-D",
+    "page": {"pdf": 27, "printed": 7},
+    "figure": "FIGURE 1.1 — The KV cache",
+    "severity": "P3",
+    "issue": "Caption is a single run-on sentence with a comma splice, and it describes per-head enumeration that the figure does not show.",
+    "evidence": "Caption: 'This is a single-layer detail view: one layer's stored K and stored V drawn separately, each enumerated per head (h1-hn), the full token-travel pipeline is in Fig 1.2 and the end-to-end pipeline in Fig 2.1, where the cache persists across the whole loop.' The figure shows one box per (K, V) labelled 'layer L . h1-hn' — a range label, not per-head enumeration.",
+    "root_cause": "Caption written as one continuous sentence and not reconciled with the drawn content.",
+    "correction": "Split the caption into two sentences, and either draw the per-head enumeration (a small stack of head slices) or reword to 'labelled by layer and head range (h1-hn)'.",
+    "acceptance_test": "The caption contains no comma splice, and every element it attributes to the figure is visibly present in the figure."
+  },
+  {
+    "id": "FIG-1.1-E",
+    "page": {"pdf": 27, "printed": 7},
+    "figure": "FIGURE 1.1 — The KV cache",
+    "severity": "P3",
+    "issue": "The read box is labelled 'read for attention / next token (i)'; the index (i) is never defined on the page, in the caption, or (as far as this page shows) anywhere in the surrounding text, so it reads as a stray symbol.",
+    "evidence": "Rendered label: 'read for attention' with sub-label 'next token (i)'. The caption and the adjacent prose use 'the next token' with no index.",
+    "root_cause": "Index notation carried over from a working draft without being introduced.",
+    "correction": "Either drop '(i)' or introduce it in the caption ('the next token, index i, is the token whose K/V is being written').",
+    "acceptance_test": "Every symbol appearing in a figure label is defined in the caption or the adjacent prose."
+  },
+  {
+    "id": "FIG-1.2-A",
+    "page": {"pdf": 28, "printed": 8},
+    "figure": "FIGURE 1.2 — How a token travels",
+    "severity": "P2",
+    "issue": "The figure draws a single 'Attention' box, which is precisely the misreading the caption warns against ('The K/V are produced within every applicable layer (not after a single \"attention\" stage)'). The caption's disclaimer cannot rescue a diagram whose visual grammar says 'one attention stage'.",
+    "evidence": "Figure: 'Embedding -> attend -> Attention (compute Q,K,V for this vs all past tokens) -> append K,V -> KV Cache (read + write per layer + head)'. Caption: 'The K/V are produced within every applicable layer (not after a single \"attention\" stage)'. The only cue that layers exist is the small 'per layer + head' sub-label inside the KV Cache box.",
+    "root_cause": "The figure was simplified to a linear token journey, and the layer dimension was relegated to a caption caveat instead of being encoded.",
+    "correction": "Encode the layer dimension in the drawing: e.g. a stack of L blocks labelled 'Transformer block x L (attention + MLP)' with the KV Cache box labelled 'per layer x per head', or a brace marked 'x L layers' spanning the attention stage. Then shorten the caption caveat accordingly.",
+    "acceptance_test": "A reader who sees only the figure can state that attention (and K/V production) happens once per layer, not once per token."
+  },
+  {
+    "id": "FIG-1.2-B",
+    "page": {"pdf": 28, "printed": 8},
+    "figure": "FIGURE 1.2 — How a token travels",
+    "severity": "P2",
+    "issue": "Type inside the boxes is cramped and appears below the 8 pt figure-annotation floor: the Attention box's sub-label 'compute Q,K,V for this vs all past tokens' wraps to two lines that nearly fill the box, and the sub-labels throughout ('user prompt', 'characters', 'BPE splits', 'corpus-driven', 'ordered integers', 'ID to d-dim vector', 'one vec/token', 'read + write per layer + head') are set noticeably smaller than the box titles.",
+    "evidence": "In the 150 dpi render (580 px for 8.5 in = 68 px/in) the sub-label glyph height is ~4-5 px, i.e. roughly 6-7 pt at print size, versus ~8-9 px (~11-12 pt) for the box titles. The Attention box (x~255-340, y~340-380) contains two lines of sub-label with ~3 px clearance top and bottom.",
+    "root_cause": "Boxes were sized to fit the diagram rather than the type, and the annotation type size was not checked against the book's figure-annotation floor.",
+    "correction": "Enlarge the sub-label type to the figure-annotation floor (>= 8 pt at print size) and widen/heighten the affected boxes (Attention, KV Cache, Embedding) to accommodate it without wrapping into the box border; shorten the strings if necessary ('compute Q,K,V (this + past)').",
+    "acceptance_test": "At 100% print size on US Letter, every figure annotation is >= 8 pt and no text touches a box border."
+  },
+  {
+    "id": "FIG-1.2-C",
+    "page": {"pdf": 28, "printed": 8},
+    "figure": "FIGURE 1.2 — How a token travels",
+    "severity": "P3",
+    "issue": "The caption refers to 'the backward arrow from the KV cache back to attention', but that arrow is drawn as a routed return path below the boxes, not as a backward arrow; and the caption's 'Color is figure-local decoration' disclaimer is not carried by Figs. 1.1 and 2.1, which also rely on color to distinguish read from write and to identify the initialize path.",
+    "evidence": "Caption: 'the KV cache is a persistent state — written (append) and read (attend, the backward arrow from the KV cache back to attention) across steps — not a processing stage.' In the figure the green 'read past K,V' arrow leaves the bottom of the KV Cache box, runs left below the Attention box, and turns up into the Attention box's bottom edge. Figs. 1.1 and 2.1 have no color disclaimer.",
+    "root_cause": "Caption written against an earlier draft of the layout; the disclaimer was added to one caption only.",
+    "correction": "Describe the arrow by its label ('the green/grey arrow labelled read past K,V') rather than by direction, and add the same color disclaimer to Figs. 1.1 and 2.1 (or make the palette global and drop the disclaimer everywhere).",
+    "acceptance_test": "Every caption's description of an arrow matches the arrow's drawn geometry and label, and the color convention is stated wherever color carries meaning."
+  },
+  {
+    "id": "FIG-1.1-F",
+    "page": {"pdf": 27, "printed": 7},
+    "figure": "FIGURE 1.1 — The KV cache",
+    "severity": "P3",
+    "issue": "Sub-annotation type in the token column ('sampled from prefill', 'first decode output', 'second decode output', 'adds one K/V') and in the stored-K/V boxes ('layer L . h1-hn') appears to fall below the 8 pt figure-annotation floor, and the last token box's sub-label ('adds one K/V') is an action rather than a provenance, unlike the other three.",
+    "evidence": "Rendered sub-label glyph height ~4-5 px at 68 px/in, i.e. ~6-7 pt at print size, versus ~8-9 px for the bold box titles. The four token boxes carry three provenance labels and one action label.",
+    "root_cause": "Annotation type size was not verified against the book's stated floor; the token column was filled with whatever text fit.",
+    "correction": "Raise sub-annotation type to >= 8 pt at print size (widening the token column if needed) and make the fourth box's sub-label parallel in kind ('nth decode output' or 'adds one K/V at step n+1').",
+    "acceptance_test": "All figure annotations measure >= 8 pt at print size; the four token sub-labels are grammatically parallel."
+  },
+  {
+    "id": "FIG-2.2-E",
+    "page": {"pdf": 43, "printed": 23},
+    "figure": "FIGURE 2.2 — surrounding prose (conclusions list)",
+    "severity": "P3",
+    "issue": "In the conclusions list beneath the figure, the capacity item's unit reads as '~1.19 FLOPS/FLOP demand', which is not a unit; the intended quantity is presumably ~1.19x10^15 FLOP/s. If the exponent is genuinely absent, the comparison to the 989 TFLOPS H100 peak does not parse.",
+    "evidence": "Printed p.23, item (2): 'the stated TTT deadline implies ~1.19 FLOPS/FLOP demand, exceeding the compared single-H100 theoretical peak (989 TFLOPS)'. The comparison is only meaningful if the demand is 1.19x10^15 FLOP/s (which does exceed 9.89x10^14).",
+    "root_cause": "Possible lost superscript or a genuine unit typo in a summary list that was not re-read against the derivation.",
+    "correction": "Verify the source and print '~1.19x10^15 FLOP/s' (or the correct value) with the exponent intact; if the demand is in fact 1.19 FLOP/s, the conclusion is wrong and must be rewritten.",
+    "acceptance_test": "The unit in item (2) is a rate (FLOP/s) with a legible exponent, and the stated inequality against 989 TFLOPS is arithmetically true of the printed number."
+  }
+]
+```
+
+COVERAGE: PDF pages 27, 28, 29, 34, 35, 39, 40, 43 (printed pages 7, 8, 9, 14, 15, 19, 20, 23; offset = 20, recomputed from the running heads). Figures inspected at 150 dpi render: FIGURE 1.1 (PDF 27/printed 7), FIGURE 1.2 (PDF 28/printed 8), FIGURE 2.1 (PDF 35/printed 15), FIGURE 2.2 (PDF 43/printed 23) — 4 of 4 figures on these pages, each checked for caption/prose semantic agreement, label legibility and clipping, connector routing, and grayscale distinguishability. Tables 1-1 (PDF 29/printed 9) and 2-1 (PDF 40/printed 20) were viewed incidentally for figure-adjacent consistency but were not audited as tables. PDF pages 34 and 39 contain no figures (prose only). NOT VERIFIED: physical print proof at 100% on US Letter (all type-size findings are 150 dpi estimates and must be confirmed at print size); the book's source figure files (only the rendered PDF was inspected); the derivation of the canonical prefill arithmetic intensity in Ch. 4 / Ch. 8, which was not available on these pages and is required to settle FIG-2.2-A; the H100 datasheet figures (989 TFLOPS FP16 dense, 3.35 TB/s HBM3) were used from the book's own house conventions and in-book values rather than re-fetched from the vendor datasheet.

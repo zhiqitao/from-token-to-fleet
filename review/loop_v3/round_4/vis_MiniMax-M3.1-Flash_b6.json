@@ -1,0 +1,231 @@
+```json
+[
+  {
+    "id": "PAGE-227-01",
+    "page": "PDF 247 / printed 227",
+    "figure": "n/a — prose page (no figure on this page); reviewed because it supplies the arithmetic that Figure 15.1 (PDF 248) rests on",
+    "severity": "P0 (CRITICAL)",
+    "issue": "The attention-FLOP substitution is arithmetically false by two orders of magnitude, and the error inverts the book's own conclusion about which term dominates prefill. The text states: \"the per-layer cost is ~ 4 · L² · d_model, where d_model = 8,192. That is 4 × 9,200² × 8,192 = 2.2 × 10¹⁶ FLOPs — the quadratic attention term that grows dominant at long context.\" The left-hand side of that substitution evaluates to 4 × 84,640,000 × 8,192 = 2.77 × 10¹² FLOPs per layer, not 2.2 × 10¹⁶. Multiplying by the 80 layers named in the preceding clause (\"Across 80 layers that is ...\") gives 2.22 × 10¹⁴ FLOPs — i.e. the printed exponent should be 10¹⁴, not 10¹⁶. The printed 2.2 × 10¹⁶ is exactly what one obtains with L = 92,000 rather than 9,200, which suggests a dropped factor of ten in L.",
+    "evidence": "Recomputed: 4 × 9,200² × 8,192 = 2.773e12 (per layer); × 80 layers = 2.218e14. Cross-check against the book's own dense-matmul estimate on the same page: 2P/token with P = 70e9 gives 1.4e11 FLOP/token; over the canonical 9,200-token prompt that is 1.29e15 FLOP. So at the canonical context, attention (2.2e14, or 1.1e14 if the causal half is taken) is roughly 8–17% of the prefill cost, NOT the dominant term. The printed 2.2e16 would make attention ~17× the dense-matmul term and would be the only thing that makes the clause \"grows dominant at long context\" true at 9,200 tokens. The error therefore propagates into the reader's mental model of the prefill/decode cost split and into the roofline reasoning that Figure 15.1 illustrates.",
+    "acceptance_test": "The printed substitution must evaluate to the printed result. Correct to \"4 × 9,200² × 8,192 ≈ 2.8 × 10¹² FLOPs per layer; across 80 layers ≈ 2.2 × 10¹⁴ FLOPs\", and the sentence must then say that attention is a minority term at the canonical 9,200-token context and becomes dominant only at substantially longer contexts (state the crossover, e.g. the L at which 4·L²·d·80 exceeds 1.4e11·L). Separately, state explicitly whether the 4·L²·d convention is causal or dense: causal attention is 2·L²·d per layer, so the factor of two must be declared and used consistently wherever attention FLOPs are compared with the 2P/token dense term."
+  },
+  {
+    "id": "TBL-12.2-01",
+    "page": "PDF 222 / printed 202",
+    "figure": "Table 12-2 (full-load feasibility matrix), row (b), 'verdict' column",
+    "severity": "P1 (MAJOR)",
+    "issue": "The verdict cell prints a numerically false relation and the wrong required throughput: \"conditional final — ✗ throughput at a single prefill host (~19.8K ≈ 9.2K); prefill pool must itself scale to ~5 hosts (92K × 19.8K ≈ 4.65), plus a decode pool: 2× capes plus fabric.\" As printed, \"19.8K ≈ 9.2K\" asserts that two numbers differing by a factor of 2.15 are approximately equal, and it names 9.2K as the relevant requirement — while the very next clause in the same cell uses 92K as the requirement. The intended statement is almost certainly \"~19.8K ≪ 92K\" (a single prefill host delivers 19.8K tok/s against a 92K tok/s requirement).",
+    "evidence": "Internal inconsistency within one cell: the requirement appears as 9.2K in the first clause and 92K in the second. The second clause's own arithmetic (92K ÷ 19.8K ≈ 4.65 → ~5 hosts) confirms 92K as the requirement. A reader who takes the printed '≈' at face value cannot reconstruct the ~5-host conclusion, and a reader who takes 9.2K as the requirement would conclude a single prefill host already exceeds it by 2×, which contradicts the '✗' verdict in the same cell.",
+    "acceptance_test": "The cell must read, verbatim in substance: \"✗ throughput at a single prefill host (~19.8K ≪ 92K required); prefill pool must scale to ~5 hosts (92K ÷ 19.8K ≈ 4.65), plus a decode pool: ...\". The requirement figure (92K) must appear exactly once and identically in both clauses, and the relation operator must be the one the author intends (≪, not ≈)."
+  },
+  {
+    "id": "TBL-12.2-02",
+    "page": "PDF 222 / printed 202",
+    "figure": "Table 12-2, row (b), 'verdict' column",
+    "severity": "P1 (MAJOR)",
+    "issue": "The host-count derivation uses multiplication where division is required: \"(92K × 19.8K ≈ 4.65)\". 92,000 × 19,800 = 1.82 × 10⁹, which is not 4.65; the intended operation is 92K ÷ 19.8K = 4.65 hosts.",
+    "evidence": "Recomputed: 92,000 / 19,800 = 4.646 → ~5 hosts, matching the stated conclusion. The printed operator makes the expression self-evidently wrong to any reader, and it is the only derivation in the cell that justifies the host count.",
+    "acceptance_test": "Replace '×' with '÷' and add the unit to the result: \"92K ÷ 19.8K ≈ 4.65 hosts\". A reader must be able to reproduce 4.65 from the two printed operands with the printed operator."
+  },
+  {
+    "id": "FIG-15.2-01",
+    "page": "PDF 249 / printed 229",
+    "figure": "FIGURE 15.2, panel (a) 'Caching removes prefill work' — y-axis",
+    "severity": "P1 (MAJOR)",
+    "issue": "The y-axis is labelled \"Prefill FLOPs / req (GFLOP)\" with the no-cache series drawn flat at 100, but the caption describes the same quantity as \"a percent of no-cache prefill work\". The axis unit and the caption unit are different quantities, and the absolute reading (100 GFLOP per request of prefill) contradicts the book's own canonical arithmetic by roughly five orders of magnitude.",
+    "evidence": "The book's canonical prefill cost at 70B and 9,200 prompt tokens is 2P/token × 9,200 = 1.4e11 × 9,200 = 1.29e15 FLOP ≈ 1.3 × 10⁶ GFLOP per request — not 100 GFLOP. The same page's prose (printed 227) uses 10¹⁴–10¹⁶ FLOP magnitudes for prefill. A reader who trusts the axis label will believe prefill costs ~100 GFLOP/request and will mis-scale every roofline or capacity calculation built on it; a reader who trusts the caption will read the axis as a percentage. The figure cannot be both.",
+    "acceptance_test": "Choose one unit and make axis, caption, and any prose agree. Preferred: relabel the y-axis \"Prefill FLOPs per request (% of no-cache)\" with the no-cache series at 100, and state the absolute no-cache value in the caption (e.g. 'no-cache prefill ≈ 1.3 × 10¹⁵ FLOP at the canonical 70B/9,200-token prompt'). If the absolute GFLOP axis is retained instead, the plotted values must be rescaled to the canonical absolute figures and the caption must drop the 'percent' wording."
+  },
+  {
+    "id": "FIG-12.1-01",
+    "page": "PDF 223 / printed 203",
+    "figure": "FIGURE 12.1 'Candidate architecture synthesis', stage 4 OUTCOME box",
+    "severity": "P1 (MAJOR)",
+    "issue": "The outcome box asserts \"CLEARS CAPACITY GATE (a)·(b)\" with no qualification, which contradicts Table 12-2 on the facing page: row (b) P/D-disaggregated is judged \"conditional final — ✗ throughput at a single prefill host\", i.e. the 2 × 8×H100 baseline does NOT clear the capacity gate until the prefill pool is scaled to ~5 hosts. The figure also omits the decode pool that the same table requires for (b), and it omits the open validation gates for (a) and (b) that the caption itself asserts (\"each with its own open validation gate (not a settled verdict)\"). Only (c) is drawn as gated, so the visual grammar of the figure says 'a and b are approved, c is not'.",
+    "evidence": "Table 12-2 (printed 202) row (b): verdict 'conditional final — ✗ throughput at a single prefill host (~19.8K ≪ 92K); prefill pool must itself scale to ~5 hosts ... plus a decode pool'. Figure 12.1 (printed 203) stage 4: 'CLEARS CAPACITY GATE (a)·(b) / each needs ~5 hosts of prefill capacity'. The caption's own hedge ('each with its own open validation gate (not a settled verdict)') is contradicted by the figure's green, unqualified outcome box. A reader who reads only the figure will conclude that the 2-pool baseline is capacity-feasible as drawn.",
+    "acceptance_test": "The OUTCOME box must carry the condition, e.g. 'CLEARS CAPACITY GATE ONLY AFTER SCALING (a)·(b): (b) needs ~5 prefill hosts + a decode pool', and must show that (a) and (b) still carry an open throughput-validation gate (e.g. a small 'throughput gate open' tag), so that the figure's visual state matches the caption's 'not a settled verdict'. The figure must not imply the 2 × 8×H100 baseline passes as drawn."
+  },
+  {
+    "id": "FIG-15.2-02",
+    "page": "PDF 249 / printed 229",
+    "figure": "FIGURE 15.2, panel (a), 'with prefix cache' series",
+    "severity": "P2 (MODERATE)",
+    "issue": "The drawn 'with prefix cache' curve is concave-decreasing (roughly 100 → 96 → 92 → 88 → 83 → 76 → 65 at reuse 1, 2, 3, 5.6, 10.6, 30, 100), i.e. the saving per decade of reuse grows with reuse. That is the opposite of the amortization law the caption describes. If a prefix of P tokens is shared by r requests and each request also carries an uncached suffix S, per-request prefill falls from (S + P) to (S + P/r), so the ratio f(r) = (S + P/r)/(S + P) is convex-decreasing: the largest saving occurs between r = 1 and r = 10 and the curve then flattens toward S/(S + P).",
+    "evidence": "Fitting the drawn curve to f(r) is impossible for any S/P: the drawn curve drops 15 points over r = 1→10 but a further 18 points over r = 10→100, whereas f(r) drops monotonically less per decade. For example, with S = 1.475P (which fits the drawn endpoint of 65 at r = 100), f(10) = 64 — the drawn value at r ≈ 10 is ≈ 83. The figure therefore teaches 'prefix caching's per-request saving accelerates with reuse', which is a false model of the mechanism and would mislead a reader sizing prefill headroom.",
+    "acceptance_test": "Re-plot panel (a) from the stated model: choose and print a prefix/suffix split (e.g. P = 40% of the prompt), plot f(r) = (S + P/r)/(S + P) on the log-r axis, and label the curve with that formula or its parameters. The curve must be monotone and convex-decreasing, with the r = 1 point equal to the no-cache series. If a synthetic curve is retained for illustration, it must still satisfy the amortization shape."
+  },
+  {
+    "id": "FIG-13.1-01",
+    "page": "PDF 231 / printed 211",
+    "figure": "FIGURE 13.1 'The reference-architecture escalation ladder' — de-escalation arrow",
+    "severity": "P2 (MODERATE)",
+    "issue": "The caption twice assigns the de-escalation arrow the colour green (\"de-escalation (green) fires on privacy, data sovereignty, and cost\"; \"de-escalation (green: data sovereignty, cost) moving a workload between tiers\"), but the figure draws the de-escalation arrow as a BLUE dashed arrow. In the same figure, green is used for the tier boxes and for the '▼ constraints → STOP' labels, so the caption's colour key is wrong in both directions. The criterion list also disagrees: the figure's arrow label reads \"DE-ESCALATE: latency · sovereignty · cost\" while the caption says \"privacy, data sovereignty, and cost\" — 'latency' and 'privacy' are different triggers and the reader cannot tell which is intended.",
+    "evidence": "Rendered page: the right-hand vertical arrow is blue with a blue dashed stroke; the four tier boxes and the '▼ constraints → STOP' lines are green. Caption (printed 211) refers to green de-escalation and to privacy as the trigger. Two independent mismatches (colour and trigger) in the same element.",
+    "acceptance_test": "Make the figure and caption agree on one colour for de-escalation (and use a colour not already carrying the 'STOP' meaning), and use one trigger list. If the intended trigger is latency, the caption must say latency; if privacy, the arrow label must say privacy. The caption's colour key must be checked against the rendered figure for every colour it names."
+  },
+  {
+    "id": "FIG-13.1-02",
+    "page": "PDF 231 / printed 211",
+    "figure": "FIGURE 13.1 — placement of the three red escalation-trigger labels",
+    "severity": "P2 (MODERATE)",
+    "issue": "Each red trigger label is drawn in the vertical gap immediately BELOW its own tier box, adjacent to that box's connector into the red escalation arrow: 'demand > ceiling → forces scale-up' sits below the Cluster/fleet box, 'goodput < demand → forces scale-up' below Multi-host, and 'KV residency > cap → forces scale-up' below Single host. Read that way, the Cluster/fleet tier is told to escalate because 'demand > ceiling', which has no destination — the ladder is already at the top. The caption's semantics are the opposite: \"Escalation (red) fires when demand, KV residency, or goodput outcomes exceed a tier\", i.e. the trigger fires AT a tier and pushes the workload to the next tier up. Under that reading 'demand > ceiling' belongs to the Multi-host tier, not to Cluster/fleet.",
+    "evidence": "Rendered geometry: label baselines sit below the corresponding box centres and above the next box's top edge, so the nearest antecedent for each label is the box above it. The caption's wording ('exceed a tier') supports the other reading. The figure is therefore readable in two ways, and one of them is incoherent.",
+    "acceptance_test": "Place each trigger label immediately below the tier at which it fires and add an explicit upward arrow to the next tier (e.g. 'Single host: KV residency > cap → escalate to Multi-host'), or relabel the labels as arrival reasons ('why we moved here'). A reader must be able to state, for each tier, which trigger fires there and which tier it leads to, without consulting the caption."
+  },
+  {
+    "id": "FIG-13.1-03",
+    "page": "PDF 231 / printed 211",
+    "figure": "FIGURE 13.1 — the four green '▼ constraints → STOP' labels",
+    "severity": "P2 (MODERATE)",
+    "issue": "Every tier carries a green '▼ constraints → STOP' annotation that the caption never explains. The caption discusses escalation triggers and de-escalation criteria but says nothing about a per-tier stop condition, so the reader is left to guess whether 'constraints → STOP' means 'this tier's constraints are binding, stop here', 'this tier cannot be scaled further', or 'stop escalating at this tier'. The annotation is also the only green element besides the tier boxes, which is what makes the caption's 'de-escalation (green)' mis-key so damaging.",
+    "evidence": "Rendered page: four identical green '▼ constraints → STOP' lines, one under each tier box; the caption's two paragraphs mention only escalation triggers, de-escalation criteria, and the measurable-threshold example. No text in the caption or the figure defines the STOP annotation.",
+    "acceptance_test": "Either define the STOP annotation in the caption in one sentence (state what constraint stops escalation at that tier and give one example, e.g. 'Single GPU: KV residency > cap → STOP, escalate to Single host'), or remove it. It must not remain an unexplained visual element, and its colour must not collide with the de-escalation colour key."
+  },
+  {
+    "id": "FIG-15.1-01",
+    "page": "PDF 248 / printed 228",
+    "figure": "FIGURE 15.1 'FlashAttention: the same math, far less HBM traffic', AFTER panel",
+    "severity": "P2 (MODERATE)",
+    "issue": "The AFTER panel draws exactly two arrows between the on-chip box and the HBM box (one up, one down), which reads as 'read K/V once, write once' — i.e. a single global K/V pass. The caption explicitly disclaims that reading: \"the tile-level on-chip reuse is per-tile: it is not a guarantee that every K/V element is read exactly once globally across all query blocks (the exact number of K/V re-reads depends on the tile scheduling, sequence length, and SRAM size)\". The in-panel note ('KV reused per tile — no single global K/V pass') mitigates but does not resolve the conflict, because the drawn arrow count is the strongest visual signal and it encodes exactly the claim the caption retracts.",
+    "evidence": "Rendered page: BEFORE panel shows a fan of ~7 red arrows; AFTER panel shows 2 green arrows. The caption's scope note is the only textual guard against reading the 2 arrows as 'one global read'. A reader scanning the figure will take the arrow count as the traffic story.",
+    "acceptance_test": "Label the AFTER arrows with what they represent (e.g. 'read K/V block per tile' and 'write O only') and add an in-panel note that the number of K/V re-reads equals the number of query tiles, or replace the arrow count with a per-tile loop glyph so the figure cannot be read as a single global pass. The figure must not, by arrow count alone, assert a global single-read."
+  },
+  {
+    "id": "FIG-15.2-03",
+    "page": "PDF 249 / printed 229",
+    "figure": "FIGURE 15.2, panel (b) title 'Decode bottleneck unaffected by caching'",
+    "severity": "P2 (MODERATE)",
+    "issue": "The panel title asserts a claim the panel does not show. Panel (b) plots 'Relative decode goodput (a.u.)' against 'Decode batch size' with a single blue curve; there is no caching axis, no cached/uncached pair, and no reference to prefix caching anywhere in the panel. The title is therefore an assertion about the absence of an effect that the data cannot demonstrate. The caption's own framing ('They are not competing on the same axis') is the defensible statement; the panel title is not.",
+    "evidence": "Rendered page: panel (b) contains one series, one x-axis (decode batch size), one y-axis (relative decode goodput), one red dashed marker at batch ≈ 10, and a red annotation. Nothing in the panel encodes caching, so the title's claim is untested by the figure.",
+    "acceptance_test": "Retitle panel (b) to what the axes show, e.g. 'Decode goodput scales with batch size (caching-independent axis)', and move the 'unaffected by caching' statement into the caption where it can be argued rather than asserted. If the claim is to be shown, the panel must include a cached and an uncached series."
+  },
+  {
+    "id": "FIG-11.4-01",
+    "page": "PDF 209 / printed 189",
+    "figure": "FIGURE 11.4 'Device visibility is not a validated serving path'",
+    "severity": "P2 (MODERATE)",
+    "issue": "The dashed arrows that carry the three paths to the red qualification gate are drawn from the HARDWARE boxes only, not from the complete column. The figure's own subtitle says 'Dashed: qualify the complete path' and the caption says 'dashed arrows bring the complete path to the qualification gate', but the geometry shows three dashed connectors rising from the Hardware row into the gate. A reader who reads the diagram literally concludes that hardware visibility is what is qualified — the exact inverse of the figure's thesis, and the exact misconception the gate box's last line ('A visible device or a loaded model does not pass this gate') exists to prevent.",
+    "evidence": "Rendered page: within each column, solid arrows run Serving stack → Backend entry → Kernels/runtime → Hardware; the only dashed segments are the three short connectors from the Hardware boxes down to the red gate box. The gate box text lists weights + KV + workspace, operators + attention/cache path, correctness + isolation, collectives, measured SLO — none of which is a hardware-only property.",
+    "acceptance_test": "Draw the dashed connector from the whole column (e.g. a bracket or a dashed outline enclosing the four boxes per column) into the gate, or replace the three dashed arrows with a single dashed arrow from a 'complete path' node. The drawn geometry must not permit the inference that the hardware row alone is qualified."
+  },
+  {
+    "id": "TBL-12.2-03",
+    "page": "PDF 222 / printed 202",
+    "figure": "Table 12-2, row (b), 'memory: weights+KV' column",
+    "severity": "P2 (MODERATE)",
+    "issue": "The cell prints \"−576 GB at the full KV budget (140 + 436)\". A negative memory footprint is not meaningful, and the parenthetical arithmetic gives +576 GB (140 + 436 = 576). The leading glyph is either a mistyped minus sign or a mangled approximation sign; as rendered it asserts a negative quantity.",
+    "evidence": "Recomputed: 140 + 436 = 576 GB. The same row's other cell prints '164 GB single-request (140 + 24)', which is correct and shows the intended '+' convention. The reader cannot tell whether the sign is a typo or a deliberate delta (e.g. '−576 GB' as a reduction), and in the latter case the units and baseline are unstated.",
+    "acceptance_test": "Print '576 GB at the full KV budget (140 + 436)' (or '≈576 GB'), matching the '+' convention used in the adjacent cell. If a delta was intended, state the baseline explicitly ('+436 GB KV over the 140 GB weights')."
+  },
+  {
+    "id": "TBL-12.2-04",
+    "page": "PDF 222 / printed 202",
+    "figure": "Table 12-2, rows (b) and (c), 'verdict' column",
+    "severity": "P2 (MODERATE)",
+    "issue": "The two host-count figures are quoted on different operating points without saying so. Row (b) says the prefill pool 'must itself scale to ~5 hosts' (which is the peak requirement, since 92K ÷ 19.8K ≈ 4.65 is derived from the peak load), while row (c) says '~4 avg / ~15 peak hosts at the single-H100 rate'. The reader is invited to compare '~5' with '~4' as if they were the same quantity; they are not (peak vs average), and the table's own note that host counts are 'an illustrative capacity screen from the fixed per-host prefill rates' does not resolve it.",
+    "evidence": "Rendered page: row (b) verdict '...prefill pool must itself scale to ~5 hosts (92K × 19.8K ≈ 4.65)...'; row (c) verdict '...~4 avg / ~15 peak hosts at the single-H100 rate (Table 12-2)'. The 4.65 derivation uses the 92K peak figure, so '~5' is a peak number; row (c) explicitly labels its two numbers as avg and peak.",
+    "acceptance_test": "Label the operating point on every host count in the table (e.g. '~5 hosts at peak'), and use the same avg/peak pairing for rows (a) and (b) so the three candidates are comparable on one basis. A reader must be able to compare (a), (b), and (c) host counts without guessing which basis each uses."
+  },
+  {
+    "id": "FIG-14.1-01",
+    "page": "PDF 241 / printed 221",
+    "figure": "FIGURE 14.1 'Select models: screen on capability, then benchmark on the workload'",
+    "severity": "P2 (MODERATE)",
+    "issue": "The figure's reading order does not match the process it depicts. The top row is laid out left-to-right as 'Candidate models → Survivors → Selection', and the bottom row as 'Capability MMLU/GSM8K → Deploy bench (prodput) → TCO + SLO gate → deployed', with the actual process encoded as vertical green arrows ('screen', 'benchmark', 'gate'). The true sequence is therefore down-right-down-right-right, but the eye enters at the top-left and naturally reads the top row straight across, which yields the wrong order (Candidate models → Survivors → Selection as a linear pipeline). The caption's own summary is a clean two-stage sequence ('capability screen → deployment benchmark'), which the layout does not reproduce.",
+    "evidence": "Rendered page: three blue boxes in a top row with black horizontal arrows, three orange boxes in a bottom row with black horizontal arrows, and green vertical arrows labelled screen / benchmark / gate. The 'deployed' node hangs off the bottom-right box, so the diagram's terminal state is in the bottom row while the top row ends at 'Selection' — the reader must reconstruct the serpentine path.",
+    "acceptance_test": "Re-lay the figure as a single left-to-right flow (Candidate models → Capability screen → Survivors → Deployment benchmark → Selection → TCO + SLO gate → deployed), or number the stages 1–5 in the order they execute. The figure must be readable in one pass without the reader having to infer the serpentine order."
+  },
+  {
+    "id": "FIG-15.1-02",
+    "page": "PDF 248 / printed 228",
+    "figure": "FIGURE 15.1 headline and in-panel annotations",
+    "severity": "P3 (MINOR)",
+    "issue": "The headline claims 'far less HBM traffic' (a byte quantity) while the figure's own bottom line and the caption both claim 'fewer HBM round-trips' (a count). The book is explicit elsewhere that these are different units — the facing page warns 'be precise about the units: one often sees a FlashAttention-class kernel reported at a different achieved HBM bandwidth ... That is a rate, not a byte count.' The headline therefore uses the weaker claim's units for the stronger claim's benefit.",
+    "evidence": "Rendered page: headline 'FlashAttention: the same math, far less HBM traffic'; in-panel green line 'the gain is fewer HBM round-trips, not cheaper attention'; caption 'the gain is fewer HBM round-trips, not a change to the attention mathematics'.",
+    "acceptance_test": "Change the headline to 'far fewer HBM round-trips' (or state the traffic reduction explicitly, e.g. 'O(L²) → O(L) HBM traffic for the intermediate'), so that the headline, the in-panel line, and the caption use one unit."
+  },
+  {
+    "id": "FIG-15.1-03",
+    "page": "PDF 248 / printed 228",
+    "figure": "FIGURE 15.1, BEFORE panel, HBM box label",
+    "severity": "P3 (MINOR)",
+    "issue": "Both panels label the HBM box 'Q/K/V', but the BEFORE panel's defining feature — the materialized O(L²) intermediate attention matrix written to and re-read from HBM — is not drawn or labelled in the box; it appears only in the small note below the panel. The visual therefore shows the naive path as 'Q/K/V in HBM, many round-trips' without the artifact that actually causes the traffic, which weakens the before/after contrast the figure exists to make.",
+    "evidence": "Rendered page: BEFORE panel HBM box reads 'Q/K/V'; the note below reads 'O(L²) HBM traffic: L×L intermediate written + every query re-reads the KV rows'. The AFTER panel's HBM box also reads 'Q/K/V'.",
+    "acceptance_test": "Label the BEFORE panel's HBM box to include the intermediate (e.g. 'Q/K/V + O(L²) intermediate') and, if space permits, draw the intermediate as a distinct hatched region so the reader sees what the naive path materializes."
+  },
+  {
+    "id": "FIG-15.2-04",
+    "page": "PDF 249 / printed 229",
+    "figure": "FIGURE 15.2, panel (b), red annotation at the batch ≈ 10 marker",
+    "severity": "P3 (MINOR)",
+    "issue": "The red annotation contains an uninterpretable parenthetical: \"diminishing gains past ~10 (6 hard plateau); goodput still rises; tail latency keeps rising\". '(6 hard plateau)' is not a phrase a reader can parse — it is either a stray glyph, a truncated word, or a mangled '≈6× hard plateau'. The annotation is the figure's only statement of the operating-point recommendation, so its garbling matters.",
+    "evidence": "Rendered page, panel (b): the annotation is set in small red type over four lines; the second line reads 'past ~10 (6 hard' and the third 'plateau); goodput'. The surrounding prose on printed 229 ('batching raises decode goodput (right plot) until binding saturates') does not disambiguate it either.",
+    "acceptance_test": "Replace the parenthetical with a parseable phrase (e.g. 'past ~10 (hard plateau)') or remove it, and confirm the annotation's wording against the drawn curve: the curve rises from ≈32 at batch 10 to ≈90 at batch 100, so 'diminishing gains' must be stated in the multiplicative sense the curve actually shows."
+  },
+  {
+    "id": "FIG-13.1-04",
+    "page": "PDF 231 / printed 211",
+    "figure": "FIGURE 13.1, 'DE-ESCALATE: latency · sovereignty · cost' label",
+    "severity": "P3 (MINOR)",
+    "issue": "The de-escalation label is the smallest text in the figure and is set immediately to the left of the blue dashed arrow, in the same horizontal band as the wide red escalation arrow's shaft, with no clear separation. At print size the label is the hardest element to read, and it is the element whose wording is already in dispute (see FIG-13.1-01).",
+    "evidence": "Rendered page: the label sits between the red arrow shaft and the blue dashed arrow, at roughly the same height as the 'goodput < demand' trigger text, with visibly tighter clearance than any other annotation in the figure.",
+    "acceptance_test": "Move the de-escalation label to the right of the blue arrow (or above it) with clear separation from the red shaft, and set it at the same size as the other tier annotations."
+  },
+  {
+    "id": "FIG-12.1-02",
+    "page": "PDF 223 / printed 203",
+    "figure": "FIGURE 12.1, stage 2 CONSTRAINTS box",
+    "severity": "P3 (MINOR)",
+    "issue": "The caption states that all three candidates are 'tested against the same SLO (TTFT/goodput rps, 0.2K in/out, per-candidate capacity in Table 12-1)', but the SLO appears nowhere in the diagram — the CONSTRAINTS box is empty of content, and the SLO is the constraint that decides the outcome. The figure's own logic (requirements → constraints → candidates → outcome) is therefore missing the constraint that actually gates the outcome.",
+    "evidence": "Rendered page: box 2 'CONSTRAINTS' contains only its number and title; the SLO, TTFT, goodput, and workload shape appear only in the caption text.",
+    "acceptance_test": "Populate the CONSTRAINTS box with the SLO and workload shape (e.g. 'SLO: TTFT ≤ X, goodput ≥ Y rps; workload 0.2K in / 0.2K out') so the diagram carries the constraint it claims to be reasoning from."
+  },
+  {
+    "id": "FIG-12.1-03",
+    "page": "PDF 223 / printed 203",
+    "figure": "FIGURE 12.1 caption",
+    "severity": "P3 (MINOR)",
+    "issue": "The caption states the candidates are tested at '0.2K in/out'. The book's canonical scenario (Ch 4, Table 4-2) is 1,200 + 8,000 = 9,200 tokens, and the note on the facing page (printed 202) asserts that 'All figures trace to the canonical scenario (Ch 4, Table 4-2)'. If the canonical prompt is 1,200 in / 8,000 out, then '0.2K in/out' describes a different workload than the one the table's capacity numbers are derived from, and the figure's caption would be pointing the reader at the wrong workload shape.",
+    "evidence": "Figure 12.1 caption: 'all tested against the same SLO (TTFT/goodput rps, 0.2K in/out, per-candidate capacity in Table 12-1)'. Page 202 note: 'All figures trace to the canonical scenario (Ch 4, Table 4-2)'. The canonical token split is 1,200 + 8,000 = 9,200 per the book's own arithmetic.",
+    "acceptance_test": "Reconcile the workload shape stated in the Figure 12.1 caption with Ch 4 Table 4-2 and with the per-candidate capacity figures in Table 12-1/12-2. If 0.2K in/out is a deliberate reduced workload, say so explicitly and state which capacity numbers were recomputed for it."
+  },
+  {
+    "id": "TBL-12.2-05",
+    "page": "PDF 222 / printed 202",
+    "figure": "Table 12-2, row (b), 'verdict' column",
+    "severity": "P3 (MINOR)",
+    "issue": "The verdict cell ends with 'plus a decode pool: 2× capes plus fabric'. '2× capes' is not a defined term anywhere in the cell or the table and does not parse as a quantity of hosts, GPUs, or capacity; it appears to be a corruption of '2× capacity' or of a host-count expression. The reader cannot determine how many decode hosts or GPUs the candidate requires.",
+    "evidence": "Rendered page, row (b) verdict: '...plus a decode pool: 2× capes plus fabric'. The 'host layout' column for the same row reads '2 × 8×H100 (baseline)', so the intended quantity is probably a host or GPU count.",
+    "acceptance_test": "Replace with an explicit quantity in the table's own units (e.g. 'plus a decode pool of 2 hosts (2 × 8×H100) plus fabric'), and confirm the decode-pool host count is consistent with the decode-side capacity requirement elsewhere in Ch 12."
+  },
+  {
+    "id": "FIG-11.4-02",
+    "page": "PDF 209 / printed 189",
+    "figure": "FIGURE 11.4, Client NPU column, 'Serving stack' box",
+    "severity": "P3 (MINOR)",
+    "issue": "The Client NPU column's 'Serving stack' box contains 'OpenVINO GenAI supported NPU models', which is a statement about model support, not about a serving stack. The other two columns correctly list software stacks ('vLLM XPU / SGLang XPU or llama.cpp SYCL'; 'Gaudí-specific engine and compatible release'). Because the three columns are meant to be read as parallel stacks, the mismatch makes the third column look like a different kind of row.",
+    "evidence": "Rendered page: row label 'Serving stack'; Intel GPU cell 'vLLM XPU / SGLang XPU or llama.cpp SYCL'; Gaudi cell 'Gaudí-specific engine and compatible release'; Client NPU cell 'OpenVINO GenAI supported NPU models'.",
+    "acceptance_test": "Either replace the Client NPU cell with the actual serving stack (e.g. 'OpenVINO GenAI / GenAI-LLM runtime on NPU plugin') or move the model-support statement into the Backend-entry row and keep the Serving-stack row parallel across the three columns."
+  },
+  {
+    "id": "PAGE-227-02",
+    "page": "PDF 247 / printed 227",
+    "figure": "n/a — prose page (no figure); supports the FlashAttention discussion and Figure 15.1",
+    "severity": "P3 (MINOR)",
+    "issue": "The prose uses a context length of '9,500-token contexts' for the FlashAttention bandwidth illustration, while the book's canonical prompt is 9,200 tokens (1,200 + 8,000). The two figures appear in the same argument (the FlashAttention traffic claim) and the difference is unexplained, so the reader cannot tell whether 9,500 is a deliberate variant or a stale value.",
+    "evidence": "Printed 227: '(illustratively ~150 GB/s vs ~400 GB/s for 9,500-token contexts)'. Canonical prompt per the book's own arithmetic: 1,200 + 8,000 = 9,200 tokens.",
+    "acceptance_test": "Use the canonical 9,200-token context, or state in one clause why a 9,500-token context is used (e.g. 'a 9,500-token context to keep the attention term visible'). Any context length used in a numerical illustration should be traceable to the canonical scenario or explicitly flagged as a variant."
+  },
+  {
+    "id": "PAGE-227-03",
+    "page": "PDF 247 / printed 227",
+    "figure": "n/a — prose page (no figure); supports the FlashAttention discussion and Figure 15.1",
+    "severity": "P3 (MINOR)",
+    "issue": "The bandwidth comparison is ambiguous about which kernel achieves which rate: 'one often sees a FlashAttention-class kernel reported at a different achieved HBM bandwidth than a naive SDPA kernel (illustratively ~150 GB/s vs ~400 GB/s for 9,500-token contexts)'. The parenthetical order follows the sentence's noun order (FlashAttention first, naive second), which would assign 150 GB/s to FlashAttention and 400 GB/s to the naive kernel — the opposite of the expected behaviour, since FlashAttention is the more bandwidth-efficient kernel. The reader cannot resolve the assignment from the text.",
+    "evidence": "Printed 227 sentence as quoted. The expected reading (FlashAttention ≈ 400 GB/s achieved, naive ≈ 150 GB/s) is consistent with the book's argument that FlashAttention converts idle bandwidth into useful work, but the printed order does not say so.",
+    "acceptance_test": "Name the kernel with each number explicitly, e.g. 'naive SDPA ≈ 150 GB/s achieved vs FlashAttention ≈ 400 GB/s achieved', and keep the order consistent with the sentence's noun order. This also removes the ambiguity in Figure 15.1's headline, which asserts a traffic reduction without stating the measured rates."
+  }
+]
+```
+
+COVERAGE: PDF pages 209, 222, 223, 231, 241, 247, 248, 249 (printed pages 189, 202, 203, 211, 221, 227, 228, 229; offset +20 confirmed from the running heads on every page). Figures inspected as rendered 150 dpi images: FIG 11.4 (PDF 209), Table 12-2 fragment (PDF 222), FIG 12.1 (PDF 223), FIG 13.1 (PDF 231), FIG 14.1 (PDF 241), FIG 15.1 (PDF 248), FIG 15.2 (PDF 249). PDF 247 contains no figure; its prose was audited because it supplies the attention-FLOP arithmetic and the bandwidth units that Figure 15.1 depends on. Quantities independently recomputed: Table 12-2 row (b) memory (140+24=164; 140+436=576), host derivation (92,000/19,800=4.65), row (c) memory (14+1.2≈15); FIG 15.2 panel (a) amortization shape f(r)=(S+P/r)/(S+P) fitted against the rendered curve points; FIG 15.1/printed-227 attention FLOPs (4×9,200²×8,192=2.77e12 per layer; ×80 layers=2.22e14) cross-checked against the book's 2P/token dense estimate (1.4e11 FLOP/token → 1.29e15 FLOP over 9,200 tokens). NOT VERIFIED: no grayscale render was produced — grayscale distinguishability was assessed from luminance/pattern reasoning on the 150 dpi images, not from an actual desaturated proof; no source files, figure-generation code, or the machine gates (check_regressions.py, check_stale_values.py, scan_overlaps.py) were available, so gate-covered arithmetic was re-derived independently rather than cross-checked against the gates; Table 12-2 row (a) (printed 201) was not in this batch, so the Figure 12.1 claim that (a) also needs '~5 hosts of prefill capacity' is unverified; the canonical workload split in Ch 4 Table 4-2 was not re-read, so FIG-12.1-03 is filed as a reconciliation item rather than a confirmed contradiction; the '9,500-token' and '~150/~400 GB/s' values on printed 227 were checked for internal consistency only, not against any external source; no external references (arXiv:2205.14135, Tri Dao et al.) were fetched — the citation was checked for internal consistency with the figure's claim only.
