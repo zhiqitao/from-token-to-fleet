@@ -13,7 +13,7 @@ import fitz  # pymupdf
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PDF = os.path.join(REPO, "render/build/from-token-to-fleet-v20260913-plain.pdf")
-RASTER = [27, 28, 92, 144, 159, 204]  # 459pp build (2026-11-08)
+RASTER = []  # 486pp build (2026-11-13): every image page matches a caption regex
 
 
 def main():
