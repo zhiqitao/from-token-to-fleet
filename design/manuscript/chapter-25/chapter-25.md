@@ -76,7 +76,8 @@ This is the template to copy into a repo, intended to be filled and to serve as 
 ## Status
 <proposed | accepted | superseded | deprecated>  (date)
 
-## Decision (the committed choice, one paragraph; significant and costly to reverse — the criterion that made this an ADR)
+## Decision (the committed choice, one paragraph;
+   significant and costly to reverse — the criterion that made this an ADR)
 <the one-sentence decision, and what it commits the team to>
 
 ## Architecture Decision Context  (from Ch 22's loop)
