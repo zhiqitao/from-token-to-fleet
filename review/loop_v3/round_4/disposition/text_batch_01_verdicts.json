@@ -1,0 +1,182 @@
+[
+ {
+  "id": "CH2-06",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "DEFENSIBLE",
+  "reason": "The clause explicitly names both resources — 'higher-bandwidth memory and interconnect topologies' — and the parenthetical maps each item to its resource (HBM3e → per-GPU memory; NVSwitch/NVLink → GPU-to-GPU communication), so no interconnect item appears under the §1 'memory bandwidth' row; the finding's framing ('listed under higher-bandwidth memory') drops the 'and interconnect topologies' half of its own quoted heading. Higher-bandwidth interconnect is a legitimate decode lever because per-step all-reduce traffic sits on the decode critical path in TP deployments.",
+  "evidence": "chapter-02.md:159 (full line): '- **With decode in the bandwidth-bound regime → optimization levers:** continuous batching (vLLM, PagedAttention) ... and higher-bandwidth memory and interconnect topologies (HBM3e memory per GPU; NVSwitch/NVLink for GPU-to-GPU communication).' Resource table: chapter-02.md:47 '| **memory bandwidth** | bytes/s | how fast data can move | decode (Ch. 2, 8)' vs :49 '| **interconnect bandwidth/latency** | bytes/s, delay | cross-GPU / cross-host movement | communication (Ch. 9) and parallelism (Ch. 10)'. The finding's §3 evidence quote is real: grep confirms 'streams only its shard' and 'plus communication overhead' both occur in chapter-02.md.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "APPA-03",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "'Second-order' is the appendix's key descriptor, used once and never defined; the paragraph implies an efficiency reading ('mostly efficiency ... not intelligence') but never states what the term means, so the reader must infer it. The term is not standard in architecture discourse and appears nowhere else in the book in this sense.",
+  "evidence": "chapter-27.md:26 (verbatim): 'Four 2026 frontier open models we surveyed converge on a **second-order architectural pattern**, which we read as an interpretation rather than an established historical fact. ... In our interpretation, it is mostly **efficiency** (more context, less cost per token) that comes out of the attention and MoE changes below, not intelligence.' grep 'second-order' across design/manuscript/: exactly 2 hits — chapter-27.md:26 and chapter-07.md:154 (GPTQ quantization, unrelated); grep 'second order': NO HITS.",
+  "fix_instruction": "File design/manuscript/chapter-27/chapter-27.md, line 26, in the first sentence of 'The Signal in One Paragraph': change 'converge on a **second-order architectural pattern**, which we read as an interpretation' to 'converge on a **second-order architectural pattern — one that improves efficiency (more context, cheaper tokens) rather than raw capability** — which we read as an interpretation'."
+ },
+ {
+  "id": "CH3-01",
+  "model": "DeepSeek-V4.1-Flash",
+  "severity": "P2",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The quoted d_hidden formula does not exist in Ch 3 §3: the displayed formula already uses the GQA-correct symbols (n_KV-heads × d_head) with d_hidden only as the labeled full-MHA special case, and the worked example substitutes 8 KV heads × 128 to get the stated 0.0655 MB/token — the finding's own acceptance test is already met. The d_hidden form appears only in Ch 1, explicitly labeled as the MHA-reduced introductory form.",
+  "evidence": "grep 'kv_per-token' across design/manuscript/: NO HITS (formula is LaTeX). chapter-03.md:109 verbatim: 'The cache size per token scales with the canonical Chapter 1 formula (the full-MHA case, where n_KV-heads × head_dim = hidden_dim; for a GQA/MQA model substitute n_KV-heads × head_dim), $KV_{\\text{per-token}} = 2 \\times n_{\\text{layers}} \\times (n_{\\text{KV-heads}} \\times d_{\\text{head}}) \\times \\text{bytes-per-value}$ (full-MHA special case: $n_{\\text{KV-heads}} \\times d_{\\text{head}} = d_{\\text{hidden}}$).' chapter-03.md:114: 'KV per token = 2 × 32 × 8 × 128 = 65,536 B = 0.0655 MB/token'. chapter-01.md:47: '...the formula reduces to the simpler introductory form `2 × n_layers × d_hidden × bytes-per-value`.'",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH3-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The headline claim is refuted: 236B IS used in arithmetic — §5 computes the residency bound '236B × 2 bytes'. The 29.5B-vs-5.7B per-expert mismatch is arithmetically true (236/8 = 29.5) but no source text ties the §1 figure to the §3 Mixtral-class geometry: the 236B is explicitly labeled '(an illustrative figure)' and §5 uses it as an alternative quoted total alongside 47B, so the chapter asserts no contradiction.",
+  "evidence": "grep '236' in design/manuscript/: exactly 2 hits — chapter-03.md:12 ('A MoE model may have 236B total parameters (an illustrative figure) distributed across eight experts') and chapter-03.md:138 ('the full expert set must be resident — 236B × 2 bytes, not just the active footprint'). python: 236/8 = 29.5. Worked geometry chapter-03.md:92: '~5.7B per expert × 8 = 45.6B + ~1.4B always-on ... = 47B'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH3-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "Both bounds are explicitly 'of total' (caption: '~24–27% of total'), so the basis is consistent, not mixed: 11.4/47 = 24.3% ≈ 24% (expert-FFN-only numerator, of total) and 12.8/47 = 27.2% ≈ 27% (all active, of total) — both recompute exactly from the table's own shown numbers (12.8 − 1.4 = 11.4). The finding's 'consistent' 11.4/45.6 = 25% is a fraction of expert mass — a different basis than the caption states — and the 24% does have a visible derivation in the adjacent row.",
+  "evidence": "chapter-03.md:88 caption: 'The active fraction for top-2-of-8 routing is ~24–27% of total, not single-digit.' chapter-03.md:93: '2 × 5.7B routed experts + ~1.4B always-on attention/shared = 12.8B (~27% of the ~47B total; ~24% counting expert-FFN mass alone)'. python: 11.4/47 = 0.24255 → 24.3%; 12.8/47 = 0.27234 → 27.2%; 11.4/45.6 = 0.25 exactly.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH3-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The differentiating evidence is factually wrong: Ch 2 does NOT follow the claimed convention — Fig 2.1 maps to fig-02-0202.png and Fig 2.2 to fig-02-0201.png (inverted, not 'Fig 2.1 → fig-02-0201.png'). File-number ≠ printed-figure-number is the book-wide pattern (Fig 7.1 → 0703, Fig 7.5 → 0701, Fig 8.1 → 0802, Fig 11.1 → 1102, Fig 15.1 → 1502), i.e. file numbers are creation-order, and the referenced asset exists on disk, so no mis-assembly hazard materializes — figure references are explicit paths, not number-derived.",
+  "evidence": "figure-ref extraction across design/manuscript/: Fig 2.1 -> figures/fig-02-0202.png (chapter-02.md:21); Fig 2.2 -> figures/fig-02-0201.png (chapter-02.md:103); Fig 3.1 -> fig-03-0302-diffusion-corruption.png (:30); Fig 3.2 -> fig-03-0303-diffusion-cache-lifetime.png (:48); Fig 3.3 -> fig-03-0304-wan-noise-experts.png (:178); Fig 3.4 -> fig-03-0301.png (:205); Fig 7.1 -> fig-07-0703.png; Fig 8.1 -> fig-08-0802.png; Fig 11.1 -> fig-11-1102.png; Fig 15.1 -> fig-15-1502.png. ls design/manuscript/chapter-03/figures/: fig-03-0301.png and .pdf present.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH3-02",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "DEFENSIBLE",
+  "reason": "Purely an editorial depth preference on text the reviewer concedes is 'technically correct and well-sourced'; the subsection opens with an explicit scope note announcing its placement, depth and skip path — a deliberate, signposted choice, not a defect.",
+  "evidence": "chapter-03.md:18 (scope note): '> **Reader orientation (scope note).** ... It is the book's coverage of the 2026 alternative-inference frontier; the core dense/MoE/KV thread resumes in §2 (Mental Model). Read now for the frontier signal, or skip to §2 and return through the cross-references in Ch 27.' Content claims verified: DDPM, score-SDE, discrete diffusion, MDLM, LLaDA, flow matching, rectified flow, DFlash, Fast-dLLM, dKV-Cache, Block Diffusion, LLaDA2.2, DiffusionGemma all cited at chapter-03.md:24-50; SDE/ODE at :26; 'regresses a vector field' at :32.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH3-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "torch.profiler has no active-parameter-counting capability: PyTorch's own docs list operator timing, memory profiling, record_shapes and with_flops (FLOP estimates for matmul/2D-conv) — inferring active parameters requires shape analysis or router instrumentation the sentence never mentions. As written, the sentence names a tool that does not do what is claimed.",
+  "evidence": "chapter-03.md:130 verbatim: '2. **Runtime measurement.** For a given input, profile the number of FLOPs or the memory footprint of active weights. Tools such as `torch.profiler` can count active parameters, but this is an empirical measurement, not a first-party spec.' PyTorch docs (docs.pytorch.org/docs/main/profiler.html, retrieved): 'record_shapes (bool) – save information about operator's input shapes. profile_memory (bool) – track tensor memory allocation/deallocation. with_flops (bool) – use formula to estimate the FLOPs ... of specific operators (matrix multiplication and 2D convolution)' — no parameter-count feature.",
+  "fix_instruction": "File design/manuscript/chapter-03/chapter-03.md, line 130, item 2 'Runtime measurement.' — replace the sentence 'Tools such as `torch.profiler` can count active parameters, but this is an empirical measurement, not a first-party spec.' with: 'Infer the count from the execution, e.g. with `torch.profiler` (record_shapes / with_flops) summing the shapes of the matmuls actually run, or a router hook that logs the experts selected per token; this is an empirical measurement, not a first-party spec.'"
+ },
+ {
+  "id": "CH3-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The 'As of 2026-08' line is §7's lead-in scoped to the open-questions list, not a chapter-wide content stamp, and both post-cutoff observations carry explicit inline dates ('observation 2026-10-28'), so a reader CAN tell which statements are outside the snapshot — the finding's own acceptance test (every post-cutoff observation carries an inline date) is already met; inline-dated observations do not contradict an 'as of' stamp on a different section's list.",
+  "evidence": "chapter-03.md:186: 'As of 2026-08, several questions remain open and are flagged [UNRESOLVED]:' under heading '## 7. What We Still Don't Know' (:184). Date grep in chapter-03.md: exactly 3 hits — :36 '(observation 2026-10-28)' (LLaDA sampler), :176 'observation 2026-10-28' (Wan2.2), :186 the §7 stamp. The comparison the finding cites is real: chapter-02.md:64 'Implementation note inspected on 28 October 2026, outside the 30 August 2026 evidence snapshot.'",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH3-DIFFUSION-DEPTH",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P2",
+  "verdict": "DEFENSIBLE",
+  "reason": "Editorial depth judgment on a section the manuscript explicitly signposts (scope note at chapter-03.md:18), and the finding's load-bearing factual claim — 'No later chapter in this chunk builds on the diffusion material' — is refuted: the serving chapter and Appendix A both build on it.",
+  "evidence": "chapter-03.md:18 scope note (quoted in CH3-02/Qwen evidence). Downstream build-on: chapter-11.md:173 'Diffusion language models make this qualification especially important. A paged allocator can manage...' (serving chapter); chapter-11.md:30 cites DFlash (also cited at chapter-03.md:40); chapter-27.md:244 '### Diffusion language generation — 2026-10-28' addendum, :248 'LLaDA and Dream provide open checkpoints and generation code'. grep 'diffusion' outside chapter-03: ch05=3, ch07=1, ch08=3, ch11=6, ch14=2, ch27=6.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH3-S4-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Same defect as CH3-03: torch.profiler's documented capabilities (operator timing, memory, shapes, FLOP estimates) include no active-parameter count; the sentence sends readers to a feature that does not exist, and the reviewer's proposed alternatives (router hook / config parse) are the real methods.",
+  "evidence": "chapter-03.md:130 verbatim: 'Tools such as `torch.profiler` can count active parameters, but this is an empirical measurement, not a first-party spec.' PyTorch docs (docs.pytorch.org/docs/main/profiler.html, retrieved): profiler options are record_shapes, profile_memory, with_stack, with_flops ('use formula to estimate the FLOPs ... of specific operators (matrix multiplication and 2D convolution)') — no parameter-counting API; the PyTorch profiler recipe describes determining 'the time and memory consumption of the model's operators'.",
+  "fix_instruction": "File design/manuscript/chapter-03/chapter-03.md, line 130, item 2 'Runtime measurement.' — replace 'Tools such as `torch.profiler` can count active parameters, but this is an empirical measurement, not a first-party spec.' with: 'Infer the count from the execution, e.g. with `torch.profiler` (record_shapes / with_flops) summing the shapes of the matmuls actually run, or a router hook that logs the experts selected per token; this is an empirical measurement, not a first-party spec.' (Same fix as CH3-03; one edit covers both findings.)"
+ },
+ {
+  "id": "CH3-S6-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "The clause has a genuine agreement/parse defect: the singular head 'the ~100B-and-up tier' takes plural 'anchor' ('tier that anchor'), and the transitive object '~2.8T-parameter fleets' is ambiguous — the chapter names exactly one 2.8T model (Kimi K3). The finding itself concedes the phrasing is unclear and proposes a rewrite; the wording is worth fixing.",
+  "evidence": "chapter-03.md:160 verbatim: '**Why the trend signal should not be read as \"dense is dead\".** This pattern among the four frontier families we surveyed describes the top of the market — the ~100B-and-up tier that anchor ~2.8T-parameter fleets.' Referent stated at chapter-03.md:158: 'extreme MoE sparsity (single-digit active-parameter fractions — Qwen 6B of 125B, Kimi K3 104B of 2.8T)'.",
+  "fix_instruction": "File design/manuscript/chapter-03/chapter-03.md, line 160, first sentence of the 'dense is dead' paragraph: replace 'the ~100B-and-up tier that anchor ~2.8T-parameter fleets' with 'the ~100B-and-up tier that includes the ~2.8T-parameter frontier models (e.g. Kimi K3, 104B active of 2.8T)'."
+ },
+ {
+  "id": "CH3-SECTION-REF",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P3",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The reference resolves uniquely under the book's consistent §<chapter>.<section> convention (~100 instances), so the claimed ambiguity does not exist: 'Ch 3 §3.6' = chapter 3, section 6 = Architecture Consequence, which does discuss expert offloading; the alternative reading (subsection 6 of section 3) resolves to nothing, and a reader following the book's own convention is never in doubt.",
+  "evidence": "chapter-03.md:200: '...unless we explicitly use expert offload/swapping (Ch 3 §3.6, Ch. 18)...'. Convention verified: chapter-04.md self-references '§4.3' 7 times, all pointing to the Arithmetic Walk-Through under '## 3. Worked Example' (heading :33, walk-through :131) — not §4 (Measurement, :220); chapter-07.md:251 '§7.3 covers GQA/MQA' — GQA/MQA is in '## 3. Worked Example' (:46; GQA :82-98), not §7; cross-chapter forms 'Ch 4 §4.3' (chapter-22.md:23), 'Ch 16 §16.3', 'Ch 17 §17.6', 'Ch 11 §11.8'. Target exists and matches the topic: chapter-03.md:150 '...the full expert set, ~47B × 2 bytes ≈ 94 GB, unless experts are offloaded/swapped ... Offloading inactives is a further option, priced in bandwidth.'",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH3-T3-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P1",
+  "verdict": "DEFENSIBLE",
+  "reason": "'(8×7B class)' is the book's established name for the Mixtral 8x7B model family — defined at chapter-03.md:82 and reused at :114 where the class is explicitly tied to ~47B total (real Mixtral 8x7B = 46.7B) — and every Table 3-3 derivation uses 47B/5.7B consistently; the header names a model class, not an 8×7=56B arithmetic product.",
+  "evidence": "chapter-03.md:211/213: '**Table 3-3** — Parameter and KV cache arithmetic: dense 70B vs MoE (8×7B class)' / '| metric | dense 70B | MoE (8×7B class) | derivation |'. chapter-03.md:82: '### MoE model representative (Mixtral 8x7B class, [ILLUSTRATIVE][ASSUMPTION])'; :114: '~47B MoE challenger (Mixtral 8x7B class)'. python recompute of table arithmetic: 2/8×45.6+1.4 = 12.8 ✓; 47×2 = 94 ✓; 12.8/47 = 27.23% ✓ (rows at chapter-03.md:216-217).",
+  "fix_instruction": ""
+ },
+ {
+  "id": "APPA-04",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "The extra ']' is a real syntax break, empirically demonstrated: chapter-27.md:28 is the ONLY figure in the book that fails to render — python-markdown produces no <img> for it while the control line renders <img>, and a CommonMark label scan over all 55 figure lines finds 54 valid / 1 invalid (chapter-27:28). Mechanism: the [DERIVED] tag sits mid-alt (text follows it), so the label closes at the first ']' after 'counts' and the following ']' breaks the inline image — unlike the book's 54 valid 'TAG]](url)' figures where the tag is at the alt's end.",
+  "evidence": "chapter-27.md:28 verbatim: '![Fig A.1 — 2026 frontier MoE extreme sparsity: four open models, total vs activated parameters, and active fraction in single digits — fractions are [DERIVED] from the 1P model-card counts]](figures/fig-27-2701.png)'. Render test (python-markdown): ch27:28 '<img in output: False'; control ch01:49 '<img in output: True'. Label scan across all manuscript figure lines: {'valid': 54, 'invalid': 1} — INVALID: ('chapter-27/chapter-27.md', 28).",
+  "fix_instruction": "File design/manuscript/chapter-27/chapter-27.md, line 28, at the end of the Fig A.1 image: change 'the 1P model-card counts]](figures/fig-27-2701.png)' to 'the 1P model-card counts](figures/fig-27-2701.png)' (delete exactly one ']')."
+ },
+ {
+  "id": "APPA-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "DEFENSIBLE",
+  "reason": "The list carries what the paragraph promises at the level stated: verification status via the heading 'First-hand Sources (all [1P])' and the compiled-on note flagging every claim vendor-reported — so 'no verification status' and 'no per-claim flag' are refuted (a uniform blanket status is each entry's status) — release dates appear 'where known' (GLM-5.3-Flash prints 2026-08-26), and the same paragraph names sources.csv (source URL, accessed date, model variant, reported baseline, verification status) for the full per-claim manifest.",
+  "evidence": "chapter-27.md:63 (the quoted paragraph, verbatim match) ends: '...a `sources.csv` manifest (source URL, accessed date, model variant, reported baseline, verification status) accompanies the repository's `render/` material for the fast-changing Appendix A claims.' A.10 list chapter-27.md:382-389: '## 8. First-hand Sources (all [1P])' + 4 entries (DeepSeek arXiv:2606.19348 + model card + org; Kimi arXiv:2607.24653; Qwen pinned-commit tech-report URL; GLM release article '(2026-08-26; ...)') + ':389 Compiled 2026-08-30 ...; all parameters/claims are vendor-reported [1P] and per this handbook's discipline carry a verify-on-own-hardware caveat.'",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH4-01",
+  "model": "DeepSeek-V4.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "The bullet implies one host meets the 1.2 s TTFT at 10 rps with continuous batching, but the prefill-compute gap is 4.65× (92,000 ÷ 19,800) and the chapter itself repeatedly states one host cannot serve 10 rps — continuous batching improves utilization, it does not create prefill FLOPs; §6 contradicts §3's explicit separation of per-request feasibility from fleet capacity.",
+  "evidence": "chapter-04.md:249 verbatim: '- **Serving configuration**: One host is the baseline. Continuous batching (e.g. vLLM) is nearly mandatory to achieve the 1.2 s TTFT budget under 10 rps input‑heavy traffic; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s.' python: 10×9,200 = 92,000 tok/s; 92,000/19,800 = 4.646. Contrary chapter statements: chapter-04.md:194 '(Dividing one host's $20/hr by the whole workload's 10 rps would give ~$0.00056, but that is dimensionally wrong: one host cannot serve 10 rps of this workload.)'; :196 'a 70B FP16 model on one host *meets the per‑request latency SLO* ... but the *capacity* question ... is a separate computation ... needs on the order of ~6 hosts at the average'; :54 'one host's sustained-planning prefill rate is only ~19,800 tok/s at 35% MFU'.",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md, line 249, the 'Serving configuration' bullet — replace 'One host is the baseline. Continuous batching (e.g. vLLM) is nearly mandatory to achieve the 1.2 s TTFT budget under 10 rps input‑heavy traffic; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s.' with: 'One host is the per-request latency baseline, not the capacity answer: at 10 rps the offered prefill load is ~92,000 tok/s against one host's ~19,800 tok/s sustained-planning rate, so the fleet needs ~6 hosts at average (§4.3). On each host, continuous batching (e.g. vLLM) is nearly mandatory to hold the 1.2 s TTFT budget; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s.'"
+ },
+ {
+  "id": "CH4-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "Two fleet-sizing bases coexist and the economic layer silently uses the full-utilization one: the chapter's own mini-case states the canonical 40 rps peak sizes to '~21 hosts full-util / ~31 working at the 70% × 95% policy (32 with N−1)', yet Table 4-1, the §3 bullets, the sidebar ('the workload's real monthly spend') and the mini-case cost line all price 6/21 — every recomputation in the finding checks out exactly.",
+  "evidence": "Quotes verified: chapter-04.md:49 (Table 4-1 Economic row 'at the ~6-host average the whole-fleet spend is ~$120/hour, giving ~2.76M input ... per cloud dollar'), :85 (sidebar 'needs ~6–21 hosts, so the workload's real monthly spend is ~$87.6K–$306.6K/mo'), :91 ('| Cloud, 21 hosts always-on at peak | $306,600 | ≈ $49.13 |'), :194 ('~$0.0033 per request at average ... ~$0.0029 per request at peak'), :271 ('the canonical 40 rps peak ... sizes to ~21 hosts full-util / ~31 working at the 70% × 95% policy (32 with N−1), Chapters 8/16/17/20/25'). python recompute: ⌈86/17⌉=6, ⌈344/17⌉=21; 17×0.70×0.95=11.245, ⌈86/11.245⌉=8 (+1=9), ⌈344/11.245⌉=31 (+1=32); 32×20×730=467,200 vs printed 306,600; 9×20=180 vs printed 120; 92,000×3600/180=1.84M vs printed 2.76M (=92,000×3600/120); (9×20)/36,000=0.0050 and (32×20)/144,000=0.00444 vs printed 0.0033 (=120/36,000) and 0.0029 (=420/144,000).",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md — label the basis at each of the four sites (or switch them to the policy fleet): (1) line 49, Table 4-1 Economic row: append '(full-utilization KV-screen basis, no headroom — the 70% × 95% + N−1 policy fleet is 9 hosts avg / 32 peak)'; (2) line 85 sidebar: change 'the workload's real monthly spend is ~$87.6K–$306.6K/mo' to 'the workload's full-utilization (no-headroom) spend is ~$87.6K–$306.6K/mo — ~$131K–$467K/mo on the 70% × 95% + N−1 policy fleet of 9/32 hosts'; (3) line 194: label '~$0.0033 ... ~$0.0029' as '(6/21-host full-util basis; the 9/32-host policy basis gives ~$0.0050 / ~$0.0044)'; (4) line 273: append '(full-util 6/21; the provisioning-policy fleet is 9/32 — see the §8 parenthetical)'."
+ },
+ {
+  "id": "CH4-02",
+  "model": "DeepSeek-V4.1-Flash",
+  "severity": "P2",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The section is not internally inconsistent: every statement labels 10 rps declared (steps 3–4, the closing paragraph, Table 4-1, the canonical box), and the users→rps bridge it does show is 2,000 users × 1 request/200 s — assumption-driven arithmetic, which is exactly what the heading promises; it never claims to derive 10 rps from the 100-user population, so the finding's acceptance test is already met.",
+  "evidence": "chapter-04.md:131 heading '#### Arithmetic Walk‑Through: From Users to Requests per Second'; :133 'Here is the full derivation, traceable line by line:'; :143 step 3: '**Arrival rate — a declared traffic assumption, NOT a Little's-law derivation from the active-user population** ... So the ~10 rps average is **declared as a scenario input** (≈ 2,000 registered users × one request ~every 200 s → ~10 rps), not solved for from the 100-user population.'; :147 'The point of the exercise is to keep population, arrival rate, and occupancy separate, not to claim that a registered-user count empirically determines an arrival rate.'; :46 Table 4-1 Traffic row: '(~2,000 registered users × one request ~every 200 s ≈ 10 rps; peak scaled) — declared, not derived from the user population'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH4-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The 'sharding applied twice' diagnosis is refuted by recomputation: 8 × 2,472 is the exact host-rate identity — 8 GPUs' FLOP/s ÷ whole-model 1.4e11 FLOP/token — not a coincidence (genuine double-sharding would yield 8 × 19,780 = 158,240); the TP cross-check reaches the same number by the other route (per-GPU 3.4615e14 ÷ 1.75e10 shard FLOP/token = 19,780 tok/s of the shared stream), and 2,472 carries one consistent meaning throughout (a single H100 holding the whole model — the same sense as §3's 'far above what a single H100 alone could sustain').",
+  "evidence": "chapter-04.md:271 verbatim fragment: '÷ ~19,800 tokens/s per host (the host's *sustained-planning* prefill rate, 8 × 2,472 tok/s at 35% MFU — a planning rate, not a ceiling: the peak-derived ceiling is ~56.5K tok/s; not a measured goodput)'. python: 0.35×0.989e15 = 3.4615e14 FLOP/s/GPU; 3.4615e14/(2×70e9) = 2,472.5; 8×2,472.5 = 19,780 ≈ 19,800; 8×3.4615e14/1.4e11 = 19,780 (exact identity); TP route: shard FLOP/token = 1.4e11/8 = 1.75e10, 3.4615e14/1.75e10 = 19,780 per GPU on the shared stream; double-shard counterfactual 8×(3.4615e14/1.75e10) = 158,240 ≠ 19,800. §3 usage chapter-04.md:182: '≈8.5K tokens/s prefill — below the host's ~19,800 tok/s sustained-planning prefill rate ... and far above what a single H100 alone could sustain'.",
+  "fix_instruction": ""
+ }
+]

@@ -21,7 +21,7 @@ ax.set_xlim(0, 10); ax.set_ylim(0, 7.8); ax.axis('off')
 
 levels = [
     ('Workload metrics', 'rps · token profile · concurrency', '#e7f5ec', '#1e8449', 6.4),
-    ('Resource metrics', 'GPU util · memory · bandwidth · KV cache', '#e7f5ec', '#1e8449', 4.3),
+    ('Resource metrics', 'HBM BW · MFU · KV occupancy · queue depth', '#e7f5ec', '#1e8449', 4.3),
     ('Serving metrics', 'TTFT · TPOT · goodput', '#e7f5ec', '#1e8449', 2.2),
 ]
 bw, bh = 7.4, 1.4

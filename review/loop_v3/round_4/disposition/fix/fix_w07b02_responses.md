@@ -1,0 +1,3 @@
+CH21-01 | P2 | chapter-21.md §8 (line 98) | Inserted quantitative canary decision (240 ms p95 TTFT, 12 vs 3 legal-subset failures at α = 0.05, §3 216K/$5,394 blast-radius question) after the legal-subset sentence, tagged [ILLUSTRATIVE][DERIVED] | APPLIED
+CH21-02 | P3 | chapter-21.md §3 (line 44) | Replaced 24.97066185897436 with $24.97/1K and 14.038461538461538 ÷ 1,000 = 3,032.31 with ~$14.038/1K ÷ 1,000 ≈ 3,032 (kept outer $3,032 per sanctioned alternative); $5,394 unchanged | APPLIED
+CH21-03 | P3 | chapter-21.md §5 (line 74) | Replaced '(see Ch7-8 for training economics)' with the Ch 7 memory-floor / Ch 8 FLOP-budget pointer; range format untouched, no Ch 16 redirect | APPLIED

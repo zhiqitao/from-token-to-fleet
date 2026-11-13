@@ -122,21 +122,22 @@ decision.
   prevents anyone from later treating the choice as a memory lever.
 \item
   The real difference is range vs precision. BF16 keeps the same 8-bit
-  exponent as FP32, so it does not overflow or underflow in activations
-  the way FP16's 5-bit exponent can. FP16 carries more mantissa bits (10
-  vs 7) and is more precise when values already sit in range.
+  exponent as FP32, so it greatly reduces overflow/underflow risk in
+  activations relative to FP16's 5-bit exponent. FP16 carries more
+  mantissa bits (10 vs 7) and is more precise when values already sit in
+  range.
 \item
   For this workload both precisions clear the quality bar on the
   held-out Q\&A set, with no exact-match change between them, so the
   deciding factors are range robustness and consistency --- not
-  capacity. In this illustrative evaluation the exact-match result
-  showed no difference \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- to be
-  confirmed by the deployment quality gate: we did not run this
+  capacity. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- we did not run this
   comparison on real hardware in this handbook; it is an assumed outcome
-  for the worked ADR.
+  for the worked ADR, to be confirmed by the deployment quality gate: in
+  this illustrative evaluation the exact-match result showed no
+  difference.
 \item
-  A100 (and the 8×H100 host) natively supports BF16 and TF32 on its
-  Tensor Cores. There is no ``next GPU generation'' required and no
+  A100 and H100 GPUs natively support BF16 and TF32 on their Tensor
+  Cores. There is no ``next GPU generation'' required and no
   explicit-casting penalty; the premise that these formats wait for
   future hardware is itself the kind of error an ADR should catch.
 \item
@@ -181,7 +182,7 @@ decision.
   \textbf{FP8 weights:} The genuine memory lever (halves residency to
   \textasciitilde70 GB) but needs per-tensor calibration and a
   validation gate; deferred as the next step, paired with the FP8 KV
-  discussion in \hyperref[chap:7]{Chapter 7}.
+  discussion in Ch 7.
 \item
   \textbf{FP32:} Rejected --- 280 GB residency with no quality benefit
   for this workload.
@@ -204,8 +205,7 @@ template}\label{a-copy-ready-blank-template}
 This is the template to copy into a repo, intended to be filled and to
 serve as a reusable professional artifact. Every section maps to a
 discipline from this handbook; the model-shape ADR above is one filled
-example, and \hyperref[chap:22]{Chapter 22}'s loop supplies the architecture-decision
-context.
+example, and Ch 22's loop supplies the architecture-decision context.
 
 \begin{Verbatim}[breaklines=true, breakanywhere=true, fontsize=\small]
 # ADR-NNNN — <Short Decision Title>
@@ -213,11 +213,10 @@ context.
 ## Status
 <proposed | accepted | superseded | deprecated>  (date)
 
-## Decision (the committed choice, one paragraph,
-   reversible in principle)
+## Decision (the committed choice, one paragraph; significant and costly to reverse — the criterion that made this an ADR)
 <the one-sentence decision, and what it commits the team to>
 
-## Architecture Decision Context  (from Chapter 22's loop)
+## Architecture Decision Context  (from Ch 22's loop)
 - Business objective:  <what outcome this enables>
 - Workload:            <characterization:
                          tokens, rps, peak>
@@ -273,8 +272,8 @@ Decision Context}, the \textbf{unit check}, and the \textbf{decision
 owner + review trigger} --- and skipping exactly those three is what
 turns an ADR into a decision log instead of a decision \emph{apparatus}.
 The context ties the technical choice to a business outcome; the unit
-check enforces \hyperref[chap:22]{Chapter 22}'s evidence discipline; the owner and review
-trigger make it a living document rather than a tombstone. The
+check enforces Ch 22's evidence discipline; the owner and review trigger
+make it a living document rather than a tombstone. The
 \textbf{falsification path} is what makes the decision
 \emph{reproducible} rather than merely plausible: it names the
 hypothesis, the evidence that would confirm it, and the specific
@@ -295,23 +294,29 @@ model-shape ADR above, the derived quantities are:
 \item
   \textbf{70B FP16 model footprint} ---
   \(W = N \times \text{bytes-per-param} = 70 \times 10^9 \times 2 \text{ B} = 140\)
-  GB parameters, plus \textasciitilde30 GB activations at the peak for
-  this worked example (K+V alone: 2 × 80 layers × 9.2K × 8,192 × 2 B ≈
-  24 GB, plus hidden/MLP working tensors ≈ 30 GB total) \mbox{{[}DERIVED{]}},
-  giving ≈ \(170\) GB total derived footprint. This \textasciitilde30 GB
+  GB parameters, plus \textasciitilde30 GB KV + workspace
+  (single-request working set) at the peak for this worked example
+  \mbox{{[}DERIVED{]}}, giving ≈ \(170\) GB total derived footprint:\\
+  per-request KV at 9.2K = 24.2 GB (2 × 80 layers × 9.2K × 8,192 × 2 B):
+  KV, already inside the \textasciitilde436 GB KV budget at concurrency
+  (17 × \textasciitilde24.9 GB ≈ 423 GB);\\
+  transient activation/workspace ≈ 6 GB (hidden/MLP working tensors ---
+  inside the 64 GB runtime/workspace reserve). This \textasciitilde30 GB
   is a \emph{per-request working-set} figure for this ADR's
   single-request arithmetic; it is \textbf{not a re-labeling of} the
   \textasciitilde64 GB runtime/workspace/NCCL reserve the body uses
   elsewhere (140 GB weights + \textasciitilde436 GB KV budget +
-  \textasciitilde64 GB reserve = the 640 GB HBM envelope). The two
-  answer different questions --- one sizes a single request's
-  activations, the other reserves headroom for the serving stack's
-  runtime --- and at serving time the activation working set is drawn
-  from \emph{within} that 64 GB workspace line (workspace includes
-  activation buffers) --- the \textasciitilde30 GB is a transient
-  single-request prefill peak, reused across the batch rather than held
-  per request in flight (17 concurrent × 30 GB is not implied) --- so
-  the envelope closes as 140 + 436 + 64 = 640, not 670.
+  \textasciitilde64 GB reserve = the 640 GB HBM envelope), and this
+  ADR's single-request \textasciitilde170 GB footprint is not an
+  envelope term. The two answer different questions --- one sizes a
+  single request's working set, the other reserves headroom for the
+  serving stack's runtime --- and at serving time the \textasciitilde6
+  GB transient working set is drawn from \emph{within} that 64 GB
+  workspace line (workspace includes activation buffers) --- that
+  \textasciitilde6 GB is a transient single-request prefill peak, reused
+  across the batch rather than held per request in flight (17 concurrent
+  × 6 GB is not implied), while the 24.2 GB KV is held per request in
+  flight --- so the envelope closes as 140 + 436 + 64 = 640, not 670.
 \item
   \textbf{Weight-quantization residency lever} --- quantizing the
   FP16/BF16 weights to INT8 reduces the nominal parameter-weight
@@ -427,12 +432,12 @@ On the negative side, ADRs add a small writing overhead. For a team of
 \textasciitilde10 engineers making \textasciitilde1--2 significant
 architectural decisions per month, this is a manageable cost. The payoff
 --- reduced on-call noise, faster onboarding, and fewer ``why did we do
-it this way?'' debates --- more than compensates.
+it this way?'' debates --- is expected to compensate.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. Takeaway: an ADR is a fixed five-field record --- Title and status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives considered (the rejected options) --- and it is kept, not edited: the Consequences of ADR-001 become the Context of ADR-002, which supersedes it while the original stays on file. Scope: the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice as their five core fields (§25.1), each extended with its own apparatus. Warning: illustrative structure, not a measured decision record --- a real ADR must carry the evidence tags its numbers are judged by. \mbox{{[}ILLUSTRATIVE{]}} conceptual},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-25-2501.pdf}}
-\caption[Architecture decision records and their succession]{The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. \textbf{Takeaway:} an ADR is a fixed five-field record --- Title and status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives considered (the rejected options) --- and it is \emph{kept, not edited}: the Consequences of ADR-001 become the Context of ADR-002, which supersedes it while the original stays on file. \textbf{Scope:} the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice as their five core fields (§25.1), each extended with its own apparatus. \textbf{Warning:} illustrative structure, not a measured decision record --- a real ADR must carry the evidence tags its numbers are judged by. \mbox{{[}ILLUSTRATIVE{]}} conceptual}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. Takeaway: an ADR is a fixed five-field record --- Title \& status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives (the rejected options) --- and it is kept, not edited: the Consequences of ADR-001 may become part of the Context of ADR-002, which supersedes it while the original stays on file. Scope: the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice as their five core fields (§25.1), each extended with its own apparatus. Warning: illustrative structure, not a measured decision record --- a real ADR must carry the evidence tags its numbers are judged by. \mbox{{[}ILLUSTRATIVE{]}} conceptual},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-25-2501.pdf}}
+\caption[Architecture decision records and their succession]{The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. \textbf{Takeaway:} an ADR is a fixed five-field record --- Title \& status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives (the rejected options) --- and it is \emph{kept, not edited}: the Consequences of ADR-001 may become part of the Context of ADR-002, which supersedes it while the original stays on file. \textbf{Scope:} the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice as their five core fields (§25.1), each extended with its own apparatus. \textbf{Warning:} illustrative structure, not a measured decision record --- a real ADR must carry the evidence tags its numbers are judged by. \mbox{{[}ILLUSTRATIVE{]}} conceptual}
 
 \label{fig:25.1}\end{figure}
 
@@ -632,9 +637,11 @@ instrumentation yet:
   quantization choice interacts with a retrieval chunk-size choice), how
   should the team document the dependency graph?
 \item
-  \textbf{Tooling gaps:} No widely adopted tool exists for ADR graph
-  visualization or impact analysis. Building such a tool would require
-  understanding the ADR network and its evolution over time.
+  \textbf{Tooling gaps:} \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} --- no widely adopted tool
+  exists for ADR graph visualization or impact analysis (a factual
+  tooling observation, not an open hypothesis). Building such a tool
+  would require understanding the ADR network and its evolution over
+  time.
 \item
   \textbf{ADR format evolution:} The minimal format (title and status,
   context, decision, consequences, alternatives) works for most cases,
@@ -649,13 +656,17 @@ practice matures and the team needs more sophisticated governance.
 Fleet}\label{end-of-chapter-mini-case-an-adr-for-the-kv-bound-fleet}
 
 \textbf{Scenario:} The fleet serves the canonical RAG Q\&A workload on
-an 8×H100 host. At peak the KV cache is the binding constraint: within
-the canonical \textasciitilde436 GB practical KV budget, a
-full-precision FP16 KV at \textasciitilde2.62 MB/token (the canonical
-full-MHA reference-geometry figure; \textasciitilde2.5 MiB) lets a
-single host hold \textasciitilde17.5 concurrent 9,500-token requests
-(byte-accurate 17.51; conservative integer floor 17). The concurrency
-ceiling is now limiting throughput below the target request rate.
+an 8×H100 host. At peak the KV cache is the binding constraint under
+case (i) linear-only prefill (KV 21 hosts ≥ prefill 19); under case (ii)
+full-square prefill binds instead (22 \textgreater{} 21) --- state which
+case this ADR's FP8-KV lever relieves, and note FP8 KV does not shrink
+the case (ii) prefill screen. Within the canonical \textasciitilde436 GB
+practical KV budget, a full-precision FP16 KV at \textasciitilde2.62
+MB/token (the canonical full-MHA reference-geometry figure;
+\textasciitilde2.5 MiB) lets a single host hold \textasciitilde17.5
+concurrent 9,500-token requests (byte-accurate 17.51; conservative
+integer floor 17). The concurrency ceiling is now limiting throughput
+below the target request rate.
 
 \textbf{The ADR (draft):}
 
@@ -708,6 +719,10 @@ ceiling is now limiting throughput below the target request rate.
     trade-off is memory capacity vs long-context reconstruction
     fidelity; it must be validated on the held-out Q\&A set, not
     assumed.
+  \item
+    Fleet-level effect: the peak KV-residency screen moves from 21 hosts
+    to \textasciitilde11 (344 in-flight ÷ 35.0 concurrent per host =
+    9.8, +N−1); ADR 0015 R1 must be re-screened on adoption.
   \end{itemize}
 \item
   \textbf{Alternatives considered:}
@@ -720,9 +735,10 @@ ceiling is now limiting throughput below the target request rate.
     peak already needs 21 hosts on the KV screen (22 under the case (ii)
     prefill screen; Ch 16/17/20), so ``adding a second host''
     misunderstands the scale; relieving the memory ceiling by adding
-    hosts multiplies the fleet cost (each 8×H100 is
-    \textasciitilde\$5.8K/mo amortized), while FP8 KV relaxes the same
-    ceiling without commissioning new hardware.
+    hosts multiplies the fleet cost (\textasciitilde\$7.4K/mo all-in per
+    8×H100 host --- \textasciitilde\$5.8K/mo hardware amortization plus
+    power, ops and staff, Ch 16 \hyperref[tab:16.1]{Table 16-1}), while FP8 KV relaxes the
+    same ceiling without commissioning new hardware.
   \item
     \textbf{GQA (grouped-query attention) reduction} --- not available
     for the canonical model: the 70B reference geometry is full

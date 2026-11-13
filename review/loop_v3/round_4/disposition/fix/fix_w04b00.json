@@ -1,0 +1,86 @@
+[
+ {
+  "id": "CH11-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "The Ch11 §6 'Baseline (canonical single-host)' bullet attaches the 10 rps arrival rate to the TTFT/SLO claim ('hold TTFT under the SLO ... at 10 rps input-heavy load'), which reads as a capacity claim that one host serves 10 rps at SLO. Ch12 states the same host sustains only ~19,800 prefill tok/s vs ~92K demand (4.65x short, ~6 hosts needed at the average), Ch13 explicitly separates the per-request-latency axis (single host meets SLO) from the capacity axis (single host does not carry the arrival rate, ~1.98 rps/host), and Ch14 Step 3 uses an offered load of 1.3 req/s. This is a decision-relevant contradiction between adjacent chapters; the latency/capacity qualifier exists in Ch13 but not at Ch11's point of use. All numbers verified.",
+  "evidence": "chapter-11.md:130 'Baseline (canonical single-host): continuous batching ... is near-mandatory to hold TTFT under the SLO (1.2 s, p95 <= 2 s) at 10 rps input-heavy load'. chapter-12.md:79 'one 8xH100 host sustains only ~19,800 prefill-tokens/s ... far short of the ~92K input tokens/s the 10 rps average demand'; :18 '~6 hosts are needed for the canonical average'. chapter-13.md:41 'On the per-request latency axis ... keeps p95 TTFT under the 2 s SLO on a single 8xH100 host. But on the capacity axis the single host does not carry the full arrival rate'. chapter-14.md:34 '17/8.6 ~= 1.98 req/s is a single-host residency ceiling'; :60 'offered load of 1.3 req/s'. Python: 10*9200=92000; 8*2472=19776; 92000/19776=4.652; 17/8.6=1.977. (Note: reviewer's Ch13 quote 'latency-feasible but not capacity-sufficient' is a paraphrase; the substance is at chapter-13.md:41 in different words.)",
+  "fix_instruction": "In design/manuscript/chapter-11/chapter-11.md line 130, remove the arrival-rate phrase from the single-host clause: change 'is near-mandatory to hold TTFT under the SLO (1.2 s, p95 <= 2 s) at 10 rps input-heavy load' to 'is near-mandatory to hold TTFT under the SLO (1.2 s, p95 <= 2 s) at the replica's admitted load (≈1.3-2 req/s per Ch 14 Step 3); at the canonical 10 rps average the host class must be replicated ~5-6x (Ch 12/17)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-11/chapter-11.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH9-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Real conflation. Fig 11.3's caption (chapter-11.md line 142) labels '~35 GB' as 'the per-request KV state' while the same chapter states the canonical per-request KV is ~24.1 GB (line 130: 'PagedAttention ensures the ~24.1 GB-per-request KV pack fits'). Recomputed: 9,200 x 2.62 MB = 24.104 GB; 13,359 x 2.62 = 35.0 GB; 35/24.1 = 1.45 (the ~45% over-size). The 1.4 TB/s caveat (35 x 40 = 1,400 GB/s) inherits the 13.3K figure while describing 40 req/s of the canonical workload (canonical aggregate would be 24.1 x 40 = 964 GB/s). Note 11.3-1 does state the 13.3K scope, but the caption itself — the element a fabric-sizer reads — does not, and it uses the definite phrase 'the per-request KV state'.",
+  "evidence": "ch11 L142: 'it moves the per-request KV state (~35 GB, §9.8) across the joining link ... at 40 req/s the aggregate KV payload is 1.4 TB/s'. ch11 L130: 'PagedAttention ensures the ~24.1 GB-per-request KV pack fits'. ch11 L146: 'The ~35 GB is ~=13.3K tokens x 2.62 MB/token'. Python: 9200*2.62=24104 MB=24.104 GB; 35/2.62=13358.8 tokens; 35/24.1=1.452; 35*40=1400 GB/s=1.4 TB/s; 24.1*40=964 GB/s; 24.1/450=0.054 s; 24.1/40=0.60 s.",
+  "fix_instruction": "File: design/manuscript/chapter-11/chapter-11.md, line 142, Fig 11.3 caption. Change 'it moves the per-request KV state (~35 GB, §9.8) across the joining link' to 'it moves the per-request KV state (~35 GB for the 13.3K-token context of §9.8; the canonical 9.2K-token request carries ~24.1 GB) across the joining link', and change 'at 40 req/s the aggregate KV payload is 1.4 TB/s' to 'at 40 req/s the aggregate KV payload is 1.4 TB/s for that 13.3K context (964 GB/s at the canonical 9.2K)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-11/chapter-11.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH11-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The prose (line 78) presents the prefill feasibility comparison '1.19 PFLOPS required ... vs 0.989 PFLOPS peak' with no device-count scope, while the Fig 11.3 caption (line 144) DOES scope it ('0.989 peak single-H100'). In a chapter whose canonical deployment is 8xH100 TP=8, the unscoped prose can be read as the canonical host failing the prefill budget, which contradicts Ch12's per-host prefill rate (~19,800 tok/s = 9,200 tokens in ~0.47 s). The prose lacks the 'single device' qualifier the caption already carries - an internal inconsistency and a real misreading risk.",
+  "evidence": "chapter-11.md:78 'prefill is compute-bound (~1.29 PFLOP -> ~1.19 PFLOPS required over the ~1.08 s prefill budget, vs 0.989 PFLOPS peak)' - no 'single device'. chapter-11.md:144 (Fig 11.3 caption) 'prefill needs compute capacity (~1.19 PFLOPS required vs 0.989 peak single-H100)' - scoped. chapter-12.md:79 '~19,800 prefill-tokens/s'. Python: 1.288e15/8=1.61e14 FLOP/GPU; /(989e12*0.35)=0.465 s; 9200/19776=0.465 s - canonical host meets the ~1.08 s budget.",
+  "fix_instruction": "In design/manuscript/chapter-11/chapter-11.md line 78, add the device scope: change 'vs 0.989 PFLOPS peak' to 'vs 0.989 PFLOPS peak on a single H100; under the canonical 8xH100 TP=8 host the same prefill is ~0.16 PFLOP per GPU and takes ~0.47 s at 35% MFU (Ch 12), so the single-device figure describes a one-GPU deployment, not the canonical host'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-11/chapter-11.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH11-05",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Two defects confirmed. (1) Table 11-2 carries no observation date while the book dates its other implementation snapshots (Table 9-3 is titled '(2026-10-28 snapshot)') and the chapter's own observations are dated 2026-10-28, yet the table is labeled 'time-sensitive' and the text says rows 'must be re-verified' - an undated table gives no baseline to re-verify against. (2) The 'supported hardware' row lists vLLM as 'NVIDIA / AMD / CPU' and SGLang as 'NVIDIA / AMD' with no Intel XPU, contradicting the same chapter's footnotes that document a vLLM XPU installation guide and SGLang XPU documentation.",
+  "evidence": "chapter-11.md:152 '#### Table 11-2 - Serving engines by architectural capability (time-sensitive)' - no date. chapter-11.md:163 'supported hardware | NVIDIA / AMD / CPU | NVIDIA / AMD | NVIDIA-only | CPU + consumer GPUs' - no Intel for vLLM or SGLang. chapter-09.md:175 '#### Table 9-3 - ... (2026-10-28 snapshot)' - dated. chapter-11.md:180 footnote 'vLLM XPU installation guide at pinned revision 5df63a7...'; :230 footnote 'SGLang XPU documentation at pinned revision a1966e1...'.",
+  "fix_instruction": "In design/manuscript/chapter-11/chapter-11.md: (a) line 152 retitle to '#### Table 11-2 - Serving engines by architectural capability (observed 2026-10-28; time-sensitive)'; (b) line 163 change the vLLM cell 'NVIDIA / AMD / CPU' to 'NVIDIA / AMD / Intel XPU / CPU' and the SGLang cell 'NVIDIA / AMD' to 'NVIDIA / AMD / Intel XPU', matching the chapter's own XPU footnotes (lines 180, 230).",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-11/chapter-11.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH11-§11.6-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Real defect: 'PagedAttention ensures the ~24.1 GB-per-request KV pack fits' states a capacity claim PagedAttention does not affect — 24.1 GB (164 GB total) fits in 640 GB with or without PagedAttention; the mechanism's actual role is allocation efficiency (anti-fragmentation so more packs fit), which is how the book states it in §11.3 ('packed densely and more concurrent requests fit'). The §11.6 bullet conflates the capacity question with the allocation question.",
+  "evidence": "chapter-11.md §11.6 first bullet: 'pagedattention ensures the ~24.1 gb-per-request kv pack fits; prefix caching is the highest-leverage optimization...'. Same chapter §11.3: 'pagedattention/vllm [s2][1p] allocates kv in fixed blocks shared and evicted like page frames, so the ~24.1 gb per request is packed densely and more concurrent requests fit in the same 640 gb node'. python: 140+24=164 < 640 regardless of PagedAttention.",
+  "fix_instruction": "File design/manuscript/chapter-11/chapter-11.md, §11.6 'Architecture Consequence', first bullet (Baseline). Replace the clause 'pagedattention ensures the ~24.1 gb-per-request kv pack fits' with 'pagedattention packs the ~24.1 gb-per-request KV densely (fixed-size pages, minimal fragmentation) so more concurrent requests fit in the 640 GB node' — separating the capacity fact (164 GB < 640 GB fits either way) from PagedAttention's allocation-efficiency role, matching §11.3's own wording.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-11/chapter-11.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH11-07",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "The Fig 11.2 caption cross-references '§11.3.6', but the six §11.3 subsections in chapter-11 carry unnumbered '###' headings, so a reader cannot see or resolve '11.3.6' from the headings. This is not the book-wide convention: chapters 18, 24, 25 and 26 DO number their '###' subsections (e.g. '### 3.1. Hardware capacity mapping'), precisely so subsection references resolve. Chapter-11 omits those numbers while still emitting a subsection-number reference, leaving §11.3.6 unresolvable. The ordinal does point to the intended target ('When to Disaggregate', the 6th subsection), but the number is not exposed.",
+  "evidence": "chapter-11.md:136 'resource specialization joins when the workload outgrows a node (§11.3.6)'. §11.3 '###' headings (unnumbered): lines 46, 50, 58, 66, 70, 76 - the 6th is '### When to Disaggregate: Prefill and Decode Want Different Pools'. Contrast: chapter-18.md '### 3.1. Hardware capacity mapping' etc.; chapter-24.md '### 3.1 ...'; chapter-25.md '### 3.1 ...'; chapter-26.md '### 2.1 ...' - all numbered.",
+  "fix_instruction": "In design/manuscript/chapter-11/chapter-11.md, either number the six §11.3 subsection headings (lines 46, 50, 58, 66, 70, 76) as '### 3.1 ...' through '### 3.6 ...' (matching the convention used in chapters 18/24/25/26), or change the reference at line 136 from '(§11.3.6)' to '(see \"When to Disaggregate\", §11.3)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-11/chapter-11.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH11-75PCT-NO-BASELINE",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Clause found; the comparative figure '75% more requests' names no baseline anywhere in the text, and the source abstract itself frames its comparison as 'Compared to the baseline method' — so the comparator exists in the cited source and can be named in three words. Meets the review prompt's rule 2.3 (denominator/population integrity for every ratio/rate).",
+  "evidence": "chapter-11.md §1: '...and **75% more requests** on a real Kimi workload. [S4][1P]' — no baseline in sentence or surrounding paragraph. arXiv abstract: 'Compared to the baseline method, Mooncake can achieve up to a 525% increase in throughput ... Under real workloads, Mooncake's innovative architecture enables Kimi to handle 75% more requests.'",
+  "fix_instruction": "File design/manuscript/chapter-11/chapter-11.md, §1 four-mechanisms list, P/D disaggregation bullet (item 4). In the sentence ending '...and **75% more requests** on a real Kimi workload. [S4][1P]', change '75% more requests** on a real Kimi workload' to '75% more requests** than the paper's baseline method on a real Kimi workload' (the arXiv abstract itself says 'Compared to the baseline method').",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-11/chapter-11.md",
+  "_dupes": []
+ }
+]

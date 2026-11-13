@@ -44,6 +44,23 @@ def arrow(x,y1,y2,qualification=False):
         elements.append(f'<line x1="{x}" y1="{start}" x2="{x}" y2="{end}" stroke="{INK}" stroke-width="1.7"/>')
     elements.append(f'<polygon points="{x-4},{y2-7} {x+4},{y2-7} {x},{y2}" fill="{INK}"/>')
 
+def dashed_rect(x,y,w,h,stroke_width=1.4):
+    """Dashed outline drawn as explicit segments, for the same reason as arrow():
+    the SVG conversion used here drops stroke-dasharray."""
+    rectangles.append([x,y,x+w,y+h])
+    for x1,y1,x2,y2 in ((x,y,x+w,y),(x,y+h,x+w,y+h),(x,y,x,y+h),(x+w,y,x+w,y+h)):
+        horizontal=(y1==y2)
+        lo,hi=(x1,x2) if horizontal else (y1,y2)
+        starts=list(range(int(lo),int(hi),8))
+        ends=[min(s+4,hi) for s in starts]
+        if ends and ends[-1]<hi:
+            starts.append(ends[-1]); ends.append(hi)
+        for s,e in zip(starts,ends):
+            if horizontal:
+                elements.append(f'<line x1="{s}" y1="{y1}" x2="{e}" y2="{y2}" stroke="{INK}" stroke-width="{stroke_width}"/>')
+            else:
+                elements.append(f'<line x1="{x1}" y1="{s}" x2="{x2}" y2="{e}" stroke="{INK}" stroke-width="{stroke_width}"/>')
+
 text(305,26,'Device visibility is not a validated serving path',18,True)
 text(305,49,'Solid: dependencies. Dashed: qualify the complete path.',14)
 cols=[
@@ -55,12 +72,17 @@ cols=[
   'entry':['PyTorch hpu','Gaudi software stack'],
   'runtime':['Gaudi execution kernels','HCCL for collectives','matching Gaudi driver'],
   'device':['Gaudi accelerator','not an Intel GPU']},
- {'x':412,'title':'Client NPU','engine':['OpenVINO GenAI','supported NPU models'],
+ {'x':412,'title':'Client NPU','engine':['OpenVINO GenAI runtime','on the NPU plugin'],
   'entry':['OpenVINO NPU plugin','not torch.xpu'],
   'runtime':['NPU execution kernels','compatible NPU runtime','matching NPU driver'],
   'device':['Client NPU','not the integrated GPU']}
 ]
 rows=[(98,78,'engine','Serving engine'),(204,72,'entry','Backend entry'),(304,92,'runtime','Kernels / runtime'),(424,64,'device','Hardware')]
+# ROUND-4 fix (FIG-11.4-02): the Client NPU serving-stack cell names a STACK,
+# parallel with the other two columns ('vLLM XPU / SGLang XPU or llama.cpp
+# SYCL', 'Gaudi-specific engine and compatible release'), instead of making a
+# model-support statement; the 'supported NPU models' scope note moved to the
+# chapter-11 caption (chapter-11.md, Fig 11.4 alt/caption text).
 for col in cols:
     x=col['x'];cx=x+93
     text(cx,80,col['title'],18,True)
@@ -73,7 +95,11 @@ for col in cols:
             if key=='device': yy=y+38+i*16
             text(cx,yy,line,14)
     for y1,y2 in [(178,200),(278,300),(398,420)]:arrow(cx,y1,y2)
-    arrow(cx,490,511,qualification=True)
+    # ROUND-4 fix (FIG-11.4-01): a dashed bracket encloses the column's four
+    # boxes, and the dashed connector now starts ON that bracket, so the drawn
+    # source of the dashed arrow is the complete path, not the Hardware row.
+    dashed_rect(x-4,92,194,402)
+    arrow(cx,494,511,qualification=True)
 box(12,513,586,90,fill='#FFFFFF',stroke=RED,stroke_width=2)
 text(305,535,'Qualification gate: the complete model-serving configuration',15,True)
 text(305,556,'Weights + KV + workspace | operators + attention/cache path',14)

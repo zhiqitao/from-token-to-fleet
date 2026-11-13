@@ -1,0 +1,52 @@
+[
+ {
+  "id": "CH6-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "Mechanism-level error confirmed: prefix caching (APC/RadixAttention) reuses only byte-identical token prefixes, and the canonical input is 1,200 prompt/query + 8,000 per-query retrieved context, so cross-request reuse is bounded by any shared prompt prefix (~13% at most - 1,200/9,200 = 13.04% - and Ch 4 describes the 1,200 as the enterprise query, i.e. per-request, so possibly less). Ch 6 line 91 itself calls the prefixes 'independent' in the same sentence chain that then promises 'shared retrieved-context prefixes'; §6 says caching 'turns repeated 9.2K prefills into cached lookups'; the mini-case claims the fix collapsed the prefills and restored p95 - all while Ch 6 §7 marks the actual FLOP reduction [UNRESOLVED] and Ch 12 labels the traffic-overlap premise [HYPOTHESIS]/'untested premise'. The fix cannot remove the demand the same paragraph quantifies (40 x 1.29 PFLOP/s computed on full 9.2K).",
+  "evidence": "chapter-06 line 91: 'low prefix-cache hit means many independent 9.2K prefixes are being prefill-processed from scratch ... The decision: enable prefix / RadixAttention-style caching (SGLang) or Automatic Prefix Caching (vLLM) so shared retrieved-context prefixes are reused instead of re-prefilled'; line 118: '**Repeat-prefix RAG ⇒ enable prefix caching** (RadixAttention/APC), which turns repeated 9.2K prefills into cached lookups'; line 132: 'it is to enable prefix caching to collapse the repeated prefills'. Composition: chapter-04 line 114 '| Input tokens | 9,200 (1,200 prompt + 8,000 retrieved) |' and line 171 '1,200 tokens (enterprise query, possibly reformulated) + 8,000 tokens (retrieved context from vector DB)'. chapter-06 line 127: 'the actual reduction in prefill FLOPs from APC/RadixAttention for a given document-retrieval distribution is [UNRESOLVED].' chapter-12 line 19: 'reducing effective prefill FLOPs by ~30% ... when many requests share common document roots. (That 30–50% amortization range ... rests on the untested premise about traffic overlap flagged in §12.7 ...) [HYPOTHESIS]'. Python: 1200/9200 = 13.04%.",
+  "fix_instruction": "design/manuscript/chapter-06/chapter-06.md: (1) line 91, replace 'so shared retrieved-context prefixes are reused instead of re-prefilled, cutting effective prefill FLOPs and TTFT' with 'so the byte-identical shared prefix is reused instead of re-prefilled - in the canonical workload (1,200 prompt + 8,000 per-query retrieved, Ch 4 Table 4-2) that shared prefix is at most the ~1,200-token prompt (~13% of prefill FLOPs), because the 8K retrieved block differs per query; prefix caching is therefore a partial mitigation, not the fix for the 40 rps prefill queue (§7 keeps the actual reduction [UNRESOLVED])'; (2) line 118, replace 'which turns repeated 9.2K prefills into cached lookups and defends the p95 TTFT against the 40 rps peaks' with 'which reuses the shared prompt prefix of the 9.2K prefills (~13% of prefill work in the canonical workload; the 8K retrieved block is query-specific) and so partially defends the p95 TTFT against the 40 rps peaks'; (3) line 132, replace 'it is to enable prefix caching to collapse the repeated prefills' with 'it is to enable prefix caching to collapse the repeated shared-prefix portion of the prefills'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-06/chapter-06.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH6-OVERSUB-PEAK-FLOPS",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "Same defect as CH6-04, independently verified: the 6.5x uses the peak dense rate (7.912 PFLOPS = 8 x 0.989) with no peak label at point of use, while the book's fleet sizing uses 35% MFU sustained (2.7692 PFLOP/s) - Ch 8 runs the identical 40 rps operating point to ceil(18.60) = 19 hosts. Recomputed: 51.6/7.912 = 6.52x; 51.6/2.7692 = 18.63x (the finding's 18.8 uses 52/2.77 = 18.77, same conclusion). The paragraph's conclusion (queue grows) holds either way, but the number is 2.86x off the book's own convention and inconsistent with Ch 8's screen.",
+  "evidence": "chapter-06 line 91: 'aggregate prefill demand at the 40 rps peak is 40 × 1.29 ≈ 52 PFLOP/s vs the 8×H100 aggregate ~7.9 PFLOPS, ~6.5× oversubscribed'; chapter-08 line 171: 'host = 8 × 0.989 PFLOPS × 0.35 = 2.7692 PFLOP/s ... At the peak 40 rps (368,000 tokens/s) the same arithmetic gives ~18.6 → **19 hosts under case (i)**'; line 127: 'H100 sustained MFU (typical) 30–40% ... ~346 TFLOPS sustained at 35% MFU'. Python: 8*0.989 = 7.912 PFLOPS peak; 7.912*0.35 = 2.7692 sustained; 40*1.29 = 51.6; 51.6/7.912 = 6.52; 51.6/2.7692 = 18.63; 52/2.77 = 18.77.",
+  "fix_instruction": "design/manuscript/chapter-06/chapter-06.md line 91: replace 'vs the 8×H100 aggregate ~7.9 PFLOPS, ~6.5× oversubscribed' with 'against the 8×H100 sustained prefill capacity of ~2.77 PFLOP/s (35% MFU, Ch 8 §3) — ~18.6× oversubscribed (the datasheet-peak ~7.9 PFLOPS gives ~6.5×, the theoretical ceiling only), consistent with Ch 8's 19-host screen at this peak'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-06/chapter-06.md",
+  "_dupes": [
+   "CH6-04@text"
+  ]
+ },
+ {
+  "id": "CH6-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Caption and body make different claims about the same figure. The SLO is p95 <= 2 s and the sample's p95 is 0.99 s, so the SLO is met; the body says exactly that ('even this sample's p99 (approx 1.33 s) still looks healthy'), while the caption asserts the tail 'breaches the 2 s SLO' and its caveat calls the shaded >2 s requests 'violations of the one 2 s SLO'. A caption-only reader concludes the system is in SLO violation; the body says it is healthy. Request-level threshold exceedance and p95-SLO breach are different events and the caption conflates them.",
+  "evidence": "chapter-06 line 54 (caption): '![Fig 6.2 — Request-latency distribution: the mean looks healthy while a 1% tail at ~5 s breaches the 2 s SLO. ... Caveat: the light band shades the **full** SLO-violating region (> 2 s ...) and the darker hatched band marks the 5 s straggler cluster inside it — the shading marks violations of the one 2 s SLO, not a second threshold.]'; line 51 (body): 'p50 ≈ 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s ... Under the canonical p95 TTFT SLO of ≤ 2 s, **even this sample's p99 (≈ 1.33 s) still looks healthy**'; line 56: '(the SLO itself is stated at p95, Ch 4)'. chapter-04 line 48: 'p95 TTFT ≤ 2 s'. Python check: 0.99 < 2 -> p95 SLO met; 1% of requests > 2 s.",
+  "fix_instruction": "design/manuscript/chapter-06/chapter-06.md line 54: replace 'the mean looks healthy while a 1% tail at ~5 s breaches the 2 s SLO.' with 'the mean looks healthy and the p95 SLO is met (p95 ≈ 0.99 s ≤ 2 s), while 1% of requests exceed the 2 s TTFT threshold — a tail a p95 SLO does not surface.' (keep the Assumption and Caveat sentences unchanged).",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-06/chapter-06.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH6-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Same paragraph states the full-square figure and then aggregates on the linear-only figure without naming its scope: §3 first says the prefill is '≈ 1.5 PFLOP full-square total', then line 91 says 'each ~1.29 PFLOP' and computes 40 x 1.29 ≈ 52 PFLOP/s -> ~6.5x. Recomputed: attention term 4 x 8192 x 9200^2 x 80 = 0.2219 PFLOP, full = 1.5119 PFLOP, 40 x 1.5119 / 7.912 = 7.64x, not 6.52x. The book's own convention (Ch 8) is to name the FLOP-counting case at the point of use ('the screen depends on the FLOP-counting case, so all three are stated'); this sentence doesn't. (Minor: the 1.5 figure is in a different §3 subsection, not the same paragraph.)",
+  "evidence": "chapter-06 line 74: 'the prefill pass for 9,200 input tokens costs ≈ 2 ×70e9 params × 9.2e3 tokens ≈ **1.29 PFLOP of linear (2PL) FLOPs** (the quadratic attention term adds ≈ 0.2 PFLOP at 9.2K — ≈ 1.5 PFLOP full-square total, Ch 22 Table 22-1)'; line 91: 'each ~1.29 PFLOP — aggregate prefill demand at the 40 rps peak is 40 × 1.29 ≈ 52 PFLOP/s vs the 8×H100 aggregate ~7.9 PFLOPS, ~6.5× oversubscribed'. chapter-08 line 171: 'The screen depends on the FLOP-counting case, so all three are stated'. Python: 4*8192*9200**2*80 = 2.2188e14 = 0.2219 PFLOP; 1.29+0.2219 = 1.5119; 40*1.5119/7.912 = 7.64; 40*1.29/7.912 = 6.52.",
+  "fix_instruction": "design/manuscript/chapter-06/chapter-06.md line 91: replace 'each ~1.29 PFLOP — aggregate prefill demand at the 40 rps peak is 40 × 1.29 ≈ 52 PFLOP/s vs the 8×H100 aggregate ~7.9 PFLOPS, ~6.5× oversubscribed' with 'each ~1.29 PFLOP linear (~1.5 PFLOP full-square, §3 above) — aggregate prefill demand at the 40 rps peak is 40 × 1.29 ≈ 52 PFLOP/s linear (≈ 60 PFLOP/s full-square) vs the 8×H100 aggregate ~7.9 PFLOPS, ~6.5× oversubscribed on the linear term (~7.6× full-square)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-06/chapter-06.md",
+  "_dupes": []
+ }
+]

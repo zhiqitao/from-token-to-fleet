@@ -48,8 +48,14 @@ divider(0.778)
 downarrow(0.778, 0.735)   # R27 P2: extend the tip into the box so it touches
 
 # ---- Stage 2 CONSTRAINTS ----
+# FIX FIG-12.1-02: the box carried only its number+title while the caption
+# held the gating constraint; the diagram now states the gate itself.
 box(X0, 0.600, W, 0.150, '#fdf3e0', '#d68910')
-stagelabel(CX, 0.675, '\u2461  CONSTRAINTS', '#935116')
+stagelabel(CX, 0.708, '②  CONSTRAINTS', '#935116')
+ax.text(CX, 0.656, 'SLO: throughput at target load (10/40 rps, 9.2K-in/300-out)',
+        ha='center', va='center', fontsize=8.2, color='#935116', zorder=3)
+ax.text(CX, 0.620, 'memory fit per host · quality gate',
+        ha='center', va='center', fontsize=8.2, color='#935116', zorder=3)
 divider(0.588)
 downarrow(0.588, 0.545)   # R27 P2: extend the tip into the box so it touches
 

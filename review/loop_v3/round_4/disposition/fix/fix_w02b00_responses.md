@@ -1,0 +1,1 @@
+CH4-12 | P3 | design/manuscript/chapter-04/chapter-04.md:192 (Token pricing bullet) | Replaced 'on the same H100 instance (mid-tier managed-API list price, derived from cloud provider pricing as of 2026)' with the managed-API-list-price phrasing that separates the hosted-service price from the separately priced ~$20/hr H100 instance | APPLIED

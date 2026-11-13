@@ -6,7 +6,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 # ---- fig-26-2601: Pattern Application Diagram (capstone) ----
 # The Pattern-Measurement-Feedback loop applied to the chapter's capstone scenario
 # (Ch 26 §8). Simpler/prose-backed redesign: a closed 3-stage clockwise CYCLE
-# (FACT -> DERIVED -> PATTERN -> back to FACT), flat fills (no heavy hatching), and
+# (ASSUMPTION -> DERIVED -> PATTERN -> back to ASSUMPTION), flat fills (no heavy hatching), and
 # larger type. Per-pattern composition detail (A/B/C) lives in the caption/prose.
 fig, ax = plt.subplots(figsize=(6.1, 4.9))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow this figure
@@ -42,15 +42,24 @@ def stage_text_small(x, y, lines, big, body_fs=8.6):
             fontsize=body_fs, linespacing=1.45)
 
 BW = 8.0
-# Top row: FACT (left) -> DERIVED (right)
+# Top row: ASSUMPTION (left) -> DERIVED (right)
+# Box 1 header is the Ch. 4 evidence-class label [ASSUMPTION], not FACT: these
+# three values are assumed baseline/scenario inputs (ch26 §8 Step 1: "assumed
+# baseline inputs, not gathered FACTs"), and 450 ms is a scenario p99 service-
+# time sum, so the box carries '~' like the Note (Fig 26.2) does.
 box(0.8, 7.4, BW, 2.5, '#2980b9')
-stage_text(0.8, 7.4, ['1 · FACT',
+stage_text(0.8, 7.4, ['1 · ASSUMPTION',
                       'request rate ~2 rps',
-                      'utilization 45%',
-                      'baseline TTFT p99 450 ms'], big=9.8)
+                      'utilization ~45%',
+                      'scenario TTFT p99 ~450 ms'], big=9.8)
 box(11.8, 7.4, BW, 2.5, '#16a085')
+# R4 MISC (F-26.2-2): the bare 'decode bandwidth-bound' read as an
+# unconditional law, while the prose conditions it on the low-batch regime
+# (batch size / precision / kernel / hardware decide whether it stays there).
+# Qualifier rides as a second body line so it stays inside the box at 8.6pt.
 stage_text_small(11.8, 7.4, ['2 · DERIVED',
-                            'decode bandwidth-bound'], big=9.8)
+                            'decode bandwidth-bound',
+                            '(low-batch regime)'], big=9.8)
 
 # Bottom row: PATTERN (right, below DERIVED) so the flow turns clockwise
 box(11.8, 1.0, BW, 2.5, '#c0392b')

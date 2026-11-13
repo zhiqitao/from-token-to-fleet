@@ -41,7 +41,7 @@ def label(x, gb, txt, fc):
     ax.text(x, bar_y + bar_h / 2.0, txt, ha='center', va='center',
             fontsize=9.0, color='white', fontweight='bold',
             bbox=dict(boxstyle='round,pad=0.12', fc=('#3a6ea5' if weights <= x <= gb_to_x(weights) else
-                     ('#6f9e5f' if x >= gb_to_x(weights + runtime) else '#4a4e52')),
+                     ('#e67e22' if x >= gb_to_x(weights + runtime) else '#4a4e52')),
                      ec='none', alpha=1.0))
 
 # weights region
@@ -53,12 +53,28 @@ label((gb_to_x(0) + gb_to_x(weights)) / 2.0, 0, '140 GB\nweights', '#ffffff')
 # it read as "8"; a solid dark gray keeps the digit unambiguous and the contrast high)
 ax.add_patch(Rectangle((gb_to_x(weights), bar_y), gb_to_x(weights + runtime) - gb_to_x(weights), bar_h,
                        fc='#4a4e52', ec='white', lw=0.5))
-label((gb_to_x(weights) + gb_to_x(weights + runtime)) / 2.0, 0, '~64 GB\nruntime', '#ffffff')
-# KV budget region (the dominant band) — solid green (no dot hatch) so the
-# white label has clean contrast (v8 review: the dotted pattern lowered the
-# label's legibility).
+rt_cx = (gb_to_x(weights) + gb_to_x(weights + runtime)) / 2.0
+label(rt_cx, 0, '~64 GB', '#ffffff')
+# R4 fix (FIG-7.7-01): the segment's NAME moves out of the bar so the figure
+# carries the caption's exact term.  Measured with the render venv at 9 pt bold:
+# 'runtime/NCCL' = 101 px while the 64 GB segment is only 61 px wide (the 8 pt
+# floor still needs 90 px), so the instructed in-bar wrap '~64 GB' / 'runtime/NCCL'
+# cannot fit — the pill would cross both white segment boundaries by ~20 px a
+# side.  The value stays in the bar (it fits: '~64 GB' = 55 px) and the name is
+# set below the bar on a leader into the segment, verbatim as the caption has it.
+ax.text(rt_cx, 4.15, 'runtime/NCCL', ha='center', va='top',
+        fontsize=9.0, fontweight='bold', color='#4a4e52')
+ax.plot([rt_cx, rt_cx], [4.15, bar_y], color='#4a4e52', lw=0.8)
+# KV budget region (the dominant band).  R4 fix (FIG-7.7-7.8-1): it was green
+# here while Fig 7.8's KV block is orange, so the same 640 GB pool was encoded
+# two ways in adjacent figures.  Both now use orange + the same '..' dot hatch
+# (7.8's pattern), so KV reads as KV across 7.7/7.8; the segment label still
+# says "KV budget" (reserved) vs 7.8's "KV <n> GB" (used), and the white label
+# stays crisp because the solid pill hides the dots and slot rules behind it
+# (v8's dot-hatch legibility complaint was about text sitting directly on the
+# pattern — the pill is the later fix for exactly that).
 ax.add_patch(Rectangle((gb_to_x(weights + runtime), bar_y), gb_to_x(total) - gb_to_x(weights + runtime), bar_h,
-                       fc='#6f9e5f', ec='white', lw=0.5))
+                       fc='#e67e22', ec='white', lw=0.5, hatch='..'))
 label((gb_to_x(weights + runtime) + gb_to_x(total)) / 2.0, 0, '~436 GB\nKV budget', '#ffffff')
 
 # per-request slot ticks inside the KV budget band (17.5 slots of 24.9 GB)

@@ -12,7 +12,10 @@ Red Team / Green Team is a structured adversarial evaluation pattern
 borrowed from military wargaming and software security. The
 \textbf{Green Team} builds and operates the system; the \textbf{Red
 Team} attempts to break it. In the context of a RAG + model fleet
-architecture, the Red Team probes the system across three domains:
+architecture, the Red Team probes the system across the five layers of
+§2 (prompt, retrieval, tool use, model behavior, fleet orchestration),
+which group into three attack surfaces: prompt injection, RAG
+corruption, and system-level exploits.
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -29,8 +32,8 @@ architecture, the Red Team probes the system across three domains:
 \end{enumerate}
 
 The Green Team responds by hardening defenses, refining detection, and
-quantifying coverage. The cycle repeats until the attack-surface budget
-is demonstrably bounded.
+quantifying coverage. The cycle repeats until the residual attack
+surface is within the agreed threshold.
 
 This chapter assumes a canonical deployment: \textasciitilde2,000
 registered users (an illustrative \textasciitilde100 active users, not a
@@ -107,25 +110,24 @@ clustering rule. \textbf{Make the rule part of the definition before any
 number appears}: two probe patterns are the same class if their
 normalized-edit-distance (NLE) is ≤ a fixed threshold --- i.e.~within
 NLE ≤ 0.25 of an existing class they are treated as equivalent;
-otherwise they are a distinct class (see §3 for the deduplication rule).
-This greedy clustering rule (assign each new pattern to an existing
-class when NLE ≤ 0.25, else start a new class) is an explicitly
-\textbf{order-sensitive heuristic}, not a deterministic cross-run class
-count: threshold proximity is not transitive (A may sit within NLE 0.25
-of B and B within 0.25 of C while A is not within 0.25 of C), so the
-class count --- and therefore PIES --- can change with the pattern
-generation order, the choice of class representative, and the tie-break
-rule. Without a canonical generation order, normalization denominator,
-representative-selection rule, stable sort, tie-break rule, and test
-fixture, the count is well-defined only within a single fixed run; it is
-an author-chosen operational rule, not a property of the deployment.
-\textbf{PIES is a local evaluation metric defined in this handbook} for
-our red/‑green‑team loop; it is \emph{not} a standardized security
-metric, and a PIES value from one deployment is not comparable to a PIES
-value from another (the entry points, probe generator, and deduplication
-threshold are all author-defined). We report it with that caveat
-attached. It is a pedagogical toy metric for teaching the \emph{loop's
-shape}, not a portable security measurement.
+otherwise they are a distinct class. This greedy clustering rule (assign
+each new pattern to an existing class when NLE ≤ 0.25, else start a new
+class) is an explicitly \textbf{order-sensitive heuristic}, not a
+deterministic cross-run class count: threshold proximity is not
+transitive (A may sit within NLE 0.25 of B and B within 0.25 of C while
+A is not within 0.25 of C), so the class count --- and therefore PIES
+--- can change with the pattern generation order, the choice of class
+representative, and the tie-break rule. Without a canonical generation
+order, normalization denominator, representative-selection rule, stable
+sort, tie-break rule, and test fixture, the count is well-defined only
+within a single fixed run; it is an author-chosen operational rule, not
+a property of the deployment. \textbf{PIES is a local evaluation metric
+defined in this handbook} for our red/‑green‑team loop; it is \emph{not}
+a standardized security metric, and a PIES value from one deployment is
+not comparable to a PIES value from another (the entry points, probe
+generator, and deduplication threshold are all author-defined). We
+report it with that caveat attached. It is a pedagogical toy metric for
+teaching the \emph{loop's shape}, not a portable security measurement.
 
 \textbf{Worked arithmetic:}
 
@@ -144,8 +146,8 @@ shape}, not a portable security measurement.
   \item
     8 delimiter styles (\texttt{\textless{}DSML\textgreater{}},
     \texttt{\textless{}/\textgreater{}}, \texttt{-\/-\/-},
-    \texttt{\textbar{}\textbar{}\textbar{}},
-    ``\texttt{,}\{\{\texttt{,}{[}{[}\texttt{,}\mbox{{[}INST{]}}`)
+    \texttt{\textbar{}\textbar{}\textbar{}}, ```, \texttt{\{\{},
+    \texttt{{[}{[}}, \texttt{\mbox{{[}INST{]}}})
   \item
     6 role‑play templates (\texttt{You\ are\ a\ rogue\ AI},
     \texttt{Ignore\ previous\ instructions},
@@ -164,17 +166,20 @@ shape}, not a portable security measurement.
   However, many combinations are semantically redundant. After
   deduplication by normalized edit distance at a fixed threshold (we use
   normalized Levenshtein distance ≤ 0.25 as the equivalence criterion),
-  the unique exposure surface is \textbf{PIES = 217} \mbox{{[}ILLUSTRATIVE{]}}
-  --- author-defined operational proxy; the 217 is not reproducible from
-  the text alone, since the dedup threshold is a local choice, the
-  greedy assignment is order-sensitive (generation order, representative
-  selection, and tie-break are unspecified), and normalized edit
-  distance captures textual, not semantic, similarity.
+  the unique exposure surface is the \textbf{candidate pattern space,
+  CPS = 217} \mbox{{[}ILLUSTRATIVE{]}} --- author-defined operational proxy;
+  the 217 is not reproducible from the text alone, since the dedup
+  threshold is a local choice, the greedy assignment is order-sensitive
+  (generation order, representative selection, and tie-break are
+  unspecified), and normalized edit distance captures textual, not
+  semantic, similarity.
 \end{itemize}
 
 This illustrative quantity --- 217 distinct, non‑redundant
-prompt‑injection patterns --- becomes the baseline by which we measure
-guardrail effectiveness. Normalized edit distance captures
+prompt‑injection patterns --- is the candidate pattern space (CPS);
+\textbf{PIES} is the subset of those candidate classes with ≥1 guardrail
+bypass in the cycle, and it is PIES that becomes the baseline by which
+we measure guardrail effectiveness. Normalized edit distance captures
 \emph{textual} similarity, not \emph{semantic attack equivalence}: two
 syntactically different attacks may be behaviorally equivalent, and two
 lexically similar attacks may exploit materially different pathways, so
@@ -215,29 +220,36 @@ queries per evaluation window), and the expected total poisoned hits is
 \mathbb{E}[\text{total}] = 10{,}000 \times 0.0052 = 52
 \]
 
-This derived quantity --- 52 expected poisoned retrievals per
-10,000-query evaluation window --- quantifies the RAG corruption risk
-under a deliberately simple model. \textbf{This is a null-model baseline
-assuming uniform random retrieval}, not a realistic poisoning-risk
-estimate. In practice vector retrieval is emphatically \emph{not}
-uniform sampling: a successful poisoning attack is usually constructed
-precisely to raise semantic similarity to targeted queries, so
-adversarial chunks can appear far more often in the top-k than their
-corpus share. Real poisoning exposure therefore has to be measured from
-ranked retrieval (report hit rates conditioned on the actual similarity
-ordering), because adversarial chunks are intentionally designed to
-alter retrieval probability. We present the uniform baseline first
-because it is the one computable by hand, and we flag it as a
-\textbf{uniform-sampling null reference, not a bound} --- neither a
-floor nor a ceiling on real exposure. Two-line counterexample: unrelated
-queries whose distribution is disjoint from the poisoned chunks retrieve
-none of them, so exposure is near zero no matter how large Q is;
-highly-similar poison crafted for a targeted query family lands in the
-top-k far above its corpus share, so exposure is elevated well above 52.
-The measurable security metric must therefore be conditioned on the
-query distribution, the ranking, chunk provenance, and attack success.
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- null-model uniform-retrieval
-baseline
+\emph{Note: this null-model per-retrieval expectation (0.0052 ≈ 0.52\%)
+already exceeds the §4.1 target of \textless0.3\% --- under uniform
+sampling the target is missed by construction; the gap is a property of
+the null model, not a measured exposure.}
+
+This derived quantity --- 52 expected poisoned \textbf{chunk hits} per
+10,000-query evaluation window (the §4.1 retrieval-level metric uses
+Q·(1−(1−p)\^{}k) = 10,000 × 0.005197 ≈ 52 retrievals returning ≥1
+poisoned chunk --- the two agree to within 0.1\% here) --- quantifies
+the RAG corruption risk under a deliberately simple model. \textbf{This
+is a null-model baseline assuming uniform random retrieval}, not a
+realistic poisoning-risk estimate. In practice vector retrieval is
+emphatically \emph{not} uniform sampling: a successful poisoning attack
+is usually constructed precisely to raise semantic similarity to
+targeted queries, so adversarial chunks can appear far more often in the
+top-k than their corpus share. Real poisoning exposure therefore has to
+be measured from ranked retrieval (report hit rates conditioned on the
+actual similarity ordering), because adversarial chunks are
+intentionally designed to alter retrieval probability. We present the
+uniform baseline first because it is the one computable by hand, and we
+flag it as a \textbf{uniform-sampling null reference, not a bound} ---
+neither a floor nor a ceiling on real exposure. Two-line counterexample:
+unrelated queries whose distribution is disjoint from the poisoned
+chunks retrieve none of them, so exposure is near zero no matter how
+large Q is; highly-similar poison crafted for a targeted query family
+lands in the top-k far above its corpus share, so exposure is elevated
+well above 52. The measurable security metric must therefore be
+conditioned on the query distribution, the ranking, chunk provenance,
+and attack success. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- null-model
+uniform-retrieval baseline
 
 \subsection{The Architecture That Fails: Red Team Overturns a
 ``Winner''}\label{the-architecture-that-fails-red-team-overturns-a-winner}
@@ -262,35 +274,44 @@ tokens per request), two shape options are tabled:
   the analysis rather than pre-declared. Looks expensive on paper.
 \end{itemize}
 
+\emph{(Scope of this pair: both candidates are measured against the
+\textbf{average-load screens} (10 rps: prefill \textasciitilde1.6 nodes
+at 100\% theoretical efficiency, KV ≈ 5 hosts FP16 / \textasciitilde2.5
+hosts 8-bit, Ch 16/17) --- a scaled-down illustration, \textasciitilde4×
+below the canonical \textbf{peak} screens (21 hosts KV / 19--22 prefill
+/ 32 policy) that the Red Team's checks below apply.)}
+
 \textbf{The benchmark trap.} The team benchmarks each candidate at
 \emph{average} load (10 rps) and \emph{batch-average} latency. At 10
 rps, Candidate A clears the average latency SLO comfortably --- it only
 needs \textasciitilde1.6 nodes of prefill compute \emph{at the idealized
 100\% theoretical efficiency} (the workload's binding \emph{compute}
 screen at average load), so 4 hosts look like they give plenty of margin
---- and its per-token cost is \textasciitilde45\% lower (fewer
-host-hours). The initial report recommends \textbf{Candidate A} on
-throughput-per-dollar. The architecture looks done. (The margin is an
-artifact of the 100\%-efficiency floor: at the 30--40\% sustained MFU
-the chapter itself uses, that 1.6-node floor becomes \textasciitilde4--5
-nodes, so 4 hosts is the floor, not a margin --- the Red Team's peak
-check below makes this explicit. The KV-residency screen independently
-needs \textasciitilde5 hosts at 10 rps on the FP16-KV basis (10 rps ×
-8.6 s × \textasciitilde24.9 GB per 9.5K-max request ÷ 436 GB ≈ 4.9, Ch
-17) --- Candidate A's 8-bit KV halves its own KV screen to
-\textasciitilde2.5 hosts --- so at average load the two screens converge
-near 5 hosts: prefill binds outright for Candidate A's 8-bit KV (KV
-screen \textasciitilde2.5), and on the FP16 basis the binding screen
-flips near \textasciitilde33\% sustained MFU (prefill \textasciitilde4.1
-vs KV \textasciitilde4.9 at 40\%), inside the canonical 30--40\% range.)
+--- and its per-token cost is \textasciitilde50\% lower (half the
+host-hours: 4 hosts vs 8). The initial report recommends
+\textbf{Candidate A} on throughput-per-dollar. The architecture looks
+done. (The margin is an artifact of the 100\%-efficiency floor: at the
+30--40\% sustained MFU the chapter itself uses, that 1.6-node floor
+becomes \textasciitilde4--5 nodes, so 4 hosts is the floor, not a margin
+--- the Red Team's peak check below makes this explicit. The
+KV-residency screen independently needs \textasciitilde5 hosts at 10 rps
+on the FP16-KV basis (10 rps × 8.6 s × \textasciitilde24.9 GB per
+9.5K-max request ÷ 436 GB ≈ 4.9, Ch 17) --- Candidate A's 8-bit KV
+halves its own KV screen to \textasciitilde2.5 hosts --- so at average
+load the two screens converge near 5 hosts: prefill binds outright for
+Candidate A's 8-bit KV (KV screen \textasciitilde2.5), and on the FP16
+basis the binding screen flips near \textasciitilde33\% sustained MFU
+(prefill \textasciitilde4.1 vs KV \textasciitilde4.9 at 40\%), inside
+the canonical 30--40\% range.)
 
-\mbox{{[}DERIVED{]}} --- the \textasciitilde45\% per-token cost delta follows
-from the candidate host-hour difference; the margin itself is the
+\mbox{{[}DERIVED{]}} --- the \textasciitilde50\% per-token cost delta = 1 − 4/8
+host-hours at equal served volume (Candidate A 4 hosts vs Candidate B 8
+hosts, same hardware and workload); the margin itself is the
 100\%-efficiency artifact noted above.
 
 \textbf{Red Team runs the adversarial pass.} Before the ADR is
 committed, the Red Team attacks the \emph{decision}, not just the
-prompts. Three canonical checks overturn the recommendation:
+prompts. Four canonical checks overturn the recommendation:
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -302,7 +323,7 @@ prompts. Three canonical checks overturn the recommendation:
   linear model-matmul term; note this excludes the quadratic attention
   term --- see the Ch 22 discussion of 2NL as the parameterized-linear
   FLOP floor, which is the prefill component, not the whole prefill FLOP
-  count). At the 40 rps peak, prefill demand is 40 ×1.29 PFLOP ≈
+  count). At the 40 rps peak, prefill demand is 40 × 1.288 PFLOP ≈
   \textbf{51.5 PFLOP/s}, while one 8×H100 host gives ≈ 7.9 PFLOP/s of
   dense-FP16 theoretical peak (8 ×989 TFLOPS, \hyperref[chap:8]{Chapter 8} canonical).
   Dividing peak demand by theoretical peak gives \textbf{6.5 hosts ---
@@ -345,6 +366,12 @@ prompts. Three canonical checks overturn the recommendation:
   utilization high?'' A design that meets the tail SLO with headroom is
   correct even at lower average utilization; a design that only meets
   the average is fragile. A high number alone proves nothing.
+\item
+  \textbf{Peak KV residency:} 40 rps × 8.6 s = 344 in-flight × 24.9 GB ÷
+  436 GB = 19.7 → 21 hosts (Ch 17); Candidate B's 8 hosts hold 140 --- B
+  fails peak KV as decisively as A, so either size B to ≥21 hosts (≥17
+  at 40\% MFU prefill) and re-run the comparison, or label B a
+  below-peak configuration that cannot serve the canonical peak at all.
 \end{enumerate}
 
 \mbox{{[}DERIVED{]}} --- 51.5 PFLOP/s, 6.5 hosts, 16.3 hosts, and
@@ -352,13 +379,16 @@ prompts. Three canonical checks overturn the recommendation:
 and Ch 8's 7.9 PFLOP/s dense peak; \mbox{{[}canonical scenario{]}} inputs: 40
 rps, 1.29 PFLOP, 989 TFLOPS.
 
-\textbf{Outcome.} The Red Team's adversarial pass (checks 1--3) rejects
+\textbf{Outcome.} The Red Team's adversarial pass (checks 1--4) rejects
 Candidate A and leaves Candidate B as a candidate \emph{pending
-measurement}. The cheaper-looking option was cheaper only because it was
-sized to the average, not to the peaks, the tail, or the failure domain.
-Be precise about what has and has not been shown: the Red Team has
-\textbf{eliminated A} (it cannot feed prefill at peak or survive a
-single-host failure), but it has \textbf{not validated B as
+measurement} --- and on check 4 (peak KV residency) neither candidate
+survives the full screen set at the canonical peak: A fails prefill and
+KV, B fails peak KV (8 hosts hold 140 of the 344 in-flight) until sized
+to ≥21 hosts and re-run. The cheaper-looking option was cheaper only
+because it was sized to the average, not to the peaks, the tail, or the
+failure domain. Be precise about what has and has not been shown: the
+Red Team has \textbf{eliminated A} (it cannot feed prefill at peak or
+survive a single-host failure), but it has \textbf{not validated B as
 production-safe} --- B's 8 hosts sit above the \textasciitilde6.5
 theoretical floor but below the \textasciitilde16-host 40\%-MFU
 estimate, so B remains a candidate contingent on measured sustained
@@ -369,6 +399,11 @@ until the Red Team has tried to overturn it on every dimension the
 average benchmark did not test --- peak prefill compute, tail latency,
 and failure domain --- and until the surviving candidate is validated
 against measured efficiency.}
+
+Scope note for §3: §3 works the prompt-injection and RAG-corruption
+surfaces; the tool-use and fleet-orchestration layers are carried by the
+§4.1 tool-use exploit rate and the §6.3 sandboxing consequence, not by a
+worked example here.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -399,8 +434,10 @@ Evidence
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\textbf{PIES} & DERIVED & Unique, non‑redundant prompt‑injection
-patterns across all entry points & \textless{} 150 (after hardening) &
+\textbf{PIES} & DERIVED & Subset of the candidate pattern space (CPS)
+with ≥1 guardrail bypass in the cycle & \textless{} 150 (after
+hardening; illustrative target, not a release gate --- the PIES
+procedure is not fully specified, §3.1) &
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
 \textbf{Poisoned‑hit rate} & DERIVED & Fraction of retrievals that
 return at least one poisoned chunk & \textless{} 0.3\% (0.003 per query)
@@ -415,9 +452,9 @@ queries) & \textless{} 1.5\% & \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASS
 probes that achieve an unintended action (an \emph{attacker}‑side
 success; lower is better) & \textless{} 0.5\% &
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
-\textbf{Red‑team win rate} & DERIVED & Proportion of evaluation cycles
-where Red Team escapes all guardrails & → 0 over time &
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
+\textbf{Red‑team win rate} & DERIVED & Fraction of Red Team probes in a
+cycle that achieve an unintended outcome (denominator = probes, not
+cycles) & → 0 over time & \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
 
 \noalign{\label{tab:24.3}}\end{longtable}
 
@@ -438,8 +475,10 @@ assumption \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}.
   \textbf{Guardrail logger} --- records every intervention, the rule
   that fired, and whether the user query was legitimate.
 \item
-  \textbf{Retrieval auditor} --- samples 100 retrievals per cycle and
-  manually verifies whether any returned chunk is poisoned.
+  \textbf{Retrieval auditor} --- samples 1,000 retrievals per cycle (n ≈
+  1,000 sized for the \textless0.3\% target at 95\% confidence; 0.001
+  resolution) and manually verifies whether any returned chunk is
+  poisoned.
 \item
   \textbf{Outcome synthesizer} --- produces the metric table above,
   tagging each value as FACT, DERIVED, or HYPOTHESIS.
@@ -468,17 +507,22 @@ Better practice
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\textbf{Counting raw probe volume instead of unique patterns} & 10,000
-probes may only explore 200 distinct injection patterns; the rest are
-noise. & Deduplicate by normalized syntax and report PIES. \\
+\textbf{Counting raw probe volume instead of unique patterns} & 1,000
+probes per cycle (10,000 over 10 cycles) may only explore 200 distinct
+injection patterns; the rest are noise. & Deduplicate by normalized
+syntax to get the candidate pattern space (CPS), then report PIES
+(candidates with ≥1 bypass). \\
 \textbf{Confusing FACT with DERIVED} & Attributing a computed
 probability to a single observed event inflates confidence. & Always tag
-metrics with their axis; require at least one FACT to ground each
-DERIVED quantity. \\
+metrics with their axis; require each DERIVED quantity to rest on FACT
+inputs --- or, when it rests on stated ASSUMPTION inputs, tag it
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}-derived (as the §3.2 52-hit null
+model is). \\
 \textbf{Stopping after one Red Team cycle} & A single cycle cannot
 establish a trend; guardrails may be effective only against known
-patterns. & Run at least 5 cycles; track the Red‑team win rate across
-cycles. \\
+patterns. & Run at least 5 cycles (\hyperref[tab:24.1]{Table 24-1} shows only the first 3 ---
+the worked example is truncated there); track the Red‑team win rate
+across cycles. \\
 \textbf{Ignoring entry‑point heterogeneity} & A guardrail that blocks
 web UI prompts may not cover the API endpoint. & Measure PIES per entry
 point; require the highest PIES to meet the target. \\
@@ -499,13 +543,14 @@ decisions:
 \def\labelenumi{\arabic{enumi}.}
 \item
   \textbf{Guardrail granularity} --- If PIES remains high after two
-  cycles, the system must add a prompt‑scanning layer (e.g., an
+  cycles, one candidate mitigation is a prompt‑scanning layer (e.g., an
   LLM‑based classifier) before the main model inference. In the
   illustrative scenario we model this as adding \textasciitilde150 ms
-  latency per query and reducing PIES by roughly a third ---
-  \textasciitilde34\% (the §8 mini-case's worked instance: 217 → 143)
-  --- \textbf{illustrative scenario numbers, not measurements from a
-  deployment in this handbook} \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}.
+  latency per query and reducing PIES (candidate classes with ≥1
+  guardrail bypass) by roughly a third --- \textasciitilde34\% (the §8
+  mini-case's worked instance: 217 → 143) --- \textbf{illustrative
+  scenario numbers, not measurements from a deployment in this handbook}
+  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}.
 \item
   \textbf{RAG corpus policy} --- If the poisoned‑hit rate exceeds 0.3\%
   (0.003 per query), the architecture must enforce corpus provenance
@@ -531,7 +576,7 @@ operational backlog, with a clear owner, SLA, and success metric.
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
 
-All four items below are \textbf{unresolved (evidence pending)} --- each
+All six items below are \textbf{unresolved (evidence pending)} --- each
 is an open question with a planned investigation, not a settled fact.
 
 \nopagebreak[4]
@@ -558,10 +603,10 @@ across all entry points; measure correlated success rates. \\
 and shift tactics, keeping the win rate stable even as guardrails
 improve. & Model the Red Team as an adaptive adversary; use Bayesian
 updating on win‑rate trends. \\
-\textbf{Long‑term corpus drift} & Embeddings degrade over time; a corpus
-that is clean today may harbor undetectable poisonings after 6 months. &
-Schedule quarterly RAG integrity audits; compare embedding stability
-metrics. \\
+\textbf{Long‑term corpus drift} & The corpus and index change over time;
+a corpus that is clean today may harbor undetectable poisonings after 6
+months. & Schedule quarterly RAG integrity audits for content and index
+changes; compare retrieval hit rates. \\
 \textbf{User‑driven accidental injection} & Legitimate user questions
 (e.g., ``What was your original prompt?'') may trigger guardrails,
 inflating the false‑positive rate. & Analyze the subset of guardrail
@@ -599,10 +644,11 @@ a 2.4\% false‑positive share blocks ≈0.13 legitimate queries per 1,000
 guardrail thresholds, which would reduce PIES further (to
 \textasciitilde110) but increase the false‑positive rate to 4.1\%. The
 Green Team rejects this trade-off, citing the 2.4\% false‑positive rate
-as unacceptable for a public‑facing service. Instead, they opt for a
-targeted refinement: add a context‑aware classifier that distinguishes
-intent‑preserving prompts from injection attempts, aiming to bring PIES
-below 150 while keeping the false‑positive rate under 1.5\%.
+as unacceptable for this internal, \textasciitilde2,000‑user service.
+Instead, they opt for a targeted refinement: add a context‑aware
+classifier that distinguishes intent‑preserving prompts from injection
+attempts, aiming to bring PIES below 150 while keeping the
+false‑positive rate under 1.5\%.
 
 \textbf{Quantified outcome (illustrative worked example, not a reported
 production measurement):} In this scenario, after refinement the model
@@ -625,11 +671,11 @@ exact numbers an organization would record come from its own run.
 \pandocbounded{\includegraphics[keepaspectratio,alt={Red Team / Green Team cycle. The loop (red team → probe → exposure → guardrails → metrics → green team) is operational, but it needs decision gates to be actionable: (1) a release-blocking severity criterion (e.g.~any P0/P1 finding blocks promotion; P2/P3 are tracked but non-blocking); (2) test-corpus ownership (a named team maintains the probe corpus and adds new cases from each red-team run); (3) regression thresholds (a previously-passing probe that now fails is a regression and blocks release). Without these, the cycle is a ritual, not a gate. \mbox{{[}ILLUSTRATIVE{]}} conceptual},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-24-2401.pdf}}
 \caption[Red Team / Green Team cycle]{Red Team / Green Team cycle. The loop (red team → probe → exposure → guardrails → metrics → green team) is operational, but it needs \textbf{decision gates} to be actionable: (1) a \textbf{release-blocking severity criterion} (e.g.~any P0/P1 finding blocks promotion; P2/P3 are tracked but non-blocking); (2) \textbf{test-corpus ownership} (a named team maintains the probe corpus and adds new cases from each red-team run); (3) \textbf{regression thresholds} (a previously-passing probe that now fails is a regression and blocks release). Without these, the cycle is a ritual, not a gate. \mbox{{[}ILLUSTRATIVE{]}} conceptual}
 
-\label{fig:24.1}\emph{Red Team / Green Team cycle. Probes sweep three domains (model
-behavior, tool use, retrieval/RAG); findings flow through exposure,
-guardrails and metrics; failed metrics spawn change-request backlog
-items that harden the system, and the loop repeats each evaluation
-cycle. \mbox{{[}ILLUSTRATIVE{]}} conceptual}
+\label{fig:24.1}\emph{Red Team / Green Team cycle. Probes sweep the five layers of §2
+(prompt, retrieval, tool use, model behavior, fleet orchestration);
+findings flow through exposure, guardrails and metrics; failed metrics
+spawn change-request backlog items that harden the system, and the loop
+repeats each evaluation cycle. \mbox{{[}ILLUSTRATIVE{]}} conceptual}
 
 \end{figure}\emph{\hyperref[tab:24.1]{Table 24-1} --- Red Team / Green Team metric table}
 

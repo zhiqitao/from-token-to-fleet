@@ -2,17 +2,17 @@
 
 ## The Architect's Question
 
-After this chapter we should be able to look at a characterized workload and place it on the right **archetype** — the canonical deployment shapes that recur across the industry — without reinventing a design from scratch. We will map the four tiers (local/edge, server, cluster, hyperscale), state what each can serve in model size and traffic, and develop the decision rule for when a workload outgrows a tier and must escalate. After this chapter, "we run on a server" or "we need a cluster" is a defensible, quantified statement tied to the workload's numbers — not a guess.
+After this chapter we should be able to look at a characterized workload and place it on the right **archetype** — the canonical deployment shapes that recur across the industry — without reinventing a design from scratch. We will map the four tiers (local/edge, server, cluster, hyperscale), state what each can serve in model size, and develop the decision rule — traffic against host goodput — for when a workload outgrows a tier and must escalate. After this chapter, "we run on a server" or "we need a cluster" is a defensible, quantified statement tied to the workload's numbers — not a guess.
 
 ## 1. Concept
 
 Architectures recur not because engineers lack imagination but because the *constraints* recur. Four archetypes cover the vast majority of AI deployments, distinguished by how many GPUs are involved and over what interconnect:
 
-1. **Local / edge** — a single GPU (or a laptop-class accelerator). Serves small models (up to ~7-13B at tight context) that must run on-device for privacy, latency, or connectivity reasons. Interconnect is not the question; memory capacity is.
+1. **Local / edge** — a single GPU (or a laptop-class accelerator). Serves small models (up to ~7-13B at tight context, assuming 8-bit/4-bit weight quantization — 13B FP16 = 26 GB exceeds many edge GPUs) that must run on-device for privacy, latency, or connectivity reasons. Interconnect is not the question; memory capacity is.
 
-2. **Server** — one host with 1-8 GPUs, typically H100/H200, joined by NVLink/NVSwitch. Serves dense models up to ~70B-180B with real concurrency. This is the canonical enterprise-Q&A tier and the book's 8×H100 baseline. [ILLUSTRATIVE][ASSUMPTION] (the tier's model-size range is a book-defined characterization; the H100/H200 and NVLink/NVSwitch specs it cites are [1P] vendor datasheets)
+2. **Server** — one host with 1-8 GPUs, typically H100/H200 — multi-GPU servers joined by NVLink/NVSwitch (a 1-GPU host uses PCIe; no intra-host fabric is needed). Serves dense models up to ~70B-180B with real concurrency. This is the canonical enterprise-Q&A tier and the book's 8×H100 baseline. [ILLUSTRATIVE][ASSUMPTION] (the tier's model-size range is a book-defined characterization; the H100/H200 and NVLink/NVSwitch specs it cites are [1P] vendor datasheets)
 
-3. **Cluster** — multiple hosts (tens to hundreds of GPUs) joined by InfiniBand or high-speed Ethernet. Required when a model exceeds a node's memory (so it must be split per Ch10) or when traffic outgrows one host (so P/D disaggregation per Ch11 applies).
+3. **Cluster** — multiple hosts (tens to hundreds of GPUs) joined by InfiniBand or high-speed Ethernet. Required when a model exceeds a node's memory (so it must be split per Ch10) or when traffic outgrows one host (requiring multi-host scaling: data-parallel replication, P/D disaggregation, or both — Ch 11).
 
 4. **Hyperscale / data-center fleet** — dedicated fleets of specialized inference/training clusters, often MoE or KV-centric (Mooncake-style disaggregation [S4][1P]), serving many tenants at enormous scale. The economics favor extreme specialization.
 
@@ -26,7 +26,7 @@ The mental model is a **ladder with explicit rungs**: we climb a rung when a bin
 
 - **Memory**: model + KV no longer fits one node → cluster (split weights).
 - **Traffic**: one host's throughput ceiling (goodput) below demand → more replicas (DP across nodes) or P/D disaggregation → cluster.
-- **Latency/geography**: SLO can't be met due to distance or contention → move the serving edge closer (local) or split prefill/decode.
+- **Latency/geography**: SLO can't be met due to distance or contention → split prefill/decode (a within-tier move). Note: *moving the serving edge closer (local)* is a placement move to a lower rung, not a climb trigger — it belongs with the de-escalation moves in Fig 13.1.
 
 We do not climb for fashion; we climb when a measured number crosses a threshold.
 
@@ -34,11 +34,11 @@ We do not climb for fashion; we climb when a measured number crosses a threshold
 
 ### Placing the Canonical Workload
 
-The canonical enterprise-Q&A RAG workload sits firmly on the **server** tier. We verify each bound:
+The canonical enterprise-Q&A RAG workload sits on the **server** tier — as a *fleet* of ~21 such servers at the 40 rps peak (Ch 16/17), not as the Cluster tier, which is for splitting one model across nodes. We verify each bound:
 
 - **Memory**: 70B FP16 weights = 140 GB; KV for the 9.5K max context at FP16 ≈ 24.9 GB; inference residency ≈ 165 GB [ILLUSTRATIVE][DERIVED]. An 8×H100 host (640 GB) fits this with ample headroom for concurrency (Ch11 showed ~24 GB per request × concurrent requests still fits). ✓ [ILLUSTRATIVE][DERIVED]
 
-- **Throughput/latency**: ~10 rps average / 40 rps peak, input-heavy (9.2K in / 300 out). On the *per-request latency* axis, Ch11 showed continuous batching + prefix caching keeps p95 TTFT under the 2 s SLO on a single 8×H100 host. **But on the *capacity* axis the single host does not carry the full arrival rate**: with the canonical ~8.6 s service time, Little's Law puts ≈40 × 8.6 ≈ 344 requests in flight at the peak, against ~17.5 KV-resident requests per host (an analytical continuous-occupancy figure; the conservative integer floor 17 is what hard host provisioning uses) — so a single host is a *latency-feasible* but not *capacity-sufficient* server (Ch16/17 size the fleet to ~21 hosts at the 40 rps peak on the full-utilization screen — ⌈344/17⌉ = 21; under the 70% × 95% policy — applied to the unrounded 344/17 ≈ 20.2, not the rounded 21 — that becomes 31 working + 1 spare = 32 total, Table 17-1). The tier choice here is about model residency and per-request latency, not about whether one host serves the entire peak arrival. [ILLUSTRATIVE][DERIVED]
+- **Throughput/latency**: ~10 rps average / 40 rps peak, input-heavy (9.2K in / 300 out). On the *per-request latency* axis, Ch11's serving analysis indicates that continuous batching + prefix caching keeps p95 TTFT under the 2 s SLO on a single 8×H100 host *below capacity* — at the 40 rps peak the queueing delay breaches it (the host does not carry the full arrival rate, as the capacity axis below shows). **But on the *capacity* axis the single host does not carry the full arrival rate**: with the canonical ~8.6 s service time, Little's Law puts ≈40 × 8.6 ≈ 344 requests in flight at the peak, against ~17.5 KV-resident requests per host (an analytical continuous-occupancy figure; the conservative integer floor 17 is what hard host provisioning uses) — so a single host is a *latency-feasible* but not *capacity-sufficient* server (Ch16/17 size the fleet to ~21 hosts at the 40 rps peak on the full-utilization screen — ⌈344/17⌉ = 21; under the 70% × 95% policy — applied to the unrounded 344/17 ≈ 20.2, not the rounded 21 — that becomes 31 working + 1 spare = 32 total, Table 17-1). The tier choice here is about model residency and per-request latency, not about whether one host serves the entire peak arrival. [ILLUSTRATIVE][DERIVED]
 
 - **Interconnect**: no *cross-host* model parallelism is required (one node; intra-host TP=8 fits the 140 GB model) — the interconnect question doesn't bind. ✓
 
@@ -46,7 +46,7 @@ So the **server** tier is the right *model-residency* archetype for the canonica
 
 ### Escalating: When 10×Traffic Forces the Cluster Tier
 
-Now suppose the workload's demand grows to ~100 rps average (a 10×). Recompute the ceiling:
+Now suppose the workload's demand grows to ~100 rps average (a 10×) — assuming the canonical 4× peak/average shape persists, 100 rps average implies ~400 rps peak; the screen below is run at the average — at peak it reads ⌈400 × 8.6 / 17⌉ = 203 hosts at full utilization. Recompute the ceiling:
 
 - **Throughput ceiling of one host**: continuous batching on 8×H100 at ~9.5K tokens/request sustained roughly tens of thousands of tokens/s; goodput against the SLO is the binding number. At ~100 rps × 9.5K tokens = ~950K tokens/s, one host's goodput is exceeded. [ILLUSTRATIVE][DERIVED]
 
@@ -54,16 +54,16 @@ Now suppose the workload's demand grows to ~100 rps average (a 10×). Recompute 
 
 ### Dropping a Tier: When Privacy Forces Local
 
-If the workload must run fully on-site without data leaving a facility, and the model can be distilled to a 7-13B capable of the Q&A task, the **local/edge** tier applies: a single GPU runs the distilled model at reduced (but acceptable — verified against Ch 14's quality gate) accuracy for privacy. The tier choice traded capability for the operational constraint (privacy). [ILLUSTRATIVE][DERIVED]
+If the workload must run fully on-site without data leaving a facility, privacy alone forces the on-prem **server** tier (data stays in the facility; the canonical 70B still runs on server hardware). The **local/edge** tier applies only when the model can be distilled to a 7-13B capable of the Q&A task *and* must run on-device (offline/connectivity or tight on-device latency): a single GPU runs the distilled model at reduced (but acceptable — verified against Ch 14's quality gate) accuracy for privacy. The tier choice traded capability for the operational constraint (privacy). [ILLUSTRATIVE][DERIVED]
 
 #### Table 13-1 — Reference architecture archetypes
 
 | Tier | GPUs | Interconnect | Model range | Latency / SLO | When to use |
 |---|---|---|---|---|---|
-| Local / edge | 1 | — | ≤7-13B dense | low (on-device) | privacy, offline, connectivity |
-| Server | 1-8 | NVLink | ≤~70-180B dense | workload-dependent; canonical example: median ≤1.2 s TTFT, p95 ≤2 s (Ch 4) | most single-tenant enterprise |
+| Local / edge | 1 | n/a (memory-bound) | 7-13B dense | low (on-device) | on-device/offline/connectivity (privacy alone → on-prem server tier) |
+| Server | 1-8 | scale-up fabric (NVLink/NVSwitch) | ~70-180B dense | workload-dependent; canonical example: median ≤1.2 s TTFT, p95 ≤2 s (Ch 4) | most single-tenant enterprise |
 | Cluster | tens-hundreds | InfiniBand/Eth | any that needs splitting | depends | model > node, or traffic > host goodput |
-| Hyperscale fleet | dedicated | high-bandwidth fabric | MoE+, specialized | extreme-scale economics | multi-tenant, largest scale |
+| Hyperscale fleet | dedicated | high-bandwidth fabric | MoE+, specialized | workload-defined; economics favor extreme specialization | multi-tenant, largest scale, extreme-scale economics |
 
 *(Bounds are [ILLUSTRATIVE][DERIVED] design heuristics, not vendor guarantees.)*
 
@@ -75,11 +75,11 @@ The tier decision is only as good as the numbers that trigger it. We measure thr
 2. **Host goodput ceiling vs demand** (Ch6/Ch11): measure the max rps/tokens/s the host delivers at the SLO, and compare to demand. When demand > ceiling, escalate.
 3. **Communication fraction** (Ch9/Ch10): if the parallelism the cluster requires spends >~20% [ILLUSTRATIVE heuristic] of step time on collectives, the interconnect (not the GPU) is the binding tier constraint.
 
-These three numbers locate the workload on the ladder objectively.
+These three numbers support a defensible first-order placement on the ladder — validate it by measurement.
 
 ## 5. Common Mistakes
 
-- **Choosing hyperscale before measuring goodput.** Most workloads never exceed one host's *latency* budget; the mistake is building a fleet before measuring whether traffic actually outgrows one host's capacity. (Note: the book's own canonical workload *does* outgrow one host's capacity at its 40 rps peak — ~21 hosts per Ch17 — so for that workload the fleet is warranted, not premature.)
+- **Choosing hyperscale before measuring goodput.** Most workloads never exceed one host's *capacity/goodput* ceiling; the mistake is building a fleet before measuring whether traffic actually outgrows one host's capacity. (Note: the book's own canonical workload *does* outgrow one host's capacity at its 40 rps peak — ~21 hosts per Ch17 — so for that workload the fleet is warranted, not premature.)
 - **Using model size as the only tier driver.** A 70B model fits a server; traffic, not size, usually forces the cluster — an architect who only watches parameters escalates too early or too late.
 - **Ignoring the operational constraint.** Privacy/geography can force a *lower* tier regardless of what compute wants; the ladder is bounded by operations, not just performance.
 - **Assuming a smaller model can't serve the tier.** Distilled small models on local GPUs can meet the goal when the capability suffices — don't over-provision the tier.
@@ -89,15 +89,15 @@ These three numbers locate the workload on the ladder objectively.
 
 The archetype sets the entire downstream design vocabulary. On the **server** tier (canonical), the consequences are already established: continuous batching + PagedAttention + prefix caching (Ch11), KV quantization when residency binds (Ch7), no *cross-host* model parallelism (Ch10; intra-host TP=8 fits the 140 GB model). Moving up to **cluster** introduces: DP/PP/TP replicas (Ch10), P/D disaggregation (Ch11), and interconnect budgeting (Ch9). Moving **down** to local forces distillation and on-device KV limits. The tier is the top-level decision; every other choice in the book slots beneath it.
 
-![Fig 13.1 — The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (green) fires on privacy, data sovereignty, and cost — but scale-down decisions should also reference **utilization** (sustained low load on a tier), **failure domain** (a smaller tier has a smaller blast radius), **operations burden** (fewer hosts to run), and **SLO margin** (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g. de-escalate when 30-day p95 utilization < 40% AND SLO margin > 2× AND the smaller tier's failure domain is acceptable. [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
+![Fig 13.1 — The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (blue) fires on privacy, sovereignty, and cost — but scale-down decisions should also reference **utilization** (sustained low load on a tier), **failure domain** (a smaller tier has a smaller blast radius), **operations burden** (fewer hosts to run), and **SLO margin** (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g. de-escalate when 30-day p95 utilization < 40% AND SLO margin > 2× AND the smaller tier's failure domain is acceptable. [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
 
-*The reference-architecture ladder: single GPU → single host → multi-host → cluster/fleet, with escalation triggers (red: model/KV/throughput outgrows a tier) and de-escalation (green: privacy, data sovereignty, cost) moving a workload between tiers.*
+*The reference-architecture ladder: single GPU → single host → multi-host → cluster/fleet, with escalation triggers (red: KV/throughput outgrows a tier) and de-escalation (blue: privacy, sovereignty, cost) moving a workload between tiers.*
 
 <!-- Figure spec: mechanism-first diagram; two axes (model residency on one, throughput demand on the other); four tier regions; arrow annotations for the three escalation triggers. Canonical workload dot in the server tier. -->
 
 ## 7. What We Still Don't Know
 
-- **Exact host goodput ceilings** depend on the specific server, model, degree and batching; the representative numbers here are [UNRESOLVED] per deployment.
+- **Exact host goodput ceilings** depend on the specific server, model, degree of parallelism and batching; the representative numbers here are [UNRESOLVED] per deployment.
 - **When P/D disaggregation's benefit crosses its cost** for mid-tier workloads is [HYPOTHESIS]; the breakpoint is workload- and fabric-specific.
 - **Fleet-level economics** (Ch16 TCO across a cluster) interact with the tier choice in ways that are [HYPOTHESIS — workload-dependent; requires the architect's own cost model].
 

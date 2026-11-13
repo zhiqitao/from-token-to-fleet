@@ -1,0 +1,1 @@
+CH23-01 | P2 | chapter-23.md:110 (Sec8 mini-case quality bound) | replaced "(a capability that rules out the cheaper model)" with sub-7B/answer-only antecedent + 7B-tier justification | APPLIED

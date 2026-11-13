@@ -1,0 +1,1 @@
+FIG-231-01 | MODERATE (P2) | design/manuscript/chapter-13/chapter-13.md:92,94 (Fig 13.1 caption) | no change — caption already reads 'de-escalation (blue)' in both the body sentence and the italic summary line (premise 'caption says green' no longer holds; fixed upstream by parallel batch fix_w16b02) | SKIPPED_PREMISE

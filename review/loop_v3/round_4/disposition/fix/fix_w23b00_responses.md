@@ -1,0 +1,1 @@
+FIG-7.8-03 | P3 | design/manuscript/chapter-07/chapter-07.md:273 (Fig 7.8 caption) | Caption now states all three concurrency figures with floor discipline: ~17.5→17 at 9.5K; 436/84=5.2→5 at 32K; 436/335=1.30→1 at 128K (replaced "~17.5 concurrent at 9.5K, floor 17; only ~1.3 at 128K (floor 1)") | FIXED

@@ -2,9 +2,9 @@ Serving is a small set of composable mechanisms --- continuous batching,
 paged/blocked KV cache, prefix caching, and prefill/decode
 disaggregation --- that turn a static in-memory model into a live
 multi-request system. The architecture choices that matter are which of
-these are adopted and how they share the host's KV budget, because the
-latency SLO is met by the batch and cache strategy rather than by the
-model alone.
+these are adopted and how they share the node's HBM KV budget, because
+the latency SLO is met by the batch and cache strategy rather than by
+the model alone.
 
 \section*{The Architect's Question}\label{the-architects-question}
 
@@ -47,15 +47,16 @@ Serving is a small set of mechanisms, invented roughly in order:
   \textbf{RadixAttention (SGLang)} and \textbf{Automatic Prefix Caching
   (vLLM APC)} are the canonical implementations. \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}
 \item
-  \textbf{P/D disaggregation} --- splitting the compute-bound
-  \emph{prefill} stage from the bandwidth-bound \emph{decode} stage onto
-  separate pools, because they bottleneck on different resources.
-  Pioneered by \textbf{Splitwise (ISCA 2024)} and \textbf{DistServe
-  (OSDI 2024)}; \textbf{Mooncake} takes the KV-centric view,
-  transferring KV caches from the prefill pool to the decode pool (with
-  CPU/DRAM/SSD offload) and reports up to \textbf{525\% throughput lift}
-  in long-context simulation and \textbf{75\% more requests} on a real
-  Kimi workload. \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}}
+  \textbf{P/D disaggregation} --- splitting the \emph{prefill} stage
+  (compute-dominated at the canonical operating point) from the
+  \emph{decode} stage (bandwidth-dominated there) onto separate pools,
+  because they bottleneck on different resources. Pioneered by
+  \textbf{Splitwise (ISCA 2024)} and \textbf{DistServe (OSDI 2024)};
+  \textbf{Mooncake} takes the KV-centric view, transferring KV caches
+  from the prefill pool to the decode pool (with CPU/DRAM/SSD offload)
+  and reports up to \textbf{525\% throughput lift} in long-context
+  simulation and \textbf{75\% more requests} than the paper's baseline
+  method on a real Kimi workload. \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}}
 \end{enumerate}
 
 These mechanisms compose: continuous batching is the baseline,
@@ -121,11 +122,13 @@ cache). Each mechanism trades one of these:
   \textbf{Batching} improves compute and bandwidth utilization by
   amortizing the fixed per-step weight reads across more requests.
 \item
-  \textbf{PagedAttention} improves memory capacity by eliminating KV
-  fragmentation.
+  \textbf{PagedAttention} reduces external fragmentation and
+  over-reservation, improving effective KV capacity; block-level
+  internal fragmentation and metadata overhead remain.
 \item
-  \textbf{Prefix caching} reduces memory capacity and prefill compute by
-  reusing already-computed KV.
+  \textbf{Prefix caching} trades cache memory for reduced prefill
+  compute and, when prefixes are shared, reduced duplicate KV residency;
+  it can also reduce effective capacity if hit rate is low.
 \item
   \textbf{P/D disaggregation} lets the prefill pool run at high compute
   utilization and the decode pool at high bandwidth utilization
@@ -179,19 +182,22 @@ Bubbles}\label{continuous-batching-fills-the-bubbles}
 
 \textbf{Continuous batching (Orca \mbox{{[}S1{]}}\hspace{0pt}\mbox{{[}1P{]}})} eliminates the
 batch boundary: at every decode step the scheduler accepts any new
-prefill-ready request and evicts any finished one, so decode slots never
-sit idle. In the canonical stream, a 300-token decode at
+prefill-ready request and evicts any finished one, so decode slots can
+be kept busier by refilling freed slots when requests are available;
+idle can still occur from insufficient arrivals, KV capacity, prefill,
+or scheduling policy. In the canonical stream, a 300-token decode at
 \textasciitilde25 ms/token occupies a slot for \textasciitilde7.5 s;
-while a long decode runs, the freed FLOPs are continuously refilled by
-new short requests. The utilization gain is the difference between spiky
-discrete batches and a continuously-fed pipeline. Rather than stipulate
-a single percent, the mechanism makes the GPU the steady bottleneck
-instead of the scheduler. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+while a long decode runs, the freed decode slots and memory-bandwidth
+capacity are continuously refilled by new short requests, amortizing the
+per-step weight reads. The utilization gain is the difference between
+spiky discrete batches and a continuously-fed pipeline. Rather than
+stipulate a single percent, the mechanism makes the GPU the steady
+bottleneck instead of the scheduler. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is time (decode steps / iterations); each row is one sequence (slot) evolving over time, and in the continuous panel the sequences are staggered as the scheduler admits new requests and evicts finished ones. In the left (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the right (continuous) panel freed slots are refilled every step. The diagram is a decode-only illustration; see the note in the figure. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1102.pdf}}
-\caption[Discrete vs continuous batching (Orca-style slot diagram)]{Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is \textbf{time (decode steps / iterations)}; each row is one sequence (slot) evolving over time, and in the continuous panel the sequences are staggered as the scheduler admits new requests and evicts finished ones. In the left (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the right (continuous) panel freed slots are refilled every step. The diagram is a \textbf{decode-only} illustration; see the note in the figure. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is time (decode steps / iterations); each row is one slot; a slot may host successive sequences over time, and in the continuous panel the sequences are staggered as the scheduler admits new requests and evicts finished ones. In the left (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the right (continuous) panel freed slots are refilled every step. The diagram is a decode-only illustration; see the note in the figure. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1102.pdf}}
+\caption[Discrete vs continuous batching (Orca-style slot diagram)]{Discrete vs continuous batching (Orca-style slot diagram). The horizontal axis is \textbf{time (decode steps / iterations)}; each row is one slot; a slot may host successive sequences over time, and in the continuous panel the sequences are staggered as the scheduler admits new requests and evicts finished ones. In the left (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in the trailing slots; in the right (continuous) panel freed slots are refilled every step. The diagram is a \textbf{decode-only} illustration; see the note in the figure. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:11.1}\emph{Discrete batching runs each batch to completion, leaving GPU slots
 idle as sequences finish early; continuous batching admits and evicts
@@ -219,7 +225,7 @@ The RAG request's 8K retrieved-context tokens are largely shared across
 queries (same documents). Without caching, every request re-runs the
 \textasciitilde1.12 PFLOP prefill for those 8K tokens (2 × 70 × 10⁹ ×
 8,000 ≈ 1.12 PFLOP --- the book's K = 1,000, since 1,200 + 8,000 =
-9,200; the full 9.2K canonical input is \textasciitilde1.29)
+9,200; the full 9.2K canonical input is \textasciitilde1.29 PFLOP)
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. \textbf{RadixAttention / APC
 \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}} caches the KV of common prefixes, so a new request
 reuses the shared-document KV and prefills only the unique query tail
@@ -240,25 +246,38 @@ adaptive-depth execution all constrain what a cache may evict or reuse
 \subsection{When to Disaggregate: Prefill and Decode Want Different
 Pools}\label{when-to-disaggregate-prefill-and-decode-want-different-pools}
 
-Recall from Ch2/Ch6: prefill is \textbf{compute-bound}
+Recall from Ch2/Ch6, at the canonical operating point (9.2K/300, FP16,
+the stated batch on 8×H100): prefill is \textbf{compute-bound} ---
+compute-dominated there, a regime statement not a law (Ch 2)
 (\textasciitilde1.29 PFLOP → \textasciitilde1.19 PFLOPS required over
-the \textasciitilde1.08 s prefill budget, vs 0.989 PFLOPS peak), decode
-is \textbf{bandwidth-bound} (the whole-model weight-read rate of
-\textasciitilde5.6 TB/s if served by one device vs 3.35 TB/s per GPU;
-under the canonical 8×H100 host it is sharded to \textasciitilde0.70
-TB/s per GPU, and the shard-invariant cause is the low
-\textasciitilde1.0 FLOP/byte intensity, Ch 6) \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}.
-Serving both from one pool forces a compromise: batch for prefill and it
-slows decode; optimize for decode and prefill starves. \textbf{P/D
+the \textasciitilde1.08 s prefill budget, vs 0.989 PFLOPS peak on a
+single H100; under the canonical 8xH100 TP=8 host the same prefill is
+\textasciitilde0.16 PFLOP per GPU and takes \textasciitilde0.47 s at
+35\% MFU (Ch 12), so the single-device figure describes a one-GPU
+deployment, not the canonical host), decode is \textbf{bandwidth-bound}
+(arithmetic intensity = B FLOP/byte for FP16 weights: \textasciitilde1.0
+at batch 1, \textasciitilde17.5 at the canonical
+\textasciitilde17.5-concurrent operating point --- both far below the
+H100 ridge of \textasciitilde295 FLOP/byte, so bandwidth binds; the
+whole-model weight-read rate is \textasciitilde5.6 TB/s if served by one
+device vs 3.35 TB/s per GPU, sharded to \textasciitilde0.70 TB/s per GPU
+under the canonical 8×H100 host, Ch 6) --- bandwidth-dominated there, a
+regime statement not a law (Ch 2) \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Serving both
+from one pool forces a compromise: batch for prefill and it slows
+decode; optimize for decode and prefill starves. \textbf{P/D
 disaggregation (Splitwise/DistServe/Mooncake \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}})} runs
 prefill nodes at high FLOP-utilization and decode nodes at high
 bandwidth-utilization, transferring KV across via the fabric
 (\textbf{\hyperref[fig:11.3]{Fig 11.3}} shows the two-pool topology and what moves between
-them). Mooncake's reported up to 525\% long-context throughput and +75\%
-request count are the quantitative anchor \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}}. For the
-canonical single-host (\textasciitilde10 rps) this disaggregation is
-premature; it pays off only when the workload outgrows a node and the
-two phases' resource conflicts become binding.
+them). Mooncake's reported up to 525\% long-context throughput (a lift
+over the paper's own baseline configuration, from its long-context
+\emph{simulation} results) and +75\% request count (vs the paper's
+baseline method on a real Kimi workload) are the quantitative anchor
+\mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}} --- paper-specific scope, not a portable serving
+figure. For the canonical single-host (\textasciitilde10 rps) this
+disaggregation is premature; it pays off when measured prefill/decode
+interference binds --- evaluate it against measured phase conflict, not
+topology alone (e.g.~when the workload outgrows a node).
 
 The state crossing between prefill and decode pools is a different
 communication object from a TP activation reduction. Its endpoints,
@@ -296,8 +315,8 @@ Source
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Discrete batching & Lock batch to completion & --- (wastes) & baseline
-only & --- \\
+Discrete batching & Lock batch to completion & slot occupancy (wastes
+capacity) & baseline only & --- \\
 Continuous batching (Orca) & Admit/evict at each decode step &
 compute+bandwidth util & high concurrency & \mbox{{[}S1{]}}\hspace{0pt}\mbox{{[}1P{]}} \\
 PagedAttention / vLLM & Block-based KV pages & memory capacity & many
@@ -323,8 +342,9 @@ the GPU busy?'':
   it raises goodput.
 \item
   \textbf{Measure KV utilization} --- fraction of the 640 GB node memory
-  consumed by live KV vs weights. PagedAttention and prefix caching both
-  raise the effective KV packing; track it.
+  consumed by live KV vs weights. PagedAttention raises effective KV
+  packing (block utilization); prefix caching instead dedupes shared
+  prefixes (prefix-hit rate) --- track the two separately.
 \item
   \textbf{Measure prefill-vs-decode utilization separately} --- a
   FLOP-bound prefill core and a bandwidth-bound decode core running on
@@ -337,22 +357,26 @@ the GPU busy?'':
 \subsection{Serving qualification: model support is not serving
 capability}\label{serving-qualification-model-support-is-not-serving-capability}
 
-Model support is not a complete serving capability. A hybrid model can
-require both paged history and bounded recurrent state. A looped-depth
-model can require iteration-specific caches. Prefix reuse, preemption,
-and speculative rollback must preserve the state that the next execution
-actually consumes. An early-exit interface also needs a runtime path
-that avoids the skipped work, rather than selecting logits after all
-work has already run. A capability record can therefore identify the
-exact model revision, engine revision, state representation, cache
-policy, precision, and supported execution paths; kernel or module
-speedups remain separate from end-to-end goodput at the service SLO.
+Model support is not a complete serving capability. A hybrid model (a
+transformer interleaved with a recurrent/state-space block) can require
+both paged history and bounded recurrent state. A looped-depth model
+(one that re-runs a block stack for multiple iterations per token) can
+require iteration-specific caches. Prefix reuse, preemption, and
+speculative rollback must preserve the state that the next execution
+actually consumes. An early-exit interface (a trained head that lets a
+token leave before the final layer) also needs a runtime path that
+avoids the skipped work, rather than selecting logits after all work has
+already run. A capability record can therefore identify the exact model
+revision, engine revision, state representation, cache policy,
+precision, and supported execution paths; kernel or module speedups
+remain separate from end-to-end goodput at the service SLO.
 \mbox{{[}DERIVED{]}}
 
-Adaptive depth changes the scheduler's unit of work. Requests that exit
-at different iterations can leave an initially uniform batch with
-different amounts of remaining computation. A runtime may compact active
-requests or group them by depth, but compaction, cache indexing, and
+Adaptive depth (per-token early exit --- the same early-exit interface
+above) changes the scheduler's unit of work. Requests that exit at
+different iterations can leave an initially uniform batch with different
+amounts of remaining computation. A runtime may compact active requests
+or group them by depth, but compaction, cache indexing, and
 synchronization consume resources. Padding every request to the deepest
 active iteration can preserve batching convenience while eliminating the
 hoped-for arithmetic saving. These are alternative implementation
@@ -414,13 +438,16 @@ The serving mechanisms dictate the deployment choices:
 \item
   \textbf{Baseline (canonical single-host):} continuous batching
   (vLLM/Orca) is near-mandatory to hold TTFT under the SLO (1.2 s, p95 ≤
-  2 s) at 10 rps input-heavy load; PagedAttention ensures the
-  \textasciitilde24.1 GB-per-request KV pack fits; prefix caching is the
-  highest-leverage optimization because the workload is repeated-context
-  RAG. This matches the memory and compute conclusions of Ch4/Ch7 for
-  the \textasciitilde10 rps \emph{average} baseline; at the
-  \textasciitilde40 rps peak the KV budget forces replication, which
-  \hyperref[chap:17]{Chapter 17} sizes. \mbox{{[}S1{]}}\hspace{0pt}\mbox{{[}S2{]}}\hspace{0pt}\mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}
+  2 s) at the replica's admitted load (≈1.3-2 req/s per Ch 14 Step 3);
+  at the canonical 10 rps average the host class must be replicated
+  \textasciitilde5-6x (Ch 12/17); PagedAttention packs the
+  \textasciitilde24.1 GB-per-request KV densely (fixed-size pages,
+  minimal fragmentation) so more concurrent requests fit in the 640 GB
+  node; prefix caching is the highest-leverage optimization because the
+  workload is repeated-context RAG. This matches the memory and compute
+  conclusions of Ch4/Ch7 for the \textasciitilde10 rps \emph{average}
+  baseline; at the \textasciitilde40 rps peak the KV budget forces
+  replication, which \hyperref[chap:17]{Chapter 17} sizes. \mbox{{[}S1{]}}\hspace{0pt}\mbox{{[}S2{]}}\hspace{0pt}\mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}
 \item
   \textbf{Scaling up:} those three carry the workload far before
   disaggregation is justified. FP8 KV (raw tensor byte-halving = 1.31
@@ -435,8 +462,8 @@ The serving mechanisms dictate the deployment choices:
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four separable concerns, not a stack (they interact --- batching pressure feeds KV residency --- but each is chosen independently) (request scheduling, state management, reuse, resource specialization). A concrete serving design that chooses one mechanism per concern: request scheduling = continuous (Orca-style) batching; state management = PagedAttention (fixed-size KV pages); reuse = prefix caching of shared context; resource specialization = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- a system can combine any mechanism with any other --- and the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node (§11.3.6). \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1101.png}}
-\caption[Serving is four separable concerns, not a stack (they interact]{Serving is four separable concerns, not a stack (they interact --- batching pressure feeds KV residency --- but each is chosen independently) (request scheduling, state management, reuse, resource specialization). A concrete serving design that chooses one mechanism per concern: \textbf{request scheduling} = continuous (Orca-style) batching; \textbf{state management} = PagedAttention (fixed-size KV pages); \textbf{reuse} = prefix caching of shared context; \textbf{resource specialization} = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- a system can combine any mechanism with any other --- and the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node (§11.3.6). \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four separable concerns, not a stack (they interact --- batching pressure feeds KV residency --- but each is chosen independently) (request scheduling, state management, reuse, resource specialization). A concrete serving design that chooses one mechanism per concern: request scheduling = continuous (Orca-style) batching; state management = PagedAttention (fixed-size KV pages); reuse = prefix caching of shared context; resource specialization = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- mechanisms can be combined in principle, subject to implementation support and resource interactions (e.g.~prefix caching under aggressive continuous batching: cached prefixes and the live batch's pages draw on the same 640 GB KV pool, so reuse needs headroom) --- and the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node (see ``When to Disaggregate'', §11.3). \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1101.pdf}}
+\caption[Serving is four separable concerns, not a stack (they interact]{Serving is four separable concerns, not a stack (they interact --- batching pressure feeds KV residency --- but each is chosen independently) (request scheduling, state management, reuse, resource specialization). A concrete serving design that chooses one mechanism per concern: \textbf{request scheduling} = continuous (Orca-style) batching; \textbf{state management} = PagedAttention (fixed-size KV pages); \textbf{reuse} = prefix caching of shared context; \textbf{resource specialization} = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- mechanisms can be combined in principle, subject to implementation support and resource interactions (e.g.~prefix caching under aggressive continuous batching: cached prefixes and the live batch's pages draw on the same 640 GB KV pool, so reuse needs headroom) --- and the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node (see ``When to Disaggregate'', §11.3). \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:11.2}\emph{The design lever is what each concern trades: \textbf{request
 scheduling} exchanges latency for utilization, \textbf{state management}
@@ -446,8 +473,8 @@ compute/memory regimes to two pools.}
 
 \end{figure}\begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={P/D disaggregation has two cases, two KV links: (A) prefill/decode partitions inside one NVLink domain, (B) separate hosts bridged by the fabric. The KV-transfer arrow is the load-bearing cost --- it moves the per-request KV state (\textasciitilde35 GB, §9.8) across the joining link, so disaggregation pays only when the specialization benefit exceeds that transfer plus routing overhead. Caveat: at 40 req/s the aggregate KV payload is 1.4 TB/s, so Note 11.3-1's per-request times assume an unshared link. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1103.pdf}}
-\caption[P/D disaggregation has \textbf{two cases, two KV links}]{P/D disaggregation has \textbf{two cases, two KV links}: (A) prefill/decode partitions inside one NVLink domain, (B) separate hosts bridged by the fabric. The KV-transfer arrow is the load-bearing cost --- it moves the per-request KV state (\textasciitilde35 GB, §9.8) across the joining link, so disaggregation pays only when the specialization benefit \textbf{exceeds} that transfer plus routing overhead. \textbf{Caveat:} at 40 req/s the aggregate KV payload is 1.4 TB/s, so Note 11.3-1's per-request times assume an unshared link. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={P/D disaggregation has two cases, two KV links: (A) prefill/decode partitions inside one NVLink domain, (B) separate hosts bridged by the fabric. The KV-transfer arrow is the load-bearing cost --- it moves the per-request KV state (\textasciitilde35 GB for the 13.3K-token context of §9.8; the canonical 9.2K-token request carries \textasciitilde24.1 GB) across the joining link, so disaggregation pays only when the specialization benefit exceeds that transfer plus routing overhead. Caveat: see the in-figure aggregate-KV caveat (per-request times assume an unshared per-GPU link). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1103.pdf}}
+\caption[P/D disaggregation has \textbf{two cases, two KV links}]{P/D disaggregation has \textbf{two cases, two KV links}: (A) prefill/decode partitions inside one NVLink domain, (B) separate hosts bridged by the fabric. The KV-transfer arrow is the load-bearing cost --- it moves the per-request KV state (\textasciitilde35 GB for the 13.3K-token context of §9.8; the canonical 9.2K-token request carries \textasciitilde24.1 GB) across the joining link, so disaggregation pays only when the specialization benefit \textbf{exceeds} that transfer plus routing overhead. \textbf{Caveat:} see the in-figure aggregate-KV caveat (per-request times assume an unshared per-GPU link). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:11.3}\emph{The KV moves once per request, then stays local (ownership
 splits); the split itself exists because the two stages want opposite
@@ -469,8 +496,10 @@ is 35 ÷ 40 ≈ \textbf{0.9 s}, which can erase the benefit --- the
 transfer cost is the term that decides whether P/D disaggregation pays.
 The 1.4 TB/s caveat is the \emph{aggregate} check (35 GB/request × 40
 req/s against the shared fabric), not a per-request time; the
-per-request times above assume the link is not shared.
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+per-request times above assume the link is not shared. Canonical 9.2K
+request: 24.1 GB → 24.1 ÷ 450 ≈ 0.054 s on NVLink, 24.1 × 40 rps ≈ 0.96
+TB/s aggregate; the 0.08 s and 1.4 TB/s figures above are the §9.8
+13.3K-context scenario. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \subsection{The Mechanisms, Not the Product
 Catalog}\label{the-mechanisms-not-the-product-catalog}
@@ -485,8 +514,8 @@ before any deployment decision. The table is a map of \emph{which
 mechanism to look for}, not a ranking.
 
 \subsubsection{Table 11-2 --- Serving engines by architectural
-capability
-(time-sensitive)}\label{table-11-2-serving-engines-by-architectural-capability-time-sensitive}
+capability (observed 2026-10-28;
+time-sensitive)}\label{table-11-2-serving-engines-by-architectural-capability-observed-2026-10-28-time-sensitive}
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -514,8 +543,8 @@ architectural note
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-scheduler model & continuous batching & continuous + RadixAttention &
-batch orchestration (TRT engine) & single/multi-stream & which batching
+scheduler model & continuous batching & continuous batching & batch
+orchestration (TRT engine) & single/multi-stream & which batching
 algorithm, not which vendor \\
 KV-memory management & PagedAttention & RadixAttention (page + prefix
 tree) & KV re-compute/off-load on engine & custom KV store & how KV is
@@ -532,8 +561,8 @@ disaggregation & via engine orchestration & n/a & whether prefill and
 decode can run on separate pools \\
 structured generation & constrained decoding & constrained (XGrammar) &
 constrained & constrained & whether output can be schema-constrained \\
-supported hardware & NVIDIA / AMD / CPU & NVIDIA / AMD & NVIDIA-only &
-CPU + consumer GPUs & deployment niche \\
+supported hardware & NVIDIA / AMD / Intel XPU / CPU & NVIDIA / AMD /
+Intel XPU & NVIDIA-only & CPU + consumer GPUs & deployment niche \\
 
 \noalign{\label{tab:11.2}}\end{longtable}
 
@@ -625,8 +654,8 @@ interchangeable APIs.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Three accelerator paths and one qualification gate. Three columns descend from the serving stack through backend entry, kernels/runtime, and hardware: Intel GPU (torch.xpu or engine-native SYCL), Gaudi (hpu and its own stack), and client NPU (the OpenVINO NPU plugin). Solid arrows denote dependencies; dashed arrows bring the complete path to the qualification gate. The columns are alternatives, not interchangeable APIs. Original conceptual diagram; no measured performance data.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-backend-paths.png}}
-\caption[Three accelerator paths and one qualification gate]{Three accelerator paths and one qualification gate. Three columns descend from the serving stack through backend entry, kernels/runtime, and hardware: Intel GPU (torch.xpu or engine-native SYCL), Gaudi (hpu and its own stack), and client NPU (the OpenVINO NPU plugin). Solid arrows denote dependencies; dashed arrows bring the complete path to the qualification gate. The columns are alternatives, not interchangeable APIs. Original conceptual diagram; no measured performance data.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Three accelerator paths and one qualification gate. Three columns descend from the serving stack through backend entry, kernels/runtime, and hardware: Intel GPU (torch.xpu or engine-native SYCL), Gaudi (hpu and its own stack), and client NPU (the OpenVINO NPU plugin; the runtime serves OpenVINO-supported NPU models). Solid arrows denote dependencies; dashed arrows bring the complete path to the qualification gate. The columns are alternatives, not interchangeable APIs. Original conceptual diagram; no measured performance data.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-backend-paths.pdf}}
+\caption[Three accelerator paths and one qualification gate]{Three accelerator paths and one qualification gate. Three columns descend from the serving stack through backend entry, kernels/runtime, and hardware: Intel GPU (torch.xpu or engine-native SYCL), Gaudi (hpu and its own stack), and client NPU (the OpenVINO NPU plugin; the runtime serves OpenVINO-supported NPU models). Solid arrows denote dependencies; dashed arrows bring the complete path to the qualification gate. The columns are alternatives, not interchangeable APIs. Original conceptual diagram; no measured performance data.}
 
 \label{fig:11.4}\emph{A visible device or a loaded model is not a serving path: each
 column must be complete --- model implementation, kernels, runtime,
@@ -807,15 +836,15 @@ This is an illustrative scenario, not a measured result.
 replica in the canonical internal Q\&A service, whose aggregate service
 peak is 40 rps. Suppose that replica's assigned load produces p95 TTFT
 of 2.2 s against a 2 s SLO. The first checks are whether continuous
-batching and PagedAttention are active: the baseline KV for 9.2K inputs
-is about 24.1 GB per request, so allocation behavior matters. Repeated
-RAG documents then make prefix caching a candidate because valid
-shared-prefix KV can avoid repeated prefill work. Suppose a controlled
-test at the same assigned load and request mix brings p95 TTFT below 1.8
-s. That assumed result would support the cache change for this replica;
-it would not establish service capacity at 40 rps. P/D disaggregation
-and speculative decoding remain separate candidates, not required steps
-in this diagnosis.
+batching and PagedAttention are active: the baseline KV for the
+9.2K-in/300-out request is about 24.9 GB per request, so allocation
+behavior matters. Repeated RAG documents then make prefix caching a
+candidate because valid shared-prefix KV can avoid repeated prefill
+work. Suppose a controlled test at the same assigned load and request
+mix brings p95 TTFT below 1.8 s. That assumed result would support the
+cache change for this replica; it would not establish service capacity
+at 40 rps. P/D disaggregation and speculative decoding remain separate
+candidates, not required steps in this diagnosis.
 
 Scope note: with the baseline mean service-time assumption of 8.6 s, the
 aggregate 40 rps peak implies approximately 344 in-flight requests. The

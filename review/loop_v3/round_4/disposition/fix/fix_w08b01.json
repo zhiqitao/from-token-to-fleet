@@ -1,0 +1,88 @@
+[
+ {
+  "id": "CH26-002",
+  "model": "Qwen3.8-27B",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "The claim fails against the matrix it cites. Sec26.2.1's ten rows (lines 27-37) name strategies such as '8-bit or FP16 KV sizing, prefix caching, P/D separation', 'Continuous batching, KV pool sizing, possibly P/D', 'caching, quantization' -- no row mentions a circuit breaker and no row's 'First strategy to evaluate' is the cache + breaker combination; grep 'breaker' in chapter-26 returns only the pattern-library intro, Pattern C itself, the capstone execution, the alternatives list and the mistakes list -- never the matrix. The fingerprint claim also fails: Fig 26.1's three families are long-context RAG Q&A (context 0.95, latency 0.40), chat (context 0.35, latency 0.90) and batch (lines 46/48), none of which is a short-prompt, latency-sensitive, moderate-quality RAG workload; the closest matrix row for a short prompt is 'High-throughput chat -> decode bandwidth -> continuous batching, KV pool sizing, possibly P/D', not cache + breaker. Step 1 then declares the capstone 'a distinct short-prompt workload -- it is not the canonical 9.2K-input/1.08-s-prefill case', which makes Step 0's 'the matrix points to' claim impossible as written. Cache + breaker is the capstone's chosen configuration (Patterns B and C, lines 56-60), reached by the architect's judgment -- not pointed to by any existing row.",
+  "evidence": "chapter-26.md line 102: 'consults the Sec26.2.1 matrix, which points to the cache + breaker combination'; matrix rows lines 27-37 (10 rows; strategies quoted above -- no 'breaker' anywhere in the table); grep -n 'breaker' chapter-26.md -> lines 9, 58, 60, 62, 81 (none inside the matrix); line 46/48 Fig 26.1 families and scores (RAG Q&A latency 0.40 / context 0.95; chat context 0.35 / latency 0.90); line 104: 'The capstone declares a **distinct short-prompt workload** -- it is *not* the canonical 9.2K-input/1.08-s-prefill case of Ch 4.'",
+  "fix_instruction": "design/manuscript/chapter-26/chapter-26.md, Sec8 Step 0 (line 102): reword to 'Before selecting patterns, the architect reads the capstone's workload against Fig 26.1 -- a short-prompt, latency-sensitive RAG workload, closest to the matrix's short-input latency-bound rows -- and applies the Sec26.2.1 method (locate the dominant constraint: tail latency/queueing under the p99 <= 800 ms TTFT target), which motivates evaluating the semantic response cache (Pattern B) and the circuit breaker (Pattern C)'; alternatively add a 'Short-prompt RAG / support' row to the matrix whose first strategy is 'semantic response cache + circuit breaker' and include that family in Fig 26.1 -- but no existing row may be claimed to point to cache + breaker.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-26/chapter-26.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH26-01",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "Quote verbatim at chapter-26.md:46. 'the same table is carried in the archetypes are reference points, not measured clusters' has no grammatical parse — two clauses fused with no conjunction and no verb for 'the same table' — and the note ends '[ILLUSTRATIVE][ASSUMPTION]]).' with one ']' too many and a ')' that has no opener on the line (6 '[' vs 7 ']', 7 '(' vs 8 ')'). These are printed defects, not style preferences.",
+  "evidence": "chapter-26.md:46 verbatim: '...0.90 — the same table is carried in the archetypes are reference points, not measured clusters. **Because each bar is an author-chosen input, the bar values are [ILLUSTRATIVE][ASSUMPTION]; only a value computed *from* them (e.g. a ratio of two bars) would be [ILLUSTRATIVE][DERIVED].** [ILLUSTRATIVE][ASSUMPTION]]).' python bracket audit of the line: '['=6 ']'=7 '('=7 ')'=8.",
+  "fix_instruction": "In design/manuscript/chapter-26/chapter-26.md line 46: (1) replace '— the same table is carried in the archetypes are reference points, not measured clusters.' with '— the same table is carried in the archetypes; the archetypes are reference points, not measured clusters.'; (2) replace the trailing '[ILLUSTRATIVE][ASSUMPTION]]).' with '[ILLUSTRATIVE][ASSUMPTION].' (delete one ']' and the unmatched ')').",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-26/chapter-26.md",
+  "_dupes": [
+   "CH26-07@text"
+  ]
+ },
+ {
+  "id": "CH26-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "The chapter asserts both that the 450 ms baseline contains no queueing term and that its 320 ms compute term carries prefill-queue inflation at ρ near 1; both cannot hold. Step 1 declares the 450 ms 'a service-time sum with no queueing term' with the queue 'sitting on top'; Step 2 says the 320 ms is 'a worst-case figure carrying prefill-queue inflation at ρ near 1' and that the miss value 'assumes that queue has drained', then re-asserts 'both sides are service-time sums with no queueing term' (§3 repeats it). If any part of the 320 ms is queue inflation, the baseline is queue-inflated and −44% compares a queue-inflated baseline against a queue-drained miss while the prose claims both sides are queue-free.",
+  "evidence": "chapter-26.md:104: 'The 450 ms is a *service-time sum with no queueing term*; at the offered ~2 rps against the ~2.0 req/s analytical ceiling (ρ near 1), a real queueing delay sits on top' and '(both sides are service-time sums with no queueing term — at ρ near 1 a real queue would sit on top of the baseline too)'. chapter-26.md:106: 'the baseline's 320 ms compute is a worst-case figure carrying prefill-queue inflation at ρ near 1, and the miss value assumes that queue has drained at the cached ~1.3 rps (compute falls from the inflated 320 ms to ~120 ms, so 250 ≈ 120 + 80 + 50)' and '**−44% TTFT** against the ~450 ms uncached p99 baseline (both sides are service-time sums; at ρ near 1 a real queue sits on top — Step 1)'. python: 320+80+50=450; (450−250)/450=0.4444.",
+  "fix_instruction": "In design/manuscript/chapter-26/chapter-26.md choose one queue basis and state it once. Either (a) delete 'carrying prefill-queue inflation at ρ near 1' from line 106 and re-derive the 120 ms miss compute on the same queue-free basis as the 320 ms baseline (justifying 120 ms independently), or (b) keep the inflation and change line 104's 'service-time sum with no queueing term' and line 106's 'both sides are service-time sums' to disclose 'queue-inflated baseline vs queue-drained miss'. Then restate −44% on the chosen basis so a reader can recompute both sides from the printed components and reproduce the percentage.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-26/chapter-26.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH26-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "Confirmed, and the dangling reference is cross-chapter. 'Patterns Library' is promised by the chapter title (line 1), by §1 ('The Patterns Library complements this by cataloging recurring structural solutions ... and more', line 9) and by §8 Step 4 ('recorded in the Patterns Library as Table 26-2', line 110), but the chapter's eight numbered sections (1 Concept, 2 Mental Model, 3 Worked Example, 4 Measurement, 5 Common Mistakes, 6 Architecture Consequence, 7 What We Still Don't Know, 8 Mini-Case) contain no library/catalog section, and the only pattern inventory is the three capstone Patterns A/B/C. chapter-05.md:159 additionally tells the reader that a fine-tuning pattern and a RAG pattern are 'both cataloged in Ch 26, Patterns Library' — neither is catalogued anywhere.",
+  "evidence": "grep -rn 'Patterns Library' design/manuscript/ -> 4 hits: chapter-05/chapter-05.md:159 ('both cataloged in Ch 26, Patterns Library'), chapter-26/chapter-26.md:1 (title), :9 (§1), :110 (§8 Step 4). Section headings of chapter-26.md (lines 3,7,11,50,64,78,85,89,98) list no library section; §3 (lines 54-58) contains only Patterns A, B, C.",
+  "fix_instruction": "In design/manuscript/chapter-26/chapter-26.md, either (a) add a numbered 'Patterns Library' section after §8 cataloguing pattern templates (name, problem solved, symptom, mechanism, minimal FACT set, trade-off, conditions of failure, chapter pointer) with Patterns A/B/C as the first entries and pointers for the Ch 5 fine-tuning/RAG patterns, or (b) retitle line 1 'The Solution Architect's Toolkit', rewrite line 9's second sentence to refer to the pattern-instance record, and change line 110 to 'recorded as the pattern instance Table 26-2'. If (b), also fix chapter-05/chapter-05.md:159, which promises 'Ch 26, Patterns Library'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-26/chapter-26.md",
+  "_dupes": []
+ },
+ {
+  "id": "APPA-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Definition and usage disagree, verified on both sides. Ch 26 Sec2 (line 21) says '[1P] covers (a) and (b) only', where (a) = an original method paper by the method's creators and (b) = a hardware-vendor specification. Appendix A (chapter-27) tags software-artifact observations [1P] that are neither: line 234 '[1P][FACT]' on vLLM source files at a pinned commit; line 236 '[1P][DERIVED][ANALYTICAL]' on llama.cpp/GGML block definitions at a pinned revision; line 274 '[1P][FACT]' on Diffusers pipeline release dates (footnote: 'Official release metadata: [A-S72]'); and the Intel backend supplement's shared caveat (line 282) calls release identities and source observations 'first-party source' (line 286: PyTorch v2.14.1 / vLLM v0.32.0 / SGLang v0.5.22 release identities). vLLM, GGML, Diffusers and PyTorch are software projects -- not hardware vendors and not method-paper authors -- so a reader classifying these citations from Ch 26 Sec2's four-category scheme cannot place them. The appendix's own caveat shows the authors know these are a different kind of first-party source; the definition simply was never generalised to cover them.",
+  "evidence": "chapter-26.md line 21: '**[1P]** marks a first-party **source** -- the original method paper authored by the method's creators, or a hardware-vendor specification (technical report, model card, or official documentation)... Keep the four categories distinct: (a)... (b) a hardware-vendor specification, (c)... (d)... Of these, [1P] covers (a) and (b) only'; chapter-27.md line 234: 'At vLLM commit 41dd82e6... They are code observations, not benchmarks... [1P][FACT]'; line 236: 'At the pinned revision in the source ledger, `block_q4_K` occupies 144 bytes for 256 values... [1P][DERIVED][ANALYTICAL]'; line 274: 'Diffusers v0.35.0 documents Wan2.2... [1P][FACT]' with line 338 footnote 'Official release metadata: [A-S72], [A-S73], [A-S74], [A-S75]'; line 282: 'every first-party source below is a release identity or source observation'; line 286: 'The retrieved release APIs identify PyTorch v2.14.1 (September 30), vLLM v0.32.0 (October 18), SGLang v0.5.22 (October 19)...'.",
+  "fix_instruction": "design/manuscript/chapter-26/chapter-26.md, Sec2 [1P] definition (line 21): broaden to '**[1P]** marks a first-party source -- a claim published by the party that produces the thing being cited: the method's own paper, the hardware vendor's technical report / model card / datasheet / official documentation, or the software project's own source code at a pinned revision and its own release notes and documentation', amend the four-category sentence to 'Of these, [1P] covers (a), (b) and first-party software artifacts (the project's own code and release metadata) only', and add 'a code or release-metadata observation is a fact about the artifact at that revision, not about deployed performance' (which Appendix A already asserts at lines 234/282); alternatively introduce a distinct provenance token for source-code and release-metadata observations and retag chapter-27 lines 234, 236 and 274 accordingly.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-26/chapter-26.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH26-003",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Quote is verbatim at chapter-26.md:46. The provenance note reads '— the same table is carried in the archetypes are reference points, not measured clusters', a fused fragment with no conjunction and no verb governing 'the same table', and it terminates '[ILLUSTRATIVE][ASSUMPTION]]).' — one ']' too many and a ')' with no opener. Bracket audit of the line: 6 '[' vs 7 ']', 7 '(' vs 8 ')', i.e. exactly one unmatched of each, both at the tail. Both defects print as written.",
+  "evidence": "chapter-26.md:46 verbatim tail: '... be [ILLUSTRATIVE][DERIVED].** [ILLUSTRATIVE][ASSUMPTION]]).' and, earlier on the same line, '0.90 — the same table is carried in the archetypes are reference points, not measured clusters.' python: line 46 counts '['=6 ']'=7 '('=7 ')'=8.",
+  "fix_instruction": "In design/manuscript/chapter-26/chapter-26.md line 46 (§2.1 Provenance note): (1) replace '— the same table is carried in the archetypes are reference points, not measured clusters.' with '— the same table is carried in the archetypes; the archetypes are reference points, not measured clusters.'; (2) replace the trailing '[ILLUSTRATIVE][ASSUMPTION]]).' with '[ILLUSTRATIVE][ASSUMPTION].' (delete exactly one ']' and the unmatched ')').",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-26/chapter-26.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH26-02",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Quote verbatim: chapter-26.md:46 ends '[ILLUSTRATIVE][ASSUMPTION]]).' — the ']' after the label is a duplicate and the ')' has no matching '(' anywhere on the line (7 '(' vs 8 ')'; the line's openers are '(Fig 26.1)', '(context length, ...)' and '(e.g. a ratio of two bars)', all already closed before the tail). Pure typographical break that prints as written.",
+  "evidence": "chapter-26.md:46 tail verbatim: '... would be [ILLUSTRATIVE][DERIVED].** [ILLUSTRATIVE][ASSUMPTION]]).' python bracket audit of line 46: '['=6 ']'=7 '('=7 ')'=8 — exactly one unmatched ']' and one unmatched ')', both at the tail.",
+  "fix_instruction": "In design/manuscript/chapter-26/chapter-26.md line 46, replace the final '[ILLUSTRATIVE][ASSUMPTION]]).' with '[ILLUSTRATIVE][ASSUMPTION].' — delete exactly one ']' and the unmatched ')'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-26/chapter-26.md",
+  "_dupes": []
+ }
+]

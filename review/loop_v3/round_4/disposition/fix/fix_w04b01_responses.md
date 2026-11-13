@@ -1,0 +1,3 @@
+CH12-T12-2-01 | P1 | chapter-12.md Table 12-2, column (c) prefill-host rows (L107-108) | added "H100 cards" unit to '~4' and '~15' cells | APPLIED
+CH12-02 | P2 | chapter-12.md §12.8 mini-case (L75) + Table 12-2 cost row (L111) | replaced 'fleet the canonical workload requires' with 21-host screen basis + 32-host policy clause; appended '(21-host screen basis; policy fleet is 32, Ch 13/17)' to cost row | APPLIED
+CH12-03 | P3 | chapter-12.md §8 mini-case, Candidate (c) paragraph (L79) | deleted clause ' and it faces the same throughput demand at peak, making it provisionally non-viable' | APPLIED

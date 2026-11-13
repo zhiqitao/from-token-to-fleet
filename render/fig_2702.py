@@ -76,6 +76,26 @@ for i, (name, ch, color, y) in enumerate(layers):
             va='center', ha='left')
     ax.text(CH_X, y, ch, fontsize=8.0, color='#333', va='center', ha='left')
 
+# R4 MISC fix (F-A.3-1): the SYSTEM/MODEL grouping was carried by hue alone —
+# uniform gaps and one border style, so a grayscale reader could not tell which
+# side is "system" and which is "model".  A rule in the gap between band 5
+# ("Inside post-training", y=4.8) and band 6 ("Inside MoE routing", y=3.8),
+# plus left-margin bracket labels, makes the grouping readable without the
+# color words in the legend.
+BND = 4.30                       # gap centre: 4.24 (band 6 top) .. 4.36 (band 5 bottom)
+ax.plot([0.30, 6.00], [BND, BND], color='#1a1a1a', lw=1.6, solid_capstyle='butt', zorder=5)
+
+def _group_bracket(y0, y1, cy, label):
+    bx = 0.44                     # just left of the box edge (~0.48), clear of the red arrow (x=0.18)
+    ax.plot([bx, bx], [y0, y1], color='#1a1a1a', lw=1.3, zorder=5)
+    ax.plot([bx, bx + 0.03], [y0, y0], color='#1a1a1a', lw=1.3, zorder=5)
+    ax.plot([bx, bx + 0.03], [y1, y1], color='#1a1a1a', lw=1.3, zorder=5)
+    ax.text(0.31, cy, label, rotation=90, fontsize=7.0, fontweight='bold',
+            ha='center', va='center', color='#1a1a1a', zorder=6)
+
+_group_bracket(BND, 9.22, 6.8, 'SYSTEM')   # bands 1-5 (blue family)
+_group_bracket(1.38, BND, 2.8, 'MODEL')    # bands 6-8 (green family)
+
 # horizontalized scope annotation (vertical axis = WHERE, not BETTER) — two centered lines so it fits
 ax.text(4.0, 1.25, 'scope of placement: intelligence shifts up out of the weights',
         fontsize=8.0, color='#c0392b', ha='center', va='center')

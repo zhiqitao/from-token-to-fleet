@@ -8,7 +8,7 @@ After this chapter we should be able to look at a benchmark result and judge whe
 
 Benchmarking fails most often because the wrong benchmark is used for the wrong decision. The fix is to separate two very different instruments:
 
-1. **Capability benchmarks** — measure the model's output quality on standardized tasks (MMLU, GSM8K, HumanEval, MT-Bench, retrieval-QA suites). They answer: *is this model good enough at the skill our workload needs?* They do NOT tell us how fast, how cheap, or how it behaves under our traffic — model capability is the goal (Ch4's Quality dimension), the constraint these deployment benchmarks do not measure; if capability fails its quality gate (Ch 12's candidate (c)), it becomes the binding constraint before any serving optimization.
+1. **Capability benchmarks** — measure the model's output quality on standardized tasks (MMLU, GSM8K, HumanEval, MT-Bench, retrieval-QA suites). They answer: *is this model good enough at the skill our workload needs?* They do NOT tell us how fast, how cheap, or how it behaves under our traffic — model capability is the goal (Ch4's Quality dimension) — the quality gate — while deployment benchmarks measure the constraints (latency, throughput, cost) that capability benchmarks do not; if capability fails its quality gate (Ch 12's candidate (c)), it becomes the binding constraint before any serving optimization.
 
 2. **Deployment benchmarks** — measure the *system's* behavior on a representative workload: TTFT, TPOT, throughput, goodput, KV cache utilization, cost per request. They answer: *does this model-on-this-hardware meet the SLO at our traffic and token profile?* These are the numbers that actually pick the architecture.
 
@@ -31,7 +31,7 @@ We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (c
 
 **Step 1 — representative queries.** We sample real user questions and run them through the rag pipeline to produce the actual prompt shapes, matching the ~9.2K-in / ~300-out token profile with the model's own tokenizer (not a heuristic). [2°]
 
-**Step 2 — sweep the offered load, not a single point.** The analytical KV quotient C ≈ 17.5 gives at most 17 whole-context slots, not a deployable concurrency of 17.5. At the assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a single-host residency ceiling before headroom and competing resource limits (the unfloored 17.5-slot quotient gives ~2.03 req/s on the analytical planning screens; the ~3% gap is the fractional-slot rounding — floor 17 for provisioning, 17.5 for analysis). We sweep offered load and measure the tail rather than treating that ceiling as achieved capacity. An illustrative single-host sweep can cover 2, 4, 8, 12 and 16 active requests. Higher offered concurrency tests queueing or rejection; it does not imply that all requests are simultaneously resident. At each level we record:
+**Step 2 — sweep the offered load, not a single point.** The analytical KV quotient C ≈ 17.5 (the 436 GB canonical KV budget ÷ 24.9 GB per 9,500-token whole-context request) gives at most 17 whole-context slots, not a deployable concurrency of 17.5. At the assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a single-host residency ceiling before headroom and competing resource limits (the unfloored 17.5-slot quotient gives ~2.03 req/s on the analytical planning screens; the ~3% gap is the fractional-slot rounding — floor 17 for provisioning, 17.5 for analysis). We sweep offered load and measure the tail rather than treating that ceiling as achieved capacity. An illustrative single-host sweep can cover 2, 4, 8, 12 and 16 active requests. Higher offered concurrency tests queueing or rejection; it does not imply that all requests are simultaneously resident. At each level we record:
 
 - **TTFT** p50/p95/p99 (must be median ≤ 1.2 s, p95 ≤ 2 s).
 - **TPOT** p50/p95 (≤ ~25 ms median).
@@ -70,7 +70,7 @@ Filling this worksheet is what turns an analytical lower-bound screen into a val
 
 Four habits make benchmarks trustworthy:
 
-1. **Use the model's own tokenizer** on representative real prompts. The "4 chars ≈ 1 token" estimate can be 2-5× off for code/JSON/technical text (Ch6).
+1. **Use the model's own tokenizer** on representative real prompts. The "4 chars ≈ 1 token" estimate can be ~1.5–3× off for code/JSON/technical text (measure chars/token with the model's own tokenizer; no Ch 6 figure is cited).
 2. **Measure distributions, not means** — log p50/p90/p95/p99 for every latency metric and the full token-length distribution. A 32K-tail context is a different workload than a 9.2K average.
 3. **Reproduce the concurrency and burst** — a benchmark must hit the model at our peak concurrency, not a single request, or it won't show the queuing and KV contention that break SLOs.
 4. **Include goodput and cost, not just latency** — the SLO-windowed throughput and $/request complete the picture for the economics (Ch16).

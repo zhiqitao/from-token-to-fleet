@@ -12,8 +12,8 @@ throughput, KV cache memory, prefill FLOPs, decode bandwidth) that are
 verifiable, derived from first principles, and grounded in the canonical
 \textasciitilde2,000-user, \textasciitilde10 rps / \textasciitilde40 rps
 peak, RAG Q\&A, 70B dense FP16 scenario that every other chapter in this
-handbook cites. The reasoning is traced by the architect and the system
-investigating together.
+handbook cites. The reasoning is traced by the architect working through
+the canonical loop as a structured investigation.
 
 \ntsection{Concept}\label{concept}
 
@@ -21,11 +21,12 @@ investigating together.
 The unit we price, size, and optimize is the \textbf{token}. We
 established what a token is in \hyperref[chap:1]{Chapter 1} --- not a word, character, or
 byte, but whatever the model's tokenizer carves text into via learned
-byte-pair merging; that token counts are never proportional to character
-counts; and that ``one token ≈ 4 characters'' is a rough rule for
-general-English prose, to be confirmed against the \emph{actual}
-tokenizer before pricing anything (Ch. 1 §1). We do not restate that
-here; this chapter builds on it.
+byte-pair merging; that token counts are only approximately proportional
+to character counts, with a ratio that depends on language, formatting
+and tokenizer version; and that ``one token ≈ 4 characters'' is a rough
+rule for general-English prose, to be confirmed against the
+\emph{actual} tokenizer before pricing anything (Ch 1 §1). We do not
+restate that here; this chapter builds on it.
 
 What \hyperref[chap:22]{Chapter 22} adds is not a re-derivation of the token but a
 \textbf{re-framing of it as the input to a decision loop}. The architect
@@ -119,9 +120,12 @@ settle which resource dominates --- that also depends on model
 architecture, attention/KV-head count, precision, batching, hardware,
 kernel efficiency, prefix caching, and output-generation speed --- but
 under the canonical assumptions the prefill-compute and KV-capacity
-terms are where the pressure lands, not decode bandwidth. Every
-downstream chapter (memory, compute, cost) will price against these
-derived numbers.
+terms are where the pressure lands, not decode bandwidth (the
+\textasciitilde5.6 TB/s weight-read rate is a whole-model, fleet-level
+requirement that tensor parallelism shards to \textasciitilde0.70 TB/s
+per GPU on the canonical host, Ch 6 --- a per-host constraint, not a
+fleet-wide one). Every downstream chapter (memory, compute, cost) will
+price against these derived numbers.
 
 \textbf{Step 5 --- Record in \hyperref[tab:22.1]{Table 22-1}.} The full table of derived
 quantities appears below.
@@ -144,9 +148,9 @@ scenario{]}}/\mbox{{[}ASSUMPTION{]}}/\mbox{{[}DERIVED{]}}/\mbox{{[}ILLUSTRATIVE{
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.2927\linewidth}
-  >{\raggedright\arraybackslash}p{0.2927\linewidth}
-  >{\raggedright\arraybackslash}p{0.2927\linewidth}@{}}
+  >{\raggedright\arraybackslash}p{0.2822\linewidth}
+  >{\raggedright\arraybackslash}p{0.2613\linewidth}
+  >{\raggedright\arraybackslash}p{0.3345\linewidth}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
 metric
@@ -190,21 +194,23 @@ decode weight-read BW rate & \textasciitilde5.6 TB/s &
 \textasciitilde140 GB / 25 ms TPOT (= traffic / decode interval)
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 KV cache memory per request & \textasciitilde24.1 GB (9.2K, FP16) /
-\textasciitilde24.9 GB (9.5K max) & 2.62 MB/token × 9,200 / 9,500 tokens
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}; \emph{(sensitivity: at 8-bit KV the
-same 9.2K context falls to \textasciitilde12.06 GB under raw tensor
+\textasciitilde24.9 GB (9.5K max) & 2.62 MB/token × 9,200 tokens = 24.1
+GB; × 9,500 tokens = 24.9 GB \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+
+\noalign{\label{tab:22.1}}\end{longtable}
+
+\emph{\hyperref[tab:22.1]{Table 22-1} note --- KV cache row, sensitivity: at FP8 KV (8-bit)
+the same 9.2K context falls to \textasciitilde12.06 GB under raw tensor
 byte-halving (2.62→1.31 MB/token, exactly 50\% of FP16). No
 vendor-measured FP8 memory footprint exists: vLLM's cited 54\% \mbox{{[}S6{]}}
 is a decode inter-token-latency slope (a latency metric), not a memory
 ratio, and any allocator block/metadata overhead is not
-vendor-measured)} \\
-
-\noalign{\label{tab:22.1}}\end{longtable}
+vendor-measured.}
 
 \begin{figure}
 \centering
-\includegraphics[width=0.95\linewidth,height=\textheight,keepaspectratio,alt={Attention vs.~projection prefill FLOP crossover. Takeaway: the quadratic attention term overtakes the parameterized-linear term at \textasciitilde53.4K context tokens under full-square counting and \textasciitilde106.8K under causal-triangle counting, so at 32K it is large but not yet dominant. Geometry/source: 70B, 80-layer, hidden-8,192 geometry (Ch 7); LEFT = prefill FLOPs/request, RIGHT = decode FLOPs/token (2N parameter term only, flat) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Caveat: the panels use different units and are not directly comparable; full per-token decode also attends over the growing KV cache (not plotted). Derivation: Note 22.1-1 below.}]{figures/fig-22-2201.pdf}
-\caption[Attention vs.~projection prefill FLOP crossover]{Attention vs.~projection prefill FLOP crossover. Takeaway: the quadratic attention term overtakes the parameterized-linear term at \textasciitilde53.4K context tokens under \textbf{full-square} counting and \textasciitilde106.8K under \textbf{causal-triangle} counting, so at 32K it is large but not yet dominant. \textbf{Geometry/source:} 70B, 80-layer, hidden-8,192 geometry (Ch 7); LEFT = prefill FLOPs/request, RIGHT = decode FLOPs/token (2N parameter term only, flat) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. \textbf{Caveat:} the panels use different units and are \textbf{not directly comparable}; full per-token decode also attends over the growing KV cache (not plotted). Derivation: Note 22.1-1 below.}
+\includegraphics[width=0.95\linewidth,height=\textheight,keepaspectratio,alt={Attention vs.~projection prefill FLOP crossover. Takeaway: the quadratic attention term overtakes the parameterized-linear term at \textasciitilde53.4K context tokens under full-square counting and \textasciitilde106.8K under causal-triangle counting, so at 32K it is large but not yet dominant. Geometry/source: 70B, 80-layer, hidden-8,192 geometry (Ch 7); LEFT = prefill FLOPs/request, RIGHT = decode FLOPs/token (2N parameter term only, flat) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Caveat: the panels use different units and are not directly comparable; full per-token decode also attends over the growing KV cache (not plotted). Derivation: Note 22.1-1 (previous page).}]{figures/fig-22-2201.pdf}
+\caption[Attention vs.~projection prefill FLOP crossover]{Attention vs.~projection prefill FLOP crossover. Takeaway: the quadratic attention term overtakes the parameterized-linear term at \textasciitilde53.4K context tokens under \textbf{full-square} counting and \textasciitilde106.8K under \textbf{causal-triangle} counting, so at 32K it is large but not yet dominant. \textbf{Geometry/source:} 70B, 80-layer, hidden-8,192 geometry (Ch 7); LEFT = prefill FLOPs/request, RIGHT = decode FLOPs/token (2N parameter term only, flat) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. \textbf{Caveat:} the panels use different units and are \textbf{not directly comparable}; full per-token decode also attends over the growing KV cache (not plotted). Derivation: Note 22.1-1 (previous page).}
 
 \label{fig:22.1}\end{figure}
 
@@ -219,7 +225,10 @@ the canonical 80-layer, hidden-8,192 reference geometry (Ch 7).
 / (80 × 8,192) ≈ \textbf{106.8K tokens} --- so the \textasciitilde53.4K
 figure is a property of the \emph{full-square} convention, and the
 causal kernel moves it to \textasciitilde106.8K. The ratios at 9.2K /
-128K and the per-series unit note are in the figure note below.
+128K and the per-series unit note are in the figure note below. One
+prefill clearing a host peak is not the offered load: at the canonical
+10 rps average, prefill demand is 10 × 1.288 = 12.88 PFLOP/s --- 1.6
+hosts at 100\% of peak and \textasciitilde4.1 at 40\% MFU (Ch 24 §3.3).
 
 \emph{For standard full attention, attention work scales quadratically
 with sequence length while the MLP/projection portion stays roughly
@@ -232,8 +241,10 @@ term} (so it is still subordinate), \textbf{at 128K it is
 \textbf{total prefill FLOPs at 128K are \textasciitilde3.4× the 2NL
 baseline} (linear + quadratic, i.e.~1 + 2.4). Prefill is compute-bound
 (\textasciitilde1.29 PFLOP/request \textbf{case (i), linear-only} →
-\textasciitilde1.19 PFLOPS required at the \textasciitilde1.08 s budget;
-case (ii) full-square gives \textasciitilde1.5099 PFLOP →
+\textasciitilde1.19 PFLOPS required at the \textasciitilde1.08 s prefill
+budget (Ch 4, \hyperref[tab:4.2]{Table 4-2}: the 1.2 s TTFT budget minus the
+\textasciitilde120 ms retrieval term --- an upper reach, not a deployed
+target); case (ii) full-square gives \textasciitilde1.5099 PFLOP →
 \textasciitilde1.40 PFLOPS). \textbf{Scope the rate comparison.}
 \textasciitilde1.19 PFLOPS is the \textbf{aggregate (whole-model)
 linear-only deadline demand} for one 9.2K prefill, so it may be compared
@@ -251,8 +262,8 @@ FLOPs \emph{per request} (whole-context), the decode series is FLOPs
 of context length at the decoding step considered) --- this is why the
 y-axis is labeled per series (prefill: PFLOP/request; decode:
 PFLOP/token). The two regimes remain deliberately separate: decode lands
-in the bandwidth-bound regime at low batch (Ch6), prefill in the
-compute-bound regime at long prompt (Ch8) --- each an operating-point
+in the bandwidth-bound regime at low batch (Ch 6), prefill in the
+compute-bound regime at long prompt (Ch 8) --- each an operating-point
 property, not an identity.}
 
 \ntsection{Measurement}\label{measurement}
@@ -304,7 +315,7 @@ decision is made.
   conversion. A token is often a \emph{word fragment}, not a whole word:
   a high-frequency English word is frequently one token, but a longer or
   rarer word is usually split into several subword tokens, and code,
-  numerics, and non-Latin scripts routinely run 2--5× the naive
+  numerics, and non-Latin scripts routinely run several times the naive
   word-count estimate. Use the model's own tokenizer, or at most a
   \textbf{\textasciitilde4 English-characters/token} rough estimate for
   general-English prose only, and confirm against the actual tokenizer
@@ -339,33 +350,36 @@ decision is made.
 
 The canonical loop's derived quantities have immediate and concrete
 architecture consequences. The 30× input/output ratio means this
-workload's prefill phase dominates: \textasciitilde1.29 PFLOP of compute
-per request (case (i), linear-only; \textasciitilde1.5099 PFLOP under
-case (ii)), and a KV cache that grows with 9.2K input tokens. The decode
-phase, while smaller in total tokens, requires a weight-read rate of
-\textasciitilde5.6 TB/s sustained over each \textasciitilde25 ms decode
-step (the \textasciitilde140 GB weight-read interval) --- a whole-model
-figure (before tensor-parallel sharding); under the canonical 8×H100
-tensor-parallel host the 140 GB is sharded, so each GPU streams only
-\textasciitilde0.70 TB/s against its own 3.35 TB/s (Ch 6). The
-shard-invariant reason decode is memory-limited is its low arithmetic
-intensity (\textasciitilde1.0 FLOP/byte), not the raw
-5.6\textgreater3.35 comparison. (Note the units: 5.6 TB/s is a
-\emph{rate}; the \emph{per-token weight traffic} is \textasciitilde140
-GB under the full-weight-read model, and rate = traffic / TPOT.)
+workload's prefill phase dominates the compute budget:
+\textasciitilde1.29 PFLOP of compute per request (case (i), linear-only;
+\textasciitilde1.5099 PFLOP under case (ii)), and a KV cache that grows
+with 9.2K input tokens. The decode phase, while smaller in total tokens,
+requires a weight-read rate of \textasciitilde5.6 TB/s sustained over
+each \textasciitilde25 ms decode step (the \textasciitilde140 GB
+weight-read interval) --- a whole-model figure (before tensor-parallel
+sharding); under the canonical 8×H100 tensor-parallel host the 140 GB is
+sharded, so each GPU streams only \textasciitilde0.70 TB/s against its
+own 3.35 TB/s (Ch 6). The shard-invariant reason decode is
+memory-limited is its low arithmetic intensity (\textasciitilde1.0
+FLOP/byte), not the raw 5.6\textgreater3.35 comparison. (Note the units:
+5.6 TB/s is a \emph{rate}; the \emph{per-token weight traffic} is
+\textasciitilde140 GB under the full-weight-read model, and rate =
+traffic / TPOT.)
 
 These opposite bottlenecks lead to a central architectural decision:
 \textbf{can we disaggregate prefill and decode?} If prefill needs FLOPS
 and decode needs bandwidth, a single homogeneous GPU pool is suboptimal.
 A two-pool architecture --- a prefill cluster optimized for compute
-(more GPUs, higher FLOPS, model parallelism) and a decode cluster
-optimized for bandwidth (faster HBM, PagedAttention, continuous
-batching) --- is an architecture worth benchmarking. Whether it needs
-fewer GPUs than a homogeneous design depends on achievable utilization,
-duplicated model residency, KV-transfer cost, interconnect topology,
-workload shape, burstiness, and the hardware assigned to each pool ---
-those effects must be measured before the GPU-count conclusion is drawn.
-This is the central theme of \hyperref[chap:11]{Chapter 11} (Serving) and the
+(more GPUs, higher FLOPS, model parallelism) and a decode pool whose
+hardware property is HBM bandwidth (faster HBM), managed with
+PagedAttention (KV allocation) and continuous batching (scheduling) ---
+software mechanisms that raise utilization, not bandwidth --- is an
+architecture worth benchmarking. Whether it needs fewer GPUs than a
+homogeneous design depends on achievable utilization, duplicated model
+residency, KV-transfer cost, interconnect topology, workload shape,
+burstiness, and the hardware assigned to each pool --- those effects
+must be measured before the GPU-count conclusion is drawn. This is the
+central theme of \hyperref[chap:11]{Chapter 11} (Serving) and the
 prefill/decode-disaggregation pattern (Ch 12, candidate b). The
 architect who runs the canonical loop and records the derived quantities
 in \hyperref[tab:22.1]{Table 22-1} is already positioned to make this decision with numbers,
@@ -395,18 +409,12 @@ live?} --- is the architectural form of that same question, made
 explicit at the top of the hierarchy rather than hidden at the bottom.
 
 \begin{quote}
-\textbf{DECISION STATE --- CANDIDATE SCREENED; NOT COMMITTABLE ---
-regional availability, failover, SLO-goodput and matched-scope costs
-pending.}
-
-Running the loop on the canonical workload yields a \emph{screened
-candidate}, not a commitment: the multi-region 99.9\% SLA is unsized and
-unpriced (Ch 16 §16.3), failover is N−1 single-host only with no
-region-failure test, SLO-goodput is unmeasured at the target offered
-load (Ch 14), and the three delivery modes are not compared on matched
-scopes (Ch 16, \hyperref[tab:16.1]{Table 16-1}). The Decision rung may therefore record a
-\textbf{HOLD} --- a HOLD is a legitimate, auditable outcome of this
-loop, and it is what the example below records.
+\textbf{DECISION STATE --- CANDIDATE SCREENED; NOT COMMITTABLE.} Running
+the loop on the canonical workload yields a \emph{screened candidate},
+not a commitment, so the Decision rung records a \textbf{HOLD} --- a
+legitimate, auditable outcome of this loop, and what the example below
+records. The full callout (regional availability, failover, SLO-goodput
+and matched-scope costs pending) is kept in Ch 25 §6.
 \end{quote}
 
 \textbf{Example ADR at the Decision rung --- an explicit HOLD, not a
@@ -480,9 +488,9 @@ fuller treatment:
 \tightlist
 \item
   \textbf{Sustained HBM bandwidth for weight-read kernels} --- discussed
-  in \hyperref[chap:2]{Chapter 2} §7; the 3.35 TB/s H100 figure is a theoretical peak and
-  real serving kernels may sustain less. (a hypothesis awaiting
-  verification)
+  in \hyperref[chap:2]{Chapter 2} §7; the 3.35 TB/s H100 figure is a theoretical peak
+  (published spec --- FACT), while real serving kernels may sustain less
+  (a hypothesis awaiting verification).
 \item
   \textbf{Prefill FLOP cost under continuous batching} --- \hyperref[chap:2]{Chapter 2} §7;
   the 2 × params × tokens approximation may ignore activation reuse
@@ -505,32 +513,35 @@ Loop}\label{end-of-chapter-mini-case-the-token-to-fleet-thought-loop}
 The architect is still in the early design conversation about the
 internal Q\&A tool described throughout this handbook. The team has
 settled on a 70B-class dense model for accuracy, and they have a rough
-traffic estimate: \textasciitilde2,000 registered employees, each
-roughly as active as the canonical scenario (\textasciitilde10
-requests/s average, peaks \textasciitilde40 rps), with prompts of
-\textasciitilde1,200 tokens of internal documents plus \textasciitilde8K
+traffic estimate: \textasciitilde2,000 registered employees, with
+aggregate traffic matching the canonical scenario: \textasciitilde10 rps
+average, \textasciitilde40 rps peak, with prompts of
+\textasciitilde1,200 tokens of query text plus \textasciitilde8K
 retrieved context and \textasciitilde300 tokens of answer.
 
 From the unit-and-token work of Ch 1 (values tabulated in Ch 4, \hyperref[tab:4.2]{Table 4-2}) alone, the architect can already state the hard numbers: each
 request carries \textasciitilde9.2K input tokens and \textasciitilde300
 output tokens. At 10 rps average, the system must sustain
 \textasciitilde92,000 input tokens/s in prefill and \textasciitilde3,000
-output tokens/s in decode. At 40 rps peak, those numbers jump to
-\textasciitilde368,000 and \textasciitilde12,000 respectively. The
-architect can also state the two opposite bottlenecks: prefill will be
-compute-bound (\textasciitilde1.29 PFLOP per request at 9.2K input), and
-decode will be bandwidth-bound (a \textasciitilde140 GB/token
-weight-read requiring \textasciitilde5.6 TB/s sustained over the
-\textasciitilde25 ms decode interval --- a whole-model figure (before
-tensor-parallel sharding); under the canonical 8×H100 host the 140 GB is
-sharded, so each GPU streams \textasciitilde0.70 TB/s, and the
-shard-invariant cause is the low \textasciitilde1.0 FLOP/byte intensity,
-Ch 6). The team's immediate architectural choice is whether to build a
-single homogeneous GPU cluster or to separate prefill and decode pools
---- the arithmetic from this chapter makes P/D disaggregation a
-\textbf{candidate worth testing} for either bottleneck; benchmarking (Ch
-14) and TCO (Ch 16) determine whether it wins, and the disaggregation
-option explored in \hyperref[chap:11]{Chapter 11} is where to test it.
+output tokens/s in decode (the Step 3 arithmetic of §3, tabulated in
+\hyperref[tab:22.1]{Table 22-1}: 9,200 × 10 = 92,000 and 300 × 10 = 3,000; ×40 at the 40 rps
+peak gives \textasciitilde368,000 and \textasciitilde12,000). At 40 rps
+peak, those numbers jump to \textasciitilde368,000 and
+\textasciitilde12,000 respectively. The architect can also state the two
+opposite bottlenecks: prefill will be compute-bound (\textasciitilde1.29
+PFLOP per request at 9.2K input), and decode will be bandwidth-bound (a
+\textasciitilde140 GB/token weight-read requiring \textasciitilde5.6
+TB/s sustained over the \textasciitilde25 ms decode interval --- a
+whole-model figure (before tensor-parallel sharding); under the
+canonical 8×H100 host the 140 GB is sharded, so each GPU streams
+\textasciitilde0.70 TB/s, and the shard-invariant cause is the low
+\textasciitilde1.0 FLOP/byte intensity, Ch 6). The team's immediate
+architectural choice is whether to build a single homogeneous GPU
+cluster or to separate prefill and decode pools --- the arithmetic from
+this chapter makes P/D disaggregation a \textbf{candidate worth testing}
+for either bottleneck; benchmarking (Ch 14) and TCO (Ch 16) determine
+whether it wins, and the disaggregation option explored in \hyperref[chap:11]{Chapter 11} is
+where to test it.
 
 Before the memory-sizing step --- the KV and residency arithmetic
 \hyperref[chap:7]{Chapter 7} already built --- the architect locks in one more number: the

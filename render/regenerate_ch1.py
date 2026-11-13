@@ -50,6 +50,36 @@ def main():
             for node in group.iter():
                 if node.tag.rsplit('}', 1)[-1] == 'text':
                     node.set('style', 'fill:#1f2937!important')
+    # FIG-1.1-02: box sub-labels inherit var(--text-muted) = #64748b, which is
+    # only 4.10:1 on #eceef2 and 4.19:1 on #daf7ed (under the 4.5:1 bar).
+    # Darken any still-muted node sub-label to #475569 (6.52:1 / 6.68:1);
+    # stored-state text keeps the darker #1f2937 set above, and connector
+    # labels (t-edge-*, already black) and all font sizes stay untouched.
+    for group in svg.iter():
+        if group.get('data-node-id') is None:
+            continue
+        for node in group.iter():
+            if (node.tag.rsplit('}', 1)[-1] == 'text'
+                    and 't-muted' in (node.get('class') or '')
+                    and not node.get('style')):
+                node.set('style', 'fill:#475569!important')
+    # FIG-1.1-B / FIG-1.1-01: archify auto-routes c1 (token1 -> append K/V)
+    # over the top of the figure as an unlabeled bridge, singling token1 out
+    # while token2/3/n enter the box's left edge (authored fromSide/toSide on
+    # c1 fails archify validation with composition/ambiguous-corridor, so the
+    # correction is applied here). Re-route c1 to the same straight left-edge
+    # side entry the other tokens use; the bridge and its crossover underlay
+    # share the old d, so both are rewritten in one pass. The x=130 start is
+    # the widened (FIG-1.1-F: 112 -> 120) token-box right edge, 10 + 120.
+    edge_c1 = next(n for n in svg.iter()
+                   if n.tag.rsplit('}', 1)[-1] == 'path'
+                   and n.get('data-edge-id') == 'c1')
+    old_d, new_d = edge_c1.get('d'), 'M 130 68 L 158 68'
+    for node in svg.iter():
+        if node.tag.rsplit('}', 1)[-1] == 'path' and node.get('d') == old_d:
+            node.set('d', new_d)
+            if node.get('data-composition-points'):
+                node.set('data-composition-points', '130,68;158,68')
     for node in svg.iter():
         if node.tag.rsplit('}', 1)[-1] == 'text':
             value = node.get('font-size', '')

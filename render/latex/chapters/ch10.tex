@@ -26,14 +26,14 @@ re-gathers weights/optimizer state); the communication load is at the
 gradient-sync point. In \emph{inference}, DP simply means running
 independent model replicas to raise throughput --- there is no gradient
 sync at all, because each request is served by one replica. There is
-also an inference-specific family --- context/pipeline partitioning,
-expert parallelism, and \textbf{P/D disaggregation} (splitting the
-prefill stage from the decode stage into separate pools) --- repurposed
-here for serving; of the three, only P/D disaggregation has no training
-analogue (context/pipeline partitioning and expert parallelism both
-appear in training too). The rest of this section defines the
-strategies, and §10.3 applies them to inference (the book's canonical
-serving context) unless a strategy is explicitly training-only.
+also a serving-relevant family --- context/pipeline partitioning, expert
+parallelism, and \textbf{P/D disaggregation} (splitting the prefill
+stage from the decode stage into separate pools) --- repurposed here for
+serving; of the three, only P/D disaggregation has no training analogue
+(context/pipeline partitioning and expert parallelism both appear in
+training too). The rest of this section defines the strategies, and
+§10.3 applies them to inference (the book's canonical serving context)
+unless a strategy is explicitly training-only.
 
 The strategy names tell us what gets split:
 
@@ -49,10 +49,10 @@ The strategy names tell us what gets split:
   activations, not weights --- see Ch. 9.)
 \item
   \textbf{Pipeline parallelism (PP)} splits the model's layers (stages)
-  across GPUs. GPU 1 runs layers 1--10, GPU 2 runs 11--20, and so on;
-  activations flow forward, gradients flow backward. PP is
-  \emph{inter-layer}, communication-light, but idle bubbles appear at
-  stage boundaries. (Inference: can split decode stages; bubbles hurt
+  across GPUs. GPU 0 runs layers 1--8, GPU 1 runs 9--16, GPU 2 runs
+  17--24, and so on; activations flow forward, gradients flow backward.
+  PP is \emph{inter-layer}, communication-light, but idle bubbles appear
+  at stage boundaries. (Inference: can split decode stages; bubbles hurt
   latency-sensitive serving more than training.)
 \item
   \textbf{Data parallelism (DP)} --- \emph{different in the two modes.}
@@ -70,13 +70,17 @@ The strategy names tell us what gets split:
 \item
   \textbf{Sequence/context parallelism (CP)} splits the sequence
   dimension across GPUs, useful for very long contexts where the KV
-  cache or attention activations exceed one GPU. (Inference-centric; the
-  serving analogue of training sequence parallelism.)
+  cache or attention activations exceed one GPU. (Applies in both modes:
+  training shards the sequence for long-context forward/backward; the
+  inference-specific variant here shards the KV cache and attention
+  activations --- the serving analogue of training sequence
+  parallelism.)
 \item
-  \textbf{P/D disaggregation (inference)} --- separates the
-  compute-bound prefill stage from the bandwidth-bound decode stage onto
-  different GPU pools so each can be sized and scaled independently (Ch.
-  11). This has no training counterpart and is a serving-only strategy.
+  \textbf{P/D disaggregation (inference)} --- separates the prefill
+  stage (compute-dominated at the canonical operating point) from the
+  decode stage (bandwidth-dominated there) onto different GPU pools so
+  each can be sized and scaled independently (Ch. 11). This has no
+  training counterpart and is a serving-only strategy.
 \end{enumerate}
 
 These are not alternatives; production systems \textbf{compose} them
@@ -87,21 +91,21 @@ job is deciding which dimension to split first, and in which mode
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits and what communicates; replication appears where it exists (TP's activations, DP's whole model). Communication-specificity note: the TP collective is algorithm-dependent --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on microbatch scheduling (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count; GPU counts schematic --- the canonical host is 8×H100); substitute the actual collective and schedule for the target stack. Grayscale note: each box's text label carries its role, so the in-figure color key (blue = weights · orange = GPU · green = data · red = comms) is redundant, not load-bearing. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-10-1001.pdf}}
-\caption[Three parallelism patterns, one per panel]{Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits and what communicates; replication appears where it exists (TP's activations, DP's whole model). \textbf{Communication-specificity note:} the TP collective is \emph{algorithm-dependent} --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on \emph{microbatch scheduling} (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count; GPU counts schematic --- the canonical host is 8×H100); substitute the actual collective and schedule for the target stack. \textbf{Grayscale note:} each box's text label carries its role, so the in-figure color key (blue = weights · orange = GPU · green = data · red = comms) is redundant, not load-bearing. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits and what communicates; replication is described where it exists (TP's activations in the text; DP's whole model in the panel). Communication-specificity note: the TP collective is algorithm-dependent --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on microbatch scheduling (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count; GPU counts and layer ranges schematic --- the canonical host is 8×H100 and the canonical 70B has 80 layers); substitute the actual collective and schedule for the target stack. Grayscale note: each box's text label carries its role, so the in-figure color key (blue = weights · orange = GPU · green = data · red = comms) is redundant, not load-bearing. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-10-1001.pdf}}
+\caption[Three parallelism patterns, one per panel]{Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits and what communicates; replication is described where it exists (TP's activations in the text; DP's whole model in the panel). \textbf{Communication-specificity note:} the TP collective is \emph{algorithm-dependent} --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on \emph{microbatch scheduling} (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count; GPU counts and layer ranges schematic --- the canonical host is 8×H100 and the canonical 70B has 80 layers); substitute the actual collective and schedule for the target stack. \textbf{Grayscale note:} each box's text label carries its role, so the in-figure color key (blue = weights · orange = GPU · green = data · red = comms) is redundant, not load-bearing. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:10.1}\end{figure}
 
 The strategies are not either/or. \hyperref[fig:10.1]{Fig 10.1} shows the three canonical
-patterns side by side. \textbf{Tensor parallel} shards one layer's
-weight matrix across GPUs --- activations are replicated, and each GPU's
-partial sums are all-reduced at layer-level dependencies in the
-illustrated layout. Those frequent exchanges make measured collective
-latency and throughput margin important. \textbf{Pipeline parallel} cuts
-the layer stack into stages on different GPUs --- hidden states cross
-stage boundaries point-to-point, an idle bubble appears as the pipeline
-fills and drains, and the communication can span nodes if the
-stage-boundary transfer meets its budget. \textbf{Data parallel}
+patterns in three stacked panels. \textbf{Tensor parallel} shards one
+layer's weight matrix across GPUs --- activations are replicated, and
+each GPU's partial sums are all-reduced at layer-level dependencies in
+the illustrated layout. Those frequent exchanges make measured
+collective latency and throughput margin important. \textbf{Pipeline
+parallel} cuts the layer stack into stages on different GPUs --- hidden
+states cross stage boundaries point-to-point, an idle bubble appears as
+the pipeline fills and drains, and the communication can span nodes if
+the stage-boundary transfer meets its budget. \textbf{Data parallel}
 replicates the whole model and splits the batch --- in training every
 replica all-reduces its gradient each step; in inference the replicas
 are independent, each serving a disjoint slice of requests with no sync
@@ -126,9 +130,10 @@ The useful mental model is a \textbf{resource triangle}: we have weights
 (memory), activations (work), and data (batch). Each strategy moves one
 corner off a single GPU at the cost of communication. When a GPU runs
 out of \emph{memory}, we reach for TP/PP (weight splitting). When a GPU
-is \emph{idle} waiting, we reach for DP/CP (more work per GPU). When the
-model is \emph{too big to replicate}, TP wins over DP. The binding
-constraint chooses the strategy.
+is \emph{idle} waiting, we reach for DP (more work per GPU); CP
+addresses long-sequence/KV capacity, not idle-fill. When the model is
+\emph{too big to replicate}, TP wins over DP. The binding constraint
+chooses the strategy.
 
 \subsubsection{Table 10-1 --- Parallelism strategies at a
 glance}\label{table-10-1-parallelism-strategies-at-a-glance}
@@ -300,14 +305,18 @@ serial pass is:
 \]
 
 The \(P{-}1\) term in the denominator is the bubble: the pipeline fills
-and drains exactly once per \(m\)-batch pass, so \(P{-}1\) stage-slots
-are wasted out of the \(m \cdot P\) slots each stage would otherwise
-work. With \(P = 4\) stages and \(m = 8\) micro-batches, ideal
-utilization is
+and drains exactly once per \(m\)-batch pass, so the pipeline takes
+\(m+P-1\) stage-time units to complete \(m \cdot P\) units of useful
+work; the \(P{-}1\) extra units are the fill-and-drain bubble. With
+\(P = 4\) stages and \(m = 8\) micro-batches, the ideal \textbf{speedup}
+is
 
 \[
 \frac{8 \cdot 4}{8 + 4 - 1} = \frac{32}{11} \approx 2.9\times \quad (\text{out of } 4\times)
 \]
+
+Utilization is the speedup over the 4× serial baseline:
+\(\frac{32/11}{4} = \frac{8}{11} \approx 72.7\%\).
 
 --- a meaningful bubble. Fewer stages or more micro-batches shrink it:
 with \(m = 32\),
@@ -316,6 +325,8 @@ with \(m = 32\),
 \frac{32 \cdot 4}{32 + 4 - 1} = \frac{128}{35} \approx 3.66\times.
 \]
 
+(Speedup 3.66×; utilization \(\frac{128/35}{4} \approx 91.4\%\).)
+
 The lesson: PP is communication-light (each stage only moves activation
 boundaries across the fabric) but always pays a bubble that grows with
 stage count. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
@@ -323,12 +334,13 @@ stage count. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \subsection{Data Parallelism: Replicating, Then Syncing
 Gradients}\label{data-parallelism-replicating-then-syncing-gradients}
 
-Data parallelism replicates the 140 GB model on every GPU (a
-communication model: at 80 GB HBM per H100 the replica does not fit on
-one device, which is why sharded variants such as FSDP exist). For the
-gradient all-reduce: if the model has 140 GB of weights and we sync
-gradients after each step across G GPUs, each GPU sends its gradient
-tensor once per step. The gradient bytes are
+Plain data parallelism is infeasible here: it would replicate the 140 GB
+model on every GPU, and at 80 GB HBM per H100 the replica does not fit
+on one device (which is why sharded variants such as FSDP exist) --- the
+gradient arithmetic below is a communication model, not a feasible
+allocation. For the gradient all-reduce: if the model has 140 GB of
+weights and we sync gradients after each step across G GPUs, each GPU
+sends its gradient tensor once per step. The gradient bytes are
 
 \[
 \text{grad bytes} = N_\text{params} \times \text{bytes/param} = 70 \times 10^9 \times 4 \text{ B} \approx 280 \text{ GB}
@@ -410,7 +422,7 @@ Four habits anchor the architect:
   \textbf{Measure the bubble and the step time.} For PP, log the
   fraction of idle GPU time (bubble) vs compute. For DP, time the
   gradient all-reduce as a fraction of step time --- if it exceeds
-  \textasciitilde20\%, it caps scaling.
+  \textasciitilde20\% \mbox{{[}ILLUSTRATIVE heuristic{]}}, it caps scaling.
 \item
   \textbf{Measure communication overlap.} The best systems overlap
   all-reduce with the next forward/backward compute. Log the
@@ -497,13 +509,13 @@ constraint is usually \textbf{memory} for large models:
   universal escalation order.
 \end{itemize}
 
-\hyperref[tab:10.1]{Table 10-1} above consolidates the five parallelization strategies (plus
-the serving-only P/D disaggregation): reading across a row gives one
-strategy's full trade-off (what it splits, what it replicates, what it
-communicates, when it fits), and reading down a column shows how each
-axis varies across strategies. (\hyperref[fig:10.1]{Fig 10.1} illustrates the three canonical
-patterns --- TP, PP, DP --- side by side; the table adds the specialist
-EP and CP rows.)
+\hyperref[tab:10.1]{Table 10-1} above consolidates the five parallelization strategies; P/D
+disaggregation (serving-only) is discussed in §10.1 and Ch 11: reading
+across a row gives one strategy's full trade-off (what it splits, what
+it replicates, what it communicates, when it fits), and reading down a
+column shows how each axis varies across strategies. (\hyperref[fig:10.1]{Fig 10.1}
+illustrates the three canonical patterns --- TP, PP, DP --- in three
+stacked panels; the table adds the specialist EP and CP rows.)
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -519,18 +531,19 @@ EP and CP rows.)
   K3 activates just 16 of 896 routed experts per token (2.8T total /
   104B active) via its Stable LatentMoE {[}1P: arXiv 2607.24653{]};
   Qwen3.8-Flash-Next routes 10+1 of 512 experts (125B total / 6B active)
-  {[}1P: HF Qwen/Qwen3.8-Flash-Next{]}. These extreme sparsities (16/896
-  ≈ 1.8\% expert activation) are why expert-parallel and fused
-  cross-expert comm kernels (e.g.~MoE expert parallelism with fused
-  compute/communication, as in DeepSeek's DeepEP/TileLang infra) are
-  increasingly central to serving large MoE fleets {[}1P: arXiv
-  2606.19348{]}. For the architect this changes the serving calculus: a
-  frontier MoE's activated footprint (Kimi 104B, Qwen 6B) can be
-  dramatically smaller than its total size, so the \emph{compute}
-  decision is made against active parameters --- but the
-  \emph{memory-bound} EP decision (how many experts must be resident) is
-  made against \textbf{total} parameters, since the full expert set
-  occupies HBM even when only a fraction is routed per token.
+  {[}1P: HF Qwen/Qwen3.8-Flash-Next{]}. This combination --- extreme
+  sparsity (16/896 ≈ 1.8\% expert activation), the total expert
+  residency that must be sharded, and the all-to-all routing it forces
+  --- is why expert-parallel and fused cross-expert comm kernels
+  (e.g.~MoE expert parallelism with fused compute/communication, as in
+  DeepSeek's DeepEP/TileLang infra) are increasingly central to serving
+  large MoE fleets {[}1P: arXiv 2606.19348{]}. For the architect this
+  changes the serving calculus: a frontier MoE's activated footprint
+  (Kimi 104B, Qwen 6B) can be dramatically smaller than its total size,
+  so the \emph{compute} decision is made against active parameters ---
+  but the \emph{memory-bound} EP decision (how many experts must be
+  resident) is made against \textbf{total} parameters, since the full
+  expert set occupies HBM even when only a fraction is routed per token.
 \item
   \textbf{Communication-overlap efficiency} in real kernels is hard to
   predict from spec; sustained all-reduce throughput is a
@@ -557,12 +570,18 @@ inter-node decomposition} --- often PP and/or EP for MoE --- while
 avoiding expensive cross-node TP where possible (TP benefits from a
 tightly coupled NVLink-style interconnect; across a slower network its
 per-layer all-reduce cost grows fast). Within each node, the MoE active
-weights are small, so the team uses EP to shard experts + TP inside the
-node. The architect measures the interconnect: the cross-node PP
-boundary runs over the cluster fabric (not NVLink), so they minimize the
-number of PP stages to shrink the bubble, and they verify the DP
-gradient-sync (if fine-tuning) stays under \textasciitilde20\% of step
-time. The result: a composed PP × EP × TP configuration whose binding
-constraints (memory across nodes + expert routing) are each addressed by
-the strategy that trades the right bandwidth. The team's ``parallelism
-is slow'' becomes a precise, diagnosed, and fixed split.
+weights are small (state the split explicitly: \textasciitilde40B active
+of the 400B total \mbox{{[}ASSUMPTION{]}}, checked against the node's 640 GB
+HBM), so the team uses EP to shard the \textbf{total} expert set (EP
+shards total residency, not the active count) + TP inside the node. The
+architect measures the interconnect: the cross-node PP boundary runs
+over the cluster fabric (not NVLink), so they choose the stage count P
+and micro-batch count m jointly to shrink the bubble (utilization u =
+m/(m+P−1); each stage also carries its own activation memory, so
+per-stage memory cost bounds P from below), and they verify the DP
+gradient-sync (if fine-tuning) stays under \textasciitilde20\%
+\mbox{{[}ILLUSTRATIVE heuristic{]}} of step time. The result: a composed PP ×
+EP × TP configuration whose binding constraints (memory across nodes +
+expert routing) are each addressed by the strategy that trades the right
+bandwidth. The team's ``parallelism is slow'' becomes a precise,
+diagnosed, and fixed split.

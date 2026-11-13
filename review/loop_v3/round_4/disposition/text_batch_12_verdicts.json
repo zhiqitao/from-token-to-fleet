@@ -1,0 +1,182 @@
+[
+ {
+  "id": "CH19-06",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-19 §6. The §6 parenthetical defines billable tokens as 'the full accumulated context sent each turn' and KV-resident as 'the same accumulated context', then attributes their divergence to prefix caching alone ('with prefix caching enabled the billable count can fall while the KV-resident count stays, so the two diverge'). Under §4's own ledger the two already differ without caching: billable input = Σ per-call = 41,990 vs KV-resident peak = 12,095. The Σ-over-turns vs single-state distinction §4 labors over is never stated in §6, so a reader can plug 12,095 into 'billable tokens'.",
+  "evidence": "chapter-19.md §6: 'Two token counts must be kept distinct: the **billable tokens** (what the API charges, = the full accumulated context sent each turn) and the **KV-resident tokens** (what occupies the cache, = the same accumulated context under this no-reuse policy); with prefix caching enabled the billable count can fall while the KV-resident count stays, so the two diverge.' §4 ledger: 'Billed, no prefix cache ... 41,990 input + 495 output = 42,485 tokens' and 'Peak residency = 12,095 tokens ... ≈ 31.7 GB'. Python: 9200+10065+10930+11795 = 41990.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §6 'State-management policy sets the trajectory', sentence beginning 'Two token counts must be kept distinct': replace '(what the API charges, = the full accumulated context sent each turn)' with '(what the API charges, = Σ over turns of the full accumulated context each turn sends — 41,990 input tokens for the T = 3 no-reuse trace of §4, not the single final context of 12,095)' and change the divergence clause to 'the two differ by the Σ-per-call vs peak-resident distinction even without caching; prefix caching additionally lowers the billable count while the KV-resident count stays'."
+ },
+ {
+  "id": "CH19-06",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-19 §4 'Tool-call latency budget'. The sentence carries one ~60-word parenthetical containing two em-dash asides ('— the §7/§8 convention', '— its failed-attempt work is counted unconditionally...') plus §7/§8, §8 and §4 cross-references alongside a three-value percentile list (structure note: the quoted clause and the 'conditional on a completed agent run' clause sit in the SAME parentheses, not two nested parentheticals — the density defect stands). Evidence claim of two em-dash asides and slash references in a single syntactic unit verified verbatim.",
+  "evidence": "chapter-19.md line 152: '... ≈ 660 ms at the 95th-percentile *T* = 3 (conditional on a completed agent run — the §7/§8 convention; consistent with the §8 turn distribution and the §4 turn-distribution note; *T* is capped at 3, and the 2% fallback is a zero-added-turn single-shot *for this incremental expectation* — its failed-attempt work is counted unconditionally in the §8 fallback ledger). These are the **incremental agent-orchestration** numbers...'",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 'Tool-call latency budget', the L_agent bullet paragraph ending '...and ≈ 660 ms at the 95th-percentile T = 3 (...)': close the parenthesis after 'T = 3' and split the caveats into a following sentence: 'These percentiles are conditional on a completed agent run (the §7/§8 convention; see §8 for the turn distribution). T is capped at 3; the 2% fallback adds zero turns to this incremental expectation, and its failed-attempt work is counted unconditionally in the §8 fallback ledger.'"
+ },
+ {
+  "id": "CH19-07",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-19 §6 'Inference scaling'. 'Outprice' means to price higher than, so 'these levers repeatedly outprice adding hosts' literally says the levers cost more than hosts — the opposite of the recommendation to prefer them. The evidence that the book prices the levers elsewhere checks out: Ch 25 §8 prints the FP8 KV arithmetic (436 GB ÷ 12.45 GB ≈ 35.0 concurrent vs the FP16 17.5).",
+  "evidence": "chapter-19.md §6: 'cap *T*, cache prefixes, or quantize KV (FP8), as these levers repeatedly outprice adding hosts.' chapter-25.md: 'a 9,500-token FP8 KV ≈ 12.45 GB/request; 436 GB ÷ 12.45 GB ≈ 35.0 concurrent (floor 35)'. Python: 436/12.45 = 35.02.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §6 'Inference scaling', final clause 'as these levers repeatedly outprice adding hosts': replace with 'as these levers repeatedly beat adding hosts on price — each relaxes the KV-capacity ceiling without commissioning new hardware (see Ch 25 §8 for the FP8 KV arithmetic: 436 GB ÷ 12.45 GB ≈ 35 concurrent vs 17.5 at FP16)'."
+ },
+ {
+  "id": "CH19-07",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "Claim refuted: 10,000 is an exact context length in the chapter's own §3 worked example ('Total tokens after Turn 0: 9,200 + 800 = 10,000'; 'Turn 1 - Input: 10,000 tokens'), and Table 19-1 labels the benchmark row 'Per-turn agent step, 10K ctx'. The finding's evidence only searched the §4 ledger ('The 10,000 figure does not appear in the ledger' — true but immaterial); the ~120 ms figure is a benchmark at a stated context, not an unflagged rounding of the T=3 trace and not presented as a threshold.",
+  "evidence": "chapter-19.md §3: '- Total tokens after Turn 0: 9,200 + 800 = 10,000' and '- Input: 10,000 tokens (history + new passages)'. Table 19-1 row: '| Per-turn agent step, 10K ctx | ~120 ms | ~120 ms | ~120 ms | ~120 ms | — |'. §4 sentence: 'On 8×H100 the per-turn agent step averages ~120 ms for a 10,000-token context'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-08",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Both quotes located in chapter-19 §1 Terminology note. The chapter then uses RQA for agentic multi-generation pipelines, which is more than 'the retrieval leg + single generation': §3 'a user query routed to an agentic RQA pipeline', §8 'An enterprise RQA system serves 2,000 knowledge workers', Table 19-1 title 'agentic RQA pipelines', and the chapter's own opening line defines RQA broadly as 'retrieval-augmented QA'. The controlled-term rule ('The two are not used interchangeably') is violated by the chapter's own subject matter.",
+  "evidence": "chapter-19.md line 7: 'this chapter uses the narrower abbreviation **RQA** only where the retrieval-augmented search/answer step is meant specifically (the retrieval leg + single generation) ... The two are not used interchangeably; Table 19-1 and the glossary follow this same rule.' Line 5: 'In large-scale RQA (retrieval-augmented QA) pipelines...'. Line 41: 'routed to an agentic RQA pipeline'. Line 252: 'An enterprise RQA system serves 2,000 knowledge workers.' Line 286: 'Table 19-1 — Token amplification and latency trade-offs for agentic RQA pipelines'.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §1 Terminology note (line beginning '**Terminology.**'): widen the definition to 'this chapter uses **RQA** for the retrieval-augmented QA workload, single-shot or agentic (the retrieval leg plus one or more generation turns), and always defines it on first use; \"RAG\" alone refers to the broader retrieval-augmented-generation family' and delete the sentence 'The two are not used interchangeably; Table 19-1 and the glossary follow this same rule.' (or equivalently switch §3, §8 and the Table 19-1 title to 'RAG' — pick one rule and apply it to every RQA occurrence in the chapter and the glossary)."
+ },
+ {
+  "id": "CH19-08",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-19 §4 scoping-note paragraph (case-insensitive match; source begins 'a production agent turn is **not** guaranteed'). The paragraph is 149 words (python count — even longer than the finding's 120) and verifiably packs the turn caveat, the list of turn contents, the 'simplified execution model' label, the 'execution trace' definition, the token-α/latency-β instantiation, and the validation requirement into one block, exactly as observed.",
+  "evidence": "chapter-19.md line 79: 'First, a scoping note that matters more than any single number: a production agent turn is **not** guaranteed to be exactly \"one LLM inference + one tool call.\" A turn may contain zero or more model invocations, parallel or chained tool calls, retrieval + reranking, model-generated reasoning, tool output, context compaction, or cached prefixes. Treating \"1 turn = 1 LLM call + 1 tool call\" is a *simplified execution model* ... A more faithful capacity model is an **execution trace** ... The amplification framework below (token *α*, latency *β*) is one concrete, simplified instantiation ... it must be validated against measured traces afterwards.' Python word count of the paragraph: 149.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4, the paragraph beginning 'First, a scoping note': split at 'Treating \"1 turn = 1 LLM call + 1 tool call\"' — paragraph 1 = the caveat plus the list of what a turn may contain (through '...or cached prefixes.'); paragraph 2 = the simplified-execution-model label, the 'execution trace' definition, and the α/β instantiation; paragraph 3 = the validation requirement ('...validated against measured traces afterwards.')."
+ },
+ {
+  "id": "CH19-09",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-19 §6. The product mixes bases: in-flight count uses the Ch 4 single-shot service time (10 × 8.6 = 86, explicitly 'per Ch 4') while per-request KV uses the agentic T = 1 profile (27.2 GB at 10,365 tokens, Table 19-1). The chapter's own agentic service time for that profile is W(1) = 11.52 s (§4/Table 19-1), which §4 says 'sets concurrency and fleet size' — giving 10 × 11.52 ≈ 115 in flight and 115 × 27.2 ≈ 3.1 TB. The printed 2.3 TB is a cross-basis hybrid, unlabeled as a floor. All numbers recomputed.",
+  "evidence": "chapter-19.md §6: 'At the canonical workload's ~86 average in-flight requests at 10 rps ($L_{exec}$ = λ × $W_{exec}$ ≈ 10 × 8.6 per Ch 4 ...) with the median single-turn profile (~27.2 GB/request at 10,365 tokens), the aggregate KV alone is ~86 × 27.2 GB ≈ 2.3 TB'. Table 19-1: W no-reuse T=1 '~11.52 s', KV '@ 2.62 MB/token' T=1 '~27.2 GB'. Python: 10*8.6=86; 86*27.2=2339.2 GB; 10*11.52=115.2; 115.2*27.2=3133.4 GB ≈ 3.13 TB.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §6 'Inference scaling', sentence beginning 'At the canonical workload's ~86 average in-flight requests': either replace '≈ 10 × 8.6 per Ch 4' with '≈ 10 × 11.52 (the chapter's own W(1) for this T = 1 profile, Table 19-1)' and the total with '~115 × 27.2 GB ≈ 3.1 TB', or keep 86 × 27.2 and append '(a cross-basis floor: 86 in-flight is the Ch 4 single-shot concurrency, so the agentic-profile aggregate at the chapter's own W(1) = 11.52 s is ~115 × 27.2 GB ≈ 3.1 TB)'."
+ },
+ {
+  "id": "CH19-10",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-19 §4 'Internal depth, agent turns, and training rollouts'. The trailing [ILLUSTRATIVE][DERIVED] sits on a paragraph containing no numbers and no computation — it is definitional/normative (model-qualification record contents, pass-at-one vs best-of-k, deployment-decision criteria). Ch 24 §2 defines the taxonomy exactly as the finding states: DERIVED = 'computed from lower-level data'. The label therefore does not match the claim type.",
+  "evidence": "chapter-19.md line 190 ends: 'The deployment decision follows measured task success, invocation traces, and SLO-goodput, not a model-family label alone. [ILLUSTRATIVE][DERIVED]' — the paragraph (line 190) contains zero numeric values. chapter-24.md: 'Team tracks each probe's outcome as a **FACT** (observed, verifiable event), **DERIVED** (computed from lower-level data), or **HYPOTHESIS** (unverified but testable claim).'",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4, paragraph beginning 'Model qualification records the benchmark harness': replace the trailing ' [ILLUSTRATIVE][DERIVED]' with ' [HYPOTHESIS]' for the normative deployment-decision sentence (or delete the label entirely and mark only the definitional first sentences [FACT] per the Ch 24 §2 taxonomy) — no paragraph carries [DERIVED] without a computation."
+ },
+ {
+  "id": "CH19-11",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located: Table 19-1 caption and the 'Input tokens (9,200 + T·800 + T·65)' row (10,065 / 10,930 / 11,795 / 12,660 / 9,200) are the final call's input / retained context, while §8's ledger gives Σ per-call inputs 19,265 / 30,195 / 41,990 for the same T. §4's Boundary rule explains the two conventions in prose, but the table caption (the copy-target artifact) carries no basis note — its extensive notes cover latency rows and W formulas only. All figures verified against source.",
+  "evidence": "chapter-19.md Table 19-1: '| Input tokens (9,200 + T·800 + T·65) | 10,065 | 10,930 | 11,795 | 12,660 | 9,200 |'. §8 ledger: '| Completed T = 1 (68%) | ... | 19,265 |', '| Completed T = 2 (25%) | ... | 30,195 |', '| Completed T = 3 (5%) | ... | 41,990 |'. §4 Boundary rule: 'task_input must sum per-call inputs only — never the “Total tokens (incl. 300 output)” column'. Caption (line 302) notes only δ/γ/O parameters and the two latency rows.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, Table 19-1 caption (the italic note beginning '*All token counts use δ=800, γ=65, O=300*'): prepend the sentence 'Token rows are the final call's input and the retained context (the α basis), not Σ per-call inputs — the execution-trace totals for the same T are 19,265 / 30,195 / 41,990 (§4 ledger, §8); see §4 for which quantity feeds cost vs KV calculations.'"
+ },
+ {
+  "id": "CH24-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-19 §8 ('the 2% fallback is modelled as an immediate single-shot fallback'). Mixed US/UK spelling verified book-wide by word-count grep: 'modelled' 1× (ch19) vs 'modeled' 16× across ch4/5/15/16/20/25/26; 'labelling' 2× (ch4, ch21) vs 'labeling' 1× (ch25). Every evidence example in the finding checks out (ch20 Fig 20.1 'modeled served demand', ch21 §1 'labelling', ch25 'behavior', ch24 'normalized'). 'behaviour'/'normalised'/'organisation'/'prioritise' have zero occurrences, so only the modelled/modeled and labelling/labeling pairs are actually mixed.",
+  "evidence": "Grep counts over design/manuscript/chapter-*: modelled=[('chapter-19',1)]; modeled=[('chapter-04',9),('chapter-05',2),('chapter-15',1),('chapter-16',1),('chapter-20',1),('chapter-25',1),('chapter-26',1)]; labelling=[('chapter-04',1),('chapter-21',1)]; labeling=[('chapter-25',1)]; behavior=19 chapters; behaviour=0. chapter-19.md line 265: 'the 2% fallback is modelled as an immediate single-shot fallback'.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md §8 ('modelled' → 'modeled') and design/manuscript/chapter-04 + chapter-21 ('labelling' → 'labeling'), making US spelling global; then re-run book-wide grep for 'modelled|labelling|behaviour|normalised|organisation|prioritise' expecting zero hits (leave the already-US 'modeled/labeling/behavior/normalized' forms untouched)."
+ },
+ {
+  "id": "CH20-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "Claim refuted: the book explicitly reconciles the two prefill numbers as different quantities. Ch 4 states the 1.08 s basis is 'the rate for one request monopolizing a host, not a per-host aggregate' and opens with 'Do not divide by the ~8.5K tok/s single-request prefill rate, 9.2K ÷ 1.08 s' — which is exactly the finding's headline consequence (368,000 ÷ 8,519 ≈ 43 hosts); the book forbids that operation by name. Ch 5 repeats the distinction ('~8.5K tok/s is a prefill-side / whole-request rate ... 9,200 tokens ÷ ~1.08 s'), and Ch 8 computes sustained prefill demand separately at the 35%-MFU basis (1.29 PFLOP × 10 rps ≈ 12.9 PFLOP/s). Within Ch 20 each screen uses one consistently labeled basis (feasibility screen: 'idealized prefill ceiling ... 35% MFU'; latency budget: '1.08 s prefill + ~7.5 s decode'); no calculation mixes them, so 'mutually inconsistent' and 'used interchangeably inside one screen' are false. The 2.3× gap is batch-monopolizing latency vs sustained ceiling (batching headroom), not an error; the printed 19,780 and 93% recompute exactly.",
+  "evidence": "chapter-04.md: '(Do not divide by the ~8.5K tok/s single-request prefill rate, 9.2K ÷ 1.08 s — that is the rate for one request monopolizing a host, not a per-host aggregate, and using it here...'. chapter-05.md: 'its **~8.5K tok/s is a prefill-side / whole-request rate** (Chapter 4's ≈8.5K tokens/s prefill — 9,200 tokens ÷ ~1.08 s ...)'. chapter-08.md: 'the sustained prefill throughput demand is: 1.29 × 10^15 FLOP × 10 rps ≈ 12.9 PFLOP/s'. chapter-20.md §3: 'The idealized prefill ceiling is 8 × 0.989 PF/s × 35% / (2 × 70e9) ≈ 19,780 tokens/s'. Python: 8*0.989e15*0.35/(2*70e9)=19780.0; 18400/19780=0.9302; 9200/1.08=8518.5.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH20-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-20 §3, and the inconsistency is real: §3 explicitly endorses applying ρ to prefill ('it applies to any throughput-bound screen — KV or prefill'), computes ⌈21.81/0.95⌉ = 23 as 'the largest requirement before the full policy', and lists 23 among the planning screens ('all of 19/21/22/23/32/34'). Yet every sizing headline states 21/22: §8 mini-case 22 (applying ρ only to the KV screen and quoting raw case (ii) ⌈21.81⌉ = 22), Fig 20.1 caption '21 ideal / 22 at 95% efficiency', ADR 0015 R1 '21 hosts (KV, case-independent); prefill screen 19 case (i) / 22 case (ii)'. Book-wide grep: '23 hosts' occurs exactly once, in Ch 20 §3. Screens recomputed: 344/(0.95×17)=21.3→22; ⌈18.60/0.95⌉=20; ⌈20.21/0.95⌉=22; ⌈21.81/0.95⌉=23. Max under one policy = 23 > 22, violating §3's own 'the larger requirement wins' rule.",
+  "evidence": "chapter-20.md §3: 'case (ii) rises to ⌈21.81 / 0.95⌉ = **23 hosts** — the largest requirement before the full policy (ρ = 0.95 ... applies to any throughput-bound screen — KV or prefill ...)' and 'The correct statement is: the fleet must satisfy every named screen, and the *larger* requirement wins'. §8: 'raises it to ... → **22 hosts** (the ρ-derate of the KV screen; the *independent* full-square case (ii) prefill compute screen also gives 22, ⌈21.81⌉)'. Fig 20.1: 'flattens ... once 22 hosts are provisioned — 21 ideal / 22 at 95% efficiency'. chapter-25.md ADR 0015: '21 hosts (KV, case-independent); prefill screen 19 case (i) / 22 case (ii)'. Book-wide grep '23 hosts': only chapter-20. Python ceils: 22, 20, 22, 23.",
+  "fix_instruction": "design/manuscript/chapter-20/chapter-20.md: (1) §8 mini-case bullet 'Fleet aggregate (8 hosts)' — after 'the *independent* full-square case (ii) prefill compute screen also gives 22, ⌈21.81⌉' add '— but with the same ρ = 0.95 derate §3 applies to every throughput-bound screen, case (ii) rises to ⌈21.81/0.95⌉ = 23, the max over all screens; 23 is the ρ-derated requirement, 22 the raw-screen requirement' and state which one governs; (2) Fig 20.1 caption — change '21 ideal / 22 at 95% efficiency' to '21 ideal / 22 at 95% efficiency on the KV screen / 23 with the ρ derate on the case (ii) prefill screen (§3)'; (3) design/manuscript/chapter-25/chapter-25.md ADR 0015 R1 — add '23 (case (ii) + ρ = 0.95, Ch 20 §3)' to the screen list. Alternatively, if ρ is deliberately scoped to the KV screen only, add that exclusion and its justification to §3 and delete §3's 'applies to any throughput-bound screen — KV or prefill' clause — but the two readings must not coexist."
+ },
+ {
+  "id": "CH20-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-20 §6 final subsection. The dangling references are worse than observed: book-wide grep shows 'accepted-completion/accepted completion' occurs only in chapter-20 (2×, both inside this same paragraph), 'measured-service-time' only 1× (this paragraph), and 'video' only 1× in ch20 (this paragraph) — so 'the accepted-completion definition above' and 'the measured-service-time rule' resolve to nothing anywhere in the book, not merely nothing in §1–§5. The paragraph is the chapter's only video-generation content with no bridge.",
+  "evidence": "chapter-20.md line 103: 'The rejection/OOM/cancellation counters, the cost-per-accepted-clip basis, and the zero-pass edge case follow the same rules as the accepted-completion definition above; placement follows the measured-service-time rule...'. Grep over all 27 chapter files: 'accepted[- ]completion' → chapter-20 only (2 hits, both line 103); 'measured[- ]service[- ]time' → chapter-20 only (1 hit); 'video' in chapter-20 → 1 hit (line 103).",
+  "fix_instruction": "design/manuscript/chapter-20/chapter-20.md, §6 subsection 'The useful completion is an accepted clip', sentence beginning 'The rejection/OOM/cancellation counters': replace 'follow the same rules as the accepted-completion definition above; placement follows the measured-service-time rule' with 'follow the accepted-completion rule stated in the previous sentence (a useful completion is an output that passes the deadline, integrity, quality, and safety gates in the observation window); placement follows the measured-service-time rule (place warm replicas where measured service time, not nominal load time, sets the request path)' — i.e. make both references resolve inside the paragraph, and add one sentence explaining why a fixed-output-contract video fleet is a useful parallel for a RAG fleet architect (or move the subsection to the chapter that owns goodput accounting)."
+ },
+ {
+  "id": "CH20-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "Claim refuted by arithmetic: the printed 2.7692 PFLOP/s is exactly right. 8 × 989 TFLOPS = 7,912 TFLOPS; 7,912 × 0.35 = 2,769.2 TFLOPS = 2.7692 PFLOP/s (python: 8*989*0.35/1000 = 2.7692). The finding's 'correct' value 2.7683 is itself a multiplication error (it appears to come from mis-multiplying 7.912 × 0.35). The finding's own ratios confirm nothing is off: 2 × 1.5099 ÷ 2.7692 = 1.0905 ≈ 109% as printed. No defect.",
+  "evidence": "chapter-20.md §3: '(the same demand ÷ ceiling in PFLOP/s: 2 × 1.5099 ÷ 2.7692, with 2.7692 PFLOP/s the Chapter 8 35%-MFU host peak)'. Python: 8*989*0.35/1000 = 2.7692; 8*0.989*0.35 = 2.7692; 2*1.5099/2.7692 = 1.0905. The finding asserts '8 x 0.989 PF/s x 0.35 = 2.7683' — false: 8 × 0.989 × 0.35 = 2.7692.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH20-05",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "DEFENSIBLE",
+  "reason": "Correct as written: the claim is explicitly scoped 'under the stated assumption' — Ch 17's E[W_KV-resident] ≈ 8.6 s single-shot proxy, for which queue time precedes KV admission and tool/inter-turn time are zero — so Ch 19's KV-resident inter-turn interval (agentic workload, W(3) = 17.70 s) does not contradict a statement Ch 20 never makes about agentic traces; Ch 20's whole §2–§3 concerns the canonical single-shot workload.",
+  "evidence": "chapter-20.md §2: 'not the end-to-end W_e2e, which adds queue, tool and inter-turn time that, under the stated assumption, holds no KV' — preceded by 'W here is Ch 17's assumed mean KV-residency time E[W_KV-resident] ≈ 8.6 s, a conditional scenario proxy'. The canonical workload (Ch 4 Table 4-2) is single-shot: no turns, hence no inter-turn interval. chapter-19.md's 17.70 s / 31.7 GB trace is the agentic workload, a different scenario.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH21-01",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-21 §8. Reading the full mini-case confirms it is purely narrative: no question, no numbers to compute, no decision under uncertainty — the reader only recalls that the gate worked. By contrast ch19 §8 and ch20 §8 (verified in full) require percentiles, weighted token ledgers, host-count screens and cost arithmetic. The chapter's promotion-gating economics (§3's 216K vs 3.6K blast-radius arithmetic) is never applied in the mini-case.",
+  "evidence": "chapter-21.md §8 (line 98), complete: 'A vendor pitches the architect a newer, cheaper model: \"just swap it in — it scores better on the bench.\" ... The gate flags a quality regression on the legal-document subset ... The candidate is rejected automatically, the incumbent stays ... the factory made the wrong vendor claim cost nothing to the business...' — zero numeric operands or computations. ch19 §8 requires p50/p90/p95 and 2,392,670-token ledger arithmetic; ch20 §8 requires ⌈344/17⌉ host screens and marginal-cost division.",
+  "fix_instruction": "design/manuscript/chapter-21/chapter-21.md, §8 mini-case: after the sentence 'The gate flags a quality regression on the legal-document subset the benchmark suite specifically covers', insert a quantitative decision for the reader, e.g. 'The candidate improves quality on the main subset but adds 240 ms to p95 TTFT; the canary has served 3,600 requests with 12 legal-subset failures vs the incumbent's 3 expected at α = 0.05. Given the §3 economics (a bad ungated release = 216,000 exposed requests ≈ $5,394 direct), should the architect promote, reject, or extend the canary to N hours — and what blast radius does each choice bound?' with the answer withheld from the preceding text."
+ },
+ {
+  "id": "CH21-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-21 §3. The headline 6.24M/month is correct (python: 10×8×3600 = 288,000/workday; ×260 = 74,880,000/yr; ÷12 = 6,240,000), and Ch 16 does print the full derivation ('10 rps × 8 h × 3,600 s × 260 workdays ÷ 12 = 6,240,000 requests/month'), so Ch 21's 'computed in Ch 16' pointer resolves. But Ch 22 §6's parenthetical presents a formula that is dimensionally wrong as written: '10 rps × 8 h × 260 workdays ÷ 12' = 1,733 (python), missing the × 3,600 s — a reader reproducing it gets 1,733, not 6.24M. That half of the claim is verified; Ch 21's half is a resolvable pointer, so the fix targets Ch 22.",
+  "evidence": "chapter-21.md §3: 'The canonical service does ~288,000 requests/workday (10 rps × 8 h × 3,600 s; ~6.24M/month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16).' chapter-22.md: 'at the canonical 6.24M requests/mo (business-hours basis: 10 rps × 8 h × 260 workdays ÷ 12 — not 24×7, Ch 4/Ch 16)'. chapter-16.md: 'Ch 4: 10 rps × 8 h × 3,600 s × 260 workdays ÷ 12 = 6,240,000 requests/month'. Python: 10*8*260/12 = 1733.33; 10*8*3600*260/12 = 6240000.0.",
+  "fix_instruction": "design/manuscript/chapter-22/chapter-22.md, §6 cost parenthetical '(business-hours basis: 10 rps × 8 h × 260 workdays ÷ 12 — not 24×7, Ch 4/Ch 16)': change to '(business-hours basis: 10 rps × 8 h × 3,600 s × 260 workdays ÷ 12 = 6.24M — not 24×7, Ch 4/Ch 16)'. Optionally, in design/manuscript/chapter-21/chapter-21.md §3, expand '~6.24M/month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16' to '~6.24M/month — 288,000/workday × 260 workdays ÷ 12, Ch 16's full formula'."
+ },
+ {
+  "id": "CH21-02",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-21 §3. The rate 24.97066185897436 has 16 significant digits (python: len('2497066185897436') = 16) inside an illustrative worked example, while the same sentence introduces the rate as '~$24.97/1K' and Ch 16 prints the rounded form as primary ('≈ 24.97 per 1,000 requests (24.97066185897436 exact)'). The correction's arithmetic verifies: 216,000 × 24.97 ÷ 1,000 = 5,393.52 ≈ $5,394 (unchanged), and 216,000 × 14.04 ÷ 1,000 = 3,032.64 ≈ $3,033. False precision relative to the book's ~3-sig-fig practice is real.",
+  "evidence": "chapter-21.md §3: 'the direct cost is 216,000 × 24.97066185897436 ÷ 1,000 ≈ **$5,394**' within a sentence that says 'at the Ch16 canonical self-hosted rate of ~$24.97/1K requests'. chapter-16.md: '≈ 24.97 per 1,000 requests (24.97066185897436 exact)'. Python: 216000*24.97066185897436/1000 = 5393.66; 216000*24.97/1000 = 5393.52; 216000*14.04/1000 = 3032.64.",
+  "fix_instruction": "design/manuscript/chapter-21/chapter-21.md, §3 'Cost of a bad ungated release': replace '216,000 × 24.97066185897436 ÷ 1,000 ≈ **$5,394**' with '216,000 × $24.97/1K ÷ 1,000 ≈ **$5,394**' and '216,000 × 14.038461538461538 ÷ 1,000 = 3,032.31' with '216,000 × $14.04/1K ÷ 1,000 ≈ **$3,033**' (or keep $3,032 by writing '× ~$14.038/1K'); leave the exact quotients in the Ch 16 derivation where they are already labeled 'exact'."
+ },
+ {
+  "id": "CH21-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-21 §3 (both operands verbatim). The false-precision claim is real — though the finding miscounts digits: the rates are 16 and 17 significant digits (python: len('2497066185897436')=16, len('14038461538461538')=17), not 14 and 15. The finding's own evidence correctly states the results are right at stated rounding (python: 216000×24.97066185897436/1000 = 5393.66 ≈ 5,394; ×14.038461538461538/1000 = 3032.31), so the defect is presentation only: machine-precision quotients pasted into prose where the same sentence already gives ~$24.97/1K and ~$14.04/1K.",
+  "evidence": "chapter-21.md §3: 'the direct cost is 216,000 × 24.97066185897436 ÷ 1,000 ≈ **$5,394**, and it is ≈ **$3,032** on the Ch16 cloud-scaled ~$14.04/1K basis (216,000 × 14.038461538461538 ÷ 1,000 = 3,032.31)'. Python: 5393.662961538462; 3032.3076923076924; digit counts 16 and 17.",
+  "fix_instruction": "design/manuscript/chapter-21/chapter-21.md, §3 'Cost of a bad ungated release': replace '216,000 × 24.97066185897436 ÷ 1,000' with '216,000 × 24.97 ÷ 1,000' and '(216,000 × 14.038461538461538 ÷ 1,000 = 3,032.31)' with '(216,000 × 14.04 ÷ 1,000 ≈ 3,033)' — keeping $5,394 and adjusting the cloud result to $3,033 (or writing × 14.038 to keep $3,032); exact quotients stay in the Ch 16 derivation."
+ },
+ {
+  "id": "CH21-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located in chapter-21 §5. The substantive defect holds: the target does not cover training economics. Ch 7 is 'Memory Is the First Constraint' (its 10 'training' mentions are all memory-fit: training peak, optimizer states, fit verdict for training runs), Ch 8 is 'Compute' (a single passing mention, H200 inference/training hardware convergence), and book-wide greps for 'training economics', 'training cost', 'retraining cost' return zero hits — no chapter owns the topic, so the pointer cannot resolve to supporting content. Caveat: the finding's format sub-claim is refuted — 'Ch7-8' matches the established range shorthand ('Ch17-20' and 'Ch3/5' in this same chapter, 'Chs. 7–8' in Ch 16) — and its suggested fix is wrong too: Ch 16 has zero 'training' mentions, so do not redirect there.",
+  "evidence": "chapter-21.md §5: 'the right cadence balances drift against churn (see Ch7-8 for training economics)'. Titles: '# Chapter 7 — Memory Is the First Constraint', '# Chapter 8 — Compute', '# Chapter 16 — TCO: The Total Cost Reality Check'. Grep counts: ch7 \\btraining\\b = 10 (contexts: 'actual training peak', 'fit verdict for training must be checked', QLoRA/NF4 adapter memory); ch8 = 1 ('inference and training hardware lines begin to converge'); ch16 = 0. Book-wide: 'training economics' = 0, 'training cost' = 0, 'retraining cost' = 0. Established range forms: ch21 §6 'fleet operations (Ch17-20)', 'model selection (Ch3/5)'; ch16 'estimates of Chs. 7–8'.",
+  "fix_instruction": "design/manuscript/chapter-21/chapter-21.md, §5 'Assuming retraining cadence is as often as possible': replace '(see Ch7-8 for training economics)' with '(the memory and compute a training run consumes — Ch 7 for the optimizer/activation memory floor, Ch 8 for the FLOP budget — set the resource cost a cadence must fit)' or delete the parenthetical; do NOT point to Ch 16 (it contains no training content) and do NOT reformat the range (Ch7-8 is consistent with Ch17-20)."
+ }
+]

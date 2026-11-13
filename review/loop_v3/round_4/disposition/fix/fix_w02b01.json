@@ -1,0 +1,86 @@
+[
+ {
+  "id": "CH5-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The decision in Ch5 S3(a) is the cross-model mpnet(768) vs MiniLM(384) choice, whose FLOP ratio is 14.08/2.94 = 4.78x (recomputed), not 2x. The paragraph itself (L62) explicitly labels the ~2x figure as the same-family case ('a same-family 384-dim variant is the ~2x case') and the comparison as 'a cross-model difference, not a dim-only sweep', so closing with 'the 2xFLOP cost' attaches the same-family number to the cross-model decision - an internal contradiction.",
+  "evidence": "ch5 L62 full text; Table 5-1 L52/L53 (MiniLM ~23M/~2.9 GFLOPs, mpnet ~110M/~14 GFLOPs). Python: 2*110e6*64=14.08 GFLOP; 2*23e6*64=2.94 GFLOP; ratio=4.78.",
+  "fix_instruction": "design/manuscript/chapter-05/chapter-05.md, line 62, at the phrase 'to justify the 2xFLOP cost': change 'the 2xFLOP cost' to 'the ~4.8xFLOP cost (14.08 vs 2.94 GFLOP per 64-token query, Table 5-1)' - keeping '~2x' only where the same-family dimension sweep is the subject.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-05/chapter-05.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH5-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "L58 claims 'a 384-dim variant of the same model family can cost roughly half the FLOPs and index storage of a 768-dim one.' For a same-family dimension reduction the transformer body and its projections are unchanged; only the final output projection shrinks (768x384 vs 768x768 = 0.59M of ~110M params ~0.5%), so encoder FLOPs are essentially unchanged (~0.5%, not 50%). Index storage does halve (384 vs 768 floats/vector). The FLOPs half-claim is incorrect; storage halving is correct. The same 'dim-halving halves FLOPs' premise underlies the '~2x case' at L62.",
+  "evidence": "ch5 L58 (quote) and L62 ('a same-family 384-dim variant is the ~2x case'). Body FLOPs ~ 2*params*L are set by the body, which a pure output-dimension change does not alter; only the d x d' projection changes (0.59M -> 0.29M of 110M).",
+  "fix_instruction": "design/manuscript/chapter-05/chapter-05.md, line 58, at 'can cost roughly half the FLOPs and index storage of a 768-dim one': split the claim - change to 'can halve the index storage of a 768-dim one (the encoder's compute is essentially unchanged, since only the final projection shrinks)' - and at line 62 change 'a same-family 384-dim variant is the ~2x case' to reflect that the ~2x applies to storage, not encoder FLOPs.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-05/chapter-05.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH5-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The footnote rule 'FLOPs per embedding = 2 x params x L' multiplies every parameter by L, but a token-embedding table is a lookup, not a per-position matmul. Recomputed shares: MiniLM's table (30,522x384 ~11.7M) is 51% of its ~23M params, mpnet's 21%, bge's 9%. The proxy overcounts MiniLM most, and the body-only mpnet/MiniLM ratio is 7.67x (86.6M/11.3M) vs the 4.78x implied by total params - so the headline '~11.1 GFLOP incremental' (14.08-2.94) and the 'ratio equals the parameter ratio' claim are materially distorted for the smallest model. The footnote should state the proxy's scope and direction of error.",
+  "evidence": "ch5 L50-L56 (Table 5-1 + footnote). Python: vocab 30522; MiniLM emb=11.7M/23M=51.0%, mpnet 23.4M/110M=21.3%, bge 31.3M/335M=9.3%; body-only ratio 86.6/11.3=7.67 vs total 110/23=4.78.",
+  "fix_instruction": "design/manuscript/chapter-05/chapter-05.md, line 56, in the Table 5-1 footnote after '(bge-large ~ 3x mpnet).': append a scope caveat - ' Note: 2 x params x L treats the token-embedding table as a per-position matmul; it is a lookup, so the proxy overstates compute - most for the smallest model (MiniLM's table is ~51% of its params). Body-parameter ratios are the truer cross-model comparison (mpnet/MiniLM ~7.7x body-only vs 4.8x by total params), so the ratios above are upper bounds on the true compute ratio.'",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-05/chapter-05.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH5-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The recommendation's empirical basis is applied asymmetrically and left uncited. bge-large is rejected (L64) because 'its quality gain over all-mpnet-base-v2 is not quantified for this model pair', yet the mpnet(768)-over-MiniLM(384) recommendation rests on '~15% MAP' that is likewise not quantified for the pair and carries no citation - only a [HYPOTHESIS] label. Moreover 'reports span a few to ~15%' asserts existing literature ('reports') that is never cited, which conflicts with labeling it a bare [HYPOTHESIS] rather than a [2deg] sourced summary. The same 'must be quantified' test is not visibly applied to the recommended candidate.",
+  "evidence": "ch5 L58/L62 ('reports range from a few to ~15% MAP difference', both inside [HYPOTHESIS] blocks), L64 (bge rejected: 'not quantified for this model pair'), L163 ('Early evidence suggests 768 dim is a sweet spot', [HYPOTHESIS]). grep 'MAP' -> only ch5 L58/L62; no citation attached.",
+  "fix_instruction": "design/manuscript/chapter-05/chapter-05.md, line 62, at '(reports span a few to ~15%, domain- and corpus-specific - S3)': either attach a source - change to '(reports span a few to ~15% MAP [2deg][FACT] - cite corpus/query-set/metric, domain- and corpus-specific - S5.3)' - or rephrase as an explicit unverified prior ('an unverified prior of a few to ~15% MAP [HYPOTHESIS]'); and at line 64 apply the same quantification test to the mpnet recommendation that is applied to bge (state that the ~15% is not pair-quantified either).",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-05/chapter-05.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH5-06",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The Common Mistakes bullet (L149) asserts the parametric Q* 'shows that for most enterprise RAG workloads, the RAG + guardrails paradigm dominates on TCO' - a general dominance claim. This contradicts the chapter's own hedging: L119 '(Scenario structure, not a single claimed break-even volume; the exact C_train, C_weights-extra, and DeltaQ are workload- and domain-specific and should be measured, not assumed)'; L123 Takeaway 'the break-even DeltaQ/Q of S3(c) is parametric here, not measured for this workload'; L165 S7 'Any quoted break-even volume is a derived scenario value.' A formula with three unmeasured inputs cannot 'show' a result for 'most' workloads; the bullet drops the parametric qualifier the rest of the chapter maintains.",
+  "evidence": "ch5 L149 (full text quoted), L119, L123, L165 - all read directly. The three hedging statements are verbatim in-source.",
+  "fix_instruction": "design/manuscript/chapter-05/chapter-05.md, line 149, at 'The break-even analysis (the parametric $Q^*$ in S5.3) shows that for most enterprise RAG workloads, the RAG + guardrails paradigm dominates on TCO.': rewrite to carry the chapter's own hedge - 'The parametric $Q^*$ in S5.3 shows how to decide - RAG + guardrails dominates below the break-even volume and fine-tuning may dominate above it - but the break-even is workload- and domain-specific and must be measured before either paradigm is declared dominant for most workloads.'",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-05/chapter-05.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH5-07",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The Q* formula (L116) has numerator = fixed costs only (C_train + C_weights-extra) and denominator = quality value only (DeltaQ . value); it contains no per-query cost term. Yet the chapter's own Paradigm-2 description (L110) says fine-tuned inference runs 'without a retrieval step, or with a much shorter retrieved context' - removing/shortening the canonical 9.2K prefill (~1.08 s/request, L83/L89) per query, a recurring saving the formula cannot see. Omitting it biases Q* upward (against fine-tuning): the true break-even, including the prefill saving, occurs at a lower query volume than Q*. The reviewer's premise (L110 introduces the recurring term) is verified in-source.",
+  "evidence": "ch5 L116 (formula), L119 (definitions - numerator fixed costs, denominator DeltaQ.value), L110 ('without a retrieval step, or with a much shorter retrieved context'), L83/L89 (prefill ~1.08 s/request). All read directly.",
+  "fix_instruction": "design/manuscript/chapter-05/chapter-05.md, lines 116-119, in the $Q^*$ equation and its 'where...' sentence: extend to a total-cost-per-query crossing - define TCO_RAG(Q)=Q*(c_retrieval+c_prefill_9.2K+c_decode)+C_RAG and TCO_FT(Q)=Q*(c_prefill_short+c_decode)+C_train+C_weights-extra and set Q* at the crossing - or, minimally, append to L119: '(Scope: this $Q^*$ amortizes only the one-time training + carry cost against the quality uplift; it omits the recurring per-query prefill/retrieval saving that fine-tuning's shorter context (S3(c)) would confer, so it is a lower bound on the fine-tuning case and overstates the break-even volume.)'",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-05/chapter-05.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH5-09",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Ch5 L89 labels 1.2 s 'the 1.2 s SLO line,' but the SLO is p95 <= 2 s - Ch6 L58 'We budget TTFT <= 1.2 s (retrieval ~120 ms + prefill ~1.08 s) with a p95 <= 2 s,' and Ch5's own S8 mini-case (L180) says 'sits at the 1.2 s TTFT budget, with the p95 <= 2 s SLO giving the real margin.' So Ch5 is internally inconsistent (L89 'SLO line' vs L180 'budget... SLO'). L89 also says prefill 'leaves ~0.12 s of headroom against the 1.2 s budget for prefill alone,' but 1.2 - 1.08 = 0.12 s is exactly the 120 ms retrieval allocation, not prefill headroom - the 'for prefill alone' phrasing is misleading. (Note: the reviewer's evidence quote 'the SLO itself is stated at p95' was not found in the source; the finding stands on the verified Ch6 L58 and Ch5 L180 quotes.)",
+  "evidence": "ch5 L89 ('1.2 s SLO line', 'for prefill alone'), ch5 L180 (mini-case, budget/SLO correct), ch6 L58 (budget 1.2 s, p95 <= 2 s). Python: 0.12+1.08=1.20; 1.2-1.08=0.12=retrieval. grep 'stated at p95'/'SLO itself' -> not found.",
+  "fix_instruction": "design/manuscript/chapter-05/chapter-05.md, line 89: (1) change 'at the 1.2 s SLO line with no prefill-side margin' to 'at the 1.2 s design budget with no prefill-side margin'; (2) change 'it leaves ~0.12 s of headroom against the 1.2 s budget *for prefill alone*' to 'it leaves ~0.12 s against the 1.2 s budget - exactly the ~120 ms retrieval allocation, i.e. zero true headroom' (delete 'for prefill alone').",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-05/chapter-05.md",
+  "_dupes": []
+ }
+]

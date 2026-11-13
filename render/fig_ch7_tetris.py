@@ -22,7 +22,14 @@ ax.set_title('Memory Tetris: how the 8×H100 host (640 GB) fills with context',
 bar_w = 2.1
 ctxs = [('9.5K context', 24.9), ('32K context', 84), ('128K context', 335)]
 xs = [1.6, 4.0, 6.4]
-cols = {'runtime': '#95a5a6', 'weights': '#27408b', 'kv': '#e67e22'}
+# R4 fix (FIG-7.7-7.8-1): Fig 7.7 and Fig 7.8 encode the same three components
+# of the same 640 GB pool differently (7.7: charcoal runtime / green KV / blue
+# '//' weights; 7.8: light-grey 'xxx' runtime / orange '..' KV / navy '///'
+# weights).  7.8 now adopts 7.7's palette and patterns exactly: weights
+# #3a6ea5 + '//', runtime #4a4e52 solid, KV #e67e22 + '..' (7.7 was recoloured
+# to orange + dots in fig_ch7_budget.py).  Non-colour cues survive: weights
+# hatched, KV dotted, runtime solid — three distinct treatments in grayscale.
+cols = {'runtime': '#4a4e52', 'weights': '#3a6ea5', 'kv': '#e67e22'}
 rank_color = '#b9c4c4'   # light rank rules, behind the bars
 
 # 80 GB rank rules drawn first (zorder low) so they read as structure behind the fill.
@@ -41,18 +48,20 @@ for x, (label, kv) in zip(xs, ctxs):
     # in grayscale, and label the previously unlabelled blue/grey baseline
     # segments in-bar.  White hatch texture + a stroke halo keeps the glyphs crisp.
     ax.bar(x, 64, width=bar_w, bottom=0, color=cols['runtime'],
-           edgecolor='white', linewidth=0.8, hatch='xxx', zorder=3)
+           edgecolor='white', linewidth=0.8, zorder=3)
     ax.bar(x, 140, width=bar_w, bottom=64, color=cols['weights'],
-           edgecolor='white', linewidth=0.8, hatch='///', zorder=3)
+           edgecolor='white', linewidth=0.8, hatch='//', zorder=3)
     ax.bar(x, kv, width=bar_w, bottom=base, color=cols['kv'],
-           edgecolor='white', linewidth=0.8, alpha=0.92, hatch='..', zorder=3)
+           edgecolor='white', linewidth=0.8, hatch='..', zorder=3)
+    # runtime is now 7.7's solid charcoal, so its label flips to white (dark
+    # #1c1c1c glyphs on #4a4e52 would fail contrast); stroke matches the fill.
     ax.text(x, 32, 'runtime ~64 GB', ha='center', va='center', fontsize=8.5,
-            color='#1c1c1c', zorder=6,
-            path_effects=[pe.withStroke(linewidth=2.6, foreground='white')])
+            color='white', zorder=6,
+            path_effects=[pe.withStroke(linewidth=2.6, foreground='#4a4e52')])
     ax.text(x, 134, 'weights 140 GB', ha='center', va='center', fontsize=8.5,
             color='white', zorder=6,
-            bbox=dict(boxstyle='round,pad=0.16', fc='#27408b', ec='none', alpha=1.0),
-            path_effects=[pe.withStroke(linewidth=2.6, foreground='#27408b')])
+            bbox=dict(boxstyle='round,pad=0.16', fc='#3a6ea5', ec='none', alpha=1.0),
+            path_effects=[pe.withStroke(linewidth=2.6, foreground='#3a6ea5')])
     total = base + kv
     # KV value as a tag just ABOVE ITS OWN bar top (bars top out at 229/288/539,
     # so the tags stagger naturally and never collide with each other or the 640 line).
@@ -76,9 +85,9 @@ ax.text(6.6, 690, '(light rules = 80 GB rank boundaries)', fontsize=8.2, color='
 # legend swatches carry the same hatches as the bars (non-colour cue in the key too)
 leg = [mpatches.Patch(facecolor=cols['kv'], edgecolor='white', lw=0.5, hatch='..',
                       label='KV cache (grows with context)'),
-       mpatches.Patch(facecolor=cols['weights'], edgecolor='white', lw=0.5, hatch='///',
+       mpatches.Patch(facecolor=cols['weights'], edgecolor='white', lw=0.5, hatch='//',
                       label='weights 140 GB'),
-       mpatches.Patch(facecolor=cols['runtime'], edgecolor='white', lw=0.5, hatch='xxx',
+       mpatches.Patch(facecolor=cols['runtime'], edgecolor='white', lw=0.5,
                       label='runtime / NCCL ~64 GB')]
 ax.legend(handles=leg, loc='lower left', bbox_to_anchor=(0.0, -0.10), fontsize=9.0,
           frameon=False, ncol=3, handlelength=1.4, columnspacing=1.2)

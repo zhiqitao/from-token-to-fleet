@@ -39,12 +39,15 @@ def main():
     ax.set_xlabel('Logical input tensor per rank (GB)', fontsize=9.5)
     ax.set_ylabel('Ideal ring completion time (ms)', fontsize=9.5)
     ax.grid(which='major', alpha=.3)
-    fig.text(.5, .95, 'Ring traffic and directional bandwidth',
-             ha='center', fontsize=12, weight='bold')
-    fig.text(.5, .895, 'N = 8; sent bytes per rank = 1.75 × tensor bytes',
-             ha='center', fontsize=9.5)
-    fig.text(.5, .85, '140 GB tensor (245 GB sent at 1.75×): NVLink 544 ms | HDR 6,125 ms | RoCE 98,000 ms',
-             ha='center', fontsize=9)
+    # Title block left-aligned to the text-block margin used by Figs 9.2/9.3
+    # (their SVG text starts at x=14pt of the 439.2pt = 6.1in column).
+    X_TEXT = 14 / 439.2
+    fig.text(X_TEXT, .95, 'Ring traffic and directional bandwidth',
+             ha='left', fontsize=12, weight='bold')
+    fig.text(X_TEXT, .895, 'N = 8; sent bytes per rank = 1.75 × tensor bytes',
+             ha='left', fontsize=9.5)
+    fig.text(X_TEXT, .85, '140 GB tensor (245 GB sent at 1.75×): NVLink 544 ms | HDR 6,125 ms | RoCE 98,000 ms',
+             ha='left', fontsize=9)
     fig.legend(*ax.get_legend_handles_labels(), loc='lower center',
                bbox_to_anchor=(.5, .055), fontsize=9, frameon=False)
     fig.text(.5, .025, 'Analytical model; no offload, latency or overlap; not measured',

@@ -63,6 +63,15 @@ for x,vals in zip([22,234,446],D['D1']['tokens']):
 for x1,x2 in [(170,226),(382,438)]:
     a+=arrow(x1,255,x2,255)+text((x1+x2)/2,245,'q',14,anchor='middle')
     a+=arrow(x2,284,x1,284,True)+text((x1+x2)/2,310,'pθ',14,anchor='middle')
+# R4 FIG-3.1-02: panel A labels its three states under its boxes while panel B
+# carried none (only the shared 'M = MASK' line), so the two lanes had to be
+# read by different conventions.  Mirror panel A: one label per token group,
+# centred on the group (x+69, group spans x..x+138) on the pθ baseline y=310.
+# Conservative bounds: bbox 296..314 clears the cell text (<=278) and the
+# 'M = MASK' line (319..337); x-extents 75..107 / 259..347 / 476..554 clear
+# the pθ gap labels at 190..206 and 402..418 and stay inside WIDTH-7=603.
+for x,label in zip([22,234,446],['clean','partly masked','fully masked']):
+    a+=text(x+69,310,label,14,anchor='middle')
 a+=text(22,333,'M = MASK; text states are illustrative token IDs, not generated results.')
 a+=text(18,370,'Training: construct corrupted inputs; learn reverse predictions.',15,True)
 a+=text(18,395,'Sampling: start from the prior; apply learned reverse updates.',15,True)

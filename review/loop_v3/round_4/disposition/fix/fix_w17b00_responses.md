@@ -1,0 +1,1 @@
+FIG-13.1-04 | P3 (MINOR) | render/fig_ch13_escalation.py:85 (fig-13-1301 DE-ESCALATE label) | label moved above the blue dashed arrow (8.0,5.3 → 8.72,11.02), stacked to 4 short lines, fontsize 8.0→9.5 bold to match trigger annotations; regenerated only fig-13-1301.png+.pdf via render/regen_one.py; verified min clearance ~2.0mm at print, no collisions/clipping | FIXED

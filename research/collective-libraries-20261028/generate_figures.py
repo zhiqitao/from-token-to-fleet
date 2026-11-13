@@ -166,12 +166,12 @@ def layers():
     d.line(431,227,423,227,color=RED,dash=True)
     d.text(19,119,'1  Framework backend',10.5,bold=True)
     for x,label in [(16,'ProcessGroupNCCL'),(229,'ProcessGroupXCCL')]:
-        d.rect(x,129,194,33,fill='#F0F3FA',stroke=BLUE)
+        d.rect(x,129,194,33,fill='#F7F7F7')
         d.text(x+97,150,label,10.5,bold=True,anchor='middle')
     for c in [113,326]: d.line(c,168,c,186)
     d.text(19,204,'2  Collective library and algorithm',10.5,bold=True)
-    for x,label,desc in [(16,'NCCL','Ring / tree / eligible offload'),(229,'oneCCL','Selected collective algorithm')]:
-        d.rect(x,214,194,43,fill='#FFF4E8',stroke=ORANGE)
+    for x,label,desc in [(16,'NCCL','Ring / tree / NVLS or CollNet offload'),(229,'oneCCL','Selected collective algorithm')]:
+        d.rect(x,214,194,43,fill='#F7F7F7')
         d.text(x+97,231,label,11,bold=True,anchor='middle')
         d.text(x+97,248,desc,9.5,anchor='middle')
     for c in [113,326]: d.line(c,263,c,281)
@@ -184,7 +184,7 @@ def layers():
     d.text(19,408,'4  Physical resources and topology',10.5,bold=True)
     for x,rows in [(16,['GPU HBM / NVLink / PCIe','NIC / switches / fabric']),
                    (229,['XPU HBM / device links / PCIe','NIC / switches / fabric'])]:
-        d.rect(x,418,194,39,fill='#F0F3FA',stroke=BLUE)
+        d.rect(x,418,194,39,fill='#F7F7F7')
         for i,s in enumerate(rows): d.text(x+97,434+i*15,s,9.5,anchor='middle')
     d.text(14,478,'GPU-aware MPI can carry payload too; MPI is not CPU-only.',10,bold=True)
     d.text(14,494,'Named paths: 2026-10-28 snapshot, not a drop-in compatibility claim.',9.5)

@@ -1,0 +1,1 @@
+FIG-24.1-01 | P2 | render/fig_ch24.py → design/manuscript/chapter-24/figures/fig-24-2401.{png,pdf} | recoloured '6 Green Team' #2980b9→#27ae60 (green) and moved '5 Metrics' off green #16a085→#404040 (neutral); '1 Red Team' kept red; regenerated only this figure via render/regen_one.py | FIXED

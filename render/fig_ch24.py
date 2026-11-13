@@ -12,8 +12,8 @@ STAGES = [
     ('2 Probes',     '#c0392b'),
     ('3 Exposure',   '#e67e22'),
     ('4 Guardrails', '#7d3c98'),
-    ('5 Metrics',    '#16a085'),
-    ('6 Green Team', '#2980b9'),
+    ('5 Metrics',    '#404040'),
+    ('6 Green Team', '#27ae60'),
 ]
 # 2 rows x 3 cols
 cols_x = [0.8, 9.6, 18.4]

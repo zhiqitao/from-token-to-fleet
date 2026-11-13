@@ -53,8 +53,13 @@ def arrow(x1,y1,x2,y2,color='#555'):
 fig, ax = plt.subplots(figsize=(6.1, (Ht + 43) / 72))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, W); ax.set_ylim(0, Ht); ax.axis('off')
-ax.set_title('Routing every request to the right specialised model (sequential cascade)',
-             fontsize=FS+1.2, fontweight='bold', ha='center', color='#1a1a1a', pad=12)
+# FIG-18.1-01 (x2): house style is -ize, and 'cascade' is ch18's
+# multi-model-composition sense, not this early-exit draw — one term
+# ('routing decision tree', early exit) shared with the caption/note.
+# 8.7 pt keeps the longer string inside the 439.2 pt column (it measures
+# 502.6 pt at FS+1.2 and would clip); still >= 8 pt like every other label.
+ax.set_title('Routing every request to the right specialized model (routing decision tree, early exit)',
+             fontsize=8.7, fontweight='bold', ha='center', color='#1a1a1a', pad=12)
 
 SP = 190
 RES = 70
@@ -86,9 +91,11 @@ spine = hflow(spine_defs, SP, (W - spine_w)/2, SPINE_GAP)
 
 # ---- specialist leaf group ----
 spec_defs = [
+    # FIG-18.1-03: one shared fill for the specialist family (the three-way
+    # blue/purple/red split had no legend and read as three categories).
     ('Embedding', '#3a6ea5', '#1a3a6b'),
-    ('Vision', '#8055b5', '#5a3a8a'),
-    ('Math/reason', '#c0392b', '#8a2a20'),
+    ('Vision', '#3a6ea5', '#1a3a6b'),
+    ('Math/reason', '#3a6ea5', '#1a3a6b'),
 ]
 # ---- general leaf group ----
 gen_defs = [
@@ -124,8 +131,11 @@ for i in range(len(spine)-1):
     arrow(spine[i][1], SP, spine[i+1][0], SP)
     if i == 0:
         continue
+    # FIG-18.1-03: 'no' carries the same size/weight/colour as the 'yes'
+    # labels (colour coding dropped), so the match/no-match distinction is
+    # the word itself and survives grayscale.
     ax.text((spine[i][1] + spine[i+1][0]) / 2, SP + 13, 'no',
-            fontsize=FS-0.2, color='#555', ha='center', va='center', fontweight='bold')
+            fontsize=FS-0.2, color='#1e5a3a', ha='center', va='center', fontweight='bold')
 
 # ---- branches down ----
 def branch(xf, yf, xt, yt, lab, lx, ly, color='#1e5a3a'):
@@ -134,7 +144,7 @@ def branch(xf, yf, xt, yt, lab, lx, ly, color='#1e5a3a'):
 
 # ---- branches down: direct fan-out arrows from each gate to each leaf, so every
 #      leaf has an explicit, unambiguous incoming connector ----
-def fan(drop_x, y_from, leaves, color, lab, lab_x, lab_y):
+def fan(drop_x, y_from, leaves, color, lab, lab_x, lab_y, bus_lab=None):
     BUS_Y = RES+44           # bus row, above all leaf-arrow tails
     # vertical from the gate down to the bus
     arrow(drop_x, y_from, drop_x, BUS_Y, color)
@@ -145,6 +155,15 @@ def fan(drop_x, y_from, leaves, color, lab, lab_x, lab_y):
     bx0 = min([drop_x] + centers)
     bx1 = max([drop_x] + centers)
     ax.plot([bx0, bx1], [BUS_Y, BUS_Y], color=color, lw=1.6)
+    # FIG-18.1-02: label the bus itself so the N-arrow fan-out cannot read as
+    # invoking every leaf at once.  Centred on the wider half of the bus so it
+    # clears the gate's drop line (measured: 11.4 pt) and sits 2 pt above the
+    # bus, below the branch-label row (3.3 pt clear of 'yes -> specialist').
+    if bus_lab:
+        bcx = ((bx0 + drop_x) if (drop_x - bx0) >= (bx1 - drop_x)
+               else (bx1 + drop_x)) / 2
+        ax.text(bcx, BUS_Y + 2, bus_lab, fontsize=FS-0.2, color=color,
+                ha='center', va='bottom', fontweight='bold', linespacing=1.05)
     # one distinct down-arrow per leaf, all starting BELOW the bus (clean verticals)
     # and ending exactly on the leaf box top edge (R27 P2: the old RES+16 tip
     # left a visible white gap between the arrowhead and the box).
@@ -182,7 +201,8 @@ def label_cx(drop_x, text):
     return drop_x - GAP_LB - width/2
 
 fan(sep, SP-14, spec, '#1e5a3a', 'yes \u2192 specialist',
-    label_cx(sep, 'yes \u2192 specialist'), LB_Y)
+    label_cx(sep, 'yes \u2192 specialist'), LB_Y,
+    bus_lab='specialist family\n(one selected)')
 # The Cost/SLO 'yes' label annotates both Frontier and Small gen; split it to two
 # lines so its widest line fits the gap between the two gate drop lines (a single
 # line is wider than that gap, so it was struck by one of the drop lines).

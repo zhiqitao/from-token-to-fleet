@@ -1,22 +1,21 @@
 \section*{The Architect's Question}\label{the-architects-question}
 
 In large-scale RQA (retrieval-augmented QA) pipelines serving thousands
-of concurrent users, the transition from static LLM calls to agentic
-orchestration raises fundamental trade-offs: increased capability versus
-increased latency, higher per-request token consumption versus better
-answers, and richer multi-step reasoning versus harder-to-debug
-execution paths. This chapter addresses the architect's central
-question: how to design agentic layers that amplify intelligence without
-unsustainably inflating cost and latency.
+of users (tens to \textasciitilde100 concurrent at the canonical 10
+rps), the transition from static LLM calls to agentic orchestration
+raises fundamental trade-offs: increased capability versus increased
+latency, higher per-request token consumption versus better answers, and
+richer multi-step reasoning versus harder-to-debug execution paths. This
+chapter addresses the architect's central question: how to design
+agentic layers that amplify intelligence without unsustainably inflating
+cost and latency.
 
 \textbf{Terminology.} Throughout the book, ``RAG question-answering
 workload'' is the controlled term for retrieval-augmented question
-answering; this chapter uses the narrower abbreviation \textbf{RQA} only
-where the retrieval-augmented search/answer step is meant specifically
-(the retrieval leg + single generation), and always defines it on first
-use. ``RAG'' alone refers to the broader retrieval-augmented-generation
-family. The two are not used interchangeably; \hyperref[tab:19.1]{Table 19-1} and the
-glossary follow this same rule.
+answering; this chapter uses \textbf{RQA} for the retrieval-augmented QA
+workload, single-shot or agentic (the retrieval leg plus one or more
+generation turns), and always defines it on first use; ``RAG'' alone
+refers to the broader retrieval-augmented-generation family.
 
 We begin from the canonical deployment scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}):
 \textasciitilde10 requests/second average and \textasciitilde40
@@ -91,17 +90,26 @@ four recurring states: \textbf{Plan}, \textbf{Execute},
   the user query or whether another cycle is needed.
 \end{enumerate}
 
+Plan and Decide are two evaluations of one model invocation per cycle
+(the Decide verdict is the next cycle's Plan input); the capacity model
+counts one LLM call per turn plus the terminal synthesis call (§4).
+
 This loop is deterministic in structure but data-dependent in length. A
-simple query (``What is the capital of France?'') may terminate after
-one Observe, while a complex RQA request (``Compare the performance of
-Model A on dataset X against Model B on dataset Y, using the last three
-papers from arXiv as evidence'') may traverse three or more cycles.
+simple query (``What is the capital of France?'') may terminate at
+Plan/Decide --- the plan is ``proceed with final answer,'' so no Observe
+round-trip is needed --- while a complex RQA request (``Compare the
+performance of Model A on dataset X against Model B on dataset Y, using
+the last three papers from arXiv as evidence'') may traverse three or
+more cycles.
 
 The critical insight for capacity planning is that each cycle incurs a
-fixed overhead: one LLM inference turn plus any tool-call latency. The
-variable portion is the number of cycles the model chooses. Our mental
-model therefore separates \emph{fixed cost per turn} from \emph{variable
-turn count}, and we will quantify both in the next section.
+fixed overhead: one LLM inference turn plus any tool-call latency --- in
+the simplified execution model this chapter prices; §4 generalizes it to
+an execution trace (a turn may contain zero or more model invocations
+and tool calls). The variable portion is the number of cycles the model
+chooses. Our mental model therefore separates \emph{fixed cost per turn}
+from \emph{variable turn count}, and we will quantify both in the next
+section.
 
 \begin{figure}
 \centering
@@ -122,12 +130,13 @@ find a definitive answer within the allowed reasoning steps.''
 token-amplification curve out to T = 4. The \emph{recommended
 operational} policy --- deployed in the §8 mini-case and used for fleet
 sizing in \hyperref[chap:17]{Chapter 17} --- caps turns at 3, per the §4 guidance and the
-95th-percentile sizing rule; the 2\% of requests that exceed the limit
-fall back to single-shot. \hyperref[tab:19.1]{Table 19-1}'s ``T = 4 (over cap)'' column is
-therefore an \emph{out-of-policy bounding} case, not an in-policy turn
-count.)
+95th-percentile sizing rule (size for the 95th-percentile turn count ---
+§4's illustrative distribution gives p95 T = 3); the 2\% of requests
+that exceed the limit fall back to single-shot. \hyperref[tab:19.1]{Table 19-1}'s ``T = 4
+(over cap)'' column is therefore an \emph{out-of-policy bounding} case,
+not an in-policy turn count.)
 
-\textbf{Turn 0 (initial prompt)}:
+\textbf{Call 1 (initial prompt)}:
 
 \begin{itemize}
 \tightlist
@@ -142,7 +151,7 @@ count.)
   Total tokens after Turn 0: 9,200 + 800 = 10,000
 \end{itemize}
 
-\textbf{Turn 1}:
+\textbf{Call 2}:
 
 \begin{itemize}
 \tightlist
@@ -159,7 +168,7 @@ count.)
   Total tokens after Turn 1: 10,000 + 350 = 10,350
 \end{itemize}
 
-\textbf{Turn 2}:
+\textbf{Call 3}:
 
 \begin{itemize}
 \tightlist
@@ -172,6 +181,9 @@ count.)
 \item
   Conversation ends
 \end{itemize}
+
+This trace is 2 tool round-trips ⇒ T = 2 and 3 model invocations under
+§4's convention.
 
 \textbf{Token accounting}:
 
@@ -217,16 +229,19 @@ production agent turn is \textbf{not} guaranteed to be exactly ``one LLM
 inference + one tool call.'' A turn may contain zero or more model
 invocations, parallel or chained tool calls, retrieval + reranking,
 model-generated reasoning, tool output, context compaction, or cached
-prefixes. Treating ``1 turn = 1 LLM call + 1 tool call'' is a
-\emph{simplified execution model}, useful for first-pass arithmetic but
-not the general agent model. A more faithful capacity model is an
-\textbf{execution trace}: request → model invocation(s) → tool
-invocation(s) → observation(s) → model invocation(s) → final response,
-with its own token and latency totals. The amplification framework below
-(token \emph{α}, latency \emph{β}) is one concrete, simplified
-instantiation of that trace --- it is what an architect can compute
-before instrumenting a real system, and it must be validated against
-measured traces afterwards.
+prefixes.
+
+Treating ``1 turn = 1 LLM call + 1 tool call'' is a \emph{simplified
+execution model}, useful for first-pass arithmetic but not the general
+agent model. A more faithful capacity model is an \textbf{execution
+trace}: request → model invocation(s) → tool invocation(s) →
+observation(s) → model invocation(s) → final response, with its own
+token and latency totals. The amplification framework below (token
+\emph{α}, latency \emph{β}) is one concrete, simplified instantiation of
+that trace --- it is what an architect can compute before instrumenting
+a real system.
+
+It must be validated against measured traces afterwards.
 
 \subsection{Per-agent-turn token
 amplification}\label{per-agent-turn-token-amplification}
@@ -283,17 +298,19 @@ with \texttt{cached}, \texttt{uncached}, and \texttt{billed} token
 quantities recorded separately (a prefix-cache hit means a call's input
 is not re-processed from scratch, so billed/FLOP input differs from
 context-carried input). \textbf{Boundary rule.} A call's \emph{input}
-never contains output tokens, so \texttt{task\_input} must sum per-call
-inputs only --- never the ``Total tokens (incl.~300 output)'' column
-(10,365 / 11,230 / 12,095 / 12,960 are \emph{retained context + final
-output}, i.e.~the α and Ch 17 KV quantities). The event-level ledger
-below derives \texttt{task\_input}, \texttt{task\_output}, peak
-residency, and billed tokens for the T = 3 trace under a stated cache
-policy. Concurrency/queueing and economics follow the call-trace totals,
-not α.
+never contains \emph{its own} output tokens (a later call's input does
+carry earlier calls' outputs and tool results --- which is exactly why Σ
+per-call inputs double-counts carried context and exceeds the retained
+12,095), so \texttt{task\_input} must sum per-call inputs only --- never
+the ``Total tokens (incl.~300 output)'' column (10,365 / 11,230 / 12,095
+/ 12,960 are \emph{retained context + final output}, i.e.~the α and Ch
+17 KV quantities). The event-level ledger below derives
+\texttt{task\_input}, \texttt{task\_output}, peak residency, and billed
+tokens for the T = 3 trace under a stated cache policy.
+Concurrency/queueing and economics follow the call-trace totals, not α.
 
 \textbf{Token-quantity definitions (distinct terms, used consistently).}
-The five quantities below are different and must not be collapsed:
+The six quantities below are different and must not be collapsed:
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -318,12 +335,11 @@ request & 9,200 input + 300 output = 9,500 \\
 output} in a call (final answer + per-turn reasoning γ) & last call 300;
 each reasoning pass \textasciitilde65 \\
 \texttt{retained\_history} & prior turns' context carried into the
-current call's \emph{input} (the grown prefix) & the synthesis call
-carries 12,095 − 300 = 11,795 as its input prefix \\
+current call's \emph{input} (the grown prefix) & call 2 carries 10,065 −
+9,200 = 865 prior-turn tokens (δ₁ + γ₁) in its input prefix \\
 \texttt{current\_input\_length} & the full input of a given call
-(retained history + new retrieval δ + prompt) & synthesis-call input =
-9,200 + 3×(800+65) = 11,795; request total incl.~\(O_\text{final}\) =
-12,095 \\
+(retained history + new retrieval δ + prompt) & call-2 input = 9,200 +
+865 = 10,065; request total incl.~\(O_\text{final}\) = 12,095 \\
 \texttt{task\_input\ /\ task\_output} & Σ over all calls of input /
 output tokens (the execution-trace totals) & uncached task\_input =
 41,990; task\_output = 495 (ledger below) \\
@@ -338,7 +354,7 @@ makes billed input smaller than task\_input \\
 agent turn is one model invocation that emits γ reasoning \emph{and} a
 tool call, the tool returns δ, and a terminal synthesis call reads the
 grown context and emits \(O_\text{final}\) --- so T = 3 agent turns (3
-tool round-trips) is \textbf{4 model invocations}, exactly the §4
+tool round-trips) is \textbf{4 model invocations}, an instance of the §4
 scoping note that ``1 turn = 1 LLM call + 1 tool call'' is a simplified
 execution model. (§3's hand-worked trace is a still simpler illustration
 that counts only tool outputs; the α, \hyperref[tab:19.1]{Table 19-1}, and Ch 17 arithmetic
@@ -391,8 +407,7 @@ Derived totals for that same trace \mbox{{[}DERIVED{]}}:
 \item
   \texttt{task\_input} = 9,200 + 10,065 + 10,930 + 11,795 =
   \textbf{41,990} --- Σ pure per-call inputs; no output token is ever
-  counted as input. (The earlier example crossed the boundary by summing
-  two \emph{incl.-300-output} totals as if they were call inputs.)
+  counted as input.
 \item
   \texttt{task\_output} = 3 × 65 + 300 = \textbf{495} --- exactly Ch 17
   §8's \textasciitilde495 generated tokens at T = 3 (300 final + 3 × 65
@@ -404,16 +419,18 @@ Derived totals for that same trace \mbox{{[}DERIVED{]}}:
   and \hyperref[tab:19.1]{Table 19-1} report, so ledger, amplification, and Ch 17 per-request
   KV are one arithmetic.
 \item
-  \textbf{Billed, no prefix cache} (the §6 append-only bounding policy):
-  41,990 input + 495 output = \textbf{42,485} tokens; the
+  \textbf{Processed (no prefix reuse)} (the §6 append-only bounding
+  policy): 41,990 input + 495 output = \textbf{42,485} tokens; the
   execution-trace multiplier is 42,485 / 9,500 ≈ \textbf{4.47×}, while α
   stays 1.27× --- the gap is the grown prefix being re-read on every
   call, which is precisely what α does \emph{not} measure.
 \item
-  \textbf{Billed, perfect prefix cache}: only each call's newly appended
-  tokens are re-processed, 9,200 + 3 × 865 = \textbf{11,795} input + 495
-  output = \textbf{12,290} tokens. \texttt{cached} / \texttt{uncached} /
-  \texttt{billed} stay recorded separately from context-carried input.
+  \textbf{Processed (100\% prefix reuse)}: only each call's newly
+  appended tokens are re-processed, 9,200 + 3 × 865 = \textbf{11,795}
+  input + 495 output = \textbf{12,290} tokens. \texttt{cached} /
+  \texttt{uncached} / \texttt{billed} stay recorded separately from
+  context-carried input; billed tokens follow the provider's cache rate
+  schedule and lie between the two processed totals.
 \end{itemize}
 
 The δ tokens are \emph{generated once} (as retrieval/tool output), then
@@ -441,40 +458,49 @@ separate:
   the intermediate reasoning the loop generates (the T·γ tokens).
 \item
   \textbf{Agent orchestration / tool-call overhead \emph{L}agent} ---
-  the per-turn cost of the loop \emph{around} the model: the LLM's short
-  decision step to formulate the tool call, plus the tool backend
-  round-trip. On 8×H100 the per-turn agent step averages
-  \textasciitilde120 ms for a 10,000-token context; tool backends
-  (search, SQL) add 50--150 ms depending on data volume. So per-turn
-  orchestration overhead \emph{L}agent ≈ 220 ms (median).
+  the per-turn cost of the loop \emph{around} the model: per-invocation
+  orchestration overhead --- scheduling, KV-slot setup, kernel launch
+  --- excluding model compute, plus the tool backend round-trip. On
+  8×H100 the per-turn agent step averages \textasciitilde120 ms for a
+  10,000-token context; tool backends (search, SQL) add 50--150 ms
+  depending on data volume. So per-turn orchestration overhead
+  \emph{L}agent ≈ 220 ms (median). The 120 ms is orchestration around
+  the model, not model compute: at \textasciitilde25 ms/token it would
+  buy under 5 tokens, while each turn's model work --- prefill of the
+  grown prefix plus the 65-token \emph{γ} decode (\textasciitilde1.6 s)
+  --- is counted in the full service time \emph{W} below, not in
+  \emph{L}agent.
 \end{itemize}
 
 \[
 L_\text{agent} = \lambda_\text{step} + \lambda_\text{tool}
 \]
 
-where \(\lambda_\text{step} \approx 120\) ms (the model's tool-call
-decision step) and \(\lambda_\text{tool} \approx 100\) ms (median, tool
-backend). For \emph{T} turns the \textbf{added} orchestration overhead
-is \(T\cdot L_\text{agent}\) ≈ 220 ms at the median \emph{T} = 1, ≈ 440
-ms at the 90th percentile \emph{T} = 2, and ≈ 660 ms at the
-95th-percentile \emph{T} = 3 (conditional on a completed agent run ---
-the §7/§8 convention; consistent with the §8 turn distribution and the
-§4 turn-distribution note; \emph{T} is capped at 3, and the 2\% fallback
-is a zero-added-turn single-shot \emph{for this incremental expectation}
---- its failed-attempt work is counted unconditionally in the §8
-fallback ledger). These are the \textbf{incremental agent-orchestration}
-numbers, not the full request latency --- see the next section.
+where \(\lambda_\text{step} \approx 120\) ms (per-invocation system
+overhead --- scheduling, KV-cache slot allocation, kernel launch --- not
+model FLOP time; the model's own per-turn work, prefill of the grown
+prefix + decode of \emph{γ}, is carried inside \emph{W}, ≈ 3.0--3.1 s
+marginal per turn) and \(\lambda_\text{tool} \approx 100\) ms (median,
+tool backend). For \emph{T} turns the \textbf{added} orchestration
+overhead is \(T\cdot L_\text{agent}\) ≈ 220 ms at the median \emph{T} =
+1, ≈ 440 ms at the 90th percentile \emph{T} = 2, and ≈ 660 ms at the
+95th-percentile \emph{T} = 3. These percentiles are conditional on a
+completed agent run (the §7/§8 convention; see §8 for the turn
+distribution). \emph{T} is capped at 3; the 2\% fallback adds zero turns
+to this incremental expectation, and its failed-attempt work is counted
+unconditionally in the §8 fallback ledger. These are the
+\textbf{incremental agent-orchestration} numbers, not the full request
+latency --- see the next section.
 
 \subsection{Multi-step reasoning cost}\label{multi-step-reasoning-cost}
 
 The ``cost'' of multi-step reasoning has two facets: token amplification
 (already quantified as \emph{α}) and latency. The \textbf{incremental
-end-to-end latency} --- the base generation plus the added orchestration
+added latency} --- the base generation plus the added orchestration
 overhead --- is:
 
 \[
-L_\text{E2E}(T) = L_\text{base} + T \cdot L_\text{agent}
+L_\text{orch}(T) = L_\text{base} + T \cdot L_\text{agent}
 \]
 
 where \(L_\text{base} \approx 8.6\) s is the canonical full answer
@@ -486,7 +512,7 @@ generation (1.08 s prefill + 7.5 s decode of 300 output tokens) and
 top of a request that already takes \textasciitilde8.6 s to generate its
 answer.
 
-\textbf{Scope note --- two different quantities, separated in \hyperref[tab:19.1]{Table 19-1}.} The \(L_\text{E2E}(T)\) above holds the base generation at the
+\textbf{Scope note --- two different quantities, separated in \hyperref[tab:19.1]{Table 19-1}.} The \(L_\text{orch}(T)\) above holds the base generation at the
 \emph{single-shot} decode (300 output tokens) and adds only the per-turn
 orchestration overhead; it deliberately isolates \emph{how much the
 agentic layer's orchestration adds}. The \textbf{full} agentic service
@@ -501,7 +527,7 @@ grown prefix. The authoritative evaluator
 \textbf{all} calls, not just one:
 
 \[
-W(T) = \underbrace{\sum_{k=0}^{T} T_\text{prefill}\!\left(I_k\right)}_{\text{every invocation's prefill}} + 25\text{ ms/token}\cdot\big(O_\text{final} + T\cdot\gamma\big) + T\cdot\lambda_\text{tool/retr}
+W(T) = \underbrace{\sum_{k=0}^{T} \tau_\text{prefill}\!\left(I_k\right)}_{\text{every invocation's prefill}} + 25\text{ ms/token}\cdot\big(O_\text{final} + T\cdot\gamma\big) + T\cdot\lambda_\text{tool/retr}
 \]
 
 where \(I_k = 9{,}200 + k(800+65)\) for call \(k\). The tool/retrieval
@@ -510,15 +536,21 @@ chapter's own \(T\cdot L_\text{agent}\) (\textasciitilde220 ms/turn) is
 the \emph{orchestration-only} incremental overhead, a different quantity
 (see below). Under the \textbf{no-reuse} policy the T = 3 trace (inputs
 9,200 + 10,065 + 10,930 + 11,795 = \textbf{41,990}) yields a prefill sum
-of \((41{,}990 / 9{,}200)\times 1.08 \approx 4.93\) s, so:
+of \((41{,}990 / 9{,}200)\times 1.08 \approx 4.93\) s (prefill time
+taken as proportional to tokens --- case (i), linear-only, per Ch 22
+\hyperref[tab:22.1]{Table 22-1}; the quadratic attention term adds +17.2\% at 9.2K under case
+(ii) and grows with context, giving
+\(W_\text{no-reuse}(3) \approx 18.68\) s under case (ii) and
+\(\approx 18.19\) s under case (iii) rather than 17.70 s), so:
 
 \[
 W_\text{no-reuse}(3) = 4.93 + 12.375 + 0.399 \approx \mathbf{17.70\text{ s}}
 \]
 
 Under a \textbf{100\% prefix-reuse} policy only the incremental prefix
-(9,200 + 3×865 = 11,795) is pre-filled, giving
-\(W_\text{reuse}(3) \approx 14.16\) s. \textbf{W sums all four prefills;
+(9,200 + 3×800 = 11,600 --- the γ reasoning tokens were generated in the
+prior call, so their KV already exists) is pre-filled, giving
+\(W_\text{reuse}(3) \approx 14.14\) s. \textbf{W sums all four prefills;
 a single-prefill approximation would omit three of them.} The two
 scenarios are distinct lead calculations; the manuscript never
 interpolates informally between them. The other columns, no-reuse:
@@ -534,10 +566,12 @@ fleet size. They are also \textbf{not additive}:
 \(T \cdot L_\text{agent}\) is this chapter's 220 ms/turn orchestration
 budget (\(\lambda_\text{step} + \lambda_\text{tool}\)), whereas W's tool
 leg is \hyperref[chap:17]{Chapter 17}'s \textasciitilde133 ms/turn tool/retrieval-only rate
---- \hyperref[chap:17]{Chapter 17} §8 itself notes that a single model should use one rate
-consistently --- and W already carries the per-turn model work inside
-the γ decode. \hyperref[tab:19.1]{Table 19-1} therefore reports them as two separate rows:
-\emph{Base + orchestration subtotal (Lbase + T·L\_agent)}
+(λ\_tool ≈ 100 ms is this chapter's median tool-backend round-trip,
+50--150 ms; W's 133 ms is Ch 17 §8's mean tool+retrieval rate including
+re-ranking) --- \hyperref[chap:17]{Chapter 17} §8 itself notes that a single model should
+use one rate consistently --- and W already carries the per-turn model
+work inside the γ decode. \hyperref[tab:19.1]{Table 19-1} therefore reports them as two
+separate rows: \emph{Base + orchestration subtotal (Lbase + T·L\_agent)}
 (\textasciitilde8.8 / \textasciitilde9.0 / \textasciitilde9.3 /
 \textasciitilde9.5 s) and \emph{Full agentic service time W (Ch 17 §8)},
 with the no-reuse / reuse columns given separately; the latter match
@@ -592,20 +626,24 @@ trace that the fleet must serve.\footnote{Geiping et al., \emph{Scaling
   2026, \url{https://ornith.ai/ornith_1_5.html}. These primary accounts
   distinguish recurrent internal computation and training trajectories;
   neither establishes the request-time turn count of the book's
-  hypothetical agent. Sources inspected 28 October 2026 as part of the
-  separately dated addendum, not a refresh of the August comparison
+  hypothetical agent; pass@k itself is defined in Chen et al.,
+  \emph{Evaluating Large Language Models Trained on Code},
+  arXiv:2107.03374 (2021). Sources inspected 28 October 2026 as part of
+  the separately dated addendum, not a refresh of the August comparison
   tables.}
 
-Model qualification records the benchmark harness, context policy,
-reasoning effort, sampling settings, and success metric with the model
-revision. A best-of-several-trials result is not interchangeable with
-pass-at-one. Averaging independent single-attempt success indicators can
-estimate pass-at-one only under the declared sampling and task protocol.
-An advertised context window does not establish useful long-context
-quality, target concurrency, or the cost of serving it. The deployment
-decision follows measured task success, invocation traces, and
-SLO-goodput, not a model-family label alone.
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+\textbf{Sidebar --- model qualification (evaluation detail; cf.~the
+book's model-selection chapter).} Model qualification records the
+benchmark harness, context policy, reasoning effort, sampling settings,
+and success metric with the model revision. A best-of-several-trials
+result is not interchangeable with pass-at-one. Averaging independent
+single-attempt success indicators can estimate pass-at-one only under
+the declared sampling and task protocol. An advertised context window
+does not establish useful long-context quality, target concurrency, or
+the cost of serving it. The deployment decision follows measured task
+success, invocation traces, and SLO-goodput, not a model-family label
+alone. §6's p\_success must be measured under the declared qualification
+protocol.
 
 \ntsection{Common Mistakes}\label{common-mistakes}
 
@@ -661,7 +699,7 @@ SLO-goodput, not a model-family label alone.
 \ntsection{Architecture Consequence}\label{architecture-consequence}
 
 
-Introducing an agentic layer reshapes the system architecture in four
+Introducing an agentic layer reshapes the system architecture in seven
 ways:
 
 \textbf{State-management policy sets the trajectory.} Before quantifying
@@ -678,23 +716,25 @@ truncation or compaction is applied. Under that policy the context is
 only ever appended and never evicted, so it is the worst case --- a
 deliberate upper bound, not the deployed design. Two token counts must
 be kept distinct: the \textbf{billable tokens} (what the API charges, =
-the full accumulated context sent each turn) and the \textbf{KV-resident
-tokens} (what occupies the cache, = the same accumulated context under
-this no-reuse policy); with prefix caching enabled the billable count
-can fall while the KV-resident count stays, so the two diverge. The
-durable architectural lesson is that the growth rate is set by the
-policy levers --- summarization (compress the accumulated history each
-turn), truncation (drop the oldest context beyond a budget),
-externalized tool state (store retrieval results out-of-band rather than
-in-context), replay policy (re-derive rather than retain), and cache
-policy (prefix caching, KV precision). A design that applies these
-levers can hold context roughly flat while an append-only design grows
-it \textasciitilde36\% by turn 4; the append-only number is the
-\emph{stress case} that bounds what the system must tolerate if the
-levers fail, not the expected operating point. \hyperref[fig:19.3]{Fig 19.3} then compares
-that bounding case with the compaction and cache-policy levers named
-above and shows that they move different \emph{quantities}, not
-different amounts of the same one.
+Σ over turns of the full accumulated context each turn sends --- 41,990
+input tokens for the T = 3 no-reuse trace of §4, not the single final
+context of 12,095) and the \textbf{KV-resident tokens} (what occupies
+the cache, = the same accumulated context under this no-reuse policy);
+the two differ by the Σ-per-call vs peak-resident distinction even
+without caching; prefix caching additionally lowers the billable count
+while the KV-resident count stays. The durable architectural lesson is
+that the growth rate is set by the policy levers --- summarization
+(compress the accumulated history each turn), truncation (drop the
+oldest context beyond a budget), externalized tool state (store
+retrieval results out-of-band rather than in-context), replay policy
+(re-derive rather than retain), and cache policy (prefix caching, KV
+precision). A design that applies these levers can hold context roughly
+flat while an append-only design grows it \textasciitilde36\% by turn 4;
+the append-only number is the \emph{stress case} that bounds what the
+system must tolerate if the levers fail, not the expected operating
+point. \hyperref[fig:19.3]{Fig 19.3} then compares that bounding case with the compaction and
+cache-policy levers named above and shows that they move different
+\emph{quantities}, not different amounts of the same one.
 
 \textbf{Inference scaling.} The base model (70B FP16, 8×H100) must now
 serve variable-length contexts, and --- critically --- the KV-residency
@@ -709,25 +749,37 @@ top of an already-large KV footprint. At the canonical workload's
 (\(L_{\mathrm{exec}}\) = λ × \(W_{\mathrm{exec}}\) ≈ 10 × 8.6 per Ch 4;
 distinct from the \textasciitilde100 \emph{active-user} population) with
 the median single-turn profile (\textasciitilde27.2 GB/request at 10,365
-tokens), the aggregate KV alone is \textasciitilde86 × 27.2 GB ≈ 2.3 TB
---- far beyond one host's \textasciitilde436 GB KV budget, so
-\textbf{agents do not just stress memory, they force a fleet} (\hyperref[chap:17]{Chapter 17}). The architect must therefore treat context growth as a first-order
-capacity driver: cap \emph{T}, cache prefixes, or quantize KV (FP8), as
-these levers repeatedly outprice adding hosts. Note we must be precise:
-the per-request KV is set by the model's canonical per-token KV (all
-layers), not by per-layer figures; the honest number is tens of GB per
-request, which is exactly why agentic depth is a fleet-sizing problem.
+tokens), using the base-system in-flight count (86 = 10 × 8.6, Ch 4) as
+a lower bound --- the agentic T = 1 service time \emph{W} ≈ 11.52 s
+would raise in-flight to \textasciitilde115 and aggregate KV to
+\textasciitilde3.1 TB --- the aggregate KV alone is already
+\textasciitilde86 × 27.2 GB ≈ 2.3 TB --- far beyond one host's
+\textasciitilde436 GB KV budget, so \textbf{agents do not just stress
+memory, they force a fleet} (\hyperref[chap:17]{Chapter 17}). The architect must therefore
+treat context growth as a first-order capacity driver: cap \emph{T},
+cache prefixes, or quantize KV (FP8), as these levers can repeatedly
+beat adding hosts on price --- each relaxes the KV-capacity ceiling
+without commissioning new hardware (see Ch 25 §8 for the FP8 KV
+arithmetic: 436 GB ÷ 12.45 GB ≈ 35 concurrent vs 17.5 at FP16). Note we
+must be precise: the per-request KV is set by the model's canonical
+per-token KV (all layers), not by per-layer figures; the honest number
+is tens of GB per request, which is exactly why agentic depth is a
+fleet-sizing problem. Agentic traffic is structurally more prefill-heavy
+--- the prefill/decode ratio rises from ≈0.14 single-shot to ≈0.40 at
+T=3 (1 → T+1 = 4 prefills per request) --- so chunked prefill, prefix
+caching and prefill/decode scheduling that were optional for single-shot
+traffic become first-order here (see Chs. 10/15).
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Agent turns: token and KV growth. Per-request tokens and FP16 KV cache climb linearly with agent turns, from 24.9 GB single-shot to 34.0 GB at four turns. Assumption: an append-only bounding case where each column is a counterfactual completion (9,200 input + 300 output + 800 + 65 per turn), status \mbox{{[}DERIVED{]}} from Ch 19 arithmetic. Caveat: a production stack that compacts or prefix-caches can hold this flat.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-19-1902.png}}
-\caption[Agent turns: token and KV growth]{Agent turns: token and KV growth. Per-request tokens and FP16 KV cache climb linearly with agent turns, from 24.9 GB single-shot to 34.0 GB at four turns. Assumption: an append-only bounding case where each column is a counterfactual completion (9,200 input + 300 output + 800 + 65 per turn), status \mbox{{[}DERIVED{]}} from Ch 19 arithmetic. Caveat: a production stack that compacts or prefix-caches can hold this flat.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Agent turns: token and KV growth. Per-request tokens and FP16 KV cache climb linearly with agent turns, from 24.9 GB single-shot to 34.0 GB at four turns. Assumption: an append-only bounding case where each column is a counterfactual completion (9,200 input + 300 output + 800 + 65 per turn), status \mbox{{[}DERIVED{]}} from Ch 19 arithmetic. Caveat: a production stack that compacts can hold this flat; prefix caching reduces recomputation and shares prefix KV but does not by itself reduce the request's own KV-resident context (§6).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-19-1902.pdf}}
+\caption[Agent turns: token and KV growth]{Agent turns: token and KV growth. Per-request tokens and FP16 KV cache climb linearly with agent turns, from 24.9 GB single-shot to 34.0 GB at four turns. Assumption: an append-only bounding case where each column is a counterfactual completion (9,200 input + 300 output + 800 + 65 per turn), status \mbox{{[}DERIVED{]}} from Ch 19 arithmetic. Caveat: a production stack that compacts can hold this flat; prefix caching reduces recomputation and shares prefix KV but does not by itself reduce the request's own KV-resident context (§6).}
 
 \label{fig:19.2}\emph{Why agentic depth is a fleet-sizing problem. Both the token count
 and the FP16 KV cache grow linearly with turns; four turns take a
 request from \textasciitilde24.9 GB to \textasciitilde34.0 GB of KV ---
 a 36\% jump on an already-large footprint, which is exactly why a fleet
-(Ch17), prefix caching, or FP8 KV pay for themselves on agentic
+(Ch 17), prefix caching, or FP8 KV pay for themselves on agentic
 workloads.}
 
 \end{figure}\begin{figure}
@@ -763,7 +815,7 @@ task}, not cost per token:
 
 \[
 \text{cost per successful task} \approx \frac{\begin{aligned}
-&\text{model calls/task} \times \text{tokens/call} \times \$/\text{token} \\
+&\text{model calls/task} \times (\text{input tokens/call} \times \$/\text{in token} + \text{output tokens/call} \times \$/\text{out token} + \text{cached tokens/call} \times \$/\text{cached token}) \\
 &{}+ \text{tool calls/task} \times \$/\text{tool} \\
 &{}+ \text{retries/task} \times \text{cost/retry}
 \end{aligned}}{p_{\text{success}}}
@@ -771,7 +823,7 @@ task}, not cost per token:
 
 where \(p_\text{success} > 0\) is the task success rate and the input
 tokens billed across the task's calls are the execution-trace totals ---
-Σ per-call input + output tokens (41,990 + 495 uncached, §3 ledger) ---
+Σ per-call input + output tokens (41,990 + 495 uncached, §4 ledger) ---
 not the agentic factor \emph{α} from Section 4, which is only the
 retained-context ratio (cumulative-context total vs the single-shot
 equivalent; billed ≈ 4.47× vs α = 1.27×). Two consequences follow.
@@ -800,8 +852,8 @@ overall request latency.
 (turn number, model input tokens, tool call, tool latency, tool output
 tokens, decision). Correlating these tuples across turns for a single
 request, and across requests for the fleet, requires structured logging
-and tracing. Without it, debugging why a request took 2\,s and consumed
-15,000 tokens is nearly impossible.
+and tracing. Without it, debugging why a request took
+\textasciitilde9\,s and consumed 15,000 tokens is nearly impossible.
 
 \textbf{Fallback \& degradation pathways.} Because the agentic layer
 introduces data-dependent depth, the system must have graceful
@@ -818,8 +870,8 @@ and would benefit from targeted research:
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Turn-count distribution shift with model scale.} Do
-  larger-context models (e.g., 405B FP16) exhibit different \emph{T}
+  \textbf{Turn-count distribution shift with model scale.} Do larger
+  models (e.g., a 405B FP16 model) exhibit different \emph{T}
   distributions? Does the ability to ``see more'' reduce the need for
   multi-step loops, or does the model reason more deeply and actually
   increase \emph{T}?
@@ -858,7 +910,8 @@ workers. The baseline single-shot configuration uses a 70B FP16 model on
 8×H100, with 9,200 input tokens and 300 output tokens, at 10 rps average
 / 40 rps peak. The team introduces an agentic layer with a maximum of 3
 turns, using the chapter's per-turn convention (δ≈800 + γ≈65 ≈ 865
-tokens/turn). The guardrail budget caps total input at 13,000 tokens.
+tokens/turn). The guardrail budget caps total input at 13,000 tokens ---
+a safety margin above the append-only worst case (12,660 at T = 4, \hyperref[tab:19.1]{Table 19-1}), so the turn cap binds before the guardrail does.
 
 \textbf{Measurement results.} The scenario's 30-day telemetry shows
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- the same turn distribution §4
@@ -898,7 +951,10 @@ below), the expected input tokens across the distribution are:
   its contribution to this expectation is 2\% × 0 = 0, which the
   weighted sum above keeps. This expectation is over \emph{retained
   context}; the fallback's failed-attempt tokens are counted in the
-  unconditional ledger below.)
+  unconditional ledger below.) These §8 expectation totals (10,350 /
+  10,650 / 1.12×) coincidentally equal the §3 hand-trace totals; one is
+  an expectation over the turn distribution, the other a single trace
+  --- different objects.
 \item
   \textbf{Conditional completed-agent percentiles (explicit label).}
   Added agent-orchestration overhead (per-turn step + tool) is 220
@@ -908,8 +964,8 @@ below), the expected input tokens across the distribution are:
   \textbf{94.9\%} by T ≤ 2) → \textbf{440 ms}; and the
   \textbf{95th-percentile} is T = 3 (conditional cumulative 100\% by T ≤
   3) → \textbf{660 ms} --- \emph{not} T ≈ 4, since the scenario caps
-  turns at 3 and the 2\% fallback is modelled as an immediate
-  single-shot fallback, not a fourth attempted turn. \textbf{Percentile
+  turns at 3 and the 2\% fallback is modeled as an immediate single-shot
+  fallback, not a fourth attempted turn. \textbf{Percentile
   conditioning:} these percentiles are computed over the
   \textbf{non-fallback (completed-turn) request distribution} --- they
   are \emph{conditional on a completed agent run} (98\% of requests;
@@ -972,8 +1028,8 @@ row sits below the completed T = 3 row: 41,990 − 39,395 = 11,795 − 9,200
 \textbf{p95 = 660 ms} (the 93rd--98th percentile band), \textbf{p99 =
 860 ms} (the fallback band --- invisible under the conditional
 convention, whose maximum is 660 ms), mean ≈ \textbf{310 ms} vs ≈ 299 ms
-conditional. \textbf{Cost per submitted request} = 2,392,670 tokens ÷
-100 submitted = \textbf{23,927 tokens}; \textbf{cost per completed
+conditional. \textbf{Tokens per submitted request} = 2,392,670 tokens ÷
+100 submitted = \textbf{23,927 tokens}; \textbf{tokens per completed
 request} = 2,392,670 ÷ 98 completed = \textbf{24,415 tokens}. Two
 different exclusions must not be confused: (i) excluding \emph{only the
 fallback's failed-attempt work} (each fallback's non-answer tokens,
@@ -1007,8 +1063,10 @@ The complete request is the \emph{full agentic service time W} row of
 quantity \hyperref[chap:17]{Chapter 17} sizes the fleet against.
 
 \textbf{Architectural actions.} The team sets the turn limit to 3,
-instruments each turn's token and orchestration latency, and adds a
-context cache for the search tool. With a cache hit rate of 30\% on
+instruments each turn's token and orchestration latency, adds a context
+cache for the search tool, and adds prefix caching (or compaction) for
+the grown prefix --- billed 4.47× → ≈1.29× and W 17.70 s → 14.16 s at
+100\% reuse, KV residency unchanged. With a cache hit rate of 30\% on
 recurring queries, the \emph{newly-fetched} portion of δ drops to
 \textasciitilde560 tokens per turn (70\% of 800; the cached 30\% is not
 re-fetched) --- a 30\% cut in retrieval re-fetch transport.
@@ -1016,7 +1074,7 @@ re-fetched) --- a 30\% cut in retrieval re-fetch transport.
 tokens per turn (cached or not), so absent a concrete context-reduction
 policy this cache yields no LLM-token or KV-resident saving; the
 re-fetch cost and the KV-resident length are distinct (see the
-billable-vs-KV-resident distinction in §19.6). The median added
+billable-vs-KV-resident distinction in §6). The median added
 orchestration overhead is still T = 1 → \textasciitilde220 ms. The claim
 ``meets an SLA of \textless1 s'' must be scoped carefully: the
 \emph{added agent-orchestration} latency is comfortably under 1 s, but
@@ -1044,15 +1102,20 @@ the median T = 1, \textasciitilde220 ms of orchestration latency (on top
 of an \textasciitilde8.6 s base generation), but improved answer
 correctness on multi-step reasoning queries by an estimated 22\% in an
 illustrative human-eval reading \mbox{{[}ILLUSTRATIVE{]}} scenario result, not
-a reported production measurement. The trade-off was acceptable --- the
-\emph{added orchestration overhead} is small relative to the base
-generation --- and context caching cut the retrieval re-fetch cost
-(transport only --- the retained context is unchanged). The architect's
-key decisions were: (a) capping turns at 3, (b) adding a search cache,
-and (c) providing a single-shot fallback when the limit is hit.
-\textbf{Do not quote the \textasciitilde12\% retained-context growth as
-a \textasciitilde12\% compute/cost increase} --- the processed-token
-multiplier is \textasciitilde2.52× in this no-reuse mix.
+a reported production measurement. The trade-off was acceptable on the
+modeled terms --- full service time rises from \textasciitilde8.6 s to
+W(1) ≈ 11.52 s (+34\%) and processed tokens to 2.52×, against an
+estimated +22\% correctness \mbox{{[}ILLUSTRATIVE{]}}; judged on orchestration
+overhead alone (220 ms) it would look far cheaper than it is; the
+verdict is against cost per successful task (§6), not the
+\textasciitilde220 ms orchestration overhead --- and context caching cut
+the retrieval re-fetch cost (transport only --- the retained context is
+unchanged). The architect's key decisions were: (a) capping turns at 3,
+(b) adding a search cache, and (c) providing a single-shot fallback when
+the limit is hit. \textbf{Do not quote the \textasciitilde12\%
+retained-context growth as a \textasciitilde12\% compute/cost increase}
+--- the processed-token multiplier is \textasciitilde2.52× in this
+no-reuse mix.
 
 \Needspace{32\baselineskip}
 
@@ -1087,8 +1150,8 @@ Single-shot
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Input tokens (9,200 + T·800 + T·65) & 10,065 & 10,930 & 11,795 & 12,660
-& 9,200 \\
+Retained-context input, final call (9,200 + T·800 + T·65) & 10,065 &
+10,930 & 11,795 & 12,660 & 9,200 \\
 Total tokens (incl.~300 output) & 10,365 & 11,230 & 12,095 & 12,960 &
 9,500 \\
 Token amplification \emph{α} & 1.09× & 1.18× & 1.27× & 1.36× & 1.00× \\
@@ -1106,12 +1169,12 @@ Base answer generation \emph{L}base & \textasciitilde8.6 s &
 Base + orchestration subtotal (Lbase + T·L\_agent) & \textasciitilde8.8
 s & \textasciitilde9.0 s & \textasciitilde9.3 s & \textasciitilde9.5 s &
 \textasciitilde8.6 s \\
-Full agentic service time \emph{W} (Ch 17 §8), no-reuse &
-\textasciitilde11.52 s & \textasciitilde14.56 s &
+Full agentic service time \emph{W} (Ch 17 §8), no-reuse (case-(i) linear
+prefill) & \textasciitilde11.52 s & \textasciitilde14.56 s &
 \textbf{\textasciitilde17.70 s} & \textasciitilde20.95 s &
 \textasciitilde8.58 s \\
-Full agentic service time \emph{W}, 100\% prefix reuse &
-\textasciitilde10.44 s & \textasciitilde12.30 s &
+Full agentic service time \emph{W}, 100\% prefix reuse (case-(i) linear
+prefill) & \textasciitilde10.44 s & \textasciitilde12.30 s &
 \textbf{\textasciitilde14.16 s} & \textasciitilde16.02 s &
 \textasciitilde8.58 s \\
 KV cache @ 2.62 MB/token & \textasciitilde27.2 GB & \textasciitilde29.4
@@ -1120,8 +1183,12 @@ GB & \textasciitilde31.7 GB & \textasciitilde34.0 GB &
 
 \noalign{\label{tab:19.1}}\end{longtable}
 
-\emph{All token counts use δ=800, γ=65, O=300; orchestration overhead
-uses \(\lambda_\text{step} \approx 120\) ms +
+\emph{Token rows are the final call's input and the retained context
+(the α basis), not Σ per-call inputs --- the execution-trace totals for
+the same T are 19,265 / 30,195 / 41,990 (§4 ledger, §8); see §4 for
+which quantity feeds cost vs KV calculations. All token counts use
+δ=800, γ=65, O=300; orchestration overhead uses
+\(\lambda_\text{step} \approx 120\) ms +
 \(\lambda_\text{tool} \approx 100\) ms per turn; base generation uses
 the canonical \textasciitilde8.6 s (§4). The two latency rows are
 different quantities and must not be added: \textbf{Base + orchestration
@@ -1134,4 +1201,6 @@ no-prefix-cache case) W(3) = (41,990/9,200)×1.08 + 0.025×495 + 3×0.133 ≈
 11,795-token prefix is pre-filled, giving W(3) ≈ \textbf{14.16 s}. Both
 policies are shown; the manuscript never averages between them. \hyperref[chap:17]{Chapter 17} §8 sizes the fleet on the no-reuse (17.70 s) and prefix-reuse (14.16
 s) values at the same T. Canonical-model \mbox{{[}DERIVED{]}} values, not
-measured production figures.}
+measured production figures; the single-shot W column prints
+\textasciitilde8.58 s and the L\_base row \textasciitilde8.6 s for the
+same single-shot quantity --- one value, rounded.}

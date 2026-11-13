@@ -67,7 +67,7 @@ recipes.\footnote{AWQ: activation-aware weight quantization of large
 compare a base-model revision together with its tensor precisions,
 calibration or recovery procedure, export schema and serving backend.
 The quality gate applies to that exported deployment, including its
-tokenizer, prompt template and modal branches. A language-only
+tokenizer, prompt template and modality branches. A language-only
 quantization result does not establish that a vision encoder, projector
 or tool-use workload retains the same behavior. The mechanism and byte
 accounting appear in \hyperref[chap:7]{Chapter 7}; \hyperref[chap:14]{Chapter 14} supplies the acceptance test.
@@ -107,12 +107,14 @@ Model selection is really \textbf{system design, not model picking}. The
 workload is the architect's input; the model is a component that must
 satisfy the workload's constraints. If the workload is input-heavy (9.2K
 average input, 300-token output, \textasciitilde30× more input than
-output), the system is memory‑capacity‑bound (KV residency) and
-prefill‑dominated --- prefill itself sits in the compute‑bound regime
-(Ch 2). If the workload were output‑heavy, it would be
-decode‑bandwidth‑bound. The mental model holds both profiles in view:
-the same ``which model?'' question produces opposite answers depending
-on the token profile.
+output), the system is first-order memory‑capacity‑bound (KV residency
+at the Ch 17 concurrency screen) and prefill‑dominated in FLOPs --- a
+first-order tendency to verify per workload, not a consequence of
+input-heaviness alone. If the workload were output‑heavy, the token/FLOP
+mix shifts toward decode, which often makes decode bandwidth or latency
+critical --- the actual bottleneck must be measured on the target stack.
+The mental model holds both profiles in view: the same ``which model?''
+question produces opposite answers depending on the token profile.
 
 A useful image for the full pipeline:
 
@@ -139,10 +141,6 @@ We walk the two‑model selection for this workload.
 
 \subsection{(a) Embedding‑model selection for the retrieval
 leg}\label{a-embeddingmodel-selection-for-the-retrieval-leg}
-
-KV cache per-token figures are at FP16 (\textasciitilde2.62 MB/token)
-unless an 8-bit (\textasciitilde1.31 MB/token) variant is explicitly
-stated.
 
 The retrieval leg maps chunks of internal documents to dense vectors so
 that a user query can be matched to the most relevant context. The
@@ -186,13 +184,20 @@ Dense-retrieval-optimal, technical docs \\
 
 \emph{FLOPs per embedding = 2 × params × L at a 64-token query (L = 64);
 the value scales linearly with query length, so the model-to-model ratio
-equals the parameter ratio (bge‑large ≈ 3× mpnet). \mbox{{[}DERIVED{]}}}
+equals the parameter ratio (bge‑large ≈ 3× mpnet). Note: 2 × params × L
+treats the token-embedding table as a per-position matmul; it is a
+lookup, so the proxy overstates compute --- most for the smallest model
+(MiniLM's table is \textasciitilde51\% of its params). Body-parameter
+ratios are the truer cross-model comparison (mpnet/MiniLM
+\textasciitilde7.7× body-only vs 4.8× by total params), so the ratios
+above are upper bounds on the true compute ratio. \mbox{{[}DERIVED{]}}}
 
 \mbox{{[}HYPOTHESIS{]}}~: \emph{within a given embedding family or a controlled
 dimensionality experiment}, reducing the embedding dimension may trade
 retrieval quality for lower storage and compute --- e.g.~a 384‑dim
-variant of the same model family can cost roughly half the FLOPs and
-index storage of a 768‑dim one. \textbf{Dimension alone is not a
+variant of the same model family can halve the index storage of a
+768‑dim one (the encoder's compute is essentially unchanged, since only
+the final projection shrinks). \textbf{Dimension alone is not a
 cross‑model quality metric}: a 1024‑dim embedding model is not
 intrinsically better than a 768‑dim one merely because its vector has
 more dimensions; retrieval quality depends on model architecture,
@@ -217,31 +222,40 @@ vanishes.
 \textasciitilde10 rps average, the incremental per‑request compute cost
 of the 768‑dim (all‑mpnet) vs 384‑dim (MiniLM) embedding models --- a
 cross‑model difference, not a dim‑only sweep --- is \textasciitilde11.1
-GFLOP per 64‑token query (2 × params × L: 14.08 − 2.94 GFLOP, Table
-5‑1's own rows; a same‑family 384‑dim variant is the \textasciitilde2×
-case) --- \textasciitilde56--370 ms if encoded on a single CPU core at a
-realistic 30--200 GFLOP/s, but only \textasciitilde1.1 ms on a
-\textasciitilde10 TFLOP/s GPU, which is the basis the \textasciitilde120
-ms retrieval budget already assumes (vector search and reranking on a
-local GPU, Ch 4). On that basis the incremental cost stays well within
-the \textasciitilde120 ms retrieval budget; single‑core encoding is the
-configuration that would not fit. The decision hinges on whether the
-top‑of‑range \textasciitilde15\% MAP gain (reports span a few to
-\textasciitilde15\%, domain‑ and corpus‑specific --- §3) translates into
-sufficient answer‑quality improvement to justify the 2×FLOP cost --- a
-workload‑specific tradeoff, not a universal rule.
+GFLOP per 64‑token query (2 × params × L: 14.08 − 2.94 GFLOP, the §3(a)
+embedding table's own rows; a same‑family 384‑dim variant halves index
+storage (encoder compute \textasciitilde unchanged)) ---
+\textasciitilde56--370 ms if encoded on a single CPU core at a realistic
+30--200 GFLOP/s, but only \textasciitilde1.1 ms on a \textasciitilde10
+TFLOP/s GPU, which is the basis the \textasciitilde120 ms retrieval
+budget already assumes (vector search and reranking on a local GPU, Ch
+4). On that basis the incremental cost stays well within the
+\textasciitilde120 ms retrieval budget; single‑core encoding fits only
+at the high end of that throughput range (55.5 ms at 200 GFLOP/s vs 370
+ms at 30 GFLOP/s) --- conditional on measured single-core throughput.
+The decision hinges on whether the top‑of‑range \textasciitilde15\% MAP
+gain (an unverified prior of a few to \textasciitilde15\% MAP
+\mbox{{[}HYPOTHESIS{]}}, domain‑ and corpus‑specific --- §5.3) translates into
+sufficient answer‑quality improvement to justify the
+\textasciitilde4.8×FLOP cost (14.08 vs 2.94 GFLOP per 64‑token query,
+Table 5‑1) --- a workload‑specific tradeoff, not a universal rule.
 
 \textbf{Takeaway for the canonical RAG workload:} 768‑dim
-(all‑mpnet‑base‑v2) is the recommended embedding model. It places the
-workload in the quality‑positive regime without introducing per‑request
-latency that threatens the TTFT SLO. The 384‑dim option is viable only
-if storage or compute budget is extremely constrained; the bge‑large‑en
-option is overkill for this scale: its quality gain over
-all‑mpnet‑base‑v2 is not quantified for this model pair (the table gives
-use cases, not metrics), and an unquantified gain would have to clear a
-\textasciitilde3× FLOP bar (≈43 vs ≈14 GFLOPs per 64‑token embedding in
-the table above, the same ratio as their parameter counts) --- validate
-the gain on the target corpus before paying it..
+(all‑mpnet‑base‑v2) is the recommended embedding model. On the compute
+and storage analysis it is the quality‑favouring point of the three
+candidates; the quality claim itself is the §3(a)/§7 item still to
+validate on the target corpus, and it introduces no per‑request latency
+that threatens the TTFT SLO. The \textasciitilde15\% MAP gain behind
+this recommendation is likewise not quantified for this model pair ---
+the same test applied to bge‑large applies here: validate it on the
+target corpus. The 384‑dim option is viable only if storage or compute
+budget is extremely constrained; the bge‑large‑en option is overkill for
+this scale: its quality gain over all‑mpnet‑base‑v2 is not quantified
+for this model pair (the table gives use cases, not metrics), and an
+unquantified gain would have to clear a \textasciitilde3× FLOP bar (≈43
+vs ≈14 GFLOPs per 64‑token embedding in the table above, the same ratio
+as their parameter counts) --- validate the gain on the target corpus
+before paying it.
 
 \Needspace{250pt}
 
@@ -265,36 +279,44 @@ derivation
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-Embedding dimension (recommended) & 768 & all‑mpnet‑base‑v2
-\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} \\
-Embedding model size & \textasciitilde110M parameters &
+Embedding dimension (of the recommended candidate) & 768 &
 all‑mpnet‑base‑v2 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} \\
+Embedding model size (of the recommended candidate) &
+\textasciitilde110M parameters & all‑mpnet‑base‑v2 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} \\
 Per-request context/KV cost at 9.2K input & \textasciitilde24.1 GB (FP16
 KV cache, initial) & 70B FP16, 80 layers, 9.2K context \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Tokens per dollar (generation, runtime) & 9,000 tokens per dollar & 50
 tok/s × 3600 s/hr ÷ \$20/hr \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+Selection status & recommended, pending target-corpus validation &
+\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Verdict & Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16
-on 8×H100 & Selection surfaces (§5.1) \\
+on 8×H100 & Selection surfaces (§5.1) \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 
 \noalign{\label{tab:5.1}}\end{longtable}
 
 \subsection{(b) Generation‑model selection for the answer
 leg}\label{b-generationmodel-selection-for-the-answer-leg}
 
+KV cache per-token figures are at FP16 (\textasciitilde2.62 MB/token)
+unless an 8-bit (\textasciitilde1.31 MB/token) variant is explicitly
+stated.
+
 The generation leg produces the 300-token answer given the 9.2K
 retrieved context. The architect must decide whether a base 70B‑class
 dense model, a smaller dense model, or a fine‑tuned variant best
 satisfies the latency, quality, and economic constraints.
 
-\subsubsection{Real‑derived arithmetic for the 70B
-candidate}\label{realderived-arithmetic-for-the-70b-candidate}
+\subsubsection{Derived arithmetic for the 70B candidate (constructed
+teaching
+geometry)}\label{derived-arithmetic-for-the-70b-candidate-constructed-teaching-geometry}
 
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}: a 70B-class parameter model at
 FP16 occupies 70B × 2 bytes = \textasciitilde140 GB (the 70B is the
 constructed canonical teaching geometry, Ch 4 \hyperref[tab:4.2]{Table 4-2}; the 140 GB is
 derived from it, not a vendor-published model card). \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}:
-8×H100 GPUs provide 8 ×80 GB = 640 GB aggregate HBM memory (real
+8×H100 GPUs provide 8 × 80 GB = 640 GB aggregate HBM memory (real
 hardware spec).
 
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} KV cache cost per token at FP16:
@@ -307,28 +329,31 @@ MiB) (key + value across all layers). For the canonical 9.2K input:
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} per‑request memory budget: 640 GB
 total HBM − 140 GB weights = 500 GB headroom (before the
 \textasciitilde64 GB runtime reserve that the concurrency budget in Ch.
-7 subtracts to reach the \textasciitilde436 GB KV budget). The 24.1 GB
-KV cache for 9.2K input consumes \textasciitilde4.8\% of headroom,
-leaving \textasciitilde475.9 GB for activations, intermediate buffers,
-and OS overhead. This is comfortably within a single 8×H100 node's
-capacity.
+7 subtracts to reach the \textasciitilde436 GB KV budget). 24.1 GB is
+\textasciitilde5.5\% of the \textasciitilde436 GB KV budget, leaving
+\textasciitilde411.9 GB for other requests' KV; the \textasciitilde64 GB
+runtime reserve covers activations, intermediate buffers and OS
+overhead. This is comfortably within a single 8×H100 node's capacity.
 
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}: vLLM continuous batching on 8×H100
-with a 70B FP16 model and 9.2K context yields \textasciitilde50 tokens/s
-aggregate throughput for 300‑token outputs. The prefill phase (9.2K
-tokens) dominates TTFT: at \textasciitilde1.08 s it leaves
-\textasciitilde0.12 s of headroom against the 1.2 s budget \emph{for
-prefill alone}. Adding retrieval (\textasciitilde120 ms) puts the full
-TTFT (retrieval + prefill) at \textasciitilde1.20 s, i.e.~at the 1.2 s
-SLO line with no prefill-side margin; the real margin is the p95 ≤ 2 s
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}: a low-batch (single-stream) decode
+rate of \textasciitilde50 tokens/s on 8×H100 with a 70B FP16 model and
+9.2K context for 300‑token outputs. The prefill phase (9.2K tokens)
+dominates TTFT: at \textasciitilde1.08 s it leaves \textasciitilde0.12 s
+against the 1.2 s budget --- exactly the \textasciitilde120 ms retrieval
+allocation, i.e.~zero true headroom. Adding retrieval
+(\textasciitilde120 ms) puts the retrieval+prefill budget estimate
+(queueing, tokenization, network transit, scheduling and first-token
+sampling scoped out) at \textasciitilde1.20 s, i.e.~at the 1.2 s design
+budget with no prefill-side margin; the real margin is the p95 ≤ 2 s
 target.
 
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}: tokens/s per dollar for generation.
 On‑demand H100 list price \textasciitilde\$2.50/hour per GPU → 8×H100 =
 \$20/hour. At \textasciitilde50 tok/s aggregate throughput, the
 effective cost is \textasciitilde0.40 \$/tok/s, or equivalently
-\textasciitilde2.5 tokens/s per dollar. In tokens‑per‑dollar terms: 50
-tok/s × 3600 s/hr ÷ \$20/hr = 9,000 tokens per dollar.
+\textasciitilde2.5 (tok/s) per dollar-per-hour of budget. In
+tokens‑per‑dollar terms: 50 tok/s × 3600 s/hr ÷ \$20/hr = 9,000 tokens
+per dollar.
 
 \begin{quote}
 \textbf{Economics unit note (reconciliation with Ch. 4 and Ch. 15).}
@@ -367,24 +392,29 @@ included. (Mixed-input convention: when a derivation mixes a canonical
 price with an illustrative rate, the result carries the non-canonical
 provenance --- here the 50 tok/s rate input is
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} while the \$20/hr price is
-canonical.) The same 9,000 tokens-per-dollar figure is a combined
-prefill+decode metric. Because this workload is input‑heavy (9.2K input
-vs 300 output tokens), the prefill leg consumes
-\textbf{\textasciitilde97\% of the tokens} per request (9,200 ÷ 9,500)
---- and, because each prefill token runs the full \(2\times70B\) forward
-FLOP, it is also \textbf{\textasciitilde97\% of the linear forward-FLOP
-cost} (before the quadratic attention term). But it is only
-\textbf{\textasciitilde13\% of the wall-clock time} (1.08 s prefill vs
-7.5 s decode), because prefill is compute‑intensive yet batchable across
-concurrent requests, while decode is a sequentially‑limited
-token-by-token stream. So the honest picture is \emph{both}: prefill
-dominates the compute/FLOP budget (and hence the GPU-hour cost of
-running the pipeline), and decode dominates the wall-clock latency
-budget (and hence per‑request service time). The per‑dollar economics
-therefore favor models that reduce the \emph{prefill compute} burden
-(smaller context, larger batch, lower per‑token FLOP) more than models
-that optimize decode throughput alone --- but a deployment must balance
-both, since decode still sets the latency SLO.
+canonical.) The 9,000 tokens-per-dollar figure is an output-token metric
+(50 output tok/s × 3600 ÷
+\(20); on a combined prefill+decode basis the same host moves 50 × (1 + 9,200/300) ≈ 1,583 tok/s ≈ 285,000 tokens/\).
+Because this workload is input‑heavy (9.2K input vs 300 output tokens),
+the prefill leg consumes \textbf{\textasciitilde97\% of the tokens} per
+request (9,200 ÷ 9,500) --- and, because each prefill token runs the
+full \(2\times70B\) forward FLOP, it is also \textbf{\textasciitilde97\%
+of the linear forward-FLOP cost} (before the quadratic attention term).
+But it is only \textbf{\textasciitilde15\% of the wall-clock time} (1.08
+s prefill vs 6.0 s decode), because prefill is compute‑intensive and
+batchable across concurrent requests; decode has a per-request
+sequential dependency but is also batched across requests (continuous
+batching) --- batching raises GPU utilization without removing per-token
+latency. So the honest picture is \emph{both}: prefill dominates the
+linear FLOP budget (\textasciitilde97\% of tokens and linear FLOPs)
+while decode dominates single-stream wall-clock (\textasciitilde85\% of
+1.08 s + 6.0 s); GPU-hour cost follows occupancy, batching and
+scheduling --- it is not proportional to either share without a stated
+utilization assumption. The per‑dollar economics therefore favor models
+that reduce the \emph{prefill compute} burden (smaller context, larger
+batch, lower per‑token FLOP) more than models that optimize decode
+throughput alone --- but a deployment must balance both, since decode
+still sets the latency SLO.
 
 \subsection{(c) Base‑model + RAG + guardrails vs fine‑tuned
 model}\label{c-basemodel-rag-guardrails-vs-finetuned-model}
@@ -451,42 +481,48 @@ advantage, crosses the RAG baseline:
 Q^*\; =\; \frac{C_\text{train} + C_\text{weights-extra}}{\Delta Q \cdot \text{value per corrected query}}
 \]
 
-where \(C_\text{train}\) is the one‑time training compute,
-\(C_\text{weights-extra}\) is the incremental storage/carry cost, and
-\(\Delta Q\) is the (domain‑specific, must‑be‑measured) quality uplift
-in corrected answers per query, while \emph{value per corrected query}
-is the monetary value of one additional corrected answer, in the same
-currency as \(C_\text{train}\). Below \(Q^*\), RAG + guardrails is
-economically dominant because the fine‑tuning cost is spread over too
-few queries to be repaid; above it, fine‑tuning may recover its upfront
-cost through quality gain. (Scenario structure, not a single claimed
-break‑even volume; the exact \(C_\text{train}\),
-\(C_\text{weights-extra}\), and \(\Delta Q\) are workload‑ and
-domain‑specific and should be measured, not assumed.)
+where \(C_\text{train}\) is the one‑time training cost (monetary,
+compute included), \(C_\text{weights-extra}\) is the incremental
+storage/carry cost, and \(\Delta Q\) is the (domain‑specific,
+must‑be‑measured) quality uplift in corrected answers per query, while
+\emph{value per corrected query} is the monetary value of one additional
+corrected answer, in the same currency as \(C_\text{train}\). Below
+\(Q^*\), RAG + guardrails is economically dominant because the
+fine‑tuning cost is spread over too few queries to be repaid; above it,
+fine‑tuning may recover its upfront cost through quality gain. (Scenario
+structure, not a single claimed break‑even volume; the exact
+\(C_\text{train}\), \(C_\text{weights-extra}\), and \(\Delta Q\) are
+workload‑ and domain‑specific and should be measured, not assumed.)
+(Scope: this \(Q^*\) amortizes only the one‑time training + carry cost
+against the quality uplift; it omits the recurring per‑query
+prefill/retrieval saving that fine‑tuning's shorter context (§5.3(c))
+would confer, so it is a lower bound on the fine‑tuning case and
+overstates the break‑even volume.)
 
 Fine‑tuning does \textbf{not} make the model smaller --- pruning is a
 separate operation. A full fine‑tune keeps the \textasciitilde140 GB 70B
 weight set (and adds a checkpoint), while a LoRA adapter is tiny but
 does not change the live weight footprint. Consequently the latency
 effect of fine‑tuning is not ``smaller effective model'' and cannot be
-assumed to cut TTFT; any TTFT change must be measured. The real cost
-changes are: (a) one‑time training compute, and (b) incremental storage,
-both against the RAG pipeline's prefill cost (\textasciitilde1.08 s,
-which dominates any plausible TTFT delta). Parametrically, fine‑tuning
-becomes worth it only when its total (one-time training + storage/carry)
-cost spread over \(Q\) queries is repaid by
-\(\Delta Q \cdot \text{value}\) --- this is exactly the \(Q^*\) above.
-The illustrative cloud‑GPU training cost is presented as a scenario
-range, not a fact, and must be benchmark‑validated against a target
-workload.
+assumed to cut TTFT; any TTFT change must be measured. The monetary
+deltas are (a) one-time training cost and (b) incremental storage;
+separately, the latency effect on TTFT must be measured --- the RAG
+pipeline's \textasciitilde1.08 s prefill dominates any plausible TTFT
+delta. Parametrically, fine‑tuning becomes worth it only when its total
+(one-time training + storage/carry) cost spread over \(Q\) queries is
+repaid by \(\Delta Q \cdot \text{value}\) --- this is exactly the
+\(Q^*\) above.
 
 \textbf{Takeaway:} For the canonical enterprise Q\&A RAG workload, the
-base‑model + RAG + guardrails paradigm is the economically preferred
-choice under this chapter's stated assumptions --- the break-even ΔQ/Q
-of §3(c) is parametric here, not measured for this workload. Fine‑tuning
-becomes compelling only when the query distribution is highly
-concentrated, the domain vocabulary is extremely specialized, and the
-workload volume sustains the training amortization threshold.
+base‑model + RAG + guardrails paradigm is the default under this
+chapter's stated assumptions --- the break-even is parametric (Q* of
+§3(c)) and not measured for this workload, so `economically preferred'
+is conditional on lying below Q*. Fine‑tuning is most compelling when
+the query distribution is highly concentrated, the domain vocabulary is
+extremely specialized, and the workload volume sustains the training
+amortization threshold. Style, format and tool-use-policy tuning can be
+compelling even without a concentrated distribution or specialized
+vocabulary.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -586,9 +622,11 @@ the intended serving SLO.\footnote{Inspected first-party engine sources
   operational overhead (e.g.~a LoRA adapter applied dynamically at serve
   time can introduce overhead, whereas a merged/fully‑fine‑tuned model
   of identical architecture need not change the inference shape). The
-  break‑even analysis (the parametric \(Q^*\) in §5.3) shows that for
-  most enterprise RAG workloads, the RAG + guardrails paradigm dominates
-  on TCO. Fine‑tuning should be a deliberate choice triggered by a
+  parametric \(Q^*\) in §5.3 shows how to decide --- RAG + guardrails
+  dominates below the break‑even volume and fine‑tuning may dominate
+  above it --- but the break‑even is workload‑ and domain‑specific and
+  must be measured before either paradigm is declared dominant for most
+  workloads. Fine‑tuning should be a deliberate choice triggered by a
   sustained query volume, not a default.
 \end{itemize}
 
@@ -669,12 +707,13 @@ the architect can immediately check the consequences:
 \begin{itemize}
 \tightlist
 \item
-  \textbf{768‑dim embeddings} give adequate retrieval quality at
-  \textasciitilde14 GFLOPs per embedding (64‑token query, Table 5‑1's
-  own row: 2 × 110M × 64 ≈ 14.08 GFLOP), with \textasciitilde3.1 GB
-  index storage for a 1 M‑chunk corpus (vs \textasciitilde1.5 GB at
-  384‑dim) --- a persistent footprint that scales with corpus size,
-  alongside the 70B base model.
+  \textbf{768‑dim embeddings} are the agreed candidate; their retrieval
+  quality is the gate still to validate on the target corpus (§3(a),
+  §7), and their cost is \textasciitilde14 GFLOPs per embedding
+  (64‑token query, the §3(a) embedding table's own row: 2 × 110M × 64 ≈
+  14.08 GFLOP), with \textasciitilde3.1 GB index storage for a 1 M‑chunk
+  corpus (vs \textasciitilde1.5 GB at 384‑dim) --- a persistent
+  footprint that scales with corpus size, alongside the 70B base model.
 \item
   \textbf{9.2K input} at \textasciitilde2.62 MB/KV‑token costs
   \textasciitilde24.1 GB of cache (initial) on the 70B generation model,

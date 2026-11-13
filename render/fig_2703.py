@@ -29,7 +29,13 @@ ax.set_xlim(0, 12); ax.axis('off')
 
 # Legend (three clearly separated rows at the top)
 legend = [
-    ('Efficiency-led (dashed) \u2014 context / cost / capacity; darker shade = MoE transition ~2022', colors['eff'], '--', 1.2),
+    # R4 MISC (FIG-A.2-03): the base 'Transformer ~2017' band is drawn in this
+    # same brown dashed family, so labelling the entry 'Efficiency-led' styled
+    # the origin of the stack under a category it does not belong to.  The
+    # entry now names the whole architecture family the brown dashed bands
+    # cover (foundation, efficiency, MoE); the darker-shade MoE clause stays,
+    # trimmed ('MoE ~2022') so the line still ends inside the 6.1in column.
+    ('Model architecture (dashed) \u2014 foundation, efficiency, MoE; darker shade = MoE ~2022', colors['eff'], '--', 1.2),
     ('Capability-led (solid) \u2014 reasoning / test-time / agentic', colors['cap'], '-', 1.2),
     ('Fleet (thick) \u2014 multi-model "intelligence placement"', colors['fleet'], '-', 2.4),
 ]

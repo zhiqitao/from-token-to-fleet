@@ -1,0 +1,1 @@
+CH1-02 | P3 | design/manuscript/chapter-01/chapter-01.md §5 Common Mistakes, first bullet (line 106) | changed "routinely run 2–5×" to "can run 2–5× (rule of thumb; the multiplier is tokenizer- and language-specific)" | FIXED

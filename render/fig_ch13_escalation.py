@@ -67,14 +67,14 @@ for y in tier_y:
 # ESCALATION TRIGGERS — LARGE, dominant, red; "what forces the next".
 # ---------------------------------------------------------------------------
 triggers = [
-    (3.35, 'KV residency > cap\n\u2192 forces scale-up'),
-    (6.05, 'goodput < demand\n\u2192 forces scale-up'),
-    (8.75, 'demand > ceiling\n\u2192 forces scale-up'),
+    (3.35, 'Single GPU:\nKV residency > cap\n\u2191 Single host'),
+    (6.05, 'Single host:\ngoodput < demand\n\u2191 Multi-host'),
+    (8.75, 'Multi-host:\ndemand > ceiling\n\u2191 Cluster / fleet'),
 ]
 # placed in the clear band between the tier cards (x<2.7) and the red shaft (x>6.1);
 # kept left of the shaft so the dark-red text never sits on the red arrow (contrast).
 for y, label in triggers:
-    ax.text(2.85, y, label, ha='left', va='center',
+    ax.text(2.95, y, label, ha='left', va='center',
             fontsize=9.5, fontweight='bold', color='#a01515', linespacing=1.3)
 
 # ---------------------------------------------------------------------------
@@ -82,8 +82,11 @@ for y, label in triggers:
 # ---------------------------------------------------------------------------
 ax.annotate('', xy=(9.5, 0.95), xytext=(9.5, 10.1), arrowprops=dict(
     arrowstyle='-|>', lw=1.6, color='#1a6fa8', ls='--', shrinkA=0, shrinkB=0))
-ax.text(8.0, 5.3, 'DE-ESCALATE:\nprivacy \u00b7 sovereignty \u00b7 cost', ha='center', va='center',
-        fontsize=8.0, color='#1a6fa8', fontweight='bold', linespacing=1.3)
+# label sits ABOVE the dashed arrow's head so it clears the red escalation
+# shaft entirely (it used to straddle the shaft at x=8.0); stacked short lines
+# keep it narrow, fs/weight now match the bold trigger annotations.
+ax.text(8.72, 11.02, 'DE-ESCALATE:\nprivacy \u00b7\nsovereignty \u00b7\ncost', ha='center', va='center',
+        fontsize=9.5, color='#1a6fa8', fontweight='bold', linespacing=1.2)
 
 # ---------------------------------------------------------------------------
 # Headings

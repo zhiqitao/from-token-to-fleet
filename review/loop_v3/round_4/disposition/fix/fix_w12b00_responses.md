@@ -1,0 +1,2 @@
+APP-A-013 | P3 | design/manuscript/chapter-27/chapter-27.md line 87 (GLM-5.3-Flash Decisive fact) | '3.0× less attention compute' -> '3.0× lower attention compute'; optional parallel change '4.4× smaller KV cache' -> '4.4× lower KV cache' | APPLIED
+APP-A-015 | P3 | design/manuscript/chapter-27/chapter-27.md line 18 (four-family list item 2, Kimi K3) | 'stable-LatentMoE' -> 'Stable LatentMoE' (matches §2 spelling) | APPLIED

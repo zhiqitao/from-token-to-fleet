@@ -16,8 +16,12 @@ INK='#1A1A1A'; BLUE='#27408B'; ORANGE='#E67E22'
 class Drawing:
  def __init__(self,name,height):
   self.name=name; self.h=height; self.parts=[]; self.texts=[]; self.segments=[]; self.n=0
- def box(self,x,y,w,h,stroke=INK,fill='#FFFFFF',dash=False):
-  self.parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="5" fill="{fill}" stroke="{stroke}" stroke-width="1.5"'+(' stroke-dasharray="5 4"' if dash else '')+'/>')
+ def box(self,x,y,w,h,stroke=INK,fill='#FFFFFF',dash=False,sw=1.5,double=False):
+  self.parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="5" fill="{fill}" stroke="{stroke}" stroke-width="{sw}"'+(' stroke-dasharray="5 4"' if dash else '')+'/>')
+  if double:
+   # Inner rule = double border marking the FINAL result, not an input. Carried
+   # by stroke weight (and the extra ring), so the distinction survives grayscale.
+   self.parts.append(f'<rect x="{x+3.5}" y="{y+3.5}" width="{w-7}" height="{h-7}" rx="3.5" fill="none" stroke="{stroke}" stroke-width="1"/>')
  def text(self,x,y,s,size=14,bold=False,anchor='middle'):
   self.n+=1; id=f't{self.n}'
   self.texts.append({'id':id,'text':s,'size':size})
@@ -95,8 +99,8 @@ v.box(105,373,400,86,ORANGE,'#FFF5EB');v.text(305,397,'VAE decode',16,True)
 v.text(305,420,'VAE stride (T, H, W) = (4, 16, 16)',13)
 v.text(305,443,'Aligned endpoint: 1 + 4 × (31 − 1) = 121 frames',13)
 v.arrow([(305,459),(305,490)])
-v.box(153,490,304,44,BLUE,'#F1F4FA');v.text(305,517,'121 frames · 1280 × 704 · 24 fps',14)
-v.text(305,562,'Solid: data/state flow. Dashed: denoiser conditioning.',13)
+v.box(153,490,304,44,BLUE,'#F1F4FA',sw=2.5,double=True);v.text(305,517,'121 frames · 704 (H) × 1280 (W) · 24 fps',14)
+v.text(305,562,'Solid: data/state flow. Dashed: denoiser conditioning. Blue: data/state. Orange: compute.',13)
 v.text(305,582,'Token partitioning adds communication between devices.',13)
 cap1='Figure V1 — Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T_l=(F−1)//4+1, H_l=H//16 and W_l=W//16. For aligned F=4k+1, F=1+4(T_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. [1P][FACT] geometry and loop; [1P][DERIVED] aligned inverse and token count. Schematic, not a latency or peak-memory measurement.'
 alt1='Prompt encoding, labeled at most 512 prompt tokens, and optional reference-image VAE encoding condition a whole-clip denoising block. Initial FP32 latent noise enters from the right. The feedback loop is labeled denoising / scheduler iteration. The VAE stride is temporal 4 and spatial 16 by 16. The aligned endpoint formula 1+4 times (31 minus 1) gives 121 output frames at 1280 by 704 pixels and 24 frames per second. Solid data/state arrows and dashed conditioning arrows are distinct without color.'
@@ -110,7 +114,7 @@ v.box(40,86,242,48,BLUE);v.text(161,115,'High-noise expert checkpoint',14)
 v.box(328,86,242,48,BLUE);v.text(449,115,'Low-noise expert checkpoint',14)
 v.arrow([(161,134),(161,225)],True,BLUE)
 v.arrow([(449,134),(449,225)],True,BLUE)
-v.text(305,175,'Denoising schedule progresses →',13)
+v.text(305,175,'Denoising schedule progresses',13)
 v.text(305,198,'Not two experts within one forward',13)
 v.box(40,225,242,54,ORANGE,'#FFF5EB');v.text(161,247,'High-noise stage',15,True);v.text(161,269,'Only high-noise expert runs',13)
 v.box(328,225,242,54,ORANGE,'#FFF5EB');v.text(449,247,'Low-noise stage',15,True);v.text(449,269,'Only low-noise expert runs',13)

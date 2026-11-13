@@ -1,0 +1,6 @@
+CH8-01 | P2 | design/manuscript/chapter-08/chapter-08.md:183 | Replaced unconditional "compute requirement is the primary constraint" with ridge-based phrasing + per-case binding constraint (KV binds cases (i)/(iii), compute case (ii)) | FIXED
+CH8-03 | P2 | design/manuscript/chapter-08/chapter-08.md:231 | Added operating-point qualifiers and intensity figures to the prefill/decode Common Mistakes bullet | FIXED
+CH8-04 | P3 | design/manuscript/chapter-08/chapter-08.md:223 | Labeled GB200 as superchip (2 GPUs), decomposed 16 TB/s = 2×8 TB/s per GPU, noted granularity-invariance and per-GPU factors 2.28×/2.39× | FIXED
+CH8-06 | P3 | design/manuscript/chapter-08/chapter-08.md:203 | Renamed batch symbol B to b in (140·b)/(140+24·b) with unit-explicit expansion, avoiding collision with Ch 7's B = bytes-per-value | FIXED
+CH8-09 | P3 | design/manuscript/chapter-08/chapter-08.md:179 | Capacity-floor enumeration now reads "21 hosts under case (i) and case (iii), 22 under case (ii)" | FIXED
+CH8-OUTLINE-01 | P3 | design/manuscript/chapter-08/chapter-08.md:51 | Outline sentence now includes "§7 to open questions" between §6 and §8 | FIXED

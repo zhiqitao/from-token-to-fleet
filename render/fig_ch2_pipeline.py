@@ -9,9 +9,11 @@ idea, REMOVE information rather than enlarge the composition.
 
 This revision keeps ONLY:
   * three band titles  : PREFILL / PERSISTENT KV CACHE / DECODE
-  * one-line box labels : prompt, token + position, transformer, logits +
-                          sampling, first token   (prefill)
-                          previous token, ... , next token  (decode)
+  * box labels (two lines where the granularity cue needs them):
+      prefill : prompt, tokens + positions (all in parallel), transformer,
+                logits + sampling, first token
+      decode  : previous token, token + position (one per step), transformer,
+                logits + sampling, next token
   * one-line transition labels : populate, read, initialize, loop
 
 Geometry carries the meaning:
@@ -74,7 +76,8 @@ def tw(s, fs=FS):
 
 
 def bw(n):
-    return max(tw(n, FS) + PAD, 44)
+    # multi-line box labels: width = widest line (TextPath cannot take '\n')
+    return max(max(tw(line, FS) + PAD for line in n.split('\n')), 44)
 
 
 # ---------------- shared columns (solved to fit the 6.1in column) ---------
@@ -82,7 +85,9 @@ def bw(n):
 # (decode's 'previous token') lands flush at LM; the token-output centre X_O is
 # derived so boxes never overlap and the right margin stays clear for green.
 wT   = bw('transformer')
-wTP  = bw('token + position')
+PF_TP = 'tokens + positions\n(all in parallel)'   # FIG-2.1-C: prefill = all tokens at once
+DC_TP = 'token + position\n(one per step)'        # FIG-2.1-C: decode = one token per step
+wTP  = bw(DC_TP)
 wIn  = max(bw('prompt'), bw('previous token'))
 wLog = bw('logits + sampling')
 wTok = max(bw('first token'), bw('next token'))
@@ -169,10 +174,10 @@ def layout_row(names, cy, fills):
 # ==================== PREFILL ====================
 band(LM, pf_bot, X_BANDR, pf_top)
 label(LM + 2, pf_title, 'PREFILL', '#333333', FST, weight='bold', ha='left')
-pf_names = ['prompt', 'token + position', 'transformer',
+pf_names = ['prompt', PF_TP, 'transformer',
             'logits + sampling', 'first token']
 pf = layout_row(pf_names, pf_rail, [C_BOX, C_BOX, C_TRANS, C_BOX, C_TOK])
-for a, b in [('prompt', 'token + position'), ('token + position', 'transformer'),
+for a, b in [('prompt', PF_TP), (PF_TP, 'transformer'),
              ('transformer', 'logits + sampling'),
              ('logits + sampling', 'first token')]:
     arrow(pf[a][1] + 2, pf_rail, pf[b][0] - 2, pf_rail, C_AR, 1.2)
@@ -192,7 +197,7 @@ ax.text(X_T - 12, _py, 'populate', color='#333333', fontsize=FSN,
 
 # ==================== DECODE ====================
 band(LM, dc_bot, X_BANDR, dc_top)
-dc_names = ['previous token', 'token + position', 'transformer',
+dc_names = ['previous token', DC_TP, 'transformer',
             'logits + sampling', 'next token']
 dc = layout_row(dc_names, dc_rail, [C_TOK, C_BOX, C_TRANS, C_BOX, C_TOK])
 # DECODE band title: placed to the RIGHT of the previous-token box so the green
@@ -200,8 +205,8 @@ dc = layout_row(dc_names, dc_rail, [C_TOK, C_BOX, C_TRANS, C_BOX, C_TOK])
 # through the label (A-014). Still at the top of the decode band.
 label(dc['previous token'][1] + 8, dc_title, 'DECODE', '#333333', FST,
       weight='bold', ha='left')
-for a, b in [('previous token', 'token + position'),
-             ('token + position', 'transformer'),
+for a, b in [('previous token', DC_TP),
+             (DC_TP, 'transformer'),
              ('transformer', 'logits + sampling'),
              ('logits + sampling', 'next token')]:
     arrow(dc[a][1] + 2, dc_rail, dc[b][0] - 2, dc_rail, C_AR, 1.2)

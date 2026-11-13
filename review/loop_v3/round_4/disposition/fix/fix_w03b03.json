@@ -1,0 +1,74 @@
+[
+ {
+  "id": "CH8-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The unconditional claim 'the compute requirement is the primary constraint' is false under the chapter's own table: under case (i) the compute screen gives 19 hosts while the KV-residency/Little's-Law screen gives ceil(344/17) = 21, so KV residency binds; the text itself says the floor is 'the max of the named screens - 21 hosts under case (i), 22 under case (ii)'. Compute binds only under case (ii); case (iii) ties at 21. The section 1 callout quote ('The canonical RAG workload illustrates all three without overlap') is verbatim-accurate; the fix is scoped to the section 3 sentence.",
+  "evidence": "chapter-08/chapter-08.md:183 verbatim: 'This rough sizing illustrates that prefill is FLOP-bound at this scale - the compute requirement is the primary constraint, and memory bandwidth (HBM at 3.35 TB/s per H100) is sufficient to keep the compute fed if the kernel is efficient.'; chapter-08:175-177 table: case (i) ceil(18.60) = 19 hosts, case (iii) ceil(20.21) = 21, case (ii) ceil(21.81) = 22; chapter-08:179 verbatim: 'ceil(344/17) = 21 hosts at peak, the full-utilization screen ... so the capacity floor is the *max* of the named screens - **21 hosts under case (i), 22 under case (ii)**'; python: ceil(344/17) = 21; chapter-08:38 verbatim: 'The canonical RAG workload illustrates all three without overlap'.",
+  "fix_instruction": "design/manuscript/chapter-08/chapter-08.md, line 183: replace 'This rough sizing illustrates that prefill is FLOP-bound at this scale - the compute requirement is the primary constraint, and memory bandwidth (HBM at 3.35 TB/s per H100) is sufficient to keep the compute fed if the kernel is efficient.' with 'This rough sizing illustrates that prefill is FLOP-bound at this scale - its arithmetic intensity sits far above the ridge, so memory bandwidth (HBM at 3.35 TB/s per H100) is sufficient to keep the compute fed if the kernel is efficient. Whether prefill *compute* or KV *residency* is the binding fleet constraint depends on the FLOP-counting case: KV residency binds under cases (i) and (iii) (21 hosts), compute under case (ii) (22 hosts).'",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-08/chapter-08.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH8-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The Common Mistakes bullet states both regimes unconditionally, dropping the operating-point qualifiers the rest of the book carries: Ch 8 section 3's own roofline caption says 'at the canonical long-prompt operating point prefill is compute-bound; at low batch decode is memory-bound', Ch 6 section 3 ends its decode bullet with '(This is an operating-point property, not an identity: at high batch decode climbs the intensity slope and can become compute-bound.)', Ch 6's prefill bullet is headed 'Prefill is compute-bound at the canonical long-prompt operating point', and Ch 2 says 'neither is a universal physical law'. A reader consulting only the bullet carries the universal version the book explicitly flags as an error.",
+  "evidence": "chapter-08/chapter-08.md:231 verbatim: '**Treating prefill and decode as having the same FLOP/byte profile.** Prefill reads the full context once and is FLOP-bound; decode re-reads weights per token and is memory-bound.'; chapter-08:189 verbatim: '*The roofline: at the canonical long-prompt operating point prefill is compute-bound; at low batch decode is memory-bound.*'; chapter-08:185 heading '### Decode: bandwidth-bound at low batch'; chapter-08:203 verbatim: 'at batch=32 the effective intensity is ~32 FLOP/byte, still ~9x below the 295 ridge'; chapter-06/chapter-06.md:72 verbatim tail: '(This is an operating-point property, not an identity: at high batch decode climbs the intensity slope and can become compute-bound.)'; chapter-06:74 head; chapter-02/chapter-02.md:17 verbatim: 'neither is a universal physical law'.",
+  "fix_instruction": "design/manuscript/chapter-08/chapter-08.md, line 231: replace 'Prefill reads the full context once and is FLOP-bound; decode re-reads weights per token and is memory-bound.' with 'At the canonical operating point, prefill reads the full context once and is FLOP-bound (intensity ~9,200 FLOP/byte, far above the ~295 ridge); low-batch decode re-reads weights per token and is memory-bound (~1 FLOP/byte) - both are operating-point properties: decode's intensity rises with batch, and prefill's falls as context shortens.'",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-08/chapter-08.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH8-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Arithmetic checks out (4,500/16 = 281.25; 989/3.35 = 295.2; 16/3.35 = 4.78 -> '4.8x'; 4,500/989 = 4.55 -> '4.5x'), but the granularity is never stated: 'superchip' appears zero times in the manuscript, GB200 appears only in this sentence and the section 7 MFU bullet, and the H100/H200 figures in the same comparison are explicitly single-GPU (Fig 8.2 caption: 'Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s)'). The FLOPS term gets a '2x B200's 2,250' decomposition but '16 TB/s' does not (B200 is ~8 TB/s per GPU, ch02:169), so a reader can infer 16 TB/s and 4,500 TFLOPS per GB200 GPU, and the 4.8x/4.5x factors compare a 2-GPU part against one H100 GPU without saying so.",
+  "evidence": "chapter-08/chapter-08.md:223 verbatim GB200 clause: 'GB200: higher on both terms (dense BF16 peak 4,500 TFLOPS = 2x B200's 2,250, over 16 TB/s HBM3e -> 4,500 / 16 ~= 281 FLOP/byte, just below H100's ~295 - its 4.8x bandwidth advantage slightly outpaces its 4.5x compute advantage)'; grep 'superchip' in design/manuscript -> 0 matches; grep 'GB200' -> chapter-08:223 and chapter-08:289 only; chapter-08:187 Fig 8.2 caption verbatim; chapter-02/chapter-02.md:169 verbatim: 'B200-class HBM3e is ~8 TB/s'; python: 4500/16 = 281.25, 989/3.35 = 295.22, 16/3.35 = 4.776, 4500/989 = 4.550, 2250/989 = 2.275, 8/3.35 = 2.388.",
+  "fix_instruction": "design/manuscript/chapter-08/chapter-08.md, line 223: replace 'GB200: higher on both terms (dense BF16 peak 4,500 TFLOPS = 2× B200's 2,250, over 16 TB/s HBM3e → 4,500 ÷ 16 ≈ 281 FLOP/byte, just below H100's ~295 — its 4.8× bandwidth advantage slightly outpaces its 4.5× compute advantage)' with 'GB200 superchip (2 GPUs): higher on both terms (dense BF16 peak 4,500 TFLOPS = 2× B200's 2,250 per GPU, over 16 TB/s HBM3e = 2× 8 TB/s per GPU → 4,500 ÷ 16 ≈ 281 FLOP/byte, granularity-invariant, just below H100's ~295 — as superchip-vs-single-GPU its 4.8× bandwidth advantage slightly outpaces its 4.5× compute advantage; per GPU the factors are 2.28× compute and 2.39× bandwidth)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-08/chapter-08.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH8-06",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Symbol collision verified: Ch 8 uses B for batch ('(140.B)/(140 + 24.B) ... as B->infinity') while Ch 7's KV formulas - the source of the 24 GB term - use B for bytes-per-value ('KV_MHA per-token = 2 x n_layers x d_hidden x B' with B = 2 B; GQA '= 2 x 80 x (8 x 128) x 2 B'; table row '2 x80 x8192 x2 B ~= 2.62 MB'), so the same letter carries two meanings in adjacent, linked derivations, and the expression mixes batch with GB quantities without units. The saturation number itself is correct (140/24 = 5.83 -> '~5.8').",
+  "evidence": "chapter-08/chapter-08.md:203 verbatim: 'Including it, the decode intensity is (140·B)/(140 + 24·B) FLOP/byte, which *saturates* at ~5.8 FLOP/byte as B→∞'; chapter-07/chapter-07.md:85 verbatim: 'KV_{\\text{MHA per-token}} = 2 \\times n_\\text{layers} \\times d_\\text{hidden} \\times B'; chapter-07:91 verbatim: '= 2 \\times 80 \\times (8 \\times 128) \\times 2 \\text{ B} \\approx 0.33 \\text{ MB/token}'; chapter-07:58 verbatim: '| KV cache per token (FP16) | 2 ×80 ×8192 ×2 B ≈ 2.62 MB |'; python: 140/24 = 5.8333.",
+  "fix_instruction": "design/manuscript/chapter-08/chapter-08.md, line 203: replace 'Including it, the decode intensity is (140·B)/(140 + 24·B) FLOP/byte, which *saturates* at ~5.8 FLOP/byte as B→∞' with 'Including it, the decode intensity is (140·b)/(140 + 24·b) FLOP/byte — (140 GFLOP × b) ÷ (140 GB + 24 GB × b) for batch b — which *saturates* at ~5.8 FLOP/byte as b→∞' (b avoids the collision with Ch 7's B = bytes-per-value, chapter-07 lines 85/91).",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-08/chapter-08.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH8-09",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located at design/manuscript/chapter-08/chapter-08.md line 179. The three-case table (lines 173-177) lists (i)=19, (iii)=21, (ii)=22 compute hosts; KV screen = ceil(344/17)=21. Recomputed floors: max(19,21)=21, max(21,21)=21, max(22,21)=22. The summary sentence enumerates only cases (i) and (ii), omitting case (iii) whose floor (21) is reached via a different route (compute 21 = KV 21). Minor completeness defect: the per-case floor enumeration skips one of the three cases the table just stated. Note: the finding's sub-claim that a reader 'cannot tell which case the middle number belongs to' is refuted by the table's explicit row labels; the defect is the omitted case label in the summary, not ambiguity in the table.",
+  "evidence": "ch08 L175-177: '| (i) linear-only lower bound | 1.288 PFLOP | 5.152 x10^16 FLOP/s | ceil(18.60) = 19 hosts |', '| (iii) causal-triangle sensitivity | ... ceil(20.21) = 21 hosts |', '| (ii) full-square conservative | ... ceil(21.81) = 22 hosts |'. ch08 L179: 'so the capacity floor is the *max* of the named screens — 21 hosts under case (i), 22 under case (ii)'. Python: ceil(344/17)=21; max(19,21)=21, max(21,21)=21, max(22,21)=22.",
+  "fix_instruction": "File: design/manuscript/chapter-08/chapter-08.md, line 179, sentence beginning 'so the capacity floor is the *max* of the named screens'. Change '**21 hosts under case (i), 22 under case (ii)**' to '**21 hosts under case (i) and case (iii), 22 under case (ii)**'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-08/chapter-08.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH8-OUTLINE-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Quote located at chapter-08.md line 51. The outline enumerates sections 4, 5, 6, 8 and skips 7, while the chapter's actual structure (verified from headings) includes '## 7. What We Still Don't Know' at line 285. A roadmap paragraph that names sections by number and leaves a visible gap at 7 is a real editing defect.",
+  "evidence": "ch08 L51: '...; §4 turns to measurement, §5 to common mistakes, §6 to architecture consequences, and §8 closes with a mini-case that threads the prefill/decode divide.' Heading scan of chapter-08.md: L215 '## 4. Measurement', L227 '## 5. Common Mistakes', L239 '## 6. Architecture Consequence', L285 '## 7. What We Still Don't Know', L297 '## 8. End-of-Chapter Mini-Case...'. No §7 mention in L51.",
+  "fix_instruction": "File: design/manuscript/chapter-08/chapter-08.md, line 51, the outline sentence. Change '§6 to architecture consequences, and §8 closes with a mini-case' to '§6 to architecture consequences, §7 to open questions, and §8 closes with a mini-case'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-08/chapter-08.md",
+  "_dupes": []
+ }
+]

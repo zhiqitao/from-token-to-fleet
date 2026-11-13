@@ -144,7 +144,11 @@ arrow(19.0, yC + 11.6, 19.0, yC + 10.3, GREEN_E)
 arrow(42.0, yC + 11.6, 42.0, yC + 10.3, GREEN_E)
 arrow(29.0, yC + 8.3, 32.0, yC + 8.3, RED, style='<|-|>')
 txt(30.5, yC + 5.1, 'gradients ↔ all-reduce (training only)', size=8.5, color=RED)
-txt(3.0, yC + 2.3, 'inference: independent replicas, no sync  ·  throughput scales linearly until a shared resource binds',
+# footer wrapped to two lines so the full word 'binds' stays inside the card's
+# right border (single line overflowed the card and clipped the final 's')
+txt(3.0, yC + 3.2, 'inference: independent replicas, no sync',
+    size=8.5, color=MUTE, ha='left')
+txt(3.0, yC + 1.9, 'throughput scales linearly until a shared resource binds',
     size=8.5, color=MUTE, ha='left')
 
 # ---- shared colour key: hue PLUS a redundant non-hue channel ------------------

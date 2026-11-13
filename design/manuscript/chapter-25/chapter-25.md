@@ -47,9 +47,9 @@ Render the serving model in BF16.
 **Rationale:**
 
 - FP16 and BF16 both store 2 bytes/parameter, so weight residency is identical (~140 GB for 70B). Stating this up front prevents anyone from later treating the choice as a memory lever.
-- The real difference is range vs precision. BF16 keeps the same 8-bit exponent as FP32, so it does not overflow or underflow in activations the way FP16's 5-bit exponent can. FP16 carries more mantissa bits (10 vs 7) and is more precise when values already sit in range.
-- For this workload both precisions clear the quality bar on the held-out Q&A set, with no exact-match change between them, so the deciding factors are range robustness and consistency — not capacity. In this illustrative evaluation the exact-match result showed no difference [ILLUSTRATIVE][ASSUMPTION] — to be confirmed by the deployment quality gate: we did not run this comparison on real hardware in this handbook; it is an assumed outcome for the worked ADR.
-- A100 (and the 8×H100 host) natively supports BF16 and TF32 on its Tensor Cores. There is no "next GPU generation" required and no explicit-casting penalty; the premise that these formats wait for future hardware is itself the kind of error an ADR should catch.
+- The real difference is range vs precision. BF16 keeps the same 8-bit exponent as FP32, so it greatly reduces overflow/underflow risk in activations relative to FP16's 5-bit exponent. FP16 carries more mantissa bits (10 vs 7) and is more precise when values already sit in range.
+- For this workload both precisions clear the quality bar on the held-out Q&A set, with no exact-match change between them, so the deciding factors are range robustness and consistency — not capacity. [ILLUSTRATIVE][ASSUMPTION] — we did not run this comparison on real hardware in this handbook; it is an assumed outcome for the worked ADR, to be confirmed by the deployment quality gate: in this illustrative evaluation the exact-match result showed no difference.
+- A100 and H100 GPUs natively support BF16 and TF32 on their Tensor Cores. There is no "next GPU generation" required and no explicit-casting penalty; the premise that these formats wait for future hardware is itself the kind of error an ADR should catch.
 - Operational consistency: the training run that produced the weights used BF16 mixed precision. Keeping inference in BF16 avoids a training-to-serving cast and keeps behavior predictable.
 
 **Consequences:**
@@ -61,14 +61,14 @@ Render the serving model in BF16.
 **Alternatives Considered:**
 
 1. **FP16:** Rejected here — no memory advantage over BF16, and a narrower exponent range. Retained as the fallback if BF16 shows precision drift.
-2. **FP8 weights:** The genuine memory lever (halves residency to ~70 GB) but needs per-tensor calibration and a validation gate; deferred as the next step, paired with the FP8 KV discussion in Chapter 7.
+2. **FP8 weights:** The genuine memory lever (halves residency to ~70 GB) but needs per-tensor calibration and a validation gate; deferred as the next step, paired with the FP8 KV discussion in Ch 7.
 3. **FP32:** Rejected — 280 GB residency with no quality benefit for this workload.
 
 **Evidence Tags:** [1P][FACT] — FP16 and BF16 are both 16-bit (2 bytes/parameter). [ILLUSTRATIVE][DERIVED] — a 70B model is ~140 GB in either (70 × 10⁹ × 2 B), the same footprint Table 22-1 and §25.4 derive. [1P][FACT] — H100 Tensor Cores support BF16 and TF32 natively. [canonical scenario][DERIVED] — weight residency is unchanged by the FP16↔BF16 choice. [ILLUSTRATIVE][ASSUMPTION] — no exact-match difference between FP16 and BF16 on the held-out Q&A set — an assumed outcome for this worked ADR, to be confirmed by the deployment quality gate (not a measurement in this handbook).
 
 ### 3.1 A copy-ready blank template
 
-This is the template to copy into a repo, intended to be filled and to serve as a reusable professional artifact. Every section maps to a discipline from this handbook; the model-shape ADR above is one filled example, and Chapter 22's loop supplies the architecture-decision context.
+This is the template to copy into a repo, intended to be filled and to serve as a reusable professional artifact. Every section maps to a discipline from this handbook; the model-shape ADR above is one filled example, and Ch 22's loop supplies the architecture-decision context.
 
 ```
 # ADR-NNNN — <Short Decision Title>
@@ -76,11 +76,10 @@ This is the template to copy into a repo, intended to be filled and to serve as 
 ## Status
 <proposed | accepted | superseded | deprecated>  (date)
 
-## Decision (the committed choice, one paragraph,
-   reversible in principle)
+## Decision (the committed choice, one paragraph; significant and costly to reverse — the criterion that made this an ADR)
 <the one-sentence decision, and what it commits the team to>
 
-## Architecture Decision Context  (from Chapter 22's loop)
+## Architecture Decision Context  (from Ch 22's loop)
 - Business objective:  <what outcome this enables>
 - Workload:            <characterization:
                          tokens, rps, peak>
@@ -131,13 +130,15 @@ This is the template to copy into a repo, intended to be filled and to serve as 
 - Alternative:      <what we switch to if invalidated>
 ```
 
-The three blocks most often skipped are the **Architecture Decision Context**, the **unit check**, and the **decision owner + review trigger** — and skipping exactly those three is what turns an ADR into a decision log instead of a decision *apparatus*. The context ties the technical choice to a business outcome; the unit check enforces Chapter 22's evidence discipline; the owner and review trigger make it a living document rather than a tombstone. The **falsification path** is what makes the decision *reproducible* rather than merely plausible: it names the hypothesis, the evidence that would confirm it, and the specific measured result that would invalidate it — so the next engineer can re-run the decision instead of inheriting it on faith.
+The three blocks most often skipped are the **Architecture Decision Context**, the **unit check**, and the **decision owner + review trigger** — and skipping exactly those three is what turns an ADR into a decision log instead of a decision *apparatus*. The context ties the technical choice to a business outcome; the unit check enforces Ch 22's evidence discipline; the owner and review trigger make it a living document rather than a tombstone. The **falsification path** is what makes the decision *reproducible* rather than merely plausible: it names the hypothesis, the evidence that would confirm it, and the specific measured result that would invalidate it — so the next engineer can re-run the decision instead of inheriting it on faith.
 
 ## 4. Measurement
 
 ADRs are only as good as the evidence they embed. This chapter recommends that each ADR include at least two derived quantities — quantities computed from raw data, not merely observed. In the model-shape ADR above, the derived quantities are:
 
-1. **70B FP16 model footprint** — $W = N \times \text{bytes-per-param} = 70 \times 10^9 \times 2 \text{ B} = 140$ GB parameters, plus ~30 GB activations at the peak for this worked example (K+V alone: 2 × 80 layers × 9.2K × 8,192 × 2 B ≈ 24 GB, plus hidden/MLP working tensors ≈ 30 GB total) [DERIVED], giving ≈ $170$ GB total derived footprint. This ~30 GB is a *per-request working-set* figure for this ADR's single-request arithmetic; it is **not a re-labeling of** the ~64 GB runtime/workspace/NCCL reserve the body uses elsewhere (140 GB weights + ~436 GB KV budget + ~64 GB reserve = the 640 GB HBM envelope). The two answer different questions — one sizes a single request's activations, the other reserves headroom for the serving stack's runtime — and at serving time the activation working set is drawn from *within* that 64 GB workspace line (workspace includes activation buffers) — the ~30 GB is a transient single-request prefill peak, reused across the batch rather than held per request in flight (17 concurrent × 30 GB is not implied) — so the envelope closes as 140 + 436 + 64 = 640, not 670.
+1. **70B FP16 model footprint** — $W = N \times \text{bytes-per-param} = 70 \times 10^9 \times 2 \text{ B} = 140$ GB parameters, plus ~30 GB KV + workspace (single-request working set) at the peak for this worked example [DERIVED], giving ≈ $170$ GB total derived footprint:  
+   per-request KV at 9.2K = 24.2 GB (2 × 80 layers × 9.2K × 8,192 × 2 B): KV, already inside the ~436 GB KV budget at concurrency (17 × ~24.9 GB ≈ 423 GB);  
+   transient activation/workspace ≈ 6 GB (hidden/MLP working tensors — inside the 64 GB runtime/workspace reserve). This ~30 GB is a *per-request working-set* figure for this ADR's single-request arithmetic; it is **not a re-labeling of** the ~64 GB runtime/workspace/NCCL reserve the body uses elsewhere (140 GB weights + ~436 GB KV budget + ~64 GB reserve = the 640 GB HBM envelope), and this ADR's single-request ~170 GB footprint is not an envelope term. The two answer different questions — one sizes a single request's working set, the other reserves headroom for the serving stack's runtime — and at serving time the ~6 GB transient working set is drawn from *within* that 64 GB workspace line (workspace includes activation buffers) — that ~6 GB is a transient single-request prefill peak, reused across the batch rather than held per request in flight (17 concurrent × 6 GB is not implied), while the 24.2 GB KV is held per request in flight — so the envelope closes as 140 + 436 + 64 = 640, not 670.
 2. **Weight-quantization residency lever** — quantizing the FP16/BF16 weights to INT8 reduces the nominal parameter-weight footprint from ~140 GB to ~70 GB for a 70B model (2 B/param → 1 B/param), before runtime overheads. Whether the resulting quantized model satisfies the quality SLO must be established by benchmark, not assumed. (An FP16↔BF16 change alone is *not* a memory lever: both are 16-bit, 2 B/param, ~140 GB.)
 
 Additional measurable quantities that should be tracked (even if not all included in the ADR itself) include:
@@ -173,9 +174,9 @@ Introducing ADRs into the "From Token to Fleet" handbook has several architectur
 - **ADR proliferation:** As the fleet grows, the number of ADRs will grow. A naming convention (ADR 0001, ADR 0002, ...) and a top-level index (ADR index) prevent the record from becoming unwieldy.
 - **Integration with CI:** ADRs can be validated as part of the CI pipeline — e.g., ensuring every ADR has a status, a rationale, and at least one evidence tag. This automation reinforces the habit.
 
-On the negative side, ADRs add a small writing overhead. For a team of ~10 engineers making ~1–2 significant architectural decisions per month, this is a manageable cost. The payoff — reduced on-call noise, faster onboarding, and fewer "why did we do it this way?" debates — more than compensates.
+On the negative side, ADRs add a small writing overhead. For a team of ~10 engineers making ~1–2 significant architectural decisions per month, this is a manageable cost. The payoff — reduced on-call noise, faster onboarding, and fewer "why did we do it this way?" debates — is expected to compensate.
 
-![Fig 25.1 — The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. **Takeaway:** an ADR is a fixed five-field record — Title and status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives considered (the rejected options) — and it is *kept, not edited*: the Consequences of ADR-001 become the Context of ADR-002, which supersedes it while the original stays on file. **Scope:** the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice as their five core fields (§25.1), each extended with its own apparatus. **Warning:** illustrative structure, not a measured decision record — a real ADR must carry the evidence tags its numbers are judged by. [ILLUSTRATIVE] conceptual](figures/fig-25-2501.png)
+![Fig 25.1 — The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next. **Takeaway:** an ADR is a fixed five-field record — Title & status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives (the rejected options) — and it is *kept, not edited*: the Consequences of ADR-001 may become part of the Context of ADR-002, which supersedes it while the original stays on file. **Scope:** the generic anatomy and supersession rule that the chapter's worked model-shape ADR (§25.3) and the copy-ready template (§25.3.1) put into practice as their five core fields (§25.1), each extended with its own apparatus. **Warning:** illustrative structure, not a measured decision record — a real ADR must carry the evidence tags its numbers are judged by. [ILLUSTRATIVE] conceptual](figures/fig-25-2501.png)
 
 > **DECISION STATE — CANDIDATE SCREENED; NOT COMMITTABLE — regional availability, failover, SLO-goodput and matched-scope costs pending.**
 >
@@ -239,14 +240,14 @@ Despite the structured format, several questions remain open and would benefit f
 - **ADR fatigue:** Does the presence of many ADRs overwhelm the team, leading to superficial writing or skipped documentation? 
 - **Evidence decay:** How long do derived quantities remain valid? Should ADRs include a "last reviewed" date and a trigger for re-evaluation?
 - **Cross-ADR dependencies:** When multiple ADRs interact (e.g., a quantization choice interacts with a retrieval chunk-size choice), how should the team document the dependency graph?
-- **Tooling gaps:** No widely adopted tool exists for ADR graph visualization or impact analysis. Building such a tool would require understanding the ADR network and its evolution over time.
+- **Tooling gaps:** [1P][FACT] — no widely adopted tool exists for ADR graph visualization or impact analysis (a factual tooling observation, not an open hypothesis). Building such a tool would require understanding the ADR network and its evolution over time.
 - **ADR format evolution:** The minimal format (title and status, context, decision, consequences, alternatives) works for most cases, but edge cases — decisions involving regulatory compliance, security, or data governance — may require additional sections.
 
 These open questions are not blockers; they are signals for when the practice matures and the team needs more sophisticated governance.
 
 ## 8. End-of-Chapter Mini-Case: An ADR for the KV-Bound Fleet
 
-**Scenario:** The fleet serves the canonical RAG Q&A workload on an 8×H100 host. At peak the KV cache is the binding constraint: within the canonical ~436 GB practical KV budget, a full-precision FP16 KV at ~2.62 MB/token (the canonical full-MHA reference-geometry figure; ~2.5 MiB) lets a single host hold ~17.5 concurrent 9,500-token requests (byte-accurate 17.51; conservative integer floor 17). The concurrency ceiling is now limiting throughput below the target request rate.
+**Scenario:** The fleet serves the canonical RAG Q&A workload on an 8×H100 host. At peak the KV cache is the binding constraint under case (i) linear-only prefill (KV 21 hosts ≥ prefill 19); under case (ii) full-square prefill binds instead (22 > 21) — state which case this ADR's FP8-KV lever relieves, and note FP8 KV does not shrink the case (ii) prefill screen. Within the canonical ~436 GB practical KV budget, a full-precision FP16 KV at ~2.62 MB/token (the canonical full-MHA reference-geometry figure; ~2.5 MiB) lets a single host hold ~17.5 concurrent 9,500-token requests (byte-accurate 17.51; conservative integer floor 17). The concurrency ceiling is now limiting throughput below the target request rate.
 
 **The ADR (draft):**
 
@@ -257,8 +258,9 @@ These open questions are not blockers; they are signals for when the practice ma
 - **Consequences:**
   - Positive: KV residency per request falls from ~24.9 GB (FP16) to ~12.45 GB (FP8, raw byte-halving — 50% of FP16) at the 9,500-token max, so the canonical budget supports ~35.0 concurrent requests rather than ~17.5. This is a memory lever, not a compute lever: it leaves the weight-read-dominated decode cost per token nearly unchanged (it does halve the KV-read bytes, a secondary ~15% term), and it raises the concurrency the host can hold under the same KV budget.
   - Negative: FP8 KV has lower precision in the cached K/V tensors, which can add small retrieval-fidelity error on long contexts. The trade-off is memory capacity vs long-context reconstruction fidelity; it must be validated on the held-out Q&A set, not assumed.
+  - Fleet-level effect: the peak KV-residency screen moves from 21 hosts to ~11 (344 in-flight ÷ 35.0 concurrent per host = 9.8, +N−1); ADR 0015 R1 must be re-screened on adoption.
 - **Alternatives considered:**
-  1. **Add capacity** — rejected as the first move: the canonical peak already needs 21 hosts on the KV screen (22 under the case (ii) prefill screen; Ch 16/17/20), so "adding a second host" misunderstands the scale; relieving the memory ceiling by adding hosts multiplies the fleet cost (each 8×H100 is ~$5.8K/mo amortized), while FP8 KV relaxes the same ceiling without commissioning new hardware.
+  1. **Add capacity** — rejected as the first move: the canonical peak already needs 21 hosts on the KV screen (22 under the case (ii) prefill screen; Ch 16/17/20), so "adding a second host" misunderstands the scale; relieving the memory ceiling by adding hosts multiplies the fleet cost (~$7.4K/mo all-in per 8×H100 host — ~$5.8K/mo hardware amortization plus power, ops and staff, Ch 16 Table 16-1), while FP8 KV relaxes the same ceiling without commissioning new hardware.
   2. **GQA (grouped-query attention) reduction** — not available for the canonical model: the 70B reference geometry is full multi-head attention (64 KV heads, 2.62 MB/token, Ch 7). Adopting GQA would cut KV per token by ~8× (the largest single capacity lever in this book, Ch 16), but it changes the model architecture and requires retraining and re-evaluation — it is outside a serving-only change. It is the right *next-model* decision, not a knob on this deployment.
   3. **Prefix/context caching** — complementary, not a substitute: it reduces prefill work and recomputation, but does not shrink the KV resident per active long-context request; retained alongside FP8 KV.
 - **Evidence Tags:** [canonical scenario][DERIVED] — at ~2.62 MB/token a 9,500-token request needs ~24.9 GB FP16 KV (9,500 × 2.62 MB ≈ 24.9 GB; Ch. 15, Ch. 17). [ILLUSTRATIVE][DERIVED] — FP8 is byte-halved to 1.31 MB/token (exactly 50% of FP16), so a 9,500-token FP8 KV ≈ 12.45 GB/request; 436 GB ÷ 12.45 GB ≈ 35.0 concurrent (floor 35). [HYPOTHESIS] — the FP8 precision shift has a small, measurable effect on long-context retrieval fidelity that must be measured on the held-out set before promoting.

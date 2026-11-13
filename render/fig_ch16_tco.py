@@ -235,11 +235,12 @@ fig.text(0.11, 0.012,
          f'host-hours (occupancy INPUT, not a measured duty cycle).\n'
          f'Sensitivity: a ${api_lo*1000:.0f}–{api_hi*1000:.0f}/1K price band moves '
          f'the break-even to ~{be_lo/1e6:.1f}–{be_hi/1e6:.1f}M req/mo.\n'
-         f'x varies duration/duty-cycle at a FIXED {sc["peak_rps"]:.0f} rps peak + '
-         f'FIXED {n_hosts}-host fleet (option A),\n'
-         f'NOT re-sized per volume: a frozen-fleet cost, not a scalable crossover.\n'
-         f'Feasible max = {sc["peak_rps"]:.0f} rps × {active_s:,.0f} active s/mo '
-         f'= {vol_max/1e6:.2f}M req/mo; right of it INFEASIBLE.',
+         f'x = {sc["avg_rps"]:.0f} rps average × duration for the workload points; '
+         f'x varies duration/duty-cycle\n'
+         f'at a FIXED {sc["peak_rps"]:.0f} rps peak + FIXED {n_hosts}-host fleet (option A), '
+         f'not re-sized: a frozen-fleet cost,\n'
+         f'not a scalable crossover; feasible max = capacity {sc["peak_rps"]:.0f} rps × '
+         f'{active_s:,.0f} s = {vol_max/1e6:.2f}M req/mo.',
          fontsize=8.2, color='#555', ha='left', va='bottom')
 
 plt.subplots_adjust(left=0.13, right=0.97, top=0.90, bottom=0.30)

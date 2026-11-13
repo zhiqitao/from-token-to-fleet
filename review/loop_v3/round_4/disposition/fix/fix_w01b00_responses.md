@@ -1,0 +1,7 @@
+CH4-WORKSPACE-64GB | P2 | chapter-04.md L257 (KV cache scaling bullet) | added [canonical scenario][ASSUMPTION] label + Ch 7 / ~436 GB cross-ref at '~64 GB runtime/workspace' | FIXED
+CH4-XREF-S01 | P2 | chapter-04.md L182 (TTFT bullet) | no change — premise no longer holds: 'S-01' is gone; line already anchors to the 'Prefill compute budget — two-term-only upper cap' row in Table 4-2 | SKIPPED_PREMISE
+CH4-07 | P3 | chapter-04.md L250 (Memory planning bullet) | replaced 'pressing against the 640 GB pool' with '381 GB of the 640 GB pool … presses … around ~18–20 full-context requests (436 GB ÷ 24.1 GB ≈ 18)' | FIXED
+CH4-07 | P3 | chapter-04.md L203 (Table cost Derivation cell) | split derivation into ÷(92,000×3600)→$0.362/1M, ÷(3,000×3600)→$11.11/1M, blended (95,000×3600)→$0.3509/1M (distinct defect from the L250 CH4-07, so both fixed) | FIXED
+CH4-08 | P3 | chapter-04.md L160 (40 rps sustained-burst paragraph) | '(seconds of sustained 40 rps)' → '(sustained for at least the service-time scale, $W_exec$ ≈ 8.6 s — not a one-second or few-second spike)' | FIXED
+CH4-08 | P3 | chapter-04.md L63 (planning service-time row) | 'stable-flow Little's Law dwell time' → 'planning-round dwell time — NOT the W used in any Little's-law occupancy computation (… 100/400 …)' (distinct defect from the L160 CH4-08, so both fixed) | FIXED
+CH4-10 | P3 | chapter-04.md L275 (closing paragraph) | replaced 4-item '(volume … operation → agentic growth potential)' with the six Table 4-1 dimensions and their actual arithmetic | FIXED

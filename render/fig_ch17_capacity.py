@@ -63,10 +63,14 @@ ax.axhline(N1res_085, color='#e67e22', ls='-.', lw=1.2, alpha=0.9)
 # cuts through the text (previously y = 6.2 against the y=6 line).
 ax.text(0.9, N1res+0.72, 'N-1 residual (~6.0 ideal, ρ = 1)', fontsize=8,
         color='#b5590a', ha='left', fontweight='bold')
-ax.axhline(N4, color='#3a6ea5', lw=1.8)
+# FIG17.1-GRAY-01: the N = 4 line/legend sample is a LONG dash so all four
+# legend samples are unique by style alone in grayscale (vs the solid burst).
+ax.axhline(N4, color='#3a6ea5', ls=(0, (7, 2)), lw=1.8)
 # N = 4 label lifted clear ABOVE its line and the green headroom band top.
-ax.text(0.9, N4+0.62, 'N = 4 fleet (~8.0, ideal)', fontsize=8, color='#27408b',
-        ha='left', fontweight='bold')
+# Two lines (bottom-anchored) so the label stays LEFT of the italic note box
+# (its one-line form ran under the box and got faded by the box's white fill).
+ax.text(0.4, N4+0.55, 'N = 4 fleet (3 working\n+ 1 reserve, ~8.0, ideal)', fontsize=8, color='#27408b',
+        ha='left', va='bottom', fontweight='bold')
 
 # Burst-peak call-out. The old label (xytext=(4.5,4.4), ha='left') was ~3 units
 # wide and sat exactly where the hump rises, so the CURVE ran straight through
@@ -100,8 +104,8 @@ ax.text(bx+0.3, peak - 1.15, 'failover', fontsize=8, color='#27408b',
 ax.text(bx+0.3, (N1res+N4)/2, 'headroom', fontsize=8, color='#1e6b3a',
         ha='left', va='center', fontweight='bold')
 
-ax.set_xlabel('time of day', fontsize=9)
-ax.set_ylabel('offered load / req·s⁻¹', fontsize=9)
+ax.set_xlabel('time of day (h, schematic)', fontsize=9)
+ax.set_ylabel('load / capacity (req·s⁻¹)', fontsize=9)
 # P0-04 (review): the title must not be clipped at the printed column width.
 # Use a SHORT two-line title (the full qualifier lives in the caption), sized
 # so it always fits within the axes width at column scale.
@@ -118,20 +122,23 @@ ax.set_title('Sizing a fleet of one model\n'
 ax.text(0.975, 0.985,
         'Ideal ρ = 1 analytical ceiling \u2014 no SLO claim.\n'
         'N-1 clears the burst only at ρ = 1:\n'
-        'dash-dot (ρ = 0.85): ~5.1 < ~5.5, need $\\geq$ 0.917.',
+        'at ρ = 0.85 the residual = ~5.1 < ~5.5, need $\\geq$ 0.917.',
         transform=ax.transAxes, fontsize=8.6, color='#444', ha='right', va='top',
         style='italic', linespacing=1.05,
         bbox=dict(boxstyle='round,pad=0.10', fc='white', ec='none', alpha=0.85))
 ax.set_yticks([0, 2, 4, 6, 8, 10, 12])
 ax.grid(alpha=0.25, axis='y')
+# FIG17.1-GRAY-01: N = 4 sample/line is a long dash and the handle is 3.0 em
+# long so the dash GAP is actually visible inside the legend sample — all four
+# legend samples are then unique by style alone in grayscale.
 ax.legend(handles=[Line2D([], [], color='#c0392b', lw=2),
                    Line2D([], [], color='#8a8a8a', ls='--', lw=1.4),
-                   Line2D([], [], color='#3a6ea5', lw=1.8),
+                   Line2D([], [], color='#3a6ea5', ls=(0, (7, 2)), lw=1.8),
                    Line2D([], [], color='#e67e22', ls=':', lw=2)],
           labels=['offered load (burst)', 'one host bound (~2.0, ideal)',
                   'N = 4 fleet capacity (~8.0, ideal)', 'N-1 residual (1 host drains, ideal)'],
           fontsize=8.0, loc='upper center', bbox_to_anchor=(0.5, -0.42),
-          ncol=2, frameon=False)
+          ncol=2, frameon=False, handlelength=3.0)
 plt.tight_layout(rect=(0, 0, 1, 0.93))
 plt.savefig('design/manuscript/chapter-17/figures/fig-17-1701.png', dpi=400,
             bbox_inches='tight', pad_inches=0.05)

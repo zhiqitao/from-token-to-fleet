@@ -25,8 +25,14 @@ COLS = 6
 # annotation row y-positions (shared so left/right text lines up)
 A_RES = 9.6
 A_ACT = 8.75
-A_SENT = 7.7
-A_KV = 6.5
+# R4 Fig3.4 fixes: (1) the total line used to start only 5.65 pt below the
+# 'active experts' legend row (ink bands merged at 300 dpi).  The block is
+# anchored on its LAST line (va='baseline'), so A_SENT now sits at 6.85 -> the
+# first line lands ~13.4 pt below that legend row, with a white row between;
+# (2) the always-on resident component is now a line of that block, so A_KV
+# drops to 6.10 to keep clear of the taller block.
+A_SENT = 6.85
+A_KV = 6.10
 KV_Y = 4.2
 
 
@@ -91,7 +97,14 @@ legend_row(ax, A_ACT, '#e67e22', '#333', 'active experts \u2248 23 GB resident (
 # P1-02 (caption conflation): name the two components of the 12.8B total-active
 # count so it is not read as "top-2 experts alone" — always-on 1.4B + the two
 # routed experts 11.4B (2 x 5.7B) = 12.8B, per Tables 3-2/3-3.
-ax.text(5, A_SENT, 'MoE total resident \u2248 94 GB\nper token: 11.4B top-2 + 1.4B always-on\n= 12.8B \u2192 25.6 GB', fontsize=9.0, color='#333', ha='center', linespacing=1.25)
+# R4 Fig3.4 closure: the legend printed 68 + 23 = 91 GB against a 94 GB total
+# with no always-on resident line, so the components did not close from the
+# figure alone.  The total line now states its own closure — 91 GB experts
+# (68 + 23 in the legend rows) + 3 GB always-on (1.4B x 2 B = 2.8 ~ 3 GB) =
+# 94 GB (47B x 2 B) — as the second line of the block.  Measured 164.2pt at
+# 9.0pt, inside the block's existing 189.9pt widest line, so the axes geometry
+# is unchanged.
+ax.text(5, A_SENT, 'MoE total resident \u2248 94 GB\n= 91 GB experts + 3 GB always-on\nper token: 11.4B top-2 + 1.4B always-on\n= 12.8B \u2192 25.6 GB', fontsize=9.0, color='#333', ha='center', linespacing=1.25)
 ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', ha='center')
 
 # ---- KV bars: bytes are set by attention SHAPE, not by MoE routing ----
@@ -112,11 +125,17 @@ ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', h
 # 32L/4096H GQA' 150.1pt, both < 156.9pt (the original widest line). The bar names
 # both models and the note carries the precision, so '12 vs 0.6' cannot be misread
 # as two precisions of one model.
+# R4 Fig3.4 operating point: the note carried no KV-head count and no token
+# count, so 0.6 GB was not derivable from the figure alone (32L/4096H with a
+# full 4096-dim KV would be ~2.4 GB at 9.2K, not 0.6).  Third note line adds
+# '(8 KV heads x 128), at 9.2K tokens' — 155.5pt at 8.4pt, inside the note's
+# existing 157.0pt widest line, so the note keeps its footprint; the block is
+# centred 0.20 units lower (KV_Y-0.75) so its top still clears the chip.
 for axx in axes:
     axx.add_patch(Rectangle((0.6, KV_Y), 8.8, 0.9, fc='#c0392b', ec='white'))
     axx.text(5, KV_Y+0.45, 'dense 12 GB vs MoE 0.6 GB',
              ha='center', va='center', fontsize=8.8, color='white', fontweight='bold')
-    axx.text(5, KV_Y-0.55, '8-bit KV set by shape, not routing:\n80L/8192H MHA vs 32L/4096H GQA',
+    axx.text(5, KV_Y-0.75, '8-bit KV set by shape, not routing:\n80L/8192H MHA vs 32L/4096H GQA\n(8 KV heads \u00d7 128), at 9.2K tokens',
              ha='center', va='center', fontsize=8.4, color='#7a1f1f', style='italic')
 
 plt.tight_layout()

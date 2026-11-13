@@ -69,10 +69,13 @@ inference are:
   result. Each output partition has 1/N of the input tensor's elements.
   Unlike all-gather, this operation also performs a reduction; it is not
   its mathematical inverse.
+\item
+  \textbf{all-to-all}: each rank sends a destination-specific block ---
+  the dominant collective for MoE expert routing (\hyperref[tab:9.2]{Table 9-2}, Ch 10).
 \end{itemize}
 
 The bandwidth each collective consumes depends on three factors: the
-data volume (bytes), the number of participating nodes (N), and the
+data volume (bytes), the number of participating ranks (N), and the
 interconnect's effective bandwidth in the presence of contention. A 70B
 FP16 model is 140 GB, and its FP16 gradient is the same size --- the
 §9.3 worked example all-reduces that 140 GB gradient tensor. The 140 GB
@@ -128,8 +131,10 @@ Rack/cluster & InfiniBand HDR/NDR & 200/400 Gb/s ≈ 25/50 GB/s per port &
 
 \emph{(Hierarchy: bandwidth drops \textasciitilde2 orders of magnitude
 from HBM to the cluster fabric --- the reason the interconnect, not the
-GPU, often binds at scale. Figures are established hardware specs
-\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, except where a row is tagged otherwise.)}
+GPU, often binds at scale. Bandwidth and latency figures are established
+hardware specs \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, except where a row is tagged
+otherwise; the Cost column is a relative capital-intensity ordering
+\mbox{{[}ILLUSTRATIVE{]}}, not a spec.)}
 
 Behind these three workhorses sits one contract. For a fixed-count
 all-reduce, each rank contributes an equal-length typed buffer;
@@ -143,8 +148,7 @@ and matching buffer byte counts alone are insufficient
 standard};
 \href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/nccl.h.in}{NCCL
 API header, pinned to v2.32.3-1}, retrieved 2026-10-28). \hyperref[tab:9.2]{Table 9-2}
-states the full set of operations this chapter's traffic arithmetic can
-encounter within one group.
+summarizes the collectives discussed in this chapter.
 
 \subsubsection{Table 9-2 --- Collective semantics within one
 group}\label{table-9-2-collective-semantics-within-one-group}
@@ -297,8 +301,8 @@ OFI transport, pinned}, retrieved 2026-10-28).
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Payload layers and communicator setup are different paths. Named backend and library paths are a 2026-10-28 implementation snapshot, not a drop-in compatibility claim. Dashed setup connections do not imply that MPI carries the collective payload; GPU-aware MPI is also a possible payload implementation. \mbox{{[}ILLUSTRATIVE{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0903-communication-layers.png}}
-\caption[Payload layers and communicator setup are different paths]{Payload layers and communicator setup are different paths. Named backend and library paths are a 2026-10-28 implementation snapshot, not a drop-in compatibility claim. Dashed setup connections do not imply that MPI carries the collective payload; GPU-aware MPI is also a possible payload implementation. \mbox{{[}ILLUSTRATIVE{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Payload layers and communicator setup are different paths. Named backend and library paths are a 2026-10-28 implementation snapshot, not a drop-in compatibility claim. Dashed setup connections do not imply that MPI carries the collective payload; GPU-aware MPI is also a possible payload implementation. The NCCL box's ``NVLS or CollNet offload'' names NCCL's NVLink SHARP and CollNet in-network reduction paths, used only where the fabric and build support them (NCCL NVLS transport, pinned to v2.32.3-1; NCCL CollNet tuning, pinned to v2.32.3-1). \mbox{{[}ILLUSTRATIVE{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0903-communication-layers.pdf}}
+\caption[Payload layers and communicator setup are different paths]{Payload layers and communicator setup are different paths. Named backend and library paths are a 2026-10-28 implementation snapshot, not a drop-in compatibility claim. Dashed setup connections do not imply that MPI carries the collective payload; GPU-aware MPI is also a possible payload implementation. The NCCL box's ``NVLS or CollNet offload'' names NCCL's NVLink SHARP and CollNet in-network reduction paths, used only where the fabric and build support them (\href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/transport/nvls.cc}{NCCL NVLS transport, pinned to v2.32.3-1}; \href{https://raw.githubusercontent.com/NVIDIA/nccl/v2.32.3-1/src/tuning/collnet.cc}{NCCL CollNet tuning, pinned to v2.32.3-1}). \mbox{{[}ILLUSTRATIVE{]}}}
 
 \label{fig:9.3}\end{figure}
 
@@ -428,10 +432,10 @@ T_\text{ring} \approx 2\frac{N-1}{N}\frac{M}{B_\text{eff}} = 2\frac{7}{8}\frac{1
 
 \Needspace{11\baselineskip}
 
-\textbf{Option C --- 25 Gb/s Ethernet (RoCE2) across 8 nodes.} 25 Gb/s ≈
-3.125 GB/s unidirectional. With protocol overhead and multi-node tree
-contention, a practical effective bandwidth might be 2.5 GB/s. Ring
-model:
+\textbf{Option C --- 25 Gb/s Ethernet (RoCEv2) across 8 nodes.} 25 Gb/s
+≈ 3.125 GB/s unidirectional. With protocol overhead and multi-node
+contention (ring forwarding and shared-fabric contention), a practical
+effective bandwidth might be 2.5 GB/s. Ring model:
 
 \[
 T_\text{ring} \approx 2\frac{7}{8}\frac{140 \text{ GB}}{2.5 \text{ GB/s}} \approx 98 \text{ s}
@@ -541,10 +545,14 @@ communicator errors and abort}).
   saturate the full link: in multi‑GPU topologies the traffic is split
   across multiple GPUs and multiple links, so one link rarely carries
   the whole transfer. (A two‑rank collective over one path is the
-  exception --- it can saturate the link; and by the ring model of §3
-  each link still carries (N−1)/N of the tensor.) Measured effective
-  bandwidth is typically 40--60\% of peak \mbox{{[}ILLUSTRATIVE{]}}; design
-  against the measured number, not the spec sheet peak.
+  exception --- it can saturate the link; and by the ring model of §9.3
+  each link still carries (N−1)/N of the tensor.) For PCIe Gen5 x16 and
+  small-to-medium collectives, measured effective bandwidth is often in
+  the 40--60\% range \mbox{{[}ILLUSTRATIVE{]}}; NVLink and InfiniBand
+  large-message collectives can achieve 80--90\%+. (the §9.3 worked
+  example's 40 GB/s and 2.5 GB/s are optimistic \textasciitilde80\%
+  upper bounds --- label them as such); design against the measured
+  number, not the spec sheet peak.
 \item
   \textbf{Placing all-reduce on Ethernet without a bandwidth budget.} A
   70B model gradient all-reduce at 25 Gb/s Ethernet (≈ 2.5 GB/s
@@ -565,16 +573,21 @@ communicator errors and abort}).
   \textbf{Using InfiniBand as a default without checking the
   cost--performance ratio.} InfiniBand HDR 200 Gb/s gives
   \textasciitilde25 GB/s unidirectional, which is sufficient for many
-  workloads, but the price per GB of optics and cables is 5--10× that of
-  Ethernet \mbox{{[}ILLUSTRATIVE{]}}. If the communication time is acceptable
-  on RoCE2, the cheaper fabric may be the better architectural choice.
+  workloads, but the price per port (or per Gb/s) of optics and cables
+  is 5--10× that of Ethernet \mbox{{[}ILLUSTRATIVE{]}}. If the communication
+  time is acceptable on RoCEv2, the cheaper fabric may be the better
+  architectural choice.
 \item
-  \textbf{Overlooking protocol overhead.} RoCE and InfiniBand use the
-  same 64b/66b line coding but differ in framing and header sizes. An
-  NDR 400 Gb/s InfiniBand link delivers a \textasciitilde380 Gb/s class
-  useful payload; a 200 Gb/s RoCE2 link delivers \textasciitilde180
-  Gb/s. The difference matters when we are computing per-second
-  throughput for a fixed data volume.
+  \textbf{Overlooking protocol overhead.} At the speeds discussed here
+  Ethernet and InfiniBand use different physical-layer coding and
+  framing (200/400GbE transcodes 64b/66b to 256b/257b before FEC;
+  InfiniBand coding varies by generation) --- use the specific
+  standard's payload-efficiency figure. An NDR 400 Gb/s InfiniBand link
+  delivers a \textasciitilde380 Gb/s class useful payload; a 200 Gb/s
+  RoCEv2 link delivers \textasciitilde180 Gb/s. The difference matters
+  when we are computing per-second throughput for a fixed data volume.
+  \mbox{{[}ILLUSTRATIVE{]}}{[}DERIVED: 64/66 line code plus framing/FEC
+  overhead{]}
 \end{itemize}
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
@@ -587,9 +600,17 @@ calls for data-parallel training of a 70B FP16 model across 8 nodes, the
 all-reduce bandwidth dictates whether the nodes are connected by
 InfiniBand, 200 GbE, or even 100 GbE. If the budget can accommodate
 NVLink‑equipped hosts (GPUs connected on‑node), keeping the all-reduce
-on-node gives an ideal ring time about 11× below the assumed InfiniBand
-case and about 180× below the assumed RoCE case (§9.3). These ratios
-apply to this communication-only model, not to end-to-end throughput.
+on-node gives an ideal ring time about 1/11th the assumed InfiniBand
+case and about 1/180th the assumed RoCE case (§9.3) (NVLink figure is a
+directional peak; fabric figures are effective --- the ratios are
+peak-vs-effective upper bounds on the on-node advantage). These ratios
+apply to this communication-only model, not to end-to-end throughput. An
+eight-node data-parallel job uses NVLink/NVSwitch for intra-node
+exchanges and InfiniBand/RoCE for inter-node exchanges; compare
+InfiniBand vs Ethernet only for the inter-node portion. The 1/11 and
+1/180 ratios compare an eight-rank single-host collective with an
+eight-rank cross-host collective (communication-only,
+peak-vs-effective), not two fabrics for the same job.
 
 The architecture consequence also flows in the other direction: a
 tighter communication budget (e.g., target \textless0.5 s per
@@ -608,17 +629,20 @@ over the life of the cluster when communication is a significant
 fraction of iteration time and the switch-fabric premium is repaid by
 the time saved. A cluster connected by 200 GbE RoCE has lower capital
 cost but higher per-iteration communication time, which may increase the
-total cost of ownership if the training job runs for many weeks. The
-architect must balance capex vs.~opex by way of the communication
-arithmetic shown in this chapter.
+total cost of ownership if the training job runs for many weeks.
+NVSwitch inside each node and a 200 GbE RoCE or InfiniBand inter-node
+fabric are not exclusive alternatives --- they are different layers of
+the same cluster and are normally both present, so the capex comparison
+must name which layer it prices. The architect must balance capex
+vs.~opex by way of the communication arithmetic shown in this chapter.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
 
 \begin{itemize}
 \item
-  \textbf{Contention patterns under mixed workloads.} The benchmark
-  numbers above assume a dedicated collective on a quiet fabric. In a
+  \textbf{Contention patterns under mixed workloads.} The analytical
+  estimates above assume a dedicated collective on a quiet fabric. In a
   production fleet, other traffic (user requests, other training jobs,
   KV cache movement) shares the same links. The effective bandwidth
   under realistic multi‑job congestion is not yet characterized with a
@@ -637,12 +661,13 @@ arithmetic shown in this chapter.
 \item
   \textbf{Optical interconnects and the next generation.} NVLink‑Switch
   and the next‑generation switch fabrics are pushing intra‑node
-  bandwidth higher (NVLink 5 provides 1.8 TB/s per GPU), and optical
-  intra‑rack fabrics (400 Gb/s--800 Gb/s per lane) are entering data
-  centers. The arithmetic base --- the relative magnitudes of PCIe,
-  NVLink, Ethernet, InfiniBand --- is stable in the near term, but the
-  absolute numbers will shift as new silicon and cable technologies
-  ship. Keep the framework; update the constants.
+  bandwidth higher (NVLink 5 provides 1.8 TB/s per GPU bidirectional
+  aggregate, i.e.~900 GB/s per direction), and optical intra‑rack
+  fabrics (400 Gb/s--800 Gb/s per lane) are entering data centers. The
+  arithmetic base --- the relative magnitudes of PCIe, NVLink, Ethernet,
+  InfiniBand --- is stable in the near term, but the absolute numbers
+  will shift as new silicon and cable technologies ship. Keep the
+  framework; update the constants.
 \item
   \textbf{Cross‑domain generalization.} Most published bandwidth
   measurements use standard dense buffers (e.g., an all‑reduce of a
@@ -826,16 +851,19 @@ sharded-inference arrangements) does all-gather weight shards before the
 forward pass. So the architect must name the scheme before doing the
 arithmetic. Concretely, for the canonical 8×H100 host the meaningful
 per-step data movement is a TP all-reduce of the per-layer activations
-(tens of MBs, not GBs). In disaggregated serving a separate, one-time
-movement --- not a per-step one --- moves the KV cache fragment:
-e.g.~\textasciitilde35 GB of KV moved over NVLink (\textasciitilde0.08 s
-at 450 GB/s per direction, §9.2) when a P/D sequence transfers a
-\textasciitilde13K-token context (35 GB ÷ 2.62 MB/token ≈ 13.3K) between
-prefill and decode pools. The distinction changes the answer by orders
-of magnitude: re-fetching 140 GB of weights each step is pathological
-(that is a design smell, an anti-pattern to flag, not a baseline);
-exchanging activations or KV fragments is the normal case that fits
-comfortably within NVLink.
+(tens of MBs, not GBs, at the canonical batch and hidden size --- it
+scales with batch × hidden width per layer). In disaggregated serving a
+separate, one-time movement --- not a per-step one --- moves the KV
+cache fragment: e.g.~\textasciitilde35 GB of KV moved over NVLink
+(\textasciitilde0.08 s at 450 GB/s per direction, §9.2) when a P/D
+sequence transfers a \textasciitilde13K-token context (35 GB ÷ 2.62
+MB/token ≈ 13.3K) between prefill and decode pools. The distinction
+changes the answer by orders of magnitude: re-fetching 140 GB of weights
+each step is pathological (that is a design smell, an anti-pattern to
+flag, not a baseline); exchanging activations or KV fragments is the
+normal case --- bandwidth-feasible within NVLink (\textasciitilde0.08 s
+for the 35 GB KV move), with acceptability judged against the TTFT/SLO
+budget.
 
 The architect proposes keeping each tensor-parallel engine within an
 eight-GPU host where memory and operator support permit. Additional

@@ -1,0 +1,38 @@
+[
+ {
+  "id": "CH12-T12-2-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "Real unit mismatch in the table body: the column header is 'Prefill hosts' but candidate (c)'s cells are single-H100 card counts — 92,000÷24,725=3.72→4 cards and 368,000÷24,725=14.88→15 cards (24,725 is the per-GPU rate; 8×24,725=197,800 is the node rate), so read in isolation '~4' under 'hosts' is an 8× unit error. Mitigation is real (footnote, reading rules, and the cost row's '~4 avg / ~15 peak cards, not an 8×H100 node'), so P1 is overstated — but the header/cell unit inconsistency itself is not 'correct as written' and the fix is two cell edits. All arithmetic verified: 92,000/197,800=0.47→1 host; 368,000/197,800=1.86→2 hosts.",
+  "evidence": "chapter-12.md Table 12-2: header '| Metric | (a) 8×H100 + prefix cache | (b) P/D-disaggregated | (c) KV-quantized 7B |' with row '| Prefill hosts, avg 92K tok/s | ~5 | prefill pool ~5 | ~4 (92,000 ÷ 24,725 ≈ 3.72) |' and '| Prefill hosts, peak 368K tok/s | ~19 ... | prefill pool ~19 ... | ~15 (368,000 ÷ 24,725 ≈ 14.88), before headroom |'. Reading rule below: 'candidate (c)'s ~4 / ~15 uses its own single-GPU rate (~24,700 tok/s), not the 8-GPU node's ~197K'. Cost row (c): 'single-H100 hosts (~4 avg / ~15 peak cards, not an 8×H100 node)'. python: 92000/24725=3.721; 368000/24725=14.884; 8*24725=197800; 92000/197800=0.465; 368000/197800=1.860.",
+  "fix_instruction": "File design/manuscript/chapter-12/chapter-12.md, Table 12-2, column (c) cells. Change '~4 (92,000 ÷ 24,725 ≈ 3.72)' to '~4 H100 cards (92,000 ÷ 24,725 ≈ 3.72)' in the 'Prefill hosts, avg 92K tok/s' row, and '~15 (368,000 ÷ 24,725 ≈ 14.88), before headroom' to '~15 H100 cards (368,000 ÷ 24,725 ≈ 14.88), before headroom' in the 'Prefill hosts, peak 368K tok/s' row — the column header says 'hosts' but these two cells are single-GPU counts (the footnote and reading rules say so; the cells must too).",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-12/chapter-12.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH12-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Real cross-chapter basis defect: Ch12 §12.8 calls the 21-host screen cost 'the fleet the canonical workload requires' (~$155.8K / $306.6K), while Ch13 and Ch17 state the provisioning policy at the same 40 rps peak yields 32 hosts (⌈344/17⌉=21 full-utilization screen; 31 working + 1 spare at 70%×95%). Ch16 computes $155,816.93 on 21 hosts and labels it 'case (i)/KV-screen sensitivity run', but Ch12's prose drops the screen label and elevates it to 'requires'. All arithmetic verified: 21×14,600=306,600 ✓; 155,816.93/6,240=24.97 ✓; 306,600/6,240=49.13 ✓; 344/17=20.235; 20.235/0.665=30.43→31+1=32 ✓; 32×14,600=467,200. Note: reviewer's '~$237K self-host' is slightly wrong — with Ch16's fixed $10K staff, 32 hosts = 32×5,833.33 + 32×1,110.33 + 10,000 = $232,197, not a proportional 32/21 scaling.",
+  "evidence": "chapter-12.md §12.8: 'the fleet the canonical workload requires costs ~$155.8k/mo ($155,816.93, ≈$24.97/1k ...)'. chapter-13.md: 'Ch16/17 size the fleet to ~21 hosts at the 40 rps peak on the full-utilization screen — ⌈344/17⌉ = 21; under the 70% × 95% policy ... that becomes 31 working + 1 spare = 32 total, Table 17-1'. chapter-17.md: '⌈344/17⌉ = 21 hosts at full utilization (31 at the 70% × 95% policy, 32 total with N−1 — Table 17-1)'. chapter-16.md: 'Monthly total = $122,500 + $23,316.93 + $10,000 = $155,816.93/month for 21 hosts (zero spare) — the case (i)/KV-screen sensitivity run'. python: 21*14600=306600; 32*14600=467200; 155816.93/6240=24.9707; 306600/6240=49.1346; 344/17=20.2353; 20.2353/0.665=30.429→31+1=32; 32*5833.33+32*1110.33+10000=232197.12.",
+  "fix_instruction": "File design/manuscript/chapter-12/chapter-12.md, §12.8 mini-case paragraph beginning 'the consequence must be stated, not dissolved:'. Replace 'the fleet the canonical workload requires costs ~$155.8k/mo' with 'the 21-host full-utilization screen fleet (Ch 16 case (i)/KV-screen line) costs ~$155.8k/mo — and the Ch 17 Table 17-1 provisioning policy (70% × 95% + N−1) yields 32 hosts at the same 40 rps peak (Ch 13), i.e. ~$232.2K self-host and ~$467.2K cloud-equivalent at the same per-host rates'. Also append to Table 12-2's 'Monthly fully loaded cost' row: '(21-host screen basis; policy fleet is 32, Ch 13/17)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-12/chapter-12.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH12-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "The clause contradicts the chapter's own table and its own verdict. Table 12-2 screens candidate (c) at ~4 avg / ~15 peak single-H100 cards — fewer units than candidate (a)'s ~5/~19 hosts — and its feasibility row attributes the open gate to quality ('? unmeasured — fails the quality gate until measured (Ch 14)'), as does the summary table ('gated, not a finalist — ✗ quality') and the paragraph itself ('its memory and economics are trivially favorable; its fate turns on that measured gate'; 'strongly suspected to fail the quality gate [HYPOTHESIS]'). Throughput demand is nowhere else a reason (c) fails, so 'making it provisionally non-viable' hands the reader the wrong rejection reason. Arithmetic verified: 92,000/24,725=3.72→4; 368,000/24,725=14.88→15; (a) 368,000/19,800=18.59→19.",
+  "evidence": "chapter-12.md §8: '...not a settled fact — and it faces the same throughput demand at peak, making it provisionally non-viable.' Same paragraph: 'its memory and economics are trivially favorable; its fate turns on that measured gate.'; 'Because candidate (c) is strongly suspected to fail the quality gate [HYPOTHESIS], it is not a finalist'. Table 12-2: '(c) ... ~4 (92,000 ÷ 24,725 ≈ 3.72)' and '~15 (368,000 ÷ 24,725 ≈ 14.88), before headroom'; '(a) ... ~5' and '~19 (368K ÷ 19.8K ≈ 18.6, ceil 19)'.",
+  "fix_instruction": "File design/manuscript/chapter-12/chapter-12.md, §8 mini-case, Candidate (c) paragraph. In the sentence ending '...whether a 7b-class model can reach the required answer quality is a hypothesis to be measured against the quality gate (Chapter 14), not a settled fact — and it faces the same throughput demand at peak, making it provisionally non-viable.', delete the clause ' and it faces the same throughput demand at peak, making it provisionally non-viable' so the sentence ends '...not a settled fact.' The throughput demand does not make (c) non-viable: Table 12-2 screens it at ~4/~15 cards and every other statement in the chapter attributes the gate to quality.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-12/chapter-12.md",
+  "_dupes": []
+ }
+]

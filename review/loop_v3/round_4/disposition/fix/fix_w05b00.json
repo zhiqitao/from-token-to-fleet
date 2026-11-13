@@ -1,0 +1,86 @@
+[
+ {
+  "id": "CH19-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "The 120 ms 'per-turn agent step ... for a 10,000-token context', labelled 'the LLM's short decision step', is inconsistent by ~1 order of magnitude with the chapter's own per-turn model arithmetic, and its physical referent is never stated: a 10K prefill is 1.08*10000/9200 = 1.174 s (9.8x), the per-turn gamma=65 decode is 65*25 ms = 1.625 s (13.5x), and W's marginal per-turn cost is W(3)-W(2) = 3.14 s / W(2)-W(1) = 3.04 s (25x). 120 ms equals only 4.8 tokens at 25 ms/token. The chapter mitigates by saying the views are 'not additive' and that 'W already carries the per-turn model work inside the gamma decode', but never says what lambda_step physically is, so the label 'the model's tool-call decision step' cannot be reconciled with the ~3 s per-turn model cost the chapter itself prices.",
+  "evidence": "chapter-19.md line 146 quote located: 'On 8xH100 the per-turn agent step averages ~120 ms for a 10,000-token context... So per-turn orchestration overhead L_agent ~= 220 ms (median).' python: 1.08*10000/9200 = 1.1739 s; 65*0.025 = 1.625 s; 0.120/0.025 = 4.8 tokens; 17.70-14.56 = 3.14; 14.56-11.52 = 3.04. Line 176: 'W already carries the per-turn model work inside the gamma decode'; Table 19-1 footnote: 'The two latency rows are different quantities and must not be added'.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 'Tool-call latency budget' (line 146) and the lambda_step definition (line 152): replace 'the LLM's short decision step to formulate the tool call' / '(the model's tool-call decision step)' with an explicit scope, e.g. 'lambda_step ~= 120 ms (per-invocation orchestration overhead -- scheduling, KV-slot setup, kernel launch -- excluding model compute; the model's own per-turn work, prefill of the grown prefix + decode of gamma, is carried inside W, ~= 3.0-3.1 s marginal per turn)'. If it is instead meant to be the decode of the ~5 tool-call tokens within gamma (120 ms / 25 ms = 4.8 tokens), say so and state that the remaining ~60 reasoning tokens (~1.5 s) are counted only in W.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-19/chapter-19.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH19-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The lead sentence announces 'four ways' but §6 presents seven bolded sub-headings. Direct count of paragraph-opening bold runs between '## 6.' and '## 7.' gives exactly 7: State-management policy, Inference scaling, Three policies three different levers, Task economics, Tool backend provisioning, Observability requirements, Fallback & degradation pathways (plus one italic figure-caption paragraph in between). The count mismatch is a real, trivially fixable defect.",
+  "evidence": "chapter-19.md line 208: 'Introducing an agentic layer reshapes the system architecture in four ways:'. awk over lines 206-239 for /^\\*\\*/ returns 7 lines: 210, 212, 220, 222, 234, 236, 238.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §6 lead sentence (line 208): change 'in four ways:' to 'in seven ways:' so the count matches the seven bolded sub-headings that follow (lines 210, 212, 220, 222, 234, 236, 238). Alternative if a smaller count is preferred: demote the bold heading '**Three policies, three different levers.**' (line 220) to a continuation paragraph of State-management and change the lead to 'in six ways:' -- but the number must equal the count of bolded sub-headings.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-19/chapter-19.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH19-02",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "lambda_step ~= 120 ms is labelled 'the model's tool-call decision step' and sits inside L_agent, but the chapter never states what physical process it is or how it relates to W, which already carries the model's per-turn work: gamma=65 decode alone is 1.625 s/turn and W's marginal per-turn cost is ~3.0-3.1 s. If the 120 ms is model compute it overlaps W's decode (the text says the two are 'not additive' but never explains the overlap); if it is scheduling/kernel overhead, calling it 'the model's' misattributes it. The reviewer's double-count/mislabel dilemma is real and unresolved in the source.",
+  "evidence": "chapter-19.md line 152 quote located: 'where lambda_step ~= 120 ms (the model's tool-call decision step) and lambda_tool ~= 100 ms (median, tool backend)'. Line 176: 'W already carries the per-turn model work inside the gamma decode'; line 173: W_no-reuse(3) = 4.93 + 12.375 + 0.399 ~= 17.70 s (prefill 4.93 + decode 12.375 + tool 0.399). python: 65*0.025 = 1.625 s/turn decode; 17.70-14.56 = 3.14 s marginal.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 lambda_step definition (line 152): replace '(the model's tool-call decision step)' with an unambiguous scope, e.g. '(per-invocation system overhead -- scheduling, KV-cache slot allocation, kernel launch -- not model FLOP time, which W carries in its prefill and gamma-decode terms)'; if it is genuinely a short model generation, state that it is the decode of the ~5 tool-call tokens (120 ms / 25 ms = 4.8 tokens) within the 65-token gamma output and that the remaining ~60 reasoning tokens (~1.5 s) are counted only in W.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-19/chapter-19.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH19-03",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Same unreconciled quantity as the other 120 ms findings, and the reviewer's token arithmetic is exact: 120 ms / 25 ms per token = 4.8 tokens, while the per-turn convention has one invocation emitting gamma = 65 tokens = 1,625 ms. The text calls the 120 ms 'the LLM's short decision step' inside L_agent while W's decode carries the full 65-token gamma, and never states whether the 120 ms is a subset of those 65 tokens or a separate generation -- so a reader cannot tell which portion of per-turn model time is counted in L_agent versus W, nor reconcile it with the one-invocation-per-turn convention.",
+  "evidence": "chapter-19.md line 146 quote located: 'the LLM's short decision step to formulate the tool call ... On 8xH100 the per-turn agent step averages ~120 ms for a 10,000-token context'. python: 0.120/0.025 = 4.8 tokens; 65*0.025 = 1.625 s; 1.174 s prefill at 10K. Line 120: 'each agent turn is one model invocation that emits gamma reasoning *and* a tool call'; line 176: 'W already carries the per-turn model work inside the gamma decode'.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 'Tool-call latency budget' (line 146): add one sentence mapping the 120 ms to the per-turn convention, e.g. 'The 120 ms is the decode of the ~5 tool-call tokens within the 65-token gamma output (120 ms / 25 ms ~= 4.8 tokens); the remaining ~60 reasoning tokens (~1.5 s) and every call's prefill are counted in W, not in L_agent.' -- or, if the 120 ms is non-model orchestration overhead, relabel it accordingly and drop 'the LLM's'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-19/chapter-19.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH19-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The Boundary rule as literally written is false against the ledger printed immediately above it: row 2's input 10,065 = 9,200 + 65 (call 1's model output) + 800 (tool output), and rows 3-4 likewise carry prior outputs, so 'A call's input never contains output tokens' fails for 3 of 4 rows. The rule's intent (never sum the incl.-300-output column) is right, but the universal phrasing contradicts the adjacent data; the fix is to scope it to a call's own output.",
+  "evidence": "chapter-19.md line 107 quote located: '**Boundary rule.** A call's *input* never contains output tokens, so task_input must sum per-call inputs only -- never the \"Total tokens (incl. 300 output)\" column'. Ledger lines 124-127: inputs 9,200 / 10,065 / 10,930 / 11,795 with 'New model output 65' per turn. python recompute: 9200+65+800 = 10065; 10065+65+800 = 10930; 10930+65+800 = 11795 (matches book); sum = 41990; row 2 input contains call 1's 65 output tokens.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 Boundary rule (line 107): change 'A call's *input* never contains output tokens' to 'A call's *input* never contains *its own* output tokens (a later call's input does carry earlier calls' outputs and tool results -- which is exactly why Sigma per-call inputs double-counts carried context and exceeds the retained 12,095)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-19/chapter-19.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH19-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Verified exactly: the authoritative evaluator scales prefill linearly (render/agent_trace.py line 26 'BUDGET = 1.08 # prefill of the canonical 9,200-token input under the linear model', line 61 'prefill_s = (n / I0) * BUDGET'), and Ch 19 never names this assumption, while Ch 22 Table 22-1 derives the omitted quadratic attention term. Recomputed FLOPs match the finding to 4 decimals: case (ii) at 9,200/10,065/10,930/11,795 = 1.5099/1.6747/1.8434/2.0160 (sum 7.044) vs linear 1.288/1.4091/1.5302/1.6513 (sum 5.879), ratio 1.198; case (iii) ratio 1.099. Hence W_no-reuse(3) ~= 18.68 s (case ii) / 18.19 s (case iii) instead of 17.70 s, and the gap grows with T. The W numbers feed Ch 17 fleet sizing, so the unstated lower-bound assumption is a real defect.",
+  "evidence": "chapter-19.md line 170 quote located: 'yields a prefill sum of (41,990 / 9,200) x 1.08 ~= 4.93 s'. render/agent_trace.py:26 'BUDGET = 1.08 # prefill of the canonical 9,200-token input under the linear model (s)'; :61 'prefill_s = (n / I0) * BUDGET'. chapter-22.md Table 22-1 lines 58-60: '~1.29 PFLOP [case (i) linear-only lower bound] / ~1.5099 PFLOP = 1.288 + 0.2219 (+17.23%) [case (ii)] / ~1.3989 PFLOP (+8.61%) [case (iii)]'. python: sums 5.8786 / 7.0439 / 6.4613; ratios 1.198 / 1.099; W3 = 17.70 (linear) / 18.19 (iii) / 18.68 (ii). grep of ch19 for 'case (i)'/'linear' shows no prefill-scaling assumption stated.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 W definition (lines 164-170): after 'yields a prefill sum of (41,990 / 9,200) x 1.08 ~= 4.93 s' insert '(prefill time taken as proportional to tokens -- case (i), linear-only, per Ch 22 Table 22-1; the quadratic attention term adds +17.2% at 9.2K under case (ii) and grows with context, giving W_no-reuse(3) ~= 18.68 s under case (ii) and ~= 18.19 s under case (iii) rather than 17.70 s)'. Also tag the Table 19-1 W rows and the Ch 17 §8 fleet-sizing citation with the case-(i) linear assumption.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-19/chapter-19.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH19-04",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The sentence mixes service-time bases: the in-flight count 86 = 10 x 8.6 uses the single-shot service time (explicitly 'per Ch 4'), but it is multiplied by the T=1 agentic per-request KV (27.2 GB at 10,365 tokens). For the agentic workload the service time is W(1) = 11.52 s, giving L = 115.2 in-flight and ~3.13 TB aggregate KV. The text presents ~2.3 TB as 'the aggregate KV alone' without saying it is a lower bound; the conclusion (>> 436 GB) is robust, but the basis mismatch is unstated, exactly as the finding says.",
+  "evidence": "chapter-19.md line 212 quote located verbatim. python: 10*8.6 = 86; 10365*2.62/1000 = 27.156 GB; 86*27.156/1000 = 2.335 TB; 10*11.52 = 115.2; 115.2*27.156/1000 = 3.128 TB. Table 19-1: W no-reuse T=1 = ~11.52 s, KV T=1 = ~27.2 GB.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §6 'Inference scaling' paragraph (line 212): change 'the aggregate KV alone is ~86 x 27.2 GB ~= 2.3 TB' to 'using the base-system in-flight count (86 = 10 x 8.6, Ch 4) as a lower bound -- the agentic T=1 service time W ~= 11.52 s would raise in-flight to ~115 and aggregate KV to ~3.1 TB -- the aggregate KV alone is already ~86 x 27.2 GB ~= 2.3 TB'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-19/chapter-19.md",
+  "_dupes": []
+ }
+]

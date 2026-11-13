@@ -1,0 +1,182 @@
+[
+ {
+  "id": "CH17-02",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "DEFENSIBLE",
+  "reason": "The 6.24M figure is the canonical business-hours volume with an explicit derivation in the cited source: Ch 16 §16.3 line 86 states '10 rps x 8 h x 3,600 s x 260 workdays / 12 = 6,240,000 requests/month' (also Ch 4 line 94), and the Ch 18 paragraph explicitly attributes the TCO division to 'Ch16 §16.3'. The reviewer's own '7.22 days' equals exactly the stated 173.33 active hours/month (8h x 260/12), i.e. the duty cycle IS stated in the cited chapter; 6.24M x 9,500 = 5.928e10 ~= 5.93e10 and $155,817 / 5.928e10 = $2.63/1M both check. A cross-chapter canonical value with a working citation is not an underivable number; restating the derivation is a style preference.",
+  "evidence": "grep '6.24M' -> chapter-16:86 'Per request at ~10 rps average over the active business-hours window (Ch 4: 10 rps x 8 h x 3,600 s x 260 workdays / 12 = 6,240,000 requests/month... request-active time is 173.33 h/month)'; chapter-04:94 same derivation. python: 10*3600*8*260/12 = 6240000.0; 6240000/10/3600 = 173.33 h = 7.222 days; 6.24e6*9500 = 5.928e10; 155817/5.928e10*1e6 = 2.628 $/1M. Ch 18 line 85 quote located: '6.24M requests/month x 9,500 tokens ~= 5.93x10^10 tokens/month'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH18-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "DEFENSIBLE",
+  "reason": "The cell already scopes the 1-GPU claim to weights ('weights alone fit on 1xH100') and corrects the deployment reading in the same cell ('with the canonical KV budget the 8xH100 pool still holds weights + KV'); the reviewer concedes 'The parenthetical's second clause ... corrects this'. The reviewer's arithmetic (10 GB -> ~3,817 tokens < 9,500) is correct and in fact supports the cell's point: weights fit on 1 GPU but KV needs the pool (70 + 436 = 506 <= 640 GB). A 'moment of confusion' for a reader who stops mid-parenthetical is not a text defect.",
+  "evidence": "chapter-18.md line 50: '| 70B dense 8-bit | -- | ~70 GB | -- | 1 (weights alone fit on 1xH100, leaving 7 GPUs; with the canonical KV budget the 8xH100 pool still holds weights + KV) |'. python: 80-70 = 10 GB; 10*1000/2.62 = 3816.8 tokens; 9500*2.62/1000 = 24.89 GB needed; 70+436 = 506 <= 640.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH18-02",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "DEFENSIBLE",
+  "reason": "The parenthetical describes the request kind (short prompts in the routing scenario), not the router's decision latency, and 'triages in milliseconds' is a true loose bound for a sub-ms-to-ms routing decision. The chapter already defines the column's basis two paragraphs earlier: 'The per-request latency is that of the model serving it' (line 105), and the scope note itself says these are not the canonical 8.6 s service time and that a Ch 14 benchmark must supply real per-model times. No reader claim that the 120-800 ms includes router time is supported by the sentence as written.",
+  "evidence": "chapter-18.md line 113 quote located verbatim; line 105: 'The per-request latency is that of the model serving it.'; line 113: 'They are not the ~8.6 s service time of the 9.5K-token canonical RAG request (Ch 17)... A deployment benchmark (Ch 14) must supply the real per-model service times'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH18-03",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "The three thresholds (>=70%, >=300 ms, >30%) are specific numbers presented as decision criteria with no evidence label, while the same chapter explicitly labels its other figures ('These are [ILLUSTRATIVE] pricing and latency figures for Q4 2026', line 115) and marks the adjacent savings as 'the §18.3.3 derived figure'. Within one bullet the derived arithmetic is attributed but the thresholds are unattributed, so they read with the same authority as derived results. Real but minor (P3) consistency defect against the chapter's own labeling practice.",
+  "evidence": "chapter-18.md line 119: '- **Consolidate** when: workload profile overlap >=70%, latency tolerance >=300 ms, and cost differential >30%. *Verified*: our scenario sits exactly at the threshold...' (no [ILLUSTRATIVE]/[ASSUMPTION] tag); line 115: 'These are [ILLUSTRATIVE] pricing and latency figures for Q4 2026'. grep of lines 117-122 shows no label on the thresholds.",
+  "fix_instruction": "design/manuscript/chapter-18/chapter-18.md, section 3.5, first bullet (line 119): after 'cost differential >30%.' insert ' These thresholds are [ILLUSTRATIVE][ASSUMPTION] design criteria for the worked example, not universal rules; a deployment should set its own consolidation thresholds from its SLO, cost model and workload mix.'"
+ },
+ {
+  "id": "CH18-S31-01",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P3",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The claim that the two clauses 'refer to different models (8-bit vs FP16)' is refuted by the source: the parenthetical sits in the 70B dense 8-bit row and both clauses describe that row's model -- 'weights alone fit on 1xH100' (70 GB on 80 GB) and 'with the canonical KV budget the 8xH100 pool still holds weights + KV' (70 + 436 = 506 <= 640 GB), with 'still' signalling same-model continuity. FP16 is never mentioned in the cell; the FP16 row has its own separate parenthetical on line 49 ('140 GB weights across the 8-GPU pool ... with KV, the full 640 GB pool is used'). The reviewer's evidence injects an FP16 attribution that does not appear in the quoted text.",
+  "evidence": "chapter-18.md line 50 (8-bit row): '1 (weights alone fit on 1xH100, leaving 7 GPUs; with the canonical KV budget the 8xH100 pool still holds weights + KV)'; line 49 (FP16 row, separate cell): '1 (140 GB weights across the 8-GPU pool, ~17.5 GB/GPU under TP; with KV, the full 640 GB pool is used)'. grep of the quoted clause returns only line 50; the string 'FP16' does not occur in that cell. python: 70+436 = 506 <= 640.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-01",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P1",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "The quoted clause is fabricated: grep for 'amplified by the agentic factor' and for 'amplified by' returns zero matches anywhere in design/manuscript/. The actual §6 sentence says the OPPOSITE of the observed claim: billed input tokens 'are the execution-trace totals -- Sigma per-call input + output tokens (41,990 + 495 uncached, §3 ledger) -- not the agentic factor alpha from Section 4 ... billed ~= 4.47x vs alpha = 1.27x'. §6 therefore already states exactly the correction the finding demands and does not contradict §4's warning; the finding's premise ('§6 states that billed input tokens are amplified by alpha') is refuted by the source.",
+  "evidence": "grep -rn 'amplified by the agentic factor' design/manuscript/ -> 0 matches; grep -rn 'amplified by' -> 0 matches. chapter-19.md line 232 (actual text): 'the input tokens billed across the task's calls are the execution-trace totals -- Sigma per-call input + output tokens (41,990 + 495 uncached, §3 ledger) -- not the agentic factor *alpha* from Section 4, which is only the retained-context ratio (cumulative-context total vs the single-shot equivalent; billed ~= 4.47x vs alpha = 1.27x).'",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "The 120 ms 'per-turn agent step ... for a 10,000-token context', labelled 'the LLM's short decision step', is inconsistent by ~1 order of magnitude with the chapter's own per-turn model arithmetic, and its physical referent is never stated: a 10K prefill is 1.08*10000/9200 = 1.174 s (9.8x), the per-turn gamma=65 decode is 65*25 ms = 1.625 s (13.5x), and W's marginal per-turn cost is W(3)-W(2) = 3.14 s / W(2)-W(1) = 3.04 s (25x). 120 ms equals only 4.8 tokens at 25 ms/token. The chapter mitigates by saying the views are 'not additive' and that 'W already carries the per-turn model work inside the gamma decode', but never says what lambda_step physically is, so the label 'the model's tool-call decision step' cannot be reconciled with the ~3 s per-turn model cost the chapter itself prices.",
+  "evidence": "chapter-19.md line 146 quote located: 'On 8xH100 the per-turn agent step averages ~120 ms for a 10,000-token context... So per-turn orchestration overhead L_agent ~= 220 ms (median).' python: 1.08*10000/9200 = 1.1739 s; 65*0.025 = 1.625 s; 0.120/0.025 = 4.8 tokens; 17.70-14.56 = 3.14; 14.56-11.52 = 3.04. Line 176: 'W already carries the per-turn model work inside the gamma decode'; Table 19-1 footnote: 'The two latency rows are different quantities and must not be added'.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 'Tool-call latency budget' (line 146) and the lambda_step definition (line 152): replace 'the LLM's short decision step to formulate the tool call' / '(the model's tool-call decision step)' with an explicit scope, e.g. 'lambda_step ~= 120 ms (per-invocation orchestration overhead -- scheduling, KV-slot setup, kernel launch -- excluding model compute; the model's own per-turn work, prefill of the grown prefix + decode of gamma, is carried inside W, ~= 3.0-3.1 s marginal per turn)'. If it is instead meant to be the decode of the ~5 tool-call tokens within gamma (120 ms / 25 ms = 4.8 tokens), say so and state that the remaining ~60 reasoning tokens (~1.5 s) are counted only in W."
+ },
+ {
+  "id": "CH19-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The lead sentence announces 'four ways' but §6 presents seven bolded sub-headings. Direct count of paragraph-opening bold runs between '## 6.' and '## 7.' gives exactly 7: State-management policy, Inference scaling, Three policies three different levers, Task economics, Tool backend provisioning, Observability requirements, Fallback & degradation pathways (plus one italic figure-caption paragraph in between). The count mismatch is a real, trivially fixable defect.",
+  "evidence": "chapter-19.md line 208: 'Introducing an agentic layer reshapes the system architecture in four ways:'. awk over lines 206-239 for /^\\*\\*/ returns 7 lines: 210, 212, 220, 222, 234, 236, 238.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §6 lead sentence (line 208): change 'in four ways:' to 'in seven ways:' so the count matches the seven bolded sub-headings that follow (lines 210, 212, 220, 222, 234, 236, 238). Alternative if a smaller count is preferred: demote the bold heading '**Three policies, three different levers.**' (line 220) to a continuation paragraph of State-management and change the lead to 'in six ways:' -- but the number must equal the count of bolded sub-headings."
+ },
+ {
+  "id": "CH19-02",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P2",
+  "verdict": "DEFENSIBLE",
+  "reason": "The two rates are explicitly scoped, attributed and assigned to different formulas, so a reader applying the framework is not guessing: lambda_tool ~= 100 ms is labelled '(median, tool backend)' and used only in L_agent; ~133 ms is labelled 'Chapter 17's ... tool/retrieval rate' and used only in W's tool leg. The text states they are 'a different quantity', tells the reader which formula uses which, and even quotes Ch 17 §8's own caveat 'a single model should use one rate consistently' -- the scope difference (retrieval leg included in 133) is readable from the labels in this chapter. The observed claim that the reader 'must choose ... without guidance' is refuted by the per-formula attribution.",
+  "evidence": "chapter-19.md line 152: 'lambda_tool ~= 100 ms (median, tool backend)'; line 170: 'The tool/retrieval leg here uses Chapter 17's ~133 ms/turn rate; the chapter's own T*L_agent (~220 ms/turn) is the orchestration-only incremental overhead, a different quantity'; line 176: 'W's tool leg is Chapter 17's ~133 ms/turn tool/retrieval-only rate -- Chapter 17 §8 itself notes that a single model should use one rate consistently'. chapter-17.md line 254: 'The tool leg here uses the ~133 ms/turn tool/retrieval rate; Chapter 19's T*L_agent ... is the orchestration-only incremental overhead at a different per-turn rate, and a single model should use one rate consistently.' python: 3*100 = 300 vs 3*133 = 399 (99 ms gap, as reported).",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "FALSE_POSITIVE",
+  "reason": "Both claims are refuted by recomputation. (1) The sentence does not assert two unlabelled values for one percentile: the main clause is under the fallback-inclusive ledger (unconditional p95 = conditional p95 = 660 ms, verified) and the parenthetical explicitly switches conventions with the words 'under the zero-turn convention'. (2) The parenthetical's CDF is correct under the convention it names: with the fallback at 0 ms, CDF(T<=2) = 2% + 68% + 25% = 95.0% exactly, so p95 lands on the T=2 boundary and reads 440 ms -- both numbers check. The sentence's entire point is that the convention must travel with the number; convention-labelled values are the feature, not the defect.",
+  "evidence": "python over the §8 ledger (68%@220, 25%@440, 5%@660, 2%@860): unconditional CDF {220:0.68, 440:0.93, 660:0.98, 860:1.0} -> p95 = 660, p99 = 860; conditional (÷0.98) CDF {220:0.6939, 440:0.949, 660:1.0} -> p95 = 660 (equal, as the sentence says); zero-turn (fallback@0) CDF {0:0.02, 220:0.70, 440:0.95, 660:1.0} -> CDF(T<=2) = 0.95, p95 = 440. chapter-19.md line 275 quote located verbatim, including the explicit label '(under the zero-turn convention it lands exactly on the boundary, CDF(T <= 2) = 95.0%, and reads T = 2 -> 440 ms -- which is exactly why the convention must travel with the number)'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-02",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "lambda_step ~= 120 ms is labelled 'the model's tool-call decision step' and sits inside L_agent, but the chapter never states what physical process it is or how it relates to W, which already carries the model's per-turn work: gamma=65 decode alone is 1.625 s/turn and W's marginal per-turn cost is ~3.0-3.1 s. If the 120 ms is model compute it overlaps W's decode (the text says the two are 'not additive' but never explains the overlap); if it is scheduling/kernel overhead, calling it 'the model's' misattributes it. The reviewer's double-count/mislabel dilemma is real and unresolved in the source.",
+  "evidence": "chapter-19.md line 152 quote located: 'where lambda_step ~= 120 ms (the model's tool-call decision step) and lambda_tool ~= 100 ms (median, tool backend)'. Line 176: 'W already carries the per-turn model work inside the gamma decode'; line 173: W_no-reuse(3) = 4.93 + 12.375 + 0.399 ~= 17.70 s (prefill 4.93 + decode 12.375 + tool 0.399). python: 65*0.025 = 1.625 s/turn decode; 17.70-14.56 = 3.14 s marginal.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 lambda_step definition (line 152): replace '(the model's tool-call decision step)' with an unambiguous scope, e.g. '(per-invocation system overhead -- scheduling, KV-cache slot allocation, kernel launch -- not model FLOP time, which W carries in its prefill and gamma-decode terms)'; if it is genuinely a short model generation, state that it is the decode of the ~5 tool-call tokens (120 ms / 25 ms = 4.8 tokens) within the 65-token gamma output and that the remaining ~60 reasoning tokens (~1.5 s) are counted only in W."
+ },
+ {
+  "id": "CH19-03",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Same unreconciled quantity as the other 120 ms findings, and the reviewer's token arithmetic is exact: 120 ms / 25 ms per token = 4.8 tokens, while the per-turn convention has one invocation emitting gamma = 65 tokens = 1,625 ms. The text calls the 120 ms 'the LLM's short decision step' inside L_agent while W's decode carries the full 65-token gamma, and never states whether the 120 ms is a subset of those 65 tokens or a separate generation -- so a reader cannot tell which portion of per-turn model time is counted in L_agent versus W, nor reconcile it with the one-invocation-per-turn convention.",
+  "evidence": "chapter-19.md line 146 quote located: 'the LLM's short decision step to formulate the tool call ... On 8xH100 the per-turn agent step averages ~120 ms for a 10,000-token context'. python: 0.120/0.025 = 4.8 tokens; 65*0.025 = 1.625 s; 1.174 s prefill at 10K. Line 120: 'each agent turn is one model invocation that emits gamma reasoning *and* a tool call'; line 176: 'W already carries the per-turn model work inside the gamma decode'.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 'Tool-call latency budget' (line 146): add one sentence mapping the 120 ms to the per-turn convention, e.g. 'The 120 ms is the decode of the ~5 tool-call tokens within the 65-token gamma output (120 ms / 25 ms ~= 4.8 tokens); the remaining ~60 reasoning tokens (~1.5 s) and every call's prefill are counted in W, not in L_agent.' -- or, if the 120 ms is non-model orchestration overhead, relabel it accordingly and drop 'the LLM's'."
+ },
+ {
+  "id": "CH19-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The Boundary rule as literally written is false against the ledger printed immediately above it: row 2's input 10,065 = 9,200 + 65 (call 1's model output) + 800 (tool output), and rows 3-4 likewise carry prior outputs, so 'A call's input never contains output tokens' fails for 3 of 4 rows. The rule's intent (never sum the incl.-300-output column) is right, but the universal phrasing contradicts the adjacent data; the fix is to scope it to a call's own output.",
+  "evidence": "chapter-19.md line 107 quote located: '**Boundary rule.** A call's *input* never contains output tokens, so task_input must sum per-call inputs only -- never the \"Total tokens (incl. 300 output)\" column'. Ledger lines 124-127: inputs 9,200 / 10,065 / 10,930 / 11,795 with 'New model output 65' per turn. python recompute: 9200+65+800 = 10065; 10065+65+800 = 10930; 10930+65+800 = 11795 (matches book); sum = 41990; row 2 input contains call 1's 65 output tokens.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 Boundary rule (line 107): change 'A call's *input* never contains output tokens' to 'A call's *input* never contains *its own* output tokens (a later call's input does carry earlier calls' outputs and tool results -- which is exactly why Sigma per-call inputs double-counts carried context and exceeds the retained 12,095)'."
+ },
+ {
+  "id": "CH19-03",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "DEFENSIBLE",
+  "reason": "Duplicate of the 100-vs-133 finding: both rates are explicitly scoped and attributed in this chapter -- lambda_tool ~= 100 ms '(median, tool backend)' feeds L_agent, 'Chapter 17's ~133 ms/turn tool/retrieval-only rate' feeds W's tool leg -- the text calls them 'a different quantity', each formula names its own rate, and it quotes Ch 17 §8's 'a single model should use one rate consistently' caveat. The component difference (retrieval leg in 133, absent from the tool-backend-only 100) is readable from the labels in Ch 19 itself; a reader applying either formula is not guessing.",
+  "evidence": "chapter-19.md line 203 quote located at line 170: 'The tool/retrieval leg here uses Chapter 17's ~133 ms/turn rate; the chapter's own T*L_agent (~220 ms/turn) is the orchestration-only incremental overhead, a different quantity (see below).'; line 152: 'lambda_tool ~= 100 ms (median, tool backend)'; line 176: 'Chapter 17 §8 itself notes that a single model should use one rate consistently'; chapter-17.md line 254 contains the same caveat. python: 3*100 = 300 vs 3*133 = 399 ms.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-04",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P3",
+  "verdict": "DEFENSIBLE",
+  "reason": "The scalar 'tokens/call' is immediately grounded by the very next sentence: billed tokens 'are the execution-trace totals -- Sigma per-call input + output tokens (41,990 + 495 uncached, §3 ledger)', so the formula's token term is explicitly defined as the sum over the varying per-call inputs (9,200 / 10,065 / 10,930 / 11,795), and the 'approximate' sign marks the scalar form as shorthand. The demanded acknowledgment is already present in the paragraph; per-call variation is stated, not hidden.",
+  "evidence": "chapter-19.md line 226 quote located inside the cost-per-successful-task formula (line 225-230, prefixed by '~'); line 232: 'the input tokens billed across the task's calls are the execution-trace totals -- Sigma per-call input + output tokens (41,990 + 495 uncached, §3 ledger)'. python: 9200+10065+10930+11795 = 41990.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Verified exactly: the authoritative evaluator scales prefill linearly (render/agent_trace.py line 26 'BUDGET = 1.08 # prefill of the canonical 9,200-token input under the linear model', line 61 'prefill_s = (n / I0) * BUDGET'), and Ch 19 never names this assumption, while Ch 22 Table 22-1 derives the omitted quadratic attention term. Recomputed FLOPs match the finding to 4 decimals: case (ii) at 9,200/10,065/10,930/11,795 = 1.5099/1.6747/1.8434/2.0160 (sum 7.044) vs linear 1.288/1.4091/1.5302/1.6513 (sum 5.879), ratio 1.198; case (iii) ratio 1.099. Hence W_no-reuse(3) ~= 18.68 s (case ii) / 18.19 s (case iii) instead of 17.70 s, and the gap grows with T. The W numbers feed Ch 17 fleet sizing, so the unstated lower-bound assumption is a real defect.",
+  "evidence": "chapter-19.md line 170 quote located: 'yields a prefill sum of (41,990 / 9,200) x 1.08 ~= 4.93 s'. render/agent_trace.py:26 'BUDGET = 1.08 # prefill of the canonical 9,200-token input under the linear model (s)'; :61 'prefill_s = (n / I0) * BUDGET'. chapter-22.md Table 22-1 lines 58-60: '~1.29 PFLOP [case (i) linear-only lower bound] / ~1.5099 PFLOP = 1.288 + 0.2219 (+17.23%) [case (ii)] / ~1.3989 PFLOP (+8.61%) [case (iii)]'. python: sums 5.8786 / 7.0439 / 6.4613; ratios 1.198 / 1.099; W3 = 17.70 (linear) / 18.19 (iii) / 18.68 (ii). grep of ch19 for 'case (i)'/'linear' shows no prefill-scaling assumption stated.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 W definition (lines 164-170): after 'yields a prefill sum of (41,990 / 9,200) x 1.08 ~= 4.93 s' insert '(prefill time taken as proportional to tokens -- case (i), linear-only, per Ch 22 Table 22-1; the quadratic attention term adds +17.2% at 9.2K under case (ii) and grows with context, giving W_no-reuse(3) ~= 18.68 s under case (ii) and ~= 18.19 s under case (iii) rather than 17.70 s)'. Also tag the Table 19-1 W rows and the Ch 17 §8 fleet-sizing citation with the case-(i) linear assumption."
+ },
+ {
+  "id": "CH19-04",
+  "model": "Qwen3.8-27B",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The sentence mixes service-time bases: the in-flight count 86 = 10 x 8.6 uses the single-shot service time (explicitly 'per Ch 4'), but it is multiplied by the T=1 agentic per-request KV (27.2 GB at 10,365 tokens). For the agentic workload the service time is W(1) = 11.52 s, giving L = 115.2 in-flight and ~3.13 TB aggregate KV. The text presents ~2.3 TB as 'the aggregate KV alone' without saying it is a lower bound; the conclusion (>> 436 GB) is robust, but the basis mismatch is unstated, exactly as the finding says.",
+  "evidence": "chapter-19.md line 212 quote located verbatim. python: 10*8.6 = 86; 10365*2.62/1000 = 27.156 GB; 86*27.156/1000 = 2.335 TB; 10*11.52 = 115.2; 115.2*27.156/1000 = 3.128 TB. Table 19-1: W no-reuse T=1 = ~11.52 s, KV T=1 = ~27.2 GB.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §6 'Inference scaling' paragraph (line 212): change 'the aggregate KV alone is ~86 x 27.2 GB ~= 2.3 TB' to 'using the base-system in-flight count (86 = 10 x 8.6, Ch 4) as a lower bound -- the agentic T=1 service time W ~= 11.52 s would raise in-flight to ~115 and aggregate KV to ~3.1 TB -- the aggregate KV alone is already ~86 x 27.2 GB ~= 2.3 TB'."
+ },
+ {
+  "id": "CH19-05",
+  "model": "MiMo-V2.6-Flash-RL",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "The parenthetical exists (line 133) but its referent does not: no example anywhere in design/manuscript/ sums two incl.-300-output totals as call inputs. Grep for every pairwise sum of the 'Total tokens (incl. 300 output)' values (9,500 / 10,365 / 11,230 / 12,095 / 12,960) returns zero matches manuscript-wide; §3's hand-worked trace reports retained-context totals (10,000 / 10,350 / 10,650) and never sums incl-output totals as inputs; §4's only sums are the correct per-call inputs. 'The earlier example' is therefore a dangling cross-reference a reader cannot locate -- a real defect (cite it precisely or delete it), not a fabricated quote.",
+  "evidence": "chapter-19.md line 133 quote located: '(The earlier example crossed the boundary by summing two *incl.-300-output* totals as if they were call inputs.)'. grep -rE '(9,500|10,365|11,230|12,095|12,960) *\\+ *(9,500|10,365|11,230|12,095|12,960)' design/manuscript/ -> 0 matches; grep 'summing' in ch19 -> only lines 103 and 133; §3 (lines 39-74) read in full: 'Total tokens after Turn 0: 9,200 + 800 = 10,000', 'Agentic: 10,350 input + 300 output = 10,650' -- retained-context totals, not call-input sums.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §4 derived-totals bullet (line 133): either replace '(The earlier example crossed the boundary by summing two *incl.-300-output* totals as if they were call inputs.)' with a precise citation to an example that actually makes that error (chapter/section + the erroneous sum), or delete the parenthetical -- no such example exists in the current manuscript."
+ },
+ {
+  "id": "CH19-05",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Wrong section pointer, verified: the event-level call ledger with 41,990 / 495 is in §4 'Measurement' (ledger at line 120, derivations at lines 133-134), while §3 'Worked Example' (lines 39-74) contains neither number -- its trace yields only 10,650. The chapter itself elsewhere calls it 'the §4 event-level ledger' (line 266), confirming '§3 ledger' in §6 is the error. Fix is a one-token change.",
+  "evidence": "chapter-19.md line 232 quote located: '(41,990 + 495 uncached, §3 ledger)'. awk over §3 (lines 39-74) for '41,990' or '495' -> no matches; §4 line 120: '**Event-level call ledger (T = 3, ...)**'; lines 133-134 derive 41,990 and 495; line 266: 'Per-class model tokens are the §4 event-level ledger's Sigma per-call inputs and outputs'.",
+  "fix_instruction": "design/manuscript/chapter-19/chapter-19.md, §6 'Task economics' paragraph (line 232): change '(41,990 + 495 uncached, §3 ledger)' to '(41,990 + 495 uncached, §4 ledger)'."
+ },
+ {
+  "id": "CH19-05",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "DEFENSIBLE",
+  "reason": "The slash is conventional shorthand for '§7 and §8' and both sections share the same conditional-on-completed-run convention, so no 'or/and' ambiguity arises in context; replacing it is a typographic preference, not a defect. The supporting occurrence claim is also wrong: '§7/§8' appears exactly 2 times in the chapter (lines 101 and 152, both in §4), not 'at least three times in §4 and once in §8'.",
+  "evidence": "grep '§7/§8' in design/manuscript/chapter-19/chapter-19.md -> 2 matches: line 101 '(conditional on a completed agent run -- the §7/§8 convention)' and line 152 '(conditional on a completed agent run -- the §7/§8 convention)'; zero occurrences in §8. Quote exists; count in the finding (3+1) is refuted.",
+  "fix_instruction": ""
+ }
+]

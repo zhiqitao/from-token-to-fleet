@@ -30,7 +30,15 @@ batch = np.array([1, 2, 4, 8, 16, 32, 64])
 # 'Avg prefix reuse' and the caption; values are synthetic [ILLUSTRATIVE].
 reuse = np.array([1, 2, 4, 8, 16, 32, 64])
 prefill_nocache = np.full_like(reuse, 100.0, dtype=float)
-prefill_cache  = np.array([99, 94, 90, 84, 78, 72, 60], dtype=float)
+# FIG-15.2-02: replot panel (a) from the stated amortization law
+# f(r) = (S + P/r) / (S + P) with P = 40% of the prompt (reusable prefix) and
+# S = 60% (unique suffix): monotone and convex-decreasing on the log-r axis --
+# largest drop between r=1 and r=10, flattening toward S/(S+P) = 60%.
+# r=1 gives f(1)=1 exactly, so the point stays on the no-cache line at 100.
+P_frac, S_frac = 0.40, 0.60
+def _amort(r):
+    return 100.0 * (S_frac + P_frac / np.asarray(r, dtype=float)) / (S_frac + P_frac)
+prefill_cache = _amort(reuse)
 # decode goodput rises with batch, THEN PLATEAUS as bandwidth saturates (~near batch 16):
 # the knee is where further batching stops raising throughput but keeps raising tail latency.
 goodput = np.array([8, 16, 29, 48, 66, 80, 88], dtype=float)
@@ -38,9 +46,16 @@ goodput = np.array([8, 16, 29, 48, 66, 80, 88], dtype=float)
 fig, (axa, axb) = plt.subplots(1, 2, figsize=(6.1, 3.5))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 
-# Panel (a): prefill saving
+# Panel (a): prefill saving -- smooth law over the full axis (r=1..90) plus
+# markers on the 1..64 reuse grid; label carries the formula and its P/S split.
+reuse_dense = np.logspace(0.0, np.log10(90.0), 400)
 axa.plot(reuse, prefill_nocache, '-o', color='#c0392b', lw=1.8, label='no cache')
-axa.plot(reuse, prefill_cache, '-s', color='#2f6f4f', lw=1.8, label='with prefix cache')
+axa.plot(reuse_dense, _amort(reuse_dense), '-', color='#2f6f4f', lw=1.8,
+         label='with prefix cache')
+axa.plot(reuse, prefill_cache, 's', color='#2f6f4f', ms=4.5)
+axa.text(0.98, 0.40, 'f(r)=(S+P/r)/(S+P)\nP=40%, S=60%',
+         transform=axa.transAxes, fontsize=7.0, color='#2f6f4f',
+         ha='right', va='top')
 axa.set_xscale('log')
 axa.set_xlabel('Avg prefix reuse', fontsize=9)
 axa.set_ylabel('Prefill FLOPs / req\n(% of no-cache)', fontsize=9)
@@ -57,7 +72,10 @@ axb.plot(batch, goodput, '-o', color='#27408b', lw=1.8)
 axb.set_xscale('log')
 axb.set_xlabel('Decode batch size', fontsize=9)
 axb.set_ylabel('Relative decode\ngoodput (a.u.)', fontsize=9)
-axb.set_title('(b) Decode bottleneck\nunaffected by caching', fontsize=9.5)
+# FIG-15.2-03: title now states only what the axes encode (one series, batch
+# size on x); the "unaffected by caching" claim moved to the chapter-15.md
+# caption, next to "They are not competing on the same axis".
+axb.set_title('(b) Decode goodput\nvs batch size', fontsize=9.5)
 axb.grid(alpha=0.3, which='both')
 axb.set_ylim(0, 100)
 axb.set_xlim(1, 64)

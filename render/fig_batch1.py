@@ -68,34 +68,46 @@ print('Ch09: see render/fig_ch9_directional.py')
 # REDESIGN (reviewer, 2026-09-27): the prior version packed each concern card
 # with a mechanism line plus an italic trade-off note, burying the "orthogonal"
 # claim under text.  New version makes the 2x2 orthogonality grid the dominant
-# visual -- four large, empty cards (accent header only, mostly whitespace) with
-# BIG concern labels, threaded by a single request -> output spine.  The
-# per-concern mechanism and trade-off now live in the manuscript caption.
+# visual -- four large cards with BIG concern labels; the per-concern trade-off
+# lives in the manuscript caption.
+# ROUND-4 fixes (FIG-11.2-01 / -02 / -03):
+#   -01: cards numbered 1-4 in reading order (row-major), so the caption's
+#         "the canonical baseline uses the first three" resolves without the
+#         reader guessing the reading order; card 4 (RESOURCE SPECIALIZATION,
+#         the later joiner) also takes a dashed border.
+#   -02: each card carries one short mechanism exemplar (the caption's
+#         concern->mechanism mapping, drawn rather than caption-only) and the
+#         cards are widened to the text column (0.025..0.975, was 0.045..0.955).
+#   -03: the per-card number plus card 4's dashed border differentiate the four
+#         boxes without relying on the near-identical pale fills (grayscale-safe).
 fig, ax = plt.subplots(figsize=(6.1, 3.5))
 fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/reflow
 ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
 BLUE='#3a6ea5'; GREEN='#27ae60'; ORANGE='#e67e22'; RED='#c0392b'; GREY='#555'; PURPLE='#6c3483'
 
-def box(x, y, w, h, fc, ec, lw=1.4):
-    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.01', fc=fc, ec=ec, lw=lw))
+def box(x, y, w, h, fc, ec, lw=1.4, ls='solid'):
+    ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.01', fc=fc, ec=ec, lw=lw, linestyle=ls))
 
-def card(x, y, w, h, label, col, fill):
-    box(x, y, w, h, fill, col, 2.0)
-    ax.text(x + w / 2, y + h / 2, label, ha='center', va='center',
+def card(x, y, w, h, num, label, exemplar, col, fill, ls='solid'):
+    box(x, y, w, h, fill, col, 2.0, ls)
+    yc = y + h / 2
+    ax.text(x + w / 2, yc + 0.045, '%d · %s' % (num, label), ha='center', va='center',
             fontsize=11.5, color=col, fontweight='bold')
+    ax.text(x + w / 2, yc - 0.075, exemplar, ha='center', va='center',
+            fontsize=8.8, color=col, style='italic')
 
 # title
-ax.text(0.5, 0.965, 'Serving = four orthogonal concerns, not a stack',
+ax.text(0.5, 0.965, 'Serving = four separable concerns, not a stack',
         fontsize=9.2, fontweight='bold', ha='center', color='#333')
 
 # the request stream is named in the caption; no arrow is drawn, because a
 # top-to-bottom arrow would encode a pipeline/stack, contradicting the title.
 
-# 2x2 orthogonality grid -- dominant, empty cards with BIG labels
-card(0.045, 0.52, 0.415, 0.30, 'REQUEST\nSCHEDULING', PURPLE, '#f7f3fb')
-card(0.540, 0.52, 0.415, 0.30, 'STATE\nMANAGEMENT', RED, '#fdecea')
-card(0.045, 0.10, 0.415, 0.30, 'REUSE', GREEN, '#eafaf0')
-card(0.540, 0.10, 0.415, 0.30, 'RESOURCE\nSPECIALIZATION', ORANGE, '#fdf3e0')
+# 2x2 grid -- numbered in reading order, one mechanism exemplar per card
+card(0.025, 0.52, 0.455, 0.30, 1, 'REQUEST\nSCHEDULING', 'e.g. continuous batching', PURPLE, '#f7f3fb')
+card(0.520, 0.52, 0.455, 0.30, 2, 'STATE\nMANAGEMENT', 'e.g. PagedAttention (KV pages)', RED, '#fdecea')
+card(0.025, 0.10, 0.455, 0.30, 3, 'REUSE', 'e.g. prefix caching', GREEN, '#eafaf0')
+card(0.520, 0.10, 0.455, 0.30, 4, 'RESOURCE\nSPECIALIZATION', 'e.g. P/D disaggregation', ORANGE, '#fdf3e0', ls='dashed')
 
 plt.tight_layout()
 plt.savefig(base % (11, 11, 11), dpi=350); plt.close()

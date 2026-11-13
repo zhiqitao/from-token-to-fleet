@@ -22,19 +22,27 @@ mean = lat.mean()
 # directly above its own line (staggered vertically) instead of a far callout block:
 # the old leader lines ran from x~0.9 to x~3.5 and crossed the p99 (1.33s) and SLO
 # (2.0s) verticals, creating clutter. Direct labels have no leaders, so nothing crosses.
+# FIG-6.2-01/04: the three greens were all identical dashed with name-only labels, so
+# neither line identity nor the prose-quoted values (0.80/0.94/0.99) could be read off
+# the plot. Now each line has its OWN dash style (distinguishable in grayscale) and each
+# label carries its numeric value.
 ytop = ax.get_ylim()[1]
 # Stagger the three green percentile labels onto three clearly-separated rows
 # (0.99 / 0.88 / 0.77 of ytop) so the boxes have comfortable vertical gaps; the
 # p99 and SLO labels sit on the top row to the right, clear of this green stack.
 leaders = [
-    (50, np.percentile(lat, 50), 0.94),
-    (90, np.percentile(lat, 90), 0.85),
-    (95, np.percentile(lat, 95), 0.75),
+    # (percentile, value, y-fraction, label side). p50's label goes LEFT of its line:
+    # to the right it runs under the p99 label box at x=1.36, which hid the value.
+    (50, np.percentile(lat, 50), 0.94, 'right'),
+    (90, np.percentile(lat, 90), 0.85, 'left'),
+    (95, np.percentile(lat, 95), 0.75, 'left'),
 ]
-for p, v, dy_off in leaders:
-    ax.axvline(v, color='#6f9e5f', ls='--', lw=1.3)
-    ax.text(v + 0.03, ytop * dy_off, f'p{p}', fontsize=8.5, color='#2f6f4f',
-            fontweight='bold', va='center', ha='left',
+pct_ls = {50: '--', 90: '-.', 95: ':'}   # distinct styles, readable in grayscale
+for p, v, dy_off, side in leaders:
+    ax.axvline(v, color='#6f9e5f', ls=pct_ls[p], lw=1.3)
+    x, ha = (v + 0.03, 'left') if side == 'left' else (v - 0.03, 'right')
+    ax.text(x, ytop * dy_off, f'p{p} {v:.2f}', fontsize=8.5, color='#2f6f4f',
+            fontweight='bold', va='center', ha=ha,
             bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#cfcfcf', lw=0.5))
 # p99 breaches the tail? NO — p99=1.33 is still under the 2s SLO. Emphasize it in red.
 v99 = np.percentile(lat, 99)
@@ -47,18 +55,20 @@ ax.axvline(mean, color='#555', ls='-', lw=1.7)
 # 2 s SLO line
 ax.axvline(2.0, color='#27408b', ls='-.', lw=2.2)
 # Label p99 and SLO directly on their lines (the green p50/p90/p95 are already
-# labeled; the mean is identified by the text box). p99 (1.33 s) and SLO (2.0 s)
-# sit to the right of the green cluster, so direct labels need no leaders and
-# cross nothing — this removes the "which line is p99 / which is SLO" ambiguity.
+# labeled; the mean is identified by the text box). p99 (1.33 s) sits on the top
+# row to the right of the green stack. The SLO label now reads
+# "SLO 2 s (TTFT budget)" (metric named, per review fix), which is wide enough
+# that on the top row its box would run under the legend box — so it sits at
+# mid-height on its own line instead, in clear space right of x=2.
 ax.text(v99 + 0.03, ytop * 0.94, 'p99', fontsize=8.5, color='#c0392b',
         fontweight='bold', va='center', ha='left',
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#c0392b', lw=0.5))
-ax.text(2.03, ytop * 0.94, 'SLO 2 s', fontsize=8.5, color='#27408b',
+ax.text(2.03, ytop * 0.45, 'SLO 2 s (TTFT budget)', fontsize=8.5, color='#27408b',
         fontweight='bold', va='center', ha='left',
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#27408b', lw=0.5))
 # Compact legend in the clear upper-right whitespace (the annotated lines all cluster
 # near x=0.8-2.0 on a 6.2s axis, so label them as a legend, not along the crowded lines).
-ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\np99 = %.2fs\nSLO 2 s\n(p99 still looks fine)' % (mean, v99),
+ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\np99 = %.2fs\nSLO 2 s (TTFT budget)\n(p99 still looks fine)' % (mean, v99),
         fontsize=8.5, color='#333', ha='center', va='center',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f7f7f7', ec='#cccccc', lw=0.8))
 # P2-07: shade the ENTIRE SLO-violating region (> 2 s, everything right of the

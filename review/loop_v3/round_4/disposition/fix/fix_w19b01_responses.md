@@ -1,0 +1,1 @@
+FIG-249-02 | MINOR (P3) | design/manuscript/chapter-15/chapter-15.md:48 (Fig 15.2 caption) | Added one-line definition: "average prefix reuse = mean number of requests served from each cached prefix block, so 1 = no sharing and hence no prefill reduction" | FIXED

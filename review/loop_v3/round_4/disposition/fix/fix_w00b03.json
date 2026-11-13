@@ -1,0 +1,86 @@
+[
+ {
+  "id": "CH4-01",
+  "model": "DeepSeek-V4.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "The bullet implies one host meets the 1.2 s TTFT at 10 rps with continuous batching, but the prefill-compute gap is 4.65× (92,000 ÷ 19,800) and the chapter itself repeatedly states one host cannot serve 10 rps — continuous batching improves utilization, it does not create prefill FLOPs; §6 contradicts §3's explicit separation of per-request feasibility from fleet capacity.",
+  "evidence": "chapter-04.md:249 verbatim: '- **Serving configuration**: One host is the baseline. Continuous batching (e.g. vLLM) is nearly mandatory to achieve the 1.2 s TTFT budget under 10 rps input‑heavy traffic; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s.' python: 10×9,200 = 92,000 tok/s; 92,000/19,800 = 4.646. Contrary chapter statements: chapter-04.md:194 '(Dividing one host's $20/hr by the whole workload's 10 rps would give ~$0.00056, but that is dimensionally wrong: one host cannot serve 10 rps of this workload.)'; :196 'a 70B FP16 model on one host *meets the per‑request latency SLO* ... but the *capacity* question ... is a separate computation ... needs on the order of ~6 hosts at the average'; :54 'one host's sustained-planning prefill rate is only ~19,800 tok/s at 35% MFU'.",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md, line 249, the 'Serving configuration' bullet — replace 'One host is the baseline. Continuous batching (e.g. vLLM) is nearly mandatory to achieve the 1.2 s TTFT budget under 10 rps input‑heavy traffic; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s.' with: 'One host is the per-request latency baseline, not the capacity answer: at 10 rps the offered prefill load is ~92,000 tok/s against one host's ~19,800 tok/s sustained-planning rate, so the fleet needs ~6 hosts at average (§4.3). On each host, continuous batching (e.g. vLLM) is nearly mandatory to hold the 1.2 s TTFT budget; without it, prefill of 9.2 K tokens per request would serialize and push TTFT well above 2 s.'",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-04/chapter-04.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH4-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "Two fleet-sizing bases coexist and the economic layer silently uses the full-utilization one: the chapter's own mini-case states the canonical 40 rps peak sizes to '~21 hosts full-util / ~31 working at the 70% × 95% policy (32 with N−1)', yet Table 4-1, the §3 bullets, the sidebar ('the workload's real monthly spend') and the mini-case cost line all price 6/21 — every recomputation in the finding checks out exactly.",
+  "evidence": "Quotes verified: chapter-04.md:49 (Table 4-1 Economic row 'at the ~6-host average the whole-fleet spend is ~$120/hour, giving ~2.76M input ... per cloud dollar'), :85 (sidebar 'needs ~6–21 hosts, so the workload's real monthly spend is ~$87.6K–$306.6K/mo'), :91 ('| Cloud, 21 hosts always-on at peak | $306,600 | ≈ $49.13 |'), :194 ('~$0.0033 per request at average ... ~$0.0029 per request at peak'), :271 ('the canonical 40 rps peak ... sizes to ~21 hosts full-util / ~31 working at the 70% × 95% policy (32 with N−1), Chapters 8/16/17/20/25'). python recompute: ⌈86/17⌉=6, ⌈344/17⌉=21; 17×0.70×0.95=11.245, ⌈86/11.245⌉=8 (+1=9), ⌈344/11.245⌉=31 (+1=32); 32×20×730=467,200 vs printed 306,600; 9×20=180 vs printed 120; 92,000×3600/180=1.84M vs printed 2.76M (=92,000×3600/120); (9×20)/36,000=0.0050 and (32×20)/144,000=0.00444 vs printed 0.0033 (=120/36,000) and 0.0029 (=420/144,000).",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md — label the basis at each of the four sites (or switch them to the policy fleet): (1) line 49, Table 4-1 Economic row: append '(full-utilization KV-screen basis, no headroom — the 70% × 95% + N−1 policy fleet is 9 hosts avg / 32 peak)'; (2) line 85 sidebar: change 'the workload's real monthly spend is ~$87.6K–$306.6K/mo' to 'the workload's full-utilization (no-headroom) spend is ~$87.6K–$306.6K/mo — ~$131K–$467K/mo on the 70% × 95% + N−1 policy fleet of 9/32 hosts'; (3) line 194: label '~$0.0033 ... ~$0.0029' as '(6/21-host full-util basis; the 9/32-host policy basis gives ~$0.0050 / ~$0.0044)'; (4) line 273: append '(full-util 6/21; the provisioning-policy fleet is 9/32 — see the §8 parenthetical)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-04/chapter-04.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH4-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The pointer 'see the S-01 note in Table 4-2' resolves to nothing: a manuscript-wide search for S-01 returns exactly one hit, the pointer itself, and Table 4-2 carries no numbered/S-01 note.",
+  "evidence": "search_files pattern 'S-01' over design/manuscript: total_count=1, only design/manuscript/chapter-04/chapter-04.md line 182 ('every \"meets 1.2 s\" statement needs a named tested workload and end-to-end timing (see the S-01 note in Table 4-2)'). Table 4-2 rows are lines 108-125 (Registered users ... Host price) with a table-level provenance note at line 127; the only note label in the chapter is 'Note 1 (Table 4-2)' at line 129. No S-01/S-02 exists anywhere.",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md, line 182, anchor: 'end-to-end timing (see the S-01 note in Table 4-2)'. Replace '(see the S-01 note in Table 4-2)' with '(see the \"Prefill compute budget — two-term-only upper cap, NOT a feasible deployed prefill target\" row in Table 4-2)'. That row (line 123) carries exactly the caveat the pointer intends.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-04/chapter-04.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH4-04",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Ch 2 has no §2.1: its section headings are §1 Concept, §2 Mental Model, §3 Worked Example, and the prefix-caching/KV-reuse vocabulary definition lives in §1, so the cross-reference points at a nonexistent section.",
+  "evidence": "grep '^#{1,4} ' in chapter-02.md: line 7 '## 1. Concept', line 70 '## 2. Mental Model', line 82 '## 3. Worked Example' (only other heading: line 62 '### The work unit changes with the generator', under §1). chapter-02 line 29 'A vocabulary note that prevents a common conflation' and line 35 '| prefix caching / KV reuse | reusing already-computed K/V for a shared prefix ...' are both under §1. chapter-04.md line 249 contains verbatim: 'belongs to prefix caching — a distinct mechanism (Ch 2 §2.1, developed in Ch 11) — not to continuous batching.'",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md, line 249, anchor: 'a distinct mechanism (Ch 2 §2.1, developed in Ch 11)'. Replace '(Ch 2 §2.1, developed in Ch 11)' with '(Ch 2 §1, developed in Ch 11)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-04/chapter-04.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH4-05",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Ch 4's mini-case opening replays Ch 1's mini-case closing almost word-for-word (four clauses identical in sequence), a verbatim cross-chapter duplication worth trimming; Ch 2's mini-case uses the same opening frame but pivots to new numbers instead of replaying the list.",
+  "evidence": "chapter-01.md line 125: 'From the token-level work alone ... the architect can already establish: the unit is tokens; the request shape will be prompt + retrieved context + output; the working hypothesis is input-heavy (Ch 4 quantifies it); and the first number to lock down is tokens-per-request, because every downstream decision (which model fits, how much memory, what latency is possible) is priced against it.' chapter-04.md line 265: 'From the unit-and-token work of Ch 1 alone, the architect can already establish: the unit is tokens; the request shape will be prompt + retrieved context + output; the workload is input‑heavy; and the first number to lock down is tokens‑per‑request, because every downstream decision (which model fits, how much memory, what latency is possible) is priced against it.' (read both files; only 'token-level work alone'→'unit-and-token work of Ch 1 alone' and 'working hypothesis is input-heavy (Ch 4 quantifies it)'→'workload is input‑heavy' differ). chapter-02.md line 177 shows the same frame done non-redundantly ('...can already state the hard numbers: each request carries ~9.2K input tokens...').",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md, line 265, anchor: the opening sentence from 'From the unit-and-token work of Ch 1 alone,' through '...is priced against it.' Delete that sentence so the paragraph begins 'Using the canonical scenario as a starting point — ~2,000 registered users ...' (that sentence already performs the projection). If continuity is wanted, substitute the single clause 'Building on Ch 1's token-level work,' before 'Using the canonical scenario...'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-04/chapter-04.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH4-06",
+  "model": "DeepSeek-V4.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The chapter's own TTFT bullet mandates that every 'meets 1.2 s' statement carry a named tested workload and end-to-end timing; line 196 asserts an unqualified 'meets the per-request latency SLO (TTFT/TPOT)', violating that rule and the book's 'Analytical bound — not a benchmark' convention.",
+  "evidence": "chapter-04.md line 196 (verbatim): 'a 70B FP16 model on one host *meets the per‑request latency SLO* (TTFT/TPOT)' with no qualifier. chapter-04.md line 182: 'every \"meets 1.2 s\" statement needs a named tested workload and end-to-end timing'. chapter-04.md line 271: 'both are *analytical* bounds that must be confirmed by benchmark goodput (Chapter 14)'. chapter-02.md line 84: 'Where the book writes *Analytical bound — not a benchmark*, it marks a...'.",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md, line 196, anchor: 'a 70B FP16 model on one host *meets the per‑request latency SLO* (TTFT/TPOT)'. Replace with 'a 70B FP16 model on one host *is analytically feasible against the per‑request latency SLO* (TTFT/TPOT) under the first-order Ch 2 model — end-to-end timing must be confirmed by benchmark (per the TTFT bullet in §4.3)'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-04/chapter-04.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH4-06",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "The 'Per 1K req' column divides peak-provisioned numerators (21-host rows) by the average 10-rps volume, so the printed $49.13/1K is peak capacity amortized over average volume — neither a per-request cost at average traffic nor at peak; independent recomputation confirms both the printed figures and the mismatch.",
+  "evidence": "chapter-04.md line 91: '| Cloud, 21 hosts always-on at peak | $306,600 | ≈ $49.13 | always-on at peak |'; line 94: 'divides *Monthly* by the canonical request volume: ~6.24M active-hours requests/month (10 rps × 3,600 s × 8 h × 260 workdays ÷ 12 = 6,240,000 ... $306,600 ÷ 6,240K ≈ $49.13'; line 273 repeats '$306,600 ≈ $49.13/1K'. Python: 10*3600*8*260/12 = 6,240,000; 306600/6240 = 49.1346; at the 40 rps peak volume 40*3600*8*260/12 = 24,960,000 and 306600/24960 = 12.2837 (about half the printed number).",
+  "fix_instruction": "File design/manuscript/chapter-04/chapter-04.md, line 94, anchor: the sentence ending '$306,600 ÷ 6,240K ≈ $49.13.' Append: ' Note the 21-host rows are peak-provisioned capacity divided by the average (10 rps) volume — a peak-capacity-cost-per-1K-average-volume-requests figure, not a per-request cost at either traffic level; at the 40 rps peak volume (24.96M/month) $306,600 ÷ 24,960K ≈ $12.28/1K.' Mirror the same qualifier at line 273 after '$306,600 ≈ $49.13/1K'.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-04/chapter-04.md",
+  "_dupes": []
+ }
+]

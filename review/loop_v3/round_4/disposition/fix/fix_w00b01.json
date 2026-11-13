@@ -1,0 +1,52 @@
+[
+ {
+  "id": "CH2-01",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P1",
+  "verdict": "CONFIRMED",
+  "reason": "Real defect: §3 carefully hedges 5.6 TB/s vs 3.35 TB/s as an aggregate, deliberately-hypothetical single-device illustration, but §5 Common Mistakes and §8 mini-case restate the same comparison with no hedge, so a reader can conclude the canonical 8xH100 host misses its 25 ms TPOT - which is false (per-GPU shard needs 700 GB/s = 20.9% of peak). NOTE: the reviewer's own 'weight read binds until B = 295' is miscalculated - 2N = 1.4e11 FLOP/token, not 1.75e10, giving B = 5.22ms/0.1416ms = 37, not 295.",
+  "evidence": "chapter-02.md:115 (§3, hedged) 'Read this as an *aggregate lower-bound illustration*, not as the literal bandwidth requirement of a single H100 in a realistic 8xH100 configuration (where the model and its traffic are sharded ...)'; :109 '(A 140-GB FP16 model cannot reside on a single 80-GB H100 anyway, so the whole-model-on-one-GPU comparison is deliberately hypothetical.)'. :147 (§5, UNhedged) 'a single H100 cannot meet the decode bandwidth demand (5.6 TB/s vs 3.35 TB/s)'. :177 (§8, UNhedged) 'decode will be bandwidth-bound (a ~140 GB/token weight-read requiring ~5.6 TB/s sustained over each ~25 ms decode step)'. python: 70e9/8*2 = 17.5 GB/GPU; 17.5/0.025 = 700 GB/s; 700/3350 = 20.90%; 17.5/3350*1000 = 5.22 ms; 2*70e9/0.989e15*1000 = 0.1416 ms/token; 5.22/0.1416 = 36.9 (B = 37, NOT 295).",
+  "fix_instruction": "design/manuscript/chapter-02/chapter-02.md - (a) line 147, §5 Common Mistakes bullet 'Assuming one H100 suffices for 70B inference': change 'cannot meet the decode bandwidth demand (5.6 TB/s vs 3.35 TB/s)' to 'cannot hold or stream the whole 140 GB model (140 GB > 80 GB residency; and the aggregate 5.6 TB/s vs 3.35 TB/s is a hypothetical single-device comparison - on the canonical 8xH100 host each GPU streams only its 17.5 GB shard, i.e. 700 GB/s at a 25 ms TPOT)'; (b) line 177, §8 mini-case: after 'requiring ~5.6 TB/s sustained over each ~25 ms decode step' insert '(aggregate, hypothetical single-device figure; sharded across 8 GPUs it is 17.5 GB/GPU = 700 GB/s per GPU)'. Do NOT use the reviewer's 'batch = 295' figure - the correct crossover is batch = 37.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-02/chapter-02.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH2-02",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Core claim holds on sub-claims (a) and (b): §6 lists PagedAttention under weight-read amortization and KV offloading under a bandwidth-bound-decode lever bullet, contradicting §1's definitions (PagedAttention = memory allocation; offloading = capacity traded against transfer latency) and §1's own stated discipline that every optimization names the resource it shifts. Sub-claim (c) is REFUTED - the source does label NVSwitch/NVLink as 'GPU-to-GPU communication', not as memory bandwidth.",
+  "evidence": "chapter-02.md:159 (quoted verbatim) '... continuous batching (vLLM, PagedAttention) to amortize weight reads across many tokens in flight, KV cache offloading to SSD or system memory, P/D (prefill/decode) disaggregation ..., and higher-bandwidth memory and interconnect topologies (HBM3e memory per GPU; NVSwitch/NVLink for GPU-to-GPU communication).' vs chapter-02.md:34 'PagedAttention | a memory-*allocation* scheme for the KV cache ... | not a way to *reduce* the amount of KV state'; :38 'KV offloading | moving some KV state out of GPU HBM ... | trading capacity against transfer latency'; :54 'the discipline ... KV quantization trades *capacity* ...; prefix caching trades *prefill compute* ...; continuous batching trades *latency* for *utilization*'. (c) refuted by the line-159 parenthetical's own labels.",
+  "fix_instruction": "design/manuscript/chapter-02/chapter-02.md, §6 Architecture Consequence, second bullet (line 159): rewrite so each lever names its resource - change 'continuous batching (vLLM, PagedAttention) to amortize weight reads across many tokens in flight, KV cache offloading to SSD or system memory' to 'continuous batching (as implemented in vLLM) to amortize weight reads across many tokens in flight, trading per-request latency for utilization; PagedAttention (vLLM) to remove KV-cache fragmentation waste, raising effective KV capacity with no effect on weight traffic; KV cache offloading to SSD or system memory to raise KV capacity headroom, costing transfer latency and PCIe/host-DRAM traffic'. Leave the trailing '(HBM3e memory per GPU; NVSwitch/NVLink for GPU-to-GPU communication)' unchanged - it is already correctly labelled.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-02/chapter-02.md",
+  "_dupes": [
+   "CH2-02@text"
+  ]
+ },
+ {
+  "id": "CH2-03",
+  "model": "MiniMax-M3.1-Flash",
+  "severity": "P2",
+  "verdict": "CONFIRMED",
+  "reason": "Real gap: the scope paragraph asserts the per-request arithmetic answers 'does one host's compute/bandwidth/memory satisfy one request's latency budget' for '1 host with 8xH100', but every worked number in §3 is single-device (5.6 vs 3.35 TB/s; 1.19 vs 0.989 PFLOPS) and the host-level verdict - which is FAVORABLE - is never computed. §3 even names the right comparison ('per-GPU shard traffic against per-GPU HBM bandwidth') without performing it.",
+  "evidence": "chapter-02.md:85 'Throughout this chapter ... \"1 host with 8xH100\" is a **per-host / per-request feasibility** container ... The per-request arithmetic here answers \"does one host's compute/bandwidth/memory satisfy one request's latency budget\"'. Table 2-1 (l.89-101) rows are all single-H100. python (independent): prefill 1.288e15/(8*0.989e15) = 0.1628 s at peak, 0.4651 s at 35% MFU (budget 1.08 s - passes); decode shard 17.5 GB/3.35 TB/s = 5.22 ms (budget 25 ms - passes); KV 9200*2.62MB = 24.10 GB vs 640 GB pool; 140+24.1+64 = 228.1 GB resident. None of these appears in the chapter. chapter-02.md:115 names but does not perform it: 'the relevant comparison is per-GPU shard traffic against per-GPU HBM bandwidth'.",
+  "fix_instruction": "design/manuscript/chapter-02/chapter-02.md, §3 Worked Example, immediately after the prefill-FLOPs detail bullet (after line 129, before '## 4. Measurement'): insert a 'Canonical host verdict' block answering the declared per-host question - 'On the canonical 8xH100 host (TP=8): prefill 1.29 PFLOP / (8 x 0.989 PFLOPS) = 0.16 s at peak, ~0.47 s at 35% MFU, inside the 1.08 s budget; decode shard 70B/8 = 8.75B params = 17.5 GB/GPU per step -> 17.5 GB / 3.35 TB/s = 5.2 ms, inside the 25 ms TPOT budget; KV 24.1 GB per request against the 640 GB pool (~228 GB total resident with weights and workspace). The single-H100 arithmetic above is a device-feasibility illustration, not this host's verdict.'",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-02/chapter-02.md",
+  "_dupes": []
+ },
+ {
+  "id": "CH2-01",
+  "model": "Qwen3.8-27B",
+  "severity": "P3",
+  "verdict": "CONFIRMED",
+  "reason": "Real typographic inconsistency: the hyphenated form is a clear outlier. The quoted line is verbatim, and 'auto-regressive' occurs 3x in chapter-02 (lines 15, 93, 109) against 'autoregressive' 21x manuscript-wide (3x in chapter-02). The reviewer's counts are wrong ('appears once' / '~15 times') and their fix names only one location, but the defect and the direction are correct.",
+  "evidence": "grep -oin 'auto-regressive' chapter-02.md -> 15:auto-regressive, 93:Auto-regressive, 109:auto-regressive. grep -oin 'autoregressive' chapter-02.md -> 9, 21, 66. Manuscript-wide counts: 'auto-regressive' total_count=2 (case-sensitive, all chapter-02); 'autoregressive' total_count=21 across chapters 01,02,03,05,07,08,11. Quoted line chapter-02.md:15 '... constant in context length because the auto-regressive pass reuses the same parameters every step'.",
+  "fix_instruction": "design/manuscript/chapter-02/chapter-02.md - replace all three hyphenated instances with 'autoregressive': line 15 ('the auto-regressive pass reuses the same parameters'), line 93 (Table 2-1 row 'Decode: weight-read per token', 'Auto-regressive, batch-1-equivalent' -> 'Autoregressive, batch-1-equivalent'), line 109 ('In auto-regressive decode' -> 'In autoregressive decode'). Acceptance: grep -i 'auto-regressive' over design/manuscript/ returns 0 hits.",
+  "_kind": "text",
+  "_target": "design/manuscript/chapter-02/chapter-02.md",
+  "_dupes": []
+ }
+]

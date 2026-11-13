@@ -17,7 +17,10 @@ per-token figures are given at the referenced precision throughout:
 reference figure), \textasciitilde2.62 MB/token (exactly 2.5 MiB/token)
 at \textbf{FP16} --- and the canonical scenario's KV constant is the
 \textbf{FP16} 2.62 MB/token figure, not the 8-bit \textasciitilde1.31
-MB/token number.
+MB/token number. \textbf{Color is not semantic across this chapter's
+figures:} the same concept (persistent KV/state storage) is rendered in
+different hues in FIGS 7.1--7.4, so read each figure's own legend or
+note rather than carrying a color meaning from one figure to the next.
 
 \ntsection{Concept}\label{concept}
 
@@ -35,19 +38,27 @@ distinct memory loads: the static weight footprint and the dynamic KV
 footprint that varies with prompt length. Quantization (FP8, FP4, 2-bit
 asymmetric) reduces both, but the KV cache is the one component whose
 reduction must be quoted per precision, not as a uniform factor: FP8 KV
-realizes \textasciitilde50\% in serving today (raw byte-halving), while
-4-bit KV's raw bound is a full 4× (2.62 → 0.66 MB/token at this
-chapter's geometry) --- realized savings land between, once per-block
-scale/offset metadata and per-token variation are counted --- rather
-than the single 2×--4× that weight-only quantization applies to weights.
-The residency floor is therefore set by weights + KV (+ activations, in
-fine-tuning), and the architect's first question is whether this sum
-fits on the target GPUs. This is why ``does it fit?'' is the architect's
-primary gate: before we ask whether the model can compute or
-communicate, we must first establish that the working set --- weights
-plus the context-dependent KV state --- resides on-GPU. If it does not,
-every subsequent decision (offload, recompute, page) is a degradation,
-not a cost-optimization.
+realizes a 2× reduction vs FP16 (raw byte-halving), while 4-bit KV's raw
+bound is a 4× reduction (2.62 → 0.66 MB/token at this chapter's
+geometry) --- realized savings land between these 2× and 4× reduction
+factors, once per-block scale/offset metadata and per-token variation
+are counted --- rather than the single 2×--4× that weight-only
+quantization applies to weights. The residency floor is therefore set by
+weights + KV (+ activations, in fine-tuning), and the architect's first
+question is whether this sum fits on the target GPUs. This is why ``does
+it fit?'' is the architect's primary gate: before we ask whether the
+model can compute or communicate, we must first establish that the
+working set --- weights plus the context-dependent KV state --- resides
+on-GPU. If it does not, every subsequent decision (offload, recompute,
+page) is a necessary trade-off --- acceptable only when it keeps the
+workload within its SLO.
+
+Unit basis (locked): the H100's quoted 80 GB is treated as 80×10\^{}9 B
+throughout (vendor 80 GB = 81,920 MiB ≈ 85.9×10\^{}9 B would give 2×H100
+= 171.8 GB and a 687 GB host pool --- re-run this fit test on that basis
+before procurement). The 2×H100 fit verdict, the 640 GB envelope, the
+436 GB KV budget and the \textasciitilde17.5 concurrency all use this
+decimal basis.
 
 The residency floor has two distinct regimes. For inference, the floor
 is weights + KV: the model's static parameters plus the
@@ -201,9 +212,9 @@ We anchor all arithmetic in the canonical scenario (Ch 4, \hyperref[tab:4.2]{Tab
 \textbf{canonical 80-layer, hidden-8192, full-MHA 70B reference model}
 (every query head carries its own K,V, so the per-token KV width equals
 the model's hidden dimension), FP16 weights (2 bytes per parameter), 8
-×GPUs (80 GB each, 640 GB total VRAM), \textasciitilde9.2K input tokens
-+ 300 output tokens. We compute KV cache size per token, total KV for
-the canonical context, and contrast with long-context variants. The
+GPUs (80 GB each, 640 GB total VRAM), \textasciitilde9.2K input tokens +
+300 output tokens. We compute KV cache size per token, total KV for the
+canonical context, and contrast with long-context variants. The
 per-token formula is general --- KV/token = 2 × layers × n\_KV-heads ×
 head\_dim × bytes --- and the full-MHA special case (n\_KV-heads ×
 head\_dim = hidden\_dim) gives the \textasciitilde2.62 MB/token
@@ -252,7 +263,7 @@ binary16{]} \\
 KV cache per token per layer & 2 × hidden\_dim × bytes & one key + one
 value per layer \\
 KV cache per token (FP16) & 2 ×80 ×8192 ×2 B ≈ 2.62 MB & = 2,560 KiB =
-2.5 MiB; exact decimal 2.62 MB \\
+2.5 MiB; 2.62144 MB exact, approx 2.62 MB displayed \\
 KV cache per token (8-bit) & 2 ×80 ×8192 ×1 B ≈ 1.31 MB & = 1,310,720 B
 = 1.25 MiB; reconciles with Ch.1 \\
 KV cache per token (FP8) & 1.31 MB & = 1,310,720 B = 1.25 MiB; raw
@@ -303,11 +314,12 @@ single-request question --- does ONE request's weights + KV fit in the
 pool? It says nothing yet about how many such requests fit concurrently.
 For that, an architect must subtract the runtime/activation/workspace
 floor (\textasciitilde64 GB on the 8×H100 host) from the 640 GB pool
-before sizing KV. We compute that concurrent capacity --- the
+before sizing KV. We compute that concurrent capacity here --- the
 \textasciitilde436 GB KV budget and \textasciitilde17.5 requests/host
-(byte-accurate 17.51; conservative integer floor 17) --- in \hyperref[chap:17]{Chapter 17}.
-Keep the two numbers separate: the \textasciitilde500 GB headroom (Ch.
-4/7, single-request) and the \textasciitilde436 GB KV budget (Ch. 17,
+(byte-accurate 17.51; conservative integer floor 17; arithmetic in this
+section) --- and carry it into \hyperref[chap:17]{Chapter 17}'s fleet sizing. Keep the two
+numbers separate: the \textasciitilde500 GB headroom (Ch. 4/7,
+single-request) and the \textasciitilde436 GB KV budget (Ch. 17,
 concurrency) answer different questions. \textbf{``Passes aggregate
 bytes'' is NOT an execution result.} A fit verdict needs three distinct
 gates: (1) aggregate bytes (pool ≥ residency), (2) per-rank
@@ -344,12 +356,11 @@ KV_{\text{GQA per-token}} = 2 \times n_\text{layers} \times n_\text{KV-heads} \t
 \textasciitilde3 GB of KV instead of \textasciitilde24 GB, and the
 fleet-sizing arithmetic of \hyperref[chap:17]{Chapter 17} changes accordingly (many more
 concurrent requests fit for KV). We keep the full-MHA bound as the
-canonical conservative residual because an architect should size against
-the worst case the \emph{chosen} model actually presents --- the honest
-move is to read the model card's KV-head count and substitute it into
-the GQA formula above. The framework is unchanged; only the constant
-changes. (\texttt{kv\_gqa\_variant\_mb} is recorded in
-\texttt{canonical-workload.yaml}.)
+canonical conservative teaching bound, not the \emph{chosen} model's
+worst case --- the honest move is to read the model card's KV-head count
+and substitute it into the GQA formula above. The framework is
+unchanged; only the constant changes. (the GQA variant's per-token
+constant is tracked alongside the canonical workload's other constants.)
 
 \begin{figure}
 \centering
@@ -808,7 +819,7 @@ Four practical measurement habits follow from the arithmetic above:
 \tightlist
 \item
   \textbf{Compute KV cache per-token cost for the model.} The per-token
-  KV footprint of a fully-cached (MHA) attention head is
+  KV footprint of a fully-cached (MHA) model is
 \end{enumerate}
 
 \[
@@ -899,11 +910,10 @@ MB/token (2 × 100 × 12288 × 2 B = 4,915,200 B).
 \item
   \textbf{Quoting one KV-quant reduction for every precision.} KV cache
   quantization must be read per bit width: FP8 KV ≈50\% of FP16 (raw
-  byte-halving) is what serving stacks realize today, while 4-bit KV's
-  raw bound is a full 4× (2.62 → 0.66 MB/token here; 0.52 → 0.13 for a
-  7B, §12.3) --- realized savings land between, once block/scale
-  metadata is counted. (The vLLM ``54\%'' figure is a decode
-  inter-token-latency slope ratio, not a memory ratio.) Weight-only
+  byte-halving) is the first-order raw figure before block/scale
+  metadata (§4 point 4), while 4-bit KV's raw bound is a full 4× (2.62 →
+  0.66 MB/token here; 0.52 → 0.13 for a 7B, §12.3) --- realized savings
+  land between, once block/scale metadata is counted. Weight-only
   quantization's 2×--4× applies to weights; do not transfer an
   expectation across precisions or across tensors without naming the bit
   width.
@@ -947,9 +957,11 @@ enterprise-Q\&A workload:
 \item
   \textbf{KV cache quantization buys back memory, not compute.} FP8 KV ≈
   50\% of FP16 (raw byte-halving), dropping the 9.5K max residency from
-  \textasciitilde165 GB toward \textasciitilde152 GB. This is a
-  \emph{memory} lever, orthogonal to bandwidth/compute fixes --- the
-  architect pulls it when the KV floor, not decode bandwidth, binds.
+  \textasciitilde165 GB toward \textasciitilde152 GB. KV quantization is
+  primarily a capacity lever; it also reduces the K/V bytes read during
+  decode, so it can relieve KV-bandwidth pressure, but it does not
+  reduce attention FLOPs. Pull it when KV capacity binds, and benchmark
+  it when decode bandwidth may also be limiting.
 \item
   \textbf{Fine-tuning is a different memory regime than inference.} The
   same model that serves in \textasciitilde165 GB demands
@@ -962,10 +974,13 @@ enterprise-Q\&A workload:
 \item
   \textbf{Context length is the largest controllable KV lever.} Doubling
   context from 9.2K to 18.4K doubles KV (\textasciitilde24.1 GB →
-  \textasciitilde48 GB); 128K context drives KV to \textasciitilde335
-  GB, which forces quantization or model parallelism. The architecture
-  must set a context-length ceiling to keep the served model within host
-  memory. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+  \textasciitilde48 GB); 128K context drives KV to \textasciitilde335 GB
+  --- on a single 80 GB GPU that forces quantization, offloading or
+  model parallelism; on the canonical 8×H100 host \textasciitilde475 GB
+  total residency fits in 640 GB but leaves little headroom for
+  concurrency. The architecture must set a context-length ceiling to
+  keep the served model within host memory.
+  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \end{itemize}
 
 In short: the architect sizes the host by weights + KV at the longest
@@ -987,50 +1002,63 @@ keeps inference and training on separate memory-planning tracks.
   chapter and must be established per architecture and serving stack.
 \item
   Quality loss from aggressive KV quantization (2-bit KIVI, or sub-4-bit
-  schemes) at very long context lengths (128K+, MoE experts). The
-  primary sources anchor FP8 KV ≈50\% of FP16 (raw byte-halving) at
-  near-zero quality loss, but 2-bit asymmetric patterns and their
-  interaction with RoPE and sliding-window layers are not fully mapped.
+  schemes) at very long context lengths (128K+) and in MoE models. The
+  primary sources anchor FP8 KV ≈50\% of FP16 (raw byte-halving) with
+  only a small loss in the cited benchmarks, but 2-bit asymmetric
+  patterns and their interaction with RoPE and sliding-window layers are
+  not fully mapped.
 \item
-  Whether per-request KV caching can be partially offloaded to CPU DRAM
-  during decode without TTFT impact, beyond the vLLM KV Offloading
-  Connector's 2--22× TTFT reduction range \mbox{{[}S7{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}},
-  which is highly prompt-size-dependent. The community is converging on
-  tiered KV storage (GPU resident hot set + CPU/DRAM cold set), but the
-  latency trade-offs at concurrency \textgreater{} 1 are not yet
-  primary-anchored.
+  \begin{enumerate}
+  \def\labelenumi{(\alph{enumi})}
+  \tightlist
+  \item
+    decode-time KV offload to CPU DRAM trades TPOT/ITL and KV capacity,
+    not TTFT (TTFT is already complete when decode starts); (b)
+    prefix/KV reuse loaded from CPU can reduce TTFT for cache-hit
+    requests --- state the vLLM KV Offloading Connector's measured
+    metric and cache-hit conditions for the 2--22× figure
+    \mbox{{[}S7{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, which is highly prompt-size-dependent.
+    The community is converging on tiered KV storage (GPU resident hot
+    set + CPU/DRAM cold set), but the latency trade-offs at concurrency
+    \textgreater{} 1 are not yet primary-anchored.
+  \end{enumerate}
 \item
-  \textbf{Frontier 2026 has begun re-engineering the KV constant factor,
-  not just quantizing it.} All four 2026-class open architectures attack
-  KV cache size at the attention layer itself, on top of the per-token
-  footprint this chapter derives: DeepSeek-V4's hybrid CSA+HCA reports
-  KV cache at only \textasciitilde10\% (Pro) / \textasciitilde7\%
-  (Flash) of DeepSeek-V3.2 at 1M-token context {[}1P: arXiv
-  2606.19348{]}; GLM-5.3-Flash's sparse+linear hybrid reports
+  \textbf{Whether each frontier model's re-engineered KV constant
+  reproduces on a serving stack.} Frontier 2026 has begun re-engineering
+  the KV constant factor, not just quantizing it, All four 2026-class
+  open architectures attack KV cache size at the attention layer itself,
+  on top of the per-token footprint this chapter derives: DeepSeek-V4's
+  hybrid CSA+HCA reports KV cache at only \textasciitilde10\% (Pro) /
+  \textasciitilde7\% (Flash) of DeepSeek-V3.2 at 1M-token context {[}1P:
+  arXiv 2606.19348{]}; GLM-5.3-Flash's sparse+linear hybrid reports
   \textasciitilde4.4× smaller per-layer average BF16 KV cache than
   GLM-5.3 {[}1P: Z.ai GLM-5.3-Flash release article, 2026-08-26{]}; Kimi
   K3's Kimi Delta Attention + Attention Residuals targets information
   flow across long sequences {[}1P: arXiv 2607.24653{]};
   Qwen3.8-Flash-Next combines Gated DeltaNet (compress history) with
   Qwen Sparse Attention (micro-block indexing) for long-context cost
-  {[}1P: HF Qwen/Qwen3.8-Flash-Next{]}. For the architect this is a
-  decisive shift: the KV arithmetic in this chapter (per-token ×
+  {[}1P: HF Qwen/Qwen3.8-Flash-Next{]}. The DeepSeek and GLM entries
+  above are measured KV-cache ratios; the Kimi K3 and Qwen3.8-Flash-Next
+  entries are qualitative mechanism claims (information flow,
+  long-context cost) with no stated KV metric. For the architect this is
+  a decisive shift: the KV arithmetic in this chapter (per-token ×
   context) is \emph{not} a fixed constant across model generations --- a
   2026 hybrid-attention model can hold dramatically more context per
   byte of KV than the canonical 70B/8×H100 framing assumed. Size the
   host against the \emph{specific} model's KV scheme, not a universal
   constant.
 \item
-  The impact of MoE routing on KV cache: does each token really emit a
-  full key/value per layer across all experts, or does routing activate
-  only a subset? The total-vs-active and MoE-vs-dense facts of Ch 3
-  (total parameters ≠ active parameters per token; MoE gives compute
-  sparsity, not weight-residency sparsity) confirm that attention layers
-  process every token densely and emit key/value per token, so MoE
-  sparsity does not reduce KV --- and the constants that do govern KV
-  (attention geometry: layers, KV heads, head dimension, cache dtype)
-  need per-model validation; expert count belongs to weight-residency
-  and dispatch validation, not KV sizing.
+  Whether a given MoE model's governing KV constants have been validated
+  per model (routing itself is settled): The total-vs-active and
+  MoE-vs-dense facts of Ch 3 (total parameters ≠ active parameters per
+  token; MoE gives compute sparsity, not weight-residency sparsity)
+  confirm that attention layers process every token densely and emit
+  key/value per token --- under the standard-MoE assumption (sparse MLP
+  experts with dense attention; hybrid-attention models must be checked
+  separately) --- so MoE sparsity does not reduce KV --- and the
+  constants that do govern KV (attention geometry: layers, KV heads,
+  head dimension, cache dtype) need per-model validation; expert count
+  belongs to weight-residency and dispatch validation, not KV sizing.
 \end{itemize}
 
 \begin{figure}
@@ -1042,7 +1070,7 @@ keeps inference and training on separate memory-planning tracks.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Inference vs fine-tuning memory floor. The same 70B model serves in \textasciitilde165 GB (weights + KV, max 9.5K --- canonical input 9.2K) but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA fits \textasciitilde50--70 GB on a single GPU. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0702.png}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Inference vs fine-tuning memory floor. The same 70B model serves in \textasciitilde165 GB (weights + KV, max 9.5K --- canonical input 9.2K) but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA fits \textasciitilde50--70 GB on a single GPU. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0702.pdf}}
 \caption[Inference vs fine-tuning memory floor]{Inference vs fine-tuning memory floor. The same 70B model serves in \textasciitilde165 GB (weights + KV, max 9.5K --- canonical input 9.2K) but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA fits \textasciitilde50--70 GB on a single GPU. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:7.6}\end{figure}
@@ -1073,8 +1101,8 @@ is 17, not 18.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Memory Tetris: how the 8×H100 host's 640 GB aggregate pool fills at 9.5K / 32K / 128K for the canonical 80-layer full-MHA 70B. Takeaway: context length is the dominant memory lever --- the FP16 KV cache (orange) is the only block that grows, consuming the fixed \textasciitilde436 GB KV budget (\textasciitilde17.5 concurrent at 9.5K, floor 17; only \textasciitilde1--2 at 128K). Aggregate-feasibility caveat: an aggregate residency test, not a proof each allocation maps onto per-rank HBM --- the 80 GB rank-boundary lines are a visualization guide; sharding, KV partitioning, fragmentation, interconnect must be validated per rank. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0705.pdf}}
-\caption[Memory Tetris]{Memory Tetris: how the 8×H100 host's 640 GB \textbf{aggregate} pool fills at 9.5K / 32K / 128K for the canonical 80-layer full-MHA 70B. \textbf{Takeaway: context length is the dominant memory lever} --- the FP16 KV cache (orange) is the only block that grows, consuming the fixed \textasciitilde436 GB KV budget (\textasciitilde17.5 concurrent at 9.5K, floor 17; only \textasciitilde1--2 at 128K). \textbf{Aggregate-feasibility caveat:} an aggregate residency test, not a proof each allocation maps onto per-rank HBM --- the 80 GB rank-boundary lines are a \emph{visualization guide}; sharding, KV partitioning, fragmentation, interconnect must be validated per rank. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Memory Tetris: how the 8×H100 host's 640 GB aggregate pool fills at 9.5K / 32K / 128K for the canonical 80-layer full-MHA 70B. Takeaway: context length is the dominant memory lever --- the FP16 KV cache (orange) is the only block that grows, consuming the fixed \textasciitilde436 GB KV budget (\textasciitilde17.5 → 17 concurrent at 9.5K; 436/84 = 5.2 → 5 at 32K; 436/335 = 1.30 → 1 at 128K). Aggregate-feasibility caveat: an aggregate residency test, not a proof each allocation maps onto per-rank HBM --- the 80 GB rank-boundary lines are a visualization guide; sharding, KV partitioning, fragmentation, interconnect must be validated per rank. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0705.pdf}}
+\caption[Memory Tetris]{Memory Tetris: how the 8×H100 host's 640 GB \textbf{aggregate} pool fills at 9.5K / 32K / 128K for the canonical 80-layer full-MHA 70B. \textbf{Takeaway: context length is the dominant memory lever} --- the FP16 KV cache (orange) is the only block that grows, consuming the fixed \textasciitilde436 GB KV budget (\textasciitilde17.5 → 17 concurrent at 9.5K; 436/84 = 5.2 → 5 at 32K; 436/335 = 1.30 → 1 at 128K). \textbf{Aggregate-feasibility caveat:} an aggregate residency test, not a proof each allocation maps onto per-rank HBM --- the 80 GB rank-boundary lines are a \emph{visualization guide}; sharding, KV partitioning, fragmentation, interconnect must be validated per rank. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:7.8}\end{figure}
 
@@ -1092,7 +1120,8 @@ constraint.
 From the unit-and-token work of Ch 1 alone, the architect can already
 establish several facts. The unit is tokens; the request shape will be
 prompt + retrieved context + output; the workload is input-heavy
-(retrieved context dominates); and the first number to lock down is
+(retrieved context dominates) {[}ASSUMPTION --- validate in Ch 4's
+workload characterization{]}; and the first number to lock down is
 tokens-per-request, because every downstream decision (which model fits,
 how much memory, what latency is possible) is priced against it.
 
@@ -1116,11 +1145,12 @@ The architect can now speak the system's currency: tokens, KV bytes, and
 the residency floor. The next step --- turning ``5,000 employees'' into
 \textasciitilde2,000 registered users (\textasciitilde100 concurrent
 typical / \textasciitilde400 at peak), \textasciitilde10 requests/s, and
-a specific model-and-hardware choice --- is \hyperref[chap:4]{Chapter 4}'s job (workload
-anatomy). Here the point is narrower and sharper: we can now say, with
-quantified memory numbers, whether the system fits on the available
-hardware, and we can compare inference vs.~fine-tuning residency floors
-before committing to an architecture decision. This is the chapter's
-payoff: the vague request has been translated into concrete constraint
-numbers, and the architect can defend a recommendation based on whether
-the workload fits, not on intuition alone.
+a specific model-and-hardware choice --- applies \hyperref[chap:4]{Chapter 4}'s
+workload-anatomy method, already developed before this chapter. Here the
+point is narrower and sharper: we can now say, with quantified memory
+numbers, whether the system fits on the available hardware, and we can
+compare inference vs.~fine-tuning residency floors before committing to
+an architecture decision. This is the chapter's payoff: the vague
+request has been translated into concrete constraint numbers, and the
+architect can defend a recommendation based on whether the workload
+fits, not on intuition alone.

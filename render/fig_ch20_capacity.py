@@ -84,7 +84,7 @@ ax.text(31.5, 42, 'UNUSED capacity (N >= 22):\ninsufficient offered demand;\nS c
         ha='left', va='bottom', fontsize=8.6, color='#8c2d2d', zorder=7,
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.75))
 
-ax.annotate('21 hosts (ideal) / 22 at 95%:\nserved demand plateaus at 40 rps',
+ax.annotate('KV screen only: 21 hosts (ideal) /\n22 at 95%: served demand plateaus at 40 rps',
             xy=(22, peak_rps), xytext=(23.6, 37),
             fontsize=8.6, color='#1a1a1a', ha='left', va='top', zorder=7,
             bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.85),

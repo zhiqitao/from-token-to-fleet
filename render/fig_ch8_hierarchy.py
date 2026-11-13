@@ -14,7 +14,7 @@ each level, [C] the speed<->capacity gradient.  1 data unit == 1 point.
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
+from matplotlib.patches import FancyBboxPatch, Rectangle
 from matplotlib.font_manager import FontProperties
 
 BOLD = FontProperties(weight='bold')
@@ -39,6 +39,12 @@ fig._hermes_print_sized = True   # regen must not re-boost/reflow (already 6.1in
 ax.set_xlim(-14, W+14); ax.set_ylim(0, Ht); ax.axis('off')
 
 C_ONCHIP='#27408b'; C_MEM='#e67e22'; C_NET='#2e9e63'; C_TEN='#c0392b'
+# Loop-4 FIG-8.1-02: each semantic class also gets a fill PATTERN, not just a hue,
+# so the compute / memory / interconnect grouping survives grayscale printing.
+HATCH = {C_ONCHIP: '///', C_MEM: 'xxx', C_NET: '...'}
+matplotlib.rcParams['hatch.linewidth'] = 0.8
+# horizontal scale, measured off the rendered ladder fill: 658px@400dpi = 118.4pt / 150 units
+PT_PER_UNIT = 0.79
 
 def label(cx, cy, text, color='#444', fs=FS-0.4, ha='center', weight='normal', style='normal'):
     ax.text(cx, cy, text, ha=ha, va='center', fontsize=fs, color=color, fontweight=weight, style=style)
@@ -56,7 +62,8 @@ levels = [
     ('shared mem\n(SRAM)', 'on-chip · close', C_ONCHIP),
     ('L2 cache', 'on-die', C_ONCHIP),
     ('HBM (GPU\nmemory)', 'large · slower', C_MEM),
-    ('GPU\ninterconnect', 'GPU↔GPU and host links', C_NET),
+    # Loop-4 FIG-8.1-1: name on ONE line so the wrapped role below fits the box.
+    ('GPU interconnect', 'GPU↔GPU and\nhost links', C_NET),
     ('other GPUs\n/ remote', 'farthest', C_NET),
 ]
 ladder_w = 150; h = 46; gap = 3
@@ -65,13 +72,22 @@ ys=[]; y=top
 for name, role, c in levels:
     ax.add_patch(FancyBboxPatch((colA_cx-ladder_w/2, y-h/2), ladder_w, h,
                   boxstyle='round,pad=0.02,rounding_size=1.2', fc=c,
-                  ec='#16295c' if c in (C_ONCHIP,C_NET) else '#8a3a12', lw=1.3, clip_on=False))
+                  ec='#16295c' if c in (C_ONCHIP,C_NET) else '#8a3a12', lw=1.3,
+                  hatch=HATCH.get(c), clip_on=False))
     nl = name.count('\n') + 1      # 1 or 2 name lines
+    nrole = role.count('\n') + 1
     if nl == 2:
         # two-line name centered in upper 60% of box; role in lower part.
         # name at FS-1.0 so the 3 text lines (2 name + 1 role) fit inside the box.
         label(colA_cx, y+h*0.14, name, '#ffffff', FS-1.2, weight='bold', style='normal')
         label(colA_cx, y-h*0.30, role, '#ffffff', FS-0.9)
+    elif nrole == 2:
+        # Loop-4 FIG-8.1-1: the GPU-interconnect role wraps to two centered lines.
+        # A 2-line name + 2-line role (4 lines) cannot fit a 46pt box with >=4px
+        # @150dpi clearance, so the name drops to one line and the role block sits
+        # slightly above centre; measured clearances then run 12-40px @400dpi.
+        label(colA_cx, y+h*0.24, name, '#ffffff', FS-0.9, weight='bold')
+        label(colA_cx, y-h*0.18, role, '#ffffff', FS-0.9)
     else:
         label(colA_cx, y+h*0.24, name, '#ffffff', FS, weight='bold')
         label(colA_cx, y-h*0.28, role, '#ffffff', FS-0.9)
@@ -110,6 +126,17 @@ label(gx, gy0+2, 'large\u00a0·\u00a0slow\u00a0·\u00a0far', '#555', FS-1.5, ha=
 ax.annotate('', xy=(gx, gy0), xytext=(gx, gy1),
             arrowprops=dict(arrowstyle='<|-|>', lw=1.6, color=C_TEN, shrinkA=14, shrinkB=14))
 label(gx-42, (gy0+gy1)/2, 'capacity grows\nspeed drops\ndistance grows', C_TEN, FS-1.0, ha='center', weight='bold')
+
+# Loop-4 FIG-8.1-02: compact three-swatch key (compute / memory / interconnect),
+# each swatch carrying the same hue + hatch pattern as its ladder boxes.
+KEY_Y = 40
+kx = colB_x
+for c, kname in ((C_ONCHIP, 'compute'), (C_MEM, 'memory'), (C_NET, 'interconnect')):
+    ax.add_patch(Rectangle((kx, KEY_Y-5.5), 11, 11, fc=c,
+                ec='#16295c' if c in (C_ONCHIP, C_NET) else '#8a3a12',
+                lw=1.0, hatch=HATCH[c], clip_on=False))
+    label(kx+15, KEY_Y, kname, '#333', FS-1.6, ha='left')
+    kx += 15 + rw(kname, FS-1.6) * 0.72 / PT_PER_UNIT + 20
 
 # footnote
 label(W/2, 10, 'not every component shown — the gradient makes compute, bandwidth,\ncapacity and interconnect distinct constraints', '#555', FS-0.6)

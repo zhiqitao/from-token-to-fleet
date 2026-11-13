@@ -1,0 +1,1 @@
+FIG91-TITLE-ALIGNMENT | P3 | render/fig_ch9_directional.py -> design/manuscript/chapter-09/figures/fig-09-0901.{png,pdf} | in-figure title + 2 subtitle lines ha='center' x=.5 -> ha='left' x=14/439.2 (text-block margin matching Figs 9.2/9.3); regenerated PNG+PDF via render/regen_one.py | FIXED

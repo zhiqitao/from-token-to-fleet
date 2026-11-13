@@ -31,7 +31,7 @@ PROMPT_V1 = (PROMPT_STD + "\n\n" +
 # split/retry ladders (3-6h vs DeepSeek's 31min clean pass). Round-1
 # Ornith findings already on disk are still dispositioned.
 MODELS = ["MiMo-V2.6-Flash-RL", "DeepSeek-V4.1-Flash",
-          "Qwen3.8-27B"]
+          "Qwen3.8-27B", "MiniMax-M3.1-Flash"]
 ENDPOINTS = {"im-eglb": "https://api-im.eglb.intel.com/v1",
              "qwen38": "http://100.105.225.59:30000/v1"}
 MODEL_EP = {m: "im-eglb" for m in MODELS}
@@ -83,7 +83,7 @@ def chat(model, prompt, images=None, max_tokens=32768, retries=5):
         try:
             req = urllib.request.Request(ep + "/chat/completions",
                                         data=json.dumps(body).encode(), headers=h)
-            resp = urllib.request.urlopen(req, timeout=900)
+            resp = urllib.request.urlopen(req, timeout=float(os.environ.get("CHAT_TIMEOUT", "900")))
             for raw in resp:
                 line = raw.decode("utf-8", "replace").strip()
                 if not line.startswith("data:"):
@@ -279,7 +279,7 @@ def stage_merge(round_no):
           "counts:", merge["per_model_counts"], flush=True)
 
 
-DISCUSS_TASK = """REVIEW TASK — cross-critique (round %d).
+DISCUSS_TASK = """REVIEW TASK — cross-critique (round {ROUND}).
 Below is the merged register from all four models' independent passes, plus
 each model's UNIQUE findings (found by one model, missed by others).
 (1) FALSE-POSITIVE CHECK: which entries are wrong or misread? Apply the
@@ -292,23 +292,36 @@ fail to find?).
 Output JSON: {false_positives: [ids], adjudications: [{id, verdict, why}],
 prompt_edits: [strings]}.
 
-MERGED REGISTER:
-%s
+MERGED REGISTER (slim: id/models/severity/summary per entry):
 """
 
 
 def stage_discuss(round_no):
     outdir = os.path.join(V3, "round_%d" % round_no)
     merge = json.load(open(os.path.join(outdir, "merged.json")))
-    blob = json.dumps(merge, ensure_ascii=False, indent=1)
-    if len(blob) > 350000:
-        blob = blob[:350000]
+    # Slim register: full merged.json (600+ findings) blows the shared
+    # reasoning+content window on long inputs (pitfall 14) — keep id, models,
+    # severity and a ~220-char summary per entry.
+    def slim(entry):
+        iss = entry.get("issue") or {}
+        summ = (iss.get("quoted_clause") or iss.get("issue") or
+                iss.get("observed") or iss.get("evidence") or "")
+        return {"id": iss.get("id"), "models": entry.get("models"),
+                "severity": entry.get("severity"),
+                "chapter": iss.get("chapter") or iss.get("page"),
+                "summary": str(summ)[:220]}
+    slim_reg = {"common": [slim(e) for e in merge.get("common", [])],
+                "unique": [slim(e) for e in merge.get("unique", [])]}
+    blob = json.dumps(slim_reg, ensure_ascii=False, indent=1)
+    if len(blob) > 220000:
+        blob = blob[:220000]
+    task = DISCUSS_TASK.replace("{ROUND}", str(round_no))
     for model in MODELS:
         fp = os.path.join(outdir, "discuss_%s.json" % model)
         if os.path.exists(fp):
             continue
         print(f"[discuss] {model}", flush=True)
-        out = chat(model, PROMPT_V1 + "\n\n" + (DISCUSS_TASK % round_no) + blob)
+        out = chat(model, PROMPT_V1 + "\n\n" + task + blob)
         open(fp, "w", encoding="utf-8").write(out)
         print(f"  -> {len(out)} chars", flush=True)
     print("discuss stage done", flush=True)

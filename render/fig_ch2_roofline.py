@@ -64,7 +64,9 @@ ax.fill_between(I[mask_cmp], YMIN, roofline[mask_cmp],
                 edgecolor=C_CMPL, zorder=1)          # compute-bound plateau
 
 # === region labels (the redundant, non-colour channel) ===
-ax.text(4.5, 1.05e12, 'memory-bound', color=C_MEML, fontsize=12.5,
+# memory-bound label sits at x=8 (was 4.5) so the decode disc moved to AI=1
+# (FIG-2.2-B) keeps clear horizontal separation from it.
+ax.text(8.0, 1.05e12, 'memory-bound', color=C_MEML, fontsize=12.5,
         ha='center', va='center', fontweight='bold', alpha=0.9, zorder=2)
 ax.text(2200.0, 1.6e13, 'compute-bound', color=C_CMPL, fontsize=12.5,
         ha='center', va='center', fontweight='bold', alpha=0.9, zorder=2)
@@ -78,9 +80,11 @@ ax.text(RIDGE * 0.90, YMAX * 0.72, 'roofline ridge ~295', color='#c0392b',
 ax.plot(I, roofline, color='#1a1a1a', lw=2.8, zorder=4, solid_capstyle='round')
 
 # === operating points: dropped BELOW the roof so they read as regime indicators,
-# not measured 100%-efficiency points (A-016). decode at ~85% of the memory roof,
-# prefill at ~40% of the compute roof; a note clarifies they are not measured MFU.
-dec_y = 0.85 * PEAK_BW * 1.0
+# not measured 100%-efficiency points (A-016). decode at ~1e12 FLOP/s at AI=1,
+# clearly below the 3.35e12 memory roof so the disc no longer straddles the roof
+# line (FIG-2.2-B); prefill at ~40% of the compute roof; a note clarifies that
+# the markers are not measured MFU.
+dec_y = 1.0e12
 ax.plot([1.0], [dec_y], marker='o', ms=11, color='#c0392b',
         mec='#7a1c10', zorder=5)
 ax.annotate('decode', xy=(1.0, dec_y), xytext=(0, 12), textcoords='offset points',
@@ -102,6 +106,18 @@ ax.annotate('prefill', xy=(9200.0, pre_y), xytext=(0, 12),
 ax.text(1.0, 8.0e14, 'markers = regime, not measured MFU\n(real kernels run below the roof)',
         fontsize=8.0, color='#333', ha='left', va='center', style='italic',
         bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#bbb', lw=0.6), zorder=6)
+
+# === FIG-2.2-C: hardware basis for the ridge, one line inside the plot frame ===
+# (BF16 dense, matching the Ch2 canonical table's "H100 BF16 dense compute 989
+#  TFLOPS"; ridge = 989e12 / 3.353e12 ~= 295 FLOP/byte.)  Bottom strip is the
+# only full-width clear area inside the frame.
+ax.text(95.0, 1.25e11,
+        'H100 SXM, BF16 dense: 989 TFLOPS peak, 3.35 TB/s HBM3 \u2192 ridge at 295 FLOP/byte',
+        fontsize=8.0, color='#333', ha='center', va='bottom',
+        bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='#bbb', lw=0.6), zorder=6)
+# plateau labelled with the peak it represents (FIG-2.2-C)
+ax.text(1500.0, 1.35e15, '989 TFLOPS', fontsize=8.5, color='#1a1a1a',
+        ha='center', va='center', fontweight='bold', zorder=6)
 
 # === axes + minimal text ===
 ax.set_xlabel('arithmetic intensity (FLOP/byte)', fontsize=9.5, fontweight='bold')

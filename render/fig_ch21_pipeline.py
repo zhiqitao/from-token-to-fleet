@@ -8,7 +8,7 @@ from matplotlib.path import Path
 # The forward chain is Data->Train->Eval->Canary->Observe->Promote->Serve.
 # The point of this figure is NOT to show another CI/CD box-and-arrow chain:
 # every stage is fronted by a MEASUREMENT GATE -- a pass/fail decision on a
-# measured metric (throughput, SLO, cost, quality).  A gate that FAILs pulls
+# measured metric (data validity, cost, quality, health, TTFT).  A gate that FAILs pulls
 # the candidate back to rollback / last-known-good (red dashed branch).  The
 # green arrow is the normal production feedback loop back to data + evaluation.
 # 2026-09 review: the gate boxes carried three small text lines and read as
@@ -38,6 +38,11 @@ for name, x in zip(stages, xs):
         ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.04', fc='#3a6ea5', ec='#1a3a6b', lw=1.2))
     ax.text(x + w/2, y + h/2, name, ha='center', va='center', fontsize=9.2, color='white', fontweight='bold')
 
+# R4 P3 (w18b02): the hatch on Serve was the figure's only texture with no
+# stated meaning -- state the encoding in-figure (grayscale-safe: it is text).
+ax.text(23.8, 11.2, 'hatched = live production stage (not gated): Serve',
+        fontsize=8.0, ha='right', va='center', color='#555')
+
 # forward arrows along stage row
 for x in xs[:-1]:
     ax.annotate('', xy=(x + w + 0.5, y + h/2), xytext=(x + w + 0.05, y + h/2),
@@ -58,17 +63,17 @@ seams = [(left + w + right) / 2 for left, right in zip(xs[:-1], xs[1:])]
 for (stage, crit), seam in zip(gates, seams):
     x = seam - gw / 2
     ax.plot([seam, seam], [y + h/2 - 0.22, y + h/2 + 0.22],
-            color='#c0392b', lw=2.0, zorder=4)
+            color='#2f6f4f', lw=2.0, zorder=4)
     ax.plot([seam, seam], [y + h/2 - 0.22, gy + gh],
-            color='#c0392b', lw=1.0, ls=':', zorder=1)
+            color='#2f6f4f', lw=1.0, ls=':', zorder=1)
     ax.add_patch(FancyBboxPatch((x, gy), gw, gh, boxstyle='round,pad=0.04',
-                                fc='#fbe6e0', ec='#c0392b', lw=1.7, zorder=2))
+                                fc='#e8f3ea', ec='#2f6f4f', lw=1.7, zorder=2))
     ax.text(x + gw/2, gy + gh - 0.58, stage, ha='center', va='center',
-            fontsize=9.2, color='#8c2d1a', fontweight='bold', zorder=3)
+            fontsize=9.2, color='#1e5c3a', fontweight='bold', zorder=3)
     ax.text(x + gw/2, gy + gh - 1.30, crit, ha='center', va='center',
             fontsize=9.2, color='#3a2a24', zorder=3)
     ax.text(x + gw/2, gy + 0.42, '\u2713 PASS', ha='center', va='center',
-            fontsize=8.8, color='#c0392b', fontweight='bold', zorder=3)
+            fontsize=8.8, color='#1e6b3a', fontweight='bold', zorder=3)
 
 # ---- FAIL path: any gate that does not pass -> rollback / last-known-good ----
 # Every gate's dashed failure drop lands on this common rollback node.
@@ -113,7 +118,12 @@ ax.annotate('', xy=(xs[0], y + h/2), xytext=(0.3, y + h/2),
 ax.text(12.0, 0.85, 'production feedback \u2192 data / evaluation (each cycle re-gated)',
         fontsize=8.2, ha='center', color='#2f6f4f', fontweight='bold')
 
-ax.text(12.0, 0.25, 'Gates check measured throughput / SLO / cost; a breach rolls back.',
+# R4 P3 (w18b02): the old annotation promised a throughput/SLO check that no
+# drawn gate performs.  It now enumerates exactly the six gate criteria above,
+# on two lines so it stays inside the 24-unit column at print size.
+ax.text(12.0, 2.95, 'Gates check data validity, training cost, eval quality,',
+        fontsize=8.0, ha='center', color='#777')
+ax.text(12.0, 2.40, 'canary health, TTFT, and promotion cost; a breach rolls back.',
         fontsize=8.0, ha='center', color='#777')
 
 plt.tight_layout()

@@ -60,7 +60,7 @@ pitch = 60
 # ---- title / warning ----
 ax.text(W/2, T, 'Vendor-reported ratios: % remaining', fontsize=FS_H+1.6,
         fontweight='bold', ha='center', va='center', color='#1a1a1a')
-ax.text(W/2, T - 16, 'vs each model\'s own predecessor',
+ax.text(W/2, T - 16, 'vs each model\'s own stated reference (predecessor or base model)',
         fontsize=FS_H-1.8, ha='center', va='center', color='#333')
 # R27 P2: the warning was red bold text only (no border/fill), so it lost
 # salience in grayscale, and the R27 fix wrapped it in a HATCHED bar whose
@@ -111,6 +111,20 @@ for r, (name, base, date, kv, flop, col) in enumerate(rows):
                     arrowprops=dict(arrowstyle='-|>', lw=2.2, color=col, shrinkA=0, shrinkB=0))
         ax.text(cc + h_kv*0.58, ry, '~%d%%' % pct, fontsize=FS_R+1.0, fontweight='bold',
                 ha='center', va='center', color=col)
+    # R4 MISC fix (FIG-A.1-01 x2): scope was stated only on the GLM row, so the
+    # DeepSeek rows' unscoped percentages sat on the same scale as GLM's
+    # per-layer/per-head ones.  Each metric column now carries a scope
+    # sub-column line under every row (ch27 prose: DeepSeek reports
+    # "single-token inference FLOPs" and its KV cache vs V3.2); the
+    # '*Metric scopes differ' footnote stays as the backstop and the .md
+    # caption now covers all three rows.
+    if name.startswith('DeepSeek'):
+        ax.text(c_kv, ry - 14, 'single-token KV cache', fontsize=8.0, ha='center',
+                va='center', color=col, style='italic')
+        ax.text(c_flop, ry - 14, 'single-token', fontsize=8.0, ha='center',
+                va='center', color=col, style='italic')
+        ax.text(c_flop, ry - 26, 'inference FLOPs', fontsize=8.0, ha='center',
+                va='center', color=col, style='italic')
 
 # GLM normalization comes from the August 26 release article, not the February
 # GLM-5 parent report. Neither ratio is a whole-model inference/storage measure.

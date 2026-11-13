@@ -1,0 +1,1 @@
+CH18-03 | P3 | design/manuscript/chapter-18/chapter-18.md §3.5 first bullet (line 119) | inserted "These thresholds are [ILLUSTRATIVE][ASSUMPTION] design criteria for the worked example, not universal rules; a deployment should set its own consolidation thresholds from its SLO, cost model and workload mix." after "cost differential >30%." | APPLIED

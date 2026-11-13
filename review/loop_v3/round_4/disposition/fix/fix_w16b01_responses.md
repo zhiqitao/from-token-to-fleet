@@ -1,0 +1,1 @@
+FIG-12.1-02 | P3 (MINOR) | render/fig_ch12.py stage 2 (fig-12-1201) | populated ② CONSTRAINTS box with "SLO: throughput at target load (10/40 rps, 9.2K-in/300-out)" + "memory fit per host · quality gate" (label moved to y=0.708); regenerated only fig-12-1201.png/.pdf via render/regen_one.py | FIXED

@@ -444,12 +444,17 @@ output-integrity, quality, and safety gates in the same observation
 window --- while raw work rates (frames/s, clip-seconds/s) need a stated
 denominator and do not normalize the nonlinear attention cost. The
 rejection/OOM/cancellation counters, the cost-per-accepted-clip basis,
-and the zero-pass edge case follow the same rules as the
-accepted-completion definition above; placement follows the
-measured-service-time rule, with warm replicas trading idle cost for
-avoiding checkpoint downloads, initialization, compilation, and encoder
-loading on the request path. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} proposed
-service accounting.
+and the zero-pass edge case follow the accepted-completion rule stated
+in the previous sentence (a useful completion is an output that passes
+the deadline, integrity, quality, and safety gates in the observation
+window); placement follows the measured-service-time rule (place warm
+replicas where measured service time, not nominal load time, sets the
+request path), with warm replicas trading idle cost for avoiding
+checkpoint downloads, initialization, compilation, and encoder loading
+on the request path. For a RAG fleet architect the parallel is direct:
+both fleets size hosts against accepted outputs in the observation
+window, not raw work, so the same capacity screens and placement rules
+apply. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} proposed service accounting.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -549,12 +554,16 @@ by KV residency per \hyperref[chap:17]{Chapter 17}):
   raises it to 344/(0.95 × 17) = 344/16.15 ≈ 21.3 → \textbf{22 hosts}
   (the ρ-derate of the KV screen; the \emph{independent} full-square
   case (ii) prefill compute screen also gives 22, ⌈21.81⌉ --- a
-  different 22, from a FLOP-counting case rather than a ρ derate).
-  (⌈86/17⌉ = \textbf{6} is not a second, tighter constraint: it is the
-  \emph{same} identity λW/C = λ/(C/W) --- the KV-residency view of §3
-  --- evaluated at the 10-rps average instead of the 40-rps peak; at the
-  peak both views give ⌈344/17⌉ = \textbf{21} (→ \textbf{22} with the ρ
-  ≈ 0.95 derate), so the peak requirement governs.)
+  different 22, from a FLOP-counting case rather than a ρ derate --- but
+  with the same ρ = 0.95 derate §3 applies to every throughput-bound
+  screen, case (ii) rises to ⌈21.81/0.95⌉ = 23, the max over all
+  screens; 23 is the ρ-derated requirement, 22 the raw-screen
+  requirement, and 23 governs the screen set (§3: the larger requirement
+  wins)). (⌈86/17⌉ = \textbf{6} is not a second, tighter constraint: it
+  is the \emph{same} identity λW/C = λ/(C/W) --- the KV-residency view
+  of §3 --- evaluated at the 10-rps average instead of the 40-rps peak;
+  at the peak both views give ⌈344/17⌉ = \textbf{21} (→ \textbf{22} with
+  the ρ ≈ 0.95 derate), so the peak requirement governs.)
 \item
   \textbf{Marginal cost (real basis):} adding one host at
   \textasciitilde\$20/hr (cloud, \mbox{{[}ILLUSTRATIVE{]}}) buys
@@ -613,16 +622,16 @@ by KV residency per \hyperref[chap:17]{Chapter 17}):
 
 {\intextsep=6pt\relax\begin{figure}[H]
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. Takeaway: the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency --- a plateau at the workload's demand ceiling (40 rps is the peak arrival rate, not the fleet's capacity limit). Reading the two gaps: below saturation the \textasciitilde5\% gap between C\_analytic and C\_eff is the assumed throughput-efficiency derate; above saturation C\_eff − S is unused capacity from insufficient offered demand, not scheduling overhead (demand is capped at 40 rps). Queueing/tail-latency penalties are not determined by this two-line calculation and must be shown separately if claimed. Measured-vs-illustrative: the served-demand curve is a derived construction --- modeled served demand, not measured throughput --- and validation (p95/p99, Ch 14) precedes treating the 21/22-host peak sizing as validated. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio,trim=0 3.58 0 8.80,clip]{figures/fig-20-2001.png}}
-\caption[Fleet capacity vs host count]{Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. \textbf{Takeaway:} the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency --- a plateau at the \textbf{workload's demand ceiling} (40 rps is the peak arrival rate, not the fleet's capacity limit). \textbf{Reading the two gaps:} below saturation the \textasciitilde5\% gap between C\_analytic and C\_eff is the assumed throughput-efficiency derate; above saturation C\_eff − S is \textbf{unused capacity from insufficient offered demand, not scheduling overhead} (demand is capped at 40 rps). Queueing/tail-latency penalties are not determined by this two-line calculation and must be shown separately if claimed. \textbf{Measured-vs-illustrative:} the served-demand curve is a derived construction --- \textbf{modeled served demand, not measured throughput} --- and validation (p95/p99, Ch 14) precedes treating the 21/22-host peak sizing as validated. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. Takeaway: the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency on the KV screen / 23 with the ρ derate on the case (ii) prefill screen (§3) --- a plateau at the workload's demand ceiling (40 rps is the peak arrival rate, not the fleet's capacity limit). Scope: this figure models the KV-residency/throughput screen only (21 hosts ideal, 22 at ρ = 0.95); the prefill screen in §3 binds higher --- 23 hosts (case (ii) with the ρ derate), up to 34 under the full 70\% × 95\% + N−1 policy --- so 21/22 is not the fleet size. Reading the two gaps: below saturation the \textasciitilde5\% gap between C\_analytic and C\_eff is the assumed throughput-efficiency derate; above saturation C\_eff − S is unused capacity from insufficient offered demand, not scheduling overhead (demand is capped at 40 rps). Queueing/tail-latency penalties are not determined by this two-line calculation and must be shown separately if claimed. Measured-vs-illustrative: the served-demand curve is a derived construction --- modeled served demand, not measured throughput --- and validation (p95/p99, Ch 14) precedes treating the 21/22-host KV-screen peak sizing as validated. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio,trim=0 3.58 0 8.80,clip]{figures/fig-20-2001.pdf}}
+\caption[Fleet capacity vs host count]{Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. \textbf{Takeaway:} the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency on the KV screen / 23 with the ρ derate on the case (ii) prefill screen (§3) --- a plateau at the \textbf{workload's demand ceiling} (40 rps is the peak arrival rate, not the fleet's capacity limit). \textbf{Scope:} this figure models the KV-residency/throughput screen only (21 hosts ideal, 22 at ρ = 0.95); the prefill screen in §3 binds higher --- 23 hosts (case (ii) with the ρ derate), up to 34 under the full 70\% × 95\% + N−1 policy --- so 21/22 is not the fleet size. \textbf{Reading the two gaps:} below saturation the \textasciitilde5\% gap between C\_analytic and C\_eff is the assumed throughput-efficiency derate; above saturation C\_eff − S is \textbf{unused capacity from insufficient offered demand, not scheduling overhead} (demand is capped at 40 rps). Queueing/tail-latency penalties are not determined by this two-line calculation and must be shown separately if claimed. \textbf{Measured-vs-illustrative:} the served-demand curve is a derived construction --- \textbf{modeled served demand, not measured throughput} --- and validation (p95/p99, Ch 14) precedes treating the 21/22-host KV-screen peak sizing as validated. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:20.1}\end{figure}
 
 \emph{Aggregate-rps note}: ≥ 2× peak = 80 rps is a \textbf{stress/soak}
 target, not the planning screen: sustaining 80 rps needs
 \textasciitilde41--43 hosts (80 / 1.977 = 40.5 → 41; with the ρ = 0.95
-derate → 43), a larger pool than the 21/22-host planning sizing, whose
+derate → 43), a larger pool than the 21/22-host KV-screen sizing, whose
 21-host analytical capacity is ≈ 41.5 rps ≈ 1.04× peak (C\_analytic = 21
 × 17/8.6; the 22-host ρ-derated sizing gives ≈ 41.3 rps ≈ 1.03×; served
-demand still caps at the 40 rps peak). The planning fleet passes its own
-screens at ≈ 1× peak; the 2× row is what a soak pool must sustain.
+demand still caps at the 40 rps peak). The KV-screen sizing passes its
+own screens at ≈ 1× peak; the 2× row is what a soak pool must sustain.

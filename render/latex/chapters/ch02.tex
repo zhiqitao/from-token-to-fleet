@@ -50,7 +50,7 @@ prefix plus all previously generated tokens. In the
 \emph{batch-1-equivalent} weight-streaming model we use for this
 first-pass arithmetic, the per-step cost has two parts: the
 \textbf{weight-read} (the entire model weight matrix from HBM, constant
-in context length because the auto-regressive pass reuses the same
+in context length because the autoregressive pass reuses the same
 parameters every step) and the \textbf{attention over the growing KV
 cache} (linear in context length, since each new token attends to all
 cached keys/values). At the canonical operating point the weight-read
@@ -88,8 +88,8 @@ K/V therefore enters the cache on the step in which it is the
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The canonical end-to-end inference pipeline, in three bands. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT/ITL (time per output token / inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The green initialize path seeds the loop with the first sampled token. The three bands and the single PERSISTENT KV CACHE box are conceptual groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0202.pdf}}
-\caption[The canonical end-to-end inference pipeline, in three bands]{The canonical end-to-end inference pipeline, in three bands. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT/ITL (time per output token / inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The green \emph{initialize} path seeds the loop with the first sampled token. The three bands and the single PERSISTENT KV CACHE box are \emph{conceptual} groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The canonical end-to-end inference pipeline, in three bands. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT/ITL (time per output token / inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The initialize path (labelled initialize) seeds the loop with the first sampled token. Color is figure-local decoration --- each box is titled. The three bands and the single PERSISTENT KV CACHE box are conceptual groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0202.pdf}}
+\caption[The canonical end-to-end inference pipeline, in three bands]{The canonical end-to-end inference pipeline, in three bands. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT/ITL (time per output token / inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The initialize path (labelled initialize) seeds the loop with the first sampled token. Color is figure-local decoration --- each box is titled. The three bands and the single PERSISTENT KV CACHE box are \emph{conceptual} groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:2.1}\end{figure}
 
@@ -381,7 +381,7 @@ derivation
 Model params & 70B & canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}) \\
 Model weight bytes (FP16) & 140 GB & 2 bytes × 70B params \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-Decode: weight-read per token & 140 GB & Auto-regressive,
+Decode: weight-read per token & 140 GB & Autoregressive,
 batch-1-equivalent: one read of all weights per generated token before
 batching/amortization \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Decode: required bandwidth (TPOT \textasciitilde25 ms) & 5.6 TB/s & 140
@@ -434,7 +434,7 @@ measurement of actual serving throughput.)}
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Decode bandwidth.} In auto-regressive decode, generating one
+  \textbf{Decode bandwidth.} In autoregressive decode, generating one
   token requires a full forward pass of the 70B parameter matrix. At
   FP16 (2 bytes per parameter), the weight footprint is
   \(W = N \times 2 = 140\) GB. \textbf{This is the aggregate model-wide
@@ -527,7 +527,15 @@ impossible on a single H100 under the stated model, but it does
 \textbf{not} imply any rate below the peak is achievable --- real
 kernels land well under MFU 100\%. Meeting the latency SLO therefore
 calls for multiple GPUs (model parallelism or data parallelism) or more
-efficient attention implementations.
+efficient attention implementations. - \textbf{Canonical host verdict.}
+On the canonical 8×H100 host (TP = 8): prefill 1.29 PFLOP / (8 × 0.989
+PFLOPS) = 0.16 s at peak, \textasciitilde0.47 s at 35\% MFU, inside the
+1.08 s budget; decode shard 70B/8 = 8.75B params = 17.5 GB/GPU per step
+→ 17.5 GB / 3.35 TB/s = 5.2 ms, inside the 25 ms TPOT budget; KV 24.1 GB
+per request against the 640 GB pool (\textasciitilde228 GB total
+resident with weights and workspace). The single-H100 arithmetic above
+is a device-feasibility illustration, not this host's verdict.
+\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \ntsection{Measurement}\label{measurement}
 
@@ -586,9 +594,12 @@ the wrong optimization lever.
   or under-provisioning compute for a compute-bound one.
 \item
   \textbf{Assuming one H100 suffices for 70B inference.} The arithmetic
-  in §2.3 shows that a single H100 cannot meet the decode bandwidth
-  demand (5.6 TB/s vs 3.35 TB/s) nor the prefill compute demand (1.19
-  PFLOPS required vs 0.989 PFLOPS peak, from 1.29 PFLOP / 1.08 s).
+  in §2.3 shows that a single H100 cannot hold or stream the whole 140
+  GB model (140 GB \textgreater{} 80 GB residency; and the aggregate 5.6
+  TB/s vs 3.35 TB/s is a hypothetical single-device comparison --- on
+  the canonical 8×H100 host each GPU streams only its 17.5 GB shard,
+  i.e.~700 GB/s at a 25 ms TPOT) nor meet the prefill compute demand
+  (1.19 PFLOPS required vs 0.989 PFLOPS peak, from 1.29 PFLOP / 1.08 s).
   Attributing 70B serveability to a single GPU ignores the opposite
   bottlenecks and produces an architecture that fails latency SLOs.
 \item
@@ -635,11 +646,16 @@ architectural consequences:
   throughput (8-bit tensor cores run at higher peak rate).
 \item
   \textbf{With decode in the bandwidth-bound regime → optimization
-  levers:} continuous batching (vLLM, PagedAttention) to amortize weight
-  reads across many tokens in flight, KV cache offloading to SSD or
-  system memory, P/D (prefill/decode) disaggregation (separate pools of
-  GPUs for prefill bursts vs.~decode steady state), and higher-bandwidth
-  memory topologies (NVSwitch, HBM3e).
+  levers:} continuous batching (as implemented in vLLM) to amortize
+  weight reads across many tokens in flight, trading per-request latency
+  for utilization; PagedAttention (vLLM) to remove KV-cache
+  fragmentation waste, raising effective KV capacity with no effect on
+  weight traffic; KV cache offloading to SSD or system memory to raise
+  KV capacity headroom, costing transfer latency and PCIe/host-DRAM
+  traffic, P/D (prefill/decode) disaggregation (separate pools of GPUs
+  for prefill bursts vs.~decode steady state), and higher-bandwidth
+  memory and interconnect topologies (HBM3e memory per GPU;
+  NVSwitch/NVLink for GPU-to-GPU communication).
 \end{itemize}
 
 The key architectural decision this enables: \textbf{can we disaggregate
@@ -725,11 +741,13 @@ respectively. The architect can also state the two opposite bottlenecks:
 prefill will be compute-bound (\textasciitilde1.29 PFLOP per request at
 9.2K input), and decode will be bandwidth-bound (a \textasciitilde140
 GB/token weight-read requiring \textasciitilde5.6 TB/s sustained over
-each \textasciitilde25 ms decode step). The team's immediate
-architectural choice is whether to build a single homogeneous GPU
-cluster or to separate prefill and decode pools --- the differing
-bottleneck profiles make disaggregation worth evaluating, though whether
-it uses fewer GPUs must be measured rather than assumed (Ch 11).
+each \textasciitilde25 ms decode step (aggregate, hypothetical
+single-device figure; sharded across 8 GPUs it is 17.5 GB/GPU = 700 GB/s
+per GPU)). The team's immediate architectural choice is whether to build
+a single homogeneous GPU cluster or to separate prefill and decode pools
+--- the differing bottleneck profiles make disaggregation worth
+evaluating, though whether it uses fewer GPUs must be measured rather
+than assumed (Ch 11).
 
 Before passing this workload to \hyperref[chap:4]{Chapter 4} (workload anatomy), the
 architect locks in one more number: the tokens-per-request split. This

@@ -21,19 +21,21 @@ explicitly stated.
 
 
 Compute in a language model is priced in floating-point operations, or
-FLOPs. Every matrix multiplication, every attention weight update, every
-activation function evaluation contributes to the total. The architect's
-first principle is that FLOPs scale linearly with parameter count and
-context length, but the \emph{efficiency} with which those FLOPs are
-executed depends on the hardware ridge point and the arithmetic
-intensity of the kernel.
+FLOPs. Every matrix multiplication, every attention-score computation,
+every activation function evaluation contributes to the total. The
+architect's first principle is that FLOPs scale linearly with parameter
+count and token count for projection-dominated work (\textasciitilde2N
+per token), while attention adds a term quadratic in context length
+(\textasciitilde4·n\_layers·L²·d, §1 below) --- the hardware ridge point
+and the kernel's arithmetic intensity decide the efficiency of both.
 
 For a dense transformer layer, the dominant cost is the matrix
-multiplication --- query-key, value-aggregation, and MLP projections. In
-FP16, a single multiply-add counts as two FLOPs. The per-token cost is
-therefore approximately 2 ×N FLOPs where N is the number of active
-parameters. This is the arithmetic baseline: every token processed costs
-roughly two floating-point operations per parameter.
+multiplication --- the attention-score and value-aggregation matmuls,
+and the MLP projections. A single multiply-add counts as two FLOPs (FP16
+affects throughput, not this count). The per-token cost is therefore
+approximately 2 ×N FLOPs where N is the number of active parameters.
+This is the arithmetic baseline: every token processed costs roughly two
+floating-point operations per parameter.
 
 \subsection{Fewer sequential evaluations can mean more total
 work}\label{fewer-sequential-evaluations-can-mean-more-total-work}
@@ -115,8 +117,9 @@ cache all compete for the same HBM bandwidth. The arithmetic intensity
 (FLOP/byte) determines whether a kernel is compute-bound (intensity
 above the ridge point) or memory-bound (intensity below). This roofline
 model is the central diagnostic tool of this chapter: it tells us, for
-any given layer and precision, whether increasing FLOPs will actually
-reduce latency or whether we are already starved for bytes.
+any given layer and precision, whether adding compute
+throughput/resources reduces latency or whether we are already starved
+for bytes.
 
 \begin{quote}
 \textbf{Three different ``bounds'' --- keep them apart.} Throughout this
@@ -127,18 +130,22 @@ kernel sits above the ridge; the compute units are the bottleneck).
 \textbf{Memory-bandwidth-bound} (what the roofline calls
 ``memory-bound'') means performance is limited by memory-transfer
 bandwidth (the kernel sits below the ridge; it is starved for bytes
-moving per second). \textbf{Memory-capacity-constrained} (equivalently
-KV-capacity-constrained) means feasible concurrency or context is
-limited by \emph{how much data fits in HBM} --- not by how fast it
-moves. The canonical RAG workload illustrates all three without overlap:
-prefill is compute-bound (high intensity), decode is bandwidth-bound
-(low intensity), and long input raises KV residency, which
-capacity-constrains how many requests can be resident at once.
-``Input-heavy'' does \textbf{not} by itself mean ``memory-bound'' --- it
-tends to raise prefill compute \emph{and} KV-capacity pressure, two
-distinct effects. When the book says ``memory-bound'' without
-qualification, it means \emph{bandwidth-bound} in the roofline sense;
-capacity pressure is stated explicitly.
+moving per second). \textbf{Memory-capacity-constrained} (often
+KV-capacity-constrained in long-context inference) means feasible
+concurrency or context is limited by \emph{how much data fits in HBM}
+--- not by how fast it moves. The canonical RAG workload illustrates all
+three without overlap: prefill is compute-bound (high intensity), decode
+is bandwidth-bound (low intensity), and long input raises KV residency,
+which capacity-constrains how many requests can be resident at once.
+These regime labels are operating-point properties: they shift with
+batch size and precision, and in a serving system prefill and decode
+from different requests overlap on the same devices, so the regimes
+coexist rather than partition the timeline. ``Input-heavy'' does
+\textbf{not} by itself mean ``memory-bound'' --- it tends to raise
+prefill compute \emph{and} KV-capacity pressure, two distinct effects.
+When the book says ``memory-bound'' without qualification, it means
+\emph{bandwidth-bound} in the roofline sense; capacity pressure is
+stated explicitly.
 \end{quote}
 
 \subsection{A resource model survives a backend change; an
@@ -194,41 +201,44 @@ per token, prefill PFLOP counts, H100 sustained utilization) and the
 roofline that explains why prefill is compute-bound while decode is
 memory-bound, worked through the canonical scenario (70B on 8×H100, TTFT
 1.2 s, TPOT \textasciitilde25 ms); §4 turns to measurement, §5 to common
-mistakes, §6 to architecture consequences, and §8 closes with a
-mini-case that threads the prefill/decode divide.
+mistakes, §6 to architecture consequences, §7 to open questions, and §8
+closes with a mini-case that threads the prefill/decode divide.
 
 \ntsection{Mental Model}\label{mental-model}
 
 
 FLOPs are like the total distance of a trip: they tell us how much work
-the request requires, not how fast the system can cover it. The trip
-time is determined by the ridge point: if the arithmetic intensity is
+the request requires, not how fast the system can cover it. The ridge
+point picks which ceiling binds the trip: if the arithmetic intensity is
 below the ridge, adding more FLOPs won't help because we are waiting for
 data. If we are above the ridge, we are limited by how fast the compute
-can chew through operations. The roofline chart --- peak TFLOPS on the
-vertical axis, FLOP/byte on the horizontal --- is the map that resolves
-this. Where our kernel lands on that chart decides whether we should
-profile memory bandwidth or compute throughput.
+can chew through operations. The roofline chart --- attainable
+performance on the vertical axis (bounded by the hardware's peak
+TFLOPS), FLOP/byte on the horizontal --- is the map that resolves this.
+Where our kernel lands on that chart decides whether we should profile
+memory bandwidth or compute throughput.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- each is a different level of this ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.png}}
-\caption[Where inference computation and data movement actually live]{Where inference computation and data movement actually live. The hierarchy runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- each is a different level of this ladder. \textbf{Schematic note:} the vertical ordering is a \emph{relative} speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale, and the same physical resource (e.g.~HBM) can appear at different logical positions depending on the access pattern. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The resource stack runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- compute, memory and interconnect are separate groups within this stack, not levels of one ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.pdf}}
+\caption[Where inference computation and data movement actually live]{Where inference computation and data movement actually live. The resource stack runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- compute, memory and interconnect are separate groups within this stack, not levels of one ladder. \textbf{Schematic note:} the vertical ordering is a \emph{relative} speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:8.1}\end{figure}
 
 \emph{Read this ladder together with the roofline:} the roofline's
-vertical axis (peak TFLOPS) and horizontal axis (FLOP/byte) are both
-determined by \emph{where} on this hierarchy the work sits. A kernel is
-compute-bound when its FLOPs run on the tensor cores and data fits in
-on-chip memory (high arithmetic intensity); it is bandwidth-bound when
-it must stream large tensors from HBM faster than the bytes can move
-(low arithmetic intensity). So the ``bound'' classification of Ch. 8 is
-not a property of the model alone --- it follows from where the model's
-weights and the KV cache happen to be resident, and how much of the
-computation a kernel can keep on-chip. Ch. 15's FlashAttention
-discussion is exactly this ladder in action: keep more of the tile
-on-chip, move fewer bytes between HBM and the compute units.
+vertical axis (peak TFLOPS) is set by the hardware ceiling, while a
+kernel's horizontal position (FLOP/byte) is set by its arithmetic
+intensity --- not by where the work sits on this resource stack. A
+kernel is compute-bound when its arithmetic intensity sits above the
+ridge point (keeping data on-chip raises that intensity); it is
+bandwidth-bound when its intensity sits below the ridge, so it must
+stream large tensors from HBM faster than the bytes can move. So the
+``bound'' classification of Ch. 8 is not a property of the model alone
+--- it follows from where the model's weights and the KV cache happen to
+be resident, and how much of the computation a kernel can keep on-chip.
+Ch. 15's FlashAttention discussion is exactly this ladder in action:
+keep more of the tile on-chip, move fewer bytes between HBM and the
+compute units.
 
 \ntsection{Worked Example: Canonical Scenario
 Arithmetic}\label{worked-example-canonical-scenario-arithmetic}
@@ -535,8 +545,8 @@ Under case (ii) the compute screen \textbf{binds above} the KV-residency
 / Little's-Law fleet sizing derived in \hyperref[chap:17]{Chapter 17} (⌈344/17⌉ = 21 hosts
 at peak, the full-utilization screen; 31 working / 32 total at the 70\%
 × 95\% policy), so the capacity floor is the \emph{max} of the named
-screens --- \textbf{21 hosts under case (i), 22 under case (ii)} ---
-with the cost basis in \hyperref[chap:16]{Chapter 16} pricing both
+screens --- \textbf{21 hosts under case (i) and case (iii), 22 under
+case (ii)} --- with the cost basis in \hyperref[chap:16]{Chapter 16} pricing both
 (\textasciitilde\$155,816.93/mo ≈ \$24.97/1K at 21 hosts;
 \textasciitilde\$162,760.59/mo ≈ \$26.08/1K at 22 --- illustrative
 included-cost on the canonical 6.24M-req/mo basis, Ch 16). That two
@@ -566,13 +576,16 @@ under its stated FLOP-counting case and the 35\% MFU assumption, not
 measured SLO-goodput}.
 
 This rough sizing illustrates that prefill is FLOP-bound at this scale
---- the compute requirement is the primary constraint, and memory
+--- its arithmetic intensity sits far above the ridge, so memory
 bandwidth (HBM at 3.35 TB/s per H100) is sufficient to keep the compute
-fed if the kernel is efficient. The ridge point for dense FP16 on H100
-is \textasciitilde295 FLOP/byte (989 ÷ 3.35); the arithmetic intensity
-of a mature attention kernel sits near or above this ridge, meaning the
-kernel is compute-saturated rather than bandwidth-starved once the batch
-is large enough.
+fed if the kernel is efficient. Whether prefill \emph{compute} or KV
+\emph{residency} is the binding fleet constraint depends on the
+FLOP-counting case: KV residency binds under cases (i) and (iii) (21
+hosts), compute under case (ii) (22 hosts). The ridge point for dense
+FP16 on H100 is \textasciitilde295 FLOP/byte (989 ÷ 3.35); the
+arithmetic intensity of a mature attention kernel sits near or above
+this ridge, meaning the kernel is compute-saturated rather than
+bandwidth-starved once the batch is large enough.
 
 \subsection{Decode: bandwidth-bound at low
 batch}\label{decode-bandwidth-bound-at-low-batch}
@@ -628,15 +641,15 @@ halve bytes and double intensity), and TFLOP/s utilization increases
 accordingly. \textbf{KV-read caveat:} the weight-only intensity above
 omits the per-sequence KV re-read (\textasciitilde24 GB at the canonical
 9.2K context, FP16 full-MHA). Including it, the decode intensity is
-(140·B)/(140 + 24·B) FLOP/byte, which \emph{saturates} at
-\textasciitilde5.8 FLOP/byte as B→∞ --- far below the 295 ridge. So with
-the KV term, decode stays bandwidth-bound at every batch size; the
-``batch ≈ 295'' figure is the weight-only first-order estimate (valid
-when the KV re-read is small relative to the weight stream, e.g.~short
-contexts or KV quantization). This is why continuous-batching systems
-(Orca, vLLM) prioritize batch growth: it is the primary lever for
-pushing decode arithmetic intensity toward the ridge (on the weight-only
-term).
+(140·b)/(140 + 24·b) FLOP/byte --- (140 GFLOP × b) ÷ (140 GB + 24 GB ×
+b) for batch b --- which \emph{saturates} at \textasciitilde5.8
+FLOP/byte as b→∞ --- far below the 295 ridge. So with the KV term,
+decode stays bandwidth-bound at every batch size; the ``batch ≈ 295''
+figure is the weight-only first-order estimate (valid when the KV
+re-read is small relative to the weight stream, e.g.~short contexts or
+KV quantization). This is why continuous-batching systems (Orca, vLLM)
+prioritize batch growth: it is the primary lever for pushing decode
+arithmetic intensity toward the ridge (on the weight-only term).
 
 \emph{Scope note on the single-device roofline here:} the 140 GB
 weight-read and the per-GPU \textasciitilde3.35 TB/s HBM bandwidth are
@@ -714,13 +727,15 @@ Three measurable quantities anchor compute sizing:
   \textasciitilde295 FLOP/byte; H200: \textasciitilde989 TFLOPS ÷ 4.8
   TB/s ≈ 206 FLOP/byte --- H200 keeps H100's GH100 die and its dense
   FP16 peak, trading a bigger/faster HBM3e for bandwidth --- more
-  bandwidth at a similar BF16 peak, so its ridge is \emph{lower}; GB200:
-  higher on both terms (dense BF16 peak 4,500 TFLOPS = 2× B200's 2,250,
-  over 16 TB/s HBM3e → 4,500 ÷ 16 ≈ 281 FLOP/byte, just below H100's
-  \textasciitilde295 --- its 4.8× bandwidth advantage slightly outpaces
-  its 4.5× compute advantage), while its NVFP4 ridge is far higher
-  again). If intensity is below the ridge, the kernel is memory-bound;
-  above, compute-bound.
+  bandwidth at a similar BF16 peak, so its ridge is \emph{lower}; GB200
+  superchip (2 GPUs): higher on both terms (dense BF16 peak 4,500 TFLOPS
+  = 2× B200's 2,250 per GPU, over 16 TB/s HBM3e = 2× 8 TB/s per GPU →
+  4,500 ÷ 16 ≈ 281 FLOP/byte, granularity-invariant, just below H100's
+  \textasciitilde295 --- as superchip-vs-single-GPU its 4.8× bandwidth
+  advantage slightly outpaces its 4.5× compute advantage; per GPU the
+  factors are 2.28× compute and 2.39× bandwidth), while its NVFP4 ridge
+  is far higher again). If intensity is below the ridge, the kernel is
+  memory-bound; above, compute-bound.
 \end{enumerate}
 
 A compute roofline does not include every exposed distributed stall. A
@@ -741,8 +756,12 @@ separates their mechanisms and measurement boundaries. \mbox{{[}DERIVED{]}}
   fusion, and kernel fusion. Profile before quoting.
 \item
   \textbf{Treating prefill and decode as having the same FLOP/byte
-  profile.} Prefill reads the full context once and is FLOP-bound;
-  decode re-reads weights per token and is memory-bound. The
+  profile.} At the canonical operating point, prefill reads the full
+  context once and is FLOP-bound (intensity \textasciitilde9,200
+  FLOP/byte, far above the \textasciitilde295 ridge); low-batch decode
+  re-reads weights per token and is memory-bound (\textasciitilde1
+  FLOP/byte) - both are operating-point properties: decode's intensity
+  rises with batch, and prefill's falls as context shortens. The
   arithmetic-intensity roofline distinguishes them.
 \item
   \textbf{Using peak TFLOP/s as sustained throughput.} Peak includes

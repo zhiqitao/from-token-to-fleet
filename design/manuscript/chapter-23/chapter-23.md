@@ -2,20 +2,20 @@
 
 ## The Architect's Question
 
-After this chapter we should be able to sit with a customer or stakeholder who says "we want to build something with AI" and turn that vague ambition into a bounded, measurable, defensible scope. We will apply the book's core loop in a conversational setting: ask the questions that surface the real workload (Ch4), the quality bar (Ch3/5), the latency and cost constraints, and the operational reality — then restate the requirement in terms we can architect against. After this chapter, "let's go build an AI thing" becomes "here are the bounds, the SLO, and the open questions" — and the customer knows exactly what they asked for.
+After this chapter we should be able to sit with a customer or stakeholder who says "we want to build something with AI" and turn that vague ambition into a bounded, measurable, defensible scope. We will apply the book's core loop in a conversational setting: ask the questions that surface the real workload (Ch 4), the quality bar (Ch 3/5), the latency and cost constraints, and the operational reality — then restate the requirement in terms we can architect against. After this chapter, "let's go build an AI thing" becomes "here are the bounds, the SLO, and the open questions" — and the customer knows exactly what they asked for.
 
 ## 1. Concept
 
 Most AI projects fail in requirements, not in technology. [HYPOTHESIS] The root cause is a **category error**: the customer and the architect mean different things by the same words. "Fast," "good," "smart," and "it should just work" are not contracts; they are vibes. The architect's first job is to convert vibes into **quantified, testable bounds** using the disciplines of the earlier chapters.
 
-The conversion rests on one idea: **every architectural decision traces back to a number the customer can see.** Whether the model is 7B or 70B, whether we self-host or use an API, whether we cache, quantize, or disaggregate — all of it is decided by six numbers we can extract from a customer conversation:
+The conversion rests on one idea: most consequential architectural decisions should trace back to an explicit number or constraint, many of which the customer can see. Whether the model is 7B or 70B, whether we self-host or use an API, whether we cache, quantize, or disaggregate — all of it is decided by six numbers we can extract from a customer conversation:
 
-1. **The traffic** — how many users, at what concurrency, with what peak-to-average ratio (Ch4/Ch17).
-2. **The token profile** — what inputs look like, how long contexts are, the input/output ratio (Ch4/Ch6).
-3. **The latency/SLO** — what "fast" means, the percentile and the budget (Ch6).
-4. **The quality bar** — what "good enough" means on *this* task, on *their* data (Ch3/Ch5/Ch14).
-5. **The cost ceiling** — the money they can spend, and whether that implies self-host or API (Ch16).
-6. **The operational reality** — data privacy, geography, available staff, time-to-value (Ch13/Ch21/Ch24).
+1. **The traffic** — how many users, at what concurrency, with what peak-to-average ratio (Ch 4/Ch 17).
+2. **The token profile** — what inputs look like, how long contexts are, the input/output ratio (Ch 4/Ch 6).
+3. **The latency/SLO** — what "fast" means, the percentile and the budget (Ch 6).
+4. **The quality bar** — what "good enough" means on *this* task, on *their* data (Ch 3/Ch 5/Ch 14).
+5. **The cost ceiling** — the money they can spend, and whether that implies self-host or API (Ch 16).
+6. **The operational reality** — data privacy, geography, available staff, time-to-value (Ch 13/Ch 21/Ch 24).
 
 ## 2. Mental Model
 
@@ -23,7 +23,7 @@ The customer conversation is really about **buying information, not delivering a
 
 - **The Socratic funnel.** Start broad ("what problem are we solving?") and narrow through a scripted set of questions that each commit the customer to a concrete bound. Every "vague" answer gets followed by a request for magnitude: "roughly how many users?" "what's the slowest acceptable answer?"
 - **The mirror test.** Restate their words back as a quantified requirement and check they still agree. "So: ~2,000 users, under 2 seconds to first token, on company-internal data — did I get that right?" The restatement is where scope actually gets locked.
-- **The two-window honesty.** Separate what the customer *thinks* (goals) from what the *system* can guarantee (SLOs). Goals are aspirations; SLOs are contracts. Confusing them breeds every fee dispute and scope fight.
+- **The two-window honesty.** Separate what the customer *thinks* (goals) from what the *system* can guarantee (SLOs). Goals are aspirations; SLOs are contracts. Confusing them breeds many fee disputes and scope fights.
 
 ## 3. Worked Example
 
@@ -53,24 +53,24 @@ The customer conversation is really about **buying information, not delivering a
 
 **Architect:** "Data sensitivity — can this touch a public cloud, and how much can it cost?"
 **Lead:** "It's internal and regulated; keep it on-prem if at all possible. And at this scale we'd rather not pay per-token API fees — keep it within a self-host budget."
-**→ Bound 5: the regulated-data requirement makes the local/server tier the primary path — on-prem is preferred “if at all possible,” with cloud as the fallback if that preference yields (Ch13).** [canonical scenario] (Ch 4, Table 4-2)
-**→ Bound 6: cost ceiling — within a self-host budget (Ch16).** [canonical scenario] (Ch 4, Table 4-2)
+**→ Bound 5: the regulated-data constraint (the dialogue does establish regulated data) makes the local/server tier the preferred path — on-prem is preferred “if at all possible,” with cloud as the fallback if that preference yields (Ch 13).** [canonical scenario] (Ch 4, Table 4-2)
+**→ Bound 6: cost ceiling — within a self-host budget (Ch 16).** [canonical scenario] (Ch 4, Table 4-2)
 
 **Architect (mirror):** "So to lock it: ~2,000 sales users, ~10 rps average / 40 peak, prompts with ~9,200-token retrieval context, answers starting under 2 s, quality judged on 50 of your real questions, fully on-prem because it's regulated, and within a self-host budget. Have I captured it?"
 **Lead:** "Yes — that's exactly it."
 
-**Reading the result.** The vague ask collapsed into the exact canonical workload this book has architected end-to-end — a 70B-class model on an 8×H100 on-prem server *becomes a candidate architecture* whose memory fit can be derived and whose latency, throughput, quality, and peak-load behavior must then be validated (Ch2-16 derive the constraints; the deployment has to be benchmarked and measured against them, as Ch24's red-team pass shows). The conversation did not sell a model; it *exposed the numbers* that then narrowed the candidate set, and left the actual validation to the measurement phase. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
+**Reading the result.** The vague ask collapsed into the exact canonical workload this book has architected end-to-end — a 70B-class model on an 8×H100 on-prem server *becomes a candidate architecture* whose memory fit can be derived and whose latency, throughput, quality, and peak-load behavior must then be validated (Ch 2–16 derive the constraints; the deployment has to be benchmarked and measured against them, as Ch 24's red-team pass shows). The conversation did not sell a model; it *exposed the numbers* that then narrowed the candidate set, and left the actual validation to the measurement phase. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
 
 **Table 23-1** — The six questions that turn any vague AI ask into architectable bounds
 
 | Question | Surface it reveals | Canonical answer (this example) |
 |---|---|---|
-| ~How many users, how concurrent? | Traffic & concurrency (Ch4/17) | ~2,000 users, ~10/40 rps |
-| What do inputs look like? | Token profile (Ch4/6) | ~9.2K in / ~300 out |
-| What's "fast"? | SLO (Ch6) | TTFT ≤ 2 s, ~25 ms/token (p95 TPOT ≤ 35 ms) |
-| What's "good"? | Quality bar (Ch3/14) | 50-question retrieval-QA set |
-| Data sensitive? Cloud OK? | Tier & ops (Ch13) | on-prem, regulated |
-| How much can it cost? | TCO (Ch16) | within self-host budget |
+| ~How many users, how concurrent? | Traffic & concurrency (Ch 4/17) | ~2,000 users, ~10/40 rps |
+| What do inputs look like? | Token profile (Ch 4/6) | ~9.2K in / ~300 out |
+| What's "fast"? | SLO (Ch 6) | TTFT ≤ 2 s, ~25 ms/token (p95 TPOT ≤ 35 ms) |
+| What's "good"? | Quality bar (Ch 3/14) | 50-question retrieval-QA set |
+| Data sensitive? Cloud OK? | Tier & ops (Ch 13) | on-prem, regulated |
+| How much can it cost? | TCO (Ch 16) | within self-host budget |
 
 ## 4. Measurement
 
@@ -85,17 +85,17 @@ The requirements dialogue has its own quality metrics:
 
 - **Selling before scoping.** Pitching a model or a price before extracting the six numbers commits us to an answer we cannot yet defend.
 - **Accepting aspirations as SLOs.** "Make it fast" is a goal; "p95 TTFT under 2 s" is a contract. Write the contract.
-- **Letting the customer choose the technology.** "We want a 70B model" is a solution, not a requirement; the architect derives the model from the bounds (Ch5), not from the customer's guess.
+- **Letting the customer choose the technology.** "We want a 70B model" is a solution, not a requirement; the architect derives the model from the bounds (Ch 5), not from the customer's guess.
 - **Ignoring the operational constraint.** "It has to be on-prem / private / no cloud" often decides more than any performance number — surface it early.
 - **Not logging assumptions.** Every silence becomes a hidden assumption that surfaces as a dispute later. Write them down as (to be verified) items.
 
 ## 6. Architecture Consequence
 
-The requirements conversation is where the book's entire loop is *fed.* The six bounds it extracts are exactly the inputs Ch1-17 consume: traffic feeds capacity (Ch17), tokens feed KV/memory (Ch7), quality feeds model selection (Ch5), latency feeds serving (Ch11), cost feeds TCO (Ch16), and the operational constraint picks the tier (Ch13). A good requirements session is not a warm-up to architecture — it *is* the first chapter of the architecture, and every downstream decision traces back to the numbers it locked. [ILLUSTRATIVE] *(scenario provenance — the same worked-example dialogue as §23.3, not a secondary source)*
+The requirements conversation is where the book's entire loop is *fed.* The six bounds it extracts are exactly the inputs Ch 1–17 consume: traffic feeds capacity (Ch 17), tokens feed KV/memory (Ch 7), quality feeds model selection (Ch 5), latency feeds serving (Ch 11), cost feeds TCO (Ch 16), and the operational constraint picks the tier (Ch 13). A good requirements session is not a warm-up to architecture — it *is* the first chapter of the architecture, and every downstream decision traces back to the numbers it locked. [ILLUSTRATIVE] *(scenario provenance — the same worked-example dialogue as §23.3, not a secondary source)*
 
-![Fig 23.1 — From vague ask to architectural bounds. This is a worked-example interrogation sequence (the concrete questions asked of one canonical ask), not an exhaustive or universal question list. A real customer interrogation also covers **data rights** (who owns the data, retention, deletion), **governance** (approval workflows, audit, compliance), **integration** (auth, API, data pipelines), **failure recovery** (RTO/RPO, backup, failover), and **human review** (escalation, override, sign-off) — those are in the adjacent text, not in this figure, which focuses on the architectural-bounds questions. [ILLUSTRATIVE] conceptual](figures/fig-23-2301.png)
+![Fig 23.1 — From vague ask to architectural bounds. This is a worked-example interrogation sequence (the concrete questions asked of one canonical ask), not an exhaustive or universal question list. A real customer interrogation also covers **data rights** (who owns the data, retention, deletion), **governance** (approval workflows, audit, compliance), **integration** (auth, API, data pipelines), **failure recovery** (RTO/RPO, backup, failover), and **human review** (escalation, override, sign-off) — those are out of scope for this chapter (see Ch 13/Ch 21), not covered here; this figure focuses on the architectural-bounds questions. [ILLUSTRATIVE] conceptual](figures/fig-23-2301.png)
 
-*The framing funnel: broad ask → five question gates (problem, success, data, constraints, scope) → confirmed bounds. This dialogue surfaces the six architectural numbers in Table 23-1 (traffic & concurrency, token profile, SLO, quality bar, ops/tier, TCO). [ILLUSTRATIVE] conceptual*
+*The framing funnel: broad ask → five question gates (problem, success, data, constraints, scope) → confirmed bounds. The full worked example (figure plus the adjacent text) surfaces the six architectural numbers in Table 23-1: the figure's boxes draw five of them (traffic & concurrency, token profile, SLO, ops/tier, TCO), and the adjacent text supplies the sixth (quality bar). [ILLUSTRATIVE] conceptual*
 
 <!-- Figure spec: mechanism-first funnel diagram; top = vague ambition; five labeled question gates narrow it; bottom = quantified scope feeding the architecture loop. -->
 
@@ -107,4 +107,4 @@ The requirements conversation is where the book's entire loop is *fed.* The six 
 
 ## 8. End-of-Chapter Mini-Case: The 'Next Month' Customer Portal: Requirements Dialogue
 
-A CTO emails the architect: "We heard LLMs are great — let's put one on our customer portal to answer support tickets. Shipping it next month." Rather than confirm the launch date, the architect books a 30-minute session and runs the funnel. It emerges the portal gets ~5 rps average but 200-rps bursts during outage events (traffic), tickets are short (~500 tokens, not retrieval-heavy), quality means "resolve the ticket, not just answer" (a capability that rules out the cheaper model), the SLO is 3 s because users are already frustrated (latency), and — critically — the portal sits on regulated payment data so nothing leaves the premises (ops). The mirrored restatement turns "let's ship AI next month" into "a 7B-class model on one on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst buffer (an arrival-rate buffer: outage bursts queue for drain rather than being served live — 200 rps × ~7 TFLOP ≈ 1.4 PFLOPS exceeds one H100's ~0.989 PFLOPS peak), quality-gated on real resolved tickets — and a two-week pilot on 5% of tickets to confirm the referral quality before full rollout." The customer's vague excitement became a defensible, bounded, shippable scope — and the architect is already architecting, not guessing.
+A CTO emails the architect: "We heard LLMs are great — let's put one on our customer portal to answer support tickets. Shipping it next month." Rather than confirm the launch date, the architect books a 30-minute session and runs the funnel. It emerges the portal gets ~5 rps average but 200-rps bursts during outage events (traffic), tickets are short (~500 tokens, not retrieval-heavy), quality means "resolve the ticket, not just answer" (a capability that rules out a sub-7B / answer-only model — 7B is the smallest tier that clears it, and the short ~500-token tickets are why 7B rather than 70B suffices), the SLO is 3 s because users are already frustrated (latency), and — critically — the portal sits on regulated payment data so nothing leaves the premises (ops). The mirrored restatement turns "let's ship AI next month" into "a 7B-class model on one on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst buffer (an arrival-rate buffer: bursts of duration D queue and drain at the measured per-host rate r (≤141 rps at 100% MFU, ~42–57 at 30–40%); max queue wait ≈ D·(200−r)/r must stay inside the 3 s SLO — so state D, the buffer depth D·(200−r) requests, and either add capacity, add admission control, or scope the SLO to non-burst traffic; worked: D = 1 s at 200 rps → queue depth 200 × 1 = 200 requests, drained at ~50 rps in ~4 s — burst-window requests miss the 3 s SLO, so the burst runs under a separate queue-and-drain degraded-mode SLO (option a)), quality-gated on real resolved tickets — and a two-week pilot on 5% of tickets to confirm the resolution quality before full rollout." The customer's vague excitement became a defensible, bounded, shippable scope — the 3 s SLO scoped to non-burst traffic, the burst served under the queue-and-drain degraded mode — and the architect is already architecting, not guessing.

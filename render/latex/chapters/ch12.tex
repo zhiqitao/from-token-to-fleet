@@ -3,8 +3,8 @@ menu-picking: the architect extracts the hard constraints from a
 characterized workload --- the three gates this chapter fixes: memory
 fit, throughput at the SLO, and quality --- then synthesizes candidate
 architectures that must clear them. The payoff is a bounded set of two
-to three candidates that each fail a distinct, inspectable gate ---
-memory fit, throughput, or quality --- which the measuring chapters then
+to three candidates, each designed to probe a distinct gate --- memory
+fit, throughput, or quality --- which the measuring chapters then
 adjudicate.
 
 \section*{The Architect's Question}\label{the-architects-question}
@@ -41,7 +41,9 @@ decode tokens-per-second, delivered within the latency budget (prefill +
 decode), must meet the workload's demand; and (3) \textbf{quality} ---
 answer quality on the true evaluation set must meet the quality
 requirement. Any architecture that violates any one of these is
-eliminated before evaluation: a layout whose memory fits but whose
+eliminated before evaluation --- candidates that fail a gate are not
+finalists: they return to synthesis or are carried forward only as
+labeled sensitivity cases. A layout whose memory fits but whose
 throughput falls short of demand --- as a single host falls against the
 canonical \textasciitilde92K input tokens/s --- is not carried forward
 as-is; it returns to synthesis for a larger layout or is dropped, and a
@@ -59,11 +61,12 @@ substrate.
 The substrate is a set of bounded resources, and the architecture design
 problem is essentially a packing exercise. The resources are: GPU memory
 (weight residency + KV cache), compute (prefill throughput --- prefill
-is compute-bound, Ch 11), memory bandwidth (decode throughput --- decode
-is bandwidth-bound), inter-GPU communication volume (for parallelism
-schemes), and the latency budget split between prefill and decode. A
-candidate architecture is a valid packing of the workload's weight
-memory and KV cache into the available GPU memory, paired with a
+is compute-bound, Ch 11, scoped to the canonical architecture × batch ×
+precision × kernel operating point), memory bandwidth (decode throughput
+--- decode is bandwidth-bound), inter-GPU communication volume (for
+parallelism schemes), and the latency budget split between prefill and
+decode. A candidate architecture is a valid packing of the workload's
+weight memory and KV cache into the available GPU memory, paired with a
 parallelism and caching strategy that delivers the required
 tokens-per-second throughput within the latency budget. The architect
 alternates between squeezing the residency footprint (e.g., via KV
@@ -85,7 +88,7 @@ context), 300-token output. The canonical weight memory is 140 GB (70B ×
 × num\_layers × hidden\_dim × 9,200 × 2 bytes per FP16 element), giving
 a total residency of 164 GB. A single 8×H100 host provides 640 GB
 aggregate memory (8 ×80 GB), leaving ample headroom. Each candidate
-satisfies the three hard constraints differently.
+satisfies the three gates to a different degree.
 
 \textbf{Candidate (a): single 8×H100 host with prefix caching (Ch. 11).}
 This is the per-request-latency baseline --- the single 8×H100 host that
@@ -138,14 +141,17 @@ with the KV hidden-state handed between them (Splitwise / DistServe /
 Mooncake). Each pool therefore needs its own 8×H100 host (residency =
 140 GB weights plus the pool's in-flight KV population --- at the
 canonical per-host KV budget (640 − 140 weights − \textasciitilde64
-runtime ≈ 436 GB, Ch 7/17), \textasciitilde140 + \textasciitilde436 =
-\textasciitilde576 GB --- comfortably under 640 GB; one request's 24 GB
-is not the pool's population). The win is that prefill and decode no
-longer fight over the same host's resources: the prefill pool runs
-FLOPS-saturated on the 9.2K input, the decode pool runs
+runtime ≈ 436 GB, Ch 7/17), 140 GB weights + 436 GB KV +
+\textasciitilde64 GB runtime = 640 GB --- exactly the pool, zero
+headroom; co-residency beyond the canonical KV budget requires reducing
+the KV allocation or adding memory; one request's 24 GB is not the
+pool's population). The win is that prefill and decode no longer fight
+over the same host's resources: the prefill pool runs compute-bound at
+the same 35\% MFU basis as (a) on the 9.2K input, the decode pool runs
 bandwidth-saturated on the 300 output tokens, and KV crosses between
-them. Crucially, P/D disaggregation does \textbf{not} raise per-host
-prefill throughput: one 8×H100 prefill host still sustains only
+them. Crucially, P/D disaggregation does \textbf{not} raise the per-host
+prefill \emph{ceiling} (it may raise achieved prefill by removing
+interference): one 8×H100 prefill host still sustains only
 \textasciitilde19,800 prefill-tokens/s (the same \hyperref[chap:8]{Chapter 8} arithmetic as
 Candidate (a)), far short of the \textasciitilde92K input tokens/s the
 workload needs on average. So Candidate (b) passes the \emph{memory}
@@ -203,8 +209,8 @@ GB) + KV (24 GB FP16 at the 9.2K input context) = 164 GB fits 640 GB
 (8×H100). Candidate (a) uses the full host with room to spare. Candidate
 (b) keeps the full model in each pool, so each 8×H100 host holds the
 same \textasciitilde164 GB single-request fit and --- at the canonical
-per-host KV budget --- up to \textasciitilde140 + \textasciitilde436 =
-\textasciitilde576 GB (§12.3), both under 640 GB. Candidate (c) fits
+per-host KV budget --- up to 140 + 436 + \textasciitilde64 = 640 GB
+(§12.3) --- exactly the pool, zero headroom. Candidate (c) fits
 \textasciitilde15 GB on one H100 and its throughput is high, but it is
 \textbf{provisional} --- its fate turns on the Ch 14 quality-gate
 measurement, not on parameter counting.
@@ -227,11 +233,13 @@ where \(N\) is the parameter count and bytes-per-param is 2 for FP16
 footprint.}
 
 \[
-KV = 2 \times n_\text{layers} \times d_\text{hidden} \times L \times \text{bytes-per-activation}
+KV = 2 \times n_\text{layers} \times n_\text{kv-heads} \times d_\text{kv} \times L \times \text{bytes-per-activation}
 \]
 
-where \(L\) is the context length. For a 70B model with 8-bit KV
-caching, this is approximately 12.06 GB for 9.2K context (the raw tensor
+where \(L\) is the context length (full-MHA assumption:
+\(n_\text{kv-heads} \times d_\text{kv} = d_\text{hidden}\); for GQA/MQA
+use the reduced KV-head count). For a 70B model with 8-bit KV caching,
+this is approximately 12.06 GB for 9.2K context (the raw tensor
 byte-halving bound: 2.62 MB/token FP16 ÷ 2 = 1.31 MB/token, exactly 50\%
 of FP16; 9,200 × 1.31 MB ≈ 12.06 GB, Ch 7); at FP16 precision it is
 \textasciitilde24.1 GB \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. The architect
@@ -287,22 +295,24 @@ fails, the candidate is returned to the synthesis step.
 \ntsection{Architecture Consequence}\label{architecture-consequence}
 
 
-The three candidates carry forward into the evaluation chapters (Chs.
-14--16) with distinct test plans, all written against the same three
-gates --- memory fit, throughput at the SLO, and quality. Candidate (a),
-the single 8×H100 host with prefix caching, is the baseline: we evaluate
-throughput at the SLO (TTFT/TPOT compliance under load) on a single
-hardware configuration, with cost-per-token recorded as an economic
-by-product rather than a gate. Candidate (b), the P/D-disaggregated
-two-pool, is evaluated on the added complexity of inter-group
-communication and the pipeline overlap efficacy; we measure whether the
-latency budget is maintained under the partitioned layout. Candidate
-(c), the KV-quantized 7B model, is evaluated on the quality-degradation
-trade-off; we compare answer quality against the 70B baseline and
-compute the economic break-even point (number of hosts required) against
-the quality loss. The synthesis method produces these candidates as a
-set from which the evaluation chapter selects based on quantitative
-results, not on gut feeling.
+Only the finalists --- Candidates (a) and (b) --- carry forward into the
+evaluation chapters (Chs. 14--16) with distinct test plans (Candidate
+(c) does not advance as a finalist; it is carried only as a labeled
+sensitivity case), all written against the same three gates --- memory
+fit, throughput at the SLO, and quality. Candidate (a), the single
+8×H100 host with prefix caching, is the baseline: we evaluate throughput
+at the SLO (TTFT/TPOT compliance under load) on a single hardware
+configuration, with cost-per-token recorded as an economic by-product
+rather than a gate. Candidate (b), the P/D-disaggregated two-pool, is
+evaluated on the added complexity of inter-group communication and the
+pipeline overlap efficacy; we measure whether the latency budget is
+maintained under the partitioned layout. Candidate (c), the KV-quantized
+7B model, is evaluated on the quality-degradation trade-off; we compare
+answer quality against the 70B baseline and compute the economic
+break-even point (number of hosts required) against the quality loss.
+The synthesis method produces these candidates as a set from which the
+evaluation chapter selects based on quantitative results, not on gut
+feeling.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -360,25 +370,29 @@ concurrent (\textasciitilde100), \textasciitilde10 rps average /
 \textasciitilde40 rps peak. The token profile is the canonical
 1,200-token prompt plus 8K retrieved context (\textasciitilde9.2K input)
 plus 300-token answers, with TTFT ≤ 1.2 s (p95 ≤ 2 s) and TPOT
-\textasciitilde25 ms/token. The economic ceiling is \$15,000 monthly
-operating budget --- a \textbf{per-host} ceiling, expressed as the
-cloud-equivalent of one 8×H100 at \textasciitilde\$20/hr × 730 hr ≈
-\$14.6K/mo (an on-premise host has no \$/hr, so this is a budget cap,
-not a metered cost), which the reader should note is far below what the
-full canonical workload costs once the multi-host fleet is sized (Ch
-16): the budget is a single-host cap, not the workload ceiling. The
-consequence must be stated, not dissolved: the fleet the canonical
-workload requires costs \textasciitilde\$155.8K/mo (\$155,816.93,
-≈\$24.97/1K on the 6.24M‑req/mo business‑hours basis, Ch 16 --- the
-cloud legs are \$87,600 ≈ \$14.04/1K at the default paid-occupancy input
-and \$306,600 ≈ \$49.13/1K at 21 hosts always-on) --- \textasciitilde10×
-the stakeholder's stated \$15,000 ceiling --- so \textbf{the economic
-constraint, as stated, fails at fleet scale}. Economics is therefore
-recorded as \emph{not yet passed (deferred)}, and the architect's first
-return-to-synthesis move is to renegotiate the budget, shape peak
-demand, or revisit the model class. The operational constraint is that
-the system must run on existing on-premise GPU infrastructure (no cloud
-add-ons).
+\textasciitilde25 ms/token. The stakeholder's \$15,000 is a total
+monthly system budget --- the chapter notes it equals one host's
+cloud-equivalent (one 8×H100 at \textasciitilde\$20/hr × 730 hr ≈
+\$14.6K/mo; an on-premise host has no \$/hr, so this is a budget cap,
+not a metered cost, and the cloud-equivalent is a proxy at those
+assumptions). Total fleet cost \$155.8K/mo (21 hosts) ÷ \$15K =
+\textasciitilde10.4× over the total budget --- the economic constraint
+fails at fleet scale (Ch 16). The consequence must be stated, not
+dissolved: the 21-host full-utilization screen fleet (Ch 16 case
+(i)/KV-screen line) costs \textasciitilde\$155.8K/mo --- and the Ch 17
+\hyperref[tab:17.1]{Table 17-1} provisioning policy (70\% × 95\% + N−1) yields 32 hosts at
+the same 40 rps peak (Ch 13), i.e.~\textasciitilde\$232.2K self-host and
+\textasciitilde\$467.2K cloud-equivalent at the same per-host rates
+(\$155,816.93, ≈\$24.97/1K on the 6.24M‑req/mo business‑hours basis, Ch
+16 --- the cloud legs are \$87,600 ≈ \$14.04/1K at the default
+paid-occupancy input and \$306,600 ≈ \$49.13/1K at 21 hosts always-on)
+--- \textasciitilde10.4× the stakeholder's stated \$15,000 total monthly
+budget --- so \textbf{the economic constraint, as stated, fails at fleet
+scale}. Economics is therefore recorded as \emph{not yet passed
+(deferred)}, and the architect's first return-to-synthesis move is to
+renegotiate the budget, shape peak demand, or revisit the model class.
+The operational constraint is that the system must run on existing
+on-premise GPU infrastructure (no cloud add-ons).
 
 From the token profile, the architect computes: 9.2K input tokens + 300
 output tokens ≈ 9.5K tokens per request. At 10 rps average and 40 rps
@@ -410,16 +424,16 @@ KV-quantized 7B model on a single H100, which fits the memory budget
 \textasciitilde1.2 GB 4-bit KV), but its quality is \emph{provisional}
 --- whether a 7B-class model can reach the required answer quality is a
 hypothesis to be measured against the quality gate (\hyperref[chap:14]{Chapter 14}), not a
-settled fact --- and it faces the same throughput demand at peak, making
-it provisionally non-viable.
+settled fact.
 
 The architect does \textbf{not} discard Candidate (c) by parameter
 counting alone: it is provisionally moved to the quality-gate evaluation
 (\hyperref[chap:14]{Chapter 14}) to measure whether a 7B-class model actually meets the
 workload's capability/quality threshold on its evaluation set. Its
 memory and economics are trivially favorable; its fate turns on that
-measured gate. Because candidate (c) is strongly suspected to fail the
-quality gate \textbf{\mbox{{[}HYPOTHESIS{]}}}, it is not a finalist; the
+measured gate. Because candidate (c)'s quality gate is still open
+\textbf{\mbox{{[}HYPOTHESIS{]}}}, it is not a finalist --- and it stays in the
+gate evaluation (Ch 14) rather than being excluded pre-measurement; the
 finalists are Candidates (a) and (b), and the near-term decision falls
 between them. The decision between Candidates (a) and (b) hinges on
 whether the doubled hardware cost of Candidate (b) is justified by its
@@ -461,21 +475,26 @@ verdict
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-(a) 8×H100 with prefix caching & \textbf{164 GB} (140 + 24) & 1 ×8×H100
-& prefill \textasciitilde19.8K (idealized; \textasciitilde28K w/ prefix
+(a) 8×H100 with prefix caching & \textbf{164 GB} (140 + 24; 9.2K-context
+basis --- Ch 13's 9.5K basis gives \textasciitilde165 GB) & 1 ×8×H100 &
+prefill \textasciitilde19.8K (idealized; \textasciitilde28K w/ prefix
 cache \textbf{\mbox{{[}HYPOTHESIS{]}}}) · decode BW-bound & ✓ memory 164
-\textless{} 640 GB · ✓ TTFT SLO (≤1.2 s budget, p95 ≤2 s) &
+\textless{} 640 GB · ✓ TTFT SLO (median ≤1.2 s, p95 ≤2 s) &
 \textbf{conditional finalist} --- ✗ single-host capacity: needs
-\textasciitilde5 hosts (per-request-latency baseline only) \\
+\textasciitilde5 hosts at average load (92K tok/s); \textasciitilde19 at
+the 368K peak prefill screen, before headroom (per-request-latency
+baseline only) \\
 (b) P/D-disaggregated & \textbf{164 GB} single-request (140 + 24);
 \textasciitilde576 GB at the full KV budget (140 + 436) & 2 ×8×H100
 (baseline) & prefill pool \textasciitilde19.8K/host --- same as (a);
-per-host prefill throughput unchanged by disaggregation & ✓ memory per
-host · ✓ phase-split enables independent scaling & \textbf{conditional
-finalist} --- ✗ throughput at a single prefill host
-(\textasciitilde19.8K ≪ \textasciitilde92K); prefill pool must itself
-scale to \textasciitilde5 hosts (92K ÷ 19.8K ≈ 4.65), plus a decode
-pool; \textasciitilde2× capex plus fabric \\
+per-host prefill throughput unchanged by disaggregation
+(\mbox{{[}ASSUMPTION{]}}; isolation may raise achieved prefill by removing
+decode interference) & ✓ memory per host · ✓ phase-split enables
+independent scaling & \textbf{conditional finalist} --- ✗ throughput at
+a single prefill host (\textasciitilde19.8K ≪ \textasciitilde92K);
+prefill pool must itself scale to \textasciitilde5 hosts at average load
+(\textasciitilde19 at peak) (92K ÷ 19.8K ≈ 4.65), plus a decode pool;
+\textasciitilde2× capex plus fabric \\
 (c) KV-quantized 7B & \textbf{\textasciitilde15 GB} (14 +
 \textasciitilde1.2) & 1 ×H100 & high per-GPU prefill tok/s & ✗ quality
 --- provisional (subject to Ch 14 quality-gate measurement) &
@@ -488,6 +507,20 @@ rate (\hyperref[tab:12.2]{Table 12-2}) \\
 \emph{All figures trace to the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}); the
 KV cache and throughput numbers are \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 worked examples, not measurement claims.}
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+candidate & open gate \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+(a) & throughput open \\
+(b) & throughput open at a single prefill host \\
+(c) & quality open \\
+
+\noalign{\label{tab:12.3}}\end{longtable}
 
 \hyperref[fig:12.1]{Fig 12.1} draws the synthesis: three conditional candidates, each with
 its own open gate.
@@ -540,24 +573,25 @@ Metric
 \bottomrule\noalign{}
 \endlastfoot
 Prefill hosts, avg 92K tok/s & \textasciitilde5 & prefill pool
-\textasciitilde5 & \textasciitilde4 (92,000 ÷ 24,725 ≈ 3.72) \\
+\textasciitilde5 & \textasciitilde4 H100 cards (92,000 ÷ 24,725 ≈
+3.72) \\
 Prefill hosts, peak 368K tok/s & \textasciitilde19 (368K ÷ 19.8K ≈ 18.6,
 ceil 19) \emph{before headroom} & prefill pool \textasciitilde19,
-\emph{before headroom} & \textasciitilde15 (368,000 ÷ 24,725 ≈ 14.88),
-before headroom \\
-Decode capacity & requires separate decode capacity & decode pool sized
-to 3K tok/s avg / 12K tok/s peak & high \\
+\emph{before headroom} & \textasciitilde15 H100 cards (368,000 ÷ 24,725
+≈ 14.88), before headroom \\
+Decode capacity & decode shares the host (no separate pool) & decode
+pool sized to 3K tok/s avg / 12K tok/s peak & high \\
 Peak headroom (N−1) & not demonstrated & not demonstrated & not
 demonstrated \\
 Monthly fully loaded cost & \textasciitilde21 hosts,
 \textasciitilde\$155.8K/mo total (\$155,816.93 ≈ \$24.97/1K; self-host,
-Ch 16); cloud-equivalent ≈\$306.6K (\$306,600 ≈ \$49.13/1K, §12.8) &
-\textasciitilde21 hosts, \textasciitilde\$155.8K/mo total (\$155,816.93
-≈ \$24.97/1K; self-host, Ch 16) + fabric and the decode-pool split
-(adders not costed in Ch 16; the \textasciitilde21 hosts is the Ch 16
-fleet-level screen, not a two-pool sum) & low --- single-H100 hosts
+Ch 16); cloud-equivalent ≈\$306.6K (\$306,600 ≈ \$49.13/1K, §12.8) & not
+costed / not comparable --- the \textasciitilde21-host figure is the Ch
+16 monolithic fleet screen; a two-pool deployment needs the
+\textasciitilde19-host prefill pool + a decode pool + KV-transfer
+fabric, priced in a follow-up screen & low --- single-H100 hosts
 (\textasciitilde4 avg / \textasciitilde15 peak cards, not an 8×H100
-node) \\
+node) (21-host screen basis; policy fleet is 32, Ch 13/17) \\
 Feasibility at declared SLO & \textbf{? unmeasured} --- peak prefill and
 SLO not demonstrated; illustrative screen only & \textbf{? unmeasured}
 --- same peak prefill screen; phase-split defers but does not remove it

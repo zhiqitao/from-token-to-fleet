@@ -27,13 +27,14 @@ def edge_label(x, y, txt, fs=FS-1.5):
     ax.text(x, y, txt, fontsize=fs, color='#555', ha='center', va='center',
             bbox=dict(boxstyle='round,pad=0.14', fc='white', ec='none', alpha=0.9))
 
-def box(cx, y, w, h, head, sub, fc, head_fs=FS, sub_fs=FS-1.6):
+def box(cx, y, w, h, head, sub, fc, head_fs=FS, sub_fs=FS-1.6, lw=1.2):
     """Draw a box whose two text lines are wrapped to fit width w, and whose
     bottom is at y. Text is drawn inside the padded interior so no glyph
-    crosses the border."""
+    crosses the border. lw lets one box carry a heavier (grayscale-visible)
+    border as a non-colour cue."""
     pad = 6          # interior padding in pt, keeps text off the border
     ax.add_patch(FancyBboxPatch((cx-w/2, y), w, h, boxstyle='round,pad=0.10',
-                                fc=fc, ec='#8a8a8a', lw=1.2, alpha=0.95))
+                                fc=fc, ec='#8a8a8a', lw=lw, alpha=0.95))
     inner_w = w - 2*pad
     head_l = textwrap.wrap(head, width=int(inner_w/(head_fs*0.52))) or [head]
     sub_l  = textwrap.wrap(sub,  width=int(inner_w/(sub_fs*0.52))) or [sub]
@@ -85,9 +86,13 @@ LEG_W = 175
 LEG_GAP = 26
 lg1_cx = MID - LEG_W/2 - LEG_GAP/2
 lg2_cx = MID + LEG_W/2 + LEG_GAP/2
-for (cx, head, sub, fc) in [(lg1_cx,'Retrieval leg','embedding · 768-dim','#eee6f7'),
-                            (lg2_cx,'Generation leg','70B FP16 · serving','#dff0d8')]:
-    box(cx, leg_bot, LEG_W, BOX_H, head, sub, fc)
+# v3 fix (figure display review): "Generation leg" reused the workload box's
+# pale green #dff0d8, leaving hue as the only cue across five pastel fills.
+# It now has a unique pale-amber fill #f2d9a6 (no other box uses it) plus a
+# heavier 2.6 pt border (vs 1.2 pt) so it stays distinguishable in grayscale.
+for (cx, head, sub, fc, bw) in [(lg1_cx,'Retrieval leg','embedding · 768-dim','#eee6f7',1.2),
+                                (lg2_cx,'Generation leg','70B FP16 · serving','#f2d9a6',2.6)]:
+    box(cx, leg_bot, LEG_W, BOX_H, head, sub, fc, lw=bw)
     arrow(MID, sur_bot, cx, leg_bot+BOX_H)
     edge_label((MID+cx)/2, (sur_bot+leg_bot+BOX_H)/2 - 4, 'split')
 

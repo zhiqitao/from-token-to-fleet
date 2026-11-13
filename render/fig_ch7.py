@@ -5,6 +5,7 @@ matplotlib.rcParams['ps.fonttype']=42
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
+from matplotlib.patches import FancyArrowPatch
 
 # ---- fig-07-0701: KV cache size vs context length (70B-class) ----
 ctx = np.array([1, 4, 9.5, 32, 128])  # K tokens
@@ -60,16 +61,44 @@ ax.text(9.5, 0.062, '9.5K', ha='center', va='bottom', fontsize=8.5,
 ax.scatter([9.5], [0.33*9.5], color='#27408b', zorder=5, s=25)
 # v9 review: this tag sat ON the GQA FP16/FP8 markers at 9.2K and used the same
 # blue as the GQA-FP16 curve.  Move it into the open right-hand whitespace
-# (no data beyond x=128K) and recolour to neutral dark grey.  The leader starts
-# inside the empty band between the two GQA curves, so in log-log space it stays
-# between them (convex strip) and crosses no curve or marker.
-ax.annotate('9.5K ≈ 3.1 GB (GQA)\n8× saving (Ch. 7)', xy=(9.5, 0.33*9.5), xytext=(240, 55),
-            ha='left',
-            arrowprops=dict(arrowstyle='->', lw=0.8, color='#555555'),
+# (no data beyond x=128K) and recolour to neutral dark grey.
+# R4 review (FIG-7.5-05): the tag now names the series it points at --
+# "GQA FP16" (3.1 GB = 9.5K x 0.33 MB/tok; the GQA FP8 series is ~1.5 GB) --
+# and carries its leader onto the blue 9.5K marker.  The longer label no longer
+# fits between x=128K and the right spine, so the x-window opens to 2500
+# (major ticks unchanged: 1/10/100/1000) and the tag anchors at x=150:
+# measured 0.13in clear of the spine and 0.14in clear of the x=128K markers.
+# In log-log the leader runs from above the GQA FP16 line down onto its 9.5K
+# marker; both ends are on/above GQA FP16 and below full-MHA FP8, so it crosses
+# no curve or marker.
+# R4 fix (FIG-7.5-06): "8× saving (Ch. 7)" was free-floating text with no
+# bracket/anchor, so the compared pair was unstated.  The tag now NAMES the pair
+# and the numbers ("full-MHA FP16 vs GQA FP16 (2.62 -> 0.33 MB/tok)"), and the
+# double-headed span below anchors it at 9.5K.  Four lines because the right-hand
+# whitespace (x=150 -> spine) measures 1.74 in: line 1 = 1.61 in, line 2 = 1.52 in,
+# line 4 = 1.29 in — every line fits with margin; the single-line wording would
+# need 3.66 in and does not fit without opening the x-window further.
+ax.annotate('9.5K ≈ 3.1 GB (GQA FP16)\n8× saving: full-MHA FP16\nvs GQA FP16\n(2.62 → 0.33 MB/tok)',
+            xy=(9.5, 0.33*9.5), xytext=(150, 55),
+            ha='left', va='center',   # leader anchor sits on the label's left edge, not below it
+            bbox=dict(boxstyle='square,pad=0', fc='none', ec='none'),  # clips the leader to the text box
+            arrowprops=dict(arrowstyle='->', lw=0.8, color='#555555', shrinkA=0, shrinkB=0),
             fontsize=8.5, color='#3a3a3a')
+# R4 fix (FIG-7.5-06): the span itself — a double-headed arrow at the stated
+# context (9.5K) whose endpoints sit exactly on the two curves it compares
+# (0.33*9.5 = 3.14 GB on GQA FP16, 2.62*9.5 = 24.9 GB on full-MHA FP16).
+# Drawn above the red 9.5K drop-line so the two read as one vertical measure.
+ax.add_patch(FancyArrowPatch((9.5, 0.33*9.5), (9.5, 2.62*9.5),
+                             arrowstyle='<->', mutation_scale=10, lw=1.1,
+                             color='#3a3a3a', shrinkA=0, shrinkB=0, zorder=5))
+# compact label for the span, parked in the empty blue-FP16/orange-FP8 band
+# (at x=10.6 the band runs 3.5 -> 13.9 GB; the 18 px tag is centred at 8.85 GB)
+ax.text(10.6, 8.85, '8×', ha='left', va='center', fontsize=8.5,
+        fontweight='bold', color='#3a3a3a', zorder=6,
+        bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
 ax.legend(fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.24), ncol=2, frameon=False)
 ax.grid(alpha=0.3, which='both')
-ax.set_xlim(0.8, 1600)
+ax.set_xlim(0.8, 2500)   # R4: extra right whitespace so the (GQA FP16) tag fits inside the spine
 ax.set_ylim(0.05, 2000)
 # FP8 relabel: raw tensor byte-halving (50% of BF16), NOT a vLLM-measured serving footprint.
 # v9 review: footnote was 6.8pt (sub-8pt on page).  Raise to 8.6pt; the single
@@ -118,12 +147,30 @@ fig.text(0.5, 0.01,
          'Full fine-tune: FP16 weights + FP16 grads + Adam m/v/master (~16 B/param).\n'
          'Activation, microbatch/sequence, and offload/checkpointing are NOT included (Table 7-2).\n'
          'QLoRA: 4-bit (NF4) base + LoRA adapters + a small optimizer.\n'
-         'Adapter rank, activation, and offload are NOT included (Table 7-2).',
+         'Specific adapter-rank value, activation memory, and offload/checkpointing are NOT included (Table 7-2).',
          fontsize=8.2, color='#555', ha='center', va='bottom', linespacing=1.5)
 # v9 review: all three host rules shared one dash pattern, so they were
 # inseparable in grayscale.  Each now carries its own dash pattern as a
 # NON-colour cue (dashed / dash-dot / dotted); the legend shows the samples.
-ax.axhline(160, color='#888', ls='--', lw=1.1, label='2×H100 (160 GB)')
+# R4 fix (FIG-7.6-01): the 160 GB rule sits only 5 GB under the ~165 GB
+# inference bar's top border (5 GB = 0.33% of the 0-1500 axis = ~4 px at
+# 350 dpi), so its grey dashes touched the bar's dark top border and the dense
+# '//' hatch and were unreadable where they cross the bar.  A white bed under
+# the rule (drawn over the bar fill, zorder 1.6 > bar 1) separates the dashes
+# from both the border and the hatch; outside the bars the bed is white-on-white
+# and invisible, so the rule keeps its original look on the white background and
+# stays legible in grayscale (white bed vs mid-blue fill).  The bed is 1.6 pt so
+# it shaves only the border's lower half: a 1 px white gap opens between border
+# and dashes instead of erasing the bar's outline.
+ax.axhline(160, color='white', lw=1.6, zorder=1.6)
+ax.axhline(160, color='#888', ls='--', lw=1.2, label='2×H100 (160 GB)', zorder=1.7)
+# optional callout from the instruction: names the 5 GB gap exactly where the
+# rule crosses the inference bar (leader lands on the rule inside the bar, right
+# of the '~165 GB' tag, whose box measures x -0.17..0.17, y 195..256 GB).
+ax.annotate('~5 GB over 2×H100', xy=(0.25, 160), xytext=(0.35, 330),
+            ha='center', va='bottom', fontsize=8.2, color='#555555',
+            bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.9),
+            arrowprops=dict(arrowstyle='->', color='#555555', lw=0.8))
 ax.axhline(640, color='#27408b', ls='-.', lw=1.5, label='8×H100 (640 GB)')
 ax.axhline(80, color='#6f9e5f', ls=':', lw=1.4, label='1×H100 (80 GB)')
 ax.set_ylim(0, 1500)
