@@ -11,8 +11,8 @@ updates it at every phase transition.
 | 1 | DONE | DONE | — | DONE (round_2 triage) | DONE | — | 184→111 fixes/73 rejects lineage |
 | 2 | DONE | DONE | — | DONE | DONE | — | closed |
 | 3 | DONE | DONE | — | DONE | DONE | DONE (462pp, 4 gates green) | close-out commits e186c904/51f818b8/05e48956 |
-| 4 | IN PROGRESS (text 23/24, vision 22/44; MiMo c3 + 3× vision running) | merged.json run once (stale, rerun after data) | pending | pending | pending | pending | — |
-| 5–14 | not started | | | | | | |
+| 4 | DONE (653 findings: text 315 + vision 338) | DONE (common 8/unique 637) | DONE (compact register; 12 prompt edits saved) | DONE (286 CONFIRMED / 180 FP / 187 DEFENSIBLE; ledger disposition.md) | DONE (278 deduped → 245 applied / 17 skipped-premise / 17 duplicates; 77 chunks) | DONE (486pp, all gates green; commits fdc95be5 + 1f2a1473) | closed; round 5 data in flight |
+| 5–14 | round 5 DATA in flight (parallel process: text 5 + vision 5 running) | | | | | | |
 
 Panel: MiMo-V2.6-Flash-RL, DeepSeek-V4.1-Flash, Qwen3.8-27B,
 MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
@@ -61,3 +61,17 @@ MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
   parallel process; this driver does NOT duplicate data dispatches — it
   reconciles and takes over from merge onward). MiniMax r4 pass complete and
   committed f0f19dad (375 findings; 4/4 P0 disproved).
+- 2026-11-13: ROUND 4 CLOSED. Disposition 653 → 286 CONFIRMED (dedup 278) →
+  fix fan-out 245 applied / 17 skipped-premise / 17 duplicates (77 chunks,
+  13 packs, responses in disposition/fix/*_responses.md). Rebuild hit a tagpdf
+  para-hook failure root-caused by bisect to ch25: the ADR-template heading
+  merged onto one long line triggered fancyvrb breaklines inside Verbatim,
+  which desyncs tagpdf hooks — fix = split at the semicolon (wording kept).
+  486pp tagged + plain builds green (tables/leaks/regressions/stale-values/
+  3× lualatex/fig-struct/pdf-meta). PITFALL: system python3 has no pymupdf;
+  build meta steps (fix_fig_struct/fix_pdf_meta/render_fig_pages) need
+  /home/ubuntu/.hermes/hermes-agent/venv/bin/python3 (pyshim on PATH works).
+  COORDINATION: parallel process owns DATA (relaunched vision 5 after a
+  stale-pages kill); this driver re-rendered pages/manifest post-rebuild and
+  owns merge onward. text c0 was an ERR stub during the md-race — verify/fill
+  before merge.
