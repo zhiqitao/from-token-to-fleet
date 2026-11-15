@@ -99,17 +99,22 @@ the next tier. \\
 The weighting (α,β) is deployment-context dependent. \emph{Units and
 exercise of the gate:} token\_cost is USD per 1M tokens (§18.3.2) and
 latency\_cost is USD per ms of per-request service latency (or a
-normalized latency score), so α and β are dimensionless weights with α +
-β = 1; the gate is exercised in §18.3.4, where L̄ = Σ p\_i·L\_i ≈ 247 ms
-is checked against the ≤500 ms threshold before the cost ranking is
-accepted. A chat UI tolerates \textasciitilde200\,ms of added service
-latency per request; a batch ETL job tolerates \textasciitilde2\,s per
-request but demands lower token cost. These are per-request
-service-latency thresholds for the short-prompt routing scenario --- the
-chat figure sits under the chapter's ≤500 ms interactive threshold
-(§18.3.4) --- not the canonical TTFT/TPOT SLO (Ch 4); the canonical TPOT
-budget of \textasciitilde25 ms is a per-token quantity and is not what
-these per-request figures measure.
+normalized latency score) --- different units, so the gate is evaluated
+in the per-request additive form cost = α·rate\_tok·n\_tok +
+β·rate\_ms·n\_ms (n\_tok the request's token count, n\_ms its
+per-request service latency; both terms USD per request), or
+equivalently by normalizing both terms to {[}0,1{]} before weighting; α
+and β are then dimensionless weights with α + β = 1; the gate is
+exercised in §18.3.4, where L̄ = Σ p\_i·L\_i ≈ 247 ms is checked against
+the ≤500 ms threshold before the cost ranking is accepted. A chat UI
+tolerates \textasciitilde200\,ms of added service latency per request; a
+batch ETL job tolerates \textasciitilde2\,s per request but demands
+lower token cost. These are per-request service-latency thresholds for
+the short-prompt routing scenario --- the chat figure sits under the
+chapter's ≤500 ms interactive threshold (§18.3.4) --- not the canonical
+TTFT/TPOT SLO (Ch 4); the canonical TPOT budget of \textasciitilde25 ms
+is a per-token quantity and is not what these per-request figures
+measure.
 
 \ntsection{Worked Example}\label{worked-example}
 
@@ -171,7 +176,8 @@ VRAM (4-bit)
 \endlastfoot
 70B dense FP16 & 140\,GB & --- & --- & 1 (140 GB weights across the
 8-GPU pool, \textasciitilde17.5 GB/GPU under TP; with KV, the canonical
-436 GB KV budget is used (640 − 140 − 64)) \\
+436 GB KV budget is used (640 − 140 − 64\,GB host runtime/workspace
+reserve, defined in the note below)) \\
 70B dense 8-bit & --- & \textasciitilde70\,GB & --- & 2 (70 GB weights +
 24.9 GB FP16 KV = 94.9 GB \textgreater{} 80 GB per GPU; FP8 KV still
 82.5 GB) \\
@@ -223,8 +229,11 @@ With 8×H100 (640\,GB), we can simultaneously run the weights of:
   \textbf{One 70B MoE 8-bit} (\textasciitilde70\,GB)
 \item
   \textbf{Two 70B 4-bit GGUF} (≈70\,GB total; the two 4-bit copies are
-  reserved for edge spillover/fallback --- no traffic in this 70/20/10
-  split --- and hold no canonical KV reservation)
+  the \emph{same} 4-bit tier as the \$0.15 / 800\,ms row in §18.3.2 ---
+  GPU-resident copies kept for edge spillover/fallback, no traffic in
+  this 70/20/10 split --- and hold no canonical KV reservation, so the
+  sole-resident 436\,GB KV assumption of the table above still governs
+  the active tiers)
 \end{itemize}
 
 That is \textasciitilde350\,GB of weights, leaving
@@ -340,6 +349,24 @@ because the 8-bit model is assumed \mbox{{[}ASSUMPTION{]}} to meet quality
 thresholds for ≥90\% of requests (no evaluation or benchmark is cited
 for this figure).
 
+\textbf{Escalation sensitivity (quality-failure rate → cost).} If a
+share \emph{q} of the 700 routine requests fails the 8-bit quality bar
+and escalates to FP16, hourly cost rises by \emph{q} × 6.65M × (\$2.50 −
+\$1.25)/1M ≈ \emph{q} × \$8.31/hr: at \emph{q} = 10\% the saving falls
+from \$11.16/hr to ≈ \$10.33/hr (≈ 43\%), at \emph{q} = 30\% to ≈
+\$8.67/hr (≈ 37\%). The ≥90\% quality \mbox{{[}ASSUMPTION{]}} above is what
+holds \emph{q} at the low end; the savings are conditional on a measured
+quality-failure rate, not on the price table alone.
+
+\textbf{Volume basis.} The \$8,147/month figure is the 0.28-rps
+illustration above, not a canonical-load figure: at the canonical volume
+(6.24M requests/month × 9,500 tokens ≈ 5.93×10¹⁰ tokens) the same
+per-token delta scales to ≈ \$69,654/month (\$148,200 single-FP16 −
+\$78,546 mixed). The host counts below are sized at the canonical 40-rps
+peak (344 requests in flight), so the saving and the host delta sit on
+different bases --- compare them at the canonical volume, or re-derive
+the saving at 40 rps.
+
 \textbf{Placement assumption, per-tier C and N, and the total-cost
 comparison.} The savings above are a token-rate delta only; a
 decision-grade comparison must add host amortization and energy. Two
@@ -354,10 +381,16 @@ the 70\%×95\% policy), against 21/31 single-model under the canonical C
 fleet). Under dedicated placement each tier gets its own group: 8-bit C
 = ⌊506/24.89⌋ = 20 → 13 + 4 + 3 = \textbf{20 hosts / 32} with policy.
 \textbf{The mixed fleet needs more hosts than the single-model fleet
-under the shared placement (58 vs 31 --- 27 extra hosts)}, so the
+under the shared placement (58 vs 31 --- 27 extra hosts; 39 vs 21 --- 18
+extra --- on the no-derate pair).} Under the \textbf{dedicated}
+placement the ledger reverses: that same 20/32 group is at or slightly
+below the single-model fleet's 21/31. This worked example adopts the
+\textbf{shared pool} (the placement §18.3.1 describes), so the
 \textasciitilde\$8,147/month (≈ \$98K/yr) token saving must be weighed
-against those extra hosts' amortization and energy: total cost = host
-amortization + energy + token cost, not token cost alone.
+against \emph{that} placement's extra hosts' amortization and energy:
+total cost = host amortization + energy + token cost, not token cost
+alone. The sign of the host delta is a placement decision, not a
+property of consolidation.
 
 \subsection{Latency check}\label{latency-check}
 
@@ -373,25 +406,24 @@ model), where \(p_i\) is the fraction of requests routed to model \(i\)
 and \(L_i\) its per-request service latency. Acceptable for interactive
 chat (typical threshold: ≤500 ms).
 
-\textbf{Scope note --- the latency column is an illustrative
-routing-comparison input, not the canonical service time} (bases box at
-the head of §3). \emph{Column definition:} \textbf{Per-request service
-latency = time-to-first-token for the short-prompt routing scenario}
-(not full generation; not the canonical TTFT/TPOT SLO, Ch 4) --- under a
-full-generation reading the CPU tier's 4-bit model (\textasciitilde35 GB
-÷ \textasciitilde75 GB/s ≈ 0.47 s/token) would need \textasciitilde117 s
-for 250 tokens, \textasciitilde146× the printed 800 ms, so only the TTFT
-reading is defensible. The 120/250/300/800 ms values are
-\emph{illustrative per-request latencies for a short-prompt routing
-scenario} (the kind of request a router triages in milliseconds), used
-only to compare the four models against the interactive threshold (≤500
-ms). They are \textbf{not} the \textasciitilde8.6 s service time of the
-9.5K-token canonical RAG request (Ch 17), which is a multi-second,
-capacity-side number that governs fleet sizing. The cost column, by
-contrast, \emph{is} computed on the canonical 9.5K-token request (6.65M
-tokens for 700 requests). A deployment benchmark (Ch 14) must supply the
-real per-model service times before either column is used for a
-production decision.
+\emph{Column definition (the column's scope note lives in the §3 bases
+box):} \textbf{Per-request service latency = time-to-first-token for the
+short-prompt routing scenario} (not full generation; not the canonical
+TTFT/TPOT SLO, Ch 4) --- under a full-generation reading the CPU tier's
+4-bit model (\textasciitilde35 GB ÷ \textasciitilde75 GB/s ≈ 0.47
+s/token) would need \textasciitilde117 s for 250 tokens,
+\textasciitilde146× the printed 800 ms, so only the TTFT reading is
+defensible. The 120/250/300/800 ms values are \emph{illustrative
+per-request latencies for a short-prompt routing scenario} (the kind of
+request a router triages in milliseconds), used only to compare the four
+models against the interactive threshold (≤500 ms). They are
+\textbf{not} the \textasciitilde8.6 s service time of the 9.5K-token
+canonical RAG request (Ch 17), which is a multi-second, capacity-side
+number that governs fleet sizing. The cost column, by contrast,
+\emph{is} computed on the canonical 9.5K-token request (6.65M tokens for
+700 requests). A deployment benchmark (Ch 14) must supply the real
+per-model service times before either column is used for a production
+decision.
 
 The latency and capacity must also reconcile with the canonical
 workload's KV residency (\hyperref[chap:17]{Chapter 17}): routing 70\% of requests to an
@@ -419,7 +451,13 @@ decision}\label{consolidation-vs.-separation-decision}
   the dense 8-bit tier --- 90\% to 8-bit variants once the 20\% MoE
   8-bit share is counted --- at the ≥70\% dense-8-bit boundary, not
   above it, saving \textasciitilde\$11.16/hr (\$23.75 − \$12.59, the
-  §18.3.3 derived figure).
+  §18.3.3 derived figure). \emph{Referents:} ``satisfied by
+  construction'' speaks to the ≥70\% overlap and \textgreater30\%
+  cost-differential criteria; the latency criterion is met against the
+  ≤500\,ms interactive threshold of §18.3.4, not the
+  \textasciitilde200\,ms chat tolerance quoted in §18.2 --- L̄ ≈ 247\,ms
+  clears 500\,ms and exceeds 200\,ms, so consolidation is eligible for a
+  ≤500\,ms per-request chat budget and would fail a 200\,ms budget.
 \item
   \textbf{Keep separate} when: (a) security/classification policies
   require isolation, (b) workloads have bimodal latency needs (some
@@ -436,7 +474,10 @@ cannot be a 2-GPU reserve, because a 2-GPU shard holds 160\,GB − 140\,GB
 = 20\,GB of KV headroom against the 24.9\,GB that one 9,500-token
 request needs (κ = 2.62\,MB/token, Ch 17). Two reserved GPUs suffice
 only for the \textasciitilde250-token support queries of §18.8, not for
-the canonical 9.5K request.
+the canonical 9.5K request. Under the dedicated placement of §18.3.3 the
+FP16 tier would instead get its own group (3 of the 20 hosts) --- that
+group, not a 2-GPU reserve, is what ``handles the tail without
+contention'' above.
 
 \Needspace{11\baselineskip}
 
@@ -473,13 +514,13 @@ Detects saturation; informs capacity adds vs.~routing tweaks. \\
 \textbf{Routing accuracy} & \% of requests served by the \emph{intended}
 target model (not fallback) & Ensures the routing function R() is
 well-calibrated; low accuracy means feature gaps or cost model drift. \\
-\textbf{p95 of per-request service latency per model} & p95 of
-per-request service latency per model, on the same per-request
-service-latency definition as §18.3.2 (TTFT for the short-prompt routing
-scenario) & Guarantee SLO per tier (the ≤500 ms threshold is per
-request, so the per-request p95 is the SLO metric); fleet p95 must be
-computed from the combined routed-request distribution --- per-model p95
-values cannot in general be averaged. \\
+\textbf{p95 per-request service latency (TTFT)} & p95 of per-request
+service latency per model, on the same per-request service-latency
+definition as §18.3.2 (TTFT for the short-prompt routing scenario) &
+Guarantee SLO per tier (the ≤500 ms threshold is per request, so the
+per-request p95 is the SLO metric); fleet p95 must be computed from the
+combined routed-request distribution --- per-model p95 values cannot in
+general be averaged. \\
 \textbf{Token latency p95 per model (diagnostic)} & p95 of per-token
 latency per model, reported as its own metric with its own unit &
 Separate diagnostic metric; it is not the ≤500 ms per-request SLO
@@ -762,15 +803,15 @@ Tier\,3; the rest flowed to Tier\,1 or Tier\,2 automatically.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general-purpose and fallback model families as leaves \mbox{{[}ILLUSTRATIVE conceptual{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-18-1801.pdf}}
-\caption[Model-routing decision tree]{Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, general-purpose and fallback model families as leaves \mbox{{[}ILLUSTRATIVE conceptual{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, frontier/small and general-purpose model families as leaves \mbox{{[}ILLUSTRATIVE conceptual{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-18-1801.pdf}}
+\caption[Model-routing decision tree]{Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, frontier/small and general-purpose model families as leaves \mbox{{[}ILLUSTRATIVE conceptual{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:18.1}\emph{The routing decision chain. A request first passes a capability
 filter (is there a specialized model that can serve it?), then a
 cost/SLO gate (route = f(cost, SLO)), and otherwise falls through to a
-general model. Each specialized model is a leaf the router can dispatch
-to. This converts the raw cost arithmetic above into the operational
-routing shape an architect operates daily.}
+general model. Each specialist model (Embedding/Vision/Math) is a leaf
+the router can dispatch to. This converts the raw cost arithmetic above
+into the operational routing shape an architect operates daily.}
 
 \end{figure}\emph{Evidence-cutoff policy: a source retrieved after the book's
 2026-08-30 evidence cutoff may be cited only when the citation itself

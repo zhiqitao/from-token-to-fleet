@@ -9,7 +9,7 @@ from matplotlib.patches import Patch
 # dependent).  A grouped BAR chart encodes each workload's normalised profile on
 # six comparably-scaled axes by height + hatch (grayscale-safe), so the axes are
 # independent and directly comparable.
-dims = ['Context\nlength', 'Traffic\n(rps)', 'Quality\nrequired', 'Cost\nsensitive',
+dims = ['Context\nlength', 'Traffic\nvolume', 'Quality\nrequired', 'Cost\nsensitive',
         'Latency\nsensitive', 'Output\ntokens']
 # normalised 0-1 profiles (illustrative, per the chapter's workload taxonomy)
 longctx = [0.95, 0.20, 0.70, 0.55, 0.40, 0.45]
@@ -17,7 +17,7 @@ chat    = [0.35, 0.95, 0.50, 0.75, 0.90, 0.55]
 batch   = [0.55, 0.60, 0.30, 0.85, 0.35, 0.90]
 
 x = np.arange(len(dims)); wdt = 0.25
-fig, ax = plt.subplots(figsize=(6.1, 4.13))
+fig, ax = plt.subplots(figsize=(6.1, 4.9))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 # FIG-425-01: hatch density quadrupled on bars AND legend swatches — matplotlib's
 # hatch cell (~22 pt) is far larger than an 8 pt legend swatch (~5 pt tall),
@@ -39,7 +39,7 @@ ax.set_ylabel('Authored intensity (0-1)', fontsize=9)
 ax.set_ylim(0, 1)
 # title: the internal "confirm against real telemetry" note is dropped from the
 # published title (it belongs in the caption, not the figure heading)
-ax.set_title('Workload fingerprints on six axes (grouped bars, not radar)', fontsize=10)
+ax.set_title('Each family peaks on a different axis', fontsize=10)
 # legend: with the limit at 1.0 it can no longer sit INSIDE the top band (the
 # tallest bar is 0.95), so it moves BELOW the axis, under the x tick labels,
 # drawn in figure coordinates inside a reserved band so it cannot clip.
@@ -48,15 +48,15 @@ ax.set_title('Workload fingerprints on six axes (grouped bars, not radar)', font
 # with the same fill + hatch the bars use.
 ax.grid(axis='y', alpha=0.3)
 plt.tight_layout()
-plt.subplots_adjust(bottom=0.30)   # reserve the band for legend + scale note
+plt.subplots_adjust(bottom=0.26)   # reserve the band for legend + scale note
 _series = [('Long-context RAG Q&A', '#3a6ea5', '////'),
            ('High-throughput chat', '#e67e22', 'xxxx'),
            ('Batch inference',      '#6f9e5f', '....')]
 fig.legend(handles=[Patch(fc=c, ec='black', hatch=h, label=l) for l, c, h in _series],
-           fontsize=8.2, loc='upper center', ncol=3, frameon=False,
-           bbox_to_anchor=(0.5, 0.175), columnspacing=1.2, handlelength=1.4)
-fig.text(0.98, 0.03, 'per-axis 0-1 scale; compare within an axis, not across axes.',
-         fontsize=8.0, color='#555', va='bottom', ha='right')
+           fontsize=8.6, loc='upper center', ncol=3, frameon=False,
+           bbox_to_anchor=(0.5, 0.135), columnspacing=1.2, handlelength=1.4)
+fig.text(0.98, 0.02, 'per-axis 0-1 scale; compare within an axis, not across axes.',
+         fontsize=8.6, color='#555', va='bottom', ha='right')
 plt.savefig('design/manuscript/chapter-26/figures/fig-26-2602.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):

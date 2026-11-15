@@ -51,7 +51,7 @@ box(0.8, 7.4, BW, 2.5, '#2980b9')
 stage_text(0.8, 7.4, ['1 · ASSUMPTION',
                       'request rate ~2 rps',
                       'utilization ~45%',
-                      'scenario TTFT p99 ~450 ms'], big=9.8)
+                      'baseline TTFT p99 ~450 ms'], big=9.8)
 box(11.8, 7.4, BW, 2.5, '#16a085')
 # R4 MISC (F-26.2-2): the bare 'decode bandwidth-bound' read as an
 # unconditional law, while the prose conditions it on the low-batch regime
@@ -62,7 +62,7 @@ stage_text_small(11.8, 7.4, ['2 · DERIVED',
                             '(low-batch regime)'], big=9.8)
 
 # Bottom row: PATTERN (right, below DERIVED) so the flow turns clockwise
-box(11.8, 1.0, BW, 2.5, '#c0392b')
+box(11.8, 1.0, BW, 2.5, '#34495e')
 stage_text(11.8, 1.0, ['3 · PATTERN',
                        'A · Inference Sharding',
                        'B · Semantic Cache',
@@ -79,7 +79,8 @@ arrow((0.8 + BW + 0.1, 8.65), (11.8, 8.65), '#2980b9')
 ax.text(10.0, 8.15, 'trace', fontsize=8.6, ha='center', color='#2980b9', fontweight='bold')
 # Step 2 -> 3 (right side, down)
 arrow((15.5, 7.4), (15.5, 3.5), '#16a085')
-ax.text(16.6, 5.4, 'validate', fontsize=8.6, ha='left', va='center', color='#16a085', fontweight='bold')
+ax.text(16.6, 5.3, 'validate\nvs 800 ms\ntarget', fontsize=8.2, ha='left', va='center',
+        color='#16a085', fontweight='bold', linespacing=1.25)
 
 # Step 3 -> 1: a SINGLE L-shaped return edge (left along the bottom, then up the left
 # side to FACT), so the loop closes unambiguously.

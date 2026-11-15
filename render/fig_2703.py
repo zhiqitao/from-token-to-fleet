@@ -37,7 +37,7 @@ legend = [
     # trimmed ('MoE ~2022') so the line still ends inside the 6.1in column.
     ('Model architecture (dashed) \u2014 foundation, efficiency, MoE; darker shade = MoE ~2022', colors['eff'], '--', 1.2),
     ('Capability-led (solid) \u2014 reasoning / test-time / agentic', colors['cap'], '-', 1.2),
-    ('Fleet (thick) \u2014 multi-model "intelligence placement"', colors['fleet'], '-', 2.4),
+    ('Fleet (thick) \u2014 multi-model “intelligence placement”', colors['fleet'], '-', 2.4),
 ]
 yl = n*row_h + 0.3
 for text, col, ls, lw in legend:

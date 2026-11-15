@@ -12,9 +12,8 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 # (superseded, not edited).
 fig, ax = plt.subplots(figsize=(6.1, 5.4))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
-ax.set_xlim(0, 26); ax.set_ylim(0, 22); ax.axis('off')
-ax.set_title('Anatomy of an ADR, and how one ADR supersedes the next', fontsize=10.5,
-             fontweight='bold', color='#1a1a1a', pad=10)
+ax.set_xlim(-2.0, 29.4); ax.set_ylim(0, 22); ax.axis('off')
+# FIG-25.1-02: no in-figure title — the caption carries it.
 
 # short hints that fit inside the section boxes — the five CORE ADR fields in
 # §25.1 order (C-20: the figure must match the copy-ready template's core fields,
@@ -40,13 +39,15 @@ def adr_card(y_top, h, title, accent):
     row_h = (h - 1.5) / n
     for i, (name, hint) in enumerate(stages):
         ry = y_top - 1.4 - (i+1)*row_h
-        ax.add_patch(FancyBboxPatch((x0, ry+0.14), w, row_h-0.28,
+        # FIG-25.1-04: each field box spans the full card width (was left ~1/5,
+        # leaving two-thirds of every card blank), name left / gloss right on one line.
+        ax.add_patch(FancyBboxPatch((x0, ry+0.14), total, row_h-0.28,
                      boxstyle='round,pad=0.02,rounding_size=0.15',
                      fc='#dbe7f5', ec='#1a3a6b', lw=1.0))
-        ax.text(x0+0.3, ry+row_h/2+0.30, name, ha='left', va='center',
+        ax.text(x0+0.35, ry+row_h/2, name, ha='left', va='center',
                 fontsize=8.6, fontweight='bold', color='#1a3a6b')
-        ax.text(x0+0.3, ry+row_h/2-0.32, hint, ha='left', va='center',
-                fontsize=8.0, color='#444', style='italic')  # Loop-3: was 7.2pt, below the 8pt on-page floor
+        ax.text(x0+total-0.35, ry+row_h/2, hint, ha='right', va='center',
+                fontsize=8.5, color='#444', style='italic')  # Loop-3: was 7.2pt; R5: gloss >= 8.5pt
     return row_h
 
 # OLD ADR (top): y 12.5 .. 20.9  (raised to widen the inter-panel gap)
@@ -66,20 +67,33 @@ adr_card(new_top, new_h, 'ADR-002  (new — supersedes ADR-001)', '#7b241c')
 # oversized head (mutation_scale=22) left a visible white sliver above the border;
 # the tip now lands just inside the border with a smaller head.
 old_bottom = old_top - old_h           # top card bottom border (y)
-# R27 P2: the tip must actually TOUCH the ADR-002 top rule (the card's top edge
-# sits at new_top+0.06 because of the boxstyle pad).  The old oversized head
-# (mutation_scale=22) + curve offset the visual tip well above the border, leaving
-# a white sliver.  A straight arrow with a smaller head (8) and the tip extended
-# just inside the border (new_top-0.15) makes contact unambiguous.
-ax.add_patch(FancyArrowPatch((x0+w, old_bottom-0.2), (x0+w, new_top-0.18),
-             connectionstyle='arc3,rad=0.0', arrowstyle='-|>', mutation_scale=8,
-             lw=2.4, color='#c0392b', ls='dashed'))
-# label in the gap, centred vertically between the two borders and placed to the
-# right of the arrow, so neither collides with the other or with the panel borders.
+# FIG-25.1-01 / FIG-415-01: the arrow is anchored to the named FIELDS, not to the
+# outer card edges — it leaves the ADR-001 'Consequences' box and terminates on the
+# ADR-002 'Context' box, so the endpoints visibly attach to those two fields.
+row_h_old = (old_h - 1.5) / n
+cons_ry = old_top - 1.4 - (3+1)*row_h_old          # Consequences (i=3) row base
+cons_bottom = cons_ry + 0.14                        # inside edge of that field box
+row_h_new = (new_h - 1.5) / n
+ctx_ry = new_top - 1.4 - (1+1)*row_h_new            # Context (i=1) row base
+ctx_top = ctx_ry + 0.14 + (row_h_new - 0.28)        # inside edge of that field box
+cons_cy = cons_ry + row_h_old/2                       # Consequences field centre (ADR-001)
+ctx_cy  = ctx_ry + row_h_new/2                        # Context field centre (ADR-002)
+box_right = x0 + total                                # right edge of the field boxes
+route_x = box_right + 1.45                            # vertical run just outside the cards
+# FIG-25.1-01 / FIG-415-01: the connector is anchored to the named FIELDS — it
+# leaves the ADR-001 'Consequences' box, runs along the right gutter, and its
+# arrowhead lands on the ADR-002 'Context' box.
+ax.plot([box_right, route_x, route_x], [cons_cy, cons_cy, ctx_cy],
+        color='#c0392b', lw=2.4, ls=(0, (4, 3)), solid_capstyle='butt', zorder=1)
+ax.add_patch(FancyArrowPatch((route_x, ctx_cy), (box_right+0.06, ctx_cy),
+             connectionstyle='arc3,rad=0.0', arrowstyle='-|>', mutation_scale=9,
+             lw=2.4, color='#c0392b', linestyle=(0, (4, 3))))
+# label in the inter-card gap, clear of both cards and the route; modality
+# matches the caption's 'may become part of the Context'.
 gap_mid = (old_bottom + new_top) / 2
-ax.text(x0+w+2.45, gap_mid,
-        'consequences of ADR-001\nbecome the context of ADR-002',
-        fontsize=8.0, color='#c0392b', ha='left', va='center', fontweight='bold',
+ax.text(box_right-0.6, gap_mid,
+        'consequences of ADR-001\nmay become the context of ADR-002',
+        fontsize=8.5, color='#c0392b', ha='right', va='center', fontweight='bold',
         bbox=dict(boxstyle='round,pad=0.25', fc='white', ec='none', alpha=0.92))
 
 plt.tight_layout()

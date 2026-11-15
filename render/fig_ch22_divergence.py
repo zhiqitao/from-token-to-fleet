@@ -30,9 +30,10 @@ def _logfmt(x, pos):
 # quadratic term and the total are distinguished by line style (dash) AND colour AND label.
 N = 70e9
 nl, d = 80, 8192
-L = np.logspace(np.log10(0.8e3), np.log10(128e3), 400)
+L = np.logspace(np.log10(0.8e3), np.log10(200e3), 400)
 lin = 2 * N * L
 quad = 4 * nl * (L ** 2) * d          # CASE (ii) full-square (un-masked) attention term per request
+quad_c = 2 * nl * (L ** 2) * d        # CASE (iii) causal-triangle attention-pair term (quad/2)
 decode = 2 * N * np.ones_like(L)      # per-token decode FLOPs, context-independent
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.1, 5.2))
@@ -50,11 +51,17 @@ ax1.loglog(L / 1e3, (lin + quad) / 1e15, color='#e67e22', lw=2.4, ls='--',
 # legend is what leaves the annotation band clear (verified by bbox probe).
 ax1.loglog(L / 1e3, (lin + quad / 2) / 1e15, color='#0e7a5f', lw=2.4, ls=':',
            label='total (causal-triangle)')
+# The causal-triangle CROSSOVER is a term-vs-term event: the causal attention-pair
+# term (quad/2) equalling the linear term at 106.8K. It is therefore plotted as its
+# OWN curve, so the arrow can land on a real intersection instead of on the red
+# linear curve where no curves cross.
+ax1.loglog(L / 1e3, quad_c / 1e15, color='#2874a6', lw=2.0, ls=(0, (5, 2)),
+           label='quadratic 2\u00b7n_layers\u00b7L\u00b2\u00b7d (causal)')
 ax1.fill_between(L / 1e3, lin / 1e15, (lin + quad) / 1e15, color='#e67e22', alpha=0.10)
 ax1.set_xlabel('Context length (K tokens)', fontsize=9.5)
 ax1.set_ylabel('Prefill compute (PFLOP / request)', fontsize=9.5)
 ax1.set_title('PREFILL  (per request)', fontsize=10, fontweight='bold', color='#5a2a7a')
-ax1.set_ylim(1e-2, 1e3)
+ax1.set_ylim(1e-2, 1e4)   # headroom so the 5-entry legend clears the curve tips
 # P1 legibility floor: ch22 places this figure at width=0.95\linewidth
 # (0.95 x 439.2pt = 417.24pt), so every authored size is multiplied by 0.95
 # on the page. 8.5pt ticks/legend landed at 8.07pt and the 8.2pt panel note at
@@ -79,7 +86,7 @@ ax1.annotate('full-square quad\novertakes ~%.1fK' % (Lstar/1e3),
              xy=(Lstar/1e3, (2*N*Lstar)/1e15),
              xytext=(40.0, 24.0), fontsize=8.8, color='#8e44ad', fontweight='bold',
              ha='right', va='center',
-             arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#8e44ad'))
+             arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#8e44ad', shrinkB=0.0))
 # P2-05: second crossover, causal-triangle sensitivity (half the attention-pair
 # term doubles the crossing). Positions were chosen with a renderer bbox probe
 # (text-only extents vs legend vs sampled curves): purple sits in the clear band
@@ -87,11 +94,11 @@ ax1.annotate('full-square quad\novertakes ~%.1fK' % (Lstar/1e3),
 # so its left edge (7.0K) clears quad/2 (0.064 > 0.036); the 'canonical 9.2K'
 # label sits at y=3.0, above every curve in its x-range (max total(7.7K)=1.30)
 # and below the purple annotation; its short leader drops to the marker.
-ax1.annotate('causal-triangle:\ncrossover ~%.1fK' % (Lstar_c/1e3),
+ax1.annotate('causal-triangle quad term\novertakes linear ~%.1fK' % (Lstar_c/1e3),
              xy=(Lstar_c/1e3, (2*N*Lstar_c)/1e15),
-             xytext=(126.0, 0.022), fontsize=8.8, color='#0e7a5f', fontweight='bold',
+             xytext=(196.0, 0.035), fontsize=8.8, color='#2874a6', fontweight='bold',
              ha='right', va='center',
-             arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#0e7a5f'))
+             arrowprops=dict(arrowstyle='-|>', lw=1.1, color='#2874a6', shrinkB=0.0))
 # canonical 9.2K point (Figure caption footnote refers to it)
 ax1.scatter([9.2], [(2 * N * 9.2e3) / 1e15], color='#c0392b', zorder=5, s=26)
 # R27 P2: the red dot was unexplained (no legend/annotation). Label it as the

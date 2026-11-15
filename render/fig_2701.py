@@ -62,7 +62,7 @@ for i_orig, i_rev in enumerate(range(len(names))):
 ax.set_yticks(y)
 # P2-10: mark the Qwen row as a backbone ratio (asterisk ties to the footnote).
 ax.set_yticklabels([f'{n}*' if 'Qwen' in n else n for n in names], fontsize=10.5)
-ax.set_xlabel('Active parameters as % of total', fontsize=11)
+ax.set_xlabel('Active fraction (vendor-defined denominator)', fontsize=11)
 ax.tick_params(labelsize=10)
 ax.grid(alpha=0.3, axis='x')
 ax.spines['top'].set_visible(False)
@@ -72,12 +72,12 @@ ax.spines['right'].set_visible(False)
 # resident total, varies by vendor. Right-aligned inside the axes, above the
 # top note, white-boxed so gridlines do not run through the text.
 ax.text(param_label_x, 3.95,
-        'denominator: vendor-reported / resident total, varies by vendor',
-        ha='right', va='top', fontsize=8, color='#777',
+        'denominator: each model\'s own vendor-reported total, varies by vendor',
+        ha='right', va='top', fontsize=8.5, color='#555',
         bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.85))
 
 # Shorter, action-oriented title that fits the column at 6.1in width.
-ax.set_title('Extreme sparsity: single-digit active (2026)',
+ax.set_title('Extreme sparsity: four selected families (2026)',
              fontsize=11, loc='left', pad=4)
 
 # Vendor-reported caveat as a compact one-line footnote BELOW the axis.

@@ -10,9 +10,9 @@ The AI Factory is the discipline of making model delivery routine. We use the te
 
 1. **Data pipeline** — the automated intake, cleaning, versioning, and labelling of the data that trains or evaluates the model. For a RAG system this includes the retrieval corpus, its freshness, and its quality gates. [ILLUSTRATIVE][DERIVED]
 
-2. **Evaluation & promotion gate** — a systematic process that scores a candidate model or configuration against defined metrics (quality, latency, cost) on a held-out benchmark before it can replace the incumbent in production. This is where Ch14's deployment benchmarking becomes a recurring gate rather than a one-time event.
+2. **Evaluation & promotion gate** — a systematic process that scores a candidate model or configuration against defined metrics (quality, latency, cost) on a held-out benchmark before it can replace the incumbent in production. This is where Ch 14's deployment benchmarking becomes a recurring gate rather than a one-time event.
 
-3. **Serve + observe + rollback** — the serving layer (Ch11) plus a feedback loop that measures real traffic, detects drift or regression, and can roll the production model back safely. [ILLUSTRATIVE][DERIVED]
+3. **Serve + observe + rollback** — the serving layer (Ch 11) plus a feedback loop that measures real traffic, detects drift or regression, and can roll the production model back safely. [ILLUSTRATIVE][DERIVED]
 
 The factory converts the architect's recurring question from "should we adopt this model?" (a one-off decision) into "does this candidate pass the automated gate?" (a routine, repeatable decision with the same rigor every time).
 
@@ -21,7 +21,7 @@ The factory converts the architect's recurring question from "should we adopt th
 The AI Factory is best read as a **release pipeline with a quality gate placed before every promotion**, mirroring how software CI/CD gated deployments decades ago. Three mental moves:
 
 - **Models are artifacts like code.** They get versioned, tested, reviewed, and promoted through environments (staging → canary → production) with automated checks at each step — not dropped into prod on a hunch.
-- **The gate is the memory of the factory.** The evaluation suite and its thresholds encode everything we've learned about what "good enough" means (Ch4 capability, Ch14 deployment). If the gate is weak, the factory has no standards.
+- **The gate is the memory of the factory.** The evaluation suite and its thresholds encode everything we've learned about what "good enough" means (Ch 4 capability, Ch 14 deployment). If the gate is weak, the factory has no standards.
 - **Everything is reversible.** A promotion that regresses metrics must be rollback-able in minutes. The factory's value is not eliminating errors but making them cheap and safe.
 
 The factory's shape is a **pipeline with decisions**: data in → train/fine-tune → evaluate → push to canary → observe → promote or rollback → serve. Each arrow is a decision point, and each decision point is where an architect has influence.
@@ -32,7 +32,7 @@ The example below works the economics of promotion gating on the canonical 70B R
 
 ### The Economics of Promotion Gating for the Canonical Workload
 
-We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [canonical scenario] (Ch 4, Table 4-2)
+We show the factory's value by comparing *ungated* and *gated* adoption of a candidate model on the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [CANONICAL] (Ch 4, Table 4-2)
 
 **Setup.** Suppose a new model candidate claims better retrieval-QA quality but no one has measured its serving behavior. Two adoption paths:
 
@@ -41,7 +41,7 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 
 \Needspace{5\baselineskip}
 
-**Cost of a bad ungated release.** The canonical service does ~288,000 requests/workday (10 rps × 8 h × 3,600 s; ~6.24M/month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16). Suppose a regression raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery and rollback. That is 6/8 ×288,000 ≈ **216,000 requests** served at a broken SLO. At the Ch16 canonical self-hosted rate of ~$24.97/1K requests (active business-hours volume, Ch 4), the serving cost of the 216,000 requests exposed is 216,000 × $24.97/1K ÷ 1,000 ≈ **$5,394** (volume × unit rate — incurred whether or not the regression occurred), and it is ≈ **$3,032** on the Ch16 cloud-scaled ~$14.04/1K basis (216,000 × ~$14.038/1K ÷ 1,000 ≈ 3,032) — modest relative to the *business* cost, but the dominant term is users experiencing a 47% latency regression, trust erosion, and the fire drill. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
+**Cost of a bad ungated release.** The canonical service does ~288,000 requests/workday (10 rps × 8 h × 3,600 s; × 260 workdays ÷ 12 ≈ 6.24M per calendar month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16). Suppose a regression raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery and rollback. That is 6/8 ×288,000 ≈ **216,000 requests** served at a broken SLO. At the Ch 16 canonical self-hosted rate of ~$24.97/1K requests (active business-hours volume, Ch 4), the serving cost of the 216,000 requests exposed is 216,000 × $24.97/1K ÷ 1,000 ≈ **$5,394** (volume × unit rate — incurred whether or not the regression occurred), and it is ≈ **$3,032** on the Ch 16 cloud-scaled ~$14.04/1K basis (216,000 × ~$14.038/1K ÷ 1,000 ≈ 3,032) — modest relative to the *business* cost, but the dominant term is users experiencing a 47% latency regression, trust erosion, and the fire drill. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
 
 **Cost of a good gated release.** A canary at 5% traffic for 2 hours serves 5% × 288,000 ×2/8 ≈ **3,600 requests** through the candidate while it is measured against a full evaluation suite. If it passes, promotion is low-risk; if it fails, no users beyond canary were exposed. [ILLUSTRATIVE][DERIVED]
 
@@ -70,14 +70,14 @@ The factory is only as trustworthy as its gates. We measure four things continuo
 ## 5. Common Mistakes
 
 - **No gate, or a decorative gate.** An evaluation that always passes is worse than none because it grants false confidence.
-- **Promoting on quality only.** Quality passing but serving (Ch14) regressing still breaks the service; the gate must include deployment metrics.
+- **Promoting on quality only.** Quality passing but serving (Ch 14) regressing still breaks the service; the gate must include deployment metrics.
 - **Assuming retraining cadence is "as often as possible."** More frequent retraining is not free — it consumes compute, risk, and evaluation effort; the right cadence balances drift against churn (the memory and compute a training run consumes — Ch 7 for the optimizer/activation memory floor, Ch 8 for the FLOP budget — set the resource cost a cadence must fit).
 - **Skipping rollback rehearsal.** A rollback that has never been exercised will fail precisely when it is needed.
 - **Treating the factory as a build-once artifact.** It is a living process that must absorb new models, new metrics, and new data sources continuously.
 
 ## 6. Architecture Consequence
 
-The AI Factory is the operational backbone that makes the book's whole loop durable. Every architectural decision recomputes through it: model selection (Ch3/5) feeds the evaluation gate, serving choices (Ch11) determine canary mechanics, benchmarking (Ch14) becomes the recurring gate, TCO (Ch16) sets how much gating overhead is affordable, and fleet operations (Ch17-20) provide the rollout/rollback surfaces. Without the factory, each chapter's decision is a one-off; with it, they compound into a system that gets better and safer every cycle.
+The AI Factory is the operational backbone that makes the book's whole loop durable. Every architectural decision recomputes through it: model selection (Ch 3/5) feeds the evaluation gate, serving choices (Ch 11) determine canary mechanics, benchmarking (Ch 14) becomes the recurring gate, TCO (Ch 16) sets how much gating overhead is affordable, and fleet operations (Ch 17–20) provide the rollout/rollback surfaces. Without the factory, each chapter's decision is a one-off; with it, they compound into a system that gets better and safer every cycle.
 
 Three components implement the factory: an evaluation runner that executes the gate, a canary router that splits traffic between incumbent and candidate, and a rollback mechanism that restores the last-known-good model. Three design decisions shape each promotion: gate granularity (what the gate checks and how often), canary routing strategy (how traffic splits and for how long), and the rollback trigger (which metric breach fires it). Each decision is a trade-off: a finer, slower gate raises gate latency and delays promotion; a wider canary improves evaluation fidelity but exposes more users.
 
@@ -96,7 +96,7 @@ Three components implement the factory: an evaluation runner that executes the g
 
 ## 8. End-of-Chapter Mini-Case: The Vendor's 'Better Bench': Canary and Rollback
 
-A vendor pitches the architect a newer, cheaper model: "just swap it in — it scores better on the bench." A year ago the architect might have, and watched p95 TTFT silently drift past the SLO for a week. Now the AI Factory is in place. The architect drops the candidate into the pipeline: the data pipeline versions it, the evaluation gate scores it against quality AND the deployment benchmark (TTFT/goodput/cost) on the canonical workload, and a 5% canary serves it for two hours. The gate flags a quality regression on the legal-document subset the benchmark suite specifically covers — a subset the vendor's "better bench" never measured. The candidate improves quality on the main subset but adds 240 ms to p95 TTFT; the canary has served 3,600 requests with 12 legal-subset failures vs the incumbent's 3 expected at α = 0.05. Given the §3 economics (a bad ungated release = 216,000 exposed requests ≈ $5,394 direct), should the architect promote, reject, or extend the canary to N hours — and what blast radius does each choice bound? [ILLUSTRATIVE][DERIVED] The candidate is rejected automatically, the incumbent stays, and the legal subset keeps working. No fire drill, no user-visible regression, no manual heroics — the factory made the wrong vendor claim cost nothing to the business, which is precisely what industrializing the delivery loop is for.
+A vendor pitches the architect a newer, cheaper model: "just swap it in — it scores better on the bench." A year ago the architect might have, and watched p95 TTFT silently drift past the SLO for a week. Now the AI Factory is in place. The architect drops the candidate into the pipeline: the data pipeline versions it, the evaluation gate scores it against quality AND the deployment benchmark (TTFT/goodput/cost) on the canonical workload, and a 5% canary serves it for two hours. The gate flags a quality regression on the legal-document subset the benchmark suite specifically covers — a subset the vendor's "better bench" never measured. The candidate improves quality on the main subset but adds 240 ms to p95 TTFT; the canary has served 3,600 requests with 12 legal-subset failures vs the incumbent's 3 expected at α = 0.05 — the legal subset is ~10% of canary traffic (≈360 requests), the incumbent's baseline failure rate on that subset is ~0.83% (3 in ≈360), and a one-sided binomial test at α = 0.05 returns p ≈ 6.4×10⁻⁵, so the gate fires. Given the §3 economics (a bad ungated release = 216,000 exposed requests ≈ $5,394 direct), should the architect promote, reject, or extend the canary to N hours — and what blast radius does each choice bound? [ILLUSTRATIVE][DERIVED] The candidate is rejected automatically, the incumbent stays, and the legal subset keeps working. No fire drill, no user-visible regression, no manual heroics — the factory made the wrong vendor claim cost nothing to the business, which is precisely what industrializing the delivery loop is for.
 
 ## 9. Transition to Part VI
 

@@ -13,18 +13,19 @@ and adjusted post-deployment.
 \ntsection{Concept}\label{concept}
 
 
-The Solution Architect's Toolkit answers three concerns --- scalability,
-reliability, and observability --- and is organized as pattern templates
-plus measurement rather than as three separate taxonomies. Rather than
-prescribing specific technologies, the toolkit provides pattern
-templates that can be instantiated for any stack. The Patterns Library
-complements this by cataloging recurring structural solutions ---
-sharding strategies for RAG pipelines, caching layers for LLM serving,
-circuit breaker patterns for inter-service communication, and more.
-Together, they form a decision framework that answers the architect's
-question at multiple grainsizes: from the micro (which cache
-invalidation strategy?) to the macro (how does sharding affect
-fleet-wide latency?).
+The Solution Architect's Toolkit answers two concerns --- scalability
+and reliability --- and is organized as pattern templates plus
+measurement rather than as three separate taxonomies; observability is
+not a third pattern family here but the FACT-set discipline of §4, which
+is what makes each pattern's effect measurable. Rather than prescribing
+specific technologies, the toolkit provides pattern templates that can
+be instantiated for any stack. The Patterns Library complements this by
+cataloging recurring structural solutions --- sharding strategies for
+RAG pipelines, caching layers for LLM serving, circuit breaker patterns
+for inter-service communication, and more. Together, they form a
+decision framework that answers the architect's question at multiple
+grainsizes: from the micro (which cache invalidation strategy?) to the
+macro (how does sharding affect fleet-wide latency?).
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -105,11 +106,11 @@ and Ch 15's congestion check are how to confirm it).
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.1467\linewidth}
-  >{\raggedright\arraybackslash}p{0.0897\linewidth}
-  >{\raggedright\arraybackslash}p{0.0978\linewidth}
-  >{\raggedright\arraybackslash}p{0.1386\linewidth}
-  >{\raggedright\arraybackslash}p{0.3505\linewidth}@{}}
+  >{\raggedright\arraybackslash}p{0.1335\linewidth}
+  >{\raggedright\arraybackslash}p{0.0816\linewidth}
+  >{\raggedright\arraybackslash}p{0.0890\linewidth}
+  >{\raggedright\arraybackslash}p{0.0964\linewidth}
+  >{\raggedright\arraybackslash}p{0.4228\linewidth}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
 Workload
@@ -149,8 +150,9 @@ Fine-tuning & N/A & N/A & Memory + interconnect & Precision-aware
 optimizer (LoRA/QLoRA) before full FT; gradient checkpointing (Ch 7) \\
 Training & N/A & N/A & Compute + interconnect & Parallelism split
 (DP/TP/PP/FSDP) sized to model and cluster (Ch 10) \\
-Real-time multimodal & Med & Short (streamed) & Latency + pipeline sync
-& Chunked prefill, streaming decode, P/D (Ch 8, 20) \\
+Real-time multimodal & Med (\textasciitilde1--2K tokens) & Short
+(streamed) & Latency + pipeline sync & Chunked prefill, streaming
+decode, P/D (Ch 8, 20) \\
 
 \noalign{\label{tab:26.4}}\end{longtable}
 
@@ -529,10 +531,11 @@ time‑to‑first‑token, not end‑to‑end), and the rps is the
 it.
 
 \textbf{Step 0 --- Read the fingerprint.} Before selecting patterns, the
-architect reads the capstone's workload against \hyperref[fig:26.1]{Fig 26.1} --- a
-short-prompt, latency-sensitive RAG workload, matching the matrix's
+architect reads the capstone's workload --- a short-prompt,
+latency-sensitive RAG workload that deliberately matches none of the
+three families plotted in \hyperref[fig:26.1]{Fig 26.1} --- against \hyperref[fig:26.1]{Fig 26.1} and the matrix's
 Short-prompt RAG Q\&A row (short input, tail latency/queueing dominant
-constraint) --- and applies the §26.2.1 method (locate the dominant
+constraint), and applies the §26.2.1 method (locate the dominant
 constraint: tail latency/queueing under the p99 ≤ 800 ms TTFT target),
 which motivates evaluating the semantic response cache (Pattern B) and
 the circuit breaker (Pattern C).
@@ -584,9 +587,10 @@ worked example, not a claim that a measured worst case equals a measured
 p99. Because the 50 ms retrieval term is part of the baseline, the
 headline \textbf{−44\%} is measured against the full 450 ms path (a
 queue-inflated baseline --- 320 + 80 + 50 = 450 --- against a
-queue-drained miss --- 120 + 80 + 50 = 250, Step 2); excluding that term
-entirely (a 400 ms baseline) would report (400 − 250) / 400 =
-\textbf{37.5\%} instead.
+queue-light miss --- 120 + 80 + 50 = 250, Step 2); excluding that term
+from the baseline only (a 400 ms baseline, while the miss path still
+pays its \textasciitilde50 ms lookup) would report (400 − 250) / 400 =
+\textbf{37.5\%} instead; excluding it from both sides would report 50\%.
 
 \textbf{Step 2 --- Pattern Apply.} The architect works with Pattern A
 (inference sharding across an 8×H100 node --- baseline configuration,
@@ -606,23 +610,31 @@ returns at a fixed \textasciitilde50 ms (query encoding + cache lookup,
 no corpus retrieval and no LLM prefill), and a cache miss is served by
 the engine at \textasciitilde250 ms. The \textasciitilde250 ms miss is a
 scenario \emph{input}, not the 450 ms sum minus a computed term: the
-baseline's 320 ms compute is a worst-case figure carrying prefill-queue
-inflation at ρ near 1, and the miss value assumes that queue has drained
-at the cached \textasciitilde1.3 rps. When that queue has drained,
-compute falls from the inflated 320 ms to \textasciitilde120 ms, so 250
-≈ 120 + 80 + 50. Both distributions --- the \textasciitilde50 ms hit and
-the \textasciitilde250 ms miss --- are Step 3 load-test targets. Under
-this model the pooled latency has the CDF \(F(50)=0.35\),
-\(F(250)=1.0\). Its \textbf{mean} is
-\(0.35\times50 + 0.65\times250 = 180\) ms, but its \textbf{p99 is 250
-ms} (because the 0.99 quantile falls in the miss population:
-\(0.35 < 0.99 \le 1.0\)). So \textbf{mean TTFT ≈ 180 ms}. \textbf{p99
-TTFT ≈ 250 ms} (the miss value, not a blend). \textbf{−44\% TTFT}
-against the \textasciitilde450 ms uncached p99 baseline (queue-inflated
-baseline vs queue-drained miss: 320 + 80 + 50 = 450 vs 120 + 80 + 50 =
-250 --- Step 1) --- \((450-250)/450 \approx 44\%\). \textbf{Cost is
-deliberately not collapsed into a single percentage} (R-01/R-05): as in
-§3, the only defensible \emph{marginal-generation-work} saving is the
+baseline's 320 ms compute is the declared worst-case component sum ---
+the same number Step 1 declares to carry the baseline-p99 role for this
+scenario --- carrying prefill-queue inflation at ρ near 1, and the miss
+value assumes that queue is \emph{queue-light} (ρ ≈ 0.65) at the cached
+\textasciitilde1.3 rps. Under that assumption compute falls from the
+inflated 320 ms to \textasciitilde120 ms, so 250 ≈ 120 + 80 + 50 --- and
+the \textasciitilde120 ms is a scenario input, not a derived queueing
+result. Both distributions --- the \textasciitilde50 ms hit and the
+\textasciitilde250 ms miss --- are Step 3 load-test targets. Under this
+model the pooled latency has the CDF \(F(50)=0.35\), \(F(250)=1.0\). Its
+\textbf{mean} is \(0.35\times50 + 0.65\times250 = 180\) ms, but its
+\textbf{p99 is 250 ms} (because the 0.99 quantile falls in the miss
+population: \(0.35 < 0.99 \le 1.0\)). So \textbf{mean TTFT ≈ 180 ms}.
+\textbf{p99 TTFT ≈ 250 ms} (the miss value, not a blend). \textbf{−44\%
+TTFT} against the \textasciitilde450 ms uncached p99 baseline
+(queue-inflated baseline vs queue-light miss: 320 + 80 + 50 = 450 vs 120
++ 80 + 50 = 250 --- Step 1) --- \((450-250)/450 \approx 44\%\). The 200
+ms delta is not the cache path's substitution: it is queue drain on the
+compute term (320 → 120 ms), while the hit path's \textasciitilde50 ms
+lookup replaces the \textasciitilde50 ms retrieval it is costed against
+--- so the −44\% is a queue-drain-dominated comparison, and a
+matched-load run (2.0 rps with and without the cache) would isolate the
+smaller path-substitution effect this model does not claim. \textbf{Cost
+is deliberately not collapsed into a single percentage} (R-01/R-05): as
+in §3, the only defensible \emph{marginal-generation-work} saving is the
 cache-hit share (\textasciitilde35\% of requests skip generation). This
 is \textbf{not} an all-in TCO reduction: the §16 self-hosted fleet is a
 fixed set of hosts whose capex/opex does not shrink with cache hits
@@ -645,22 +657,23 @@ the gains are \emph{not} independent --- they compound on the same
 request path, so they must not be added as if separable.
 
 \textbf{Step 3 --- Validate.} \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}HYPOTHESIS{]}}
---- ``sharding + caching will keep TTFT p99 \textless{} 300 ms as the
-fleet grows from the canonical \textasciitilde2,000 users to the
-capstone's \textasciitilde3,000 users.'' A user \emph{population} is not
-an offered-load law: growth from 2,000 to 3,000 users (1.5×) does not,
-by itself, give the arrival rate, cache-hit ratio, peak-correlation, or
-queueing distribution --- the capstone therefore states a concrete
-scaling assumption (the same \textasciitilde2.0 rps sustained offered
-rate, \textasciitilde5\% concurrently active at peak, and a 35\%
-cache-hit ratio held constant for illustration) and validates capacity
-and fallback quality against that assumption, rather than treating a
-user count as an arrival model. The offered rate stays flat at 1.5×
-users because it is a declared scenario input capped at the host's
-\textasciitilde2.0 rps sustainable ceiling (the Scenario above), not a
-per-user rate. The user count does not raise what one host sustains:
-holding \textasciitilde2.0 rps while the concurrent population grows
-from \textasciitilde100 to \textasciitilde150 implies a
+--- ``at the assumed \textasciitilde2.0 rps sustained offered rate and
+35\% cache-hit ratio, sharding + caching will keep TTFT p99 \textless{}
+300 ms as the fleet scales from the canonical \textasciitilde2,000 users
+to the capstone's \textasciitilde3,000 users.'' A user \emph{population}
+is not an offered-load law: growth from 2,000 to 3,000 users (1.5×) does
+not, by itself, give the arrival rate, cache-hit ratio,
+peak-correlation, or queueing distribution --- the capstone therefore
+states a concrete scaling assumption (the same \textasciitilde2.0 rps
+sustained offered rate, \textasciitilde5\% concurrently active at peak,
+and a 35\% cache-hit ratio held constant for illustration) and validates
+capacity and fallback quality against that assumption, rather than
+treating a user count as an arrival model. The offered rate stays flat
+at 1.5× users because it is a declared scenario input capped at the
+host's \textasciitilde2.0 rps sustainable ceiling (the Scenario above),
+not a per-user rate. The user count does not raise what one host
+sustains: holding \textasciitilde2.0 rps while the concurrent population
+grows from \textasciitilde100 to \textasciitilde150 implies a
 \textasciitilde33\% lower per-concurrent-user rate. The staged test
 therefore covers configuration robustness under constant load --- cache
 and breaker behavior at the assumed inputs --- not user scaling. A
@@ -692,7 +705,7 @@ Component
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Configuration
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-FACT Target
+Verification target
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Modeled example
 \end{minipage} \\
@@ -713,7 +726,9 @@ marginal: \$0.01164 × 0.65; self-host all-in is a separate basis,
 
 \noalign{\label{tab:26.2}}\end{longtable}
 
-\emph{On cost, the capstone separates the two bases (R-01): the
+\emph{The \textbf{Verification target} column states thresholds to be
+met, not FACTs; the cost row's cell carries its own DERIVED provenance
+label. On cost, the capstone separates the two bases (R-01): the
 ``Modeled example'' cell is a \textbf{marginal-generation-work}
 statement --- at a 35\% semantic-cache hit ratio, \textasciitilde35\% of
 queries skip generation entirely, so the marginal generation work is
@@ -755,8 +770,8 @@ instrumentation template to record the real FACTs separately.}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone, closing the loop ASSUMPTION → DERIVED → PATTERN → ASSUMPTION (box 1 holds assumed scenario inputs, not instrumented FACTs). The validate step compares the load test's measured TTFT p99 against the hypothesis criterion (TTFT p99 \textless{} 300 ms, §8 Step 3) under the capstone's p99 ≤ 800 ms TTFT target (§8 Step 0).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2601.pdf}}
-\caption[Pattern Application Diagram]{Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone, closing the loop ASSUMPTION → DERIVED → PATTERN → ASSUMPTION (box 1 holds assumed scenario inputs, not instrumented FACTs). The \emph{validate} step compares the load test's measured TTFT p99 against the hypothesis criterion (TTFT p99 \textless{} 300 ms, §8 Step 3) under the capstone's p99 ≤ 800 ms TTFT target (§8 Step 0).}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone. The loop closes by measurement --- an assumption that fails validation returns to box 1 for adjustment, and only measured FACTs enter the decision. Chain: ASSUMPTION (box 1 holds assumed scenario inputs, not instrumented FACTs) → DERIVED → PATTERN → ASSUMPTION; the validate step compares the load test's measured TTFT p99 against the hypothesis criterion (TTFT p99 \textless{} 300 ms, §8 Step 3) under the capstone's p99 ≤ 800 ms TTFT target (§8 Step 0). The causal chain the figure encodes: a baseline that is bandwidth-bound in decode (box 2) → queueing once offered load approaches the host's \textasciitilde2.0 rps ceiling (the ρ near 1 behind box 1's inflated compute) → the p99 tail the validate step measures, where p99 is the miss value, not a blend.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2601.pdf}}
+\caption[Pattern Application Diagram]{Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone. The loop closes by measurement --- an assumption that fails validation returns to box 1 for adjustment, and only measured FACTs enter the decision. Chain: ASSUMPTION (box 1 holds assumed scenario inputs, not instrumented FACTs) → DERIVED → PATTERN → ASSUMPTION; the \emph{validate} step compares the load test's measured TTFT p99 against the hypothesis criterion (TTFT p99 \textless{} 300 ms, §8 Step 3) under the capstone's p99 ≤ 800 ms TTFT target (§8 Step 0). The causal chain the figure encodes: a baseline that is bandwidth-bound in decode (box 2) → queueing once offered load approaches the host's \textasciitilde2.0 rps ceiling (the ρ near 1 behind box 1's inflated compute) → the p99 tail the validate step measures, where p99 is the miss value, not a blend.}
 
 \label{fig:26.2}\end{figure}
 
@@ -764,8 +779,10 @@ instrumentation template to record the real FACTs separately.}
 \textasciitilde180 ms and p99 TTFT \textasciitilde250 ms (−44\% vs the
 \textasciitilde450 ms uncached baseline, not a blended average) --- the
 cache sets both numbers under the two-point model of Step 2, while the
-circuit breaker is idle at canonical load and guards the saturation
-excursions, with its \textasciitilde7\% shed share tracked separately;
+circuit breaker is idle below the \textasciitilde2.0 rps per-host
+ceiling and guards the saturation excursions it exists for, with its
+\textasciitilde7\% shed share tracked separately --- that 7\% sits
+outside the two-point latency model, which carries no shed population;
 cost is reported as \textbf{marginal generation work} ---
 \textasciitilde35\% of queries skip generation at the assumed hit ratio
 --- not as an all-in TCO reduction (the §16 fixed fleet's capex/opex

@@ -9,7 +9,7 @@ from matplotlib.patches import FancyBboxPatch
 # chapter annotation to the right with explicit gap.
 
 fig, ax = plt.subplots(figsize=(6.1, 7.6))
-fig.text(0.5, 0.012, 'blue = where the system runs · green = where the model runs', ha='center', fontsize=8.5, color='#555')
+fig.text(0.5, 0.012, 'blue = system-side emphasis · green = model-side emphasis · shade = further from the weights is darker', ha='center', fontsize=8.0, color='#333')
 fig._hermes_print_sized = True
 ax.set_position((0.0, 0.0, 1.0, 1.0))   # axes fills the figure
 ax.set_xlim(0, 8.0); ax.set_ylim(0, 10.8)
@@ -27,7 +27,7 @@ layers = [
     ("Inside agent runtime", "Ch17-20, Ch24", '#3a6ea5', 7.8),
     ("Inside tools", "Ch19, Ch24", '#4d8fc4', 6.8),
     ("Inside test-time search", "Ch22", '#6aa0d8', 5.8),   # R5 (FIG-A4-06): Ch8/Ch20 hold no test-time-search content; Ch22 names the test-time-search loop.
-    ("Inside post-training", "", '#8fb8e0', 4.8),           # R5 (FIG-A4-06): no chapter covers post-training (0 hits Ch19/Ch21) - citation dropped.
+    ("Inside post-training (build-time)", "", '#8fb8e0', 4.8),           # R5 (FIG-A4-06): no chapter covers post-training (0 hits Ch19/Ch21) - citation dropped.
     ("Inside MoE routing", "Ch10", '#4c7246', 3.8),
     ("Inside attention", "Ch7, Ch8", '#6f9e5f', 2.8),
     ("Inside weights", "Ch3, Ch8", '#9ac98a', 1.8),
@@ -61,7 +61,7 @@ def _text_color(hex, alpha=0.92):
 
 ax.text(4.0, 10.5, 'Where Should Intelligence Live?', fontsize=12.5,
         fontweight='bold', ha='center', color='#1a1a1a')
-ax.text(4.0, 10.05, 'The 2026 frontier question for an AI Solution Architect\n(Appendix A, "Where Should Intelligence Live?")',
+ax.text(4.0, 10.05, 'The 2026 frontier question for an AI Solution Architect\n(Appendix A.9, "Where Should Intelligence Live?")',
         fontsize=8.6, ha='center', color='#555', style='italic')
 
 # upward arrow in the left margin (scope of placement, not superiority)
@@ -90,7 +90,7 @@ def _group_bracket(y0, y1, cy, label):
     ax.plot([bx, bx], [y0, y1], color='#1a1a1a', lw=1.3, zorder=5)
     ax.plot([bx, bx + 0.03], [y0, y0], color='#1a1a1a', lw=1.3, zorder=5)
     ax.plot([bx, bx + 0.03], [y1, y1], color='#1a1a1a', lw=1.3, zorder=5)
-    ax.text(0.31, cy, label, rotation=90, fontsize=7.0, fontweight='bold',
+    ax.text(0.31, cy, label, rotation=90, fontsize=8.0, fontweight='bold',
             ha='center', va='center', color='#1a1a1a', zorder=6)
 
 _group_bracket(BND, 9.22, 6.8, 'SYSTEM')   # bands 1-5 (blue family)

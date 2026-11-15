@@ -109,7 +109,7 @@ A new deployment adds 500 registered users (traffic rises to ~12.5/50 rps at the
 
 #### Table 15-1 — Performance Regime Summary
 
-| Regime | In‑Flight (λ·W) | Request Rate (rps) | Tokens | KV Cache / User (GB) | prefill demand ÷ 100%-MFU parameter-matmul ceiling (56,500 tok/s) | KV demand ÷ host KV budget | kernel regime (§3) | binding workload constraint (§3) |
+| Regime | In‑Flight (λ·W) | Request Rate (rps) | Tokens | KV Cache / User (GB) | prefill demand ÷ 100%-MFU para­meter-matmul ceiling (56,500 tok/s) | KV demand ÷ host KV budget | kernel regime (§3) | binding workload constraint (§3) |
 |------------|-----------|-------------------|----------------|-------------------|---------|---------|---------|---------------------|
 | Light | ~17 | ~2 | 9,500 | ~24.9 | 0.33× | 0.97× | Compute (SDPA) | KV capacity — ~97% of the 436 GB budget (17 × 24.9 ≈ 423 GB), tighter than prefill's 0.33× of peak |
 | Typical | ~86 | ~10 | 9,500 | ~24.9 | 1.63× | 4.91× | — | Memory / KV cache (KV binds; prefill deficit 1.63× also open) |

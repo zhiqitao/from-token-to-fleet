@@ -81,7 +81,9 @@ def hflow(defs, y, xstart, gap):
 
 # ---- top spine (left -> right), centred ----
 spine_defs = [
-    ('Request', '#27408b', '#1a3a6b'),
+    # FIG-333-02: Request is neutral grey — it was a second blue (#27408b) close to
+    # the specialist blue (#3a6ea5), so the entry node read as a leaf category.
+    ('Request', '#6b7280', '#4b5563'),
     ('Capability filter', '#e67e22', '#b35900'),
     ('Cost/SLO gate', '#e67e22', '#b35900'),
     ('Fallthrough', '#e67e22', '#b35900'),
@@ -102,7 +104,10 @@ spec_defs = [
 # Small gen's green, so colour grouped the fallback with a general-purpose model
 # instead of encoding the caption's specialist / general-purpose / fallback families.
 # Dark purple is also the darkest leaf fill, so the three families stay apart in
-# grayscale (green ~118, teal ~97, blue ~101, purple ~53 luma).
+# grayscale (measured luma of the drawn fills: stage orange #e67e22 ~147 vs general
+# green #2e9e63 ~118 — 29/255 apart, mid-tones; leaves: green ~118, teal ~97,
+# blue ~101, purple ~53). Stage vs leaf is carried by shape (rounded stage spine vs
+# single-line leaves), not by hue alone.
 gen_defs = [
     ('Frontier', '#1f7a8c', '#14525f'),
     ('Small gen', '#2e9e63', '#1f7245'),
@@ -211,8 +216,11 @@ fan(sep, SP-14, spec, '#1e5a3a', 'yes \u2192 specialist',
 # The Cost/SLO 'yes' label annotates both Frontier and Small gen; split it to two
 # lines so its widest line fits the gap between the two gate drop lines (a single
 # line is wider than that gap, so it was struck by one of the drop lines).
-fan(spc, SP-14, gen[:2], '#1e5a3a', 'yes \u2192\nfrontier / small',
-    label_cx(spc, 'yes \u2192\nfrontier / small'), LB_Y)
+# FIG-18.1-01: the gate's two leaves are distinguished per leaf — Frontier when the
+# SLO binds, Small gen when cost binds — instead of one 'yes -> frontier / small'
+# label that named both leaves without saying which condition picks which.
+fan(spc, SP-14, gen[:2], '#1e5a3a', 'yes \u2192\nSLO: frontier\ncost: small',
+    label_cx(spc, 'yes \u2192\nSLO: frontier\ncost: small'), LB_Y)
 # fallthrough -> General: orthogonal connector (down, across, down) so it cannot
 # cross through its own 'fallthrough' label, and it clearly targets General only.
 EY = 156                                    # elbow row
@@ -220,7 +228,12 @@ ax.plot([fth, fth], [SP-14, EY], color='#444', lw=1.8)
 ax.plot([fth, gen_ft_x], [EY, EY], color='#444', lw=1.8)
 ax.annotate('', xy=(gen_ft_x, LEAF_TOP), xytext=(gen_ft_x, EY),
             arrowprops=dict(arrowstyle='-|>', lw=1.8, color='#444', shrinkA=0, shrinkB=0))
-ax.text(label_cx(gen_ft_x, 'fallthrough'), LB_Y, 'fallthrough',
+# FIG-333-05: the edge label names the outcome ('no match -> general'); it used to
+# repeat the source node's name ('fallthrough'), unlike every other edge. It sits
+# one row below LB_Y (128) because 'no match' is wider than the 42.8 pt between the
+# Fallthrough drop line and the General drop line, and at LB_Y it was struck by the
+# Fallthrough vertical; at 128 the right edge still clears the General vertical.
+ax.text(label_cx(gen_ft_x, 'no match \u2192\ngeneral'), 128, 'no match \u2192\ngeneral',
         fontsize=FS-0.2, color='#444', ha='center', fontweight='bold')
 
 # ---- bottom annotation ----
@@ -232,7 +245,7 @@ ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback
         fontsize=FS-0.2, ha='center', color='#444')
 # FIG-18.1-1: one-line colour key so the leaf hues encode the caption's three
 # model families (specialist / general-purpose / fallback) instead of being unexplained.
-ax.text(W/2, 39, 'color: blue = specialist · teal/green = general-purpose · purple = fallback',
+ax.text(W/2, 39, 'color: blue = specialist · teal = frontier · green = small gen · purple = general-purpose',
         fontsize=FS-0.2, ha='center', color='#444')
 
 plt.tight_layout()

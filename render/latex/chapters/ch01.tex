@@ -177,11 +177,46 @@ and multi-query attention (MQA) head sharing --- still stores a
 per-token entry, so its cache \emph{does} grow with token count, but at
 fewer bytes/token than full MHA. These are distinct mechanisms:
 constant-state (no per-token growth) versus reduced-width per-token
-(per-token growth, smaller footprint). This is why ``the KV problem''
-and its fixes are really a \emph{model-architecture} question (Ch. 3)
-that lands as a \emph{memory} question (Ch. 7) --- and why the token
-layer is the right place to have met it. We only need the concept here;
-the mechanism inventory is \hyperref[chap:3]{Chapter 3}'s, the arithmetic \hyperref[chap:7]{Chapter 7}'s.
+(per-token growth, smaller footprint). The canonical three-row taxonomy,
+used by name in Ch. 3, Ch. 7 and Appendix A rather than re-described
+there:
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Family
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Grows with token count?
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Members
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Bytes/token
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Constant-state & no --- fixed-size recurrent state & hybrid/linear
+attention (Mamba-style state, linear-attention kernels) & no per-token
+term \\
+Reduced-width per-token & yes, linearly & MLA-style latent attention,
+GQA, MQA head sharing & fewer than full MHA (MLA \textasciitilde50--60×
+less for DeepSeek-class geometry, \mbox{{[}DERIVED{]}}) \\
+Full-MHA per-token & yes, linearly & dense full multi-head attention & 2
+× n\_layers × n\_KV-heads × d\_head × bytes-per-value \\
+
+\noalign{\label{tab:1.2}}\end{longtable}
+
+This is why ``the KV problem'' and its fixes are really a
+\emph{model-architecture} question (Ch. 3) that lands as a \emph{memory}
+question (Ch. 7) --- and why the token layer is the right place to have
+met it. We only need the concept here; the mechanism inventory is
+\hyperref[chap:3]{Chapter 3}'s, the arithmetic \hyperref[chap:7]{Chapter 7}'s.
 
 \subsection{KV cache as a concept}\label{kv-cache-as-a-concept}
 
@@ -218,30 +253,30 @@ the formula above with one byte per value: 2 × 32 × 4096 = 262,144 B and
 byte-halving} of the FP16 value: 1.31 MB/token vs 2.62 MB/token, exactly
 50\%, with any block-allocation/metadata overhead NOT vendor-measured
 here and to be filled by a deployment benchmark; the vLLM FP8-KV blog
-post's often-quoted `54\%' --- from its Llama-3.1-8B Table 3 (post dated
-2026-04-22) \mbox{{[}S6{]}} --- is, on this book's reading, a decode
-inter-token-latency (ITL) slope, not a memory ratio or footprint
-coefficient. At 9.2K tokens the raw byte-halving figure gives
-\textasciitilde12.06 GB (not \textasciitilde13.4 GB --- the figure one
-gets by assuming \textasciitilde11\% block/metadata overhead on top of
-the raw tensor bytes). A different engine or a GQA/hybrid-attention
-model has a different per-token footprint, so re-derive it for the
-target stack; the standing FP8-KV qualifiers are stated once in the
-\textbf{Evidence boundary} panel (Preface), and the geometry and ``do
-not generalize'' caveat are in Ch. 7. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
-Either way, a long context (say 32K tokens) alone can be tens of GB of
-memory. A first non-obvious architectural lesson hides here: \emph{MoE
-expert sparsity alone does not reduce per-token KV state.} A
-Mixture-of-Experts model activates only a fraction of its neurons per
-token, which saves compute, but the attention layers still process every
-token densely and emit a key/value per token --- so MoE shrinks
-compute-per-token, not memory-per-context. What actually determines KV
-memory is the \emph{attention architecture and cache policy}, not the
-expert count: GQA/MQA shrink the per-token K/V width,
-hybrid/linear/compressed-latent attention change how much context is
-retained, sliding-window caps some layers' retained context, and
-quantization (FP8) reduces the bytes per element without stopping the
-linear growth. This is a controlled comparison --- it holds the
+post's often-quoted `54\%' --- from its Llama-3.1-8B Table 3 (vLLM blog,
+post dated 2026-04-22; retrieved 2026-11-15) \mbox{{[}S6{]}} --- is, on this
+book's reading, a decode inter-token-latency (ITL) slope, not a memory
+ratio or footprint coefficient. At 9.2K tokens the raw byte-halving
+figure gives \textasciitilde12.06 GB (not \textasciitilde13.4 GB --- the
+figure one gets by assuming \textasciitilde11\% block/metadata overhead
+on top of the raw tensor bytes). A different engine or a
+GQA/hybrid-attention model has a different per-token footprint, so
+re-derive it for the target stack; the standing FP8-KV qualifiers are
+stated once in the \textbf{Evidence boundary} panel (Preface), and the
+geometry and ``do not generalize'' caveat are in Ch. 7.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Either way, a long context (say 32K
+tokens) alone can be tens of GB of memory. A first non-obvious
+architectural lesson hides here: \emph{MoE expert sparsity alone does
+not reduce per-token KV state.} A Mixture-of-Experts model activates
+only a fraction of its neurons per token, which saves compute, but the
+attention layers still process every token densely and emit a key/value
+per token --- so MoE shrinks compute-per-token, not memory-per-context.
+What actually determines KV memory is the \emph{attention architecture
+and cache policy}, not the expert count: GQA/MQA shrink the per-token
+K/V width, hybrid/linear/compressed-latent attention change how much
+context is retained, sliding-window caps some layers' retained context,
+and quantization (FP8) reduces the bytes per element without stopping
+the linear growth. This is a controlled comparison --- it holds the
 attention geometry, context length, and cache dtype fixed; an MoE model
 that also uses GQA or a different attention mechanism can have a much
 smaller KV footprint than a dense full-MHA baseline. The distinction ---
@@ -376,16 +411,20 @@ none are measurement claims.)}
 
 This ratio --- input-heavy --- is a \emph{hypothesis} that memory (KV
 cache) and prefill dominate this system's cost rather than decode, not a
-conclusion token counts alone establish. Decode's serial nature,
-per-step weight reads, batching, cache residency, and the latency SLO
-can still dominate capacity economics even on an input-heavy workload;
-the token mix is the first signal, and the measured per-phase
-utilization and goodput (throughput that meets the SLO; Ch 7, Ch 8, Ch
-14) are what confirm it. We will not act on it here; \hyperref[chap:7]{Chapter 7} (Memory)
-and \hyperref[chap:8]{Chapter 8} (Compute) do. The point of the worked example in this
-chapter is to fix \emph{the unit}: every one of those numbers is a
-statement about tokens, and we can now say it without translating from
-words or pages.
+conclusion token counts alone establish. Be precise about which quantity
+does what: the ratio sets the relative prefill-versus-decode \emph{work}
+split, while the \textasciitilde9,200-token absolute context length sets
+KV residency per request and therefore the concurrency ceiling --- the
+canonical workload is KV-capacity-bound because of the long context, not
+because of the ratio. Decode's serial nature, per-step weight reads,
+batching, cache residency, and the latency SLO can still dominate
+capacity economics even on an input-heavy workload; the token mix is the
+first signal, and the measured per-phase utilization and goodput
+(throughput that meets the SLO; Ch 7, Ch 8, Ch 14) are what confirm it.
+We will not act on it here; \hyperref[chap:7]{Chapter 7} (Memory) and \hyperref[chap:8]{Chapter 8} (Compute)
+do. The point of the worked example in this chapter is to fix \emph{the
+unit}: every one of those numbers is a statement about tokens, and we
+can now say it without translating from words or pages.
 
 \ntsection{Measurement}\label{measurement}
 

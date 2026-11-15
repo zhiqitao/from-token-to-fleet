@@ -57,13 +57,12 @@ training and becomes a deployment fact.
 step}\label{alternative-inference-the-token-is-not-the-execution-step}
 
 \begin{quote}
-\textbf{Reader orientation (scope note).} This subsection and the three
-that follow cover the alternative-inference thread ---
-diffusion/LLaDA-style generation where the token is not the execution
-step. It is the book's coverage of the 2026 alternative-inference
-frontier; the core dense/MoE/KV thread resumes in §2 (Mental Model).
-Read now for the frontier signal, or skip to §2 and return through the
-cross-references in Ch 27.
+\textbf{Reader orientation (scope note).} This subsection covers the
+alternative-inference thread --- diffusion/LLaDA-style generation where
+the token is not the execution step. It is the book's coverage of the
+2026 alternative-inference frontier; the core dense/MoE/KV thread
+resumes in §2 (Mental Model). Read now for the frontier signal, or skip
+to §2 and return through the cross-references in Ch 27.
 \end{quote}
 
 Dense versus MoE describes parameter allocation. Autoregressive versus
@@ -71,54 +70,21 @@ diffusion generation describes a different axis: how the model
 constructs an output and which intermediate states it revisits. A
 diffusion language model can itself be dense or MoE. The
 active-parameter count still matters, but final output tokens no longer
-count the model's work on their own. We also need the sequence of model
+count the model's work on their own: we need the sequence of model
 evaluations, the positions recomputed in each evaluation, and the point
-at which output becomes final. The mechanisms below are first-party to
-their papers and released code; the accounting interpretation is
-derived.
+at which output becomes final. The paper-by-paper treatment ---
+corruption processes, masked samplers, flow matching, cache boundaries
+--- is carried in Appendix A's alternative-inference note, citations
+with it.
 
-\subsubsection{From corruption to learned
-generation}\label{from-corruption-to-learned-generation}
-
-A diffusion model learns to reverse a specified corruption process. In a
-continuous denoising diffusion model, the forward process progressively
-adds noise to data. Training constructs corrupted examples and teaches a
-model to predict information needed for the reverse process, such as the
-added noise (\href{https://arxiv.org/abs/2006.11239}{Denoising Diffusion
-Probabilistic Models}). At generation time, sampling starts from a
-simple prior and repeatedly applies learned reverse updates. The forward
-process is not an inference pipeline that first corrupts the requested
-answer: the answer is not available during generation. The forward
-process defines the learning problem. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-Score-based formulations express related dynamics through the score, the
-gradient of the log density of perturbed data
-(\href{https://arxiv.org/abs/2011.13456}{Score-Based Generative Modeling
-through Stochastic Differential Equations}). The associated reverse-time
-stochastic differential equation and probability-flow ordinary
-differential equation provide different sampling trajectories. In the
-ideal formulation they can share time-marginal distributions; this does
-not make their finite-step numerical errors, randomness or
-network-evaluation counts identical. A deterministic solver can still
-require many sequential evaluations. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-Text requires a discrete construction because token IDs are categories,
-not continuous pixel values. Discrete diffusion defines corruption
-through transitions between categorical states. Uniform token
-replacement and an absorbing MASK state are different choices
-(\href{https://arxiv.org/abs/2107.03006}{Structured Denoising Diffusion
-Models in Discrete State-Spaces}). In masked diffusion, training hides
-selected tokens and learns to recover them from the visible sequence.
-MDLM (\href{https://arxiv.org/abs/2406.07524}{Simple and Effective
-Masked Diffusion Language Models}) and LLaDA
-(\href{https://arxiv.org/abs/2502.09992}{Large Language Diffusion
-Models}, \href{https://github.com/ML-GSAI/LLaDA}{generation code})
-connect this procedure to diffusion likelihood objectives; it is not
-merely a fixed-rate masked-language-model loss with a new name. LLaDA
-samples mask rates and weights the masked-token loss accordingly. Its
-conditional fine-tuning leaves the prompt clean while corrupting the
-response. This teaches the reverse model to reconstruct an answer
-conditioned on a known request. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
+The transfer rule is the durable part: identify the generated object,
+then the execution schedule, then the resource demands. Different
+generation paradigms therefore have different execution schedules,
+different state-reuse boundaries and different resource profiles. The
+book's prefill/decode framework describes the autoregressive text path;
+the total-versus-active and KV-residency frameworks still apply
+elsewhere, with per-token accounting replaced by per-evaluation
+accounting.
 
 \begin{figure}
 \centering
@@ -127,112 +93,12 @@ conditioned on a known request. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
 
 \label{fig:3.1}\end{figure}
 
-Flow matching belongs next to this discussion, but not inside a synonym
-list. It regresses a vector field on a chosen probability path
-(\href{https://arxiv.org/abs/2210.02747}{Flow Matching for Generative
-Modeling}); the family of paths can include diffusion paths and can
-extend beyond them. Rectified flow uses straight interpolants to learn
-transport and can iteratively rectify the coupling
-(\href{https://arxiv.org/abs/2209.03003}{Flow Straight and Fast}).
-Straight training interpolants do not guarantee that any trained model
-has perfectly straight generation trajectories or equal-quality one-step
-sampling. The shared systems question is repeated model evaluation along
-a path. The objectives and samplers remain distinct. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-\subsubsection{A language-generation
-trajectory}\label{a-language-generation-trajectory}
-
-A basic masked language sampler allocates an output canvas containing
-unresolved positions. Each evaluation predicts token distributions using
-the current canvas and the prompt. The sampler accepts some predictions
-and leaves other positions unresolved. A confidence policy may accept
-several positions at once, so generation need not advance strictly left
-to right. In the inspected LLaDA base sampler (observation 2026-10-28),
-already accepted token IDs are retained; remasking low-confidence
-candidates does not mean that every accepted token is repeatedly edited.
-The configured output capacity and evaluation schedule still determine
-work even when later display logic removes an EOS suffix.
-\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-Parallel predictions are not free joint reasoning. Several position-wise
-predictions from one canvas evaluation are conditioned on the old
-canvas, not necessarily on one another's newly sampled values.
-Individually plausible tokens can form an implausible combination.
-Confidence thresholds, extra rounds and verification can improve this
-tradeoff, but they change the amount of work and may change task
-quality. A lower iteration count is therefore not a quality-neutral
-implementation improvement by default. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-The inference loop is also not an agent loop. An agent turn may invoke a
-model, inspect a tool result and decide its next action. A diffusion
-round updates an internal output state. An autoregressive model with a
-long chain of thought remains autoregressive. A diffusion draft model
-can also propose blocks for an autoregressive verifier, as in
-\href{https://arxiv.org/abs/2602.06036}{DFlash}; that combination does
-not turn the verifier's target distribution into a fully diffusion-based
-language model. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-\subsubsection{State reuse follows dependency
-boundaries}\label{state-reuse-follows-dependency-boundaries}
-
-The ordinary causal-cache argument depends on a fixed prefix. Later
-output tokens cannot change an earlier token's causal hidden state.
-Under bidirectional attention, an unchanged token ID can acquire a
-different representation when another canvas position changes. Its
-previous K/V tensors can therefore be stale even though its spelling is
-unchanged. Approximate cache policies exploit empirical stability,
-delayed caching or selective refresh; those policies require quality and
-refresh-cost measurements.
-\href{https://arxiv.org/abs/2505.22618}{Fast-dLLM} and
-\href{https://arxiv.org/abs/2505.15781}{dKV-Cache} are concrete
-examples, not proof that ordinary autoregressive caching transfers
-unchanged. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-A block-causal model creates a stronger boundary. Earlier finalized
-blocks cannot depend on later blocks, while the active block can use
-bidirectional attention internally
-(\href{https://arxiv.org/abs/2503.09573}{Block Diffusion}). The runtime
-can reuse correctly finalized prefix state and repeatedly recompute the
-active block. Finalization must make cached state correspond to the
-accepted block contents; accepting token IDs alone is not always enough.
-DiffusionGemma
-(\href{https://huggingface.co/google/diffusiongemma-26B-A4B-it}{model
-card},
-\href{https://blog.google/innovation-and-ai/technology/developers-tools/diffusion-gemma-faster-text-generation/}{Google
-release post}) uses a related separation between cached encoded context
-and a mutable decoder canvas, then encodes the completed canvas before
-continuing. These are architectural boundaries, not a universal property
-of the word ``diffusion.'' \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
 \begin{figure}
 \centering
 \pandocbounded{\includegraphics[keepaspectratio,alt={Dependency order and cache lifetime: an autoregressive causal prefix, a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional states, and a block-causal sampler that finalizes an active block before advancing. Convention: the source box's fixed tokens are drawn outside the canvas; cells show output positions only, and accepted IDs extend the prefix. Solid brackets identify finalized prefix state; accepted token IDs alone do not establish reusable K/V. Loops represent repeated evaluations, not fixed counts or proportional time. Dependency diagram, not a timing diagram.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-03-0303-diffusion-cache-lifetime.pdf}}
 \caption[Dependency order and cache lifetime]{Dependency order and cache lifetime: an autoregressive causal prefix, a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional states, and a block-causal sampler that finalizes an active block before advancing. Convention: the source box's fixed tokens are drawn outside the canvas; cells show output positions only, and accepted IDs extend the prefix. Solid brackets identify finalized prefix state; accepted token IDs alone do not establish reusable K/V. Loops represent repeated evaluations, not fixed counts or proportional time. Dependency diagram, not a timing diagram.}
 
 \label{fig:3.2}\end{figure}
-
-Not every language diffusion process starts from MASK or only fills
-holes. Uniform-state renoising can begin with ordinary token states.
-Editing models can replace accepted tokens or perform insertion/deletion
-operations within a bounded block. LLaDA2.2
-(\href{https://arxiv.org/abs/2602.08676}{paper},
-\href{https://huggingface.co/inclusionAI/LLaDA2.2-flash}{checkpoint})
-restores its configured block length after such operations; this is not
-an unbounded global canvas. A stopping rule may test unresolved
-positions, stability, confidence, EOS or an iteration limit. These are
-operational termination rules, not proofs of semantic correctness.
-\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-The architectural consequence is conditional, and it is the reason this
-section sits in the model-understanding chapter rather than in a serving
-chapter. Parallel positions can improve matrix utilization at low
-request concurrency, but repeated evaluation can increase total compute
-and communications. Block size changes both parallel work and the delay
-before commitment. A useful deployment comparison therefore fixes the
-task-quality requirement first, then measures the inference schedule,
-peak state and committed-output latency together. The token remains the
-application interface; the execution trace connects that interface to
-resources. \mbox{{[}DERIVED{]}}
 
 The one point that carries forward: in diffusion and other alternative
 inference, the execution unit is a model evaluation over a canvas, not a
@@ -737,17 +603,13 @@ decision --- the constants, not the framework, are what change.
 stage}\label{an-expert-can-be-selected-by-noise-stage}
 
 Wan2.2 A14B is a useful counterexample to treating every mixture of
-experts as per-token top-k routing. Its high-noise and low-noise experts
-handle different parts of the denoising trajectory, and the
-implementation selects the expert from the current timestep
-(\texttt{\_prepare\_model\_for\_timestep} in the inspected text-to-video
-path, observation 2026-10-28;
-\href{https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/text2video.py}{Wan2.2
-text-to-video source}). The official description gives approximately 27B
-total parameters and approximately 14B active parameters
+experts as per-token top-k routing: its high-noise and low-noise experts
+are selected from the current timestep rather than by a per-token gate,
+at about 27B total and about 14B active parameters as published
 (\href{https://github.com/Wan-Video/Wan2.2/tree/1ea34ff48f87168174e12956e200b1d908b1c5ff}{Wan2.2
-README}). These are rounded published counts, not two exact 14B counts
-to be added. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
+source}). The implementation-level inspection (which function picks the
+expert, and what offload costs) is in Appendix A's alternative-inference
+note. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
 
 \begin{figure}
 \centering
@@ -755,14 +617,6 @@ to be added. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
 \caption[Wan2.2 A14B selects experts as the denoising schedule progresses]{Wan2.2 A14B selects experts as the denoising schedule progresses: two resident checkpoints supply the high- and low-noise stages; only the selected expert runs in a branch evaluation. \textbf{Scope:} official rounded counts (about 27B total, about 14B active), not an inferred per-expert split; schematic widths (no step counts); offload changes residency and adds weight transfers (below). \textbf{Caveat:} mechanism schematic, not a memory measurement.}
 
 \label{fig:3.3}\end{figure}
-
-If both expert checkpoints remain on GPU, both occupy weight memory even
-though only one expert runs in a branch evaluation. Explicit offload
-changes that placement: it introduces a weight-transfer operation and
-may lengthen the transition or interfere with other transfers. It does
-not change the model into a smaller checkpoint. The two noise stages
-also do not imply equal numbers of scheduler timesteps.
-\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
 
 The reusable distinction is total weight storage versus active execution
 --- the same two accounting lines this chapter keeps separate for
