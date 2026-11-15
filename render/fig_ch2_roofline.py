@@ -87,7 +87,7 @@ ax.plot(I, roofline, color='#1a1a1a', lw=2.8, zorder=4, solid_capstyle='round')
 dec_y = 1.0e12
 ax.plot([1.0], [dec_y], marker='o', ms=11, color='#c0392b',
         mec='#7a1c10', zorder=5)
-ax.annotate('decode', xy=(1.0, dec_y), xytext=(0, 12), textcoords='offset points',
+ax.annotate('decode', xy=(1.0, dec_y), xytext=(24, 12), textcoords='offset points',
             ha='center', va='bottom', color='#8f2318', fontsize=11,
             fontweight='bold', zorder=6)
 

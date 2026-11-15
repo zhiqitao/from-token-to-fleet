@@ -50,14 +50,14 @@ for y, name, val, col, hatch, ec, vlab, sub in rows:
 
 # single-shot reference: the footprint every policy starts from
 ax.axvline(24.9, ls='--', lw=1.0, color='#555', zorder=0)
-ax.text(25.6, 2.62, 'single-shot 24.9 GB', fontsize=8.6, color='#555',
+ax.text(25.6, 2.62, 'single-shot reference 24.9 GB', fontsize=8.6, color='#555',
         ha='left', va='center')
 
 ax.set_xlim(0, 48)
 ax.set_ylim(-0.75, 2.85)
 ax.set_yticks([r[0] for r in rows])
 ax.set_yticklabels([r[1] for r in rows], fontsize=9.0, fontweight='bold')
-ax.set_xlabel('FP16 KV / request after four agent turns (GB)', fontsize=9)
+ax.set_xlabel('FP16 KV per request (GB)', fontsize=9)
 ax.set_xticks([0, 10, 20, 30, 40])
 ax.tick_params(labelsize=8.6)
 ax.grid(axis='x', alpha=0.3)
@@ -66,7 +66,7 @@ for sp in ('top', 'right'):
 
 fig.suptitle('Turn 4: three state-management policies, three different things',
              fontsize=9.8, fontweight='bold')
-fig.text(0.5, 0.925, 'canonical 2.62 MB/token; only the append-only bar is derived',
+fig.text(0.5, 0.925, 'canonical 2.62 MB/token; append-only and single-shot values are derived,\nthe compaction and prefix-cache policy bars are illustrative',
          ha='center', va='top', fontsize=9.0, color='#333')
 
 # counterfactual column semantics (R08/R11), preserved verbatim in meaning
@@ -77,10 +77,13 @@ fig.text(0.5, 0.168,
          '(one final 300-token answer) — not an intermediate state of a live agent.',
          ha='center', va='center', fontsize=8.6, color='#111')
 fig.text(0.5, 0.095,
-         'append-only total = I₀ + T·δ + T·γ + O_final  @ 2.62 MB/token',
+         'append-only total = I₀ + T·δ + T·γ + O_final, T = 4 turns  @ 2.62 MB/token',
          ha='center', va='center', fontsize=8.6, color='#444')
 fig.text(0.5, 0.048,
          '(I₀ = 9.2K input, δ = 800 retrieved, γ = 65 generated, O_final = 300 output (once))',
+         ha='center', va='center', fontsize=8.6, color='#444')
+fig.text(0.5, 0.008,
+         'single-shot = I₀ + O_final = 9,500 tokens = 24.9 GB',
          ha='center', va='center', fontsize=8.6, color='#444')
 
 plt.subplots_adjust(left=0.185, right=0.89, top=0.855, bottom=0.30)

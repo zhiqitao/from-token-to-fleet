@@ -82,7 +82,7 @@ for k in range(1, 18):                      # 17 full slots + partial
     g = weights + runtime + k * kv_fp16_req
     if g < total:
         ax.plot([gb_to_x(g), gb_to_x(g)], [bar_y, bar_y + bar_h],
-                color='#ffffff', lw=0.7, alpha=0.8)
+                color='#ffffff', lw=1.0, alpha=1.0)
 # faint 640 GB pool reference above the bar
 ax.plot([gb_to_x(0), gb_to_x(total)], [bar_y + bar_h + 0.12, bar_y + bar_h + 0.12],
         color='#7f8c8d', lw=1.0)
@@ -96,6 +96,11 @@ ax.text(5.45, eq_y, 'in-flight  ≈  KV budget  ÷  KV per request',
 ax.text(5.45, eq_y - 0.85,
         f'≈  {kv:.0f} GB  ÷  {kv_fp16_req:.1f} GB  ≈  {C_fp16:.1f}   →   ~{int(C_fp16)} requests',
         fontsize=13.0, fontweight='bold', ha='center', va='center', color='#27408b')
+# R5 fix (F-11): the equation's full-context assumption is stated in the figure
+# itself, not only implied by the caption's 'upper bound' wording.
+ax.text(5.45, eq_y - 1.45,
+        '(assumes every in-flight request holds full canonical KV)',
+        fontsize=8.5, ha='center', va='center', color='#555555')
 
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0704.png', dpi=350)
 with matplotlib.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):

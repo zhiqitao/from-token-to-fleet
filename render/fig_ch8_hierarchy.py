@@ -57,10 +57,13 @@ colB_x  = 168     # what-runs-here (left-aligned)
 colC_x  = 372     # gradient
 
 levels = [
-    ('registers', 'fastest · smallest', C_ONCHIP),
+    # Round-5 CH8-FIG-01 / FIG-8.1-01: the memory-hierarchy levels (registers,
+    # SRAM, L2) carry the MEMORY colour so the key's compute/memory/interconnect
+    # classes are the caption's three groups; only tensor cores stay compute.
+    ('registers', 'fastest · smallest', C_MEM),
     ('tensor\ncores / ALU', 'arithmetic units', C_ONCHIP),
-    ('shared mem\n(SRAM)', 'on-chip · close', C_ONCHIP),
-    ('L2 cache', 'on-die', C_ONCHIP),
+    ('shared mem\n(SRAM)', 'on-chip · close', C_MEM),
+    ('L2 cache', 'on-die', C_MEM),
     ('HBM (GPU\nmemory)', 'large · slower', C_MEM),
     # Loop-4 FIG-8.1-1: name on ONE line so the wrapped role below fits the box.
     ('GPU interconnect', 'GPU↔GPU and\nhost links', C_NET),
@@ -122,10 +125,17 @@ gx=colC_x+52
 # label stays ONE line with no dangling dot; one size step down keeps it inside the
 # right-hand column (measured: 10pt line spans x 336..452 data, axes right edge 453).
 label(gx, gy1-2, 'small\u00a0·\u00a0fast\u00a0·\u00a0close', '#555', FS-1.5, ha='center')
-label(gx, gy0+2, 'large\u00a0·\u00a0slow\u00a0·\u00a0far', '#555', FS-1.5, ha='center')
-ax.annotate('', xy=(gx, gy0), xytext=(gx, gy1),
+# Round-5 F-15: the bottom label is split — 'large · slow' sits level with HBM
+# (the memory-hierarchy end of the arrow), 'far' level with the interconnect rows.
+gy_hbm = ys[4][0]
+label(gx, gy_hbm+2, 'large\u00a0·\u00a0slow', '#555', FS-1.5, ha='center')
+label(gx, gy0+2, 'far', '#555', FS-1.5, ha='center')
+# Round-5 FIG-8.1-01: the gradient arrow spans ONLY the memory hierarchy
+# (registers -> HBM); compute and interconnect are separate groups, not levels
+# of the same ladder, so distance is a property of the interconnect rows alone.
+ax.annotate('', xy=(gx, gy_hbm), xytext=(gx, gy1),
             arrowprops=dict(arrowstyle='<|-|>', lw=1.6, color=C_TEN, shrinkA=14, shrinkB=14))
-label(gx-42, (gy0+gy1)/2, 'capacity grows\nspeed drops\ndistance grows', C_TEN, FS-1.0, ha='center', weight='bold')
+label(gx-42, (gy_hbm+gy1)/2, 'capacity grows\nspeed drops\ndistance grows', C_TEN, FS-1.0, ha='center', weight='bold')
 
 # Loop-4 FIG-8.1-02: compact three-swatch key (compute / memory / interconnect),
 # each swatch carrying the same hue + hatch pattern as its ladder boxes.

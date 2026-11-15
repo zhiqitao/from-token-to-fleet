@@ -22,13 +22,13 @@ ax.set_xlim(0, 10.9); ax.set_ylim(0, 6.2); ax.axis('off')
 # four loop states across the top, with gaps
 # FIG-19.1-03: palette reduced to TWO fills — continuing states (top row) vs
 # terminal outcomes (bottom row) — so colour encodes exactly one thing, and a
-# one-line key under the diagram states it. Fills differ by ~37 luma levels so
-# the two classes stay distinguishable in grayscale (#d6f0f7=233, #eec069=196).
+# one-line key under the diagram states it. Fills differ by ~54 luma levels so
+# the two classes stay distinguishable in grayscale (#d6f0f7=233, #e3ae52=179).
 states = [
-    ('Plan',    'read, plan',      '#d6f0f7', '#1b7a9e', 'model'),
-    ('Execute', 'tool call',       '#d6f0f7', '#1b7a9e', 'action'),
-    ('Observe', 'append result',   '#d6f0f7', '#1b7a9e', 'state'),
-    ('Decide',  'resolved?',       '#d6f0f7', '#1b7a9e', 'check'),
+    ('Plan',    'read, plan',      '#d6f0f7', '#125a75', 'model'),
+    ('Execute', 'tool call',       '#d6f0f7', '#125a75', 'action'),
+    ('Observe', 'append result',   '#d6f0f7', '#125a75', 'state'),
+    ('Decide',  'resolved?',       '#d6f0f7', '#125a75', 'check'),
 ]
 box_w, box_h, y0 = 2.42, 1.5, 4.15
 gap = 0.18
@@ -57,14 +57,14 @@ term_y = 1.05                             # lower terminal row widens the arrow 
 
 # loop-back: Decide -> Plan (dashed, the iterative loop) -- drops at x_loop, runs
 # left along y_loop (well above the resolved line), then up into Plan.
-ax.plot([x_loop, x_loop], [y0, y_loop], color='#1b7a9e', lw=1.6, ls='--')
-ax.plot([x_loop, plan_cx], [y_loop, y_loop], color='#1b7a9e', lw=1.6, ls='--')
+ax.plot([x_loop, x_loop], [y0, y_loop], color='#125a75', lw=1.6, ls='--')
+ax.plot([x_loop, plan_cx], [y_loop, y_loop], color='#125a75', lw=1.6, ls='--')
 ax.annotate('', xy=(plan_cx, y0+0.1), xytext=(plan_cx, y_loop),
-            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#1b7a9e', ls='--'))
+            arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#125a75', ls='--'))
 # loop label sits just above its own dashed line, clear of the boxes and the gray
 # resolved path.
 ax.text((x_loop+plan_cx)/2, y_loop+0.12, 'loop (iterate) — not resolved',
-        ha='center', va='bottom', fontsize=8.0, color='#1b7a9e')
+        ha='center', va='bottom', fontsize=8.0, color='#125a75')
 
 # terminal outcomes below, from Decide
 # Final answer: resolved arrow = down at x_res, left along y_res, then a short
@@ -83,8 +83,8 @@ ax.annotate('', xy=(x_stp, term_y+box_h), xytext=(x_stp, y0),
 ax.text(x_stp+0.12, (y0+term_y+box_h)/2, 'limit hit', ha='left', va='center',
         fontsize=8.0, color='#555', fontweight='bold')
 terms = [   # terminal outcomes: second (and only other) fill class
-    ('Final answer', 'emit', '#eec069', '#a86a1e', 'done', xs[1]),
-    ('Stopped', 'limit', '#eec069', '#a86a1e', 'terminal', xs[3]),
+    ('Final answer', 'emit', '#e3ae52', '#a86a1e', 'done', xs[1]),
+    ('Stopped', 'limit', '#e3ae52', '#a86a1e', 'terminal', xs[3]),
 ]
 for (name, desc, fc, ec, tag, tx) in terms:
     ax.add_patch(FancyBboxPatch((tx, term_y), box_w, box_h, boxstyle='round,pad=0.02,rounding_size=0.35',

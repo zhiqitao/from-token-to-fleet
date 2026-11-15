@@ -98,10 +98,15 @@ spec_defs = [
     ('Math/reason', '#3a6ea5', '#1a3a6b'),
 ]
 # ---- general leaf group ----
+# FIG-18.1-1 / FIG-18.1-03: the fallback leaf (General) gets its own hue — it shared
+# Small gen's green, so colour grouped the fallback with a general-purpose model
+# instead of encoding the caption's specialist / general-purpose / fallback families.
+# Dark purple is also the darkest leaf fill, so the three families stay apart in
+# grayscale (green ~118, teal ~97, blue ~101, purple ~53 luma).
 gen_defs = [
     ('Frontier', '#1f7a8c', '#14525f'),
     ('Small gen', '#2e9e63', '#1f7245'),
-    ('General', '#2e9e63', '#1f7245'),
+    ('General', '#4a235a', '#321640'),
 ]
 spec_w = sum(tw(l)*(1+PADX) for l,_,_ in spec_defs) + GAP*(len(spec_defs)-1) + 6
 gen_w  = sum(tw(l)*(1+PADX) for l,_,_ in gen_defs)  + GAP*(len(gen_defs)-1) + 6
@@ -224,6 +229,10 @@ ax.text(W/2, 26, 'only ONE model is selected per request (early exit on a match)
 # NOTE: the [ILLUSTRATIVE][DERIVED] tag lives in the figure CAPTION (chapter-18.md),
 # not in the diagram — keep it out of the drawn text.
 ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback.',
+        fontsize=FS-0.2, ha='center', color='#444')
+# FIG-18.1-1: one-line colour key so the leaf hues encode the caption's three
+# model families (specialist / general-purpose / fallback) instead of being unexplained.
+ax.text(W/2, 39, 'color: blue = specialist · teal/green = general-purpose · purple = fallback',
         fontsize=FS-0.2, ha='center', color='#444')
 
 plt.tight_layout()

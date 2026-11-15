@@ -1,0 +1,319 @@
+[
+ {
+  "id": "FIG-11.3-CAVEAT-SCOPE",
+  "page": "PDF 212 / printed 192",
+  "figure": "Figure 11.3, red aggregate-KV caveat spanning panels A and B",
+  "severity": "P3",
+  "issue": "The single caveat spans both panels, but the aggregate check has sharply opposite consequences for the two cases, and the figure never says which case the aggregate actually breaks: on-node decode-side ingress is 4 × 450 = 1.8 TB/s vs 1.4 TB/s payload (feasible when spread, ~78–80% link utilization), while the cross-host path is 40 GB/s vs 1.4 TB/s (infeasible by ~35×). Every clause of the caveat is literally true, but the figure's entire purpose is to contrast A and B, and the caveat flattens that contrast.",
+  "evidence": "Caveat text: '35 GB/request × 40 req/s = 1.4 TB/s of payload. Per-request times assume an unshared per-GPU link; 1.4 TB/s exceeds any single link above.' Arithmetic verified: 35 × 40 = 1400 GB/s ✓; 35/450 = 0.078 ≈ 0.08 s ✓; 35/40 = 0.875 ≈ 0.9 s ✓. Per-case check: A — 40 rps over 4 GPU pairs = 10 rps/pair × 0.08 s = 0.8 s/s ≈ 80% of one 450 GB/s link (feasible, tight, assumes even spread and TP-sharded KV); B — 40 rps × 0.9 s = 36 link-seconds/s needed vs 1 available ≈ 36× overcommit (infeasible). Note 11.3-1 (PDF 210 / printed 190) likewise stops at 'against the shared fabric' without the per-case aggregate arithmetic, so the reader gets no worked contrast anywhere.",
+  "root_cause": "One caveat written for two regimes whose aggregate feasibility differs by ~45×; per-case aggregate never derived.",
+  "correction": "Extend the caveat (or Note 11.3-1) with the per-case aggregate: 'A: 4 decode GPUs × 450 GB/s = 1.8 TB/s ingress can absorb 1.4 TB/s when spread (~80% per-link at 40 rps — feasible but tight); B: 40 GB/s NIC cannot (≈35× over) — so the transfer link, not topology alone, decides whether P/D disaggregation pays,' which also matches the chapter's own 'evaluate against measured phase conflict, not topology alone' guidance.",
+  "acceptance_test": "The figure or Note 11.3-1 states the aggregate feasibility separately for case A and case B with the arithmetic (capacity vs 1.4 TB/s), and a reader cannot conclude that the on-node case fails at the canonical 40 rps peak.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.3-AGGREGATE",
+  "page": "PDF 212 / printed 192",
+  "figure": "Figure 11.3, panel A",
+  "severity": "P3",
+  "issue": "Panel A shows four prefill GPUs and four decode GPUs but a single KV arrow labeled '450 GB/s per GPU per direction'; the caveat compares aggregate 1.4 TB/s to 'any single link above' without noting the four-link aggregate (4 × 450 GB/s = 1.8 TB/s). A reader could infer the NVLink case cannot sustain the aggregate.",
+  "evidence": "Panel A: '8× H100 host' with 4 orange prefill GPUs and 4 blue decode GPUs; one red KV arrow labeled '450 GB/s per GPU per direction'. Caveat: '35 GB/request × 40 req/s = 1.4 TB/s of payload' and '1.4 TB/s exceeds any single link above.' The panel's four NVLink links aggregate to ~1.8 TB/s, which exceeds 1.4 TB/s.",
+  "acceptance_test": "Label the arrow with the aggregate capacity (e.g., '4 × 450 GB/s = 1.8 TB/s aggregate') or draw multiple links; clarify in the caveat that 1.4 TB/s exceeds one link but not necessarily the four-link aggregate. Verify the figure does not imply the NVLink case is infeasible at the stated load.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.3-1",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3, panel A (Within one NVLink domain)",
+  "severity": "P1",
+  "issue": "The printed per-request on-node transfer time (0.08 s) is inconsistent with the figure's own 4-GPU prefill / 4-GPU decode grids and the 'per GPU' rate label. The top line reads '~35 GB ≈ 0.08 s' and the link is labeled '450 GB/s per GPU per direction', but 0.08 s = 35/450 treats the full 35 GB as traversing a single 450 GB/s link. With 4 prefill GPUs and 4 decode GPUs (TP sharding, which is mandatory for the canonical 70B since 140 GB > 80 GB per GPU), the 35 GB KV is split 4 ways and the 4 GPU-pair links run in parallel, so the per-request transfer latency is 35/(4·450) = 8.75/450 ≈ 0.02 s, i.e. 4× smaller than printed. Note 11.3-1 (p.190) repeats the single-link arithmetic: 'at NVLink's 450 GB/s per direction (§9.2) that transfer is 35 ÷ 450 ≈ 0.08 s'.",
+  "evidence": "Panel A shows a 2×2 orange grid under 'PREFILL / 4 GPUs' and a 2×2 blue grid under 'DECODE / 4 GPUs'; link label '450 GB/s per GPU per direction'; header line '~35 GB ≈ 0.08 s (on-node, unidirectional)'. 35/450 = 0.0778 s (printed), but 35/(4·450) = 0.0194 s (implied by the 4 parallel GPU-pair links). The DP=4 reading that would justify 35 GB per link is infeasible for 70B (140 GB weights cannot replicate onto 80 GB GPUs).",
+  "acceptance_test": "The printed on-node per-request time must equal 35 GB divided by the aggregate prefill→decode bandwidth implied by the depicted GPU count and per-GPU rate (≈0.02 s for 4 GPU pairs), OR the figure/note must explicitly state that 0.08 s is a single-unsharded-link conservative bound. The 'per GPU' label, the 4+4 GPU grids, and the 0.08 s figure must be mutually consistent; the same fix must be applied to Note 11.3-1 on p.190.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1"
+ },
+ {
+  "id": "FIG-11.3-2",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3, panel A header",
+  "severity": "P2",
+  "issue": "The header 'A. Within one NVLink 4 domain' contains a stray '4' that is ambiguous (4th-generation NVLink vs a 4-GPU NVLink domain) and contradicts the '8× H100 host' box drawn directly beneath it (8 GPUs, not 4). The rest of the book refers to the on-node fabric simply as 'NVLink' (Fig 10.1, p.172: 'on-node in the canonical config (NVLink)'; p.179: 'NVLink 900 GB/s is aggregate peak'), so 'NVLink 4' is also a terminology outlier. A reader who parses '4' as a GPU count sees a 4-GPU domain header sitting on an 8-GPU host.",
+  "evidence": "Header text 'A. Within one NVLink 4 domain' vs the gray box label '8× H100 host' containing 4+4 GPU grids; p.172 caption 'on-node in the canonical config (NVLink)'; p.179 'NVLink 900 GB/s is aggregate peak'.",
+  "acceptance_test": "The panel-A header names the on-node interconnect without a '4' that conflicts with the 8-GPU host depicted, and matches the book's elsewhere-just-'NVLink' usage (e.g. 'within one NVLink (NVSwitch) domain' or 'on-node (NVSwitch)').",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "FIG-11.3-3",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3, subtitle",
+  "severity": "P3",
+  "issue": "The subtitle 'the split is the same; the transfer link — and its cost — is not' sits above two panels whose per-side GPU counts differ (panel A: 4+4 GPUs; panel B: 8+8 GPUs). 'The split is the same' most naturally reads as the prefill/decode separation being identical, but a reader comparing the panels sees different GPU partitions and may conclude the figure contradicts its own subtitle.",
+  "evidence": "Panel A labels 'PREFILL / 4 GPUs' and 'DECODE / 4 GPUs'; panel B labels 'PREFILL / 8× H100 host' and 'DECODE / 8× H100 host'; subtitle 'the split is the same; the transfer link — and its cost — is not'.",
+  "acceptance_test": "A reader cannot infer from the subtitle that the per-side GPU partition is identical when the panels visibly show 4 vs 8 GPUs; the subtitle should specify that 'split' refers to the prefill/decode separation (the architectural P/D split), not the per-side GPU count.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.3-4",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3, in-figure caveat",
+  "severity": "P3",
+  "issue": "The caveat line 'Per-request times assume an unshared per-GPU link; 1.4 TB/s exceeds any single link above' uses the unit 'per-GPU link', but panel B's link is labeled '40 GB/s per host NIC' — a host-level, not GPU-level, unit. The caveat's unit therefore does not match panel B.",
+  "evidence": "Caveat text 'Per-request times assume an unshared per-GPU link' vs panel B link label '40 GB/s per host NIC' (and panel A label '450 GB/s per GPU per direction').",
+  "acceptance_test": "The caveat's link unit matches the unit shown in each panel (e.g. 'an unshared dedicated link — per-GPU in A, per-host NIC in B'), so the 'exceeds any single link above' check is stated in the same units the panels use.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.3-01",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3 (panel A, Within one NVLink domain)",
+  "severity": "P2",
+  "confidence": "medium-high",
+  "issue": "Panel A's header time and the drawn topology encode different transfer models. The header states the time for the WHOLE ~35 GB request KV over a single 450 GB/s link (35 / 450 = 0.078 s ~ 0.08 s), and the caption says the state 'crosses the joining link' (singular). But the panel draws 4 prefill GPUs and 4 decode GPUs with the KV arrow labeled '450 GB/s per GPU'. Under TP=4 the KV is sharded four ways, so each GPU ships ~8.75 GB over its own 450 GB/s link and the transfer completes in ~0.02 s. The figure therefore simultaneously implies a per-GPU link and a whole-state-over-one-link time, and the reader cannot tell which model the 0.08 s belongs to.",
+  "evidence": "Rendered panel A: 'PREFILL / 4 GPUs' and 'DECODE / 4 GPUs' boxes, a single 'KV' arrow between them annotated '450 GB/s per GPU', header '~35 GB / 450 GB/s = 0.08 s (on-node, unidirectional)'. Page 190 note: '35 / 450 = 0.08 s'. Sharded alternative: 35/4 = 8.75 GB per GPU; 8.75/450 = 0.019 s.",
+  "acceptance_test": "Panel A must pick one model and make it self-consistent: either (a) print the whole-state-over-one-link assumption explicitly ('whole 35 GB over one 450 GB/s link') and draw a single link, or (b) show the 4-way shard (per-GPU payload ~8.75 GB) and the resulting ~0.02 s. The printed time must be reproducible from the printed payload, link rate, and drawn topology, and the caption's 'crosses the joining link' must match the chosen model.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "FIG-11.3-02",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3 (caption)",
+  "severity": "P2",
+  "confidence": "medium",
+  "issue": "As rendered, the caption's key sentence is not grammatical and has an unbalanced parenthesis: it reads '...the request KV state (~35 GB for the 13.3K-token context of §9.8) crosses the canonical 9.8K-token request carries ~24.1 GB) across the joining link, so disaggregation pays only when...'. The clause 'crosses the canonical 9.8K-token request carries ~24.1 GB)' cannot be parsed, and the parenthesis opened before '~35 GB' is closed before a second, unrelated clause. This is the sentence that carries the figure's central claim (the transfer cost is the load-bearing term), so a garbled rendering destroys the argument the figure is making. NOTE: this reading was taken from the 150 dpi render; it must be confirmed against the source before editing.",
+  "evidence": "Rendered caption, PDF 212 / printed 192: '...the request KV state (~35 GB for the 13.3K-token context of §9.8) crosses the canonical 9.8K-token request carries ~24.1 GB) across the joining link...'. Two ')' with no matching '(' between them; no clause opener before 'the canonical'.",
+  "acceptance_test": "Open the source .tex for Figure 11.3's caption and confirm the sentence reads as one grammatical clause with balanced parentheses — e.g. 'the request KV state (~35 GB for the 13.3K-token context of §9.8; the canonical 9.2K-token request carries ~24.1 GB) crosses the joining link'. Re-render the PDF and confirm the rendered caption matches. If the source is already correct, no change is required and this finding is void.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "FIG-11.3-03",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3 (in-figure caveat, units)",
+  "severity": "P3",
+  "confidence": "medium",
+  "issue": "The in-figure caveat reads 'Caveat — aggregate KV migration at peak: 35 GB/s x 40 req/s = 1.4 TB/s of payload.' As printed, the first factor is a rate, so the product has units GB*req/s^2 and cannot equal a bandwidth. The intended factor is the per-request KV size (35 GB), which gives 35 GB x 40 req/s = 1.4 TB/s. The page-190 note states the correct form ('35 GB/request x 40 req/s = 1.4 TB/s'), so the figure and the note disagree in form. (Reading taken from the 150 dpi render; confirm against the source.)",
+  "evidence": "Rendered caveat line on PDF 212 / printed 192 versus the Note 11.3-1 text on PDF 210 / printed 190: '35 GB/request x 40 req/s = 1.4 TB/s against the shared fabric'. The figure's first factor appears as '35 GB/s'.",
+  "acceptance_test": "The caveat's first factor must be a per-request size ('35 GB'), so the product is a bandwidth; the string '35 GB/s x 40 req/s' must not appear. Verify against the source .tex and re-render; if the source already reads '35 GB x 40 req/s', no change is required and this finding is void.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.3-04",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3 (caption, token count vs KV size)",
+  "severity": "P3",
+  "confidence": "medium",
+  "issue": "The caption pairs a token count with a KV size that do not reconcile at the book's canonical KV rate. As rendered, the caption says 'the canonical 9.8K-token request carries ~24.1 GB'. At the canonical 2.62 MB/token (FP16, full-MHA 70B reference), 24.1 GB corresponds to 24,100/2.62 = 9,198 tokens, i.e. the canonical 9,200-token request (1,200 + 8,000), not 9.8K; a 9.8K-token request would carry 9,800 x 2.62 MB = 25.7 GB. One of the two numbers is wrong wherever this pair appears.",
+  "evidence": "Rendered caption: 'the canonical 9.8K-token request carries ~24.1 GB'. Canonical KV rate 2.62 MB/token (house canonical, also used on PDF 210 / printed 190: '13.3K = 35 GB / 2.62 MB'). 35 GB / 2.62 MB = 13,359 tokens ~ 13.3K (consistent); 24.1 GB / 2.62 MB = 9,198 tokens ~ 9.2K (not 9.8K).",
+  "acceptance_test": "Every place the canonical request's KV size is printed, the token count printed beside it must satisfy tokens x 2.62 MB/token = the stated KV size: 24.1 GB requires '9.2K-token' (9,200 = 1,200 + 8,000). If '9.8K' is printed, change it to '9.2K' or restate the KV size as 25.7 GB. Check the same pair in the Fig 11.3 caption and in Note 11.3-1 on PDF 210 / printed 190.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.3-05",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3 (GPU squares, no key)",
+  "severity": "P3",
+  "confidence": "high",
+  "issue": "The figure encodes role by color with no key: orange squares inside the red-bordered PREFILL box and blue squares inside the blue-bordered DECODE box. In grayscale the orange and blue fills are near-identical mid-grays, so the only surviving cue is the box border color, which is also hue-dependent. The reader is asked to infer the meaning of the square fill from the box title, which is a reasonable fallback, but the figure has no legend at all — unlike FIGURE 11.1 and FIGURE 10.1 — so the encoding is undocumented.",
+  "evidence": "Rendered panels A and B: PREFILL boxes contain orange-filled squares, DECODE boxes contain blue-filled squares; no legend or key appears anywhere in the figure.",
+  "acceptance_test": "Add a one-line key (e.g. 'filled square = one GPU') and make the prefill/decode distinction survive grayscale — e.g. hatch the prefill squares and leave the decode squares solid, or label the squares 'prefill GPU' / 'decode GPU'. Confirm in grayscale that a reader can still tell which group is which.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.3-06",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3 (panel A heading wording)",
+  "severity": "P3",
+  "confidence": "medium",
+  "issue": "The panel A heading 'Within one NVLink 4 domain' is ambiguous: 'NVLink 4' can be read as a version number (NVLink 4) rather than a 4-GPU domain, and the panel actually shows 8 GPUs (4 prefill + 4 decode) inside the domain. The heading should say what the number counts.",
+  "evidence": "Rendered heading: 'A. Within one NVLink 4 domain', with 'PREFILL / 4 GPUs' and 'DECODE / 4 GPUs' boxes beneath it. Panel B heading for contrast: 'B. Across hosts (fabric)'.",
+  "acceptance_test": "The heading must read 'Within one NVLink domain (8 GPUs: 4 prefill + 4 decode)' or 'Within one 4-GPU NVLink domain' so that '4' cannot be misread as a version and the GPU count in the domain is explicit.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.3-07",
+  "page": "PDF 212 / printed 192",
+  "figure": "FIGURE 11.3 (header and caveat micro-text)",
+  "severity": "P3",
+  "confidence": "low-medium",
+  "issue": "The numbers the figure exists to convey — the per-link transfer times in the two panel headers ('~35 GB / 450 GB/s = 0.08 s', '~35 GB / 40 GB/s = 0.9 s') and the aggregate caveat ('35 GB x 40 req/s = 1.4 TB/s of payload') — are set in the smallest type in the figure, visibly below the 'PREFILL' / 'DECODE' box labels and the 'KV' arrow label. These are the load-bearing quantities of the whole figure and of the surrounding argument; they should not be the hardest text on the page to read.",
+  "evidence": "Rendered figure: the two header rate/time lines and the two caveat lines are rendered in a noticeably smaller size than the 'PREFILL'/'DECODE' labels and the '450 GB/s per GPU' / '40 GB/s per host NIC' annotations.",
+  "acceptance_test": "The header and caveat text must be at or above the 8 pt figure-annotation floor and must not be smaller than the box labels and link-rate annotations in the same figure. Confirm by reading the four numbers at 100% print size without magnification.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.4-01",
+  "page": "PDF 216 / printed 196",
+  "figure": "Figure 11.4",
+  "severity": "MINOR",
+  "issue": "The figure encloses each accelerator column in a dashed rectangle, but the legend only defines 'Solid: dependencies. Dashed: qualify the complete path.' The dashed enclosures are not explained and can be confused with the dashed qualification arrows.",
+  "evidence": "Figure legend: 'Solid: dependencies. Dashed: qualify the complete path.'; figure shows dashed rectangles around the Intel GPU, Intel Gaudi, and Client NPU columns, plus dashed arrows to the qualification gate.",
+  "acceptance_test": "Either remove the dashed column borders or add a legend entry such as 'dashed enclosure = alternative path; dashed arrow = qualification path'.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.4-01",
+  "page": "PDF 216 / printed 196",
+  "figure": "Figure 11.4 (Device visibility is not a validated serving path)",
+  "severity": "MINOR",
+  "issue": "Low-confidence label-accuracy check: the Intel Gaudi 'Kernels / runtime' box names the collective library 'HCCL for collectives'. HCCL is the Huawei Ascend (CANN) collective name; Intel Gaudi's collective library is commonly referenced as HCL (Habana Collective Library). If the Gaudi name is HCL, the label is a factual error in the figure.",
+  "evidence": "Rendered page 196, Gaudi column, 3rd box: 'Gaudi execution kernels / HCCL for collectives / matching Gaudi driver'. Not corroborated by the prose on p.195 (which does not name the Gaudi collective library), so this is a standalone label to verify, not a prose-figure mismatch.",
+  "acceptance_test": "Check the Intel Gaudi primary documentation for the collective-communication library name; if it is HCL (or another name), correct the box label and re-verify the figure matches the source. Mark resolved only with a cited primary source.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.4-01",
+  "page": "PDF 216 / printed 196",
+  "figure": "FIGURE 11.4 — Three accelerator paths and one qualification gate",
+  "severity": "P3",
+  "issue": "The caption defines exactly one dashed convention — 'dashed arrows denote the complete path to the qualification gate' — but the figure also uses dashed rounded outlines to group the three accelerator columns. Two different dashed encodings carry different meanings, and the caption never mentions the column outlines, so a reader may read the dashed column boundary as part of the 'path to the gate' semantics (i.e. as if the column outline were a path). The figure's own subtitle ('Solid: dependencies. Dashed: qualify the complete path.') repeats the same single-convention framing.",
+  "evidence": "printed 196 Fig 11.4: dashed rounded rectangles around the Intel GPU / Intel Gaudi / Client NPU columns; dashed vertical arrows from each Hardware box down to the red qualification-gate box; caption 'Solid arrows denote dependency; dashed arrows denote the complete path to the qualification gate.'",
+  "acceptance_test": "The caption or the figure subtitle states that dashed outlines group the columns while dashed arrows mark the path to the gate, and no reader can assign the column outline to the arrow convention.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-11.4-02",
+  "page": "PDF 216 / printed 196",
+  "figure": "FIGURE 11.4 — Three accelerator paths and one qualification gate",
+  "severity": "P3",
+  "issue": "The smallest text in Fig 11.4 — the continuation lines inside the boxes ('or llama.cpp SYCL', 'or engine-native SYCL', 'not torch.xpu', 'not an Intel GPU', 'not the integrated GPU') and the four bullet lines inside the qualification-gate box — render at or below the 8 pt figure-annotation floor. The gate bullets are the figure's payload (the actual qualification criteria), so they are the wrong lines to be set below the floor.",
+  "evidence": "printed 196 Fig 11.4; these lines are visibly smaller than the bold box titles and than the page's body text.",
+  "acceptance_test": "Measured at print size, every in-figure annotation in Fig 11.4 — in particular the four qualification-gate bullets — is ≥8 pt.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "TAB-12-2-01",
+  "page": "PDF 231 / printed 211",
+  "figure": "Table 12-2",
+  "severity": "MODERATE",
+  "issue": "The row labels say 'Prefill hosts, avg 92K tok/s' and 'Prefill hosts, peak 368K tok/s', but column (c) reports '~4 H100 cards' and '~15 H100 cards'. The table mixes hosts and cards in the same row, so the reader cannot compare (a)/(b) host counts with (c) card counts without an implicit conversion.",
+  "evidence": "Row label: 'Prefill hosts, avg 92K tok/s'; cell (c): '~4 H100 cards (92,000 ÷ 24,725 ≈ 3.72)'; row label: 'Prefill hosts, peak 368K tok/s'; cell (c): '~15 H100 cards (368,000 ÷ 24,725 ≈ 14.88)'.",
+  "acceptance_test": "Change the row label to 'Prefill capacity (hosts or cards)' or add a unit column; make every cell state its unit (hosts vs H100 cards) and add a note explaining why (c) is sized in cards.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "TAB-12-2-02",
+  "page": "PDF 231 / printed 211",
+  "figure": "Table 12-2",
+  "severity": "MODERATE",
+  "issue": "The 'Decode capacity' row is not dimensionally consistent: (a) says 'decode shares the host (no separate pool)', (b) gives '3K tok/s avg / 12K tok/s peak', and (c) says 'high'. These are not the same quantity, so the row cannot support comparison.",
+  "evidence": "Table row 'Decode capacity': (a) 'decode shares the host (no separate pool)'; (b) 'decode pool sized to 3K tok/s avg / 12K tok/s peak'; (c) 'high'.",
+  "acceptance_test": "Define the decode-capacity metric and use it in all three columns, or split into 'decode pool sizing' and 'decode capacity' rows; replace 'high' with a number or 'not sized in this screen'.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "TAB-12-2-03",
+  "page": "PDF 231 / printed 211",
+  "figure": "Table 12-2",
+  "severity": "MINOR",
+  "issue": "The table compares 70B candidates (a)/(b) with a 7B candidate (c) without a column-level note that (c) is a different model; readers may compare host/card counts as if they were equivalent. The prose explains the 70B vs 7B distinction, but the table itself does not.",
+  "evidence": "Column headers: '(a) 8×H100 + prefix cache', '(b) P/D-disaggregated', '(c) KV-quantized 7B'; prose above: '~19,800 tok/s for the 70B candidates; ~24,700 tok/s for the 7B'.",
+  "acceptance_test": "Add a table note: '(c) is a different model; counts are not directly comparable to (a)/(b)' or add a 'model' row; ensure the comparison is explicitly scoped.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FIG-T12-2-01",
+  "page": "PDF 231 / printed 211",
+  "figure": "Table 12-2 (Full-load feasibility matrix)",
+  "severity": "MODERATE",
+  "issue": "Unit inconsistency within a single row: the row is labeled 'Prefill hosts, avg 92K tok/s' (and 'Prefill hosts, peak 368K tok/s'), but column (c) answers in 'H100 cards' ('~4 H100 cards', '~15 H100 cards') and column (b) gives an unstated unit ('prefill pool ~5' / '~19'). Because (a) is 8×H100 hosts while (c) is 1-card instances (per the prose 'the 7B on the single H100 its layout declares'), the raw counts 5 vs 4 (avg) and 19 vs 15 (peak) are not comparable, and a reader can misread (c) as needing fewer hosts than (a).",
+  "evidence": "Row 1: (a) '~5' vs (c) '~4 H100 cards (92,000 ÷ 24,725 ≈ 3.72)'. Row 2: (a) '~19 (368K ÷ 19.8K ≈ 18.6, ceil 19)' vs (c) '~15 H100 cards (368,000 ÷ 24,725 ≈ 14.88)'. Prose above table: per-host rate for 70B is ~19,800 tok/s (8-GPU host) but for 7B is ~24,725 tok/s on a single H100 — i.e. different host definitions per column.",
+  "acceptance_test": "Relabel the row as 'Prefill units' and add a table footnote stating the unit per column (a,b = 8×H100 hosts; c = H100 cards, 1 card per 7B instance), or convert (c) to equivalent 8×H100 hosts; verify (b)'s unit is stated. Re-read the row so no two columns use different units under the same 'hosts' label.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "TBL-12.3-01",
+  "page": "PDF 231 / printed 211",
+  "figure": "Table 12-3 — Full-load feasibility matrix (conditional; not a deployment recommendation)",
+  "severity": "P2",
+  "issue": "Transposed divisor and quotient in the (a) cell of the 'Prefill hosts, peak 368K tok/s' row: '~19 (368K ÷ 18.6K ≈ 19.8) before headroom'. The per-host prefill rate for the 70B candidates is ~19,800 tok/s (stated in the prose directly above the table), so the correct working is 368K ÷ 19.8K ≈ 18.6 → ~19 hosts. As printed, the cell divides by the answer and reports the rate as the result; the two numbers inside the cell therefore contradict the '~19' host count printed beside them, and a reader recomputing from the prose rate lands on 18.6, not 19.8. The (c) cell in the same row uses the correct divisor-then-result order ('368,000 ÷ 24,725 ≈ 14.88'), which the (a) cell breaks.",
+  "evidence": "printed 211 prose: 'Host counts are an illustrative capacity screen from the fixed per-host prefill profile: ~19,800 tok/s for the 70B candidates; ~24,700 tok/s for the 7B on the single H100 its layout declares — ~989 TFLOPS/s × 35% MFU ÷ 14 GFLOP/token'. Recomputation: 368,000 ÷ 19,800 = 18.59 → ~19 hosts; 92,000 ÷ 19,800 = 4.65 → ~5 hosts (matches the (a) avg cell '~5' and the (b) cells 'prefill pool ~5' / 'prefill pool ~19'). Printed (a) peak cell: '~19 (368K ÷ 18.6K ≈ 19.8) before headroom'.",
+  "acceptance_test": "The cell reads '~19 (368K ÷ 19.8K ≈ 18.6) before headroom', and a reader recomputing 368,000 ÷ 19,800 from the prose rate reproduces the printed host count for (a), (b), and (c) without encountering a number that contradicts the cell's own host count.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ }
+]

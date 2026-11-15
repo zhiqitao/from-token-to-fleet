@@ -1,0 +1,382 @@
+[
+ {
+  "id": "CH18-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 18 §18.3.4 (scope note)",
+  "chapter": "18",
+  "quoted_clause": "~200× the printed 600 ms",
+  "observed": "§18.3.4 says 'the printed 600 ms' for the 4-bit GGUF tier, but §18.3.2's table prints 800 ms for that row, and §18.3.3 also uses 800 ms ('The 4-bit GGUF tier (800 ms)'). The 600 ms value appears only in §18.8's mini-case, which is a later, explicitly different scenario.",
+  "evidence": "§18.3.2 table: '70B 4-bit GGUF | $0.15 | 800 | energy only'. §18.3.3: 'The 4-bit GGUF tier (800 ms)'. §18.3.4: '~200× the printed 600 ms'. §18.8: 'Tier 1 (4-bit GGUF): ... latency ~600 ms' and 'the 4-bit tier's ~600 ms latency differs from the ledger's 800 ms'.",
+  "root_cause": "Forward reference to the mini-case's 600 ms value mislabeled as 'the printed' value; the §18.3.2 ledger prints 800 ms.",
+  "correction": "Change 'the printed 600 ms' to 'the printed 800 ms' (or 'the mini-case's 600 ms') and recompute the multiple: 117 s / 0.8 s ≈ 146×, not ~200×.",
+  "acceptance_test": "The multiple in §18.3.4 must match the latency value it cites; if 800 ms is cited, the multiple must be ~146×, not ~200×.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH18-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 18 §18.8 (Tier 2)",
+  "chapter": "18",
+  "quoted_clause": "Tier 2 (70B 8-bit dense): ... Runs on 1×H100.",
+  "observed": "§18.3.1 explicitly concludes that 70B dense 8-bit on 1×H100 holds only ~10 GB KV headroom against the 24.9 GB one canonical 9,500-token request needs — 'zero concurrent canonical requests' — and that the tier 'needs ≥2 GPUs'. The mini-case's Tier 2 runs on 1×H100 without reconciling this.",
+  "evidence": "§18.3.1: '70B dense 8-bit on 1×H100 holds ~10 GB of KV headroom ... 10/24.89 = 0.40, i.e. zero concurrent canonical requests; the tier needs ≥2 GPUs'. §18.8: 'Tier 2 (70B 8-bit dense): ... Runs on 1×H100.'",
+  "root_cause": "The mini-case's requests are ~250 tokens (not canonical 9.5K), so 1×H100 is feasible for its short requests — but the mini-case never states this reconciliation, leaving an apparent contradiction with §18.3.1.",
+  "correction": "Add a sentence to §18.8's Tier 2: 'Unlike the canonical 9.5K case (§18.3.1), these ~250-token requests need only ~0.66 GB KV each, so 1×H100's ~10 GB headroom holds ~15 concurrent requests.'",
+  "acceptance_test": "The mini-case must explicitly reconcile its 1×H100 placement with §18.3.1's ≥2-GPU finding for canonical requests.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH18-03",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 18 §18.3.3",
+  "chapter": "18",
+  "quoted_clause": "58 vs 31 — ~18–27 extra hosts",
+  "observed": "The text says the mixed fleet needs '~18–27 extra hosts' relative to the single-model fleet, but the stated comparison is 58 vs 31, which is exactly 27 extra. The lower bound of 18 is unexplained.",
+  "evidence": "§18.3.3: 'The mixed fleet needs more hosts than the single-model fleet under the shared placement (58 vs 31 — ~18–27 extra hosts)'.",
+  "root_cause": "Range likely conflates two different comparisons (58 vs 31 = 27; 58 vs 40 = 18) without stating the second comparison.",
+  "correction": "Either state the comparison that yields 18 (e.g., '58 vs 40') or replace the range with the single figure '27 extra hosts'.",
+  "acceptance_test": "The stated range must be derivable from the two host counts given in the same sentence.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH19-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 19 §19.4 and Table 19-1",
+  "chapter": "19",
+  "quoted_clause": "W_reuse(3) ≈ 14.14 s ... ~14.16 s with prefix reuse ... ~14.16 s",
+  "observed": "The text derives W_reuse(3) ≈ 14.14 s from the stated 100%-prefix-reuse policy (incremental prefix 9,200 + 3×800 = 11,600), but the same section and Table 19-1 print ~14.16 s. The 14.16 value corresponds to using 11,795 (the full retained context) instead of 11,600.",
+  "evidence": "§19.4: 'only the incremental prefix (9,200 + 3×800 = 11,600 ...) is pre-filled, giving W_reuse(3) ≈ 14.14 s'. Same section: '~14.16 s with prefix reuse'. Table 19-1: '~14.16 s'. Recompute: 11,600/9,200 × 1.08 + 12.375 + 0.399 = 14.136 ≈ 14.14; 11,795/9,200 × 1.08 + 12.375 + 0.399 = 14.159 ≈ 14.16.",
+  "root_cause": "Two different prefix-reuse assumptions (11,600 incremental vs 11,795 full retained) are used in different places without reconciliation.",
+  "correction": "Unify on the stated policy (11,600 incremental prefix) and change all 14.16 values to 14.14, or explicitly state that the table uses the full retained context and change the text's 14.14 to 14.16.",
+  "acceptance_test": "The W_reuse(3) value must be identical in §19.4 prose, §19.4 summary, and Table 19-1, and must be reproducible from the stated prefix-reuse assumption.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH23-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 23 §23.8",
+  "chapter": "23",
+  "quoted_clause": "queue depth 200 × 1 = 200 requests, drained at ~50 rps in ~4 s",
+  "observed": "The formula in the same sentence says 'buffer depth D·(200−r) requests' = 1 × (200−50) = 150 requests, and 'max queue wait ≈ D·(200−r)/r' = 1 × 150/50 = 3 s. The worked example instead uses 200 requests and ~4 s, which is the total arrivals and total drain time, not the excess buffer and max queue wait.",
+  "evidence": "§23.8: 'max queue wait ≈ D·(200−r)/r must stay inside the 3 s SLO — so state D, the buffer depth D·(200−r) requests ... worked: D = 1 s at 200 rps → queue depth 200 × 1 = 200 requests, drained at ~50 rps in ~4 s'.",
+  "root_cause": "Confusion between total arrivals (200) and excess buffer (150), and between total drain time (4 s) and max queue wait (3 s).",
+  "correction": "Change 'queue depth 200 × 1 = 200 requests, drained at ~50 rps in ~4 s' to 'buffer depth 1 × (200−50) = 150 requests, drained at ~50 rps in ~3 s'.",
+  "acceptance_test": "The worked example's buffer depth and drain time must match the formula D·(200−r) and D·(200−r)/r stated in the same sentence.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH24-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 24 §8 mini-case (Decision point paragraph)",
+  "chapter": "24",
+  "quoted_clause": "However, two metrics remain above target: the false-positive rate at 2.4% ... and the guardrail-trigger rate at 5.4 per 1,000 (target <5); the poisoned-hit rate sits exactly at its ≈0.003 ceiling.",
+  "observed": "The §4.1 table defines the poisoned-hit-rate target as '< 0.003'. A value of 0.003 is not < 0.003, so the poisoned-hit rate does not meet target. The mini-case counts only two metrics as 'above target' and treats the poisoned-hit rate as merely 'at its ceiling', implying it passes. Three metrics fail target at Cycle 2, not two.",
+  "evidence": "Table 24-1 target column: 'Poisoned-hit rate | < 0.003'. Cycle 2 value: 0.003. 0.003 < 0.003 is false. The mini-case's own sentence says the rate 'sits exactly at its ≈0.003 ceiling' — i.e., at the boundary, not below it.",
+  "root_cause": "Inconsistent treatment of the '<' operator: the table uses strict '<', but the mini-case prose treats 'at 0.003' as passing.",
+  "correction": "Either (a) change the target to '≤ 0.003' in Table 24-1 and §4.1, or (b) rephrase the mini-case to say 'three metrics do not meet target: FP 2.4%, guardrail 5.4/1,000, and poisoned-hit 0.003 (at the <0.003 ceiling, not below it).'",
+  "acceptance_test": "The mini-case and Table 24-1 agree on whether 0.003 meets the poisoned-hit target, and the count of failing metrics is consistent.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH26-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 26 §8 Step 2 (two-point model)",
+  "chapter": "26",
+  "quoted_clause": "the miss value assumes that queue has drained at the cached ~1.3 rps (compute falls from the inflated 320 ms to ~120 ms, so 250 ≈ 120 + 80 + 50)",
+  "observed": "The 120 ms 'queue-drained' compute is asserted, not derived. At 1.3 rps against a ~2.0 req/s ceiling, ρ ≈ 0.65, so the queue is not fully drained; some queueing delay remains. The 120 ms figure is a scenario input, but the text presents it as if it follows from 'queue has drained'.",
+  "evidence": "Utilization at 1.3 rps / 2.0 rps = 0.65. At ρ=0.65, an M/M/1 queue has mean wait = ρ/(1−ρ) × service time ≈ 1.86 × service time, which is not negligible. The 120 ms may be plausible as a service-plus-small-queue figure, but the text does not show the derivation.",
+  "root_cause": "The 120 ms is a scenario input presented as a consequence of 'queue has drained', but at ρ=0.65 the queue is not fully drained.",
+  "correction": "Either (a) label 120 ms explicitly as a scenario input ('we assume the queue-drained compute is ~120 ms; this is a Step 3 load-test target'), or (b) show the queueing calculation that yields 120 ms at ρ=0.65.",
+  "acceptance_test": "The 120 ms figure is either derived from a stated queueing model or explicitly labeled as a scenario input, not presented as a consequence of 'queue has drained'.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH4-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 4, §3 Worked Example (memory planning paragraph) and §8 Mini-Case and §7 What We Still Don't Know",
+  "chapter": "4",
+  "quoted_clause": "436 GB ÷ 24.1 GB ≈ 18\" (memory planning) vs \"C ≈ 17.5 is the analytical quotient, floored to 17 deployable whole-context slots per the book's whole-slot convention, Chapters 14/16/17\" (mini-case) vs \"a single 8×H100 host holds ~17.5 KV-resident requests (the conservative integer floor is 17)\" (What We Still Don't Know)\"",
+  "observed": "The in-chapter arithmetic 436 GB / 24.1 GB = 18.09 ≈ 18, but the same chapter uses C ≈ 17.5 (floored to 17) for fleet sizing. The 17.5 is attributed to 'Chapters 14/16/17' without explaining why it differs from the local 436/24.1 calculation. This changes the host count: 86/17 = 5.06 → 6 hosts (as printed) vs 86/18 = 4.78 → 5 hosts. Similarly 344/17 = 20.24 → 21 vs 344/18 = 19.1 → 20.",
+  "evidence": "436 / 24.1 = 18.09. The text explicitly writes '436 GB ÷ 24.1 GB ≈ 18' in the memory planning paragraph. Three other locations in the same chapter use 17.5/17. The 17.5 is not derived from any numbers stated in Ch 4; it is imported from later chapters without a bridging explanation. If the later chapters use a different available-KV figure (e.g., 422 GB with 78 GB workspace) or a different per-request KV (e.g., 25 GB rounded up), that is not stated here.",
+  "root_cause": "The canonical KV-slot count is computed in Ch 14/16/17 with additional constraints (possibly a larger workspace reservation or a rounded-up per-request KV) that yield 17.5, but Ch 4 presents the local arithmetic (436/24.1 ≈ 18) without reconciling it to the 17.5 used for fleet sizing in the same chapter. The reader doing the math gets 18, not 17.5.",
+  "correction": "Either (a) change the memory-planning sentence to '436 GB ÷ 24.1 GB ≈ 18 (the fleet-sizing chapters refine this to 17.5 with additional per-rank overhead; see Ch 14/16/17)', or (b) if the 17.5 is the correct canonical figure, adjust the local arithmetic to show the additional constraint that reduces 18.09 to 17.5 (e.g., a 78 GB workspace instead of 64 GB, or a 25 GB per-request KV). The host counts (6/21) must be consistent with whichever slot count is used.",
+  "acceptance_test": "A reader who computes 436/24.1 from the stated numbers in Ch 4 arrives at the same integer slot count (17 or 18) that the mini-case and fleet-sizing paragraphs use. No unexplained gap between the local arithmetic and the imported 17.5.\"\n  }",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH4-02",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 4, §3 Worked Example, 'Economic Constraints' paragraph and the 'Cost-basis distinction' table",
+  "chapter": "4",
+  "quoted_clause": "The dollar denominator must be the whole fleet that serves this rate, not one host. At the ~6-host average the whole-fleet spend is ~$120/hour (≈ $0.0333 per second), so ~92,000 / 0.0333 ≈ ~2.76 million input tokens per cloud dollar and ~3,000 / 0.0333 ≈ ~90,000 output tokens per cloud dollar.",
+  "observed": "The economic paragraph interleaves at least five distinct cost bases (per-token API price, whole-fleet $/hr, single-host planning rate, per-request API cost, per-request owned-fleet cost) in a single dense block with multiple parenthetical qualifications. A reader must hold all five in working memory to avoid conflating them. The 'Cost-basis distinction' table helps but appears after the dense prose, and the table itself contains a very long cell for the self-host row.",
+  "evidence": "The paragraph contains: (1) $1.20/$2.00 per 1M API price, (2) $120/hr whole-fleet, (3) 2.76M/90K tokens per cloud dollar, (4) 19,800 tok/s single-host planning rate, (5) 3.56M prefill tokens per host-dollar, (6) $0.012 per request API basis, (7) $0.0033/$0.0029 per request owned-fleet basis, (8) $0.00056 dimensionally-wrong figure, (9) $0.362/$11.11/$0.3509 per 1M normalizations. Nine distinct numbers in one paragraph.",
+  "root_cause": "The section tries to establish the cost framework, prevent a specific conflation (single-host vs whole-fleet), and provide the canonical numbers all at once. The pedagogical goal is clear but the delivery is a single dense block rather than a progressive build.",
+  "correction": "Split into three shorter sub-paragraphs: (1) 'The two cost bases' (API per-token vs owned-fleet $/hr), (2) 'The whole-fleet tokens-per-dollar' (with the 2.76M/90K figures and the single-host 3.56M contrast), (3) 'Per-request cost on each basis' ($0.012 API vs $0.0033/$0.0029 owned). Move the 'Cost-basis distinction' table before the prose that references it, or make it the primary presentation with the prose as annotation. The dimensionally-wrong $0.00056 example can be a single sentence in a footnote or parenthetical rather than inline.",
+  "acceptance_test": "A reader can identify the two cost bases and the three tokens-per-dollar figures without re-reading the paragraph more than once. No single sentence contains more than two distinct cost figures.\"\n  }",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH1-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 1, §1 Concept, 'Tokenization' paragraph, first sentence",
+  "chapter": "1",
+  "quoted_clause": "or in worst cases a fragment of a character",
+  "observed": "The phrase 'a fragment of a character' is technically correct (a single byte of a multi-byte UTF-8 codepoint) but may lead a reader to think the tokenizer splits individual characters into sub-character pieces. The subsequent BPE description ('byte-pair encoding (BPE) repeatedly merges the most frequent adjacent byte/subword pairs') clarifies the byte-level operation, but the initial list of token types could be more precise.",
+  "evidence": "BPE operates on bytes. A 'token' in the worst case is a single byte, which for a multi-byte UTF-8 character (e.g., a 4-byte emoji) is indeed a fragment of that character. But the phrasing 'fragment of a character' without the byte-level qualifier could be misread as 'a piece of a letter' in a character-level sense.",
+  "root_cause": "The list is written from the reader's perspective (what the token looks like) rather than the implementation perspective (what the tokenizer produces). The byte-level mechanism is explained two sentences later.",
+  "correction": "Change to 'or in worst cases a single byte (which for multi-byte Unicode characters is a fragment of a character)'. This preserves the reader-facing intuition while anchoring it to the byte-level mechanism that the BPE description will elaborate.",
+  "acceptance_test": "A reader who stops after the first sentence and does not read the BPE paragraph still understands that the worst-case token is a byte, not an arbitrary sub-character slice.\"\n  }",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH3-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 3, §1 Concept, 'Alternative inference' subsection (from 'From corruption to learned generation' through 'State reuse follows dependency boundaries')",
+  "chapter": "3",
+  "quoted_clause": "This subsection and the three that follow cover the alternative-inference thread — diffusion/LLaDA-style generation where the token is not the execution step. It is the book's coverage of the 2026 alternative-inference frontier; the core dense/MoE/KV thread resumes in §2 (Mental Model).",
+  "observed": "The alternative-inference section is approximately 2,500 words of dense technical content (diffusion, flow matching, masked language models, block-causal models, cache invalidation under bidirectional attention) inserted between the dense/MoE concept and the mental model. While the 'Reader orientation' note tells the reader they can skip, the section's length and density create a significant interruption to the main thread. A reader who does not skip must hold the diffusion material in working memory while also tracking the dense/MoE argument that resumes in §2.",
+  "evidence": "The section covers: continuous denoising diffusion, score-based SDEs, discrete diffusion (MDLM, LLaDA), flow matching, rectified flow, masked language sampling, parallel prediction, agent-loop distinction, state reuse under bidirectional attention, block-causal models, DiffusionGemma, LLaDA2.2, and Wan2.2 A14B. That is at least 8 distinct technical topics in one subsection.",
+  "root_cause": "The book wants to cover the 2026 alternative-inference frontier without creating a separate chapter (which would break the token→fleet spine). Placing it in Ch 3 (model understanding) is the right location, but the delivery as a single continuous subsection is too dense for the main reading path.",
+  "correction": "Add a 3–4 sentence summary at the end of the section that states the key architectural consequence for the main thread (e.g., 'The one point that carries forward: in diffusion/alternative inference, the execution unit is a model evaluation over a canvas, not a token; the total-vs-active and KV-residency frameworks of this chapter still apply, but the per-token accounting must be replaced by per-evaluation accounting. The full treatment is Ch 27 and Appendix A.'). This gives the non-skipping reader a clean exit point and a bridge back to the main thread without requiring them to hold all 8 topics in memory.",
+  "acceptance_test": "A reader who finishes the alternative-inference section can state in one sentence what it means for the dense/MoE framework before reading §2. The section has a clear 'so what for the main thread' conclusion.\"\n  }",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH2-01",
+  "severity": "P3",
+  "confidence": "low",
+  "page_hint": "Ch 2, §2 Mental Model, prefill/decode water metaphor",
+  "chapter": "2",
+  "quoted_clause": "It is like pushing the water of that same 140 GB reservoir through a standard garden hose: the whole volume must flow every 25 milliseconds just to deliver one glass of water — one generated token.",
+  "observed": "The metaphor frames the 140 GB as a 'reservoir' of water that must be pushed through a hose. In the actual mechanism, the 140 GB is the weight matrix stored in HBM, and the 'hose' is the HBM-to-SM data path. The metaphor is effective for the bandwidth-bound intuition, but 'reservoir' subtly implies a volume of fluid being consumed, whereas the weights are re-read (not consumed) every step. A careful reader might wonder whether the 140 GB is 'used up' after one token.",
+  "evidence": "The text immediately after the metaphor says 'the pump (compute) is more than powerful enough, but the diameter of the hose (HBM bandwidth) physically cannot move that volume of water in that time frame.' The 'move that volume' phrasing is correct (the data is moved, not consumed). But 'reservoir' + 'pushing the water' could imply consumption.",
+  "root_cause": "The water metaphor is a standard and effective analogy for bandwidth-bound vs compute-bound. The 'reservoir' framing is a minor imprecision in an otherwise clear analogy.",
+  "correction": "Optional: change 'pushing the water of that same 140 GB reservoir through a standard garden hose' to 'streaming the full 140 GB of weight data through a standard garden hose (HBM bandwidth) every 25 milliseconds'. This removes the 'reservoir' (implies a tank being drained) and makes the re-read nature explicit. Alternatively, add a half-sentence: 'The reservoir is not drained — the same 140 GB is re-read every step, but the hose is too narrow to move it in 25 ms.'",
+  "acceptance_test": "A reader who stops at the metaphor does not form the incorrect mental model that the 140 GB is consumed per token.\"\n  }\n]\n\nCOVERAGE: Read and verified all text in Chapters 1–4 (approximately 45 pages of manuscript). Independently recomputed: all KV-per-token figures (7B and 70B, FP16 and FP8), all prefill FLOP calculations (2NL), all decode bandwidth calculations (W/τ), all H100 peak comparisons (989 TFLOPS, 3.35 TB/s), all arithmetic-intensity/ridge-point values, all canonical-workload token rates (92K/3K/368K/12K), all Little's-Law occupancies (86/344/430), all host-count calculations (6/21/26/37/39/40/24), all monthly request volumes (6.24M/24.96M), all cost figures ($87.6K/$155.8K/$306.6K/$14.04/$24.97/$49.13/$12.28/$0.012/$0.0208/$0.0033/$0.0029/$0.0050/$0.0044/$0.00056/$0.362/$11.11/$0.3509/2.76M/90K/2.85M/3.56M), all MoE parameter arithmetic (47B/12.8B/27%/25.6 GB/0.0256T/0.183×/5.5×), all embedding-table sizes (409.6M), all context-window KV totals (12.06/24.1/83.9/335.5 GB), all prefill-rate figures (19,800/56.5K/8.5K tok/s), all per-GPU shard figures (8.75B/17.5 GB/5.2 ms/700 GB/s), all 2026 model claims (Qwen3.8-27B 27.8B dense, Qwen3.8-Flash-Next 125B/6B/512 experts/GDN+QSA, Kimi K3 104B/2.8T, Muse Glimmer 30B 29.6B, Wan2.2 A14B 27B/14B). Verified cross-chapter consistency of: canonical workload parameters, prefill/decode timing convention, KV formula, 140 GB weight figure, 989 TFLOPS H100 peak, 3.35 TB/s HBM bandwidth, 2.62/1.31 MB/token KV, 24.1 GB per-request KV, 8.6 s service time, 1.08 s prefill budget, 25 ms TPOT, 1.2 s TTFT, 120 ms retrieval, 640 GB host memory, $20/hr host price, 10/40 rps traffic, 9,200/300 token split. Checked all \"What We Still Don't Know\" sections for legitimate vs resolvable uncertainty. Checked all \"Common Mistakes\" sections for plausibility and correction quality. Checked all mini-cases for integration of chapter reasoning. Checked figure captions for accuracy and scope. Checked terminology consistency (KV cache, PagedAttention, prefix caching, prompt caching, KV quantization, KV offloading; prefill/decode; TTFT/TPOT/ITL; FLOP/FLOPS; GB/GiB; compute-bound/bandwidth-bound). Identified one P1 numerical inconsistency (17.5 vs 18 KV slots) and four P2/P3 issues. Did NOT verify: figure rendered content (stripped from chunk), Ch 14/16/17 source of the 17.5 figure, vLLM FP8-KV blog post \"54%\" claim, specific 2026 model card details (Qwen3.8-Flash-Next, Kimi K3, Muse Glimmer 30B, Wan2.2 A14B) beyond what is stated in the text, Appendix A content, Ch 22 attention FLOP derivation, Ch 7 full KV arithmetic, Ch 8 full roofline derivation, Ch 11 serving engine details, Ch 15 performance diagnosis, Ch 17 fleet sizing full derivation.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH5-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5, §3(a), the [HYPOTHESIS] paragraph beginning 'for the canonical 2,000-user workload'",
+  "chapter": "5",
+  "quoted_clause": "the incremental per-request compute cost of the 768-dim (all-mpnet) vs 384-dim (MiniLM) embedding models — a cross-model difference, not a dim-only sweep — is ~11.1 GFLOP per 64-token query (2 × params × L: 14.08 − 2.94 GFLOP, the §3(a) embedding table's own rows; a same-family 384-dim variant halves index storage (encoder compute ~unchanged)) — ~56–370 ms if encoded on a single CPU core at a realistic 30–200 GFLOP/s, but only ~1.1 ms on a ~10 TFLOP/s GPU, which is the basis the ~120 ms retrieval budget already assumes (vector search and reranking on a local GPU, Ch 4). On that basis the incremental cost stays well within the ~120 ms retrieval budget; single-core encoding fits only at the high end of that throughput range (55.5 ms at 200 GFLOP/s vs 370 ms at 30 GFLOP/s) — conditional on measured single-core throughput. The decision hinges on whether the top-of-range ~15% MAP gain (an unverified prior of a few to ~15% MAP [HYPOTHESIS], domain- and corpus-specific — §5.3) translates into sufficient answer-quality improvement to justify the ~4.8×FLOP cost (14.08 vs 2.94 GFLOP per 64-token query, Table 5-1) — a workload-specific tradeoff, not a universal rule.",
+  "observed": "A single ~200-word paragraph embeds six distinct calculations (FLOP delta, CPU time range, GPU time, budget comparison, single-core throughput range, MAP-vs-FLOP tradeoff) with nested parentheticals and cross-references. The reader must hold all intermediate values in working memory to follow the argument. The paragraph's intellectual job is to show that the 768-dim choice is compute-justified and that the quality claim remains unvalidated, but the density obscures both points.",
+  "evidence": "All individual numbers are arithmetically correct (14.08−2.94=11.14≈11.1; 11.1/200=55.5 ms; 11.1/30=370 ms; 11.1/10000=1.11 ms; 14.08/2.94≈4.8×). The problem is presentation, not correctness.",
+  "root_cause": "The paragraph attempts to do the full quantitative comparison and the qualitative recommendation in one block, without separating the computation from the decision logic.",
+  "correction": "Split into two or three shorter paragraphs: (1) the FLOP delta and its time implications on CPU vs GPU (a short table or 2–3 sentences); (2) the budget comparison (one sentence: 'on the GPU basis the ~1.1 ms incremental cost is negligible against the 120 ms retrieval budget'); (3) the decision logic (the MAP-vs-FLOP tradeoff, with the [HYPOTHESIS] label on the MAP claim). This preserves all content while reducing cognitive load.",
+  "acceptance_test": "A reader can identify the three distinct intellectual moves (compute cost, budget fit, quality tradeoff) without re-reading the paragraph more than once.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH6-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 6, §3, 'Reading Telemetry Into a Decision' paragraph",
+  "chapter": "6",
+  "quoted_clause": "each ~1.29 PFLOP — aggregate prefill demand at the 40 rps peak is 40 × 1.29 ≈ 52 PFLOP/s",
+  "observed": "The 1.29 PFLOP figure is the case-(i) linear-only prefill FLOP count. Chapter 8's explicit convention states: 'every prefill FLOP figure and every prefill host count states which case it uses.' This occurrence in Ch 6 does not label the case. The same figure appears in Ch 6's mini-case ('repeated full 9.2K prefills') without a case label.",
+  "evidence": "Ch 8 §3: 'Chapters 8, 15, 16, 17, 20 and 22 name the same three cases, and every prefill FLOP figure and every prefill host count states which case it uses.' The 1.29 value matches case (i) (1.288 PFLOP rounded).",
+  "root_cause": "The Ch 6 text was written before or independently of the Ch 8 three-case convention and was not updated to add the case label.",
+  "correction": "Add a brief parenthetical: 'each ~1.29 PFLOP (case (i), linear-only; the full-square case (ii) gives ~1.51 PFLOP, raising the oversubscription ratio to ~21×)'. Alternatively, since the point is a rough 'several times past capacity' argument, add '(linear-only approximation; see Ch 8 §3 for the three-case accounting)'.",
+  "acceptance_test": "Every prefill FLOP figure in Ch 6 carries an explicit case label or a pointer to the Ch 8 convention.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH5-02",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 5, §1, 'Inference mode is a candidate, not a selection verdict'",
+  "chapter": "5",
+  "quoted_clause": "Parallel refinement (diffusion-style decoding that updates many token positions per step) is worth investigating when low-batch latency or constrained infilling dominates, but neither advantage follows from a model-family label. AR fill-in-the-middle (FIM) models — autoregressive models trained to infill a marked span — are a necessary editing baseline.",
+  "observed": "This section introduces diffusion-style decoding and FIM models as candidate inference modes, but the canonical RAG workload (and the rest of the chapter) uses standard autoregressive generation. The section's connection to the chapter's main argument (workload-driven model selection for the canonical RAG system) is not made explicit. A reader may wonder why these modes are relevant to an enterprise Q&A RAG tool. The section also introduces the term 'infilling' without defining it in the context of the canonical workload.",
+  "evidence": "The canonical workload (Ch 4, Table 4-2) specifies a 9.2K-input, 300-output AR generation task. No part of the chapter's worked example uses diffusion or FIM. The section's last sentence ('The selection question is whether the specific model, sampler and runtime meet the workload's quality, output and SLO requirements together') is a general principle that applies to AR as well.",
+  "root_cause": "The section was written to cover the general principle that inference mode is a selection dimension, but the examples chosen (diffusion, FIM) are not the mode used by the canonical workload, creating a disconnect between the principle and the worked example.",
+  "correction": "Either (a) add one sentence connecting the principle to the canonical workload: 'For the canonical RAG workload, the inference mode is standard autoregressive generation; the selection question reduces to whether the chosen AR model, tokenizer, and serving runtime meet the SLOs. For workloads that might use non-AR generation (editing, infilling, image-to-text), the mode itself becomes an additional selection dimension.' Or (b) move the diffusion/FIM discussion to a brief footnote or a 'beyond the canonical workload' sidebar, keeping the main text focused on the AR case the chapter actually works through.",
+  "acceptance_test": "A reader can see why the inference-mode discussion is relevant to the canonical RAG workload without inferring the connection themselves.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH6-02",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 6, §3, 'Latency Is a Distribution, Not a Mean' — the p99 explanation",
+  "chapter": "6",
+  "quoted_clause": "a knife-edge property of this N = 10,000 sample, not of the distribution: linear interpolation lands on the largest non-straggler draw, while the population p99 of the stated 99% log-normal + 1% straggler mixture is 5.0 s (one extra straggler, 101 of 10,000, moves the sample p99 to 5.0 s too)",
+  "observed": "The explanation of why the sample p99 is 1.33 s while the population p99 is 5.0 s is technically correct but requires the reader to hold in mind: (a) the sample composition (9,900 log-normal + 100 stragglers), (b) the linear-interpolation method for percentiles, (c) the CDF jump at 5.0 s in the population, and (d) the sensitivity to one extra straggler. The 'knife-edge' framing is apt but the mechanism is not made concrete enough for a first reading. A reader who is not already fluent in order-statistic interpolation may accept the conclusion without understanding why.",
+  "evidence": "The math is correct: with 10,000 samples, p99 is at rank 9,901 (1-indexed). The 9,900th value is the max log-normal draw (~1.33 s); the 9,901st is a straggler at 5.0 s. Linear interpolation between ranks 9,900 and 9,901 at the 0.99 quantile gives a value between 1.33 and 5.0, but the text says p99 ≈ 1.33, which corresponds to the 9,900th order statistic (the 'largest non-straggler draw'). The population CDF jumps from 0.99 to 1.0 at 5.0, so the population p99 (smallest x with CDF(x)≥0.99) is 5.0. The 'one extra straggler' sensitivity is correct: with 101 stragglers, the 9,901st value is still a straggler, and the interpolated p99 moves toward 5.0.",
+  "root_cause": "The explanation prioritizes the conceptual point (sample vs population percentile) over the mechanical point (how linear interpolation on a sorted sample produces the specific value 1.33).",
+  "correction": "Add a one-sentence mechanical clarification: 'In the sorted sample, the 9,900th value is the largest log-normal draw (~1.33 s) and the 9,901st is the first straggler (5.0 s); the 0.99 quantile falls at rank 9,901, but standard linear interpolation between the 9,900th and 9,901st order statistics at the 0.9999 position yields a value near the 9,900th draw.' Alternatively, add a 3-row mini-table: rank 9,900 → 1.33 s; rank 9,901 → 5.0 s; population p99 → 5.0 s (CDF jump). This makes the knife-edge concrete without adding a full paragraph.",
+  "acceptance_test": "A reader can explain to a colleague why the sample p99 is 1.33 s but the population p99 is 5.0 s, using the order-statistic mechanism, not just the 'knife-edge' label.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH5-03",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 5, §3(a), 'Takeaway for the canonical RAG workload'",
+  "chapter": "5",
+  "quoted_clause": "the bge-large-en option is overkill for this scale",
+  "observed": "'Overkill' is informal register for a technical architecture handbook. The surrounding sentence provides the quantitative reasoning (unquantified quality gain must clear a ~3× FLOP bar), so the word is doing no additional work beyond the reasoning.",
+  "evidence": "The sentence continues: 'its quality gain over all-mpnet-base-v2 is not quantified for this model pair (the table gives use cases, not metrics), and an unquantified gain would have to clear a ~3× FLOP bar (≈43 vs ≈14 GFLOPs per 64-token embedding in the table above, the same ratio as their parameter counts) — validate the gain on the target corpus before paying it.' The quantitative argument is complete without 'overkill.'",
+  "root_cause": "Colloquial phrasing slipped into a formal recommendation paragraph.",
+  "correction": "Replace 'is overkill for this scale' with 'is not justified at this scale' or 'exceeds what this workload's compute budget warrants without a quantified quality gain.'",
+  "acceptance_test": "The sentence reads at the same register as the surrounding technical prose.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH5-04",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5, §3(c), the Q* formula scope note",
+  "chapter": "5",
+  "quoted_clause": "(Scope: this Q* amortizes only the one-time training + carry cost against the quality uplift; it omits the recurring per-query prefill/retrieval saving that fine-tuning's shorter context (§5.3(c)) would confer, so it is a lower bound on the fine-tuning case and overstates the break-even volume.)",
+  "observed": "The scope limitation is important (the formula is not the full economic comparison) but is buried in a long parenthetical at the end of a dense paragraph. A reader who skims the paragraph may miss it and treat Q* as the complete break-even criterion.",
+  "evidence": "The parenthetical is 45 words and contains a cross-reference (§5.3(c)) and a directional claim ('lower bound on the fine-tuning case and overstates the break-even volume'). The main text before it says 'The economic comparison should be framed parametrically, not with a single number, because the break-even depends on the quality uplift (domain-specific) and the query volume (workload-specific).' The scope note adds a further limitation not captured by that sentence.",
+  "root_cause": "The scope note was added as a post-hoc clarification rather than integrated into the main argument structure.",
+  "correction": "Promote the scope note to a standalone sentence immediately after the formula, before the 'Below Q*' explanation: 'Note: this formula captures only the one-time training and carry cost amortized against the quality uplift. It does not include the recurring per-query savings from a shorter fine-tuned context (less retrieval, less prefill), which would lower the true break-even volume. The Q* above is therefore a conservative (higher) estimate of the queries needed to justify fine-tuning.'",
+  "acceptance_test": "A reader who stops after the formula and the 'Below Q*' sentence still understands that the formula is incomplete and in which direction it is incomplete.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 8, §6, 'From video dimensions to repeated attention work' — the Wan2.2 TI2V-5B worked example",
+  "chapter": "8",
+  "quoted_clause": "A worked example makes the new work unit concrete. We use Wan2.2 TI2V-5B in its text-to-video path, not the A14B expert model. Its configuration specifies a dense transformer with hidden width 3,072, 30 layers, and 24 attention heads. The VAE has 48 latent channels and temporal/spatial strides of 4, 16, and 16. The denoiser patches the latent video by (1,2,2). The release's '720P' example is precisely 1,280 × 704 pixels, 121 frames, at 24 frames/s. The dimensions, rather than the marketing resolution label, determine the budget.",
+  "observed": "The Wan2.2 example is ~800 words of dense arithmetic spanning geometry (latent dimensions, patching), FLOP counting (attention core, per-layer, per-branch, total trajectory), memory (hidden tensor, score tensor), and sensitivity (frame count, spatial scaling). While every number is correct, the example introduces 15+ new quantities (T_l, H_l, W_l, N, d, C_attention, branch count, timestep count, BF16 hidden size, score tensor size, frame-to-second conversion) in a single continuous block. A reader who loses the thread at any point must re-read the entire section. The example's intellectual job is to show that 'fewer sequential evaluations can mean more total work' (the §1 principle) in a non-AR context, but the density obscures that connection.",
+  "evidence": "All calculations verified: T_l=31, H_l=44, W_l=80, N=27,280, C_attention=9.145 TFLOP/layer, 274.341 TFLOP/branch, 27.434 PFLOP total, 167,608,320 B hidden, 35,721,523,200 B score, 33.268 GiB, 1.968× token scaling, 3.872× pairwise scaling, 5.0417 s. The example is arithmetically sound but pedagogically dense.",
+  "root_cause": "The example was written to be comprehensive (covering geometry, FLOPs, memory, and sensitivity) rather than to illustrate one specific principle with minimal supporting detail.",
+  "correction": "Restructure with explicit sub-steps: (1) 'Geometry: from pixels to tokens' (T_l, H_l, W_l, N — 4 lines); (2) 'Attention FLOPs per evaluation' (C_attention formula, per-layer, per-branch — 4 lines); (3) 'Total trajectory work' (branch count, timesteps, total PFLOP — 3 lines); (4) 'Memory boundary' (hidden tensor, score tensor, FlashAttention note — 4 lines); (5) 'Sensitivity' (frame scaling, spatial scaling, time convention — 4 lines). Add a one-sentence bridge at the start: 'This example applies the §1 principle (fewer sequential evaluations ≠ less total work) to a whole-clip denoiser, where 50 timesteps × 2 CFG branches = 100 evaluations each process all 27,280 tokens simultaneously.' The sensitivity and memory sections could be moved to a 'Further detail' sub-paragraph or a sidebar if the main text's purpose is the FLOP-counting principle.",
+  "acceptance_test": "A reader can identify the example's single main point (100 evaluations × 27,280 tokens = large total work despite few sequential steps) within 30 seconds of starting the section, without needing to follow all 15+ intermediate quantities.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 7, Fig 7.7 caption and the 'Technical note — per-rank fit' paragraph",
+  "chapter": "7",
+  "quoted_clause": "the 140 GB of weights shard to ~17.5 GB per GPU; the ~64 GB runtime/NCCL reserve is per-host (not per-rank); the ~436 GB KV budget shards to ~54.5 GB per GPU; and under tensor-parallel attention the per-request KV (24.9 GB) also shards across the 8 ranks, so the per-rank KV per request is ~3.1 GB. The 17.5 concurrent figure is therefore the aggregate bound — a rank can be the binding constraint even when the aggregate fits",
+  "observed": "The per-rank arithmetic is correct (140/8=17.5; 436/8=54.5; 24.9/8=3.11≈3.1) and the caveat is important. However, the paragraph is dense with five distinct per-rank quantities in a single sentence, and the key insight (aggregate fit ≠ per-rank fit) is stated at the end after the reader has already processed all the numbers. The 'Technical note' label suggests it is supplementary, but it contains the most architecturally important caveat in the figure's context.",
+  "evidence": "140/8 = 17.5 ✓; 436/8 = 54.5 ✓; 24.9/8 = 3.1125 ≈ 3.1 ✓; 17.5 + 3.1 = 20.6 GB per rank for one request's weights + KV, well within 80 GB per rank. The aggregate 17.5 concurrent is correct; per-rank, 17.5 requests × 3.1 GB = 54.25 GB KV + 17.5 GB weights = 71.75 GB per rank, leaving 8.25 GB for runtime — tight but the text correctly says 'per-rank fit and sharding must be validated separately.'",
+  "root_cause": "The per-rank breakdown was added as a clarification to the aggregate figure but was written as a single dense sentence rather than a structured list.",
+  "correction": "Present the per-rank quantities as a short list or 2×3 table: (weights/rank: 17.5 GB; runtime/rank: 8 GB [64/8]; KV/rank per request: 3.1 GB; total per rank at 17.5 concurrent: 17.5 + 8 + 54.25 = 79.75 GB ≈ 80 GB). Then state the insight: 'At 17.5 concurrent requests, per-rank utilization reaches ~99.7% of the 80 GB rank capacity, leaving no room for fragmentation or workspace growth. The aggregate 17.5 is therefore a hard ceiling, not a comfortable operating point.' This makes the caveat concrete and actionable.",
+  "acceptance_test": "A reader can see the per-rank budget at the 17.5-concurrent point and understand why it is a ceiling rather than a comfortable target, without re-deriving the five quantities from the prose.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ }
+]

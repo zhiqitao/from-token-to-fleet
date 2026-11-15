@@ -1,0 +1,406 @@
+[
+ {
+  "id": "CH5-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5, §3(b), combined prefill+decode paragraph",
+  "chapter": "5",
+  "quoted_clause": "on a combined prefill+decode basis the same host moves 50 × (1 + 9,200/300) ≈ 1,583 tok/s ≈ 285,000 tokens/$",
+  "observed": "The formula computes total_tokens / decode_time (9,500 / 6.0 s = 1,583), ignoring prefill time. Under single-stream (prefill and decode sequential), the correct combined rate is 9,500 / 7.08 s ≈ 1,342 tok/s. The 1,583 figure is correct only under continuous batching where prefill from one request overlaps decode from another, but this assumption is not stated at the point of use. The 50 tok/s input is explicitly a single-stream rate, creating a mixed-basis calculation.",
+  "evidence": "Prefill = 1.08 s, decode = 6.0 s, total = 7.08 s. Single-stream rate = 9,500 / 7.08 = 1,342 tok/s. The formula's denominator is 6.0 s (decode only). Difference: 1,583 vs 1,342 = 18% overestimate for single-stream. Tokens/$: 285,000 vs ~242,000.",
+  "root_cause": "The formula implicitly assumes prefill/decode overlap (continuous batching) but does not state this. The 50 tok/s input is a single-stream rate, making the calculation basis inconsistent.",
+  "correction": "State the operating assumption: 'under continuous batching, where prefill from one request overlaps decode from another, the same host moves 50 × (1 + 9,200/300) ≈ 1,583 tok/s.' Alternatively, give both: single-stream floor (1,342 tok/s ≈ 242,000 tokens/$) and batched upper bound (1,583 tok/s ≈ 285,000 tokens/$).",
+  "acceptance_test": "The formula's operating assumption (single-stream vs continuous batching) is stated at the point of use, and the resulting tokens/$ is consistent with that assumption.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH17-CSA-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Chapter 17, §4 Counter-scenario A",
+  "chapter": "17",
+  "quoted_clause": "the per-host decode token rate ≈ B × HBM_BW ÷ weight_bytes, capped by compute and KV — at batch 1 that is ~239 tok/s, at batch 100 ~23,900 tok/s",
+  "observed": "239 tok/s = 3.35 TB/s ÷ 14 GB is a per-GPU rate, not a per-host rate. On an 8×H100 host the per-host rate is 8× higher (≈1,914 tok/s at batch 1) under data-parallel replication, or B × 3.35 TB/s ÷ (14/8 GB) ≈ 1,914 tok/s under tensor-parallel sharding. The downstream argument (20,000 tok/s demand vs one-host capacity) uses the per-GPU number as if it were per-host.",
+  "evidence": "3.35 × 10¹² B/s ÷ 14 × 10⁹ B = 239 tok/s per GPU. The text labels this 'per-host' but the arithmetic divides per-GPU bandwidth by full-model weight size.",
+  "root_cause": "Unit/label mismatch: per-GPU bandwidth divided by full-model weights gives a per-GPU rate; the text labels it per-host.",
+  "correction": "Either relabel as 'per-GPU' and multiply by 8 for per-host, or state explicitly that only one GPU serves the 7B model (the other seven idle or serving other work) so per-GPU = per-serving-instance.",
+  "acceptance_test": "Confirm the stated rate matches the intended scope (per-GPU vs per-host) and that the downstream 20,000-tok/s comparison uses consistent units.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-S5-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Chapter 15, §5 Common Mistakes, 'Ignoring KV cache growth' bullet",
+  "chapter": "15",
+  "quoted_clause": "so ~100 concurrent full-context *requests* (the in-flight geometry, not the registered-user count — §3 separates request occupancy from the active-user population)",
+  "observed": "100 is the active-user population (2,000 × 5%), not the in-flight request count. §3 states the in-flight count at 10 rps is ~86 (λ × W = 10 × 8.6). The parenthetical claims 100 is 'the in-flight geometry' while simultaneously citing §3's distinction between the two — the passage contradicts itself.",
+  "evidence": "§3: 'L_exec = λ × W_exec ≈ 10 × 8.6' → 86 in-flight. Active users: 2,000 × 0.05 = 100. The text uses 100 and labels it 'the in-flight geometry.'",
+  "root_cause": "Conflation of active-user population (100) with in-flight request count (86) in a passage that explicitly claims to distinguish them.",
+  "correction": "Replace '~100' with '~86' (the actual in-flight count) or reword to '~100 active users, of whom ~86 are in flight at any instant.'",
+  "acceptance_test": "Confirm the number matches §3's in-flight calculation and that the parenthetical's claim ('the in-flight geometry') is accurate.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-SN-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Chapter 15, Architect's Question scope note",
+  "chapter": "15",
+  "quoted_clause": "⌈344/35⌉ = 10 hosts at 40 rps, bounded below by the ~7-host prefill requirement — prefill compute then binds",
+  "observed": "The '~7-host prefill requirement' equals ⌈368,000 ÷ 56,500⌉ = 7 only at 100% MFU. All other prefill screens in the chunk use 35% MFU (giving 19 hosts under case (i)). The sentence uses the 100%-MFU figure for the lower bound but 'prefill compute then binds' is true only under the 35%-MFU screen (19 > 10). Two MFU assumptions are mixed in one clause without explanation.",
+  "evidence": "368,000 ÷ 56,500 = 6.51 → 7 (100% MFU). 368,000 ÷ 19,780 = 18.6 → 19 (35% MFU). The text says '~7-host' and 'prefill compute then binds' in the same sentence.",
+  "root_cause": "Two different prefill requirements (100%-MFU lower bound vs 35%-MFU planning screen) conflated without distinguishing the MFU assumption.",
+  "correction": "State the MFU assumption explicitly: e.g., 'bounded below by the ~7-host prefill requirement at theoretical peak (100% MFU); at the 35% MFU planning assumption the prefill screen is 19 hosts and binds above the 10-host KV screen.'",
+  "acceptance_test": "The sentence names the MFU assumption for the 7-host figure and 'prefill compute then binds' is consistent with the stated screen.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH16-MC-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Chapter 16, §8 mini-case, sensitivity paragraph",
+  "chapter": "16",
+  "quoted_clause": "self-host = 13.8 + 6.5 = $20.3K/mo, still ≪ the $64K threshold",
+  "observed": "The '$64K threshold' is never defined. Earlier in the mini-case the direct saving is $64K ($104K − $40K) and the opportunity-cost threshold is $90K ($104K + $26K − $40K). Neither is called a '$64K threshold,' and comparing a monthly cost ($20.3K) to an undefined threshold ($64K) lacks a stated basis.",
+  "evidence": "$104K − $40K = $64K (direct saving). $104K + $26K − $40K = $90K (opportunity-cost threshold). The text says 'still ≪ the $64K threshold' without defining what $64K thresholds.",
+  "root_cause": "Undefined reference — the $64K figure appears without a label or derivation in this sentence.",
+  "correction": "Name the quantity: e.g., 'still ≪ the $64K direct cost saving ($104K − $40K)' or replace with the correct threshold ($90K opportunity-cost threshold).",
+  "acceptance_test": "The $64K figure is defined and the comparison is dimensionally meaningful.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-S6-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 15, §6 Architecture Consequence, decision (2)",
+  "chapter": "15",
+  "quoted_clause": "(a prefill chunk size of 8 tokens — or a max batch size of 8 requests, whichever is meant — is an [ILLUSTRATIVE] configuration, not the recommendation; specify which quantity is being tuned — the knee must be measured on the target stack)",
+  "observed": "This parenthetical reads as a reviewer's comment left in the manuscript ('whichever is meant,' 'specify which quantity is being tuned'). It flags the author's own ambiguity about whether '8' refers to tokens or requests rather than resolving it.",
+  "evidence": "The clause uses second-person editorial language ('specify which quantity') inside body prose.",
+  "root_cause": "Unresolved editorial note embedded in running text.",
+  "correction": "Resolve the ambiguity: state whether the illustrative value is a prefill chunk size in tokens or a max batch size in requests, then remove the meta-commentary.",
+  "acceptance_test": "The parenthetical no longer contains editorial instructions; the quantity (tokens vs requests) is stated explicitly.",
+  "_tag": "COMMON",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH16-MC-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 16, §8 mini-case, final paragraphs",
+  "chapter": "16",
+  "quoted_clause": "beyond that bound, additional servers step the self-host cost up (state the assumed peak rps for these two hosts)",
+  "observed": "The parenthetical '(state the assumed peak rps for these two hosts)' is an editorial instruction left in body prose. The mini-case states 2 rps average but never states the peak rps for the two-host configuration, which is needed to evaluate the capacity-headroom claim.",
+  "evidence": "The mini-case gives '2 rps average' and '5M requests/month' but no peak rps. The parenthetical acknowledges the gap without filling it.",
+  "root_cause": "Unresolved editorial note; missing workload parameter.",
+  "correction": "State the assumed peak rps for the two-host configuration (e.g., 'the two hosts are sized for a 4 rps peak') and remove the parenthetical instruction.",
+  "acceptance_test": "The mini-case states the peak rps and the parenthetical no longer contains editorial instructions.",
+  "_tag": "COMMON",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-S3-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Chapter 15, §4 Measurement, first paragraph",
+  "chapter": "15",
+  "quoted_clause": "A minimal benchmark runs 40 rps — a saturation run on one host (6.5× the ~56,500 tok/s prefill ceiling)",
+  "observed": "The ~56,500 tok/s figure is the 100%-MFU ceiling (7.91 × 10¹⁵ ÷ 1.4 × 10¹¹). The text does not state this, so a reader may compare 368,000 tok/s against the 35%-MFU ceiling (19,780 tok/s) and get 18.6×, not 6.5×.",
+  "evidence": "368,000 ÷ 56,500 = 6.51 (100% MFU). 368,000 ÷ 19,780 = 18.6 (35% MFU). The text says '6.5× the ~56,500 tok/s prefill ceiling' without naming the MFU assumption.",
+  "root_cause": "MFU assumption not stated for the ceiling figure.",
+  "correction": "Add 'at 100% MFU' or 'theoretical peak' before '~56,500 tok/s prefill ceiling.'",
+  "acceptance_test": "The sentence names the MFU assumption for the 56,500 figure.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH17-F171-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Fig 17.1 caption",
+  "chapter": "17",
+  "quoted_clause": "the same formula gives N_min = ceil(40 × 8.6 / 17) = 21 for the canonical peak, 22 with the reserve (case (ii))",
+  "observed": "'22 with the reserve (case (ii))' conflates two different derivations of 22: (a) 21 KV-screen hosts + 1 N−1 reserve = 22, and (b) the case (ii) full-square prefill screen = 22 at zero spare. The parenthetical '(case (ii))' is ambiguous about which derivation is meant.",
+  "evidence": "21 + 1 = 22 (KV + reserve). ⌈21.81⌉ = 22 (case (ii) prefill, zero spare). Both give 22 but mean different things.",
+  "root_cause": "Ambiguous parenthetical in figure caption.",
+  "correction": "Disambiguate: e.g., '21 + 1 reserve = 22 (or 22 from the case (ii) prefill screen at zero spare — same number, different derivation).'",
+  "acceptance_test": "The caption makes clear which derivation of 22 is intended, or notes that both coincide.",
+  "_tag": "COMMON",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH20-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 20 §6 Architecture Consequence, 'The useful completion is an accepted clip' subsection",
+  "chapter": "20",
+  "quoted_clause": "The same accepted-completion goodput accounting applies to any fixed-output-contract workload; a video-generation fleet is the clearest parallel beyond RAG.",
+  "observed": "A subsection about video-generation fleet accounting (frames/s, clip-seconds/s, checkpoint downloads, encoder loading) is placed in the Architecture Consequence section of a chapter about RAG fleet optimization. The bulk of the subsection discusses video generation; the connection to RAG is stated only in the final sentence.",
+  "evidence": "The subsection is labeled [ILLUSTRATIVE][DERIVED] and 'proposed service accounting.' It introduces video-specific concepts (clip deadlines, output-integrity gates, checkpoint downloads) that do not connect to the rest of Ch 20. The sentence 'The rejection/OOM/cancellation counters, the cost-per-accepted-clip basis, and the zero-pass edge case follow the accepted-completion rule stated in the previous sentence' references 'the previous sentence' which is itself a long, complex sentence.",
+  "root_cause": "The subsection demonstrates transfer of the accepted-completion concept but is placed in a section that should discuss architecture consequences for the canonical RAG workload.",
+  "correction": "Either (a) move the subsection to a more appropriate location (e.g., a brief note in §1 Concept or a sidebar), (b) restructure it to lead with the RAG parallel and use video as a brief illustration, or (c) compress it to 2-3 sentences that state the general principle and note the video parallel without detailed video-specific mechanics.",
+  "acceptance_test": "The Architecture Consequence section discusses consequences for the canonical RAG workload; any transfer demonstration is brief and clearly marked as a generalization.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH22-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 22 §3, Step 4, sentence beginning 'Combined with the canonical model...'",
+  "chapter": "22",
+  "quoted_clause": "the ~5.6 TB/s weight-read rate is a whole-model, fleet-level requirement that tensor parallelism shards to ~0.70 TB/s per GPU on the canonical host, Ch 6 — a per-host constraint, not a fleet-wide one",
+  "observed": "The sentence labels the 5.6 TB/s rate as 'fleet-level' and then, in the same sentence's em-dash clause, explicitly says it is 'a per-host constraint, not a fleet-wide one.' The two characterizations directly contradict each other. The correct scope is per-host (the 8×H100 host collectively must sustain 5.6 TB/s; tensor parallelism shards it to ~0.70 TB/s per GPU). 'Fleet-level' is wrong.",
+  "evidence": "140 GB / 25 ms = 5.6 TB/s is the whole-model weight-read rate for one host's decode step. The text itself confirms this with 'a per-host constraint, not a fleet-wide one.' The term 'fleet-level' is therefore an error, not a debatable characterization.",
+  "root_cause": "Drafting error: 'fleet-level' was likely intended to be 'host-level' or was left over from an earlier phrasing. The correct qualifier ('per-host') already appears in the same sentence.",
+  "correction": "Change 'fleet-level requirement' to 'host-level requirement' (or simply 'whole-model requirement' since 'whole-model' already conveys the scope). The sentence would then read: 'the ~5.6 TB/s weight-read rate is a whole-model, host-level requirement that tensor parallelism shards to ~0.70 TB/s per GPU on the canonical host, Ch 6 — a per-host constraint, not a fleet-wide one.'",
+  "acceptance_test": "The sentence contains no characterization of the 5.6 TB/s rate as fleet-level or fleet-wide; the scope is consistently host-level or whole-model throughout.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH25-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 25 §4 Measurement, item 1",
+  "chapter": "25",
+  "quoted_clause": "per-request KV at 9.2K = 24.2 GB (2 × 80 layers × 9.2K × 8,192 × 2 B)",
+  "observed": "The stated formula evaluates to 24.117 GB ≈ 24.1 GB, not 24.2 GB. With the house-convention decimal K (9.2K = 9,200): 2 × 80 × 9,200 × 8,192 × 2 = 24,117,248,000 bytes = 24.117 GB. The canonical per-token figure (2.62 MB/token × 9,200) also gives 24.1 GB. The value 24.2 GB would only result from a binary-K reading (9,216 tokens), which the house convention auto-rejects.",
+  "evidence": "Independent rederivation: 2 × 80 × 9,200 × 8,192 × 2 = 24,117,248,000 B = 24.117 GB → rounds to 24.1 GB. Cross-check via canonical: 2.62144 MB/token × 9,200 = 24,117.248 MB = 24.117 GB → 24.1 GB. The 0.1 GB error does not propagate to the stated ~30 GB KV+workspace or ~170 GB total (both round the same either way), but the intermediate derived quantity is wrong as printed.",
+  "root_cause": "Likely a binary-K reading of 9.2K (9,216 tokens) used in an earlier draft, or a rounding-up artifact, carried forward despite the house decimal-K convention.",
+  "correction": "Change 24.2 GB to 24.1 GB in the formula result. Verify no downstream text depends on 24.2 specifically.",
+  "acceptance_test": "Recompute 2 × 80 × 9,200 × 8,192 × 2 and confirm the printed value matches to the stated precision (24.1 GB). Confirm 2.62 MB/token × 9,200 also yields 24.1 GB.",
+  "_tag": "COMMON",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH26-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 26 §8 Step 1, final paragraph of the chunk",
+  "chapter": "26",
+  "quoted_clause": "excluding that term entirely (a 400 ms baseline) would report (400 − 250) / 400 = 37.5% instead",
+  "observed": "The word 'entirely' implies removing the 50 ms retrieval term from both sides of the comparison, but the calculation removes it only from the baseline (450→400) while keeping it in the miss path (250 still includes 50 ms retrieval). This is an asymmetric comparison. If the term is excluded from both sides: (400 − 200) / 400 = 50%. If kept in both: (450 − 250) / 450 = 44%. The printed 37.5% is neither symmetric alternative.",
+  "evidence": "Baseline components: 320 + 80 + 50 = 450. Miss components: 120 + 80 + 50 = 250. Excluding the 50 ms retrieval from baseline only: 400. Excluding from both: baseline 400, miss 200. (400−200)/400 = 50%. The printed (400−250)/400 = 37.5% keeps retrieval in the miss but not the baseline.",
+  "root_cause": "The text intends to show how the reported improvement changes with baseline framing, but the asymmetric calculation is presented without explanation of why only one side is modified, and the word 'entirely' contradicts the one-sided removal.",
+  "correction": "Either (a) recompute symmetrically — exclude from both sides giving 50%, or keep in both giving 44% — and explain the framing choice; or (b) explicitly state that only the baseline is modified and explain why the miss path retains the retrieval term (e.g., 'the miss path genuinely pays retrieval, so it stays'). Remove or redefine 'entirely' to match the actual operation.",
+  "acceptance_test": "Verify that the printed percentage matches a symmetric comparison (both sides include or both exclude the retrieval term), or that the text explicitly justifies the one-sided exclusion and uses precise language ('from the baseline' rather than 'entirely').",
+  "_tag": "COMMON",
+  "_models": [
+   "MiMo-V2.6-Flash-RL",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH24-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 24 §4.2 Data-collection pipeline, item 3",
+  "chapter": "24",
+  "quoted_clause": "samples 1,000 retrievals per cycle (n ≈ 1,000 sized for the <0.3% target at 95% confidence; 0.001 resolution)",
+  "observed": "With n = 1,000 and a true rate of p = 0.003, the expected count is only 3 events. The 95% Wilson CI is approximately [0.001, 0.0088] — far too wide to reliably distinguish rates near the 0.3% threshold. A one-sided test of H₀: p ≥ 0.003 at α = 0.05 can only reject if 0 events are observed (P(X=0|p=0.003,n=1000) ≈ 0.0498). The '0.001 resolution' claim (1 event = 0.001) is correct, but 'sized for the <0.3% target at 95% confidence' implies adequate statistical power, which n = 1,000 does not provide at this rate.",
+  "evidence": "Wilson score interval with n=1000, x=3: center ≈ 0.0049, margin ≈ 0.0039, CI ≈ [0.001, 0.0088]. Poisson approximation: P(X ≤ 0 | λ=3) = e⁻³ ≈ 0.0498. The CI includes 0.003, so the sample cannot determine whether the rate is above or below the target at 95% confidence.",
+  "root_cause": "The sample size was likely chosen for resolution (each event = 0.001) rather than for statistical power at the 0.3% threshold, but the parenthetical conflates resolution with confidence.",
+  "correction": "Rewrite the parenthetical to accurately describe what n ≈ 1,000 provides: e.g., 'n ≈ 1,000 gives 0.001 resolution (1 event = 0.001); at rates near 0.3% the 95% CI is wide (~[0.001, 0.009]), so trend direction across cycles is more informative than a single-cycle pass/fail.' Alternatively, increase n if single-cycle pass/fail at 0.3% is required.",
+  "acceptance_test": "Recompute the 95% CI for n=1000, p=0.003 and confirm the text's description of what the sample size supports matches the actual interval width and test power.",
+  "_tag": "COMMON",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiMo-V2.6-Flash-RL",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH4-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 4 §6, Serving configuration bullet",
+  "chapter": "Ch 4",
+  "quoted_clause": "at 10 rps the offered prefill load is ~92,000 tok/s against one host's ~19,800 tok/s sustained-planning rate, so the fleet needs ~6 hosts at average",
+  "observed": "92,000/19,800 = 4.65, which ceils to 5 hosts, not 6. The 6-host figure is the KV/service-time bound: 10 rps × 8.6 s = 86 in-flight requests; 86/17 = 5.06 -> 6. The sentence attributes the 6-host result to prefill throughput.",
+  "evidence": "Prefill bound: 92,000/19,800 = 4.65 -> 5. At 70% utilization: 92,000/(19,800×0.7)=6.64 -> 7. KV/service-time bound: 86/17=5.06 -> 6.",
+  "root_cause": "Causal attribution/rounding: the prefill-throughput bound and the KV-residency/service-time bound are conflated.",
+  "correction": "State the prefill-throughput bound separately (~5 hosts at full utilization, ~7 at 70%), and attribute the 6-host average to the KV/service-time whole-slot calculation. Do not use 'so' to connect the prefill load to 6 hosts.",
+  "acceptance_test": "Recompute both bounds from the printed inputs; verify that the stated host count matches the bound being invoked and that the 70%/95% policy is applied consistently.",
+  "_tag": "COMMON",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH24-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 24 §3.3 (peak KV residency bullet)",
+  "chapter": "24",
+  "quoted_clause": "40 rps × 8.6 s = 344 in-flight × 24.9 GB ÷ 436 GB = 19.7 → 21 hosts (Ch 17)",
+  "observed": "The arithmetic yields 19.65 (printed as 19.7), but the result is stated as 21 hosts. A clean ceil of 19.7 is 20, not 21. The FP8 analogue later in the same chapter explicitly writes '+N−1' (9.8 + 1 → 11), but this FP16 line omits the +N−1 step, so the reader cannot see how 19.7 becomes 21.",
+  "evidence": "344 × 24.9 = 8565.6; 8565.6 ÷ 436 = 19.65. ceil(19.65) = 20. To reach 21 requires an additional +1 (N−1) step: 19.65 + 1 = 20.65 → 21. The text does not state that step here, while it does state it in the FP8 calculation.",
+  "root_cause": "The +N−1 policy step is applied implicitly in the FP16 line but explicitly in the FP8 line, creating an apparent arithmetic gap.",
+  "correction": "Either write '19.7 + 1 (N−1) = 20.7 → 21 hosts' or add a parenthetical: '(19.7 raw + 1 N−1 reserve → 21)'. Match the FP8 line's explicit '+N−1' phrasing.",
+  "acceptance_test": "The FP16 peak-KV line shows the +N−1 step explicitly, and 19.7 + 1 = 20.7 → 21 is arithmetically visible.",
+  "_tag": "COMMON",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH6-04",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 6, §3, 'Detecting the Regime' — the decode bandwidth paragraph",
+  "chapter": "6",
+  "quoted_clause": "Within a ~25 ms TPOT budget that demands 140 GB / 0.025 s ≈ 5.6 TB/s (batch-1-equivalent) of HBM bandwidth, against an H100's ~3.35 TB/s peak [1P][FACT]. Scope warning: this 5.6-vs-3.35 TB/s comparison is an illustrative single-device roofline argument, not the canonical 8×H100 host's actual deployment verdict.",
+  "observed": "The scope warning is important and correct, but it is placed *after* the 5.6-vs-3.35 comparison, which a reader may have already internalized as a 'the H100 can't do decode' verdict before reading the warning. The two scope notes (single-device vs 8×H100; aggregate vs per-rank) are then stated in a dense paragraph. The key insight (decode is bandwidth-bound because of low arithmetic intensity, not because 5.6 > 3.35) is buried at the end of the paragraph.",
+  "evidence": "The 5.6 TB/s is the aggregate model-wide weight-read rate for a hypothetical single-device implementation. Under TP=8, each GPU reads 140/8 = 17.5 GB per token, requiring 17.5/0.025 = 0.7 TB/s against its 3.35 TB/s — well within capacity. The bandwidth-bound classification follows from the 1.0 FLOP/byte intensity (far below the 295 ridge), not from the 5.6 > 3.35 comparison. The text states all this correctly but in an order that risks the reader anchoring on the 5.6-vs-3.35 number first.",
+  "root_cause": "The paragraph was structured as 'calculation → comparison → scope warning → deeper reason,' but the pedagogically effective order is 'deeper reason (intensity) → calculation (for illustration) → scope (why the calculation is not the verdict).'",
+  "correction": "Restructure: (1) State the intensity argument first: 'Decode at batch 1 has an arithmetic intensity of ~1.0 FLOP/byte (140 GFLOP / 140 GB), far below the ~295 FLOP/byte ridge — this is why decode is bandwidth-bound, regardless of how many GPUs are used.' (2) Then give the single-device illustration: 'As a concrete single-device illustration: 140 GB / 0.025 s ≈ 5.6 TB/s exceeds one H100's 3.35 TB/s peak. Under TP=8, each GPU reads only 17.5 GB (0.7 TB/s), so the per-GPU bandwidth is not the binding constraint — the low intensity is.' (3) Then the scope note: 'This is an operating-point property, not an identity: at high batch, decode intensity rises and can approach the ridge.'",
+  "acceptance_test": "A reader who reads only the first two sentences of the restructured paragraph can state why decode is bandwidth-bound (low intensity) and why the 5.6-vs-3.35 comparison is illustrative rather than verdictal.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH11-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 11, §8 End-of-Chapter Mini-Case",
+  "chapter": "11",
+  "quoted_clause": "the baseline KV for the 9.2K-in/300-out request is about 24.9 GB per request",
+  "observed": "Earlier in the same chapter, 9.2K input initial KV is ~24.1 GB (2.62 MB/token × 9,200). 24.9 GB corresponds to the final 9.5K-token context (9.2K input + 300 output). Calling it the baseline for 9.2K-in/300-out without saying final context creates a canonical-value inconsistency.",
+  "evidence": "2.62 MB/token × 9,200 = 24.1 GB; 2.62 MB/token × 9,500 = 24.9 GB. Ch 11 §3 PagedAttention uses 24.1 GB for 9.2K input initial KV; Ch 13 uses 24.9 GB for 9.5K max context.",
+  "root_cause": "Initial vs final KV context length not distinguished.",
+  "correction": "Write 'final 9.5K-token context (9.2K input + 300 output) KV is about 24.9 GB; initial 9.2K input KV is about 24.1 GB' or use 24.1 GB if the point is initial allocation.",
+  "acceptance_test": "Every 24.1/24.9 GB value is explicitly tied to 9.2K initial or 9.5K final context.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH10-02",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 10, §3 Worked Example, Why the Canonical 70B Doesn't Fit One H100",
+  "chapter": "10",
+  "quoted_clause": "But if the model grows (say to 400B) or owns more, the split becomes mandatory",
+  "observed": "'owns more' is not a clear technical condition; likely intended 'or context grows' or 'or state grows'.",
+  "evidence": "The sentence is about model size and memory pressure; 'owns more' does not name a resource.",
+  "root_cause": "Typo/awkward phrasing.",
+  "correction": "Replace with 'or its context/state grows' or 'or the workload's KV demand grows'.",
+  "acceptance_test": "The condition is a recognizable memory or model-size driver.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH21-01",
+  "severity": "P0",
+  "confidence": "high",
+  "page_hint": "Ch 21 §3, 'The Economics of Promotion Gating' paragraph",
+  "chapter": "21",
+  "quoted_clause": "The canonical service does ~288,000 requests/workday (10 rps × 8 h × 3,600 s; ~6.24M/month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16).",
+  "observed": "The shown derivation 10 × 8 × 3,600 = 288,000/day is correct, but 288,000 × 260 = 74,880,000 ≈ 74.9M/month, not 6.24M. The 6.24M figure (used consistently in Ch 16, 17, 18, 21, 22) is a factor of 12 lower than the stated derivation produces. The 6.24M is consistent with 2,000 users × 12 requests/user/day × 260 days = 6,240,000, which implies an average rate of 0.833 rps over 8 h, not 10 rps.",
+  "evidence": "10 rps × 8 h × 3,600 s/h × 260 d/mo = 74,880,000. 6,240,000 / 260 = 24,000/day. 24,000 / (8 × 3,600) = 0.833 rps. The two canonical figures (10 rps average; 6.24M/month) are arithmetically incompatible under the stated 8-h × 260-d basis. The 6.24M is load-bearing: Ch 18 §18.3.2 computes 6.24M × 9,500 = 5.93×10¹⁰ tokens/mo and derives $2.63/1M from it; Ch 21 §21.3 uses 288,000/day for the canary arithmetic.",
+  "root_cause": "The 6.24M was likely computed from a user-based formula (2,000 × 12 × 260) while the '10 rps' was set as a rounded traffic figure without verifying consistency. The Ch 21 text then presents both as if they derive from the same calculation.",
+  "correction": "Either (a) change the monthly volume to ~74.9M and re-derive all downstream economics (fleet TCO, per-1M rates, canary arithmetic), or (b) change the average rate to ~0.83 rps (or state that 10 rps is a peak/illustrative figure and the 6.24M is the planning volume from a separate user-based calculation), or (c) add an explicit reconciliation sentence: 'The 6.24M/month planning volume corresponds to ~0.83 rps sustained over 8 h × 260 d; the 10 rps figure is the average during active business hours at the 2,000-user scale and is used for per-second capacity screens, while 6.24M is the monthly volume for cost amortization.' The chosen resolution must be propagated to every chapter that cites either figure.",
+  "acceptance_test": "A reader who multiplies 10 × 8 × 3,600 × 260 gets the same monthly figure the book states, OR the book explicitly states the two figures come from different bases and shows both derivations without implying they are the same calculation.",
+  "_tag": "COMMON",
+  "_models": [
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P0",
+  "_triage": "PRESENT"
+ }
+]

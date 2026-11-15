@@ -16,7 +16,12 @@ ax.set_title('Select models: screen on capability, then benchmark on the workloa
 
 def cell(x, y, w, h, label, fc):
     ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.05', fc=fc, ec='#1a3a6b', lw=1.3))
-    ax.text(x+w/2, y+h/2, label, ha='center', va='center', fontsize=8.3, color='white', fontweight='bold')
+    # ROUND-5 fix (FIG-14.1-02): white on the mid-luminance orange (#e67e22)
+    # is ~2.9:1 (worse in grayscale), so the orange boxes' content labels were
+    # the least legible text in the figure. Orange-box labels are now near-black
+    # (6.5:1, >=4.5:1 in grayscale too); the blue row keeps white (5.3:1).
+    tc = '#141414' if fc.lower() == '#e67e22' else 'white'
+    ax.text(x+w/2, y+h/2, label, ha='center', va='center', fontsize=8.3, color=tc, fontweight='bold')
 
 def stage(x, w, name, screen, fc1, fc2, conn='screen'):
     cell(x, 3.9, w, 1.15, name, fc1)
@@ -36,12 +41,15 @@ stage(0.9, 5.2, 'Candidate\nmodels', 'Capability\nMMLU/GSM8K', '#3a6ea5', '#e67e
 # Stage 2: survivors -> deployment bench
 stage(7.2, 5.2, 'Survivors', 'Deploy bench\n(goodput)', '#3a6ea5', '#e67e22', conn='benchmark')
 # Stage 3: selection + TCO
-stage(13.5, 5.2, 'Selection', 'TCO + SLO\ngate', '#3a6ea5', '#e67e22', conn='gate')
+stage(13.5, 5.2, 'Selection', 'TCO + SLO\ngate (Ch. 15)', '#3a6ea5', '#e67e22', conn='eval of candidates')
 
 # arrows between stages (top row)
 for x0, x1 in [(6.1, 7.2), (12.4, 13.5)]:
     ax.annotate('', xy=(x1+0.05, 4.48), xytext=(x0-0.05, 4.48),
                 arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#444'))
+# arrow Deploy bench -> TCO + SLO gate (bottom row, FIG-14.1-01)
+ax.annotate('', xy=(13.45, 2.775), xytext=(12.45, 2.775),
+            arrowprops=dict(arrowstyle='-|>', lw=2.0, color='#444'))
 # the final gate must pass before deployment: arrow out of the TCO+SLO gate box (bottom row)
 ax.annotate('', xy=(20.6, 2.775), xytext=(18.7, 2.775),
             arrowprops=dict(arrowstyle='-|>', lw=2.2, color='#2f6f4f'))

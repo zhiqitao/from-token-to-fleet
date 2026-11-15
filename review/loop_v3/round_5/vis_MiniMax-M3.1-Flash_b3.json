@@ -1,0 +1,222 @@
+```json
+[
+  {
+    "id": "F-01",
+    "page": "PDF 162 / printed 142",
+    "figure": "FIGURE 8.2 — Per-GPU roofline: dense FP16, one H100 vs one H200",
+    "severity": "P1",
+    "issue": "The prefill operating point is drawn and labelled inconsistently with itself, with the caption, and with the facing page. The orange annotation reads (as rendered) 'prefill 9.2K / intensity ≈ 9.2 FLOP/byte', and the orange dotted vertical marker sits only slightly right of the two ridge lines — by my calibration of the log x-axis (10^2 tick at x≈315 px, ≈64 px/decade, confirmed by the ridge markers at 295 and 206) the orange marker is at ≈4×10^2 FLOP/byte, not at 9.2 and not at 9.2×10^3. The caption on the same page says 'Prefill (9.2K input) sits to the right of the compute-bound knee', and PDF 161 (printed 141) says 'Prefill is compute-bound at this scale — its arithmetic intensity sits far above the ridge'. The correct value for the canonical 9.2K-token prefill is 2·N·T / weight-bytes = 2×70e9×9200 / 140e9 ≈ 9.2×10^3 FLOP/byte (≈7.9×10^3 if the 24 GB of KV writes are counted), which is 1.5 decades right of the H100 ridge — i.e. 'far above the ridge', not marginally above it. As drawn, the figure places prefill within a factor of ~1.4 of the knee, which visually undercuts the book's central prefill-vs-decode regime claim.",
+    "evidence": "Recomputed from the book's own inputs: ridge_H100 = 989e12/3.35e12 = 295 FLOP/byte; ridge_H200 = 989e12/4.8e12 = 206 FLOP/byte (both match the printed labels). Prefill intensity = 2×70e9×9200 FLOP / 140e9 B = 9,200 FLOP/byte. Marker position measured from the rendered page: orange dotted line ≈10^2.6 ≈ 400 FLOP/byte; expected x for 9.2e3 is ≈10^3.96, i.e. ~1.35 decades to the right (≈86 px at 150 dpi). Confidence: the annotation string could not be resolved with certainty at 150 dpi — it may read '9.2K FLOP/byte' rather than '9.2 FLOP/byte'; either reading is inconsistent with the marker position, so the defect is real under both readings.",
+    "acceptance_test": "Render PDF p.162 at ≥300 dpi and read the annotation string. (a) The annotation must state the prefill intensity in FLOP/byte with the correct magnitude (≈9.2K FLOP/byte, or ≈7.9K if KV writes are included — state which). (b) The orange dotted marker must sit at that x-value on the log axis (≈10^3.96, just left of the 10^4 tick), not at ≈4×10^2. (c) The caption's 'sits to the right of the compute-bound knee' must then be literally true and 'far above the ridge' (PDF 161) must be visually supported. (d) If the intended intensity is ≈400 FLOP/byte, the annotation, the marker, the caption and PDF 161 must all be rewritten together — the four cannot stand as they are."
+  },
+  {
+    "id": "F-02",
+    "page": "PDF 148 / printed 128; PDF 149 / printed 129; PDF 162 / printed 142",
+    "figure": "FIGURE 7.7 (Concurrency budget), FIGURE 7.8 (Memory Tetris), FIGURE 8.2 (roofline prefill point)",
+    "severity": "P1",
+    "issue": "Three figures in two chapters use two different canonical context lengths, and the difference changes a load-bearing, explicitly-defended number. FIG 7.7's caption derives concurrency from '24.9 GB/request max-FP16 KV' and concludes 'C ≈ 17.5 concurrent (floor 17, not 18)'; FIG 7.8's first tier is labelled '9.5K context = 229 GB used'. But 24.9 GB corresponds to 9,500 tokens at the book's canonical 2.62 MB/token FP16 KV, whereas FIG 8.2 uses '9.2K' as the canonical prefill length. At 9.2K tokens the per-request FP16 KV is 9,200 × 2.62144 MB = 24.12 GB, and 436 GB ÷ 24.12 GB = 18.08 → 18 concurrent — the exact value the FIG 7.7 caption pre-empts ('floor 17, not 18'). The reader cannot reconcile 9.5K with 9.2K from the figures, and the 'not 18' parenthetical is only true under the 9.5K reading.",
+    "evidence": "Recomputed: 2 (K,V) × 80 layers × 64 heads × 128 dim × 2 B = 2.62144 MB/token (book's canonical 2.62). 9,500 × 2.62144 MB = 24.90 GB → 436/24.90 = 17.51 → 17. 9,200 × 2.62144 MB = 24.12 GB → 436/24.12 = 18.08 → 18. FIG 7.8's own arithmetic confirms the 9.5K basis: 24.9 + 140 + 64 = 229 GB (printed), 84 + 140 + 64 = 288 GB (printed), 335 + 140 + 64 = 539 GB (printed). The book's canonical request is 1,200 + 8,000 = 9,200 tokens, so the 9.5K tier is unexplained by anything visible on these pages.",
+    "acceptance_test": "State one canonical context length for the memory chapter and use it in both figures. If the canonical is 9,200 tokens: change FIG 7.7's '24.9 GB/request' to 24.1 GB, change the concurrency to '≈ 18.1 → 18', change the FP8 figure to 12.06 GB/request and '≈36', and change FIG 7.8's first tier from '9.5K context = 229 GB used' to '9.2K context = 228 GB used' (24.1 + 140 + 64). If 9.5K is deliberate, add one sentence in Ch 7 defining the 9.5K canonical request and its relation to the 9,200-token workload used elsewhere, and add the token count to FIG 7.7's caption. Either way, the 'floor 17, not 18' parenthetical must be re-derived from the number actually printed."
+  },
+  {
+    "id": "F-03",
+    "page": "PDF 167 / printed 147",
+    "figure": "FIGURE 8.3 — Whole-clip denoising: Wan2.2 T2V-5B",
+    "severity": "P1",
+    "issue": "The VAE-decode box prints the frame-count derivation as 'Aligned endpoint: 1 × 4 × (31 − 1) = 121 frames'. As rendered, the operator between '1' and '4' is a multiplication sign, and 1 × 4 × 30 = 120, not 121 — the equation contradicts the number printed immediately after it and the number printed in the output box ('121 frames'). The correct derivation for a stride-4 temporal VAE is 1 + 4 × (31 − 1) = 121 (the +1 accounts for the first frame). The caption repeats the correct total ('31 latent time positions correspond to 121 frames'), so the figure and the caption currently disagree on the arithmetic.",
+    "evidence": "Independent recomputation: (31 − 1) × 4 + 1 = 121 ✓; 1 × 4 × (31 − 1) = 120 ✗. Cross-check of the same figure's other arithmetic: patch (1,2,2) over latent 31×44×80 → 31 × 22 × 40 = 27,280 tokens ✓ (matches 'N = 27,280 video tokens'); VAE stride (4,16,16) → 44×16 = 704 ✓ and 80×16 = 1,280 ✓ (matches the output box). Confidence: the glyph could not be resolved with certainty at 150 dpi — it may be '+' rather than '×'; the finding is that the printed equation must be checked, because as rendered it evaluates to 120.",
+    "acceptance_test": "Render PDF p.167 at ≥300 dpi and confirm the operator in 'Aligned endpoint: 1 ? 4 × (31 − 1) = 121 frames'. If it is '×', change it to '1 + 4 × (31 − 1) = 121 frames'. If it is '+', no change is needed to the equation, but the caption's parallel statement should be made to show the same form so the two are visibly identical."
+  },
+  {
+    "id": "F-04",
+    "page": "PDF 162 / printed 142",
+    "figure": "FIGURE 8.2 — Per-GPU roofline",
+    "severity": "P2",
+    "issue": "The y-axis is labelled 'Achievable performance (TFLOPS) — per GPU', but the plotted ceiling is the vendor peak/theoretical datasheet value (the green annotation reads 'compute plateau = 989 TFLOPS'), and the caption explicitly states 'the ceilings are peak/theoretical datasheet values, not achieved runtimes (≈30–40%, 8.5%)'. The axis label therefore asserts the opposite of what the figure plots and what the caption says. A reader who trusts the axis label will read the plateau as a realistic sustained ceiling and will mis-size capacity by roughly 2.5–3×.",
+    "evidence": "Figure text: y-axis 'Achievable performance (TFLOPS) — per GPU'; plateau annotation 'compute plateau = 989 TFLOPS'; caption 'the ceilings are peak/theoretical datasheet values, not achieved runtimes (≈30–40%, 8.5%)'. 989 TFLOPS is the H100 SXM dense FP16 datasheet peak, not an achieved rate.",
+    "acceptance_test": "Rename the y-axis to 'Peak (theoretical) performance (TFLOPS) — per GPU' or add '(datasheet peak)' to the axis title, and keep the caption's 'not achieved runtimes' qualifier. Verify that no other figure or table in Ch 8 reuses the phrase 'achievable performance' for a datasheet-peak value."
+  },
+  {
+    "id": "F-05",
+    "page": "PDF 162 / printed 142",
+    "figure": "FIGURE 8.2 — caption",
+    "severity": "P2",
+    "issue": "Two clauses of the caption are not interpretable as printed. (a) 'Convention: a multiply-add counts as 2 FLOPs; the FMA convention of 8,1: dense (no sparsity) FP16' — the token '8,1' is not a meaningful quantity and the sentence has already fixed the convention in its first clause, so the fragment appears to be a corrupted number. (b) 'the plotted prefill (9.2K input) and decode (batch=1) points are illustrative operating points, and a kernel's latency — not measured SLO-goodput.' — the trailing clause has no verb and no predicate; the intended contrast (these are kernel-latency points, not measured SLO-goodput) is not stated. Both are in the caption that is the figure's only interpretive key.",
+    "evidence": "Caption text as rendered on PDF p.162: 'Convention: a multiply-add counts as 2 FLOPs; the FMA convention of 8,1: dense (no sparsity) FP16; ... and a kernel's latency — not measured SLO-goodput.' Confidence: the characters '8,1' could not be resolved with certainty at 150 dpi (candidates: '8,1', '8:1', '2,1'); the defect is that the clause does not parse under any reading.",
+    "acceptance_test": "Repair both clauses in the source. Suggested: 'Convention: a multiply-add counts as 2 FLOPs; dense (no sparsity) FP16; the ceilings are peak/theoretical datasheet values, not achieved runtimes (≈30–40%, 8.5%); the plotted prefill and decode points are illustrative kernel-level operating points, not measured SLO-goodput.' Re-read the caption aloud against the rendered page to confirm every clause parses."
+  },
+  {
+    "id": "F-06",
+    "page": "PDF 162 / printed 142",
+    "figure": "FIGURE 8.2 — caption and 'decode batched' annotation",
+    "severity": "P2",
+    "issue": "The caption says 'decode (batch=1) sits to the left, on the memory-bound slope; and decode (batched=1) sits to the left, on the memory-bound slope and continuous batching climbs the slope as batch grows'. The same predicate ('sits to the left') is applied to two points the figure draws at different positions, and the intended reading ('to the left of the knee') is never stated. The caption also never gives the batch size or the resulting arithmetic intensity for the batched point, so the reader cannot check the plotted marker. The label 'decode (batched=1)' is itself ambiguous — it reads as 'batch = 1' rather than 'batched decode'.",
+    "evidence": "Recomputed decode intensities for the canonical 70B at FP16: batch=1 → 2·N / (2N + KV) ≈ 1.0 FLOP/byte (weights dominate: 1.4e11 FLOP/token ÷ 1.4e11 B/token), which places the batch=1 marker at 10^0 on the log axis — consistent with the figure's leftmost marker. Batched decode at batch B moves right along the slope (intensity ≈ B for small B), so the batched marker must be to the RIGHT of the batch=1 marker and still left of the 295 ridge for B ≲ 100. The caption's 'climbs the slope as batch grows' is consistent with this, but 'sits to the left' is not.",
+    "acceptance_test": "Rewrite the caption clause as: 'decode (batch=1, intensity ≈1 FLOP/byte) sits far left on the memory-bound slope; batched decode (batch B, intensity ≈B FLOP/byte) climbs that slope toward the knee, reaching the knee only at B ≈ 295 for H100.' Rename the figure annotation 'decode batched' to 'decode batch B (batched)' and label the plotted batched point with its batch size and intensity so the reader can verify its x-position."
+  },
+  {
+    "id": "F-07",
+    "page": "PDF 155 / printed 135",
+    "figure": "FIGURE 8.1 — Where inference computation and data movement actually live",
+    "severity": "P2",
+    "issue": "The legend defines exactly three colour classes — 'compute' (blue), 'memory' (orange), 'interconnect' (green) — but the boxes for 'shared mem (SRAM)' and 'L2 cache' are coloured blue, i.e. classified as compute, although both are memory resources. Only 'HBM (GPU memory)' is orange. The caption then asserts 'compute, memory and interconnect are separate groups within this stack, not levels of one ladder', which the figure's own colour coding contradicts: the reader is shown SRAM and L2 inside the compute group. A reader can legitimately conclude that on-chip SRAM and L2 are compute resources rather than memory, which is exactly the distinction the chapter needs to keep sharp (capacity vs bandwidth vs compute).",
+    "evidence": "Figure legend (bottom of FIG 8.1): blue = 'compute', orange = 'memory', green = 'interconnect'. Box fills: 'registers', 'tensor cores / ALU', 'shared mem (SRAM)', 'L2 cache' all blue; 'HBM (GPU memory)' orange; 'GPU interconnect', 'other GPUs / remote' green. Caption: 'model weights and the KV cache are predominantly HBM-resident' and 'compute, memory and interconnect are separate groups within this stack'.",
+    "acceptance_test": "Either (a) add a fourth legend class 'on-chip memory' and recolour the SRAM and L2 boxes accordingly, or (b) relabel the legend as 'on-chip compute / off-chip memory / interconnect' and add one clause to the caption: 'SRAM and L2 are memory resources that happen to be on-chip; they are shown with the compute group because they are on-chip, not because they are compute.' Verify that the caption's 'separate groups' sentence is then literally supported by the colour key."
+  },
+  {
+    "id": "F-08",
+    "page": "PDF 167 / printed 147",
+    "figure": "FIGURE 8.3 — Whole-clip denoising: Wan2.2 T2V-5B",
+    "severity": "P2",
+    "issue": "The legend states 'Solid: data/state flow. Dashed: denoiser conditioning.' But the figure's dashed feedback loop on the right of the 'Wan2.2 dense T2V-5B + scheduler' box is the denoising/scheduler iteration — a control-flow loop, not conditioning — and the caption says so explicitly ('The feedback loop is denoising/scheduler iteration, not architectural recurrence'). A reader applying the legend literally will read the dashed loop as 'conditioning', i.e. as a second conditioning input, which is a different mechanism entirely. The figure therefore uses one visual channel (dash pattern) for two distinct semantic classes.",
+    "evidence": "Legend line under FIG 8.3: 'Solid: data/state flow. Dashed: denoiser conditioning. Blue: data/state. Orange: compute. Token partitioning adds communication between devices.' Dashed elements in the drawing: (i) UMT5-XXL → denoiser, (ii) VAE encode → denoiser, (iii) the right-hand loop arrow from the denoiser box back into itself. Caption: 'The feedback loop is denoising/scheduler iteration, not architectural recurrence.'",
+    "acceptance_test": "Give the iteration loop a distinct dash pattern (e.g. dotted, or a dash-dot) and extend the legend to three entries: 'Solid: data/state flow. Dashed: denoiser conditioning. Dotted: scheduler iteration (control flow).' Confirm that after the change no dashed element other than the two conditioning arrows remains."
+  },
+  {
+    "id": "F-09",
+    "page": "PDF 149 / printed 129",
+    "figure": "FIGURE 7.8 — Memory Tetris (caption)",
+    "severity": "P2",
+    "issue": "The caption's parenthetical '(17.5 → 11 at 32K; 436/335 = 1.30 → 1 at 128K)' appears to print '11' as the concurrency at 32K context. By the caption's own stated method — concurrency = 436 GB ÷ KV per request — the 32K figure must be 436 ÷ 84 = 5.19 → 5, not 11. The 128K half of the same parenthetical (436/335 = 1.30 → 1) is correct, which makes the 32K value internally inconsistent with its sibling. If '11' is what is printed, the caption contradicts FIG 7.8's own 'KV 84 GB' bar.",
+    "evidence": "Recomputed from the figure's own labels: KV per request at 32K = 84 GB (printed in the bar and consistent with 32,000 × 2.62144 MB = 83.84 GB); 436/84 = 5.19 → 5 concurrent. 436/24.9 = 17.51 → 17 (the '17.5' in the same parenthetical). 436/335 = 1.30 → 1 ✓. Confidence: the glyph at 150 dpi could not be resolved with certainty — it may read '5' rather than '11'; the finding is that the value must be checked against the caption's own method.",
+    "acceptance_test": "Render PDF p.149 at ≥300 dpi and read the 32K concurrency value. It must be 5 (436/84 = 5.19 → 5). If it reads 11, correct it and re-derive the whole parenthetical from the three bar labels (24.9 / 84 / 335 GB) so that all three entries are computed by the same rule."
+  },
+  {
+    "id": "F-10",
+    "page": "PDF 148 / printed 128",
+    "figure": "FIGURE 7.7 — Concurrency budget (KV budget bar)",
+    "severity": "P2",
+    "issue": "The caption makes a countable claim the figure cannot support: 'the faint vertical rules inside the KV budget show those 24.9 GB request slots'. Two problems. (a) Legibility: the orange KV region is filled with a regular white dot hatch, and the 'faint vertical rules' are not visually separable from that hatch at print size, so a reader cannot distinguish slot boundaries from fill texture. (b) Counting: 436/24.9 = 17.51 slots is not an integer, so the bar must contain 17 full slots plus a half slot; if the rules are drawn at slot boundaries there will be 18 rules, and counting them yields 18 — the exact wrong answer the caption spends a clause pre-empting ('floor 17, not 18'). The figure thus risks teaching the error it warns against.",
+    "evidence": "436 GB ÷ 24.9 GB/request = 17.51. The caption's own text: 'C ≈ 17.5 concurrent (floor 17, not 18; the faint vertical rules inside the KV budget show those 24.9 GB request slots)'. Rendered page: the orange region shows a uniform dot texture; no distinct slot boundaries are resolvable at 150 dpi.",
+    "acceptance_test": "Make the slot boundaries a distinct, higher-contrast element (e.g. white gaps or a solid 1-pt rule) that is clearly different from the fill hatch, and draw exactly 17 full slots plus one visibly half-width slot, with a small '17 + ½' annotation. Then confirm by counting on a 300-dpi render that the reader obtains 17, not 18. If the rules cannot be made countable, delete the parenthetical claim about the rules and keep the arithmetic in the caption only."
+  },
+  {
+    "id": "F-11",
+    "page": "PDF 148 / printed 128",
+    "figure": "FIGURE 7.7 — Concurrency budget (equation block)",
+    "severity": "P2",
+    "issue": "The figure asserts 'in-flight = KV budget ÷ KV per request' and then '→ ~17 requests' with no statement of the operating assumption. The identity only holds if every in-flight request holds the full canonical KV (i.e. every request has run to completion-length context). In a live server, requests at different stages hold different amounts of KV, so 17.5 is a worst-case ceiling on simultaneously-full-length requests, not an expected concurrency. The caption's phrase 'max-FP16 KV' reads as 'maximum precision FP16' and does not carry the worst-case assumption, so a reader can easily take 17.5 as the average concurrency the host will sustain.",
+    "evidence": "Figure text: 'in-flight = KV budget ÷ KV per request' and '≈ 436 GB ÷ 24.9 GB = 17.5 → ~17 requests'. Caption: 'at 24.9 GB/request max-FP16 KV, C ≈ 17.5 concurrent'. No statement anywhere on the page that each in-flight request is assumed to hold the full 9.5K/9.2K-token KV.",
+    "acceptance_test": "Add the assumption to the figure itself, e.g. 'in-flight (all at full context) = KV budget ÷ KV per request', and add one clause to the caption: 'this is a worst-case ceiling: it assumes every in-flight request holds the full canonical KV; average concurrency will be higher for shorter requests.' Cross-check that the same assumption is stated wherever 17.5 is reused later in the book."
+  },
+  {
+    "id": "F-12",
+    "page": "PDF 148 / printed 128",
+    "figure": "FIGURE 7.7 — Concurrency budget (equation block)",
+    "severity": "P2",
+    "issue": "The operator between '436 GB' and '24.9 GB' in the figure's headline equation renders, at 150 dpi, as a plus sign rather than a division sign: '≈ 436 GB + 24.9 GB = 17.5 → ~17 requests'. If that glyph is genuinely '+', the equation is false (436 + 24.9 = 460.9, not 17.5) and the figure contradicts the line immediately above it ('in-flight = KV budget ÷ KV per request'), which uses a correctly rendered '÷'. The line above proves the author intended division, so the glyph must be checked in the source.",
+    "evidence": "Rendered page: the line above the equation shows a clear '÷' in 'KV budget ÷ KV per request'; the operator in the equation below does not show the two dots of a '÷' at the same resolution and reads as '+'. Confidence: medium — the glyph is ambiguous at 150 dpi and could be a bold '÷' whose dots were lost in downscaling.",
+    "acceptance_test": "Render PDF p.148 at ≥300 dpi and confirm the operator is '÷'. If it is '+', replace it with '÷'. Independently, re-set the equation so that the operator is at least as legible as the '÷' in the line above (same weight and size), and confirm that '436 ÷ 24.9 = 17.51 → 17' is what a reader can read off the page without doing arithmetic."
+  },
+  {
+    "id": "F-13",
+    "page": "PDF 167 / printed 147",
+    "figure": "FIGURE 8.3 — caption",
+    "severity": "P2",
+    "issue": "Two caption fragments are not interpretable as printed. (a) 'The fetched implementation uses T_I2V=1/4=1, H_I2V=16, and W_I2V=16.' — 'T_I2V=1/4=1' chains two equalities with no defined quantity; the figure's own box says 'VAE stride (T, H, W) = (4, 16, 16)', so the caption and the figure express the same fact in two incompatible forms. (b) 'For aligned F_φk=1, F_φk+1, F_φk+1=1: 31 latent time positions correspond to 121 frames.' — the subscript sequence appears duplicated ('F_φk+1' twice) and the condition it states is not connected to the 121-frame derivation.",
+    "evidence": "Caption text as rendered on PDF p.167; figure box text 'VAE stride (T, H, W) = (4, 16, 16)' and 'Aligned endpoint: 1 ? 4 × (31 − 1) = 121 frames'. Confidence: the subscript glyphs could not be resolved with certainty at 150 dpi; the defect is that neither fragment parses.",
+    "acceptance_test": "Rewrite both fragments so that each quantity is defined once and used consistently with the figure: e.g. 'the fetched implementation uses a temporal compression factor of 4 and spatial factors of 16 (VAE stride (T,H,W) = (4,16,16))' and 'for the aligned first/last-frame factors, 31 latent time positions correspond to 1 + 4 × (31 − 1) = 121 frames'. Confirm the caption and the figure boxes use identical symbols."
+  },
+  {
+    "id": "F-14",
+    "page": "PDF 155 / printed 135",
+    "figure": "FIGURE 8.1 — legend",
+    "severity": "P3",
+    "issue": "The legend's 'compute' (blue) and 'interconnect' (green) swatches are distinguished by hue alone and sit at similar lightness, so in grayscale the two classes are hard to separate. The 'memory' swatch (orange, dotted) survives grayscale because of its texture, but the compute/interconnect pair does not. The boxes themselves are also separable by position and by their labels, so the risk is confined to the legend key and to a reader who wants to classify an unlabelled element.",
+    "evidence": "Legend row: blue solid swatch 'compute', orange dotted swatch 'memory', green solid swatch 'interconnect'. Blue and green fills are both mid-dark and differ only in hue; the orange swatch carries a dot texture that the other two lack.",
+    "acceptance_test": "Convert the figure to grayscale and confirm the 'compute' and 'interconnect' legend swatches remain distinguishable. If not, give the interconnect boxes a texture (e.g. diagonal hatch) or a distinct border, and add the same texture to the legend swatch."
+  },
+  {
+    "id": "F-15",
+    "page": "PDF 155 / printed 135",
+    "figure": "FIGURE 8.1 — gradient arrow labels",
+    "severity": "P3",
+    "issue": "The gradient arrow is labelled 'small · fast · close' at the top and 'large · slow · far' at the bottom, spanning the whole stack. But 'far' applies only to the two interconnect boxes ('GPU interconnect', 'other GPUs / remote'); HBM is 'large · slow' but is on the same die and is not 'far'. As drawn, the bottom label sits level with the 'other GPUs / remote' box but the arrow's span implies the property applies continuously to HBM as well, which slightly undercuts the caption's insistence that memory distance and interconnect distance are different constraints.",
+    "evidence": "Figure: red double-headed arrow spanning the stack, top label 'small · fast · close', bottom label 'large · slow · far'; HBM box annotated 'large · slow' (no 'far'). Caption: 'memory bandwidth, memory capacity and interconnect distance are distinct architectural constraints'.",
+    "acceptance_test": "Either split the bottom label into 'large · slow' (level with HBM) and 'far' (level with the interconnect boxes), or change the bottom label to 'large · slow · distant' and add 'distance' as a separate property of the interconnect rows only. Confirm the caption's 'distinct architectural constraints' sentence is visually supported."
+  },
+  {
+    "id": "F-16",
+    "page": "PDF 155 / printed 135",
+    "figure": "FIGURE 8.1 — footer note",
+    "severity": "P3",
+    "issue": "The figure's closing note reads 'not every component shown — the gradient makes compute, memory, bandwidth, capacity and interconnect distance constraints'. The predicate is missing or wrong: a gradient does not 'make' constraints; it expresses the ordering from which the constraints follow. As written the note is ungrammatical and slightly confusing about what the figure is asserting.",
+    "evidence": "Rendered footer line under FIG 8.1.",
+    "acceptance_test": "Rewrite as, e.g., 'not every component shown — the gradient is what makes compute, memory bandwidth, memory capacity and interconnect distance separate constraints'. Confirm the revised note parses and that the list of constraints matches the caption's list."
+  },
+  {
+    "id": "F-17",
+    "page": "PDF 155 / printed 135",
+    "figure": "FIGURE 8.1 — right-hand annotation column and gradient arrow",
+    "severity": "P3",
+    "issue": "The right-hand 'what runs here' column extends to the right margin (the longest entries, 'tensor/pipeline-parallel (TP/PP) communication' and 'P/D KV transfer', run to roughly the same x as the red gradient arrow), and the top gradient label 'small · fast · close' shares a text line with the first entry 'tile values in flight'. At 150 dpi the separation between the arrow, the arrowheads and the adjacent text is small enough that an overlap or a mis-association (label read as belonging to the wrong row) cannot be excluded. This needs a print-size check rather than an assumption.",
+    "evidence": "Rendered page: red arrow at x ≈ 455 px (150 dpi) running y ≈ 185–420; 'P/D KV transfer' at y ≈ 420; 'tensor/pipeline-parallel (TP/PP) communication' at y ≈ 390–405; 'small · fast · close' at y ≈ 168 on the same line as 'tile values in flight'.",
+    "acceptance_test": "Render PDF p.155 at ≥300 dpi and confirm (a) no glyph of the red arrow or its arrowheads touches any text in the right-hand column, (b) at least 1 em of clear space separates 'small · fast · close' from 'tile values in flight', and (c) the arrowhead does not collide with 'P/D KV transfer'. If any of these fail, move the gradient arrow and its labels into a dedicated gutter to the right of the annotation column and re-balance the figure width."
+  },
+  {
+    "id": "F-18",
+    "page": "PDF 148 / printed 128",
+    "figure": "FIGURE 7.7 — KV budget bar",
+    "severity": "P3",
+    "issue": "Precision labelling is inconsistent inside the bar: the runtime segment is labelled '~64 GB' (approximate) and the caption says '~436 GB of KV budget', but the KV segment itself is labelled '436 GB' with no approximation marker. Since 436 is derived by subtracting an approximate quantity from a nominal pool, the derived value inherits the approximation and should carry it.",
+    "evidence": "Bar labels: '140 GB weights', '~64 GB', '436 GB KV budget'. Caption: '140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget'. Title: 'one 8×H100 host, 640 GB pool'.",
+    "acceptance_test": "Change the bar label to '~436 GB KV budget' (or add a footnote to the figure) so that the figure and caption agree on the precision of every segment."
+  },
+  {
+    "id": "F-19",
+    "page": "PDF 148 / printed 128",
+    "figure": "FIGURE 7.7 — caption",
+    "severity": "P3",
+    "issue": "The caption clause 'and that KV budget is the per-request KV price sets concurrency' does not parse — it appears to be a corrupted or dropped word. The intended meaning (the KV budget divided by the per-request KV price sets concurrency) is recoverable from the figure, but the caption is the figure's authoritative text and should be grammatical.",
+    "evidence": "Caption text as rendered on PDF p.148: '...and that KV budget is the per-request KV price sets concurrency — at 24.9 GB/request max-FP16 KV, C ≈ 17.5 concurrent...'. Confidence: the corruption is visible at 150 dpi; the exact intended wording is not recoverable from the page.",
+    "acceptance_test": "Rewrite as, e.g., 'and that the per-request KV price sets concurrency: at 24.9 GB/request max-FP16 KV, C ≈ 17.5 concurrent'. Re-read the full caption against the rendered page for any other dropped words."
+  },
+  {
+    "id": "F-20",
+    "page": "PDF 167 / printed 147",
+    "figure": "FIGURE 8.3 — 'VAE encode I2V condition only' box",
+    "severity": "P3",
+    "issue": "The 'VAE encode I2V condition only' box is filled blue, which the legend defines as 'data/state', although the box is a compute stage (a VAE encode pass). The sibling 'VAE decode' box is orange ('compute') even though it also terminates in a data artifact. The colour rule is therefore applied inconsistently between two structurally identical stages, and a reader may infer that the I2V condition path involves no compute.",
+    "evidence": "Legend: 'Blue: data/state. Orange: compute.' Boxes: 'VAE encode I2V condition only' = blue; 'VAE decode' = orange; 'Wan2.2 dense T2V-5B + scheduler' = orange; 'Prompt', 'Optional reference image', 'Initial noise (FP32)', 'UMT5-XXL s512 prompt tokens', 'Latent: T×H×W×C', '121 frames · 704×1280 · 24 fps' = blue.",
+    "acceptance_test": "Either recolour 'VAE encode I2V condition only' orange and state the rule as 'orange = compute stage, blue = data artifact', or add a legend note that blue marks data artifacts regardless of the stage that produces them. Confirm the rule is applied consistently to both VAE boxes."
+  },
+  {
+    "id": "F-21",
+    "page": "PDF 162 / printed 142",
+    "figure": "FIGURE 8.2 — x-axis",
+    "severity": "P3",
+    "issue": "The x-axis appears to label only 10⁻¹, 10⁰, 10¹, 10² and 10⁴, with the 10³ decade label missing. If so, the decade in which the prefill marker should sit (≈9.2×10³, see F-01) is unlabelled, which is both a plotting defect and an obstacle to the reader checking the prefill position.",
+    "evidence": "Rendered x-axis tick labels: 10⁻¹, 10⁰, 10¹, 10², 10⁴. Confidence: a 10³ label may exist but be unresolvable at 150 dpi; the axis range and the ridge markers both imply a decade grid at 10³.",
+    "acceptance_test": "Render PDF p.162 at ≥300 dpi and confirm the 10³ label is present. If it is absent, add it (or label every decade) so that the prefill marker at ≈9.2×10³ can be located by the reader."
+  },
+  {
+    "id": "F-22",
+    "page": "PDF 162 / printed 142",
+    "figure": "FIGURE 8.2 — caption",
+    "severity": "P3",
+    "issue": "The caption enumerates the plotted points as 'the plotted prefill (9.2K input) and decode (batch=1) points are illustrative operating points', but the figure plots three annotated points — prefill, decode batch=1, and decode batched. The batched point, which is the one that carries the chapter's central 'batching climbs the memory-bound slope' argument, is omitted from the caption's list of illustrative points and is not given a batch size or intensity anywhere.",
+    "evidence": "Figure annotations: 'prefill 9.2K intensity ≈ 9.2 FLOP/byte', 'decode batch=1', 'decode batched'. Caption: 'the plotted prefill (9.2K input) and decode (batch=1) points are illustrative operating points'.",
+    "acceptance_test": "Extend the caption list to 'the plotted prefill, decode (batch=1) and decode (batched) points are illustrative operating points', and give the batched point a batch size and intensity in both the figure annotation and the caption so that its x-position is checkable."
+  },
+  {
+    "id": "F-23",
+    "page": "PDF 167 / printed 147",
+    "figure": "FIGURE 8.3 — legend line and in-box annotations",
+    "severity": "P3",
+    "issue": "The legend line ('Solid: data/state flow. Dashed: denoiser conditioning. Blue: data/state. Orange: compute. Token partitioning adds communication between devices.') and the sub-lines inside the orange boxes ('Patch (1, 2, 2): N = 27,280 video tokens', '50 steps × 2 CFG branch evaluations', 'Loop: denoising / scheduler iteration', 'VAE stride (T, H, W) = (4, 16, 16)', 'Aligned endpoint: 1 ? 4 × (31 − 1) = 121 frames') render smaller than the figure's box titles and appear to sit at or below the 8 pt floor for figure in-text annotations. This needs a measurement rather than an eyeball judgement.",
+    "evidence": "Rendered page: the legend line and the in-box sub-lines are visibly smaller than the box titles ('Wan2.2 dense T2V-5B + scheduler', 'VAE decode', '121 frames · 704 (H) × 1280 (W) · 24 fps').",
+    "acceptance_test": "Measure the rendered type size of the legend line and the in-box sub-lines at 100% on the printed page; all must be ≥ 8 pt. If any is below, raise it to 8 pt and re-check that the boxes still fit without crowding."
+  },
+  {
+    "id": "F-24",
+    "page": "PDF 162 / printed 142",
+    "figure": "FIGURE 8.2 — ridge markers",
+    "severity": "P3",
+    "issue": "The two ridge markers are vertical dotted lines separated by only about 10 px at 150 dpi (≈0.15 in at print size), and their labels 'ridge = 295' and 'ridge = 206' are stacked immediately to the left of them. Because both markers are dotted and differ only in colour, a reader can easily attach the upper label to the wrong line, and in grayscale the two markers are nearly identical. The quantitative difference between the two ridges (295 vs 206) is one of the chapter's key points (H200's higher bandwidth moves the knee left), so the association must be unambiguous.",
+    "evidence": "Rendered page: blue dotted vertical line at x ≈ 340 px, red dotted vertical line at x ≈ 330 px; labels 'ridge = 295' (blue) and 'ridge = 206' (red) stacked at x ≈ 300–345. The curves themselves are solid (H100) vs dashed (H200), which is the only unambiguous cue.",
+    "acceptance_test": "Make the two ridge markers distinguishable without colour (e.g. solid for H100, dashed for H200, matching the curve styles) and place each label immediately adjacent to its own line with a short leader, or label them 'H100 ridge = 295' and 'H200 ridge = 206'. Confirm on a grayscale 300-dpi render that each label is unambiguously attached to its line."
+  }
+]
+```
+
+COVERAGE: Pages inspected as rendered images at 150 dpi: PDF 148 (printed 128), 149 (129), 155 (135), 161 (141), 162 (142), 163 (143), 166 (146), 167 (147) — all 8 pages of the batch viewed. Figures inspected: FIGURE 7.7 (PDF 148/printed 128), FIGURE 7.8 (PDF 149/printed 129), FIGURE 8.1 (PDF 155/printed 135), FIGURE 8.2 (PDF 162/printed 142), FIGURE 8.3 (PDF 167/printed 147) — 5 of 5 figures on the batch pages. Pages 161, 163, 166 (printed 141, 143, 146) contain no figures; their prose was read only as context for the figure captions on the facing pages. NOT VERIFIED: no 300-dpi re-render was available, so all glyph-level readings flagged as ambiguous (the FIG 7.7 operator, the FIG 7.8 '11' vs '5', the FIG 8.2 prefill annotation string and 10³ tick, the FIG 8.3 '×' vs '+' and the two garbled caption fragments) are stated as verification items with the recomputation supplied, not as confirmed defects; no source files, figure-generation scripts, or the machine gates (check_regressions.py, check_stale_values.py, scan_overlaps.py) were run, so no gate result is asserted; no external datasheet or paper was fetched, so H100/H200 bandwidth and TFLOP values were checked only for internal consistency with the book's own printed numbers; the book's canonical workload definition (1,200 + 8,000 = 9,200 tokens) was taken from the stated house convention and was not re-verified against the source chapters, which is why F-02 is framed as a reconciliation requirement rather than a confirmed error.

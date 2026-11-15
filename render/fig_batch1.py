@@ -26,7 +26,7 @@ print('fig-02-0201: see render/fig_ch2_roofline.py; Ch02 block retired')
 # hierarchy, and enlarge the row labels.
 fig, ax = plt.subplots(figsize=(7.6, 7.6))
 ax.set_xlim(0, 10); ax.set_ylim(0, 10); ax.axis('off')
-dims = ['Quality requirements', 'Traffic / concurrency', 'Token profile', 'Latency SLO', 'Economic constraints', 'Operational constraints']
+dims = ['Quality requirements', 'Request rate & arrival pattern', 'Token profile', 'Latency SLO', 'Economic constraints', 'Operational constraints']
 cons = ['model size / type', 'concurrency & batching', 'KV cache size & prefill demand', 'TTFT/TPOT & batch window', 'host count & cost ceiling', 'multi-region vs. single-region']
 # column headers (hierarchy: the two reading units) — aligned to each column centre
 ax.text(2.5, 9.55, 'WORKLOAD DIMENSION', ha='center', va='center', fontsize=10.5, fontweight='bold', color='#27408b')
@@ -105,12 +105,16 @@ ax.text(0.5, 0.965, 'Serving = four separable concerns, not a stack',
 
 # 2x2 grid -- numbered in reading order, one mechanism exemplar per card
 card(0.025, 0.52, 0.455, 0.30, 1, 'REQUEST\nSCHEDULING', 'e.g. continuous batching', PURPLE, '#f7f3fb')
-card(0.520, 0.52, 0.455, 0.30, 2, 'STATE\nMANAGEMENT', 'e.g. PagedAttention (KV pages)', RED, '#fdecea')
-card(0.025, 0.10, 0.455, 0.30, 3, 'REUSE', 'e.g. prefix caching', GREEN, '#eafaf0')
+card(0.520, 0.52, 0.455, 0.30, 2, 'STATE\nMANAGEMENT', 'e.g. PagedAttention (KV pages)', RED, '#fdecea', ls='dotted')
+card(0.025, 0.10, 0.455, 0.30, 3, 'REUSE', 'e.g. prefix caching', GREEN, '#eafaf0', ls='dashdot')
 card(0.520, 0.10, 0.455, 0.30, 4, 'RESOURCE\nSPECIALIZATION', 'e.g. P/D disaggregation', ORANGE, '#fdf3e0', ls='dashed')
 
 plt.tight_layout()
-plt.savefig(base % (11, 11, 11), dpi=350); plt.close()
+# ROUND-5 fix (CH11-FIGURE-FILE-NAMES-SWAPPED): caption number and file name must
+# agree, so the four-concerns figure is fig-11-1102 (Fig 11.2) and the batching
+# figure is fig-11-1101 (Fig 11.1, render/fig_ch11_batch.py). base can only
+# emit *01 names, so this block writes its explicit path.
+plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=350); plt.close()
 print('Ch11 done')
 
 print('batch part 1 complete')

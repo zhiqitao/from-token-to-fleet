@@ -1,0 +1,122 @@
+[
+  {
+    "id": "CH17-MINICASE-048",
+    "verdict": "CONFIRMED",
+    "evidence": "Quote found verbatim in design/manuscript/chapter-16/chapter-16.md §8 (page_hint says Ch 17 §17.8; actual location Ch 16 §8): \"Same 70B FP16 as the canonical case, 2 GPUs per replica → 8 replicas across the two hosts; 2 rps average is 0.25 rps/replica, well inside the 0.48 rps/replica the canonical 21-host fleet sustains at its 40 rps peak.\" Book-wide grep: '0.48' occurs only in chapter-16 (once), '0.25 rps' only in chapter-16 — neither figure is derived anywhere. Canonical TP=8 confirmed: ch10 \"intra-host TP=8 to distribute the 140 GB weights\"; ch2 \"canonical 8×H100 host (TP = 8)\". Arithmetic: 40/21 = 1.90 rps/host; 40/(21×4) = 0.476 ≈ 0.48 implies 4 two-GPU replicas/host (not canonical TP=8); under the mini-case's own 2-GPU replicas (8/host) the canonical per-replica rate would be 40/(21×8) = 0.238, not 0.48.",
+    "fix_instruction": "Derive 0.48 rps/replica from stated inputs in Ch 16 §8 (or restate the comparison at host level: \"1 rps/host vs 40/21 ≈ 1.9 rps/host\"), and state the replica definition used for the canonical fleet where the figure is introduced. Also correct the finding's page_hint: the clause is in Ch 16 §8, not Ch 17 §17.8."
+  },
+  {
+    "id": "CH15-SCOPE-TILDE",
+    "verdict": "CONFIRMED",
+    "evidence": "Quote found in design/manuscript/chapter-15/chapter-15.md: \"so the *fleet* is ⌈344/17⌉ = **~21 hosts** on the FP16 KV reference (Chapters 16/17/20; with the §6 FP8-KV decision, ⌈344/35⌉ = 10 hosts at 40 rps...)\". Arithmetic: 344/17 = 20.235 → ⌈⌉ = 21 exactly. The same sentence prints a second exact ceiling WITHOUT a tilde (⌈344/35⌉ = 10 hosts), so the hedging is inconsistent within one sentence: one deterministic ceiling result is hedged, the other is not.",
+    "fix_instruction": "In Ch 15, remove the tilde: \"⌈344/17⌉ = 21 hosts\" (matching the unhedged \"⌈344/35⌉ = 10 hosts\" in the same sentence), or hedge both."
+  },
+  {
+    "id": "CH16-KV-DECIMAL",
+    "verdict": "CONFIRMED",
+    "evidence": "Quote found verbatim in design/manuscript/chapter-16/chapter-16.md §16.3 Step 1: \"436 GB ÷ (2.62 MB/token × 9,500 tokens) = 17.51 → floor 17 (conservative by one host: 344 ÷ 17.516 = 19.64 → 20 unrounded)\" — two decimals for one quantity in one sentence. Arithmetic: 2.62144 MB × 9,500 = 24,903.68 MB = 24.90368 GB; 436/24.90368 = 17.5074 → 17.51 (2 dp) or 17.507 (3 dp); 17.516 matches neither standard rounding. Book-wide grep: '17.516' occurs only in chapter-16 (this one sentence); '17.51' also appears in chapter-07 (×2), chapter-17 (×2), chapter-20, chapter-25 — the extra-precision value is unique to Ch 16.",
+    "fix_instruction": "In Ch 16, unify to 17.51 in both places (\"344 ÷ 17.51 = 19.64 → 20 unrounded\"), or derive 436 ÷ 24.9037 = 17.507 explicitly and use that precision consistently."
+  },
+  {
+    "id": "CH18-01",
+    "verdict": "CONFIRMED",
+    "evidence": "_triage=ABSENT was wrong: the quote exists in design/manuscript/chapter-18/chapter-18.md Table 18-1 and the paragraph below it: \"Among remaining models, which minimizes weighted cost = α·token_cost + β·latency_cost?\" and \"token_cost is USD per 1M tokens (§18.3.2) and latency_cost is USD per ms of per-request service latency (or a normalized latency score), so α and β are dimensionless weights with α + β = 1\". As printed, α·(USD/1M-tokens) + β·(USD/ms) adds two different units; the parenthetical offers normalization for the latency term only, while token_cost stays absolute USD/1M — no scalar can be computed without an unstated normalization of both terms. Grep 'α' in chapter-18: only this definition and the degenerate \"α = 1, β = 0\" case; no numeric pair or selection rule anywhere.",
+    "fix_instruction": "In Ch 18 Table 18-1, rewrite the gate at per-request level (\"α·(token_rate × n_tokens) + β·(latency_rate × n_ms)\") or state that both rates are normalized to [0,1] across the candidate set before weighting, and give concrete α/β for the canonical scenario."
+  },
+  {
+    "id": "CH19-01",
+    "verdict": "FALSE_POSITIVE",
+    "evidence": "Both clauses found in design/manuscript/chapter-19/chapter-19.md: \"the scenario caps turns at 3 and the 2% fallback is modeled as an immediate single-shot fallback, not a fourth attempted turn\" (§8 percentiles) and \"a fallback request attempts the full cap (T = 3 — 3 model calls + 3 tool calls) before the guardrail trips, then re-dispatches a single-shot fallback (9,200 + 300)\" (unconditional ledger). The alleged contradiction does not hold: between the two clauses the text explicitly states both conventions — \"the *incremental* agent work beyond the single-shot baseline is zero... but the *total* work the failed agent attempts already consumed is not erased, it is simply not counted here. The unconditional ledger below counts it, and states which convention is in use.\" The ledger row is self-labeling (\"Fallback: 3 attempted turns + single-shot (2%) | 660 ms + ~200 ms ≈ 860 ms | 39,395\") with the decomposition printed: \"39,395 input decomposes as 30,195 (the three attempted turns...) + 9,200 (the fresh single-shot)\". The finding's own root_cause concedes \"immediate\" modifies the re-dispatch, i.e. clause 1 is true as written.",
+    "fix_instruction": ""
+  },
+  {
+    "id": "CH20-01",
+    "verdict": "CONFIRMED",
+    "evidence": "grep of design/manuscript/chapter-20/chapter-20.md (flexible hyphen): the phrase occurs 4 times — line 34 (×1), line 38 (×2, in the sentence \"**Call this quantity what it is — one phrase, used identically in Chapters 16, 17 and 20.** The ~2.0 req/s figure is a **KV-slot-based analytical UPPER bound...** The ~2.0 req/s/host figure is the **KV-slot-based analytical UPPER bound...**\"), and line 127 (×1, \"the **KV-slot-based analytical UPPER bound** (KV-slot-based analytical UPPER bound)\" — a parenthetical that restates the full phrase inside its own parentheses). The finding reported 3 occurrences in ~15 lines; there are 4, so the repetition defect is stronger than claimed, and the line-127 occurrence is a self-referential tautology.",
+    "fix_instruction": "In Ch 20, use a short anaphoric reference after the first definition (\"This upper bound is model-derived...\"), and delete the line-127 parenthetical that repeats the phrase inside its own parentheses."
+  },
+  {
+    "id": "CH19-02",
+    "verdict": "CONFIRMED",
+    "evidence": "Quote found verbatim in design/manuscript/chapter-19/chapter-19.md: \"Agentic traffic is structurally more prefill-heavy — the prefill/decode ratio rises from ≈0.14 single-shot to ≈0.40 at T=3 (1 → T+1 = 4 prefills per request)\". Grep 'prefill/decode ratio' book-wide: exactly 1 occurrence (this sentence) — the term is never defined; every other 'prefill/decode' hit (ch2, ch11, ch12...) is the prefill/decode *split/disaggregation*, a different concept. Arithmetic: 1.08/7.5 = 0.144 ≈ 0.14; 4.93/12.375 = 0.398 ≈ 0.40 — both time ratios, both derivable from printed figures (ch19: \"W_no-reuse(3) = 4.93 + 12.375 + 0.399 ≈ 17.70 s\"), while the parenthetical \"4 prefills per request\" is a count. A count-interpreting reader cannot reach 0.14/0.40.",
+    "fix_instruction": "In Ch 19, name the metric at first use (\"the prefill-time/decode-time ratio rises from ≈0.14 (1.08 s / 7.5 s) to ≈0.40 (4.93 s / 12.375 s)\") so the values and the count parenthetical are not conflated."
+  },
+  {
+    "id": "CH18-02",
+    "verdict": "DEFENSIBLE",
+    "evidence": "Both quotes found in design/manuscript/chapter-18/chapter-18.md. Table row: \"70B 4-bit GGUF | ~35 GB | ~5 (canonical 436 GB KV budget reserved: (640−436)/35 = 5.83 → floor 5; ~18 by weights alone; the worked deployment below uses 2 copies)\". Deployment: \"Two 70B 4-bit GGUF (≈70 GB total; the two 4-bit copies are reserved for edge spillover/fallback — no traffic in this 70/20/10 split — and hold no canonical KV reservation)\". Arithmetic: (640−436)/35 = 204/35 = 5.829 ✓ → 5 ✓. The finding itself concedes \"These are not contradictory (the table computes maximum fit; the deployment uses only 2)\", and the table row explicitly bridges the count (\"the worked deployment below uses 2 copies\") — the residual is that the KV-reservation basis shift (436 GB reserved in the table, none in the deployment) is never explained, a clarity judgment rather than an inconsistency.",
+    "fix_instruction": ""
+  },
+  {
+    "id": "CH24-01",
+    "verdict": "CONFIRMED",
+    "evidence": "Quotes found in design/manuscript/chapter-24/chapter-24.md. §3.1: \"the unique exposure surface is the **candidate pattern space, CPS = 217** [ILLUSTRATIVE]\" and \"This illustrative quantity — 217 distinct, non-redundant prompt-injection patterns — is the candidate pattern space (CPS); **PIES** is the subset of those candidate classes with ≥1 guardrail bypass in the cycle\". Table 24-1: \"| PIES | 217 | 143 | 138 | < 150 |\" (Cycle 1 PIES = 217). §8: \"PIES has dropped from 217 to 143\". Grep 'all 217|every candidate class|all of the 217' book-wide: zero matches — the manuscript never states that all 217 classes bypassed a guardrail, which is required for PIES = CPS = 217. Logic: PIES ⊆ CPS, |CPS| = 217, Table 24-1 prints PIES = 217 without the all-bypass statement.",
+    "fix_instruction": "In Ch 24, either state \"in Cycle 1 every candidate class had ≥1 bypass, so PIES = CPS = 217\" at the first use of 217 as a PIES value, or relabel the 217 column/rows as CPS and reserve PIES for the bypassed subset."
+  },
+  {
+    "id": "CH24-02",
+    "verdict": "CONFIRMED",
+    "evidence": "Quote found in design/manuscript/chapter-24/chapter-24.md §4.1 table: \"| **False-positive rate** | FACT | Share of guardrail interventions that block legitimate user intent (denominator = interventions, not queries) | < 1.5% |\". Sibling rows verified: \"**Guardrail-trigger rate** | FACT | Number of guardrail interventions per 1,000 user queries\" and \"**Tool-use exploit rate** | FACT | Percentage of Red Team tool-use probes...\" — all three rate/share metrics FACT — while fraction rows carry DERIVED: \"**PIES** | DERIVED | Subset of the candidate pattern space...\", \"**Poisoned-hit rate** | DERIVED | Fraction of retrievals...\", \"**Red-team win rate** | DERIVED\". The chapter's own §5 rule: \"**Confusing FACT with DERIVED** ... Always tag metrics with their axis; require each DERIVED quantity to rest on FACT inputs\" — a share-of-interventions computed from counts is DERIVED per the book's own definition, yet is labeled FACT.",
+    "fix_instruction": "In Ch 24 §4.1, relabel the computed rates (false-positive rate, guardrail-trigger rate, tool-use exploit rate) as DERIVED, or split each into a raw FACT count and a DERIVED rate."
+  },
+  {
+    "id": "CH24-05",
+    "verdict": "CONFIRMED",
+    "evidence": "Quote found verbatim in design/manuscript/chapter-24/chapter-24.md §3.3: \"- **Candidate A: 4×H100 hosts**, 8-bit KV, tight batching target (batch ≤ 8), minimal headroom. Looks cheap: 4 hosts is half the aggregate compute and HBM of Candidate B. - **Candidate B: 8×H100 hosts**, FP16 KV...\". Under the book's own convention (\"one 8×H100 host gives ≈ 7.9 PFLOP/s of dense-FP16 theoretical peak\"), \"4×H100 hosts\" conventionally reads as hosts with 4 H100s each — the wrong reading; the intended meaning (4 hosts of 8 GPUs) appears only in the following sentence (\"4 hosts is half the aggregate compute...\", \"half the host-hours: 4 hosts vs 8\"). The label alone fails the acceptance test; the intended comparison (4 hosts vs 8 hosts) is confirmed by \"Candidate A 4 hosts vs Candidate B 8 hosts\" in the [DERIVED] note.",
+    "fix_instruction": "In Ch 24 §3.3, write the labels unambiguously (\"Candidate A: 4 hosts of 8×H100\" / \"Candidate B: 8 hosts of 8×H100\") so the unit cannot be read as a GPU count."
+  },
+  {
+    "id": "CH25-01",
+    "verdict": "FALSE_POSITIVE",
+    "evidence": "Quotes found: ch25 ADR 0015 \"at the canonical 6.24M requests/mo\" and R1 \"Serve the canonical workload: 10 rps avg / 40 rps peak\". The active-hours basis IS stated in the book and sourced by the ADR itself: ch16 \"Per request at ~10 rps average over the active business-hours window (Ch 4: 10 rps × 8 h × 3,600 s × 260 workdays ÷ 12 = **6,240,000 requests/month**, not 24×7; request-active time is 173.33 h/month, distinct from the 730 h billing calendar)\", and ADR 0015's Evidence line: \"[DERIVED] — 6.24M req/mo and every $/1K division are Ch 16 arithmetic\". Arithmetic: 10 × 8 × 3600 × (260/12) = 6,240,000 exactly; 6.24M × 12 = 74.88M ✓. The finding's 25.92M assumes a 30-day 24×7 month, which the book explicitly excludes (\"not 24×7\"); under the stated basis 10 rps and 6.24M/month are dimensionally consistent.",
+    "fix_instruction": ""
+  },
+  {
+    "id": "CH25-02",
+    "verdict": "CONFIRMED",
+    "evidence": "Quotes found in design/manuscript/chapter-25/chapter-25.md §7: \"## 7. What We Still Don't Know ... Each item below is a **hypothesis awaiting verification** — none has FACT instrumentation yet:\" followed by the item list containing \"- **Tooling gaps:** [1P][FACT] — no widely adopted tool exists for ADR graph visualization or impact analysis (a factual tooling observation, not an open hypothesis).\" The intro's universal claim (\"Each item below is a hypothesis... none has FACT instrumentation\") is falsified by its own [FACT] item in the same list; the item's inline caveat mitigates the reader's confusion but does not correct the intro. Grep 'tooling gap' in chapter-25: only this one sentence — no enumeration of the covered gaps exists elsewhere.",
+    "fix_instruction": "In Ch 25 §7, reword the intro (\"Most items below are hypotheses...; the Tooling gaps item is a factual observation\") or move the Tooling gaps item out of the unknowns section."
+  },
+  {
+    "id": "CH25-03",
+    "verdict": "FALSE_POSITIVE",
+    "evidence": "Quote found in ch25 ADR 0015 R1: \"70% × 95% + N−1 policy: 32 (KV screen) / 34 (case (ii) prefill screen, Ch 20)\". The derating closes exactly under the book's stated rule: ch13 \"under the 70% × 95% policy — applied to the unrounded 344/17 ≈ 20.2, not the rounded 21 — that becomes 31 working + 1 spare = 32 total, Table 17-1\"; ch17 prints the derivation \"at the 70% × 95% + N−1 policy ⌈21.81/0.665⌉ + 1 = 34 hosts under case (ii) versus 32 for KV-only (⌈344/11.305⌉ + 1)\" with the table row \"N @ T=0, FP16 (C=17; C×0.7×0.95=11.305) | ⌈344/11.305⌉ ≈ 31\". Arithmetic: 17 × 0.665 = 11.305; 344/11.305 = 30.43 → 31 working + 1 = 32 ✓; 31 × 0.665 = 20.615 ≥ 20.235 (unrounded screen) ✓. The finding's shortfall (\"31 × 0.7 × 0.95 ≈ 20.6, below 21\") derates the ROUNDED 21, which ch13 explicitly excludes (\"not the rounded 21\"); its alternative (21/0.665 → 32 working + 1 = 33) applies the policy to the wrong target.",
+    "fix_instruction": ""
+  },
+  {
+    "id": "CH25-04",
+    "verdict": "DEFENSIBLE",
+    "evidence": "Quote found verbatim in design/manuscript/chapter-25/chapter-25.md ADR 0017 Consequences: \"it leaves the weight-read-dominated decode cost per token nearly unchanged (it does halve the KV-read bytes, a secondary ~15% term)\". The natural parse is the component-share reading the finding itself endorses: the appositive \"a secondary ~15% term\" attaches to \"the KV-read bytes\" (KV = ~15% of decode reads), and the lever halves that component. Arithmetic verified: 24.9/(140+24.9) = 15.1% share; halving → 7.5% total reduction — both consistent with the text under that parse. The finding's claim rests on a possible misreading (15% as the saving), not on an error in the printed numbers; whether the parenthetical invites that misreading is a judgment.",
+    "fix_instruction": ""
+  },
+  {
+    "id": "CH25-05",
+    "verdict": "CONFIRMED",
+    "evidence": "Quote found in design/manuscript/chapter-25/chapter-25.md §6: \"**Integration with CI:** ADRs can be validated as part of the CI pipeline — e.g., ensuring every ADR has a status, a rationale, and at least one evidence tag.\" The chapter then states the template's fields explicitly: \"the worked record adds a Rationale and Evidence Tags; the template adds Evidence, decision owner, validation, rollback, review trigger, and falsification path\" — Rationale is assigned to the worked record only. The copy-ready template's section dump confirms: Trade-offs & consequences / Decision owner / Validation plan / Rollback plan / Review trigger / Falsification path (plus Evidence) — no Rationale section. The CI rule requires a field the canonical template does not contain.",
+    "fix_instruction": "In Ch 25, add a Rationale section to the copy-ready template (§25.3.1), or change the CI example to require only fields the template contains (status, evidence, trade-offs)."
+  },
+  {
+    "id": "CH26-02",
+    "verdict": "FALSE_POSITIVE",
+    "evidence": "Quote found in design/manuscript/chapter-26/chapter-26.md §8 Step 0: \"the architect reads the capstone's workload against Fig 26.1 — a short-prompt, latency-sensitive RAG workload, closest to the matrix's short-input latency-bound rows\". The finding's own proposed fix (b) is already printed: the text positions the capstone on \"the matrix's short-input latency-bound rows\", not on Fig 26.1's long-context RAG bar. Fig 26.1's provenance note scores THREE families, not one: \"the scores are long-context RAG Q&A 0.95 / 0.20 / 0.70 / 0.55 / 0.40 / 0.45, chat 0.35 / 0.95 / 0.50 / 0.75 / 0.90 / 0.55, batch 0.55 / 0.60 / 0.30 / 0.85 / 0.35 / 0.90\" — the chat family (context 0.35, latency 0.90) IS a short-input latency-bound row in the figure. Step 1's declaration (\"distinct short-prompt workload — it is *not* the canonical 9.2K-input/1.08-s-prefill case\") is consistent with Step 0's positioning; no sentence equates the capstone with the long-context RAG point.",
+    "fix_instruction": ""
+  },
+  {
+    "id": "APP-A-01",
+    "verdict": "FALSE_POSITIVE",
+    "evidence": "Quote found in design/manuscript/chapter-27/chapter-27.md §5: \"Values are vendor-published [1P], not yet independently reprofiled on a serving stack (see A.10).\" Distinct A.N references in ch27: A.1, A.2, A.3, A.4, A.5, A.6, A.8, A.10 — all resolve under one consistent scheme (A.N = Nth section, skipping the {.unnumbered} Post-snapshot addendum): A.1 = \"The Signal in One Paragraph\", A.2 = \"How to read this appendix\", A.3 = \"## 1. DeepSeek-V4\" (family list: \"DeepSeek-V4 (A.3)\"), A.4 = \"## 2. Kimi K3\", A.5 = \"## 3. Qwen3.8-Flash-Next\", A.6 = \"## 4. GLM-5.3-Flash\" (confirmed by \"the 2026-09-27 Ornith-1.5-397B observation in A.6\" — the Ornith note sits under ## 4), A.8 = \"## 6. Where 2026 Capability Actually Comes From\" (confirmed by \"the capability story ... lives elsewhere (A.8)\" alongside \"a capability-ledger item (§6)\"), A.10 = \"## 8. First-hand Sources (all [1P])\" (\"First-hand Sources list (A.10)\" ×4). The finding's premise (A.10 should match a heading number) would also condemn A.3-A.8, which all use the same offset; every reference resolves, so the acceptance test passes as printed.",
+    "fix_instruction": ""
+  },
+  {
+    "id": "APP-A-02",
+    "verdict": "DEFENSIBLE",
+    "evidence": "Quote found in design/manuscript/chapter-27/chapter-27.md §4 GLM-5.3-Flash \"What this means for the architect\": \"GLM's coupling of hybrid attention with *native multimodality* shows the model border is remaking: \\\"LLM\\\" and \\\"vision/audio model\\\" are converging in a single weight set, which changes workload characterization (Ch4)\". The same section states GLM's actual scope: \"Per the vendor, the first natively multimodal model in the GLM-5 series (text/image/video)\" — no audio ✓, and grep 'audio' in chapter-27 returns no GLM audio claim. The facts the finding cites are verified, but the sentence is a trend statement using model-class names (\"the model border is remaking: LLM and vision/audio model are converging\"), not a claim that GLM itself supports audio — GLM's modalities are explicitly listed in the same section. Whether the generic class phrase constitutes overstatement for this model is a judgment.",
+    "fix_instruction": ""
+  },
+  {
+    "id": "APP-A-03",
+    "verdict": "DEFENSIBLE",
+    "evidence": "Quote found in design/manuscript/chapter-27/chapter-27.md 2026-10-28 diffusion note: \"DiffusionGemma is an explicitly experimental open release with an encoded context cache and a separately refined canvas; its uniform-state renoising does not require MASK.\" Book-wide counts: 'renoising' chapter-03 ×1, chapter-27 ×1; 're-noising' 0× everywhere — so the typo hypothesis is refuted: the exact compound \"uniform-state renoising\" is used consistently in both chapters (ch3: \"Uniform-state renoising can begin with ordinary token states\", contrasted with MASK-starting processes — the same MASK contrast ch27 invokes), and the concept is explained in ch3's diffusion passage. The finding's chunk-scoped claim (ch27 does not gloss the term locally) is true; whether a local gloss/cross-reference is required is a judgment.",
+    "fix_instruction": ""
+  }
+]

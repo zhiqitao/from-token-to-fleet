@@ -35,20 +35,21 @@ ax.loglog(ais, ach100, color='#27408b', lw=2.2, ls='-', marker='o',
           markevery=22, ms=3.2, label='H100 FP16 (3.35 TB/s)')
 ax.loglog(ais, ach200, color='#c0392b', lw=1.9, ls='--', marker='^',
           markevery=22, ms=3.6, label='H200 FP16 (4.8 TB/s)')
-# Ridge points (dotted vertical lines + labeled markers).
-# The dotted ridge lines carry the ridge intensity; the 'ridge ≈' labels name it.
+# Ridge points (vertical lines + labeled markers), line style matching each curve
+# so the two ridges are told apart without colour: H100 solid, H200 dashed;
+# the labels are prefixed H100 / H200 (Round-5 F-24).
 # The extra plotted ridge markers (blue 'o' at peak*0.35, red '^' at peak*0.10)
 # were removed in Loop-6 (L6-2): the red triangle floated mid-plot off the red
 # H200 curve (which is already at the plateau at that intensity), so a reader
 # could misread it as an operating point.
-ax.axvline(r100, color='#27408b', ls=':', lw=1.2)
-ax.axvline(r200, color='#c0392b', ls=':', lw=1.2)
-# Ridge labels — opaque white bbox backing so the ridge axvline + major gridlines
-# never show through the digit glyphs; also offset horizontally off the dotted
+ax.axvline(r100, color='#27408b', ls='-', lw=1.2)
+ax.axvline(r200, color='#c0392b', ls='--', lw=1.2)
+# Ridge labels — opaque white bbox backing so the ridge line + major gridlines
+# never show through the digit glyphs; also offset horizontally off the ridge
 # line so the line runs beside rather than through the label (Loop-5 F5).
-ax.text(r100*1.06, peak*0.42, f'ridge ≈ {r100:.0f}', fontsize=8.5, color='#27408b', ha='left',
+ax.text(r100*1.06, peak*0.42, f'H100 ridge ≈ {r100:.0f}', fontsize=8.5, color='#27408b', ha='left',
         bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none'))
-ax.text(r200*0.90, peak*0.05, f'ridge ≈ {r200:.0f}', fontsize=8.5, color='#c0392b', ha='right',
+ax.text(r200*0.90, peak*0.05, f'H200 ridge ≈ {r200:.0f}', fontsize=8.5, color='#c0392b', ha='right',
         bbox=dict(boxstyle='round,pad=0.22', fc='white', ec='none'))
 
 # Lift grid-line alpha to lower visibility (still informative but won't compete with labels)
@@ -115,8 +116,8 @@ ax.annotate('decode\nbatch=1', xy=(0.5, 1.7), xytext=(0.045, 0.72),
             arrowprops=dict(arrowstyle='-', lw=0.9, color=colors['decode'],
                             shrinkA=2, shrinkB=6),
             bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
-# decode batched: below the batch=1 callout, pointing up-right to its (8,27) marker
-ax.annotate('decode batched', xy=(8, 27), xytext=(0.045, 0.52),
+# decode batch B=8: below the batch=1 callout, pointing up-right to its (8,27) marker
+ax.annotate('decode batch B=8\n(intensity ≈ B\nFLOP/byte)', xy=(8, 27), xytext=(0.045, 0.52),
             textcoords='axes fraction', fontsize=9, color=colors['decode'],
             ha='left', va='center',
             arrowprops=dict(arrowstyle='-', lw=0.9, color=colors['decode'],
@@ -129,7 +130,7 @@ ax.annotate('', xy=(8, 27), xytext=(0.6, 1.8),
                             connectionstyle='arc3,rad=0.15'))
 
 ax.set_xlabel('Arithmetic intensity (FLOP/byte) — per GPU', fontsize=9)
-ax.set_ylabel('Achievable performance (TFLOPS) — per GPU', fontsize=9)
+ax.set_ylabel('Theoretical peak performance (TFLOPS) — per GPU', fontsize=9)
 ax.set_title('Per-GPU roofline: dense FP16, one H100 vs one H200', fontsize=9.5)
 ax.tick_params(labelsize=11)
 # (Grid already enabled above with reduced alpha near the ridge labels.)

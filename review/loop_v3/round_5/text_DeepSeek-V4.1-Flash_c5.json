@@ -1,0 +1,69 @@
+[
+  {
+    "id": "CH24-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 24 §3.3 (peak KV residency bullet)",
+    "chapter": "24",
+    "quoted_clause": "40 rps × 8.6 s = 344 in-flight × 24.9 GB ÷ 436 GB = 19.7 → 21 hosts (Ch 17)",
+    "observed": "The arithmetic yields 19.65 (printed as 19.7), but the result is stated as 21 hosts. A clean ceil of 19.7 is 20, not 21. The FP8 analogue later in the same chapter explicitly writes '+N−1' (9.8 + 1 → 11), but this FP16 line omits the +N−1 step, so the reader cannot see how 19.7 becomes 21.",
+    "evidence": "344 × 24.9 = 8565.6; 8565.6 ÷ 436 = 19.65. ceil(19.65) = 20. To reach 21 requires an additional +1 (N−1) step: 19.65 + 1 = 20.65 → 21. The text does not state that step here, while it does state it in the FP8 calculation.",
+    "root_cause": "The +N−1 policy step is applied implicitly in the FP16 line but explicitly in the FP8 line, creating an apparent arithmetic gap.",
+    "correction": "Either write '19.7 + 1 (N−1) = 20.7 → 21 hosts' or add a parenthetical: '(19.7 raw + 1 N−1 reserve → 21)'. Match the FP8 line's explicit '+N−1' phrasing.",
+    "acceptance_test": "The FP16 peak-KV line shows the +N−1 step explicitly, and 19.7 + 1 = 20.7 → 21 is arithmetically visible."
+  },
+  {
+    "id": "CH24-02",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 24 §4.2 item 3 (Retrieval auditor)",
+    "chapter": "24",
+    "quoted_clause": "samples 1,000 retrievals per cycle (n ≈ 1,000 sized for the <0.3% target at 95% confidence; 0.001 resolution)",
+    "observed": "With n=1,000 and a true rate near 0.3%, the expected event count is 3. The 95% binomial CI for 3/1,000 is roughly [0.06%, 0.88%], which is far wider than the 0.3% target. n=1,000 gives a 95% upper bound of 0.3% only in the zero-event case (rule of three: 3/1,000 = 0.003). The claim 'sized for the <0.3% target at 95% confidence' is therefore only true under a zero-failure observation, not in general.",
+    "evidence": "For p=0.003, n=1,000: SE = sqrt(0.003×0.997/1,000) ≈ 0.00173; 95% CI half-width ≈ 0.0034. Zero-event 95% upper bound = 3/1,000 = 0.003. The '0.001 resolution' is the measurement granularity (1 event per 1,000), not the confidence-interval width.",
+    "root_cause": "Conflating measurement granularity (0.001) with statistical confidence at the target rate.",
+    "correction": "Rephrase: 'n ≈ 1,000 gives 0.001 measurement granularity and a 95% zero-event upper bound of 0.3%; detecting a true rate near 0.3% with a tight CI requires a larger n (e.g., ~3,000–4,000 for a ±0.1% half-width at p≈0.003).'",
+    "acceptance_test": "The text distinguishes granularity from CI width and does not claim n=1,000 is sufficient to estimate a 0.3% rate with a tight 95% CI."
+  },
+  {
+    "id": "CH24-03",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 24 §8 mini-case (Decision point paragraph)",
+    "chapter": "24",
+    "quoted_clause": "However, two metrics remain above target: the false-positive rate at 2.4% ... and the guardrail-trigger rate at 5.4 per 1,000 (target <5); the poisoned-hit rate sits exactly at its ≈0.003 ceiling.",
+    "observed": "The §4.1 table defines the poisoned-hit-rate target as '< 0.003'. A value of 0.003 is not < 0.003, so the poisoned-hit rate does not meet target. The mini-case counts only two metrics as 'above target' and treats the poisoned-hit rate as merely 'at its ceiling', implying it passes. Three metrics fail target at Cycle 2, not two.",
+    "evidence": "Table 24-1 target column: 'Poisoned-hit rate | < 0.003'. Cycle 2 value: 0.003. 0.003 < 0.003 is false. The mini-case's own sentence says the rate 'sits exactly at its ≈0.003 ceiling' — i.e., at the boundary, not below it.",
+    "root_cause": "Inconsistent treatment of the '<' operator: the table uses strict '<', but the mini-case prose treats 'at 0.003' as passing.",
+    "correction": "Either (a) change the target to '≤ 0.003' in Table 24-1 and §4.1, or (b) rephrase the mini-case to say 'three metrics do not meet target: FP 2.4%, guardrail 5.4/1,000, and poisoned-hit 0.003 (at the <0.003 ceiling, not below it).'",
+    "acceptance_test": "The mini-case and Table 24-1 agree on whether 0.003 meets the poisoned-hit target, and the count of failing metrics is consistent."
+  },
+  {
+    "id": "CH25-01",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 25 §4 Measurement (derived quantity 1)",
+    "chapter": "25",
+    "quoted_clause": "per-request KV at 9.2K = 24.2 GB (2 × 80 layers × 9.2K × 8,192 × 2 B): KV, already inside the ~436 GB KV budget at concurrency (17 × ~24.9 GB ≈ 423 GB)",
+    "observed": "The text computes per-request KV at 9.2K = 24.2 GB, then immediately uses 24.9 GB (the 9.5K figure) for the concurrency check. The switch from 24.2 to 24.9 is not explained. A reader may wonder whether the 24.2 GB or the 24.9 GB is the per-request KV.",
+    "evidence": "24.2 GB is at 9.2K input; 24.9 GB is at 9.5K total (9.2K input + 300 output). The concurrency check correctly uses the max KV (24.9 GB), but the text presents 24.2 GB first without flagging the switch.",
+    "root_cause": "Two different context lengths (9.2K input vs 9.5K total) are used in adjacent sentences without an explicit transition.",
+    "correction": "Add a clause: 'per-request KV at 9.2K input = 24.2 GB; at the 9.5K max (input + 300 output) it is 24.9 GB, which is the figure used for the concurrency check: 17 × 24.9 ≈ 423 GB.'",
+    "acceptance_test": "The text explicitly distinguishes the 9.2K-input KV (24.2 GB) from the 9.5K-max KV (24.9 GB) and states which is used for the concurrency check."
+  },
+  {
+    "id": "CH26-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 26 §8 Step 2 (two-point model)",
+    "chapter": "26",
+    "quoted_clause": "the miss value assumes that queue has drained at the cached ~1.3 rps (compute falls from the inflated 320 ms to ~120 ms, so 250 ≈ 120 + 80 + 50)",
+    "observed": "The 120 ms 'queue-drained' compute is asserted, not derived. At 1.3 rps against a ~2.0 req/s ceiling, ρ ≈ 0.65, so the queue is not fully drained; some queueing delay remains. The 120 ms figure is a scenario input, but the text presents it as if it follows from 'queue has drained'.",
+    "evidence": "Utilization at 1.3 rps / 2.0 rps = 0.65. At ρ=0.65, an M/M/1 queue has mean wait = ρ/(1−ρ) × service time ≈ 1.86 × service time, which is not negligible. The 120 ms may be plausible as a service-plus-small-queue figure, but the text does not show the derivation.",
+    "root_cause": "The 120 ms is a scenario input presented as a consequence of 'queue has drained', but at ρ=0.65 the queue is not fully drained.",
+    "correction": "Either (a) label 120 ms explicitly as a scenario input ('we assume the queue-drained compute is ~120 ms; this is a Step 3 load-test target'), or (b) show the queueing calculation that yields 120 ms at ρ=0.65.",
+    "acceptance_test": "The 120 ms figure is either derived from a stated queueing model or explicitly labeled as a scenario input, not presented as a consequence of 'queue has drained'."
+  }
+]
+
+COVERAGE: Read all of Chapters 24, 25, 26, and Appendix A in the provided chunk. Recomputed: Ch 24 §3.1 (768 patterns), §3.2 (p=0.00104, E=0.0052, 52 hits, Q·(1−(1−p)^k)=51.97), §3.3 (1.6 nodes, 51.5 PFLOP/s, 6.5 hosts, 16.3 hosts, 344 in-flight, 19.7→21 hosts, 140 in-flight for 8 hosts), §4.2 (n=1,000 CI), §8 mini-case (0.13, 0.05, 34% PIES drop); Ch 25 §3 (140 GB, 24.2 GB KV, 17×24.9≈423, 140+436+64=640), §4 (140 GB, 24.2 GB, 6 GB workspace), §6 (cost divisions $24.97/$14.04/$20.80 per 1K); Ch 26 §3 (2N=1.4e11, 140 GB, 17.5 concurrent, 35% cache, 180 ms mean, 250 ms p99, 44% TTFT drop, 37.5% alt), §8 (450 ms baseline, 1.3 rps, 180 ms mean, 250 ms p99, 44% drop, 0.0076 cost); Appendix A (active fractions 3.7%/4.6%/5.6%/4.8%, 4.4×–14× KV band, 144 bytes/256 values = 4.5 bits, 890 bytes/token, 552B/196B/8B/16B). Checked terminology consistency (KV cache, PagedAttention, prefix caching, prompt caching, FP8/FP16/BF16, TTFT/TPOT, FACT/DERIVED/HYPOTHESIS, [1P]/[2°]/[LAB]/[ILLUSTRATIVE]). Checked cross-references (Ch 4, 7, 8, 14, 15, 16, 17, 20, 22, 24, 25, 26). Checked evidence-label usage against house conventions. Did NOT verify: figure content (stripped from chunk), external URLs/arXiv IDs, vendor datasheet values, or any claim requiring the full manuscript context outside this chunk.

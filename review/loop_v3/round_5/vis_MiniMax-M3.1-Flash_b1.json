@@ -1,0 +1,168 @@
+```json
+[
+  {
+    "id": "FIG-3.4-01",
+    "page": "PDF 66 / printed 46",
+    "figure": "Figure 3.4 — Dense vs MoE parameter allocation and KV cache behavior (caption + in-figure legends)",
+    "severity": "CRITICAL (P0)",
+    "issue": "The caption states the dense 70B has 'resident weights = 140 GB at FP8'. That is arithmetically impossible: 70B parameters at 1 byte/param is 70 GB; 140 GB implies 2 bytes/param (FP16/BF16). The figure's own numbers also mix precisions inside a single comparison: 'inactive experts = 68 GB (6 x 11.4)' and 'active experts = 23 GB resident (2 x 11.4)' imply 11.4 GB per 11.4B-parameter expert = 1 byte/param (FP8), while '= 91 GB experts + 3 GB always-on' implies the 1.4B always-on block is counted at 2 bytes/param, and '= 12.8B = 25.6 GB' implies all active parameters are counted at 2 bytes/param. The headline comparison '140 GB dense vs ~94 GB MoE' is therefore not like-for-like, and the caption's precision label is wrong under every reading.",
+    "evidence": "Recomputation from the figure's own inputs: 70e9 x 1 B = 70 GB (not 140); 70e9 x 2 B = 140 GB. 8 x 11.4B = 91.2B expert params; 91.2e9 x 1 B = 91.2 GB (matches '91 GB experts'); x 2 B = 182.4 GB (does not match). 1.4e9 x 2 B = 2.8 GB (~'3 GB always-on'); x 1 B = 1.4 GB. 12.8e9 x 2 B = 25.6 GB (matches '= 25.6 GB'); x 1 B = 12.8 GB. Independent cross-check: Figure 5.1 (PDF 110 / printed 90) labels the same canonical model '70B FP16 . serving', consistent with 140 GB = FP16 and contradicting 'at FP8'.",
+    "acceptance_test": "In the source, fix one precision for the whole comparison and make every printed number follow from it. If FP16 throughout: expert residency becomes 182 GB and the caption's '~47B MoE'/'~27%' must be reconciled with the figure. If FP8 for experts: dense residency becomes 70 GB and the caption must not say '140 GB at FP8'. Acceptance: a reviewer recomputing params x bytes/param reproduces every printed resident figure exactly, and the '= 25.6 GB' active figure uses the same bytes/param as the residency figures."
+  },
+  {
+    "id": "FIG-3.4-02",
+    "page": "PDF 66 / printed 46",
+    "figure": "Figure 3.4 — caption (MoE total parameters and active-compute fraction)",
+    "severity": "MAJOR (P1)",
+    "issue": "The caption's '~94 GB for the ~47B MoE' and 'the active-compute fraction (~10^6 vs ~27%)' cannot be reconciled with the figure's own expert arithmetic. The figure states 8 experts x 11.4B = 91.2B expert parameters plus 1.4B always-on = 92.6B total, which yields an active fraction of 12.8/92.6 = 13.8%, not ~27%. Conversely 12.8/47 = 27.2% is consistent with the caption's ~47B total, which contradicts the figure's 8 x 11.4B. In addition the dense-case fraction renders as '~10^6', which is not a fraction at all (presumably a mis-set '~100%' or a stray superscript). One of the two halves of the figure is wrong by roughly a factor of two, and the reader cannot tell which.",
+    "evidence": "12.8/92.6 = 0.138; 12.8/47 = 0.272; 8 x 11.4 = 91.2. Rendered glyph sequence on PDF 66: 'the active-compute fraction (~10^6 vs ~27%)'. Note the operator is '~' in the printed text, so the finding is not a rounding artifact: 13.8% and 27% differ by ~2x, far outside any rounding bound.",
+    "acceptance_test": "Verify in source and print exactly one MoE parameter count, one resident-bytes figure, and one active fraction, all derived from the same expert size and layer/head geometry. The dense fraction must print as a percentage (100%) or a ratio (1.0), never '10^6'. Acceptance: active fraction = (2 x expert_params + always_on_params) / total_params recomputes to the printed value within the stated rounding, and the printed total matches 8 x expert_params + always_on_params."
+  },
+  {
+    "id": "FIG-3.4-03",
+    "page": "PDF 66 / printed 46",
+    "figure": "Figure 3.4 — the two red KV callout boxes",
+    "severity": "MODERATE (P2)",
+    "issue": "The two red callout boxes under the two columns carry identical text, 'dense 12 GB vs MoE 0.6 GB'. Placed under the Dense column and the MoE column respectively, they read as a duplicated label rather than as two column-specific results; neither column is assigned its own KV number, and a reader scanning the figure cannot tell which number belongs to which model.",
+    "evidence": "Both boxes on PDF 66 / printed 46 read 'dense 12 GB vs MoE 0.6 GB'. (The underlying numbers are themselves correct: 8-bit KV, 80L/8192H full-MHA = 2 x 1 B x 80 x 8192 = 1.31 MB/token x 9,200 = 12.05 GB; 32L/4096H GQA with 8 KV heads x 128 = 2 x 1 B x 32 x 1024 = 0.0655 MB/token x 9,200 = 0.60 GB.)",
+    "acceptance_test": "Each column's callout states that column's value (Dense: 'KV 12 GB'; MoE: 'KV 0.6 GB'), with the comparison stated once, in the caption or a single shared note. Acceptance: the dense KV number is readable from the dense column alone and the MoE KV number from the MoE column alone, with no duplicated string."
+  },
+  {
+    "id": "FIG-3.4-04",
+    "page": "PDF 66 / printed 46",
+    "figure": "Figure 3.4 — visual hierarchy of the dense-vs-MoE KV comparison",
+    "severity": "MAJOR (P1)",
+    "issue": "The most visually prominent elements in the figure are the two red 'dense 12 GB vs MoE 0.6 GB' boxes, which encode a 20x KV reduction that a reader will attribute to MoE routing. The caption explicitly warns the opposite ('the KV bytes differ by shape, not by routing'), and the geometry appears only in a small italic note. Neither the column headings nor the callouts carry the attention geometry, so the figure licenses exactly the inference the caption forbids: 'MoE shrinks the KV cache'. This is the figure-level instance of the misconception the chapter is trying to defeat.",
+    "evidence": "Column headings are 'Dense 70B' and 'MoE (8 experts)' with no layer/head/GQA annotation. The geometry appears only in the small italic note '8-bit KV set by shape, not routing: 80L/8192H MHA vs 32L/4096H GQA (8 KV heads x 128) at 9.2K tokens input'. The caption's own sentence 'Routing alone never changes KV: hold the attention geometry fixed and dense vs MoE is identical (Ch. 7)' is not visible in the drawing.",
+    "acceptance_test": "Put the attention geometry (80L/8192H full-MHA vs 32L/4096H GQA, 8 KV heads x 128) and the KV dtype into each column heading or each column's callout, so the 12 GB vs 0.6 GB difference is visibly attributable to shape. Acceptance: a reader who sees only the figure, without the caption, does not conclude that MoE routing reduces KV-cache size."
+  },
+  {
+    "id": "FIG-3.2-01",
+    "page": "PDF 54 / printed 34",
+    "figure": "Figure 3.2 — panels B and C (source box vs. canvas relationship)",
+    "severity": "MAJOR (P1)",
+    "issue": "Panels B and C place a box labelled 'fixed prompt' / 'causal prefix' immediately before a canvas whose leading cells are unresolved ('?'), while panel A places 'fixed prefix' before a canvas whose first cell is already resolved ('A'). Under the convention panel A establishes (the canvas is the growing prefix), panels B and C contradict their own labels: a fixed prompt and a causal prefix cannot be drawn as unresolved '?' cells. Under the alternative convention (the canvas excludes the prefix), panel A's note 'Accepted IDs extend the prefix' becomes false. The figure never states which convention holds, so the reader cannot determine, for any panel, which cells are already committed.",
+    "evidence": "PDF 54 / printed 34: panel A 'fixed prefix' -> [A][-][-][-]; panel B 'fixed prompt' -> [?][?][?][?]; panel C 'causal prefix' -> [?][?][-][-]. Panel B note: 'accepted IDs stay fixed'; panel C note: 'Refine the active block; finalize/cache its state before advancing.'",
+    "acceptance_test": "Add one explicit convention line (in the figure or its caption) stating whether the source box's tokens are drawn inside the canvas, then make all three panels obey it: if the canvas includes the prefix, panels B and C must show the prompt/prefix cells as fixed (solid, lettered) rather than '?'; if it does not, panel A's 'Accepted IDs extend the prefix' note must be reworded. Acceptance: for each panel the reader can state which cells are committed, which are unresolved, and which are inactive future."
+  },
+  {
+    "id": "FIG-3.2-02",
+    "page": "PDF 54 / printed 34",
+    "figure": "Figure 3.2 — 'solid brackets' convention (panel A note and caption)",
+    "severity": "MODERATE (P2)",
+    "issue": "Both the in-figure note ('Solid brackets mark finalized prefix state, not just accepted IDs') and the caption ('Solid brackets identify finalized prefix state') rely on a solid-vs-non-solid border convention, but the inactive-future '-' cells are drawn with the same solid outline as accepted-ID cells. The legend defines a border convention only for '?' (hatched). As drawn, the note's claim cannot be verified from the figure, and a reader could reasonably take the trailing '-' cell as finalized prefix state — the exact confusion the note was written to prevent.",
+    "evidence": "PDF 54 / printed 34, panel A third state [A][B][C][-]: the '-' cell carries the same solid blue outline as the 'A', 'B', 'C' cells. Legend: 'Letters = accepted IDs; hatched ? = unresolved; - = inactive future.'",
+    "acceptance_test": "Give '-' cells a distinct treatment (dashed or ghost outline, or lighter fill) and state it in the legend, so finalized prefix state is visually separable from inactive future in every panel; or delete the 'solid brackets' sentences and rely on the legend alone. Acceptance: in every panel, finalized state, unresolved state, and inactive future are separable by border/fill alone, without reading the notes."
+  },
+  {
+    "id": "FIG-3.2-03",
+    "page": "PDF 54 / printed 34",
+    "figure": "Figure 3.2 — panel B trace vs caption claim",
+    "severity": "MODERATE (P2)",
+    "issue": "The caption says the full-canvas masked sampler 'accepts positions out of order', but the drawn trace accepts positions strictly left to right: [?][?][?][?] -> [A][B][C][?] -> [A][B][C][D]. The one property that distinguishes full-canvas sampling from the autoregressive panel in panel A — out-of-order acceptance — is not shown, so the figure cannot support the caption's claim and a reader comparing panels A and B sees only a difference in re-evaluation, not in acceptance order.",
+    "evidence": "PDF 54 / printed 34, panel B trace vs caption sentence 'a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional states'.",
+    "acceptance_test": "Either change the panel B trace so at least one step accepts a non-leftmost position (e.g. [?][?][?][?] -> [A][?][C][?] -> [A][B][C][D]), or reword the caption to describe what is drawn ('recomputes the full canvas at every step; the accepted set is shown growing'). Acceptance: the caption's distinguishing clause is visible in the drawing."
+  },
+  {
+    "id": "FIG-3.2-04",
+    "page": "PDF 54 / printed 34",
+    "figure": "Figure 3.2 — caption sentence on 'Loops'",
+    "severity": "MINOR (P3)",
+    "issue": "The caption states 'Loops represent repeated evaluations, not fixed steps or proportional time', but the drawing contains no loop. It contains a bracket labelled 'repeat evaluations' under the last transition of panels B and C. The caption names a graphical element that does not exist.",
+    "evidence": "PDF 54 / printed 34: the only repetition marker is an orange bracket labelled 'repeat evaluations'.",
+    "acceptance_test": "Either draw a return arrow and keep the caption's word 'Loops', or change the caption to 'The bracket marks repeated evaluations'. Acceptance: every graphical noun used in the caption corresponds to a drawn element."
+  },
+  {
+    "id": "FIG-3.1-01",
+    "page": "PDF 51 / printed 31",
+    "figure": "Figure 3.1 — panel A, 'Continuous diffusion (schematic state values)'",
+    "severity": "MODERATE (P2)",
+    "issue": "Panel A encodes continuous state with a bar chart, which is the conventional glyph for a categorical probability distribution — and the figure's entire purpose is to contrast a continuous lane with a categorical lane (panel B uses token boxes). Panel B carries an explicit note ('M = MASK; text states are illustrative token IDs, not generated results') but panel A carries no equivalent note, so the bars can be read as token probabilities. That is precisely the category error the surrounding prose warns against ('Text requires a discrete construction because token IDs are categories, not continuous pixel values'), and it undercuts the continuous-vs-discrete contrast the figure exists to establish.",
+    "evidence": "PDF 51 / printed 31, panel A; prose immediately below the caption: 'Text requires a discrete construction because token IDs are categories, not continuous pixel values.'",
+    "acceptance_test": "Add a panel-A note stating what the bars are (e.g. 'bars are schematic magnitudes of continuous state coordinates, not token probabilities'), or replace the bar chart with a continuous-valued glyph (smooth curve, coordinate scatter) so the continuous lane is not encoded with a distribution glyph. Acceptance: no reader can read panel A as a categorical distribution."
+  },
+  {
+    "id": "FIG-3.1-02",
+    "page": "PDF 51 / printed 31",
+    "figure": "Figure 3.1 — panel A, 'noise prior' panel",
+    "severity": "MODERATE (P2)",
+    "issue": "The three panels of the continuous lane are drawn with essentially the same bar pattern, so the 'noise prior' panel is not visually distinguishable from the 'clean diffusion data' panel. The forward direction (data -> partly corrupted -> noise) is therefore not readable from the drawing; the reader must rely on the arrow labels and the caption to know which end is noise. As rendered, the figure does not show the corruption progression it describes.",
+    "evidence": "PDF 51 / printed 31, panel A: the bar patterns in 'clean diffusion data', 'partly corrupted' and 'noise prior' are visually near-identical at print size; no equal-magnitude or noise-texture treatment distinguishes the prior.",
+    "acceptance_test": "Make the noise-prior panel visually distinct (equal-magnitude bars, or a noise texture) and make 'partly corrupted' visibly intermediate between data and noise. Acceptance: the reader can identify the forward direction and the endpoint of the forward process from the drawing alone, without reading the caption."
+  },
+  {
+    "id": "FIG-3.3-01",
+    "page": "PDF 63 / printed 43",
+    "figure": "Figure 3.3 — caption",
+    "severity": "MINOR (P3)",
+    "issue": "The caption reads 'schematic widths do not step counts', which is missing a verb and is not grammatical. The note inside the figure has the correct wording ('Schematic: stage widths do not encode step counts'), so the caption is a degraded copy of the figure's own text.",
+    "evidence": "PDF 63 / printed 43: caption 'schematic widths do not step counts' vs in-figure note 'Schematic: stage widths do not encode step counts.'",
+    "acceptance_test": "Caption reads 'schematic widths do not encode step counts'."
+  },
+  {
+    "id": "FIG-3.3-02",
+    "page": "PDF 63 / printed 43",
+    "figure": "Figure 3.3 — 'Denoising schedule progresses / Not two experts within one forward' label",
+    "severity": "MINOR (P3)",
+    "issue": "The two-line label sits between the two dashed checkpoint-to-stage arrows and reads as annotating only the right-hand arrow (the low-noise checkpoint), which is where the eye lands last. The statement is a property of the pair of checkpoints, not of the low-noise branch, and the caption's 'only the selected expert runs in a branch evaluation' is the point the figure is trying to make.",
+    "evidence": "PDF 63 / printed 43: the label is centered between the two dashed arrows, closer to the right arrow's shaft.",
+    "acceptance_test": "Move the label to a centered line spanning both arrows, or into the caption, so it reads as a property of the checkpoint pair. Acceptance: the label is not visually attached to a single arrow."
+  },
+  {
+    "id": "FIG-3.4-05",
+    "page": "PDF 66 / printed 46",
+    "figure": "Figure 3.4 — 'not shown to scale' scope note",
+    "severity": "MINOR (P3)",
+    "issue": "The caption flags only the MoE as 'not shown to scale' ('~94 GB, not shown to scale'), while the dense column's 24-square grid is equally unscaled relative to 70B parameters and the MoE's 8-cell grid relative to 8 experts. The scope note therefore applies asymmetrically to two grids that are drawn on the same visual convention.",
+    "evidence": "PDF 66 / printed 46: dense grid = 24 squares for 70B params; MoE grid = 8 cells for 8 experts; caption says 'not shown to scale' only for the MoE.",
+    "acceptance_test": "The scale disclaimer covers both grids (e.g. 'grids are schematic, not to scale') or is removed from both."
+  },
+  {
+    "id": "FIG-4.1-01",
+    "page": "PDF 93 / printed 73",
+    "figure": "Figure 4.1 — Six-dimension workload characterization mapped to architectural decisions",
+    "severity": "MINOR (P3)",
+    "issue": "The figure's row labels are 'Quality requirements', 'Traffic / concurrency', 'Token profile', 'Latency SLO', 'Economic constraints', 'Operational constraints'; the caption's recap shortens them to 'Quality requirements', 'Traffic', 'Token profile', 'Latency', 'Economic', 'Operational'. Separately, the row 'Traffic / concurrency -> concurrency & batching' is self-referential: the same word appears on both sides of the arrow, so the row states no actual constraint.",
+    "evidence": "PDF 93 / printed 73: figure row labels vs the caption's closing recap sentence.",
+    "acceptance_test": "The caption recap uses the figure's exact row labels, and the traffic row is renamed so the workload property and the architectural decision are not the same word (e.g. 'Request rate & arrival pattern -> concurrency & batching'). Acceptance: no row's left and right labels share a content word."
+  },
+  {
+    "id": "FIG-5.1-01",
+    "page": "PDF 110 / printed 90",
+    "figure": "Figure 5.1 — Model selection for RAG workload ('Generation leg: 70B FP16 . serving')",
+    "severity": "MODERATE (P2)",
+    "issue": "The generation leg is labelled '70B FP16 . serving', which fixes the canonical dense model's weight precision at FP16 (70B x 2 B = 140 GB). Figure 3.4's caption, for the same 70B model and the same 140 GB figure, says 'resident weights = 140 GB at FP8'. Two figures in the book therefore assign different precisions to the same model and the same byte count, which is the cross-chapter form of FIG-3.4-01.",
+    "evidence": "PDF 110 / printed 90 (Figure 5.1) vs PDF 66 / printed 46 (Figure 3.4 caption).",
+    "acceptance_test": "One precision for the canonical 70B across the book: the 140 GB figure and the '70B FP16' label must agree, and the same model must not be described as FP8 in one chapter and FP16 in another. Acceptance: a reader can trace 70B x bytes/param to 140 GB from either figure."
+  },
+  {
+    "id": "FIG-6.1-01",
+    "page": "PDF 113 / printed 93",
+    "figure": "Figure 6.1 — The metric hierarchy as a diagnostic chain",
+    "severity": "MINOR (P3)",
+    "issue": "The caption's inline summary line 'causation down (workload -> resource -> serving) | diagnosis up (serving -> resource -> workload)' restates the figure's own rotated side labels and the caption's first sentence, adding no information. The caption's chain also names the middle layer 'resource demand' while the figure's box is labelled 'Resource metrics'.",
+    "evidence": "PDF 113 / printed 93: figure boxes 'Workload metrics' / 'Resource metrics' / 'Serving metrics' vs caption text 'workload -> resource demand -> serving behavior'.",
+    "acceptance_test": "The middle layer is named identically in the figure and the caption, and the inline summary line is either removed or made to carry information the caption does not already state."
+  },
+  {
+    "id": "FIG-6.1-02",
+    "page": "PDF 113 / printed 93",
+    "figure": "Figure 6.1 — color semantics of the 'causation' / 'diagnosis' pair",
+    "severity": "MINOR (P3)",
+    "issue": "The 'diagnosis' label and its upward arrow are red while 'causation' is in the book's dark/neutral color. Red is already bound to a different meaning elsewhere in the book — 'active/selected' state in Figure 3.4 ('ALL active', 'top-2 active', the red grid border) and general emphasis — so the same color carries a second, unrelated meaning here. In grayscale the two directions are distinguished mainly by arrow direction, which is a weaker cue than the color difference suggests.",
+    "evidence": "PDF 113 / printed 93 vs PDF 66 / printed 46.",
+    "acceptance_test": "The two directions are distinguished by a channel not already bound to another meaning (e.g. line style: solid vs dashed, or a second neutral tone), and the figure remains unambiguous in grayscale."
+  },
+  {
+    "id": "FIG-6.1-03",
+    "page": "PDF 113 / printed 93",
+    "figure": "Figure 6.1 — figure scale on a figure-only page",
+    "severity": "MINOR (P3)",
+    "issue": "The figure occupies roughly the middle third of an otherwise empty page, and the two rotated side labels ('causation', 'diagnosis') are the smallest text in the figure. On a page that contains nothing else, there is room to enlarge the diagram so the rotated labels and the box sub-labels print at body-adjacent size; as rendered they are the first thing a reader will struggle with.",
+    "evidence": "PDF 113 / printed 93: large empty band above the figure and below the caption; the rotated side labels are visibly smaller than the box titles.",
+    "acceptance_test": "Enlarge the diagram to fill the text block (or move it into the adjacent text column) so the smallest label in the figure is no smaller than the smallest label used in the book's other figures, and remains legible in grayscale."
+  }
+]
+```
+
+COVERAGE: PDF pages 51, 54, 63, 66, 93, 110, 112, 113 (printed pages 31, 34, 43, 46, 73, 90, 92, 93; offset +20, recomputed from the running heads in the renders). Figures inspected as rendered pages: Figure 3.1 (PDF 51/printed 31, panels A and B), Figure 3.2 (PDF 54/printed 34, panels A, B, C plus legend and notes), Figure 3.3 (PDF 63/printed 43), Figure 3.4 (PDF 66/printed 46, both columns, both legends, both red callouts, italic note), Figure 4.1 (PDF 93/printed 73), Figure 5.1 (PDF 110/printed 90), Figure 6.1 (PDF 113/printed 93). PDF page 112 (printed 92) contains no figure — prose only (numbered list items 2-3, section 6.1.2, section 6.2) — and produced no findings. NOT VERIFIED: I had only the rendered page images, not the PDF source or the build pipeline, so (a) the exact source glyphs behind the caption's '~10^6' and '~47B' on PDF 66 could not be confirmed against the .tex source and must be checked there; (b) the caption's '8oL' on PDF 66 was read as '80L' (consistent with the figure's own note '80L/8192H MHA') and was therefore not filed as a typo; (c) absolute point sizes of figure annotations could not be measured, so no sub-8 pt finding is filed on legibility grounds — the legibility findings above are semantic/structural (convention not implemented, glyph not distinct, label not attached to the right element), not size measurements; (d) no grayscale conversion was rendered, so grayscale findings are based on the luminance relationships of the rendered colors and should be confirmed against the actual print proof; (e) the machine gates (check_regressions.py, check_stale_values.py, scan_overlaps.py) were not run, so no claim is made that any finding above is or is not already gated.

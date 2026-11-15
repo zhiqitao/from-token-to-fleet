@@ -1,0 +1,122 @@
+[
+ {
+  "id": "CH5-02",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-05.md (flexible match on bold marker): '**9.2K input** at ~2.62 MB/KV‑token costs ~24.1 GB of cache (initial) on the 70B generation model, well within the 8×H100 node's 640 GB HBM.' Arithmetic verified: 9200×2.62 MB = 24,104 MB ≈ 24.1 GB; ch8/ch17 give '~8.6 s service time' so 10 rps × 8.6 s = 86 concurrent → 86 × 24.1 GB ≈ 2,073 GB vs 640 GB; 640 − 140 = 500 GB; 500 / 24.1 ≈ 20. Manuscript's own budget (ch7 Fig 7.7): '140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget' → 436/24.9037 ≈ 17.5 requests/host, so 'well within' holds only per request.",
+  "fix_instruction": "Scope the claim: state 24.1 GB is per request and show the concurrency budget (140 GB weights + 64 GB runtime + N×24.1 GB ≤ 640 GB → N ≈ 17 concurrent 9.2K requests per host); replace 'well within' with a per-request-scoped statement."
+ },
+ {
+  "id": "CH6-02",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-06.md workload bullet ends: 'For the canonical enterprise-Q&A RAG workload these are fixed by canonical scenario (Ch 4, Table 4-2): ~10 rps average with ~40 rps peaks, ~9,200 input + ~300 output tokens per request, TTFT 1.2 s / TPOT ~25 ms.' Serving bullet: 'Time-to-first-token (TTFT), time-per-output-token (TPOT), inter-token latency, and **goodput** ... These are the dependent variables'. TTFT/TPOT are simultaneously listed as workload-layer 'fixed' values and as serving-layer dependent variables — the category error holds in current source.",
+  "fix_instruction": "Remove 'TTFT 1.2 s / TPOT ~25 ms' from the workload bullet; keep TTFT/TPOT only in the serving-metrics/SLO row."
+ },
+ {
+  "id": "CH5-03",
+  "verdict": "DEFENSIBLE",
+  "evidence": "chapter-05.md §6: 'the generation model is chosen at serving time (compute‑bound, latency‑bound).' The parenthetical is a selection-pressure summary inside a two-part decision sentence; it does not assert decode is compute-bound. The same chapter's mini-case states 'this system is prefill‑dominated' (30× input/output ratio), for which compute is the dominant selection pressure, and 'latency-bound' covers the decode/SLO side.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH5-04",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-05.md: 'The output token count determines decode bandwidth and p95 TPOT; a large-output paradigm (e.g. long-form generation) changes the model-selection calculus...' The same item's lead-in correctly says 'Quantify the output size, since that drives decode cost and per-request latency.' Output count sets total decode work (300 tokens × 25 ms TPOT = 7.5 s), not hardware bandwidth nor the per-token TPOT; the 'determines' claim overstates.",
+  "fix_instruction": "Replace with: 'The output token count determines total decode work and end-to-end decode latency; p95 TPOT depends on per-token cost and scheduling.'"
+ },
+ {
+  "id": "CH5-05",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-05.md: 'Fine‑tuning should be a deliberate choice triggered by a sustained query volume, not a default.' Preceding sentence: 'the break‑even is workload‑ and domain‑specific and must be measured before either paradigm is declared dominant'. Mini-case: 'No fine‑tuning is needed at this scale.' — asserted with no quality-gap measurement, though §5.3's Q* break-even depends on measured ΔQ (training+storage cost over quality uplift). The volume-only trigger contradicts the section's own multi-factor framing.",
+  "fix_instruction": "Frame the trigger as a measured quality gap/domain requirement plus sustained volume/economics; change 'No fine-tuning is needed at this scale' to 'Under the illustrative quality assumptions, no fine-tuning is selected; validate the quality gap before ruling it out.'"
+ },
+ {
+  "id": "CH5-06",
+  "verdict": "DEFENSIBLE",
+  "evidence": "Both footnotes self-label: '[^oct-df-struct]: ... retrieved 2026-10-28 (outside the book's 2026-08-30 evidence cutoff)' and '[^oct-ix-t0]: Inspected first-party engine sources ... retrieved 2026-10-28 (outside the book's 2026-08-30 evidence cutoff)'. chapter-09.md additionally carries a policy-style note: 'Dated research snapshot — 2026-10-28, outside this edition's 2026-08-30 evidence cutoff ... recorded here separately so the frozen snapshot stays intact.' The post-cutoff sources are explicitly marked, not covert; whether Ch 5 footnotes need a fuller rationale is editorial.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH6-03",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-06.md §2: 'the workload generates resource demand, and the resource supply shapes serving behavior — so when numbers are healthy, the chain confirms our architecture was right.' The sentence claims architecture correctness from healthy metrics with no scoping qualifier; the chapter's own §3 ('### Latency Is a Distribution, Not a Mean') warns that healthy averages are not the whole story.",
+  "fix_instruction": "Scope to: 'when numbers are healthy, the chain confirms the current configuration meets the SLO under the observed workload; it does not prove optimality or robustness.'"
+ },
+ {
+  "id": "CH6-07",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-06.md: 'Requests per second (rps), the token profile (input length, output length, context length), and concurrency. These are the independent variables; we do not control them, we characterize them.' Resource bullet: 'HBM bandwidth utilization, FLOP utilization / model FLOPs utilization (MFU), KV cache occupancy, memory pressure, and queue depth.' The book itself derives concurrency: ch8 'in-flight concurrency λ·W ≈ 344 at the ~8.6 s service time' (40 × 8.6) — concurrency = arrival rate × service time, and operators control it via admission/batching; queue depth is scheduler state listed as a hardware resource metric.",
+  "fix_instruction": "Separate offered load (rps, token profile) from admitted concurrency and queue depth; move concurrency/queue depth to serving/scheduler metrics or explicitly distinguish offered vs admitted concurrency."
+ },
+ {
+  "id": "CH5-09",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-05.md §7: '[HYPOTHESIS]: the interaction between embedding dimension and retrieval quality ... is not yet characterized with reproducible benchmarks. Early evidence suggests 768 dim is a sweet spot, but the quality difference between 768 and 1024 dim varies by corpus genre (legal vs. engineering vs. creative), and no public study quantifies this domain‑dependence.' 'evidence suggests' carries no citation inside a [HYPOTHESIS] paragraph that immediately says the effect is unquantified.",
+  "fix_instruction": "Either cite the evidence or soften to: 'Some inspected embedding models use 768 dimensions; this is not a general quality optimum and must be validated on the target corpus' — do not present uncited 'evidence' in a [HYPOTHESIS] paragraph."
+ },
+ {
+  "id": "CH6-04",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-06.md serving bullet (flexible match on bold '**goodput**'): 'and **goodput** (tokens produced that actually meet the SLO)'. Later §2 usage: 'or *goodput* — tokens per second that arrived before the SLO deadline'. The first definition omits the per-second denominator that the later, correct usage has.",
+  "fix_instruction": "Define goodput as 'tokens per second (or requests per second) that meet the SLO' in the serving-metrics bullet."
+ },
+ {
+  "id": "CH6-06",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-06.md Fig 6.1 caption: 'see §6.2 for the p95 TTFT worked example.' Section headings in the same file: '## 2. Mental Model' and '## 3. Worked Example' (containing '### Latency Is a Distribution, Not a Mean'). The p95 TTFT worked example is §3, not §2 — stale cross-reference confirmed.",
+  "fix_instruction": "Change the caption to 'see §6.3 for the p95 TTFT worked example.'"
+ },
+ {
+  "id": "CH5-07",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-05.md mini-case: 'From the unit-and-token work of Ch 1 alone (Ch 5's selection surfaces), the architect can immediately check the consequences:' — the same sentence asserts 'Ch 1 alone' while invoking Ch 5's selection surfaces; internal inconsistency present in current source.",
+  "fix_instruction": "Rewrite: 'From Ch 1's unit-and-token work and Ch 5's selection surfaces, the architect can check the consequences:'"
+ },
+ {
+  "id": "CH5-08",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-05.md: 'the architect first characterizes the workload, then lets the characterization speak the model selection, not the other way around.' 'lets X speak Y' is not standard English (the idiom is intransitive: 'let the facts speak for themselves'); the phrase as written is ungrammatical.",
+  "fix_instruction": "Replace with 'then lets the characterization drive model selection, not the other way around.'"
+ },
+ {
+  "id": "CH5-12",
+  "verdict": "DEFENSIBLE",
+  "evidence": "chapter-05.md §6: 'The embedding model is chosen at ingestion time (compute‑light, storage‑bound); the generation model is chosen at serving time (compute‑bound, latency‑bound).' The same chapter's mini-case already prices the query-time cost: 'their cost is ~14 GFLOPs per embedding (64‑token query, the §3(a) embedding table's own row: 2 × 110M × 64 ≈ 14.08 GFLOP)' — the query-time effect is present in the chapter, and 14 GFLOPs is indeed compute-light, so the compression is not hiding the impact.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH7-OPEN-01",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-07.md §7 bullet: '(b) prefix/KV reuse loaded from CPU can reduce TTFT for cache-hit requests — state the vLLM KV Offloading Connector's measured metric and cache-hit conditions for the 2–22× figure [S7][1P][FACT], which is highly prompt-size-dependent.' Grep for '2–22' across design/manuscript returns this single occurrence in chapter-07 — no metric, baseline, or cache-hit condition defined anywhere; the imperative 'state' is an authorial TODO left in reader-facing prose.",
+  "fix_instruction": "Rewrite declaratively: state the known vLLM result with its metric, baseline, and cache-hit conditions for the 2–22× range, then state the unresolved question; remove the imperative 'state'."
+ },
+ {
+  "id": "CH7-OPEN-02",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-07.md: 'All four 2026-class open architectures attack KV cache size at the attention layer itself' — same bullet later: 'The DeepSeek and GLM entries above are measured KV-cache ratios; the Kimi K3 and Qwen3.8-Flash-Next entries are qualitative mechanism claims (information flow, long-context cost) with no stated KV metric.' Kimi's cited claim is only 'targets information flow across long sequences [1P: arXiv 2607.24653]'; all four citations are [1P] first-party, not independent measurements. The universal 'all four attack KV cache size' and 'measured' exceed the bullet's own evidence split.",
+  "fix_instruction": "Rewrite: 'All four modify attention for long-context cost; DeepSeek and GLM report first-party KV-cache ratios, while Kimi and Qwen describe mechanisms without a stated KV metric.' Reserve 'measured' for independent measurement or say 'first-party reported'."
+ },
+ {
+  "id": "CH7-FIG-01",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-07.md Fig 7.5 caption: 'at 128K the FP16 KV footprint is ~335 GB (vs the ~436 GB KV budget), ~24.9 GB at 9.5K'. Its figure spec: 'Y = KV cache GB (log scale); four lines: ... horizontal 640 GB 8×H100 ceiling; callouts at 9.5K'. Fig 7.7 caption: '140 GB weights + ~64 GB runtime/NCCL leaves ~436 GB of KV budget in a 70B ... host's 640 GB' pool. A 640 GB ceiling on a KV-GB axis vs the caption's 436 GB budget: 640/24.9 ≈ 25.7 vs 436/24.9037 ≈ 17.5 concurrent requests — arithmetic verified.",
+  "fix_instruction": "On the KV-GB axis, make the 436 GB KV budget the binding line (optionally keep 640 GB clearly labeled as total HBM, not KV-available); label the legend to distinguish total HBM from KV budget and use 436 GB for concurrency callouts."
+ },
+ {
+  "id": "CH7-TECH-01",
+  "verdict": "DEFENSIBLE",
+  "evidence": "chapter-07.md: 'Worked TP=8 example: the 140 GB of weights shard to ~17.5 GB per GPU; the ~64 GB runtime/NCCL reserve is per-host (not per-rank); the ~436 GB KV budget shards to ~54.5 GB per GPU ... The 17.5 concurrent figure is therefore the *aggregate* bound — a rank can be the binding constraint even when the aggregate fits, so per-rank fit and sharding must be validated separately (Chapters 9–10).' The reserve divides evenly (64/8 = 8 GB/rank; 17.5 + 54.5 + 8 = 80 GB/rank) and the note explicitly defers per-rank validation, so 'per-host (not per-rank)' is a defensible aggregate framing, not an unqualified error.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH8-EQ-01",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-08.md §1 first paragraph: 'attention adds a term quadratic in context length (~4·n_layers·L²·d, §1 below)'. Regex search of chapter-08 for 'd =', 'where d', 'd denotes', 'd is defined', 'd_model' finds no definition of d; the canonical scenario states '80-layer, hidden-8192' and the worked table uses the value explicitly ('1.288 + 4 ×80 ×9,200² ×8,192'), so d = 8192 = hidden dimension is only implicit — a reader can misread d as head_dim (which would drop the n_heads factor).",
+  "fix_instruction": "Define d at first use as the model hidden dimension (d = n_heads × d_head = 8192 here), state the term counts both QK^T and AV for full dense attention, and note it excludes projections and softmax."
+ },
+ {
+  "id": "CH8-ROOF-01",
+  "verdict": "DEFENSIBLE",
+  "evidence": "chapter-08.md: 'The canonical RAG workload illustrates all three without overlap: prefill is compute-bound (high intensity), decode is bandwidth-bound (low intensity), and long input raises KV residency...' Immediately following: 'These regime labels are operating-point properties: they shift with batch size and precision, and in a serving system prefill and decode from different requests overlap on the same devices, so the regimes coexist rather than partition the timeline.' The next sentence explicitly resolves the two senses of 'overlap' (conceptual distinctness vs temporal coexistence), so no reader is left with a contradiction.",
+  "fix_instruction": ""
+ }
+]

@@ -45,7 +45,7 @@ def start(key):
 
 a,h=start('D1')
 a+=text(18,52,'Forward q: add corruption. Reverse pθ: generate with learned updates.')
-a+=text(18,85,'A  Continuous diffusion (schematic state values)',16,True)
+a+=text(18,85,'A  Continuous diffusion (schematic state values; bars ≠ token probabilities)',16,True)
 for i,(x,label) in enumerate(zip([22,234,446],D['D1']['continuous_states'])):
     a+=rect(x,105,140,66,S['state_fill'],S['memory'])
     # Illustrated continuous values: no probabilities, benchmark curve or data claim.
@@ -93,7 +93,7 @@ for ri,(title_y,y,title,states,l1,l2) in enumerate(rows):
             future=(ri==0 and v=='?') or (ri==2 and col==0 and i>=2)
             label='-' if future else v
             fill='#F2F2F2' if future else 'url(#hatch)' if v=='?' else S['state_fill']
-            a+=rect(x+i*28,y+3,22,34,fill,S['memory'])
+            a+=rect(x+i*28,y+3,22,34,fill,'#C3CBD9' if future else S['memory'])
             a+=text(x+i*28+11,y+26,label,14,anchor='middle')
         if ri==0:
             a+=prefix_bracket(x,y+45,col+1)
@@ -118,7 +118,7 @@ a+=text(20,361,'Full bidirectional forwards: fixed IDs can still acquire new K/V
 a+=text(20,382,'Here, accepted IDs stay fixed; prompt-state reuse is not assumed.')
 a+=text(20,558,'Refine the active block; finalize/cache its state before advancing.')
 a+=text(20,579,'A valid block-causal boundary prevents later blocks changing it.')
-a+=text(18,610,'Letters = accepted IDs; hatched ? = unresolved; - = inactive future.')
+a+=text(18,610,'Letters = accepted IDs; hatched ? = unresolved; - = inactive future (ghost border).',14)
 a+=text(18,632,'Dashed outline = recomputed output region; loops = repeated work.')
 a+=text(18,654,'Editing and renoising samplers can differ from these examples.')
 figs['D2']=(a+'</svg>',h,list(text_boxes))

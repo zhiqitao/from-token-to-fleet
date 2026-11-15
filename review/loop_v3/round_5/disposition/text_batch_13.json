@@ -1,0 +1,382 @@
+[
+ {
+  "id": "CH6-03",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 6, §3, 'Goodput vs Raw Throughput' — the 50→70 tok/s example",
+  "chapter": "6",
+  "quoted_clause": "suppose we enable larger dynamic batching to raise raw tokens/s from 50 tok/s to 70 tok/s (Chapter 5's low-batch decode basis, ~20 ms/token in that worked example — canonical batch-1 at 25 ms/token is 40 tok/s — a low-batch operating point, not the host's aggregate serving rate; Chapter 15's ~8.5K tok/s is prefill-side and its ~35,000–56,000 tok/s the batched serving rate), but the batch window pushes p95 TTFT from 1.8 s to 2.3 s",
+  "observed": "The parenthetical cross-referencing Ch 5, Ch 15, and the canonical batch-1 rate is 45 words long and interrupts the main example's flow. The reader is in the middle of a goodput argument (50→70 tok/s, p95 1.8→2.3 s) and is stopped to reconcile four different token-rate figures from three chapters. The information is correct and necessary for scope discipline, but its placement breaks the example's momentum.",
+  "evidence": "All referenced figures are correct: Ch 5's 50 tok/s (20 ms/token) is [ILLUSTRATIVE][ASSUMPTION]; canonical batch-1 is 40 tok/s (25 ms/token); Ch 15's ~8.5K tok/s is prefill-side; ~35,000–56,000 tok/s is batched serving. The parenthetical correctly prevents the reader from mistaking 50 tok/s for the host's aggregate rate.",
+  "root_cause": "The scope clarification was inserted at the point of first use rather than deferred to a footnote or a 'scope note' paragraph after the example.",
+  "correction": "Move the parenthetical to a footnote or a one-sentence 'Scope note' after the goodput example: 'The 50→70 tok/s figures are low-batch decode operating points (Ch 5's illustrative basis; canonical batch-1 is 40 tok/s at 25 ms/token). They are not the host's aggregate serving rate (Ch 15: ~35,000–56,000 tok/s under continuous batching) or the prefill-side rate (~8.5K tok/s). The goodput argument holds at any consistent operating point.' This keeps the example's flow unbroken while preserving the scope discipline.",
+  "acceptance_test": "A reader can follow the 50→70 tok/s goodput argument without interruption, and can find the scope clarification immediately after the example.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH5-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5, §2, 'Mental Model' — the input-heavy vs output-heavy paragraph",
+  "chapter": "5",
+  "quoted_clause": "If the workload is input-heavy (9.2K average input, 300-token output, ~30× more input than output), the system is first-order memory-capacity-bound (KV residency at the Ch 17 concurrency screen) and prefill-dominated in FLOPs — a first-order tendency to verify per workload, not a consequence of input-heaviness alone. If the workload were output-heavy, the token/FLOP mix shifts toward decode, which often makes decode bandwidth or latency critical — the actual bottleneck must be measured on the target stack.",
+  "observed": "The paragraph correctly hedges both claims ('first-order tendency to verify per workload,' 'the actual bottleneck must be measured'). However, the phrase 'memory-capacity-bound' is used without the full three-bound distinction that Ch 8 §1 establishes (compute-bound vs memory-bandwidth-bound vs memory-capacity-constrained). A reader encountering this in Ch 5 (before Ch 8) may conflate 'memory-capacity-bound' with 'memory-bandwidth-bound.' The Ch 8 distinction is the correct one, but Ch 5 uses the term before it is defined.",
+  "evidence": "Ch 8 §1: 'Three different bounds — keep them apart. Compute-bound means... Memory-bandwidth-bound (what the roofline calls memory-bound) means... Memory-capacity-constrained (often KV-capacity-constrained in long-context inference) means feasible concurrency or context is limited by how much data fits in HBM.' Ch 5's 'memory-capacity-bound' matches the third definition but the reader has not yet seen the distinction.",
+  "root_cause": "Ch 5 uses a term that is precisely defined in Ch 8, creating a forward-dependency on a distinction the reader has not yet learned.",
+  "correction": "Either (a) add a brief inline definition: 'first-order memory-capacity-bound (the KV cache's HBM footprint limits how many concurrent requests fit — distinct from memory-bandwidth-bound, where the rate of HBM reads limits per-token speed; Ch 8 §1 formalizes the three-way distinction)'; or (b) rephrase to avoid the term: 'first-order limited by KV-cache HBM capacity (the per-request KV footprint constrains concurrency at the Ch 17 screen) and prefill-dominated in FLOPs.' Option (b) is simpler and avoids the forward reference.",
+  "acceptance_test": "A reader who has not yet read Ch 8 can distinguish the 'memory-capacity' constraint (how many requests fit) from a 'memory-bandwidth' constraint (how fast each token is produced) based on Ch 5's text alone.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 7, §1, 'Count state by lifetime, not by the model label' — the 256-position canvas example",
+  "chapter": "7",
+  "quoted_clause": "As a shape-only example, a 256-position canvas over a 262,144-entry vocabulary needs 256 × 262,144 × 4 = 268,435,456 bytes, or 256 MiB, for one FP32 logits tensor at batch one. This excludes probabilities, sampling workspace, retained logits, attention buffers and the rest of the model. It is not a measured model footprint.",
+  "observed": "The calculation is correct (256 × 262,144 × 4 = 268,435,456 = 256 MiB). However, the example's purpose (illustrating that a diffusion runtime's peak memory is not captured by the AR weights+KV formula) is not made explicit before the number. The reader must infer why a 256 MiB logits tensor is relevant to the 'count state by lifetime' principle. The sentence 'This excludes probabilities, sampling workspace, retained logits, attention buffers and the rest of the model' is a list of exclusions that does not help the reader understand what the 256 MiB figure is *for*.",
+  "evidence": "256 × 262,144 = 67,108,864; × 4 = 268,435,456 B = 256 MiB. ✓. The point is that a single intermediate tensor (logits for 256 positions) can be 256 MiB, which is non-trivial relative to a 24 GB device's budget, and that this tensor is not part of the AR KV cache formula.",
+  "root_cause": "The example was written as a shape calculation without a preceding sentence stating the architectural point it illustrates.",
+  "correction": "Prepend one sentence: 'A diffusion runtime's peak memory includes intermediate tensors (logits, attention scores, sampling buffers) that have no analogue in the AR weights+KV formula. For example, a 256-position canvas over a 262,144-entry vocabulary produces a single FP32 logits tensor of 256 × 262,144 × 4 = 256 MiB at batch one — a non-trivial fraction of a 24 GB device's budget, and a cost the AR formula does not capture. This excludes the remaining model state (probabilities, sampling workspace, retained logits, attention buffers, weights).'",
+  "acceptance_test": "A reader can state in one sentence why the 256 MiB figure matters for the 'count state by lifetime' principle, without re-reading the paragraph.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH8-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8, §3, 'Prefill PFLOP for 9.2K input' — the initial 1.29 PFLOP figure",
+  "chapter": "8",
+  "quoted_clause": "the prefill FLOP cost is: 2 × N × L = 2 × 70 × 10^9 × 9.2 × 10^3 ≈ 1.29 PFLOP [DERIVED: 2 × N × L where N=70B, L=9,200; the figure is large because the full context is attended to, but it is a one-time cost per request, not a sustained rate]",
+  "observed": "The 1.29 PFLOP figure is presented as 'the prefill FLOP cost' before the three-case accounting (linear-only, full-square, causal-triangle) is introduced two paragraphs later. The [DERIVED] note says 'the figure is large because the full context is attended to' which is slightly misleading: the 2NL figure is large because it multiplies by L, but the 'full context is attended to' phrase suggests the attention term is included, when it is not. The reader may carry the 1.29 as the 'true' prefill cost until the three-case section corrects it.",
+  "evidence": "The 2NL = 1.288 PFLOP is the linear-only (case i) figure. The full-square (case ii) is 1.5099 PFLOP (+17.23%). The causal (case iii) is 1.3989 PFLOP (+8.61%). The [DERIVED] note's phrase 'the figure is large because the full context is attended to' conflates the linear scaling with L (which is correct) with the attention mechanism (which is the quadratic term, not included in 2NL).",
+  "root_cause": "The initial figure was written as a simple 2NL calculation with a brief note, before the three-case section was added. The note's language was not updated to reflect that the attention term is excluded.",
+  "correction": "Change the [DERIVED] note to: '[DERIVED: 2 × N × L where N=70B, L=9,200; this is the linear (projection) term only — the quadratic attention term adds ~17% at 9.2K (case (ii), below). The figure is a one-time cost per request, not a sustained rate.]' This prevents the reader from treating 1.29 as the complete prefill cost.",
+  "acceptance_test": "A reader who stops after the 1.29 PFLOP figure and its [DERIVED] note understands that the attention term is not included, without needing to read the three-case section.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH5-06",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5, §3(b), 'Economics unit note (reconciliation with Ch. 4 and Ch. 15)'",
+  "chapter": "5",
+  "quoted_clause": "Both chapters use the same on-demand price basis: ~$2.50/hr per H100 → ~$20/hr per 8×H100 host. Two things must be kept straight. First, units: both chapters express tokens per dollar — this chapter computes it as token-rate × 3600 s ÷ hourly cost (50 × 3600 ÷ 20 = 9,000 tokens per dollar), which is algebraically identical to token-rate ÷ per-second cost (50 ÷ (20/3600) = 9,000); no 3600 factor separates the two formulas.",
+  "observed": "The reconciliation note is correct and addresses a real potential confusion (the 3600 factor). However, it is 120 words long and appears in the middle of the worked example's economics section, interrupting the flow from the 9,000 tokens/$ calculation to the prefill+decode combined calculation. The note's purpose is to prevent a specific misreading (that Ch 4 and Ch 15 use a different formula), but its length and placement make it feel like a digression rather than a clarification.",
+  "evidence": "50 × 3600 / 20 = 9,000. 50 / (20/3600) = 50 / 0.00556 = 9,000. The two formulas are algebraically identical. The note correctly identifies that the ~50 tok/s here is a low-batch decode rate, distinct from Ch 15's prefill-side ~8.5K tok/s and batched serving ~35,000–56,000 tok/s.",
+  "root_cause": "The reconciliation was written as a full paragraph to be self-contained, but in context it functions as a scope note that could be more compact.",
+  "correction": "Compress to 3–4 sentences: 'Scope: the ~50 tok/s is this example's low-batch decode rate (20 ms/token), not the host's batched serving throughput (Ch 15: ~35,000–56,000 tok/s) or its prefill-side rate (~8.5K tok/s). The 9,000 tokens/$ is a floor set by the single-stream assumption. Ch 4 and Ch 15 use the same $20/hr price basis; the token-rate inputs differ by phase and batch, not by formula.' Move the algebraic identity note (50×3600/20 = 50/(20/3600)) to a footnote or omit it (it is trivially verifiable).",
+  "acceptance_test": "The economics section flows from the 9,000 tokens/$ calculation to the prefill+decode combined calculation without a 120-word interruption, and the scope distinction is still clearly stated.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH13-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 13, §1 Concept, §3 Worked Example, Table 13-1",
+  "chapter": "13",
+  "quoted_clause": "The canonical enterprise-Q&A RAG workload sits on the server tier — as a fleet of ~21 such servers at the 40 rps peak (Ch 16/17), not as the Cluster tier, which is for splitting one model across nodes.",
+  "observed": "The chapter defines Cluster as the tier used when traffic outgrows one host, including data-parallel replication, and later says 10× traffic forces the cluster tier even when the model fits one node. A 21-host replica fleet is therefore a traffic-driven cluster deployment, not merely a server-tier model-residency class.",
+  "evidence": "Ch 13 §1: 'Cluster — multiple hosts ... Required when ... traffic outgrows one host (requiring multi-host scaling: data-parallel replication, P/D disaggregation, or both)'; Table 13-1 lists Cluster when 'traffic > host goodput'; §3 says 'The escalation is still the cluster tier: the model fits one node (no weight-splitting), but the fleet is a real cluster sized by the per-host goodput ceiling.'",
+  "root_cause": "The text conflates per-host model-residency class with deployment tier and then narrows 'Cluster tier' to weight-splitting only.",
+  "correction": "Reconcile the ladder: either call the canonical 21-host deployment a cluster of server-class hosts (model residency is server-class; traffic scaling is cluster), or explicitly define 'server tier' as a per-host class and add a 'server fleet' deployment mode. Remove the claim that traffic-driven multi-host replication is 'not as the Cluster tier'.",
+  "acceptance_test": "A reader can classify a 21-host replica fleet consistently with Table 13-1 and the 10× traffic escalation; no statement says traffic-driven multi-host replication is not a cluster.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH12-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 12, §8 End-of-Chapter Mini-Case",
+  "chapter": "12",
+  "quoted_clause": "yields 32 hosts at the same 40 rps peak (Ch 13), i.e. ~$232.2K self-host and ~$467.2K cloud-equivalent at the same per-host rates ($155,816.93, ≈$24.97/1K on the 6.24M‑req/mo business‑hours basis, Ch 16 — the cloud legs are $87,600 ≈ $14.04/1K at the default paid-occupancy input and $306,600 ≈ $49.13/1K at 21 hosts always-on) — ~10.4× the stakeholder's stated $15,000 total monthly budget",
+  "observed": "The 21-host self-host cost of $155,816.93 implies $7,419.85 per host; 32 hosts should cost about $237.4K self-host, not $232.2K. The final 10.4× multiplier applies to the 21-host $155.8K, not the 32-host policy fleet, making the cost consequence ambiguous.",
+  "evidence": "155,816.93 / 21 = 7,419.85; 32 × 7,419.85 = 237,435.2. 32 × 14,600 = 467,200. 155.8 / 15 = 10.39; 237.4 / 15 = 15.83; 467.2 / 15 = 31.15.",
+  "root_cause": "Arithmetic typo in the 32-host self-host cost and sentence structure that leaves the 10.4× multiplier attached to the wrong host count.",
+  "correction": "Replace ~$232.2K with ~$237.4K, or recompute from the canonical per-host self-host rate. State explicitly that the 21-host full-utilization screen is ~10.4× the $15K budget, while the 32-host policy fleet is ~15.8× self-host and ~31× cloud-equivalent.",
+  "acceptance_test": "All cost multipliers use the same host count and per-host rate; the 32-host self-host cost equals 32 × ($155,816.93 / 21) within rounding.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 9, §1 Concept, collective list",
+  "chapter": "9",
+  "quoted_clause": "the dominant collective for MoE expert routing (Table 9-2, Ch 10)",
+  "observed": "Table 9-2 is in Chapter 9; Chapter 10's parallelism table is Table 10-1. The reference as written points to the wrong chapter/table combination.",
+  "evidence": "In this chunk, Table 9-2 is titled 'Collective semantics within one group' in Ch 9; Ch 10 has Table 10-1 'Parallelism strategies at a glance' with an Expert (EP) row.",
+  "root_cause": "Stale or mistyped cross-reference after table renumbering.",
+  "correction": "Use '(Table 10-1, Ch 10)' if the intended target is the EP row, or '(Table 9-2, Ch 9)' if the intended target is the all-to-all row.",
+  "acceptance_test": "The reference resolves to a table that actually contains the MoE expert routing/all-to-all relationship.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH10-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 10, §1 Concept, data parallelism framing",
+  "chapter": "10",
+  "quoted_clause": "In training, DP means replicated weights plus gradient all-reduce every step (plus FSDP, which shards and re-gathers weights/optimizer state); the communication load is at the gradient-sync point.",
+  "observed": "For plain DP the gradient-sync point is the main communication event, but FSDP also all-gathers parameter shards before computation and reduce-scatters gradients afterward. The sentence can be read as saying FSDP's communication load is only at gradient sync, contradicting the later FSDP paragraph.",
+  "evidence": "Later in Ch 10 §3: 'FSDP changes the object again. Its communication can gather a module's parameter shards before computation and reduce-scatter that module's gradients afterward.'",
+  "root_cause": "Oversimplified training DP/FSDP communication timing.",
+  "correction": "Split the claim: 'For plain DP, the communication load is at the gradient-sync point; FSDP also communicates during the forward pass when it all-gathers parameter shards, and during backward when it reduce-scatters gradients.'",
+  "acceptance_test": "No sentence implies FSDP only communicates at gradient sync.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH11-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 11, Note 11.3-1 (Fig 11.3)",
+  "chapter": "11",
+  "quoted_clause": "at NVLink's 450 GB/s per direction (§9.2) that transfer is 35 ÷ 450 ≈ 0.08 s, small against the ~1.08 s prefill it enables",
+  "observed": "The 35 GB transfer is tied to a 13.3K-token context, but the ~1.08 s prefill figure is the canonical 9.2K prefill budget used earlier in the chapter. A 13.3K prefill would have a different FLOP/time budget, so the comparison mixes context lengths.",
+  "evidence": "Ch 11 §3: 1.29 PFLOP for 9.2K input requires ~1.19 PFLOPS over ~1.08 s. For 13.3K input, 2 × 70e9 × 13,300 ≈ 1.86 PFLOP, not 1.29 PFLOP.",
+  "root_cause": "Reusing the canonical 9.2K prefill time in the 13.3K KV-transfer scenario.",
+  "correction": "Either state that 1.08 s is the canonical 9.2K prefill budget and the 35 GB transfer is still small relative to it, or compute a 13.3K prefill time (e.g., ~1.9 s at single-H100 peak or ~5.4 s at 35% MFU) and compare against that.",
+  "acceptance_test": "The transfer-time inequality uses a prefill time for the same context length as the 35 GB KV state.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH11-03",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 11, §3 Worked Example, When to Disaggregate",
+  "chapter": "11",
+  "quoted_clause": "For the canonical single-host (~10 rps) this disaggregation is premature",
+  "observed": "The canonical 10 rps is the aggregate average arrival rate, not a load a single host can carry. The same chapter says the host class must be replicated ~5–6× at 10 rps average and a single host's admitted load is ~1.3–2 req/s. The phrase can imply one host serves 10 rps.",
+  "evidence": "Ch 11 §6: 'at the canonical 10 rps average the host class must be replicated ~5-6x'; Ch 14 Step 3 uses 1.3 req/s as an illustrative single-host offered load.",
+  "root_cause": "Aggregate workload rate attached to single-host deployment without per-host load qualifier.",
+  "correction": "Change to 'For a single-host deployment at its admitted per-host load (≈1.3–2 req/s), or before the canonical 10 rps aggregate is scaled to a fleet, disaggregation is premature'.",
+  "acceptance_test": "No sentence associates a single host with the full canonical 10 rps aggregate as if it were its served load.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH12-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12, §3 Worked Example, Candidate (a)",
+  "chapter": "12",
+  "quoted_clause": "Prefix caching from Ch. 11 amortizes the prefill attention over repeated requests with the same prompt prefix, reducing effective prefill FLOPs by ~30% at 10 rps average and ~50% at peak 40 rps",
+  "observed": "Prefix caching avoids recomputing the full transformer prefix (attention and MLP/projection work), not only attention. The phrase 'prefill attention' understates the mechanism and could mislead readers about where the FLOP saving comes from.",
+  "evidence": "Ch 11 §3: prefix caching 'reuses the shared-document KV and prefills only the unique query tail — cutting the dominant prefill FLOPs'; the prefill FLOP formula 2 × 70 × 10⁹ × tokens includes all layers, not attention alone.",
+  "root_cause": "Imprecise mechanism description.",
+  "correction": "Use 'amortizes prefill computation for shared prefixes' or 'avoids recomputing the shared prefix's attention and MLP work'.",
+  "acceptance_test": "The text does not attribute prefix-cache FLOP savings to attention only.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH12-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12, §7 What We Still Don't Know",
+  "chapter": "12",
+  "quoted_clause": "The arithmetic in §12.4 assumes 8-bit KV reduces memory by 2× with minimal quality loss, but the interaction between 8-bit quantization and the retrieval-augmented generation pipeline has not been verified [HYPOTHESIS].",
+  "observed": "§12.4 states the 8-bit KV memory reduction (12.06 GB vs 24.1 GB) but does not assume minimal quality loss; quality loss is explicitly open. The sentence attributes an unsupported quality assumption to the arithmetic.",
+  "evidence": "Ch 12 §4: 'For a 70B model with 8-bit KV caching, this is approximately 12.06 GB ... at FP16 precision it is ~24.1 GB'; no quality-loss assumption is made there.",
+  "root_cause": "Conflating memory arithmetic with a quality assumption.",
+  "correction": "Write 'The arithmetic in §12.4 assumes only the 2× memory reduction; whether 8-bit KV preserves acceptable quality is the open question.'",
+  "acceptance_test": "No claim that §12.4 assumes minimal quality loss.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH12-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 12, Table 12-2, Monthly fully loaded cost row, candidate (c)",
+  "chapter": "12",
+  "quoted_clause": "low — single-H100 hosts (~4 avg / ~15 peak cards, not an 8×H100 node) (21-host screen basis; policy fleet is 32, Ch 13/17)",
+  "observed": "The 21-host and 32-host figures are the canonical 70B fleet screens, not the 7B candidate's host count. Placing them in candidate (c)'s cost cell can make readers think candidate (c) uses 21/32 hosts.",
+  "evidence": "Same table: candidate (c) prefill hosts are ~4 avg / ~15 peak H100 cards; 21/32 appear in candidate (a)/(b) and Ch 13/17 for the 70B canonical workload.",
+  "root_cause": "Ambiguous parenthetical cross-reference in a per-candidate table cell.",
+  "correction": "Clarify: 'low for its own ~4 avg / ~15 peak H100-card screen; the 21/32-host figures are the 70B canonical screen, not candidate (c)'.",
+  "acceptance_test": "A reader cannot infer that candidate (c) requires 21 or 32 hosts from this cell.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-02",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 9, §6 Architecture Consequence",
+  "chapter": "9",
+  "quoted_clause": "If the architecture calls for data-parallel training of a 70B FP16 model across 8 nodes, the all-reduce bandwidth dictates whether the nodes are connected by InfiniBand, 200 GbE, or even 100 GbE. If the budget can accommodate NVLink-equipped hosts (GPUs connected on-node), keeping the all-reduce on-node gives an ideal ring time about 1/11th the assumed InfiniBand case and about 1/180th the assumed RoCE case",
+  "observed": "An 8-node data-parallel deployment with 8 GPUs per node would normally have a 64-rank DP group, not the 8-rank single-host vs 8-rank cross-host comparison used for the 1/11 and 1/180 ratios. Although the paragraph later qualifies the ratios, the opening can mislead.",
+  "evidence": "Ch 9 §3 ratios are for an eight-rank ring: 0.54 s vs 6.1 s vs 98 s. A 64-rank all-reduce has different traffic and topology behavior.",
+  "root_cause": "Using '8 nodes' as shorthand for an 8-rank group without specifying the DP group size.",
+  "correction": "Specify 'for an eight-rank DP group (e.g., one rank per node)' or replace 'across 8 nodes' with 'across an eight-rank group'.",
+  "acceptance_test": "The 1/11 and 1/180 ratios are not read as applying to a 64-rank 8-node DP group.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH11-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 11, §4 Measurement, 'A serving feature belongs to an algorithm path'",
+  "chapter": "11",
+  "quoted_clause": "A serving feature belongs to an algorithm path. ... Grammar constraints, quantized loading, graph capture, and distributed parallelism also depend on the selected model implementation and sampler. [1P][FACT]",
+  "observed": "The paragraph is a general architectural interpretation, not a first-party fact, and no specific 1P source is cited for the general claim. The trailing [1P][FACT] can be read as labeling the whole paragraph.",
+  "evidence": "The paragraph contains no vendor documentation claim; the specific 1P observations appear in following paragraphs with footnotes.",
+  "root_cause": "Evidence label applied to a derived span.",
+  "correction": "Change the label to [DERIVED] or split the paragraph so [1P][FACT] applies only to a specific documented observation.",
+  "acceptance_test": "No general interpretation is labeled [1P][FACT] without a first-party source for that exact claim.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH9-03",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 9, §1 Concept, after collective list",
+  "chapter": "9",
+  "quoted_clause": "Behind these three workhorses sits one contract.",
+  "observed": "The preceding list names four collectives (all-reduce, all-gather, reduce-scatter, all-to-all). If 'three workhorses' means the first three, the sentence is unclear; if it means all listed collectives, the count is wrong.",
+  "evidence": "Bullet list immediately before includes four bolded operations.",
+  "root_cause": "Stale count or ambiguous reference.",
+  "correction": "Use 'Behind these collectives sits one contract' or 'Behind the three reduction/gather workhorses (all-reduce, all-gather, reduce-scatter) sits one contract'.",
+  "acceptance_test": "The count matches the referenced set.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH14-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 14, §3 Worked Example, Step 1",
+  "chapter": "14",
+  "quoted_clause": "run them through the rag pipeline",
+  "observed": "The book uses RAG as an acronym elsewhere; lowercase 'rag' is inconsistent.",
+  "evidence": "Ch 11/12 use 'RAG' for retrieval-augmented generation.",
+  "root_cause": "Typo.",
+  "correction": "Use 'RAG pipeline'.",
+  "acceptance_test": "Acronym is consistently capitalized.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "TBL17-2-FP8-CEIL",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17, Table 17-2, row 'N @ T=0, FP8 (C=35; 23.275)', columns 100 rps and 200 rps",
+  "chapter": "17",
+  "quoted_clause": "⌈860/23.275⌉ ≈ 38 | ⌈1720/23.275⌉ ≈ 75",
+  "observed": "860/23.275 = 36.95, so ⌈36.95⌉ = 37, not 38. 1720/23.275 = 73.90, so ⌈73.90⌉ = 74, not 75. Both entries are off by one host.",
+  "evidence": "23.275 × 37 = 861.175 > 860, so 860/23.275 < 37. 23.275 × 36 = 837.9 < 860, so 860/23.275 > 36. Therefore 36 < 860/23.275 < 37, and the ceiling is 37. Similarly: 23.275 × 74 = 1,722.35 > 1720, and 23.275 × 73 = 1,699.075 < 1720, so 73 < 1720/23.275 < 74, ceiling = 74.",
+  "root_cause": "Rounding error in the ceiling computation: 36.95 was rounded to 37 and then ceiled to 38 (double rounding), or 73.90 was rounded to 74 and ceiled to 75. The correct procedure is to ceiling the exact quotient directly.",
+  "correction": "Change '≈ 38' to '≈ 37' and '≈ 75' to '≈ 74' in the T=0 FP8 row of Table 17-2. Verify that no downstream text references these specific values (the N−1 summary row and the scope note use the T=3 rows, not T=0 FP8 at 100/200 rps, so the impact is contained to the table).",
+  "acceptance_test": "Recompute ⌈860/23.275⌉ and ⌈1720/23.275⌉ independently; both must yield 37 and 74 respectively. The table entries must match.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH16-624M-DERIVATION",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §16.3, Mode 1, 'Per request' paragraph; also Ch 16 §16.3 'Feasible served-volume bound' paragraph",
+  "chapter": "16",
+  "quoted_clause": "10 rps × 8 h × 3,600 s × 260 workdays ÷ 12 = 6,240,000 requests/month, not 24×7; request-active time is 173.33 h/month",
+  "observed": "The formula is arithmetically correct (74,880,000/12 = 6,240,000) but the '÷ 12' is unexplained. A reader sees '260 workdays' (an annual figure) multiplied by '8 h' (a daily figure) and then divided by 12 without being told that 260 is per-year and ÷12 converts to per-month. The resulting '173.33 h/month' active time (≈ 21.7 business days × 8 h) is consistent, but the formula as written looks like an arbitrary adjustment.",
+  "evidence": "260 workdays/year ÷ 12 months/year = 21.67 workdays/month. 21.67 × 8 h × 3,600 s/h = 624,096 s ≈ 624,000 s. 10 rps × 624,000 s = 6,240,000 req/mo. The '÷ 12' is the year-to-month conversion.",
+  "root_cause": "The formula compresses two steps (annual-to-monthly conversion, then rate × time) into one line without labeling the '÷ 12' as a unit conversion.",
+  "correction": "Rewrite as: '10 rps × 8 h/day × 3,600 s/h × (260 workdays/yr ÷ 12 mo/yr) = 10 × 8 × 3,600 × 21.67 ≈ 6,240,000 requests/month (active business-hours window; 173.33 h/mo of 8-h days, not 24×7).' Or simply: '10 rps × 173.33 h/mo × 3,600 s/h = 6,240,000 requests/month, where 173.33 h = 8 h × 21.67 business days (260/12).'",
+  "acceptance_test": "A reader who does not know the canonical workload should be able to follow the derivation of 6,240,000 from the stated inputs without guessing what '÷ 12' represents.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ }
+]

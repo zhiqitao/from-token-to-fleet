@@ -1,0 +1,97 @@
+
+
+[
+  {
+    "id": "CH15-SCOPE-PREFILL-7",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 15, opening scope note (first paragraph after 'The Architect's Question')",
+    "chapter": "15",
+    "quoted_clause": "⌈344/35⌉ = 10 hosts at 40 rps, bounded below by the ~7-host prefill requirement — prefill compute then binds",
+    "observed": "The '~7-host prefill requirement' is inconsistent with the book's own 35%-MFU prefill screen, which gives 19 hosts (case i), 21 (case iii), or 22 (case ii) at 40 rps. The figure 7 arises only from the 100%-MFU theoretical ceiling (368,000 ÷ 56,500 = 6.51 → ⌈6.51⌉ = 7), a different operating point than the 35%-MFU screen used in Ch 16/17/20. Additionally, the clause 'prefill compute then binds' is arithmetically wrong for 7 < 10 (KV would bind), and is only correct for 19 > 10 (prefill binds).",
+    "evidence": "Ch 16 §16.3: '⌈368,000 ÷ 19,780⌉ = 19 at peak under case (i)'. Ch 17 §17.4: '19 hosts under case (i) (⌈18.60⌉, linear-only), 21 under case (iii), 22 under case (ii)'. The 19,780 tok/s figure is 8 × 989 TFLOPS × 0.35 / (2 × 70×10⁹). The 56,500 tok/s figure (100% MFU) is 8 × 989 / 1.4×10⁻⁴. 368,000/56,500 = 6.51 → 7. 368,000/19,780 = 18.60 → 19.",
+    "root_cause": "The scope note was written using the 100%-MFU theoretical ceiling (56,500 tok/s) instead of the 35%-MFU planning screen (19,780 tok/s) that the rest of the book uses for the independent prefill compute screen. The 'prefill compute then binds' clause was written for the 19 > 10 case but the number was left at 7.",
+    "correction": "Replace '~7-host prefill requirement — prefill compute then binds' with 'the independent prefill compute screen (35% MFU, case i) requires ⌈368,000/19,780⌉ = 19 hosts, so prefill compute binds and the fleet is 19 hosts, not 10.' Alternatively, if the 100%-MFU figure is intended as a theoretical bound, state it explicitly: 'the 100%-MFU theoretical prefill ceiling implies only ⌈368,000/56,500⌉ = 7 hosts, but the 35%-MFU planning screen (used in Ch 16/17) requires 19 hosts, so prefill compute binds at 19 > 10.'",
+    "acceptance_test": "The scope note's prefill figure must match the 35%-MFU prefill screen (19/21/22) stated in Ch 16 §16.3 and Ch 17 §17.4, and the 'binds' clause must be consistent with the comparison (prefill > KV → prefill binds; prefill < KV → KV binds)."
+  },
+  {
+    "id": "TBL17-2-FP8-CEIL",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 17, Table 17-2, row 'N @ T=0, FP8 (C=35; 23.275)', columns 100 rps and 200 rps",
+    "chapter": "17",
+    "quoted_clause": "⌈860/23.275⌉ ≈ 38 | ⌈1720/23.275⌉ ≈ 75",
+    "observed": "860/23.275 = 36.95, so ⌈36.95⌉ = 37, not 38. 1720/23.275 = 73.90, so ⌈73.90⌉ = 74, not 75. Both entries are off by one host.",
+    "evidence": "23.275 × 37 = 861.175 > 860, so 860/23.275 < 37. 23.275 × 36 = 837.9 < 860, so 860/23.275 > 36. Therefore 36 < 860/23.275 < 37, and the ceiling is 37. Similarly: 23.275 × 74 = 1,722.35 > 1720, and 23.275 × 73 = 1,699.075 < 1720, so 73 < 1720/23.275 < 74, ceiling = 74.",
+    "root_cause": "Rounding error in the ceiling computation: 36.95 was rounded to 37 and then ceiled to 38 (double rounding), or 73.90 was rounded to 74 and ceiled to 75. The correct procedure is to ceiling the exact quotient directly.",
+    "correction": "Change '≈ 38' to '≈ 37' and '≈ 75' to '≈ 74' in the T=0 FP8 row of Table 17-2. Verify that no downstream text references these specific values (the N−1 summary row and the scope note use the T=3 rows, not T=0 FP8 at 100/200 rps, so the impact is contained to the table).",
+    "acceptance_test": "Recompute ⌈860/23.275⌉ and ⌈1720/23.275⌉ independently; both must yield 37 and 74 respectively. The table entries must match."
+  },
+  {
+    "id": "CH16-624M-DERIVATION",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 16 §16.3, Mode 1, 'Per request' paragraph; also Ch 16 §16.3 'Feasible served-volume bound' paragraph",
+    "chapter": "16",
+    "quoted_clause": "10 rps × 8 h × 3,600 s × 260 workdays ÷ 12 = 6,240,000 requests/month, not 24×7; request-active time is 173.33 h/month",
+    "observed": "The formula is arithmetically correct (74,880,000/12 = 6,240,000) but the '÷ 12' is unexplained. A reader sees '260 workdays' (an annual figure) multiplied by '8 h' (a daily figure) and then divided by 12 without being told that 260 is per-year and ÷12 converts to per-month. The resulting '173.33 h/month' active time (≈ 21.7 business days × 8 h) is consistent, but the formula as written looks like an arbitrary adjustment.",
+    "evidence": "260 workdays/year ÷ 12 months/year = 21.67 workdays/month. 21.67 × 8 h × 3,600 s/h = 624,096 s ≈ 624,000 s. 10 rps × 624,000 s = 6,240,000 req/mo. The '÷ 12' is the year-to-month conversion.",
+    "root_cause": "The formula compresses two steps (annual-to-monthly conversion, then rate × time) into one line without labeling the '÷ 12' as a unit conversion.",
+    "correction": "Rewrite as: '10 rps × 8 h/day × 3,600 s/h × (260 workdays/yr ÷ 12 mo/yr) = 10 × 8 × 3,600 × 21.67 ≈ 6,240,000 requests/month (active business-hours window; 173.33 h/mo of 8-h days, not 24×7).' Or simply: '10 rps × 173.33 h/mo × 3,600 s/h = 6,240,000 requests/month, where 173.33 h = 8 h × 21.67 business days (260/12).'",
+    "acceptance_test": "A reader who does not know the canonical workload should be able to follow the derivation of 6,240,000 from the stated inputs without guessing what '÷ 12' represents."
+  },
+  {
+    "id": "CH17-MINICASE-048",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 17 §17.8 mini-case, first paragraph",
+    "chapter": "17",
+    "quoted_clause": "2 rps average is 0.25 rps/replica, well inside the 0.48 rps/replica the canonical 21-host fleet sustains at its 40 rps peak",
+    "observed": "The '0.48 rps/replica' figure is not derived in the text. The canonical fleet runs one 70B model per 8×H100 host (TP=8), so there is 1 model instance per host, giving 40/21 = 1.90 rps/host. The 0.48 figure appears to be 40/(21×4) = 0.476, implying 4 'replicas' per host (2 GPUs each), which contradicts the canonical 8-GPU tensor-parallel deployment. The mini-case's own setup ('2 GPUs per replica → 8 replicas across the two hosts') uses a different parallelism than the canonical, making the cross-reference to 'the canonical 21-host fleet' ambiguous.",
+    "evidence": "40 rps / 21 hosts = 1.90 rps/host (1 model instance per host in canonical TP=8). 40 / (21 × 4) = 0.476 ≈ 0.48 (4 replicas of 2 GPUs per host — not the canonical configuration). The mini-case's '2 GPUs per replica' is a different deployment shape.",
+    "root_cause": "The comparison was made at the 'replica' granularity (2 GPUs) rather than the 'host' or 'model instance' granularity, and the canonical fleet's replica count was not stated.",
+    "correction": "Either (a) restate the comparison at host level: '2 rps average is 1 rps/host across the two hosts, well inside the 40/21 ≈ 1.9 rps/host the canonical 21-host fleet sustains at peak'; or (b) if keeping the replica-level comparison, explicitly state: 'the canonical 21-host fleet, if reconfigured as 4 two-GPU replicas per host (84 replicas total), sustains 40/84 ≈ 0.48 rps/replica at peak — the mini-case's 0.25 rps/replica is within that.' Option (a) is simpler and avoids the configuration mismatch.",
+    "acceptance_test": "The reader can verify the 0.48 (or 1.9) figure from the stated fleet size and arrival rate without inferring an unstated replica-per-host count."
+  },
+  {
+    "id": "CH17-COUNTERA-PERHOST",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 17 §17.4, Counter-scenario A paragraph",
+    "chapter": "17",
+    "quoted_clause": "the per-host decode token rate ≈ B × HBM_BW ÷ weight_bytes, capped by compute and KV — at batch 1 that is ~239 tok/s, at batch 100 ~23,900 tok/s",
+    "observed": "The formula is labeled 'per-host' but the numbers (239 tok/s at batch 1 for a 14 GB model) correspond to a single GPU (3.35 TB/s ÷ 14 GB = 239 tok/s), not an 8-GPU host (26.8 TB/s ÷ 14 GB = 1,914 tok/s). The counter-scenario implicitly assumes the 7B model runs on 1 GPU, but the 'per-host' label suggests 8 GPUs.",
+    "evidence": "1 GPU: 3.35×10¹² / 14×10⁹ = 239 tok/s. 8 GPUs: 8×3.35×10¹² / 14×10⁹ = 1,914 tok/s. The text's 239 matches the 1-GPU case.",
+    "root_cause": "The counter-scenario uses a 7B model that fits on one GPU, but the formula's 'per-host' label was carried over from the canonical 8×H100 context without adjustment.",
+    "correction": "Change 'per-host decode token rate' to 'per-GPU decode token rate (the 7B model fits on a single GPU; a host with 8 such GPUs would run 8 independent instances)' or simply 'per-instance decode token rate.' Add a brief note that the 7B model occupies 1 of the 8 GPUs, so the host can run 8 independent 7B instances.",
+    "acceptance_test": "A reader computing 8 × 3.35 TB/s ÷ 14 GB gets 1,914 tok/s and does not find a contradiction with the stated 239 tok/s, because the per-GPU scope is explicit."
+  },
+  {
+    "id": "CH15-SCOPE-TILDE",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 15, opening scope note",
+    "chapter": "15",
+    "quoted_clause": "⌈344/17⌉ = ~21 hosts",
+    "observed": "The ceiling function ⌈344/17⌉ = ⌈20.235⌉ = 21 exactly. The tilde (~) implies approximation where the result is a precise integer from a defined operation.",
+    "evidence": "344/17 = 20.2353. ⌈20.2353⌉ = 21. No approximation involved.",
+    "root_cause": "Carryover from a draft where the calculation was less precise, or a stylistic habit of hedging integer results.",
+    "correction": "Remove the tilde: '⌈344/17⌉ = 21 hosts.'",
+    "acceptance_test": "The expression reads as an exact equality, consistent with the ceiling function's deterministic output."
+  },
+  {
+    "id": "CH16-KV-DECIMAL",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 16 §16.3, Step 1, parenthetical after 'floor 17'",
+    "chapter": "16",
+    "quoted_clause": "436 GB ÷ (2.62 MB/token × 9,500 tokens) = 17.51 → floor 17 (conservative by one host: 344 ÷ 17.516 = 19.64 → 20 unrounded)",
+    "observed": "The same quantity is given as '17.51' in the main clause and '17.516' in the parenthetical. The exact value is 436/24.9037 = 17.507. Neither 17.51 nor 17.516 is the exact value; they are different roundings of the same quantity, which creates a minor inconsistency within one sentence.",
+    "evidence": "2.62144 MB × 9,500 = 24,903.68 MB = 24.90368 GB. 436/24.90368 = 17.5074. Rounded to 2 dp: 17.51. Rounded to 3 dp: 17.507. The '17.516' does not match either standard rounding.",
+    "root_cause": "The '17.516' appears to be a typo (transposition of 17.507 or 17.51 with an extra digit).",
+    "correction": "Unify to '17.51' (or '17.507') in both places: '436 GB ÷ 24.9037 GB = 17.51 → floor 17 (conservative by one host: 344 ÷ 17.51 = 19.65 → 20 unrounded).'",
+    "acceptance_test": "The same decimal representation of C appears in both the main clause and the parenthetical; no reader can identify two different values for the same quantity."
+  }
+]
+
+COVERAGE: Read and re-derived all arithmetic in Ch 15 (scope note, §1–§8, Table 15-1, mini-case), Ch 16 (§1–§8, all cost calculations, break-even, feasible bound, Table 16-1/16-2, multi-region worksheet, mini-case), and Ch 17 (§1–§8, all fleet-sizing formulas, Table 17-1/17-2, reconciliation box, five-time-quantity table, cross-host interconnect arithmetic, counter-scenarios, mini-case, F-01). Verified: KV per-token (2.62 MB), 436 GB budget, 17/17.5 floor, 344 in-flight, 21/31/32 host counts, 19,780 tok/s prefill ceiling (35% MFU), 56,500 tok/s (100% MFU), all three FLOP-counting cases (i/ii/iii) multipliers and results, all TCO cost lines (capex, energy, staff, per-request), cloud occupancy (4,380/15,330 h), API cost ($0.0208/req), break-even (7.5M, 6.2–10.4M range), feasible bound (24.96M), agentic I(T) values (10,365/12,095/12,960), C values at T=0/1/3/4, W values (8.6/11.52/14.56/17.70/14.16/17.40), all Table 17-2 entries (recomputed every cell), N−1 row, prefill screen at 70%×95% (29/32/34), cross-host bandwidth (250 MB/s, 20 MB/s, 1,000 MB/s, 40 ms, 20 Gbps), 6.24M derivation, 730 h billing, PUE 1.3, 10.14 kW, $1,110.33/host/mo. Did NOT verify: figure rendering (stripped from chunk), Ch 4/8/14/19/20/22/25 cross-referenced values (assumed consistent per house conventions), the [S6] vLLM 54% source, the IPEX/NCCL footnote URLs (post-cutoff, correctly labeled).

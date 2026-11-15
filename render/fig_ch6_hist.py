@@ -60,7 +60,7 @@ ax.axvline(2.0, color='#27408b', ls='-.', lw=2.2)
 # "SLO 2 s (TTFT budget)" (metric named, per review fix), which is wide enough
 # that on the top row its box would run under the legend box — so it sits at
 # mid-height on its own line instead, in clear space right of x=2.
-ax.text(v99 + 0.03, ytop * 0.94, 'p99', fontsize=8.5, color='#c0392b',
+ax.text(v99 + 0.03, ytop * 0.94, 'sample p99', fontsize=8.5, color='#c0392b',
         fontweight='bold', va='center', ha='left',
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#c0392b', lw=0.5))
 ax.text(2.03, ytop * 0.45, 'SLO 2 s (TTFT budget)', fontsize=8.5, color='#27408b',
@@ -68,7 +68,7 @@ ax.text(2.03, ytop * 0.45, 'SLO 2 s (TTFT budget)', fontsize=8.5, color='#27408b
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#27408b', lw=0.5))
 # Compact legend in the clear upper-right whitespace (the annotated lines all cluster
 # near x=0.8-2.0 on a 6.2s axis, so label them as a legend, not along the crowded lines).
-ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\np99 = %.2fs\nSLO 2 s (TTFT budget)\n(p99 still looks fine)' % (mean, v99),
+ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\nsample p99 (interpolation) = %.2fs\npopulation p99 = 5.0 s\nSLO 2 s (TTFT budget)' % (mean, v99),
         fontsize=8.5, color='#333', ha='center', va='center',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f7f7f7', ec='#cccccc', lw=0.8))
 # P2-07: shade the ENTIRE SLO-violating region (> 2 s, everything right of the

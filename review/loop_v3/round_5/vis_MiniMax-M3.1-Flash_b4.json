@@ -1,0 +1,87 @@
+```json
+[
+  {
+    "id": "FIG9.1-01",
+    "page": "PDF 181 / printed 161 (equation); FIG 9.1 on PDF 177 / printed 157; prose on PDF 176 / printed 156",
+    "figure": "FIG 9.1 (model) vs. the ring-latency equation in §9.3",
+    "severity": "P1",
+    "issue": "The ring-latency equation in §9.3 omits the factor of 2 for the two phases of an all-reduce, so its own printed substitution does not produce the printed result, and the equation contradicts the model drawn in FIG 9.1 and the prose on printed p.156.",
+    "evidence": "Printed on p.161: 'T_ring ≈ (N−1)/N · M/R_eff ≈ 7/8 · 140 GB / 40 GB/s ≈ 6.1 s'. Substitution: 7/8 = 0.875; 140/40 = 3.5; 0.875 × 3.5 = 3.06 s — a factor of 2 short of the printed 6.1 s. The correct ring all-reduce critical path is 2(N−1)/N · M/R_eff = 1.75 × 140/40 = 6.125 s, which is exactly the model drawn in FIG 9.1 ('sent bytes per rank = 1.75 × tensor bytes', '140 GB tensor (245 GB sent at 1.75×)', 'HDR 6,125 ms') and the prose on printed p.156 ('the eight-rank ring on 8×3 instead sends 245 GB per rank: about 0.54 s at the H100 directional peak, 6.1 s at an assumed effective ... 40 GB/s'). FIG 9.2 independently confirms the 2(N−1)/N form: 12 B sent for a 4-element FP16 input = 1.5× = 2(N−1)/N at N=4. The finding holds even if a '2' is present in the source formula, because the printed substitution '7/8 · 140 GB / 40 GB/s' omits it.",
+    "acceptance_test": "In the source, change the equation to 'T_ring ≈ 2(N−1)/N · M/R_eff ≈ 2 × 7/8 × 140 GB / 40 GB/s ≈ 6.1 s' (equivalently '1.75 × 140 GB / 40 GB/s'), and add a clause naming the two phases ('reduce-scatter + all-gather'). Confirm that the printed 6.1 s, FIG 9.1's 245 GB / 6,125 ms, FIG 9.1's caption '6.1 s', and printed p.156's '6.1 s' all agree, then re-run the numeric regression gate over Chapter 9."
+  },
+  {
+    "id": "FIG9.1-02",
+    "page": "PDF 177 / printed 157 (legend and caption); also PDF 176 / printed 156 and PDF 181 / printed 161",
+    "figure": "FIG 9.1 legend, entry 'Two-way HDR: assumed effective 40 GB/s'",
+    "severity": "P2",
+    "issue": "The legend label 'Two-way HDR' is ambiguous in a way that changes the answer by 2×, and the same 40 GB/s assumption is given three different names in the book (legend 'Two-way', p.156 'two-rank', p.161 '2 HDR rails/ports per node').",
+    "evidence": "'Two-way' most naturally reads as a bidirectional aggregate (send + receive on one link). Under that reading the ring moves 245 GB sent per rank at 20 GB/s per direction = 12.25 s, not the 6.1 s printed in the figure subtitle, the caption, and printed p.156. The book's own framing elsewhere is explicitly per-direction: printed p.161 states '490 GB of sent-plus-received traffic divided by 900 GB/s gives the same time', i.e. 245 GB sent at 450 GB/s directional, and FIG 9.1's NVLink entry is labelled 'directional peak 450 GB/s'. The HDR entry is the only one whose directionality is unspecified, and it is the one whose label admits a 2× misreading.",
+    "acceptance_test": "Choose one unambiguous descriptor for the 40 GB/s assumption and use it identically in the FIG 9.1 legend, the FIG 9.1 caption, printed p.156, and printed p.161. Recommended: 'HDR, 2 rails/node, assumed effective 40 GB/s per direction'. The words 'per direction' must appear in the legend entry so that the 245 GB / 40 GB/s = 6.125 s arithmetic is forced by the label rather than inferred."
+  },
+  {
+    "id": "FIG9.1-03",
+    "page": "PDF 177 / printed 157",
+    "figure": "FIG 9.1 subtitle vs. x-axis label",
+    "severity": "P3",
+    "issue": "The subtitle says '140 GB tensor' while the x-axis says 'Logical input tensor per rank [GB]'; the per-rank qualifier is dropped exactly where the reader needs it to interpret the 1.75× factor.",
+    "evidence": "Subtitle: 'N = 8; sent bytes per rank = 1.75 × tensor bytes / 140 GB tensor (245 GB sent at 1.75×)'. X-axis: 'Logical input tensor per rank [GB]'. Caption: 'Each rank sends 1.75 times the logical tensor size'. A reader who takes '140 GB tensor' as the whole collective payload would expect 1.75 × 140/8 GB per rank, not 245 GB.",
+    "acceptance_test": "Change the subtitle to '140 GB per rank (245 GB sent at 1.75×)' so that the subtitle, the x-axis, and the caption use one qualifier."
+  },
+  {
+    "id": "FIG9.1-04",
+    "page": "PDF 177 / printed 157",
+    "figure": "FIG 9.1 subtitle",
+    "severity": "P3",
+    "issue": "The figure asserts the 1.75× traffic factor without showing where it comes from, so the reader must take it on faith or reconstruct it from the caption.",
+    "evidence": "Subtitle: 'sent bytes per rank = 1.75 × tensor bytes'. The factor is 2(N−1)/N = 2×7/8 = 1.75 for N=8 (reduce-scatter plus all-gather, each moving (N−1)/N of the tensor). Neither the figure nor the caption states this; the caption only says 'Each rank sends 1.75 times the logical tensor size and receives the same amount.' The same unexplained constant appears in FIG 9.2 as '12 B sent' for an 8 B input (1.5× at N=4).",
+    "acceptance_test": "Add the derivation to the subtitle, e.g. 'sent bytes per rank = 2(N−1)/N × tensor = 1.75 × tensor bytes', and mirror the same form in FIG 9.2's summary box ('12 B sent = 1.5 × 8 B input')."
+  },
+  {
+    "id": "FIG9.2-01",
+    "page": "PDF 178 / printed 158",
+    "figure": "FIG 9.2 subtitle: 'Four ranks; four FP16 elements per input (6 B/rank).'",
+    "severity": "P2",
+    "issue": "The parenthetical states the input size as 6 B/rank, but four FP16 elements are 8 B/rank; 6 B is the per-phase sent volume, not the input size. As written the figure's own headline number is wrong.",
+    "evidence": "Four FP16 elements × 2 B = 8 B per rank of input. The figure body correctly shows '6 B sent + 6 B received/rank' per phase and 'Per rank: 12 B sent + 12 B received = 24 B endpoint total', and the caption says 'each rank sends 12 B and receives 12 B across both phases'. 12 B sent / 8 B input = 1.5 = 2(N−1)/N at N=4, which is the same factor FIG 9.1 uses at N=8 (1.75). If the input really were 6 B, the ratio would be 2.0, contradicting both figures. The parenthetical is attached to 'per input', so the natural reading is input size.",
+    "acceptance_test": "Rewrite the subtitle as 'Four ranks; four FP16 elements per input (8 B/rank); 6 B sent + 6 B received per rank per phase' and confirm that 8 B input → 12 B sent → 1.5× is stated or derivable on the page. Re-check that no other caption or prose in Chapter 9 repeats the '6 B/rank' input figure."
+  },
+  {
+    "id": "FIG9.2-02",
+    "page": "PDF 178 / printed 158",
+    "figure": "FIG 9.2 phase annotations ('3 neighbor rounds / 6 B sent + 6 B received/rank')",
+    "severity": "P3",
+    "issue": "'3 neighbor rounds' can be misread as '3 neighbors', but a four-rank ring has exactly two distinct neighbors per rank; the quantity being counted is rounds (steps), not neighbors.",
+    "evidence": "The figure's own ring sub-diagram shows R0→R1→R2→R3→R0, i.e. two neighbors per rank. The correct count is 3 rounds (N−1 steps) per phase, each moving one 2 B chunk, as the separate note 'Each rank sends one 2 B chunk to the next rank' states.",
+    "acceptance_test": "Change both phase annotations to '3 rounds (one 2 B chunk per round)' or '3 steps × 2 B = 6 B sent per rank', so that rounds and neighbors are not conflated."
+  },
+  {
+    "id": "FIG9.2-03",
+    "page": "PDF 178 / printed 158",
+    "figure": "FIG 9.2 reduce-scatter row (Rank 0 → [10], Rank 1 → [20], Rank 2 → [-10], Rank 3 → [0])",
+    "severity": "P3",
+    "issue": "The figure asserts a specific chunk→rank ownership (rank r ends with reduced chunk r) without stating the chunk-flow convention, and the most commonly taught forward-flow convention yields rank r → chunk r+1. An expert reader who knows that convention will read the figure as wrong rather than as a convention choice.",
+    "evidence": "With the textbook convention 'at step 0 rank r forwards its own chunk r to its successor', chunk j starts at rank j and completes at rank j−1, so rank r would hold chunk r+1 (rank 0 → 20, rank 1 → −10, rank 2 → 0, rank 3 → 10). The figure's assignment is nevertheless achievable — it corresponds to the variant where rank r forwards chunk r−1 first, so chunk j starts at rank j+1 and completes at rank j — but the figure shows only the neighbour order, not the chunk flow, so the reader cannot tell which convention is in force.",
+    "acceptance_test": "Add one clause to the caption or the figure, e.g. 'chunk j is first forwarded by rank j+1, so rank r ends the reduce-scatter holding reduced chunk r', or annotate the ring sub-diagram with the chunk index in flight. Confirm that the stated convention reproduces the four reduce-scatter outputs shown."
+  },
+  {
+    "id": "FIG9.3-01",
+    "page": "PDF 179 / printed 159",
+    "figure": "FIG 9.3, dashed red 'Control / setup' path vs. the 'Launcher, rank/device mapping, rendezvous' box",
+    "severity": "P3",
+    "issue": "The horizontal run of the dashed control path sits immediately above the launcher box's top border, so at print size the dashed red rule and the box's solid grey rule read as one double line and the control path appears to bypass the launcher rather than pass through it.",
+    "evidence": "In the rendered page the dashed red segment spans the full width of the launcher box at a vertical separation of only a few pixels from the box's top edge, while the box's own top border is a solid rule of similar weight. The figure's semantic claim is that the launcher performs the setup for both backends, which requires the dashed path to visibly terminate on the box.",
+    "acceptance_test": "Increase the vertical gap between the dashed control path and the launcher box's top border to at least one text-line height, or route the dashed path so that it visibly enters the launcher box from both sides. Re-render at 150 dpi and confirm the two rules are separable at print size."
+  },
+  {
+    "id": "XREF-01",
+    "page": "PDF 181 / printed 161 (prose); anchors FIG 9.1 on PDF 177 / printed 157",
+    "figure": "FIG 9.1 (HDR curve) — supporting prose",
+    "severity": "P2",
+    "issue": "The prose that supplies FIG 9.1's HDR bandwidth assumption appears to print '200 GB/s per link' where the parenthetical '(= 25 GB/s before link coding)' requires '200 Gb/s'. If the source really reads GB/s, this is an 8× bytes-vs-bits error in the number that anchors the figure's HDR curve.",
+    "evidence": "Printed p.161: 'HDR InfiniBand delivers 200 GB/s per link (= 25 GB/s before link coding).' 200 Gb/s = 25 GB/s, so the parenthetical is only consistent with 'Gb/s'. The same paragraph then derives 'roughly 40 GB/s (aggregated across 2 HDR rails/ports per node)', i.e. 2 × 25 GB/s × 0.8 efficiency, which is the 40 GB/s used in FIG 9.1's legend and in the 6.1 s ring time. The unit glyph is at the resolution limit of the 150 dpi render, so the source must be checked before acting.",
+    "acceptance_test": "Open the source for printed p.161 and confirm the unit. If it reads 'GB/s', change to '200 Gb/s per link (= 25 GB/s before link coding)'. If it already reads 'Gb/s', close this finding with no change and record the check. In either case, confirm that the 40 GB/s effective figure in the text matches FIG 9.1's legend entry and that the 2-rail derivation is stated once, not twice."
+  }
+]
+```
+
+COVERAGE: PDF pages 170, 176, 177, 178, 179, 180, 181, 188 (printed pages 150, 156, 157, 158, 159, 160, 161, 168; offset +20 confirmed from the running heads and folios on all eight pages). Figures inspected: FIG 9.1 (PDF 177 / printed 157), FIG 9.2 (PDF 178 / printed 158), FIG 9.3 (PDF 179 / printed 159) — all three rendered at 150 dpi and checked for label/caption/prose agreement, arithmetic, legibility, and grayscale separability. Pages 170, 176, 180, 181, 188 contain no figures (170 ends with a chapter rule; 176, 180, 181, 188 are prose/equation pages) and were read only for the prose that supports FIG 9.1's model. NOT VERIFIED: exact point sizes of figure annotations (the 150 dpi render does not permit reliable measurement against the 8 pt floor); pixel-level positions of the plotted endpoints in FIG 9.1 (the log-log curves were checked for slope, parallelism, and inter-series spacing consistent with 450/40/2.5 GB/s, but endpoint pixels could not be measured); the source unit glyph in '200 GB/s per link' (see XREF-01); the chunk-flow convention underlying FIG 9.2's reduce-scatter ownership (see FIG9.2-03); and the exact wording of the 40 GB/s descriptor on printed p.156 ('two-rank' vs. 'two-rail'), which is at the resolution limit of the render.

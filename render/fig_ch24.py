@@ -24,7 +24,7 @@ fig, ax = plt.subplots(figsize=(6.1, 4.6))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 ax.set_xlim(0, 27); ax.set_ylim(0, 12.6); ax.axis('off')
 
-ax.text(13.5, 11.9, 'Red Team / Green Team cycle: probe, measure, harden, loop',
+ax.text(13.5, 11.9, 'Red Team / Green Team cycle: probe, harden, measure, loop',
         fontsize=11, fontweight='bold', ha='center', color='#1a1a1a')
 ax.text(13.5, 11.2, '(1\u21926 forward cycle; one red feedback loop back to step 1)',
         fontsize=8, ha='center', color='#555')

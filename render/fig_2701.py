@@ -82,15 +82,16 @@ ax.set_title('Extreme sparsity: single-digit active (2026)',
 
 # Vendor-reported caveat as a compact one-line footnote BELOW the axis.
 # P2-10: second line explains the '*' backbone-ratio mark on the Qwen bar.
-fig.text(0.04, 0.045,
+fig.text(0.04, 0.092,
          '* Qwen bar = backbone ratio (125B backbone), excluding the 51B n-gram embedding and 4B MTP.',
          fontsize=8.2, color='#777', ha='left', va='bottom')
 fig.text(0.04, 0.005,
-         'VENDOR-REPORTED active fractions; parameter definitions vary across vendors.',
+         'VENDOR-REPORTED total/active counts; the displayed fractions are [DERIVED] by division;\n'
+         'parameter definitions vary across vendors.',
          fontsize=8.5, color='#777', ha='left', va='bottom')
 
 # Tight layout reserves enough room for the y-tick labels and footer.
-plt.subplots_adjust(left=0.36, right=0.99, top=0.90, bottom=0.24)
+plt.subplots_adjust(left=0.36, right=0.99, top=0.90, bottom=0.28)
 out = 'design/manuscript/chapter-27/figures/fig-27-2701.png'
 plt.savefig(out, dpi=350)
 import matplotlib as _mpl

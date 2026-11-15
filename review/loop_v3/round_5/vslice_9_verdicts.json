@@ -1,0 +1,152 @@
+[
+ {
+  "id": "CH9-03",
+  "verdict": "ACCEPT",
+  "evidence": "ch09:18 claims all-gather gives 'full weight or KV cache locally'; ch09:192 treats KV as a separate one-time transfer and FSDP gathering as the weight path — full-KV all-gather isn't the normal case.",
+  "fix": "Qualify the bullet: all-gather materializes fragments (e.g. FSDP weights); KV cache normally stays sharded, not all-gathered."
+ },
+ {
+  "id": "CH9-01",
+  "verdict": "ACCEPT",
+  "evidence": "ch09:136 blames sub-peak on 'one link rarely carries the whole transfer' yet same line says each link carries (N−1)/N; N=8 → 7/8 = 87.5%, nearly full utilization.",
+  "fix": "Attribute sub-peak bandwidth to protocol/latency/contention, not traffic splitting; note each link carries a large fraction."
+ },
+ {
+  "id": "CH9-02",
+  "verdict": "ACCEPT",
+  "evidence": "ch09:136 parenthetical omits per-phase scope; ring total per link = 2(N−1)/N; N=2 → 2×0.5 = 1.0 tensor, matching the preceding 'two-rank can saturate' sentence.",
+  "fix": "Add 'per phase' to (N−1)/N and state the full total 2(N−1)/N; for N=2 that is one full tensor per link."
+ },
+ {
+  "id": "CH9-03",
+  "verdict": "ACCEPT-PARTIAL",
+  "evidence": "ch09:136 parenthetical names no link; §9.3 defines 40 GB/s = 2-rail HDR (ch09:65,100): 40/50=0.80, 2.5/3.125=0.80 ✓; against PCIe 64 GB/s 40/64=0.625.",
+  "fix": "Name links: 40 GB/s ≈80% of 50 GB/s two-rail HDR; 2.5 GB/s ≈80% of 3.125 GB/s 25GbE; avoid the 64 GB/s reading."
+ },
+ {
+  "id": "CH9-04",
+  "verdict": "ACCEPT",
+  "evidence": "ch09:138 'spent exclusively in communication' states no overlap assumption; 140/2.5=56s ✓, 56×1000=56,000s=15.6h ✓, 98,000s=27.2h ✓ are non-overlapped only.",
+  "fix": "State the no-overlap assumption; distinguish total collective duration from exposed critical-path time when overlap is used."
+ },
+ {
+  "id": "CH9-05",
+  "verdict": "REJECT",
+  "evidence": "ch09:148 cites §9.3, which names effective ~40 GB/s 2-rail HDR (ch09:100): 450/40=11.25 ✓, 450/2.5=180 ✓ — the issue's own test allows a directly cited section.",
+  "fix": "Optional: name 'two-rail HDR at 40 GB/s effective' inline in §6; the ratio already recomputes from cited §9.3."
+ },
+ {
+  "id": "CH9-06",
+  "verdict": "ACCEPT",
+  "evidence": "ch09:192; canonical hidden 8192, concurrency ~17.5: one all-reduce = 17.5×8192×2 ≈ 0.29 MB; ×2×80 layers ≈ 46 MB/step — 'tens of MBs' holds only as per-step aggregate.",
+  "fix": "Give the per-layer formula (batch×hidden×B, sub-MB) and label tens of MBs as the per-step aggregate across 80 layers."
+ },
+ {
+  "id": "CH10-01",
+  "verdict": "ACCEPT-PARTIAL",
+  "evidence": "ch10:1 title 'Splitting the Model Across Machines' vs ch10:5 list including DP (replicates parameters) and P/D (splits phases); P/D is already flagged 'serving-only sixth'.",
+  "fix": "Label what each splits or replicates; keep P/D as phase disaggregation, not model partitioning; soften the title's scope."
+ },
+ {
+  "id": "CH11-PAGEDATTN-SHARING-02",
+  "verdict": "ACCEPT-PARTIAL",
+  "evidence": "ch11:68 says blocks 'shared and evicted like page frames' but its causal clause is packing density; prefix caching is separate (ch11:18,70; Table 11-1) — no benefit is actually misattributed.",
+  "fix": "Blocks are mapped via a per-request block table; sharing only via copy-on-write/prefix reuse, a separate mechanism."
+ },
+ {
+  "id": "CH11-PD-SCALE-03",
+  "verdict": "ACCEPT",
+  "evidence": "ch11:22 'P/D disaggregation makes it scale' vs ch11:78 'premature...pays off when measured prefill/decode interference binds' and Table 11-1 (ch11:90) 'workload outgrows a node'.",
+  "fix": "Qualify: P/D can improve goodput at scale when measured phase interference and KV-transfer cost justify it."
+ },
+ {
+  "id": "CH11-MOONCAKE-525-04",
+  "verdict": "ACCEPT",
+  "evidence": "ch11:20 '525% throughput lift' vs ch11:78 'reported up to 525% long-context throughput (a lift over...baseline)'; neither resolves 5.25× vs 6.25× baseline.",
+  "fix": "State baseline and multiplier once (e.g. 'up to 525% higher throughput') and reuse the same wording in both spots."
+ },
+ {
+  "id": "CH11-KV-UTIL-DEF-05",
+  "verdict": "ACCEPT",
+  "evidence": "ch11:98 defines it as 'fraction of the 640 GB node memory consumed by live KV vs weights', then the same item uses 'block utilization' — a KV-capacity denominator with weights excluded.",
+  "fix": "Define KV utilization = live/allocated KV ÷ KV block capacity; report weights and other memory separately."
+ },
+ {
+  "id": "CH11-ADAPTIVE-DEPTH-UNIT-06",
+  "verdict": "ACCEPT",
+  "evidence": "ch11:108 defines 'Adaptive depth (per-token early exit...)' then says 'Requests that exit at different iterations' — request-level exit contradicts the token-level unit just defined.",
+  "fix": "Use token-level exit: tokens exiting at different iterations leave per-sequence remaining depth; a request mixes depths."
+ },
+ {
+  "id": "CH10-MOE-ALLTOALL-07",
+  "verdict": "ACCEPT",
+  "evidence": "ch10:169 'the all-to-all routing it forces' — all-to-all arises only when experts are sharded across devices (EP); replicated or cached expert placements avoid it.",
+  "fix": "Change 'forces' to 'can require when experts are distributed across devices'; note alternative placements."
+ },
+ {
+  "id": "CH10-MOE-RESIDENCY-08",
+  "verdict": "ACCEPT",
+  "evidence": "ch10:169 'total expert residency that must be sharded...the full expert set occupies HBM' states an unconditional all-resident assumption; offload/caching deployments exist.",
+  "fix": "Add the condition 'if all experts must be resident in HBM'; note expert offloading/caching changes the capacity calculus."
+ },
+ {
+  "id": "CH10-MINICASE-ACTIVE-RESIDENCY-09",
+  "verdict": "ACCEPT-PARTIAL",
+  "evidence": "ch10:175 checks ~40B active (≈80 GB) against 640 GB, but the same sentence states 'EP shards total residency, not the active count' — the correct constraint is already present.",
+  "fix": "Make the HBM check use total resident bytes after EP sharding; keep active parameters only for the compute/FLOPs point."
+ },
+ {
+  "id": "CH11-CONT-BATCH-BOTTLENECK-10",
+  "verdict": "ACCEPT",
+  "evidence": "ch11:60 'the mechanism makes the GPU the steady bottleneck' while the same line says 'idle can still occur from insufficient arrivals, KV capacity, prefill, or scheduling policy'.",
+  "fix": "Say it can shift the bottleneck toward GPU resources when arrivals and KV capacity permit; scheduler policy can still bind."
+ },
+ {
+  "id": "CH14-02",
+  "verdict": "ACCEPT",
+  "evidence": "ch14:34 'gives at most 17 whole-context slots, not a deployable concurrency of 17.5' vs ch14:52 row 'C ≈ 17.5 whole-context slots/host'; 436/24.9=17.51 ✓.",
+  "fix": "Row: 'C ≈ 17.5 request-equivalents/host (analytical); integer slots = 17'; reserve 'slots' for the floored value."
+ },
+ {
+  "id": "CH14-03",
+  "verdict": "ACCEPT-PARTIAL",
+  "evidence": "ch14:55 '(MFU, Ch 8 definition)' resolves to ch08:221 'TFLOP/s achieved divided by peak TFLOP/s' — same formula; but ch08:133,137 name MFU 'model FLOPs utilization'.",
+  "fix": "Print Ch 8's formula in the row or rename to 'achieved FLOP/s utilization'; reconcile with standard model-FLOPs MFU."
+ },
+ {
+  "id": "CH14-04",
+  "verdict": "ACCEPT",
+  "evidence": "ch14:130 asserts unconditional 'zeroing goodput'; goodput reaches zero only if no request meets the SLO in the window — otherwise it falls but stays positive.",
+  "fix": "Use conditional wording: can cut goodput, reaching zero only if no request in the window meets the SLO after TTFT breaches."
+ },
+ {
+  "id": "CH17-04",
+  "verdict": "ACCEPT",
+  "evidence": "ch17:202 contains all three statements: 'binding term becomes decode bandwidth', 'binding constraint to check is compute/KV, not bandwidth alone', 'binding term is bandwidth, not memory'.",
+  "fix": "State one binding constraint for scenario A, or separate the checks (decode bandwidth vs compute/KV) and say which binds."
+ },
+ {
+  "id": "CH15-03",
+  "verdict": "ACCEPT",
+  "evidence": "ch15:90 contains 'a prefill chunk size of 8 tokens — or a max batch size of 8 requests, whichever is meant' plus the author note 'specify which quantity is being tuned'.",
+  "fix": "Name the tuned quantity; delete 'whichever is meant' and the 'specify which quantity' author note."
+ },
+ {
+  "id": "CH16-02",
+  "verdict": "ACCEPT",
+  "evidence": "ch16:262 contains '(state the assumed peak rps for these two hosts)' — an instruction to the author left in reader-facing prose.",
+  "fix": "State the assumed peak rps for the two hosts, or delete the parenthetical."
+ },
+ {
+  "id": "CH17-05",
+  "verdict": "REJECT",
+  "evidence": "ch16:64 and ch17:118 use the same conditional 'would read 29 working / 30 total'; Ch16 defers to Table 17-1 and never claims the figure — no contradiction.",
+  "fix": "None needed; both chapters present ρ=1 identically as an unclaimed comparison variant."
+ },
+ {
+  "id": "CH15-04",
+  "verdict": "ACCEPT-PARTIAL",
+  "evidence": "ch15:75 'accepting the ones that match its own distribution' is corrected in the next paragraph (ch15:77: 'does not simply accept...exact-speculative-sampling correction').",
+  "fix": "Add a forward reference in the first sentence to the exact acceptance rule stated in the following paragraph."
+ }
+]

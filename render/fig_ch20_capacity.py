@@ -80,7 +80,7 @@ ax.text(30, 18, 'actually-served demand region', ha='left', va='bottom',
         fontsize=8.6, color='#12386e', zorder=7,
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.75))
 
-ax.text(31.5, 42, 'UNUSED capacity (N >= 22):\ninsufficient offered demand;\nS capped at 40 rps -\nnot scheduling overhead',
+ax.text(31.5, 42, 'UNUSED capacity (N ≥ 22):\ninsufficient offered demand;\nS capped at 40 rps —\nnot scheduling overhead',
         ha='left', va='bottom', fontsize=8.6, color='#8c2d2d', zorder=7,
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.75))
 

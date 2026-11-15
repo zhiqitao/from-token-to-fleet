@@ -7,7 +7,7 @@ tiers a LARGE trigger label states what FORCES the climb (KV residency overruns 
 host goodput < demand / demand exceeds ceiling). Tier cards are deliberately small
 ladder-rungs on the left. A thin dashed GREEN down-arrow on the right is the
 de-escalation path (privacy, sovereignty, cost). A small green STOP label hangs off
-every rung ("constraints met? STOP here") so the exit is visible at each level and
+every rung ("no binding / constraint → STOP", two lines so it clears the red trigger band) so the exit is visible at each level and
 the reader never reads the ladder as a best/worst ranking.
 
 CHANNEL-REDUNDANCY: escalation vs de-escalation differ by colour AND arrow style
@@ -47,8 +47,8 @@ for (name, sub), y in zip(tiers, tier_y):
     ax.text(tx + bw/2, y - 0.20, sub, ha='center', va='center',
             fontsize=8.0, color='#33523a')
     # small STOP branch hanging off each rung (the escape at every level)
-    ax.text(tx + bw/2, y - bh/2 - 0.36, '\u25bc constraints \u2192 STOP',
-            ha='center', va='center', fontsize=8.0, color='#1e8449')
+    ax.text(tx + bw/2, y - bh/2 - 0.36, 'no binding constraint\n\u2192 stay at this tier',
+            ha='center', va='center', fontsize=8.5, color='#1e8449', linespacing=1.15)
 
 # ---------------------------------------------------------------------------
 # Dominant CAUSAL up-arrow (the escalator spine) — fat red shaft + triangle head.
@@ -85,7 +85,7 @@ ax.annotate('', xy=(9.5, 0.95), xytext=(9.5, 10.1), arrowprops=dict(
 # label sits ABOVE the dashed arrow's head so it clears the red escalation
 # shaft entirely (it used to straddle the shaft at x=8.0); stacked short lines
 # keep it narrow, fs/weight now match the bold trigger annotations.
-ax.text(8.72, 11.02, 'DE-ESCALATE:\nprivacy \u00b7\nsovereignty \u00b7\ncost', ha='center', va='center',
+ax.text(8.72, 11.02, 'DE-ESCALATE:\nprivacy \u00b7\nsovereignty \u00b7\ncost\n(primary triggers)', ha='center', va='center',
         fontsize=9.5, color='#1a6fa8', fontweight='bold', linespacing=1.2)
 
 # ---------------------------------------------------------------------------
@@ -93,9 +93,10 @@ ax.text(8.72, 11.02, 'DE-ESCALATE:\nprivacy \u00b7\nsovereignty \u00b7\ncost', h
 # ---------------------------------------------------------------------------
 ax.text(5.0, 12.15, 'The reference-architecture escalation ladder',
         fontsize=12.0, fontweight='bold', ha='center', va='center', color='#1a1a1a')
-ax.text(5.0, 0.35,
-        'escalate only when a constraint binds \u2014 else STOP; tiers are distinct levels of scale, not a quality ranking',
-        ha='center', va='center', fontsize=8.0, color='#666')
+ax.text(5.0, 0.22,
+        'escalate only when a constraint binds \u2014 else STOP; tiers are distinct\n'
+        'levels of scale, not a quality ranking',
+        ha='center', va='center', fontsize=9.0, color='#4d4d4d', linespacing=1.1)
 
 out = 'design/manuscript/chapter-13/figures/fig-13-1301.png'
 plt.savefig(out, dpi=350)

@@ -1,0 +1,206 @@
+```json
+[
+  {
+    "id": "FIG-10.1-01",
+    "page": "PDF 192 / printed 172",
+    "figure": "FIGURE 10.1 (panel A, Tensor parallel)",
+    "severity": "P2",
+    "confidence": "high",
+    "issue": "Panel A's weight bar is drawn as one continuous blue bar split at the GPU boundary and labeled 'W1' (over GPU 0) and 'W2' (over GPU 1). As drawn, the natural reading is 'GPU 0 holds matrix W1, GPU 1 holds matrix W2' — i.e. matrix-per-GPU placement, which is NOT tensor parallelism. Under TP both GPUs hold shards of the SAME matrix. The caption ('TP shards one layer's weights across GPUs') disambiguates in prose, but the figure alone licenses the wrong mental model, and the book elsewhere distinguishes TP from EP ('EP reuses the same machinery'), so the confusion is not harmless.",
+    "evidence": "Rendered panel A: a single hatched bar spanning both GPU boxes, with 'W1' centered over GPU 0 and 'W2' centered over GPU 1, and no label identifying the parent matrix. Caption: 'TP shards one layer's weights across GPUs (activations replicated; partial sums all-reduced every layer)'. Panel title: 'splits one layer's weights'.",
+    "acceptance_test": "Panel A's bar must be labeled as one matrix divided into shards — e.g. a brace over the bar reading 'one layer's weight matrix W' with the halves labeled 'shard 1 (GPU 0)' / 'shard 2 (GPU 1)' or 'W[:, :h]' / 'W[:, h:]' — so that no reader can read the drawing as 'GPU 0 holds W1, GPU 1 holds W2'. Re-render and confirm the intended reading is forced by the labels alone, without the caption."
+  },
+  {
+    "id": "FIG-11.1-01",
+    "page": "PDF 206 / printed 186",
+    "figure": "FIGURE 11.1 (left panel, Discrete batching)",
+    "severity": "P2",
+    "confidence": "high",
+    "issue": "The discrete-batching panel draws four sequences of IDENTICAL length (four equal blue blocks, four equal pink trailing regions). The mechanism the caption and the figure's own annotation describe — 'a batch is locked until its slowest member finishes, so short outputs idle in trailing slots' and 'GPU slots idle (pink) when a sequence finishes early' — requires at least one visibly shorter sequence. As drawn, the picture is equally consistent with the opposite reading: all four sequences ended together and the slots sat idle until the next batch was admitted. The reader therefore cannot see the phenomenon the figure exists to contrast with continuous batching.",
+    "evidence": "Rendered left panel: four rows, each with an identical short blue block at the left and an identical long pink dotted region to the right, all ending at the same x. Caption: 'In the left (discrete) panel a batch is locked until its slowest member finishes, so short outputs idle in trailing slots'. In-figure annotation: 'GPU slots idle (pink) when a sequence finishes early'. Neither is visible in the drawing.",
+    "acceptance_test": "In the discrete panel, at least one sequence must be drawn visibly shorter than the others, with that row's pink idle region extending past the other rows' blue regions, so that 'short outputs idle in trailing slots' and 'GPU slots idle (pink) when a sequence finishes early' are both readable from the drawing alone. Confirm at print size that the length difference is unambiguous."
+  },
+  {
+    "id": "FIG-11.1-02",
+    "page": "PDF 206 / printed 186",
+    "figure": "FIGURE 11.1 (right panel, Continuous batching)",
+    "severity": "P2",
+    "confidence": "medium-high",
+    "issue": "The annotation 'a finishing sequence frees its slot immediately' has a leader arrow whose head lands on an in-flight blue block (or on the green backfill strip), not on the freed slot it names. The freed slot is the white gap between the finished blue block and the backfilled green strip. The arrow therefore points the reader at the wrong element, and the caption's claim that 'freed slots are refilled every step' is not what the arrow demonstrates.",
+    "evidence": "Rendered right panel, row 2: blue block, then a white gap, then a green strip + blue block. The leader from 'a finishing sequence frees its slot immediately' terminates on the block region to the right of the gap rather than on the gap itself. Legend defines green as 'new sequence (backfill)', so a green target would also mis-name the object.",
+    "acceptance_test": "The leader from 'a finishing sequence frees its slot immediately' must terminate on the freed slot (the white gap between the finished blue block and the backfilled green strip), or the annotation must be reworded to name the green strip ('a new sequence (green) backfills the freed slot immediately'). Re-render and confirm the arrowhead unambiguously touches the intended element."
+  },
+  {
+    "id": "FIG-11.1-03",
+    "page": "PDF 206 / printed 186",
+    "figure": "FIGURE 11.1 (legend and panel encoding)",
+    "severity": "P2",
+    "confidence": "high",
+    "issue": "Grayscale failure with information loss. 'sequence in flight' is encoded as a solid blue block and 'new sequence (backfill)' as a solid green block — hue is the ONLY distinguishing channel. In grayscale the backfill strips are indistinguishable from in-flight blocks, and the figure's entire point (a slot being refilled by a new sequence) disappears. Unlike FIGURE 10.1, this figure's blocks carry no text labels, so there is no redundant channel to fall back on. The legend swatches are also solid color only.",
+    "evidence": "Rendered legend: 'idle slot (bubble)' = pink dotted swatch; 'sequence in flight' = solid blue swatch; 'new sequence (backfill)' = solid green swatch. The only texture difference in the panels is the dotted pink idle region; blue and green are both solid fills.",
+    "acceptance_test": "Render the figure in grayscale and confirm the backfill strip remains distinguishable from an in-flight block by texture or outline (e.g. hatched or outlined green), not hue alone; the legend swatches must reproduce the same texture used in the panels."
+  },
+  {
+    "id": "FIG-11.3-01",
+    "page": "PDF 212 / printed 192",
+    "figure": "FIGURE 11.3 (panel A, Within one NVLink domain)",
+    "severity": "P2",
+    "confidence": "medium-high",
+    "issue": "Panel A's header time and the drawn topology encode different transfer models. The header states the time for the WHOLE ~35 GB request KV over a single 450 GB/s link (35 / 450 = 0.078 s ~ 0.08 s), and the caption says the state 'crosses the joining link' (singular). But the panel draws 4 prefill GPUs and 4 decode GPUs with the KV arrow labeled '450 GB/s per GPU'. Under TP=4 the KV is sharded four ways, so each GPU ships ~8.75 GB over its own 450 GB/s link and the transfer completes in ~0.02 s. The figure therefore simultaneously implies a per-GPU link and a whole-state-over-one-link time, and the reader cannot tell which model the 0.08 s belongs to.",
+    "evidence": "Rendered panel A: 'PREFILL / 4 GPUs' and 'DECODE / 4 GPUs' boxes, a single 'KV' arrow between them annotated '450 GB/s per GPU', header '~35 GB / 450 GB/s = 0.08 s (on-node, unidirectional)'. Page 190 note: '35 / 450 = 0.08 s'. Sharded alternative: 35/4 = 8.75 GB per GPU; 8.75/450 = 0.019 s.",
+    "acceptance_test": "Panel A must pick one model and make it self-consistent: either (a) print the whole-state-over-one-link assumption explicitly ('whole 35 GB over one 450 GB/s link') and draw a single link, or (b) show the 4-way shard (per-GPU payload ~8.75 GB) and the resulting ~0.02 s. The printed time must be reproducible from the printed payload, link rate, and drawn topology, and the caption's 'crosses the joining link' must match the chosen model."
+  },
+  {
+    "id": "FIG-11.3-02",
+    "page": "PDF 212 / printed 192",
+    "figure": "FIGURE 11.3 (caption)",
+    "severity": "P2",
+    "confidence": "medium",
+    "issue": "As rendered, the caption's key sentence is not grammatical and has an unbalanced parenthesis: it reads '...the request KV state (~35 GB for the 13.3K-token context of §9.8) crosses the canonical 9.8K-token request carries ~24.1 GB) across the joining link, so disaggregation pays only when...'. The clause 'crosses the canonical 9.8K-token request carries ~24.1 GB)' cannot be parsed, and the parenthesis opened before '~35 GB' is closed before a second, unrelated clause. This is the sentence that carries the figure's central claim (the transfer cost is the load-bearing term), so a garbled rendering destroys the argument the figure is making. NOTE: this reading was taken from the 150 dpi render; it must be confirmed against the source before editing.",
+    "evidence": "Rendered caption, PDF 212 / printed 192: '...the request KV state (~35 GB for the 13.3K-token context of §9.8) crosses the canonical 9.8K-token request carries ~24.1 GB) across the joining link...'. Two ')' with no matching '(' between them; no clause opener before 'the canonical'.",
+    "acceptance_test": "Open the source .tex for Figure 11.3's caption and confirm the sentence reads as one grammatical clause with balanced parentheses — e.g. 'the request KV state (~35 GB for the 13.3K-token context of §9.8; the canonical 9.2K-token request carries ~24.1 GB) crosses the joining link'. Re-render the PDF and confirm the rendered caption matches. If the source is already correct, no change is required and this finding is void."
+  },
+  {
+    "id": "FIG-10.1-02",
+    "page": "PDF 192 / printed 172",
+    "figure": "FIGURE 10.1 (legend vs caption)",
+    "severity": "P3",
+    "confidence": "high",
+    "issue": "The in-figure legend glosses blue as 'compute', but the only blue element in the figure is the static weight matrix in panel A. The caption glosses the same color differently: 'the figure color code (blue = weights · orange = GPU · green = data · red = comms)'. A reader who trusts the legend will read the blue bar as compute work rather than a parameter, which inverts the meaning of the panel (the thing being split is data, not compute).",
+    "evidence": "Rendered legend row: 'compute (blue) | GPU (orange) | data (green) | comms (red)'. Caption: 'the figure color code (blue = weights · orange = GPU · green = data · red = comms)'. Panel A's blue hatched bar is labeled W1/W2 (weights).",
+    "acceptance_test": "The legend entry and the caption gloss must use the same word for blue — 'weights (blue)' in both places — or the blue element must be relabeled so that 'compute' is not attached to a static parameter. Verify by reading only the figure and only the caption: both must yield the same mapping."
+  },
+  {
+    "id": "FIG-10.1-03",
+    "page": "PDF 192 / printed 172",
+    "figure": "FIGURE 10.1 (legend and hatch encoding)",
+    "severity": "P3",
+    "confidence": "high",
+    "issue": "Grayscale distinguishability is weaker than the caption's 'Grayscale note' claims. The caption asserts the color code is 'redundant, not load-bearing' because each box carries a text label — true for the GPU boxes, but the legend itself becomes four indistinguishable gray squares in grayscale, and the two semantic categories that use hatch texture (weights = blue diagonal hatch in panel A; data = green diagonal hatch in panel C) use the SAME hatch angle, so a grayscale reader sees one texture standing for two different categories. The legend swatches are solid fills and do not reproduce the hatch patterns used in the panels.",
+    "evidence": "Rendered panels: panel A's weight bar uses diagonal hatching; panel C's 'batch shard A/B' bars use diagonal hatching; the GPU boxes use cross-hatching. Legend swatches are solid color squares with no texture.",
+    "acceptance_test": "Render in grayscale and confirm (a) the weights bar and the batch-shard bars are distinguishable by hatch pattern alone (e.g. diagonal vs horizontal vs cross-hatch), and (b) each legend swatch reproduces the pattern used in the panels rather than a solid fill."
+  },
+  {
+    "id": "FIG-10.1-04",
+    "page": "PDF 192 / printed 172",
+    "figure": "FIGURE 10.1 (panel B, Pipeline parallel)",
+    "severity": "P3",
+    "confidence": "high",
+    "issue": "Panel B draws a 27-layer model ('layers 1-9', 'layers 10-18', 'layers 19-27') while the caption states 'the canonical 70B has 80 layers; substitute the actual collective and schedule for the target stack'. The caption's caveat is about the collective and schedule, not about the layer count, so a reader can easily reconcile the drawn 27 layers with the canonical model and carry a wrong stage-size assumption into the pipeline-parallelism arithmetic elsewhere in the chapter.",
+    "evidence": "Rendered panel B: 'GPU 0 / layers 1-9', 'GPU 1 / layers 10-18', 'GPU 2 / layers 19-27' (27 total). Caption: 'the canonical 70B has 80 layers; substitute the actual collective and schedule for the target stack'.",
+    "acceptance_test": "Either the panel's stage boundaries must total the canonical 80 layers (e.g. 27/27/26) or the panel must carry an explicit label such as 'illustrative 27-layer model' so that the drawn layer count cannot be read as the canonical model's. Confirm the caption's caveat explicitly covers the layer count, not only the collective and schedule."
+  },
+  {
+    "id": "FIG-10.1-05",
+    "page": "PDF 192 / printed 172",
+    "figure": "FIGURE 10.1 (panel B, left-edge annotation)",
+    "severity": "P3",
+    "confidence": "low-medium",
+    "issue": "The panel-B annotation 'idle (bubble) at fill/drain — pipeline-wide' appears to run flush against, or slightly across, the panel's left border, unlike every other annotation in the figure, which is inset. If it is touching or crossing the rule, the line reads as clipped and the leading word is the first thing a reader loses.",
+    "evidence": "Rendered panel B: the 'idle (bubble) at fill/drain — pipeline-wide' line begins at the same x as the panel's rounded-rectangle border, whereas 'activations -> P2P at stage boundaries' and 'communication-light: only stage boundaries move -> span nodes' are inset from the border.",
+    "acceptance_test": "Inspect the rendered page at 100% print size and confirm the annotation has visible clearance from the panel border on all sides and is not clipped; if it is, inset it to match the other annotations. (Geometry overlap is also subject to the machine overlap gate; this item is raised for the legibility consequence only.)"
+  },
+  {
+    "id": "FIG-11.1-04",
+    "page": "PDF 206 / printed 186",
+    "figure": "FIGURE 11.1 (legend type size)",
+    "severity": "P3",
+    "confidence": "medium",
+    "issue": "The legend row ('idle slot (bubble) | sequence in flight | new sequence (backfill)') is set noticeably smaller than the panel titles 'Discrete batching' / 'Continuous batching' and smaller than the in-panel annotations. The legend is the only key to the figure's three encodings, so it is the last element that should be shrunk; if it falls below the 8 pt figure-annotation floor, the color/pattern key becomes hard to read at print size.",
+    "evidence": "Rendered page: legend glyph height is visibly below that of the bold panel titles and below the 'idle (bubble)' / 'new sequences (green) snap into freed slots' annotations.",
+    "acceptance_test": "Measure the legend text at print size: it must be at or above the 8 pt figure-annotation floor and must not be smaller than the panel titles or the in-panel annotations. Confirm by rendering the page at 100% and reading the legend without magnification."
+  },
+  {
+    "id": "FIG-11.1-05",
+    "page": "PDF 206 / printed 186",
+    "figure": "FIGURE 11.1 (time axis)",
+    "severity": "P3",
+    "confidence": "medium",
+    "issue": "A single horizontal arrow labeled 'time (decode steps / iterations) ->' spans the full width of the figure, running under both the discrete and the continuous panels. The two panels are separate illustrations on unrelated scales (the discrete panel's rows all start at the same x; the continuous panel's rows are staggered diagonally), so one shared axis implies a common timeline and a common scale that does not exist. The reader may also read the diagonal stagger in the right panel as a time axis, which the figure never states.",
+    "evidence": "Rendered figure: one arrow from the left edge under the discrete panel to the right edge under the continuous panel; the caption separately says 'The horizontal axis is time (decode steps / iterations)' without restricting it to one panel.",
+    "acceptance_test": "Either draw the time axis under each panel separately, or state in the caption and in the figure that the two panels are independent illustrations not on a common scale. If the diagonal stagger in the continuous panel encodes time, label it; if not, align the rows so no unintended diagonal reading is possible."
+  },
+  {
+    "id": "FIG-11.1-06",
+    "page": "PDF 206 / printed 186",
+    "figure": "FIGURE 11.1 (in-figure note)",
+    "severity": "P3",
+    "confidence": "medium",
+    "issue": "The in-figure note reads 'Decode-only illustration: every request is in the prefill->decode phase.' The phrase 'in the prefill->decode phase' is ambiguous and reads as though requests are in the prefill phase or the decode phase, which contradicts the 'Decode-only' label immediately preceding it. The intended statement is that the requests shown are in the decode phase only.",
+    "evidence": "Rendered note under the time axis: 'Decode-only illustration: every request is in the prefill->decode phase. A real system also interleaves prefill of new requests into the same steps (§11.4, Ch 15).'",
+    "acceptance_test": "The note must read 'every request shown is in the decode phase' (or equivalent) so that it cannot be read as including the prefill phase, and must remain consistent with the caption's 'The diagram is a decode-only illustration'."
+  },
+  {
+    "id": "FIG-11.2-01",
+    "page": "PDF 211 / printed 191",
+    "figure": "FIGURE 11.2 (four concerns)",
+    "severity": "P3",
+    "confidence": "high",
+    "issue": "Grayscale distinguishability: boxes 1, 2 and 3 are separated only by border hue (purple, red, green), all solid; only box 4's dashed orange border survives a grayscale conversion. The figure's central claim is that the four concerns are separable and independently chosen, and the dashed-vs-solid contrast is doing real work for box 4 alone. The 'e.g.' sub-labels are also hue-matched, so in grayscale the sub-label loses its association with its box border. The bold box titles keep the content readable, so this is a polish-and-robustness issue rather than information loss.",
+    "evidence": "Rendered figure: box 1 purple solid border with purple italic 'e.g. continuous batching'; box 2 red solid with red italic 'e.g. PagedAttention (KV pages)'; box 3 green solid with green italic 'e.g. prefix caching'; box 4 orange DASHED with orange italic 'e.g. P/D disaggregation'.",
+    "acceptance_test": "Render in grayscale and confirm all four boxes remain distinguishable by border style (e.g. solid / dashed / double / corner marker) rather than hue alone, and that the dashed border remains reserved for box 4 so the caption's 'the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node' is still visually legible."
+  },
+  {
+    "id": "FIG-11.2-02",
+    "page": "PDF 211 / printed 191",
+    "figure": "FIGURE 11.2 (page layout)",
+    "severity": "P3",
+    "confidence": "medium",
+    "issue": "The page opens with roughly 1.5-2 inches of completely blank space between the running head and the figure title, and the figure-plus-caption block then floats in the upper-middle of the page with a large blank band below. The page contains no body text, so the leading void reads as an accidental float placement rather than a designed plate.",
+    "evidence": "Rendered PDF 211 / printed 191: running head at the top, then blank space until the figure title 'Serving = four separable concerns, not a stack', then the four boxes, then the caption, then blank space to the foot of the page.",
+    "acceptance_test": "Top-align the figure block with the text block (or reduce the leading whitespace) so the page does not open with an empty band; confirm in the final PDF that no page in the chapter carries a comparable unexplained leading void."
+  },
+  {
+    "id": "FIG-11.3-03",
+    "page": "PDF 212 / printed 192",
+    "figure": "FIGURE 11.3 (in-figure caveat, units)",
+    "severity": "P3",
+    "confidence": "medium",
+    "issue": "The in-figure caveat reads 'Caveat — aggregate KV migration at peak: 35 GB/s x 40 req/s = 1.4 TB/s of payload.' As printed, the first factor is a rate, so the product has units GB*req/s^2 and cannot equal a bandwidth. The intended factor is the per-request KV size (35 GB), which gives 35 GB x 40 req/s = 1.4 TB/s. The page-190 note states the correct form ('35 GB/request x 40 req/s = 1.4 TB/s'), so the figure and the note disagree in form. (Reading taken from the 150 dpi render; confirm against the source.)",
+    "evidence": "Rendered caveat line on PDF 212 / printed 192 versus the Note 11.3-1 text on PDF 210 / printed 190: '35 GB/request x 40 req/s = 1.4 TB/s against the shared fabric'. The figure's first factor appears as '35 GB/s'.",
+    "acceptance_test": "The caveat's first factor must be a per-request size ('35 GB'), so the product is a bandwidth; the string '35 GB/s x 40 req/s' must not appear. Verify against the source .tex and re-render; if the source already reads '35 GB x 40 req/s', no change is required and this finding is void."
+  },
+  {
+    "id": "FIG-11.3-04",
+    "page": "PDF 212 / printed 192",
+    "figure": "FIGURE 11.3 (caption, token count vs KV size)",
+    "severity": "P3",
+    "confidence": "medium",
+    "issue": "The caption pairs a token count with a KV size that do not reconcile at the book's canonical KV rate. As rendered, the caption says 'the canonical 9.8K-token request carries ~24.1 GB'. At the canonical 2.62 MB/token (FP16, full-MHA 70B reference), 24.1 GB corresponds to 24,100/2.62 = 9,198 tokens, i.e. the canonical 9,200-token request (1,200 + 8,000), not 9.8K; a 9.8K-token request would carry 9,800 x 2.62 MB = 25.7 GB. One of the two numbers is wrong wherever this pair appears.",
+    "evidence": "Rendered caption: 'the canonical 9.8K-token request carries ~24.1 GB'. Canonical KV rate 2.62 MB/token (house canonical, also used on PDF 210 / printed 190: '13.3K = 35 GB / 2.62 MB'). 35 GB / 2.62 MB = 13,359 tokens ~ 13.3K (consistent); 24.1 GB / 2.62 MB = 9,198 tokens ~ 9.2K (not 9.8K).",
+    "acceptance_test": "Every place the canonical request's KV size is printed, the token count printed beside it must satisfy tokens x 2.62 MB/token = the stated KV size: 24.1 GB requires '9.2K-token' (9,200 = 1,200 + 8,000). If '9.8K' is printed, change it to '9.2K' or restate the KV size as 25.7 GB. Check the same pair in the Fig 11.3 caption and in Note 11.3-1 on PDF 210 / printed 190."
+  },
+  {
+    "id": "FIG-11.3-05",
+    "page": "PDF 212 / printed 192",
+    "figure": "FIGURE 11.3 (GPU squares, no key)",
+    "severity": "P3",
+    "confidence": "high",
+    "issue": "The figure encodes role by color with no key: orange squares inside the red-bordered PREFILL box and blue squares inside the blue-bordered DECODE box. In grayscale the orange and blue fills are near-identical mid-grays, so the only surviving cue is the box border color, which is also hue-dependent. The reader is asked to infer the meaning of the square fill from the box title, which is a reasonable fallback, but the figure has no legend at all — unlike FIGURE 11.1 and FIGURE 10.1 — so the encoding is undocumented.",
+    "evidence": "Rendered panels A and B: PREFILL boxes contain orange-filled squares, DECODE boxes contain blue-filled squares; no legend or key appears anywhere in the figure.",
+    "acceptance_test": "Add a one-line key (e.g. 'filled square = one GPU') and make the prefill/decode distinction survive grayscale — e.g. hatch the prefill squares and leave the decode squares solid, or label the squares 'prefill GPU' / 'decode GPU'. Confirm in grayscale that a reader can still tell which group is which."
+  },
+  {
+    "id": "FIG-11.3-06",
+    "page": "PDF 212 / printed 192",
+    "figure": "FIGURE 11.3 (panel A heading wording)",
+    "severity": "P3",
+    "confidence": "medium",
+    "issue": "The panel A heading 'Within one NVLink 4 domain' is ambiguous: 'NVLink 4' can be read as a version number (NVLink 4) rather than a 4-GPU domain, and the panel actually shows 8 GPUs (4 prefill + 4 decode) inside the domain. The heading should say what the number counts.",
+    "evidence": "Rendered heading: 'A. Within one NVLink 4 domain', with 'PREFILL / 4 GPUs' and 'DECODE / 4 GPUs' boxes beneath it. Panel B heading for contrast: 'B. Across hosts (fabric)'.",
+    "acceptance_test": "The heading must read 'Within one NVLink domain (8 GPUs: 4 prefill + 4 decode)' or 'Within one 4-GPU NVLink domain' so that '4' cannot be misread as a version and the GPU count in the domain is explicit."
+  },
+  {
+    "id": "FIG-11.3-07",
+    "page": "PDF 212 / printed 192",
+    "figure": "FIGURE 11.3 (header and caveat micro-text)",
+    "severity": "P3",
+    "confidence": "low-medium",
+    "issue": "The numbers the figure exists to convey — the per-link transfer times in the two panel headers ('~35 GB / 450 GB/s = 0.08 s', '~35 GB / 40 GB/s = 0.9 s') and the aggregate caveat ('35 GB x 40 req/s = 1.4 TB/s of payload') — are set in the smallest type in the figure, visibly below the 'PREFILL' / 'DECODE' box labels and the 'KV' arrow label. These are the load-bearing quantities of the whole figure and of the surrounding argument; they should not be the hardest text on the page to read.",
+    "evidence": "Rendered figure: the two header rate/time lines and the two caveat lines are rendered in a noticeably smaller size than the 'PREFILL'/'DECODE' labels and the '450 GB/s per GPU' / '40 GB/s per host NIC' annotations.",
+    "acceptance_test": "The header and caveat text must be at or above the 8 pt figure-annotation floor and must not be smaller than the box labels and link-rate annotations in the same figure. Confirm by reading the four numbers at 100% print size without magnification."
+  }
+]
+```
+
+COVERAGE: PDF pages 192, 193, 199, 206, 207, 210, 211, 212 (printed 172, 173, 179, 186, 187, 190, 191, 192) inspected as rendered images at 150 dpi. Figures audited: FIGURE 10.1 (PDF 192 / printed 172), FIGURE 11.1 (PDF 206 / printed 186), FIGURE 11.2 (PDF 211 / printed 191), FIGURE 11.3 (PDF 212 / printed 192) — 4 of 4 figures present on the batch pages. Pages 193, 199, 207 and 210 contain no figures (body text plus the openings of Tables 10-1 and 11-1) and were read only for figure-adjacent context and for the Note 11.3-1 derivation that Figure 11.3 depends on. NOT VERIFIED: the source .tex for the Figure 11.3 caption and caveat wording (findings FIG-11.3-02 and FIG-11.3-03 are render-based and must be confirmed against source before editing); an actual grayscale rendering of the built PDF (grayscale judgments are inferred from hue and hatch-pattern inspection of the color render); the machine gates (check_regressions.py, check_stale_values.py, scan_overlaps.py, table/figure gates) were not run, so no gated arithmetic or geometry is re-reported except where the gate's scope is in question; physical print proof; and the exact type sizes of figure annotations, which were estimated from the 150 dpi render rather than measured.

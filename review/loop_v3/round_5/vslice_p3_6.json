@@ -1,0 +1,615 @@
+[
+ {
+  "id": "T21-01",
+  "page": "PDF 40 / printed 20",
+  "figure": "Table 2-1 — Decode bandwidth and prefill FLOPs",
+  "severity": "P3",
+  "issue": "The table starts at the very foot of the page: caption, header row and only two data rows ('Model params 70B', 'Model weight bytes (FP16) 140 GB') fit before the page break, with the remainder presumably continuing on printed p.21. A table that begins with two visible rows and then breaks across a page is hard to read and, absent a continuation cue, invites the reader to mis-read the first two rows as the whole table.",
+  "evidence": "Rendered page: caption 'Table 2-1 — Decode bandwidth and prefill FLOPs (worked example, not reference)' sits at roughly two-thirds down the page, followed by the header and two rows; the page ends immediately after the second row. The two visible rows are arithmetically consistent with the prose ('a 70B-class dense model in FP16'; 70e9 x 2 B = 140 GB).",
+  "acceptance_test": "Keep Table 2-1 together on one page (push it to printed p.21) or, if it must break, add a 'Table 2-1 (continued)' header on the following page. Acceptance: no table in the book begins with fewer than three rows before a page break, and any continued table carries a continuation cue.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.4-01",
+  "page": "PDF 66 / printed 46",
+  "figure": "Figure 3.4 — Dense vs MoE parameter allocation and KV cache behavior (caption + in-figure legends)",
+  "severity": "P3",
+  "issue": "The caption states the dense 70B has 'resident weights = 140 GB at FP8'. That is arithmetically impossible: 70B parameters at 1 byte/param is 70 GB; 140 GB implies 2 bytes/param (FP16/BF16). The figure's own numbers also mix precisions inside a single comparison: 'inactive experts = 68 GB (6 x 11.4)' and 'active experts = 23 GB resident (2 x 11.4)' imply 11.4 GB per 11.4B-parameter expert = 1 byte/param (FP8), while '= 91 GB experts + 3 GB always-on' implies the 1.4B always-on block is counted at 2 bytes/param, and '= 12.8B = 25.6 GB' implies all active parameters are counted at 2 bytes/param. The headline comparison '140 GB dense vs ~94 GB MoE' is therefore not like-for-like, and the caption's precision label is wrong under every reading.",
+  "evidence": "Recomputation from the figure's own inputs: 70e9 x 1 B = 70 GB (not 140); 70e9 x 2 B = 140 GB. 8 x 11.4B = 91.2B expert params; 91.2e9 x 1 B = 91.2 GB (matches '91 GB experts'); x 2 B = 182.4 GB (does not match). 1.4e9 x 2 B = 2.8 GB (~'3 GB always-on'); x 1 B = 1.4 GB. 12.8e9 x 2 B = 25.6 GB (matches '= 25.6 GB'); x 1 B = 12.8 GB. Independent cross-check: Figure 5.1 (PDF 110 / printed 90) labels the same canonical model '70B FP16 . serving', consistent with 140 GB = FP16 and contradicting 'at FP8'.",
+  "acceptance_test": "In the source, fix one precision for the whole comparison and make every printed number follow from it. If FP16 throughout: expert residency becomes 182 GB and the caption's '~47B MoE'/'~27%' must be reconciled with the figure. If FP8 for experts: dense residency becomes 70 GB and the caption must not say '140 GB at FP8'. Acceptance: a reviewer recomputing params x bytes/param reproduces every printed resident figure exactly, and the '= 25.6 GB' active figure uses the same bytes/param as the residency figures.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.4-02",
+  "page": "PDF 66 / printed 46",
+  "figure": "Figure 3.4 — caption (MoE total parameters and active-compute fraction)",
+  "severity": "P3",
+  "issue": "The caption's '~94 GB for the ~47B MoE' and 'the active-compute fraction (~10^6 vs ~27%)' cannot be reconciled with the figure's own expert arithmetic. The figure states 8 experts x 11.4B = 91.2B expert parameters plus 1.4B always-on = 92.6B total, which yields an active fraction of 12.8/92.6 = 13.8%, not ~27%. Conversely 12.8/47 = 27.2% is consistent with the caption's ~47B total, which contradicts the figure's 8 x 11.4B. In addition the dense-case fraction renders as '~10^6', which is not a fraction at all (presumably a mis-set '~100%' or a stray superscript). One of the two halves of the figure is wrong by roughly a factor of two, and the reader cannot tell which.",
+  "evidence": "12.8/92.6 = 0.138; 12.8/47 = 0.272; 8 x 11.4 = 91.2. Rendered glyph sequence on PDF 66: 'the active-compute fraction (~10^6 vs ~27%)'. Note the operator is '~' in the printed text, so the finding is not a rounding artifact: 13.8% and 27% differ by ~2x, far outside any rounding bound.",
+  "acceptance_test": "Verify in source and print exactly one MoE parameter count, one resident-bytes figure, and one active fraction, all derived from the same expert size and layer/head geometry. The dense fraction must print as a percentage (100%) or a ratio (1.0), never '10^6'. Acceptance: active fraction = (2 x expert_params + always_on_params) / total_params recomputes to the printed value within the stated rounding, and the printed total matches 8 x expert_params + always_on_params.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.4-03",
+  "page": "PDF 66 / printed 46",
+  "figure": "Figure 3.4 — the two red KV callout boxes",
+  "severity": "P3",
+  "issue": "The two red callout boxes under the two columns carry identical text, 'dense 12 GB vs MoE 0.6 GB'. Placed under the Dense column and the MoE column respectively, they read as a duplicated label rather than as two column-specific results; neither column is assigned its own KV number, and a reader scanning the figure cannot tell which number belongs to which model.",
+  "evidence": "Both boxes on PDF 66 / printed 46 read 'dense 12 GB vs MoE 0.6 GB'. (The underlying numbers are themselves correct: 8-bit KV, 80L/8192H full-MHA = 2 x 1 B x 80 x 8192 = 1.31 MB/token x 9,200 = 12.05 GB; 32L/4096H GQA with 8 KV heads x 128 = 2 x 1 B x 32 x 1024 = 0.0655 MB/token x 9,200 = 0.60 GB.)",
+  "acceptance_test": "Each column's callout states that column's value (Dense: 'KV 12 GB'; MoE: 'KV 0.6 GB'), with the comparison stated once, in the caption or a single shared note. Acceptance: the dense KV number is readable from the dense column alone and the MoE KV number from the MoE column alone, with no duplicated string.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.4-04",
+  "page": "PDF 66 / printed 46",
+  "figure": "Figure 3.4 — visual hierarchy of the dense-vs-MoE KV comparison",
+  "severity": "P3",
+  "issue": "The most visually prominent elements in the figure are the two red 'dense 12 GB vs MoE 0.6 GB' boxes, which encode a 20x KV reduction that a reader will attribute to MoE routing. The caption explicitly warns the opposite ('the KV bytes differ by shape, not by routing'), and the geometry appears only in a small italic note. Neither the column headings nor the callouts carry the attention geometry, so the figure licenses exactly the inference the caption forbids: 'MoE shrinks the KV cache'. This is the figure-level instance of the misconception the chapter is trying to defeat.",
+  "evidence": "Column headings are 'Dense 70B' and 'MoE (8 experts)' with no layer/head/GQA annotation. The geometry appears only in the small italic note '8-bit KV set by shape, not routing: 80L/8192H MHA vs 32L/4096H GQA (8 KV heads x 128) at 9.2K tokens input'. The caption's own sentence 'Routing alone never changes KV: hold the attention geometry fixed and dense vs MoE is identical (Ch. 7)' is not visible in the drawing.",
+  "acceptance_test": "Put the attention geometry (80L/8192H full-MHA vs 32L/4096H GQA, 8 KV heads x 128) and the KV dtype into each column heading or each column's callout, so the 12 GB vs 0.6 GB difference is visibly attributable to shape. Acceptance: a reader who sees only the figure, without the caption, does not conclude that MoE routing reduces KV-cache size.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.2-01",
+  "page": "PDF 54 / printed 34",
+  "figure": "Figure 3.2 — panels B and C (source box vs. canvas relationship)",
+  "severity": "P3",
+  "issue": "Panels B and C place a box labelled 'fixed prompt' / 'causal prefix' immediately before a canvas whose leading cells are unresolved ('?'), while panel A places 'fixed prefix' before a canvas whose first cell is already resolved ('A'). Under the convention panel A establishes (the canvas is the growing prefix), panels B and C contradict their own labels: a fixed prompt and a causal prefix cannot be drawn as unresolved '?' cells. Under the alternative convention (the canvas excludes the prefix), panel A's note 'Accepted IDs extend the prefix' becomes false. The figure never states which convention holds, so the reader cannot determine, for any panel, which cells are already committed.",
+  "evidence": "PDF 54 / printed 34: panel A 'fixed prefix' -> [A][-][-][-]; panel B 'fixed prompt' -> [?][?][?][?]; panel C 'causal prefix' -> [?][?][-][-]. Panel B note: 'accepted IDs stay fixed'; panel C note: 'Refine the active block; finalize/cache its state before advancing.'",
+  "acceptance_test": "Add one explicit convention line (in the figure or its caption) stating whether the source box's tokens are drawn inside the canvas, then make all three panels obey it: if the canvas includes the prefix, panels B and C must show the prompt/prefix cells as fixed (solid, lettered) rather than '?'; if it does not, panel A's 'Accepted IDs extend the prefix' note must be reworded. Acceptance: for each panel the reader can state which cells are committed, which are unresolved, and which are inactive future.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.2-02",
+  "page": "PDF 54 / printed 34",
+  "figure": "Figure 3.2 — 'solid brackets' convention (panel A note and caption)",
+  "severity": "P3",
+  "issue": "Both the in-figure note ('Solid brackets mark finalized prefix state, not just accepted IDs') and the caption ('Solid brackets identify finalized prefix state') rely on a solid-vs-non-solid border convention, but the inactive-future '-' cells are drawn with the same solid outline as accepted-ID cells. The legend defines a border convention only for '?' (hatched). As drawn, the note's claim cannot be verified from the figure, and a reader could reasonably take the trailing '-' cell as finalized prefix state — the exact confusion the note was written to prevent.",
+  "evidence": "PDF 54 / printed 34, panel A third state [A][B][C][-]: the '-' cell carries the same solid blue outline as the 'A', 'B', 'C' cells. Legend: 'Letters = accepted IDs; hatched ? = unresolved; - = inactive future.'",
+  "acceptance_test": "Give '-' cells a distinct treatment (dashed or ghost outline, or lighter fill) and state it in the legend, so finalized prefix state is visually separable from inactive future in every panel; or delete the 'solid brackets' sentences and rely on the legend alone. Acceptance: in every panel, finalized state, unresolved state, and inactive future are separable by border/fill alone, without reading the notes.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.2-03",
+  "page": "PDF 54 / printed 34",
+  "figure": "Figure 3.2 — panel B trace vs caption claim",
+  "severity": "P3",
+  "issue": "The caption says the full-canvas masked sampler 'accepts positions out of order', but the drawn trace accepts positions strictly left to right: [?][?][?][?] -> [A][B][C][?] -> [A][B][C][D]. The one property that distinguishes full-canvas sampling from the autoregressive panel in panel A — out-of-order acceptance — is not shown, so the figure cannot support the caption's claim and a reader comparing panels A and B sees only a difference in re-evaluation, not in acceptance order.",
+  "evidence": "PDF 54 / printed 34, panel B trace vs caption sentence 'a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional states'.",
+  "acceptance_test": "Either change the panel B trace so at least one step accepts a non-leftmost position (e.g. [?][?][?][?] -> [A][?][C][?] -> [A][B][C][D]), or reword the caption to describe what is drawn ('recomputes the full canvas at every step; the accepted set is shown growing'). Acceptance: the caption's distinguishing clause is visible in the drawing.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.2-04",
+  "page": "PDF 54 / printed 34",
+  "figure": "Figure 3.2 — caption sentence on 'Loops'",
+  "severity": "P3",
+  "issue": "The caption states 'Loops represent repeated evaluations, not fixed steps or proportional time', but the drawing contains no loop. It contains a bracket labelled 'repeat evaluations' under the last transition of panels B and C. The caption names a graphical element that does not exist.",
+  "evidence": "PDF 54 / printed 34: the only repetition marker is an orange bracket labelled 'repeat evaluations'.",
+  "acceptance_test": "Either draw a return arrow and keep the caption's word 'Loops', or change the caption to 'The bracket marks repeated evaluations'. Acceptance: every graphical noun used in the caption corresponds to a drawn element.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.1-01",
+  "page": "PDF 51 / printed 31",
+  "figure": "Figure 3.1 — panel A, 'Continuous diffusion (schematic state values)'",
+  "severity": "P3",
+  "issue": "Panel A encodes continuous state with a bar chart, which is the conventional glyph for a categorical probability distribution — and the figure's entire purpose is to contrast a continuous lane with a categorical lane (panel B uses token boxes). Panel B carries an explicit note ('M = MASK; text states are illustrative token IDs, not generated results') but panel A carries no equivalent note, so the bars can be read as token probabilities. That is precisely the category error the surrounding prose warns against ('Text requires a discrete construction because token IDs are categories, not continuous pixel values'), and it undercuts the continuous-vs-discrete contrast the figure exists to establish.",
+  "evidence": "PDF 51 / printed 31, panel A; prose immediately below the caption: 'Text requires a discrete construction because token IDs are categories, not continuous pixel values.'",
+  "acceptance_test": "Add a panel-A note stating what the bars are (e.g. 'bars are schematic magnitudes of continuous state coordinates, not token probabilities'), or replace the bar chart with a continuous-valued glyph (smooth curve, coordinate scatter) so the continuous lane is not encoded with a distribution glyph. Acceptance: no reader can read panel A as a categorical distribution.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.1-02",
+  "page": "PDF 51 / printed 31",
+  "figure": "Figure 3.1 — panel A, 'noise prior' panel",
+  "severity": "P3",
+  "issue": "The three panels of the continuous lane are drawn with essentially the same bar pattern, so the 'noise prior' panel is not visually distinguishable from the 'clean diffusion data' panel. The forward direction (data -> partly corrupted -> noise) is therefore not readable from the drawing; the reader must rely on the arrow labels and the caption to know which end is noise. As rendered, the figure does not show the corruption progression it describes.",
+  "evidence": "PDF 51 / printed 31, panel A: the bar patterns in 'clean diffusion data', 'partly corrupted' and 'noise prior' are visually near-identical at print size; no equal-magnitude or noise-texture treatment distinguishes the prior.",
+  "acceptance_test": "Make the noise-prior panel visually distinct (equal-magnitude bars, or a noise texture) and make 'partly corrupted' visibly intermediate between data and noise. Acceptance: the reader can identify the forward direction and the endpoint of the forward process from the drawing alone, without reading the caption.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.3-01",
+  "page": "PDF 63 / printed 43",
+  "figure": "Figure 3.3 — caption",
+  "severity": "P3",
+  "issue": "The caption reads 'schematic widths do not step counts', which is missing a verb and is not grammatical. The note inside the figure has the correct wording ('Schematic: stage widths do not encode step counts'), so the caption is a degraded copy of the figure's own text.",
+  "evidence": "PDF 63 / printed 43: caption 'schematic widths do not step counts' vs in-figure note 'Schematic: stage widths do not encode step counts.'",
+  "acceptance_test": "Caption reads 'schematic widths do not encode step counts'.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.3-02",
+  "page": "PDF 63 / printed 43",
+  "figure": "Figure 3.3 — 'Denoising schedule progresses / Not two experts within one forward' label",
+  "severity": "P3",
+  "issue": "The two-line label sits between the two dashed checkpoint-to-stage arrows and reads as annotating only the right-hand arrow (the low-noise checkpoint), which is where the eye lands last. The statement is a property of the pair of checkpoints, not of the low-noise branch, and the caption's 'only the selected expert runs in a branch evaluation' is the point the figure is trying to make.",
+  "evidence": "PDF 63 / printed 43: the label is centered between the two dashed arrows, closer to the right arrow's shaft.",
+  "acceptance_test": "Move the label to a centered line spanning both arrows, or into the caption, so it reads as a property of the checkpoint pair. Acceptance: the label is not visually attached to a single arrow.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-3.4-05",
+  "page": "PDF 66 / printed 46",
+  "figure": "Figure 3.4 — 'not shown to scale' scope note",
+  "severity": "P3",
+  "issue": "The caption flags only the MoE as 'not shown to scale' ('~94 GB, not shown to scale'), while the dense column's 24-square grid is equally unscaled relative to 70B parameters and the MoE's 8-cell grid relative to 8 experts. The scope note therefore applies asymmetrically to two grids that are drawn on the same visual convention.",
+  "evidence": "PDF 66 / printed 46: dense grid = 24 squares for 70B params; MoE grid = 8 cells for 8 experts; caption says 'not shown to scale' only for the MoE.",
+  "acceptance_test": "The scale disclaimer covers both grids (e.g. 'grids are schematic, not to scale') or is removed from both.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-4.1-01",
+  "page": "PDF 93 / printed 73",
+  "figure": "Figure 4.1 — Six-dimension workload characterization mapped to architectural decisions",
+  "severity": "P3",
+  "issue": "The figure's row labels are 'Quality requirements', 'Traffic / concurrency', 'Token profile', 'Latency SLO', 'Economic constraints', 'Operational constraints'; the caption's recap shortens them to 'Quality requirements', 'Traffic', 'Token profile', 'Latency', 'Economic', 'Operational'. Separately, the row 'Traffic / concurrency -> concurrency & batching' is self-referential: the same word appears on both sides of the arrow, so the row states no actual constraint.",
+  "evidence": "PDF 93 / printed 73: figure row labels vs the caption's closing recap sentence.",
+  "acceptance_test": "The caption recap uses the figure's exact row labels, and the traffic row is renamed so the workload property and the architectural decision are not the same word (e.g. 'Request rate & arrival pattern -> concurrency & batching'). Acceptance: no row's left and right labels share a content word.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-5.1-01",
+  "page": "PDF 110 / printed 90",
+  "figure": "Figure 5.1 — Model selection for RAG workload ('Generation leg: 70B FP16 . serving')",
+  "severity": "P3",
+  "issue": "The generation leg is labelled '70B FP16 . serving', which fixes the canonical dense model's weight precision at FP16 (70B x 2 B = 140 GB). Figure 3.4's caption, for the same 70B model and the same 140 GB figure, says 'resident weights = 140 GB at FP8'. Two figures in the book therefore assign different precisions to the same model and the same byte count, which is the cross-chapter form of FIG-3.4-01.",
+  "evidence": "PDF 110 / printed 90 (Figure 5.1) vs PDF 66 / printed 46 (Figure 3.4 caption).",
+  "acceptance_test": "One precision for the canonical 70B across the book: the 140 GB figure and the '70B FP16' label must agree, and the same model must not be described as FP8 in one chapter and FP16 in another. Acceptance: a reader can trace 70B x bytes/param to 140 GB from either figure.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-6.1-01",
+  "page": "PDF 113 / printed 93",
+  "figure": "Figure 6.1 — The metric hierarchy as a diagnostic chain",
+  "severity": "P3",
+  "issue": "The caption's inline summary line 'causation down (workload -> resource -> serving) | diagnosis up (serving -> resource -> workload)' restates the figure's own rotated side labels and the caption's first sentence, adding no information. The caption's chain also names the middle layer 'resource demand' while the figure's box is labelled 'Resource metrics'.",
+  "evidence": "PDF 113 / printed 93: figure boxes 'Workload metrics' / 'Resource metrics' / 'Serving metrics' vs caption text 'workload -> resource demand -> serving behavior'.",
+  "acceptance_test": "The middle layer is named identically in the figure and the caption, and the inline summary line is either removed or made to carry information the caption does not already state.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-6.1-02",
+  "page": "PDF 113 / printed 93",
+  "figure": "Figure 6.1 — color semantics of the 'causation' / 'diagnosis' pair",
+  "severity": "P3",
+  "issue": "The 'diagnosis' label and its upward arrow are red while 'causation' is in the book's dark/neutral color. Red is already bound to a different meaning elsewhere in the book — 'active/selected' state in Figure 3.4 ('ALL active', 'top-2 active', the red grid border) and general emphasis — so the same color carries a second, unrelated meaning here. In grayscale the two directions are distinguished mainly by arrow direction, which is a weaker cue than the color difference suggests.",
+  "evidence": "PDF 113 / printed 93 vs PDF 66 / printed 46.",
+  "acceptance_test": "The two directions are distinguished by a channel not already bound to another meaning (e.g. line style: solid vs dashed, or a second neutral tone), and the figure remains unambiguous in grayscale.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-6.1-03",
+  "page": "PDF 113 / printed 93",
+  "figure": "Figure 6.1 — figure scale on a figure-only page",
+  "severity": "P3",
+  "issue": "The figure occupies roughly the middle third of an otherwise empty page, and the two rotated side labels ('causation', 'diagnosis') are the smallest text in the figure. On a page that contains nothing else, there is room to enlarge the diagram so the rotated labels and the box sub-labels print at body-adjacent size; as rendered they are the first thing a reader will struggle with.",
+  "evidence": "PDF 113 / printed 93: large empty band above the figure and below the caption; the rotated side labels are visibly smaller than the box titles.",
+  "acceptance_test": "Enlarge the diagram to fill the text block (or move it into the adjacent text column) so the smallest label in the figure is no smaller than the smallest label used in the book's other figures, and remains legible in grayscale.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-25.1-02",
+  "page": "PDF 415 / printed 395",
+  "figure": "Figure 25.1",
+  "severity": "P3",
+  "issue": "The in-figure title ('Anatomy of an ADR, and how one ADR supersedes the next') restates the caption almost verbatim, and the two differ in wording ('ADR' vs 'Architecture Decision Record'), so the reader reads the same sentence twice and the caption contributes no interpretive content beyond the warning.",
+  "evidence": "Rendered page: bold centered title above the diagram; caption below begins 'FIGURE 25.1: The Anatomy of an Architecture Decision Record, and how one ADR supersedes the next.'",
+  "acceptance_test": "Delete the in-figure title and let the caption carry it, or replace the in-figure title with a one-line statement of the takeaway (e.g., 'A new ADR absorbs the old ADR's consequences as context; the old ADR is kept, not edited'). Acceptance: no sentence appears twice in near-identical form.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-25.1-03",
+  "page": "PDF 415 / printed 395",
+  "figure": "Figure 25.1",
+  "severity": "P3",
+  "issue": "Field-box text is set very small relative to the page: each of the five boxes carries a bold field name plus an italic gloss in a box roughly 0.25 in tall. The italic glosses ('the record', 'the situation', 'the choice', 'the effects', 'the rejected options') are the smallest text on the page and are the part of the figure that carries the caption's definitional content.",
+  "evidence": "Rendered page at 150 dpi: each field box is ~18 px tall (~0.26 in) holding two lines of text; the italic gloss line is visibly smaller than the caption body type.",
+  "acceptance_test": "Measure the rendered glyph sizes for the field names and glosses; raise any below 8 pt to ≥8 pt (gloss ≥8.5 pt italic), then re-render and confirm the five boxes still fit the card width without wrapping.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-25.1-04",
+  "page": "PDF 415 / printed 395",
+  "figure": "Figure 25.1",
+  "severity": "P3",
+  "issue": "Composition is left-heavy: the five field boxes occupy roughly the left fifth of each ADR card, leaving about three quarters of both cards empty, while the card headers are centered and the inter-record label floats in the resulting void. The reading order (centered header → far-left boxes) is not obvious, and the empty right half reads as unfinished rather than as deliberate whitespace.",
+  "evidence": "Rendered page: field boxes span x≈90–175 of a ~415 px text block; the red label text sits at x≈205–330 with nothing to its right; both cards' rules span the full text width.",
+  "acceptance_test": "Either widen the field boxes to fill the card (or lay the five fields out as a horizontal row within each card), or reduce the card width to the content and center the whole figure. Acceptance: the eye enters at the header and reaches the fields without a lateral jump, and no region of the figure is empty for more than one field-box width.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-26.1-02",
+  "page": "PDF 425 / printed 405",
+  "figure": "Figure 26.1",
+  "severity": "P3",
+  "issue": "The 'Traffic (rps)' category label attaches a physical unit to an axis whose values are authored 0–1 intensities. A reader glancing at the chart can read the bar heights as rps, which is the single most likely misreading of this figure.",
+  "evidence": "Rendered page: x tick 'Traffic (rps)'; y axis 'Authored intensity (0–1)'; note 'per-axis 0–1 scale: compare within an axis, not across axes.'",
+  "acceptance_test": "Change the tick label to 'Traffic volume' (or 'Traffic (rps) → intensity'), and confirm no other axis label carries a unit the 0–1 scale does not express.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-26.1-03",
+  "page": "PDF 425 / printed 405",
+  "figure": "Figure 26.1",
+  "severity": "P3",
+  "issue": "The in-figure title carries a design-process parenthetical — 'Workload fingerprints on six axes (grouped bars, not radar)' — that tells the reader about a chart type not used, and it duplicates the caption's subject rather than adding the takeaway.",
+  "evidence": "Rendered page: chart title 'Workload fingerprints on six axes (grouped bars, not radar)'; caption 'FIGURE 26.1: Workload fingerprints on the six axes.'",
+  "acceptance_test": "Remove '(grouped bars, not radar)' from the in-figure title; if the in-figure title is retained, make it state the takeaway (e.g., 'Each family peaks on a different axis') rather than restating the caption.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-26.1-04",
+  "page": "PDF 425 / printed 405",
+  "figure": "Figure 26.1",
+  "severity": "P3",
+  "issue": "Axis tick labels, category labels, legend entries and the italic note are all set smaller than the caption body type. The note ('per-axis 0–1 scale: compare within an axis, not across axes.') is the smallest text in the figure and carries the figure's most important interpretive caveat — the one that prevents the reader from comparing bar heights across axes.",
+  "evidence": "Rendered page at 150 dpi: note text is visibly smaller than the caption's first line; tick labels ('0.0'…'1.0') are smaller than the legend text.",
+  "acceptance_test": "Measure rendered sizes; bring all in-figure text to ≥8 pt (note ≥8.5 pt) and re-render; confirm the chart still fits the text block and the note remains on one line.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-26.1-05",
+  "page": "PDF 425 / printed 405",
+  "figure": "Figure 26.1",
+  "severity": "P3",
+  "issue": "The figure sits alone on a float page with roughly the top quarter and bottom quarter empty, and the chart itself is small relative to the text block. This under-fill is the direct cause of the sub-8 pt type noted above, and it separates the figure from the §26.2.1 matrix it visualizes.",
+  "evidence": "Rendered page: running header at top, then blank space until the chart title at roughly 30% of page height; caption ends at roughly 70%.",
+  "acceptance_test": "Enlarge the chart (taller plot area, larger fonts) to fill the text block, or move the figure onto the page carrying the §26.2.1 matrix so the reader can compare matrix rows and fingerprints side by side.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-26.2-05",
+  "page": "PDF 435 / printed 415",
+  "figure": "Figure 26.2",
+  "severity": "P3",
+  "issue": "The loop is drawn without the target that motivates it. The mini-case's constraint is a p99 TTFT target of ~80 ms, but neither the figure nor its caption shows it, so the diagram presents a loop that closes on itself with no criterion against which 'validate' can be performed.",
+  "evidence": "Printed p. 411: 'tail latency/queueing under the p99 ≈ 80 ms TTFT target'. Printed p. 415 figure: box 1 'scenario TTFT p99 ~450 ms'; no 80 ms target appears anywhere in the figure or caption.",
+  "acceptance_test": "Add the target to box 1 (e.g., 'scenario TTFT p99 ~450 ms vs ~80 ms target') or as a labelled target marker on the 'validate' arrow, and confirm the caption explains what 'validate' compares against.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-26.2-06",
+  "page": "PDF 435 / printed 415",
+  "figure": "Figure 26.2",
+  "severity": "P3",
+  "issue": "Box 3, the PATTERN box — the desired outcome of the loop — is filled red, the colour conventionally reserved for error or failure, while the ASSUMPTION box is blue and the DERIVED box green. The colour assignment encodes no stated meaning, and red simultaneously marks the pattern box and the feedback arrow, so it carries two unrelated meanings.",
+  "evidence": "Rendered page: box 1 blue, box 2 green, box 3 red; the 'feedback' / 'adjust + pick pattern' arrow is also red.",
+  "acceptance_test": "Re-map the palette so the pattern/outcome box is not red (or add a legend stating that red marks the selected patterns), and confirm the figure remains interpretable in grayscale — boxes are already distinguished by their numbered headers and by position, so no information should depend on hue.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-26.2-07",
+  "page": "PDF 435 / printed 415",
+  "figure": "Figure 26.2",
+  "severity": "P3",
+  "issue": "The caption describes the loop's mechanics but not what the reader should learn, and its parenthetical is ambiguously scoped: '(box 1) holds assumed scenario inputs, not instrumented FACTs' attaches to the end of the chain 'ASSUMPTION → DERIVED → PATTERN → ASSUMPTION', so it can be read as saying the whole loop holds assumptions rather than only the ASSUMPTION node.",
+  "evidence": "Rendered page caption: 'FIGURE 26.2: Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone scenario, closing the loop ASSUMPTION → DERIVED → PATTERN → ASSUMPTION (box 1) holds assumed scenario inputs, not instrumented FACTs.'",
+  "acceptance_test": "Rewrite the caption to state the takeaway (e.g., 'the loop is closed by measurement: an assumption that fails validation returns to box 1 for adjustment, and only measured FACTs may enter the decision') and re-scope the parenthetical to the word ASSUMPTION it describes.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A.1-02",
+  "page": "PDF 441 / printed 421",
+  "figure": "Figure A.1",
+  "severity": "P3",
+  "issue": "The caption promises 'total vs activated parameters', but the chart encodes only the active fraction; the totals appear solely as small right-hand annotations. The comparison the caption advertises is therefore not visible in the plot, and the reader must read the annotation text to recover the totals.",
+  "evidence": "Rendered page: x axis 'Active parameters as % of total', 0–10; totals (284B, 2800B, 125B, 320B) appear only in the small gray annotations at the right of each bar.",
+  "acceptance_test": "Either add the counts to the y-axis tick labels (e.g., 'DeepSeek V4-Flash — 284B total / 13B active') so the caption's claim is visible in the plot, or narrow the caption to 'active fraction of total parameters'.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A.1-03",
+  "page": "PDF 441 / printed 421",
+  "figure": "Figure A.1",
+  "severity": "P3",
+  "issue": "The figure footnote is grammatically broken and, in a book that carefully distinguishes 'parameter' from 'parameters', reads as a typo: 'excluding the 51B in-gram embedding and 48 MTP VENDOR-REPORTED parameter; parameter varies across vendors.' The final clause's antecedent is also unclear.",
+  "evidence": "Rendered page footnote as quoted; the sentence mixes a singular 'parameter' with a plural subject and ends with a clause whose referent is not stated.",
+  "acceptance_test": "Rewrite as: '* Qwen bar = backbone ratio (125B backbone), excluding the 51B in-gram embedding and the 48 MTP vendor-reported parameters; denominators vary by vendor.' Confirm the footnote renders at ≥8 pt.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A.1-04",
+  "page": "PDF 441 / printed 421",
+  "figure": "Figure A.1",
+  "severity": "P3",
+  "issue": "The right-hand count annotations ('284B/13B active', '2800B/104B active', '125B backbone/6B active (+51B in-gram, 48 MTP)', '320B/18B active') and the footnote are set in small light-grey type — the lightest and smallest text in the figure — and the Qwen annotation is both the longest and the smallest, so the most caveat-heavy row is the least legible.",
+  "evidence": "Rendered page at 150 dpi: annotation text is visibly smaller and lighter than the bold orange bar value labels ('4.6%', '3.7%', '4.8%', '5.6%').",
+  "acceptance_test": "Measure rendered sizes and bring annotations and footnote to ≥8 pt with sufficient contrast (darker grey or black); confirm the Qwen annotation still fits without colliding with its bar value label.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A.1-05",
+  "page": "PDF 441 / printed 421 (context on PDF 447 / printed 427)",
+  "figure": "Figure A.1",
+  "severity": "P3",
+  "issue": "The in-figure title 'Extreme sparsity: single-digit active (2026)' and the caption's '2026 frontier MoE extreme sparsity' date the figure but do not scope it. The appendix elsewhere acknowledges a fifth 2026 family (Ornith-1.5-397B, released 2026-08-19) that is not plotted, so 'four open models' can read as an exhaustive survey of 2026 rather than four selected families.",
+  "evidence": "Printed p. 421: 'Four 2026 frontier open models we surveyed converge on a second-order architectural pattern'. Printed p. 427: 'Beyond the four families above, Ornith-1.5-397B (released 2026-08-19 by DeepReinforce / orrist15-a1) ships as another natively multimodal frontier model'.",
+  "acceptance_test": "Scope the title/caption explicitly (e.g., 'four selected 2026 open-weight MoE families; see A.6 for a fifth') and confirm the reader is not invited to read the four bars as an exhaustive 2026 survey.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "TBL-26.2-01",
+  "page": "PDF 424 / printed 404",
+  "figure": "Table — Ch 26 workload matrix, 'First strategy to evaluate' column",
+  "severity": "P3",
+  "issue": "The last column is set far too narrow for its content, producing six-line wraps ('Precision-aware optimization (LoRA/QLoRA before full FT; gradient checkpointing (Ch 7))'), while the first three columns carry short entries with generous width. Row height is driven entirely by one column, and 'Real-time multimodal' wraps unnecessarily.",
+  "evidence": "Rendered page: 'Workload' and 'Input' columns occupy roughly 40% of the table width for entries of one or two words; 'First strategy to evaluate' occupies roughly 25% and wraps to six lines in the Fine-tuning row.",
+  "acceptance_test": "Rebalance the column widths (narrow Workload/Input, widen the strategy column) or move the strategy column to a second line spanning the row; confirm no cell wraps to more than three lines and the table still fits the text block.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "TBL-26.2-02",
+  "page": "PDF 424 / printed 404",
+  "figure": "Table — Ch 26 workload matrix, 'Input' column",
+  "severity": "P3",
+  "issue": "The 'Input' cell for the real-time multimodal row reads 'Med', an abbreviation used nowhere else in the table or in the visible prose, for a quantity whose unit (tokens? seconds? modality?) is never stated. The adjacent 'Output' cell ('Short (streamed)') is spelled out, so the two cells are not parallel in form.",
+  "evidence": "Rendered page row: 'Real-time multimodal | Med | Short (streamed) | Latency + pipeline sync | Chunked prefill, streaming decode, P/D (Ch 8, 20)'.",
+  "acceptance_test": "Spell the cell out and give the unit (e.g., 'Medium-length input (tokens)') or define 'Med' in the table's note; confirm the Input and Output cells use the same form in every row.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A2-03",
+  "page": {
+   "pdf": 448,
+   "printed": 428
+  },
+  "figure": "FIGURE A.2 — Vendor-relative KV/compute ratios",
+  "severity": "P3",
+  "issue": "Unexplained color coding of the model names: 'DeepSeek V4-Flash' is red, 'DeepSeek V4-Pro' is blue, 'GLM-5.3-Flash' is green, with no legend anywhere in the figure or caption. The two rows of the same family (DeepSeek V4) carry different hues, which implies a distinction the figure never defines and that contradicts the figure's own statement that the rows are 'one row per reported model'. In grayscale the three hues collapse to nearly the same mid-gray, so the coding carries no information in print.",
+  "evidence": "Rendered page 448, first column: 'DeepSeek V4-Flash' in red, 'DeepSeek V4-Pro' in blue, 'GLM-5.3-Flash' in green. No key for these colors appears in the figure, the source line, or the caption.",
+  "acceptance_test": "Either all model names are set in one color, or the colors encode a defined property (e.g. family) with a legend and a redundant non-color cue (grouping rule, indentation, or family sub-heading). DeepSeek V4-Flash and DeepSeek V4-Pro must not carry different hues unless the difference is defined.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A2-04",
+  "page": {
+   "pdf": 448,
+   "printed": 428
+  },
+  "figure": "FIGURE A.2 — Vendor-relative KV/compute ratios",
+  "severity": "P3",
+  "issue": "Label-scope mismatch between figure and caption. The in-figure source line labels the whole value set 'Value source: vendor-reported [1P]', but the caption splits the same values: '[1P] vendor-reported ratios; [DERIVED] the derived retentions shown in the figure.' The '100% → ~7%' style retentions are derived from reported reductions, so the figure's own label is broader than the caption's and a reader who reads only the figure will treat the derived retentions as first-party reported values.",
+  "evidence": "Rendered page 448 source line: 'Value source: vendor-reported [1P] — DeepSeek V4: arXiv 2606.19348; GLM: z.ai/blog/glm-5.3-flash (2026-08-26). Vendor claims, not reproduced.' Caption: '[1P] vendor-reported ratios; [DERIVED] the derived retentions shown in the figure.'",
+  "acceptance_test": "The figure's own source line distinguishes the two provenance classes, e.g. 'vendor-reported [1P] reductions; retentions [DERIVED]'. The figure and caption then assign the same label to the same span.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A2-05",
+  "page": {
+   "pdf": 448,
+   "printed": 428
+  },
+  "figure": "FIGURE A.2 — Vendor-relative KV/compute ratios",
+  "severity": "P3",
+  "issue": "The footnote demonstrates the 'remaining vs reduction' equivalence for one value only ('7% remaining = 93% reduction'), leaving the reader to infer whether the same holds for 10%, 23%, 27% and 33%. The rule is stated once but illustrated once, and the illustrated case is the one most likely to be misread (a 7% figure looks like a typo).",
+  "evidence": "Rendered page 448 footnote: '*Metric scopes differ. 7% remaining = 93% reduction.'",
+  "acceptance_test": "The footnote states the rule once for all rows (e.g. 'x% remaining = (100 − x)% reduction; scopes differ — see row labels') or the equivalence is shown for every row.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A2-06",
+  "page": {
+   "pdf": 448,
+   "printed": 428
+  },
+  "figure": "FIGURE A.2 — Vendor-relative KV/compute ratios",
+  "severity": "P3",
+  "issue": "Alignment mismatch: all four column headers are centred while every data cell is left-aligned, so the header-to-cell association is weaker than it needs to be for a table whose whole purpose is a four-column comparison. There are no column rules either, so the reader must rely on whitespace alone.",
+  "evidence": "Rendered page 448: headers 'reported model | own baseline | KV cache* | Compute*' centred over the column band; row content ('vs V3.2', '100% → ~7%', '100% → ~10%') left-aligned beneath them.",
+  "acceptance_test": "Each header is aligned with the content of its own column (left-align headers over left-aligned cells, or right-align numeric columns and their headers), and the scan path from header to value is unambiguous at print size.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A4-03",
+  "page": {
+   "pdf": 452,
+   "printed": 432
+  },
+  "figure": "FIGURE A.4 — Where Should Intelligence Live?",
+  "severity": "P3",
+  "issue": "The legend gloss 'blue = where the system runs · green = where the model runs' is inaccurate for the 'Inside post-training' band, which is a development-time activity rather than a runtime location, and the within-hue lightness ramp (dark at the top of each group, light at the bottom) is never explained even though it encodes vertical position. The reader is left to guess what shade depth means.",
+  "evidence": "Rendered page 452: bands 'Across a fleet of models' (darkest navy) → 'Inside post-training' (lightest blue); 'Inside MoE routing' (darkest green) → 'Inside weights' (lightest green). Legend line: 'blue = where the system runs · green = where the model runs'. No key for shade depth.",
+  "acceptance_test": "The legend states both encodings: hue = system-side vs model-side placement, and shade depth = vertical position (further from the weights = darker). The gloss is reworded so it is true of every band (e.g. 'blue = system-side placement · green = model-side placement').",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A4-04",
+  "page": {
+   "pdf": 452,
+   "printed": 432
+  },
+  "figure": "FIGURE A.4 — Where Should Intelligence Live?",
+  "severity": "P3",
+  "issue": "The caption's evidence label is truncated: it terminates on '[ILLUSTRATIVE] conceptual' with no noun, whereas the parallel caption on the facing figure (A.3) reads '[ILLUSTRATIVE] conceptual band structure; [DERIVED] era markers'. As printed, the label is not a complete label and cannot be matched against the book's evidence-label vocabulary.",
+  "evidence": "Rendered page 452 caption ends: '…not \"what is best here.\" [ILLUSTRATIVE] conceptual'. Rendered page 451 caption ends: '…[ILLUSTRATIVE] conceptual band structure; [DERIVED] era markers'.",
+  "acceptance_test": "The caption's label is a complete, defined label from the book's vocabulary (e.g. '[ILLUSTRATIVE] conceptual placement map'), matching the form used in Figure A.3.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A4-05",
+  "page": {
+   "pdf": 452,
+   "printed": 432
+  },
+  "figure": "FIGURE A.4 — Where Should Intelligence Live?",
+  "severity": "P3",
+  "issue": "The subtitle's parenthetical '(Appendix A. \"Where Should Intelligence Live?\")' uses a full stop after 'Appendix A' and gives no section number, while the neighbouring figure's sub-caption cites a numbered subsection ('Appendix A.8'). The two appendix cross-references are therefore not in the same form, and the reader is sent to a section title rather than a locatable section.",
+  "evidence": "Rendered page 452 subtitle: '(Appendix A. \"Where Should Intelligence Live?\")'. Rendered page 451 sub-caption: 'the spine of this handbook (Appendix A.8).'",
+  "acceptance_test": "Both appendix cross-references use the same numbered form (e.g. 'Appendix A.8' / 'Appendix A.9'), and each resolves to the section that actually contains the referenced material.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A4-06",
+  "page": {
+   "pdf": 452,
+   "printed": 432
+  },
+  "figure": "FIGURE A.4 — Where Should Intelligence Live?",
+  "severity": "P3",
+  "issue": "The eight chapter cross-references are unverified and internally suspicious: 'Ch.8' is cited for three bands with three different subjects — 'Inside test-time search' (Ch.8, Ch.20), 'Inside attention' (Ch.7, Ch.8) and 'Inside weights' (Ch.3, Ch.8). A single chapter can legitimately span several of these, but the figure gives no indication of what Ch.8 covers, so the reader cannot tell whether the citation is a deliberate umbrella reference or a copy error. The same applies to 'Ch.24', cited for both 'Inside agent runtime' and 'Inside tools'.",
+  "evidence": "Rendered page 452 right-hand column: 'Ch.18, Ch.20' / 'Ch.17–20, Ch.24' / 'Ch.19, Ch.24' / 'Ch.8, Ch.20' / 'Ch.19, Ch.21' / 'Ch.10' / 'Ch.7, Ch.8' / 'Ch.3, Ch.8'.",
+  "acceptance_test": "Each of the eight references resolves to a chapter whose subject matches the band label, and any chapter cited for three or more bands is one whose scope genuinely covers all three (otherwise the citation is corrected or the band is re-pointed). Verified against the table of contents.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A4-07",
+  "page": {
+   "pdf": 452,
+   "printed": 432
+  },
+  "figure": "FIGURE A.4 — Where Should Intelligence Live?",
+  "severity": "P3",
+  "issue": "'Inside post-training' is a development-time activity, not a runtime placement location, so it does not sit on the same axis as the other seven bands ('Inside weights', 'Inside attention', 'Inside MoE routing', 'Inside test-time search', 'Inside tools', 'Inside agent runtime', 'Across a fleet of models'), all of which describe where capability sits while a system is running. The figure's own axis label is 'WHERE it lives', which post-training does not satisfy — post-training produces weights rather than hosting capability at inference time.",
+  "evidence": "Rendered page 452: band 'Inside post-training — Ch.19, Ch.21' sits in the blue group with the axis label 'vertical axis = WHERE it lives: nonexclusive placement choices, not a ranking'.",
+  "acceptance_test": "Either the post-training band is visually marked as a build-time band (distinct hatch or a 'build-time' tag) so it is not read as a runtime placement, or the axis label is broadened to cover it (e.g. 'where capability is invested') and the caption notes that post-training is upstream of the weights band.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A3-01",
+  "page": {
+   "pdf": 451,
+   "printed": 431
+  },
+  "figure": "FIGURE A.3 — A conceptual layering of frontier AI systems",
+  "severity": "P3",
+  "issue": "The bands are drawn as a contiguous, gapless stack, which is the standard visual grammar for a substrate/dependency hierarchy — each layer resting on the one below. The caption disclaims precisely that reading ('the vertical stacking is a layering … not a causal lineage: a later layer does not require the one below it'), but the disclaimer is textual only and the drawing carries the stronger, wrong signal. A reader who skims the figure will retain the dependency reading.",
+  "evidence": "Rendered page 451: nine bands stacked with no vertical gaps and no separating rules; caption: 'the vertical stacking is a layering (which capabilities sit on which substrate), not a causal lineage: a later layer does not require the one below it, and the eras overlap.'",
+  "acceptance_test": "The drawing itself carries the non-dependency reading: visible gaps between bands, a left-hand bracket labelled 'capability stack — not a dependency chain', or a legend entry stating 'stacked for display; no layer requires the one below'. A reader who sees only the drawing does not infer a dependency chain.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A3-02",
+  "page": {
+   "pdf": 451,
+   "printed": 431
+  },
+  "figure": "FIGURE A.3 — A conceptual layering of frontier AI systems",
+  "severity": "P3",
+  "issue": "Legend typography is inconsistent with the rest of the book: the third legend entry begins with a lowercase word ('fleet (thick)') where the other two are capitalised ('Model architecture', 'Capability-led'), and it uses straight double quotes around 'intelligence placement' while the figure's own caption uses typographic quotes ('what caused what'). The legend also mixes capitalization inside a single entry ('foundation, efficiency, MoE').",
+  "evidence": "Rendered page 451 legend: 'Model architecture (dashed) — foundation, efficiency, MoE; darker shade = MoE' / 'Capability-led (solid) — reasoning / test-time / agentic' / 'fleet (thick) — multi-model \"intelligence placement\"'. Caption on the same page uses curly quotes.",
+  "acceptance_test": "All three legend entries begin with a capitalised term and use the book's typographic quotation marks; capitalization within entries is consistent.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A5-02",
+  "page": {
+   "pdf": 459,
+   "printed": 439
+  },
+  "figure": "FIGURE A.5 — Shared weights do not remove executed work",
+  "severity": "P3",
+  "issue": "The 'not executed' annotation is set outside the dashed box, in the smallest type on the page, and is the only element preventing the misreading identified in FIG-A5-01. Its placement and size make it the first thing to be lost at print size or in a grayscale reproduction.",
+  "evidence": "Rendered page 459: 'not executed' appears in small type centred beneath the dashed 'pass 3' box, outside its border, smaller than the box labels 'pass 1' / 'pass 2' / 'pass 3'.",
+  "acceptance_test": "'not executed' is set inside the dashed box as a second line at the same size as the other box labels, or the box label itself reads 'pass 3 (not executed)'.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-A5-03",
+  "page": {
+   "pdf": 459,
+   "printed": 439
+  },
+  "figure": "FIGURE A.5 — Shared weights do not remove executed work",
+  "severity": "P3",
+  "issue": "The legend line 'Shared core weights and iteration caches are unchanged above; omitted here for clarity' is ambiguous: 'unchanged above' can be read as 'the weights are frozen / unchanged (as in training)' rather than 'the same as in the upper diagram'. The intended meaning — that the shared weight set and the per-iteration caches drawn in the upper half are simply not repeated in the two lower paths — is not the first reading.",
+  "evidence": "Rendered page 459 legend, first line: 'Shared core weights and iteration caches are unchanged above; omitted here for clarity.'",
+  "acceptance_test": "The line is reworded unambiguously, e.g. 'The shared weight set and the per-iteration caches shown in the upper diagram are omitted from the two paths below for clarity.'",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "CROSS-FIG-01",
+  "page": {
+   "pdf": 448,
+   "printed": 428,
+   "also": [
+    451,
+    452,
+    459
+   ]
+  },
+  "figure": "Figures A.2, A.3, A.4, A.5 (visual semantics)",
+  "severity": "P3",
+  "issue": "Red carries three unrelated meanings across the four appendix figures: a warning/callout in A.2 ('NOT A CROSS-MODEL PERFORMANCE RANKING'), an axis/annotation device in A.4 (the vertical arrow, the 'Model intelligence ≠ system intelligence' box, the red sub-caption), and a data category in A.5 (the red-outlined 'iteration N history cache' boxes). A reader who carries the A.2/A.4 reading of red into A.5 will read the iteration caches as a warning rather than as a state category.",
+  "evidence": "Rendered pages 448 (red callout box and red model names), 452 (red arrow, red sub-caption, red-outlined box), 459 (red-outlined 'iteration 1/2/3 history cache' boxes).",
+  "acceptance_test": "Red is reserved for one role across the appendix (annotations/callouts), and the iteration-cache boxes in A.5 use a distinct, consistent category colour that is also distinguishable in grayscale; or the legend in A.5 states that red-outlined boxes denote per-iteration state.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "CROSS-FIG-02",
+  "page": {
+   "pdf": 448,
+   "printed": 428,
+   "also": [
+    451,
+    452,
+    459
+   ]
+  },
+  "figure": "Figures A.2–A.5 (page composition)",
+  "severity": "P3",
+  "issue": "All four figure pages are top-aligned with roughly the bottom quarter to third of the page left blank (the figure block ends around 60–75% of the text height on each page), and on pages 451 and 452 there is an additional loose gap between the italic sub-caption and the 'FIGURE A.x' caption. The result is four pages that read as under-filled and visually unbalanced for a book of this standard.",
+  "evidence": "Rendered pages 448, 451, 452, 459: content ends at approximately y=600/760 (p.448), y=600/760 (p.451), y=610/760 (p.452), y=580/760 (p.459) in a 612×792 render, with the remainder blank.",
+  "acceptance_test": "Each figure page is either vertically balanced (figure + caption block optically centred in the text block) or the trailing space is eliminated by pulling the following section onto the page. The gap between the sub-caption and the figure caption is tightened to the house figure-caption spacing.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "CROSS-FIG-03",
+  "page": {
+   "pdf": 448,
+   "printed": 428,
+   "also": [
+    451,
+    452,
+    459
+   ]
+  },
+  "figure": "Figures A.2–A.5 (legibility at print size)",
+  "severity": "P3",
+  "issue": "The smallest annotations in all four figures — Figure A.2's italic scope sub-labels ('single-token KV cache', 'single-token inference FLOPs', 'BF16 / layer') and its two-line source line; Figure A.3's legend text and '≈YYYY' era markers; Figure A.4's 'Ch.x' references and the red sub-caption; Figure A.5's four-line legend and 'not executed' — are set in small italic grey and are the elements most likely to fall below the 8 pt print floor or to lose contrast in a grayscale proof. At 150 dpi they are legible, but legibility at 150 dpi is not the acceptance criterion.",
+  "evidence": "Rendered pages 448, 451, 452, 459: the annotations listed above are visibly smaller and lighter than all other figure text; the Figure A.5 legend is four lines of small italic set below the diagram.",
+  "acceptance_test": "A 100% print proof of each figure page confirms every in-figure annotation is at or above 8 pt and holds contrast in grayscale; any annotation that fails is enlarged, re-set in roman, or moved into the caption.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-7.1-01",
+  "page": "PDF 131 / printed 111",
+  "figure": "Figure 7.1 (Grouped-Query Attention)",
+  "severity": "P3",
+  "issue": "The label '(x 8 groups)' is ambiguous against a drawing that shows three groups plus an ellipsis, and it sits inside the box the caption calls the load-bearing number.",
+  "evidence": "The figure draws three groups of eight query-head glyphs, each feeding one K/V box, followed by an ellipsis at both the query-head and K/V levels. The label box reads '8 query heads : 1 KV head (x 8 groups)'. '(x 8 groups)' can be read as 'eight groups are drawn' (false) or 'the pattern repeats eight times' (true). The caption explicitly says the load-bearing number is the n_q:n_kv ratio, so the parenthetical must not be the ambiguous part.",
+  "acceptance_test": "Label reads '8 query heads : 1 KV head per group (8 groups total; 3 shown)'.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-6.2-02",
+  "page": "PDF 115 / printed 95 (figure) and PDF 114 / printed 94 (prose)",
+  "figure": "Figure 6.2 annotation box vs Section 6.3.1 prose",
+  "severity": "P3",
+  "issue": "The figure reports a sample mean of 0.85 s while the prose calls the mean of that same stream 0.84 s; the two quantities are different and the prose conflates them.",
+  "evidence": "Prose: 'The mean of that stream is ~ 0.99 x 0.8 + 0.01 x 5.0 = 0.84 s'. Figure annotation box: 'mean = 0.85s'. The 0.84 s expression is the two-point approximation; the plotted sample's mean is 0.85 s because the log-normal body is right-skewed and its mean exceeds its median. The prose's phrase 'the mean of that stream' attaches the approximation to the sample.",
+  "acceptance_test": "Prose must distinguish the two-point approximation (~0.84 s) from the plotted sample mean (0.85 s), or the figure's box must print 0.84 s; the two must not both claim to be 'the mean of that stream'.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-7.5-07",
+  "page": "PDF 146 / printed 126",
+  "figure": "Figure 7.5 (grayscale distinguishability)",
+  "severity": "P3",
+  "issue": "Two of the four data series are distinguished only by colour, so the chart degrades in grayscale and for colour-vision-deficient readers.",
+  "evidence": "Series markers: full-MHA FP16 = red circle, full-MHA 8-bit = orange square, GQA FP16 = blue upward triangle, GQA FP8 = green upward triangle. The two GQA series share a marker shape and differ only in hue; at the small marker size used, blue and green have similar relative luminance. The two horizontal reference lines (black dashed 640 GB, blue dashed 436 GB) also compete with the blue data series.",
+  "acceptance_test": "Give GQA FP8 a distinct marker shape (e.g. inverted triangle or diamond) and confirm all four series remain distinguishable when the page is rendered in grayscale.",
+  "_model": "MiniMax-M3.1-Flash"
+ },
+ {
+  "id": "FIG-7.6-03",
+  "page": "PDF 147 / printed 127",
+  "figure": "Figure 7.6 (grayscale distinguishability)",
+  "severity": "P3",
+  "issue": "The fine-tune (red) and QLoRA (green) bars have nearly identical grayscale luminance, and the blue reference line shares the inference bar's hue.",
+  "evidence": "Bars: inference = blue, full fine-tune = red, QLoRA = green. Red and green map to nearly the same relative luminance in grayscale, so the two bars are distinguished only by height and by their direct value labels. The '8xH100 (640 GB)' legend line is blue, the same hue as the inference bar.",
+  "acceptance_test": "Differentiate the three bars by fill pattern or luminance step (solid / hatched / light) and verify the page remains readable in grayscale.",
+  "_model": "MiniMax-M3.1-Flash"
+ }
+]

@@ -54,11 +54,11 @@ axa.plot(reuse_dense, _amort(reuse_dense), '-', color='#2f6f4f', lw=1.8,
          label='with prefix cache')
 axa.plot(reuse, prefill_cache, 's', color='#2f6f4f', ms=4.5)
 axa.text(0.98, 0.40, 'f(r)=(S+P/r)/(S+P)\nP=40%, S=60%',
-         transform=axa.transAxes, fontsize=7.0, color='#2f6f4f',
+         transform=axa.transAxes, fontsize=8.0, color='#2f6f4f',
          ha='right', va='top')
 axa.set_xscale('log')
 axa.set_xlabel('Avg prefix reuse', fontsize=9)
-axa.set_ylabel('Prefill FLOPs / req\n(% of no-cache)', fontsize=9)
+axa.set_ylabel('Relative prefill token-work\n(linear-cost model, % of no-cache)', fontsize=9)
 axa.set_title('(a) Caching removes\nprefill work', fontsize=9.5)
 axa.legend(fontsize=8, loc='lower left')
 axa.grid(alpha=0.3, which='both')
@@ -85,7 +85,7 @@ axb.xaxis.set_major_formatter(FuncFormatter(_logfmt))
 axb.axvline(16, color='#c0392b', ls='--', lw=1.1)
 # R27 P2: the old "goodput plateau (~b16)" overclaimed — the curve keeps rising
 # past b16 (66 -> 80 -> 88), it only shows diminishing gains. Reword to match.
-axb.text(1.7, 90, 'diminishing gains\npast ~b16 (no hard\nplateau): goodput\nstill rises; tail\nlatency keeps rising',
+axb.text(1.7, 90, 'diminishing gains\npast ~b16 (no hard\nplateau): goodput\nstill rises',
          fontsize=8.0, color='#c0392b', va='top')
 
 fig.suptitle('Prefix caching vs batching: two independent effects', fontsize=10.5, fontweight='bold')

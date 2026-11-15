@@ -3,7 +3,10 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, FancyArrowPatch
 
-# ---- fig-11-1102: discrete vs continuous batching (Orca-style slot diagram) ----
+# ---- fig-11-1101: discrete vs continuous batching (Orca-style slot diagram) ----
+# ROUND-5 rename (CH11-FIGURE-FILE-NAMES-SWAPPED): caption number and file name
+# must agree, so Fig 11.1 (this figure) = fig-11-1101 and Fig 11.2 (the four
+# separable concerns, render/fig_batch1.py) = fig-11-1102.
 # Left: discrete batching — one batch runs to completion, others wait; slots idle.
 # Right: continuous batching — slots are filled as soon as a sequence finishes.
 # Compact narrow so it places at column width.
@@ -19,7 +22,7 @@ ax.text(5, 4.55, 'Discrete batching', fontsize=11, fontweight='bold', ha='center
 for i in range(4):
     x0 = 0.1; x1 = 9.9
     ax.add_patch(Rectangle((x0, 4 - 0.7*i - 0.55), x1 - x0, 0.6, fc='#f5c6c6', ec='#c0392b', ls=':', lw=0.8))
-tasks = [(0, 1.8, 0), (0, 2.6, 1), (0, 1.5, 2), (0, 3.0, 3)]
+tasks = [(0, 1.8, 0), (0, 2.6, 1), (0, 1.5, 2), (0, 9.9, 3)]
 for (x0, w, s) in tasks:
     # all in-flight sequences use the single 'sequence in flight' blue so the
     # legend's colour mapping holds (a per-task colour would invent categories
@@ -82,15 +85,15 @@ from matplotlib.patches import Patch
 fig.legend(handles=[
     Patch(fc='#f5c6c6', ec='#c0392b', ls=':', label='idle slot (bubble)'),
     Patch(fc='#3a6ea5', label='sequence in flight'),
-    Patch(fc='#2e8b57', ec='#1e6b42', hatch='//', label='new sequence (backfill)'),
-], loc='upper center', bbox_to_anchor=(0.5, 1.0), fontsize=8.2, frameon=False, ncol=3,
+    Patch(fc='#2e8b57', ec='#1e6b42', hatch='//', label='admission event (backfill)'),
+], loc='upper center', bbox_to_anchor=(0.5, 1.0), fontsize=8.6, frameon=False, ncol=3,
    handlelength=1.2, columnspacing=1.2)
 # annotation in the clear top-right band (above the top slot row, which ends at
 # x=6.6); the arrow points down to the last backfilled green slot — no overlap
 # with the slot rectangles.
 ax.text(9.8, 4.15, 'a finishing sequence frees\nits slot immediately',
         fontsize=8.2, color='#555', ha='right', va='top')
-ax.annotate('', xy=(6.55, 2.95), xytext=(7.3, 3.5),
+ax.annotate('', xy=(6.7, 2.9), xytext=(7.3, 3.5),
             arrowprops=dict(arrowstyle='->', lw=0.9, color='#555'))
 ax.text(5.0, 0.35, 'new sequences (green) snap into freed slots', fontsize=8.2, color='#2e8b57', ha='center')
 
@@ -103,9 +106,9 @@ fig.text(0.5, 0.015,
          fontsize=8.0, color='#555', ha='center', va='bottom', style='italic')
 
 plt.tight_layout(rect=(0, 0.05, 1, 1))
-plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=350)
+plt.savefig('design/manuscript/chapter-11/figures/fig-11-1101.png', dpi=350)
 import matplotlib as mpl
 with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
-    plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.pdf', format='pdf')
+    plt.savefig('design/manuscript/chapter-11/figures/fig-11-1101.pdf', format='pdf')
 plt.close()
-print('wrote fig-11-1102')
+print('wrote fig-11-1101')

@@ -1,0 +1,382 @@
+[
+ {
+  "id": "CH16-16-06",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 16 §3 ('Reading the result'; 'Parametric sensitivity is the durable form'; 'When each wins'); Note 16.1-1; Fig 16.1 caption",
+  "chapter": "16",
+  "quoted_clause": "the canonical-price point at $20.80 per 1M tokens (≈$0.0208 per 1K-token request) ... the $15–25 per 1M tokens (≈$0.015–0.025 per 1K-token request) band ... the canonical $20.8/1K API rate ... the managed API is **$20.8/1K** ($129,792/mo)",
+  "observed": "The API price is $0.002/1K input and $0.008/1K output, i.e. $2.00 and $8.00 per 1M tokens. At the canonical 9,200/300 mix the blended rate is $0.0208 per request = $2.19 per 1M tokens, not $20.80. '$20.80 per 1M tokens' overstates the token price by ~9.5x, and '$0.0208 per 1K-token request' misplaces the denominator by 1000x (it is per request). Worse, the shorthand '$20.8/1K' is used in the same chapter for the API's cost per 1,000 requests ($129,792 / 6.24M x 1000 = $20.8), so one token carries two incompatible meanings; a reader who reads '$20.8/1K' as $/1K-requests computes a break-even 1000x too small.",
+  "evidence": "Recomputed: 9.2 x 0.002 + 0.3 x 0.008 = $0.0208/request; $0.0208 / 9,500 x 1,000,000 = $2.19 per 1M blended tokens; $2.00/1M input and $8.00/1M output directly from the stated per-1K prices. The break-even divisions themselves (155,816.93 / 0.0208 = 7,491,198.56) are correct — only the labels are wrong.",
+  "root_cause": "A per-request price was relabelled as a per-1M-token price (and separately as a per-1K-request price) without a unit conversion, and the chapter's own '$/1K req' metric collides with the shorthand.",
+  "correction": "State the API price once as '$0.0208 per request at the canonical mix (= $2.19 per 1M blended tokens; $2.00/1M input, $8.00/1M output)'. Replace every '$X/1K' price label with '$X per 1M tokens' or '$0.0XX per request'; reserve '$/1K req' for cost per 1,000 requests.",
+  "acceptance_test": "Every API-price label in Ch 16 resolves to $0.0208 per request or $2.19 per 1M tokens; no '$X/1K' label is used for a token price; the Fig 16.1 caption and Note 16.1-1 use the same form as the body.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH16-16-07",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 16 §8 mini-case, opening paragraph",
+  "chapter": "16",
+  "quoted_clause": "Same 70B FP16 as the canonical case, 2 GPUs per replica → 8 replicas across the two hosts; 2 rps average is 0.25 rps/replica, well inside the 0.48 rps/replica the canonical 21-host fleet sustains at its 40 rps peak.",
+  "observed": "Four 2-GPU replicas on one 8-GPU host require 4 x 140 GB = 560 GB of the 640 GB pool for weights alone, leaving ~80 GB before the ~64 GB runtime reserve — about 16 GB of KV per host, i.e. 0.6 of a 9,500-token request. The mini-case's own geometry therefore cannot hold the full-context KV the book's arithmetic requires, and the 'well inside' capacity claim is unsupported. The comparator is also undisclosed: 0.48 equals 40 / 84, i.e. it silently treats the canonical 21-host fleet as 84 two-GPU replicas, whereas the canonical fleet is 21 eight-GPU hosts (1.905 rps/replica).",
+  "evidence": "Recomputed: 4 replicas x 140 GB = 560 GB weights; 640 - 560 = 80 GB; 80 - 64 (runtime) = 16 GB KV per host; 16 / 24.9037 = 0.64 requests per host. Canonical fleet: 40 / 21 = 1.905 rps per 8-GPU host; 40 / 84 = 0.476 rps per 2-GPU replica.",
+  "root_cause": "The mini-case changed the serving geometry (replica size) without re-running the memory arithmetic the chapter spent Chs 15-17 establishing, and imported a per-replica rate whose derivation is not stated.",
+  "correction": "State the replica geometry explicitly and price its memory (either one 8-GPU replica per host — the canonical geometry — or four 2-GPU replicas with the reduced KV budget and the resulting concurrency), and derive the comparator from the same geometry. If the 2-GPU replica is retained, the mini-case must show that the two servers can hold the in-flight population (2 rps x 8.6 s = 17 requests) under the reduced KV budget.",
+  "acceptance_test": "The mini-case's weights plus KV fit the 640 GB pool under the stated replica geometry, and the rps/replica comparator is derived from the canonical fleet's own replica count with the derivation shown.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-15-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 15, Table 15-1, column 'Illustrative load pressure (dimensionless labeled score)' and the note beneath it",
+  "chapter": "15",
+  "quoted_clause": "the 12/38/52 values are a demand-side/congestion *label* for teaching shape [ILLUSTRATIVE] ... it has **no FLOP numerator or denominator behind it** (for computed ratios, use the prefill-demand ÷ host-peak and KV-demand ÷ host-budget columns added above, or move the label to prose)",
+  "observed": "A three-value column with no defined construction sits in a table whose other columns are computed ratios, next to a 'Dominant Bottleneck' column. The manuscript's own note proposes removing it, and the mini-case must add a defensive sentence ('the 38 in Table 15-1's illustrative load pressure column is that table's congestion label, not an MFU') to prevent misreading. The column therefore carries no explanatory work that the two computed ratio columns do not already carry, while creating a reader trap.",
+  "evidence": "The two computed columns already encode the shape: prefill demand / host peak = 0.33x / 1.63x / 6.51x and KV demand / host KV budget = 0.97x / 4.91x / 19.6x, all recomputed from the in-flight row and the canonical constants.",
+  "root_cause": "A pedagogical 'shape' label was added to a quantitative table without a definition, and the manuscript's own remedy (move it to prose) was never applied.",
+  "correction": "Delete the column and keep the ordinal commentary in prose, or replace it with a defined quantity. If retained, define the scale's construction and inputs in the caption.",
+  "acceptance_test": "Table 15-1 contains no column whose value cannot be recomputed from stated inputs; the mini-case no longer needs a disambiguation sentence for it.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH15-15-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 15, Table 15-1, column 'Dominant Bottleneck' (Light and Typical rows)",
+  "chapter": "15",
+  "quoted_clause": "| Light | ~17 | ~2 | 9,500 | ~24.9 | 12 | 0.33× | 0.97× | Compute (SDPA); KV also ~97% of the 436 GB budget (17 × 24.9 ≈ 423 GB) |",
+  "observed": "The chapter insists (Ch 15 §3) on separating 'kernel regime' from 'workload capacity deficit', but this column mixes them on one axis: 'Compute (SDPA)' is a kernel-regime label, while 'Memory / KV cache' and 'KV capacity + prefill compute deficit' are workload-capacity labels, with no axis marker. In the Light row the two computed ratios in the same row say KV is at 0.97x of budget while prefill demand is 0.33x of peak — KV is the tighter constraint — yet the row names compute as the dominant bottleneck.",
+  "evidence": "Recomputed from the row: 17 x 24.9 = 423.3 GB / 436 GB = 0.97x; 2 rps x 9,200 = 18,400 tok/s / 56,500 = 0.33x. The tighter of the two is KV.",
+  "root_cause": "The table was assembled before the chapter introduced the two-axis distinction, and the distinction was never applied to the table.",
+  "correction": "Split into two labelled columns ('kernel regime' and 'binding workload constraint'), or use one axis and label it; and reconcile the Light row with its own ratio columns.",
+  "acceptance_test": "Every entry in the bottleneck column is on one named axis, and the named bottleneck is the tighter of the two computed ratios in that row.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-15-11",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 15 §4, paragraph immediately preceding 'Goodput vs. Batch Size: Two Levens'",
+  "chapter": "15",
+  "quoted_clause": "Summing all collective durations can overstate exposed cost when operations overlap. Subtracting every overlapped duration can understate cost when communication slows concurrent compute. The measured quantity is the change in the end-to-end critical path, supported by compute and communication traces. CPU progress threads, HBM, device links and NICs remain shared resources even when their work appears in separate profiler lanes.[^oct-ccl-proxy]",
+  "observed": "This paragraph is about collective/communication timing methodology and carries a footnote to NCCL's proxy.cc, yet it sits in Ch 15's Measurement section between the metric-family list and the 'Goodput vs. Batch Size' subsection, with no lead-in, no connection to the three metric families the section just defined, and no collective anywhere in the canonical single-host scenario. It reads as a displaced fragment from the parallelism/communication material, and it imports a post-cutoff source into a chapter that does not otherwise discuss collectives.",
+  "evidence": "The section's own metric list is '(a) token latency percentiles ... (b) GPU utilization ... (c) KV cache size over time; plus queue depth ... prefix-cache hit rate ... effective bytes/token'. The paragraph addresses none of these; it addresses collective accounting, which Ch 15 never otherwise mentions.",
+  "root_cause": "A paragraph was moved between chapters without a lead-in or a re-anchoring to the new section's argument.",
+  "correction": "Move it to the chapter or section that covers collectives and inter-GPU timing (or to the measurement appendix), and give it a lead-in naming the measurement it defines; if it stays, add a sentence connecting it to the metric families (e.g. how to attribute exposed collective time to p95 TTFT).",
+  "acceptance_test": "Every paragraph in Ch 15 §4 connects to the metric families the section defines; the NCCL footnote's host paragraph sits in the same section as the collective-timing discussion.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-15-13",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 15 §6 (throughput-range sentence); Ch 17 §4 reconciliation box, item (3)",
+  "chapter": "15 (cross-ref 17)",
+  "quoted_clause": "~35,000–56,000 tokens/s [ILLUSTRATIVE achievable range] (with flash, continuous batch; a mixed prefill+decode aggregate) ... so the illustrative range is ~35,000–48,000 at canonical context ... (3) ~35,000–56,000 tok/s (Ch. 15) is the *batched serving* decode+prefill range under FlashAttention + continuous batching",
+  "observed": "The same paragraph states the range twice with different upper bounds (56,000 then 48,000), and Ch 17's reconciliation box cites the superseded 35,000–56,000. The 56,000 figure is the 100%-MFU linear-only ceiling, which the same paragraph calls a 'ceiling', not an achievable rate — so labelling the range 'achievable' overstates it.",
+  "evidence": "Recomputed: 7.912e15 / 1.4e11 = 56,514 tok/s (case i, 100% MFU); case (ii) per-token 1.5099e15/9,200 = 1.6412e11 -> 48,206 tok/s; case (iii) 1.3989e15/9,200 = 1.5205e11 -> 52,036 tok/s. The lower bound 35,000 is the mini-case's per-host figure.",
+  "root_cause": "The range was revised in place (56,000 -> 48,000) without updating the earlier statement or the downstream citation in Ch 17.",
+  "correction": "State one range with its basis (e.g. '~35,000–48,000 tok/s at the canonical context; upper end = 100%-MFU case-(ii) ceiling, lower end = the mini-case's per-host figure') and update Ch 17's reconciliation box to match.",
+  "acceptance_test": "The range appears once in Ch 15 with a single upper bound and an explicit basis; Ch 17's reconciliation box quotes the same range.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH15-15-14",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 15 §3, 'Compute demand versus peak — and why this is not an MFU'",
+  "chapter": "15 (cross-ref 16/17)",
+  "quoted_clause": "The ~6.5× figure is a **lower-bound impossibility check** (the host cannot meet peak on the naive dense model), not a fleet-sizing estimate: the real fleet count comes from the achieved prefill tokens/s under the actual latency SLO and representative traffic mix (Ch 17/20)",
+  "observed": "The 6.5x is demand divided by the 100%-MFU theoretical peak; the book's fleet screens use the 35%-MFU ceiling (19,780 tok/s/host), which yields 18.6 -> 19 hosts. The chapter never states the one-line bridge (6.5 hosts at 100% MFU -> 6.5/0.35 = 18.6 hosts at 35% MFU), so a reader who has just read '6.5x' and then '19 hosts' in Ch 16 must reconstruct the relationship, and the two numbers look like a contradiction.",
+  "evidence": "Recomputed: 5.152e16 / 7.912e15 = 6.51x (100% MFU); 5.152e16 / 2.7692e15 = 18.61x (35% MFU) -> 19 hosts.",
+  "root_cause": "Two efficiency bases are used for the same demand without an explicit conversion, and the chapter that introduces the ratio does not point forward to the screen it implies.",
+  "correction": "Where the 6.5x is introduced, name the 100%-MFU denominator explicitly and give the 35%-MFU host count that follows from it (19 hosts under case (i)), so the reader can see the two figures are the same fact at different efficiency assumptions.",
+  "acceptance_test": "The 6.5x paragraph names its denominator and states the 35%-MFU host count that follows; a reader can reconcile 6.5x with 19 hosts without consulting another chapter.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-15-15",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 15 §4, benchmark-protocol paragraph (knee discussion)",
+  "chapter": "15",
+  "quoted_clause": "beyond batch‑4 the p95 latency typically rises (implying a knee near batch 4) because kernel launch overhead is amortized but inter-request token interleaving increases cache thrashing (L2/KV working-set evictions — not prefix-cache eviction)",
+  "observed": "The named mechanism is inconsistent with the book's own geometry: one 9,500-token request holds 24.9 GB of KV, so the KV working set exceeds the H100's L2 (~50 MB) by roughly 500x at any batch size >= 1. L2 eviction cannot therefore be the mechanism that creates a knee specifically at batch 4. The mechanisms the book's own arithmetic supports are per-step HBM traffic (weights amortized over a larger batch while KV read per token stays constant), scheduler fairness/queueing delay, and prefill/decode interleaving.",
+  "evidence": "24.9037 GB per request vs ~50 MB L2 on H100 (SXM) — a ~500x mismatch; the KV working set never fits in L2, so 'L2 working-set evictions' cannot be batch-size-specific.",
+  "root_cause": "A generic 'cache thrashing' explanation was attached to the knee without checking it against the KV footprint the chapter had just computed.",
+  "correction": "Replace the L2-eviction attribution with the mechanism the book's arithmetic supports (per-step HBM traffic growth and scheduler fairness), or present the batch-4 knee as an illustrative observation with no mechanism claim.",
+  "acceptance_test": "The stated cause of the knee is consistent with the KV footprint and cache hierarchy the book has already established; no mechanism is named that the book's own numbers make impossible.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH15-15-16",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 15 §7, second open question",
+  "chapter": "15",
+  "quoted_clause": "**What is the optimal continuous‑batch chunk size as a function of request arrival distribution (Poisson vs. bursty) and tail‑latency targets?**",
+  "observed": "Continuous batching and chunked prefill are distinct mechanisms the book separates explicitly (Ch 15 §6: 'distinct from §4's prefill token-budget chunking'; Ch 15's 'Two Mechanisms' subsection treats them separately). Continuous batching has no chunk size; it has an admission and scheduling policy. The open question conflates them in the one chapter whose §6 goes out of its way to separate them.",
+  "evidence": "Ch 15 §6 decision (2) names 'the maximum decode-step batch granularity' and the prefill token-budget chunking as two distinct knobs; the open question merges them into one 'continuous-batch chunk size'.",
+  "root_cause": "Terminology drift between the open-questions list and the chapter's own mechanism sections.",
+  "correction": "Split into two questions — the continuous-batching admission/scheduling policy (max batch, fairness, prefill/decode interleaving) and the chunked-prefill chunk size — keeping the arrival-distribution/tail-latency framing for the latter.",
+  "acceptance_test": "The open-questions list uses 'continuous batching' and 'chunked prefill' as distinct terms, as the rest of the chapter does.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH16-16-17",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §3, Mode 2 (cloud GPU instances), second display equation",
+  "chapter": "16",
+  "quoted_clause": "H_required = ∫_0^T N_required(t) dt + N_warm·T_warm + R_reserved, ... ; H_paid ≥ H_required + warm-pool + reservation terms",
+  "observed": "H_required is defined as already containing the warm-pool and reservation terms, and the inequality then adds 'warm-pool + reservation terms' again — the same host-hours counted twice in the budget closure. As written, the two equations do not partition the bill.",
+  "evidence": "Term-by-term: H_required = integral + warm + reserved; the inequality's right-hand side = integral + warm + reserved + warm + reserved.",
+  "root_cause": "The inequality was written before the definition of H_required was extended to include the warm-pool and reservation terms, and the two were never reconciled.",
+  "correction": "Either write H_paid >= H_required (with H_required already including warm-pool and reservation) or define H_required = integral_0^T N_required(t) dt and H_paid >= H_required + N_warm·T_warm + R_reserved.",
+  "acceptance_test": "The two equations' terms partition the bill exactly once; adding the warm-pool and reservation terms to H_required does not double count them.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH16-16-18",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §8 mini-case, verdict paragraph",
+  "chapter": "16",
+  "quoted_clause": "The architect's verdict: **start on the managed API now (conditional on the startup's $26K/mo 0.5 FTE engineer staffing basis), and revisit self‑host the moment the consumed engineer's opportunity cost falls below ~$90K/month — for example when a second engineer frees up — then re‑run the same numbers.**",
+  "observed": "The analysis concludes self-hosting is ~$64K/mo cheaper unless the opportunity cost of the engineer's time exceeds ~$90K/mo — a quantity the mini-case never measures. The verdict nonetheless selects the API, which is only correct if that unmeasured opportunity cost is above $90K/mo. The verdict therefore asserts a conclusion the reasoning does not support, and it contradicts the chapter's own closing sentence ('A team that cannot say that, or that has a second engineer to spare, runs the same numbers and buys the servers').",
+  "evidence": "Recomputed: API $104K/mo (5M x $0.0208) vs self-host $40K/mo -> $64K/mo saving; threshold = $104K + $26K - $40K = $90.2K/mo. The decision flips only if the freed hours are worth more than $90.2K/mo, which is unmeasured.",
+  "root_cause": "The mini-case's conclusion was chosen before the decision rule was derived, and the unmeasured input was not surfaced as the decision variable.",
+  "correction": "State the verdict as the rule the analysis supports — 'self-host if the consumed engineer's time is worth less than ~$90K/mo; otherwise the API; the team must price that hour' — and make 'start on the API' explicitly the default only while the opportunity cost is unmeasured.",
+  "acceptance_test": "The mini-case's recommendation follows from the threshold it computed, and the unmeasured term is named as the decision input rather than being resolved by assertion.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH16-16-21",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §3, 'When each wins — A/B/C', bullet A",
+  "chapter": "16",
+  "quoted_clause": "**A** — self‑host wins when staff is already in‑house (sunk), utilization is sustained near peak, there is no burst variability, and volume sits above the API break‑even for the chosen API price",
+  "observed": "The chapter's own crossover arithmetic puts the break-even at ~7.5M req/mo, which §6 computes as 'the fleet running ~12 rps of its 40 rps peak (30%) at the crossover'. Self-host therefore wins at roughly 30% utilization of the peak-sized fleet, not 'near peak'. The stated condition contradicts the chapter's own result and would mislead a reader deciding whether to buy cards for a spiky workload — the opposite of the chapter's message.",
+  "evidence": "Recomputed: 7,491,199 requests / 624,000 active s = 12.0 rps; 12.0 / 40 = 30%. The chapter states this figure itself in §6.",
+  "root_cause": "The 'when each wins' conditions were written from intuition about self-hosting rather than from the chapter's own crossover computation.",
+  "correction": "Replace 'utilization is sustained near peak' with the chapter's finding — self-host wins above the break-even volume even at ~30% of the peak fleet's capacity, provided the fleet is already paid for; the burst-variability caveat belongs to the cloud-vs-self-host occupancy comparison, not to the API-vs-self-host comparison.",
+  "acceptance_test": "The 'when each wins' conditions are consistent with the crossover utilization the chapter computes in §6.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH17-17-22",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §4, 'Simultaneous feasibility check (prefill + decode coexistence)', closing paragraph",
+  "chapter": "17",
+  "quoted_clause": "Under case (i) the available headroom is only ~7%; under cases (ii) and (iii) the prefill leg alone exceeds the idealized ceiling, so headroom is negative — the real headroom is smaller than ~7% and may be negative.",
+  "observed": "The chapter computes that the prefill leg alone consumes ~93% of the idealized prefill ceiling at the KV-screen rate of 2.0 req/s/host — i.e. the per-host rate on which every host count in the book is built leaves no room for decode — and then continues to use that rate for the 21/31/32-host counts without stating the consequence. The reader must infer that the headline counts are floors that the chapter's own feasibility check has already pushed upward.",
+  "evidence": "Recomputed: 2.0 req/s x 9,200 = 18,400 tok/s; 18,400 / 19,780 = 93.0% (case i); 18,400 / 16,870 = 109% (case ii); 18,400 / 18,210 = 101% (case iii). At a 70% prefill-only share of the ceiling the per-host rate falls to ~1.4 req/s and the peak fleet rises from 21 to ~30 hosts.",
+  "root_cause": "The feasibility check was written as a standalone diagnostic and never propagated into the headline sizing result it qualifies.",
+  "correction": "End the feasibility subsection with an explicit statement of what it does to the headline count: at the KV-screen rate the prefill leg alone consumes ~93% (case i) or more than 100% (cases ii/iii) of the idealized prefill ceiling, so 2.0 req/s/host is not simultaneously sustainable with decode and the fleet counts derived from it are lower bounds that a measured prefill rate will raise; give the direction and, where possible, the magnitude.",
+  "acceptance_test": "The feasibility-check subsection ends with an explicit statement of its effect on the headline host count, and the headline count is labelled as a floor accordingly.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-15-24",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 15 §4 (metric-family paragraph); Ch 15 §6, decision (2)",
+  "chapter": "15",
+  "quoted_clause": "the evidence column of the decision map (§5) is produced from these families ... (distinct from §4's prefill token-budget chunking)",
+  "observed": "The Optimization Decision Map and the 'Two Mechanisms, Read as Mechanisms' subsection are unnumbered sections between §4 and §5; §5 is Common Mistakes and §4 is Measurement. Both references point at the wrong material, so a reader following either lands on the wrong section.",
+  "evidence": "Chapter 15 section order: 1 Concept, 2 Mental Model, 3 Worked Example, 4 Measurement, [unnumbered: Goodput vs Batch Size], [unnumbered: The Optimization Decision Map], [unnumbered: Two Mechanisms], 5 Common Mistakes, 6 Architecture Consequence, 7 What We Still Don't Know, 8 Mini-Case.",
+  "root_cause": "Unnumbered sections were inserted between numbered ones without updating the section references.",
+  "correction": "Refer to the sections by name ('the Optimization Decision Map', \"the 'Two Mechanisms' subsection\") or number them.",
+  "acceptance_test": "Every section reference in Ch 15 resolves to the section it names.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH15-15-26",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 15 §6, fourth decision (KV cache affinity)",
+  "chapter": "15 (cross-ref 17)",
+  "quoted_clause": "design the request‑routing layer for KV cache affinity: when a user re‑submits a request, routing to the same GPU avoids cache warm‑up penalties and keeps p99 latency under the target SLO",
+  "observed": "The affinity unit in Ch 17 is the host (sticky sessions route to the same host; the mini-case's 'cross-host request routing layer' maintains 'affinity KV cache residency'). Routing to 'the same GPU' is a different and, for a TP=8 model, ill-defined mechanism, and it conflicts with the host-level model the book uses everywhere else.",
+  "evidence": "Ch 17 §2: 'the load balancer must route subsequent requests from the same user to the same host (sticky sessions)'; Ch 17 §8: 'the cross-host request routing layer can maintain affinity KV cache residency'.",
+  "root_cause": "Terminology drift in the affinity unit between chapters.",
+  "correction": "Use 'the same host' (or 'the same replica'), consistent with Ch 17's session-affinity model.",
+  "acceptance_test": "The affinity unit is the same word in Chs 15, 16 and 17.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH15-15-27",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 15 §8 mini-case, scope note",
+  "chapter": "15 (cross-ref 17)",
+  "quoted_clause": "39 working hosts (40 with the N−1 spare) under the book's provisioning policy that also multiplies the independent ρ = 0.95 — ⌈430/(17 × 0.70 × 0.95)⌉ = ⌈38.04⌉, Chapter 4",
+  "observed": "The provisioning formula and its parameters (u, rho, N_spare) are defined in Table 17-1 in Ch 17; Ch 4 is the canonical workload definition. The citation points at the wrong chapter for the formula it annotates.",
+  "evidence": "Recomputed: 430 / (17 x 0.70 x 0.95) = 38.04 -> 39 working, 40 with the spare — the arithmetic is right; only the citation is wrong.",
+  "root_cause": "A citation was carried over from the canonical-workload reference and not updated when the formula moved to Ch 17.",
+  "correction": "Cite Table 17-1 (Ch 17).",
+  "acceptance_test": "The citation resolves to the table that defines u, rho and N_spare.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH16-16-28",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 16 §2, first mental-model bullet",
+  "chapter": "16",
+  "quoted_clause": "**Amortize, don't stare at the price tag.** A $400K server is an asset consumed over ~5 years; spread it into dollars-per-month, then into dollars-per-request, before comparing to a per-token API rate.",
+  "observed": "The chapter's worked example and every TCO figure use $350,000 per 8xH100 server ($5,833.33/host/month). The mental model introduces a different server price without labeling it as a separate scenario, so a reader who anchors on $400K cannot reproduce the chapter's own amortization.",
+  "evidence": "Recomputed: $350,000 / 60 = $5,833.33/host/month (the value used throughout); $400,000 / 60 = $6,666.67, a 14% difference that propagates into every $/1K figure.",
+  "root_cause": "The mental model was written with a round-number placeholder that was never reconciled with the worked example's scenario value.",
+  "correction": "Use $350K (the chapter's own value) or label the $400K explicitly as a different scenario.",
+  "acceptance_test": "The server price in the mental model matches the one the worked example prices, or the difference is labeled.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH16-16-29",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 16 §3, 'Included-cost scope and exclusions' paragraph",
+  "chapter": "16",
+  "quoted_clause": "**Included-cost scope and exclusions (from the canonical YAML, riding every CLI output).** No separate rack / external network / site price line exists in source; none is invented here.",
+  "observed": "'riding every CLI output' and 'exists in source' describe the book's build tooling rather than the deployment being priced. The paragraph reads as a note to the authors, not a scope statement to the reader deciding between delivery modes, and it interrupts the TCO argument.",
+  "evidence": "The rest of the paragraph is written in reader-facing terms ('Fully-built-host capex covers only its stated scope; unpriced external items are exclusions/unknowns'), so only the first two sentences are in build-artifact register.",
+  "root_cause": "A build-pipeline note was left in the body text where a scope statement belongs.",
+  "correction": "Rewrite in reader-facing terms: 'the priced scope covers the fully built host only; rack, external network, site preparation and colocation are excluded and unpriced.'",
+  "acceptance_test": "No paragraph in Ch 16 addresses the book's source tree or CLI rather than the reader's decision.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH16-16-30",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 16 §3, Step 1 sizing table (case (ii) cell) and the note beneath it",
+  "chapter": "16",
+  "quoted_clause": "(×1.1723 on the unrounded case (i) value (18.604 → 21.81)) ... Multipliers apply to the unrounded case (i) quotient 368,000 ÷ 19,780 = 18.606 before the host ceil.",
+  "observed": "The same unrounded quotient is printed as 18.604 in the table cell and 18.606 in the note beneath it. 368,000 / 19,780 = 18.6057. The cell's 18.604 x 1.1723 = 21.809 and the note's 18.606 x 1.0861 = 20.209, so the two values also propagate to slightly different products.",
+  "evidence": "Recomputed: 368,000 / 19,780 = 18.6057; x1.1723 = 21.811; x1.0861 = 20.208.",
+  "root_cause": "The cell was computed from a truncated intermediate and not re-derived from the note's value.",
+  "correction": "Print 18.606 (or 18.61) in both places and derive both multipliers from it.",
+  "acceptance_test": "The unrounded case-(i) quotient is identical in the cell and the note, and both multipliers recompute from it.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH16-16-31",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 16 §3, Mode 2 (cloud GPU instances), the two display equations",
+  "chapter": "16",
+  "quoted_clause": "H_paid [host-hours] is an input: H_paid = 4{,}380 host-hours for the 6-host example (the default 4,380 is an assumed H_paid); Cost = p_host × H_paid",
+  "observed": "A display equation containing a full sentence of prose with inline math, and a second display equation that is mostly prose. The first states a tautology (H_paid = 4,380 host-hours) rather than a relation, and the second embeds three definitions inside the math. Neither reads as an equation a reader can check.",
+  "evidence": "The second equation carries 'where T = the billing month, N_required(t) = hosts required at time t, N_warm·T_warm = warm-pool host-hours, R_reserved = reserved host-hours' inside the display.",
+  "root_cause": "Prose was typeset as display mathematics for emphasis rather than as a relation with defined symbols.",
+  "correction": "Set the relations as equations (H_paid = 4,380 host-hours [input]; Cost = p_host x H_paid; H_paid >= H_required) and move the definitions and caveats into the surrounding paragraph.",
+  "acceptance_test": "Each display equation in Ch 16 is a relation with defined symbols, and its prose is in the body text.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ }
+]

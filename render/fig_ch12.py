@@ -44,6 +44,8 @@ def downarrow(y_top, y_bot):
 # ---- Stage 1 REQUIREMENTS ----
 box(X0, 0.790, W, 0.150, '#eaf1fb', '#3a6ea5')
 stagelabel(CX, 0.865, '\u2460  REQUIREMENTS', '#27408b')
+ax.text(CX, 0.822, 'canonical workload: ~2,000 users, 10 avg / 40 peak rps, 9.2K-in/300-out, SLO + quality',
+        ha='center', va='center', fontsize=8.2, color='#27408b', zorder=3)
 divider(0.778)
 downarrow(0.778, 0.735)   # R27 P2: extend the tip into the box so it touches
 
@@ -52,7 +54,7 @@ downarrow(0.778, 0.735)   # R27 P2: extend the tip into the box so it touches
 # held the gating constraint; the diagram now states the gate itself.
 box(X0, 0.600, W, 0.150, '#fdf3e0', '#d68910')
 stagelabel(CX, 0.708, '②  CONSTRAINTS', '#935116')
-ax.text(CX, 0.656, 'SLO: throughput at target load (10/40 rps, 9.2K-in/300-out)',
+ax.text(CX, 0.656, 'SLO: throughput at target load (10 avg / 40 peak rps, 9.2K-in/300-out)',
         ha='center', va='center', fontsize=8.2, color='#935116', zorder=3)
 ax.text(CX, 0.620, 'memory fit per host · quality gate',
         ha='center', va='center', fontsize=8.2, color='#935116', zorder=3)
@@ -73,17 +75,21 @@ divider(0.323)
 sw = (W - 0.04) * 0.58
 sx = X0
 box(sx, 0.090, sw, 0.200, '#e7f5ec', '#1e8449')
-stagelabel(sx + sw / 2, 0.245, '\u2463  OUTCOME', '#145a32')
-ax.text(sx + sw / 2, 0.165, 'CLEARS CAPACITY GATE  (a) \u00b7 (b)', ha='center', va='center',
+stagelabel(sx + sw / 2, 0.245, '\u2463  OUTCOME \u2014 THROUGHPUT GATE', '#145a32')
+ax.text(sx + sw / 2, 0.180, 'CAPACITY SCREEN: (a) \u00b7 (b) pass', ha='center', va='center',
         fontsize=8.4, color='#145a32', fontweight='bold', zorder=3)
-ax.text(sx + sw / 2, 0.125, 'each needs ~5 hosts of prefill capacity', ha='center', va='center',
+ax.text(sx + sw / 2, 0.140, 'validation open until Chs. 14\u201317', ha='center', va='center',
         fontsize=8.0, color='#145a32', zorder=3)
+ax.text(sx + sw / 2, 0.104, '~5 avg / ~19 peak hosts, headroom not demonstrated', ha='center', va='center',
+        fontsize=7.4, color='#145a32', zorder=3)
 bx = sx + sw + 0.04
 bw = W - sw - 0.04
-box(bx, 0.090, bw, 0.200, '#fdecea', '#c0392b', hatch='//')
-stagelabel(bx + bw / 2, 0.245, '\u2717  GATED', '#7b241c')
-ax.text(bx + bw / 2, 0.165, '(c)  pending Ch. 14', ha='center', va='center',
-        fontsize=8.4, color='#7b241c', fontweight='bold', zorder=3)
+box(bx, 0.090, bw, 0.200, '#fdf3e0', '#d68910')
+stagelabel(bx + bw / 2, 0.245, '?  QUALITY GATE (c)', '#935116')
+ax.text(bx + bw / 2, 0.165, 'pending quality validation', ha='center', va='center',
+        fontsize=8.2, color='#935116', fontweight='bold', zorder=3)
+ax.text(bx + bw / 2, 0.125, 'open until Chs. 14\u201317', ha='center', va='center',
+        fontsize=7.8, color='#935116', zorder=3)
 
 # branch from CANDIDATES into BOTH outcome halves: a short central drop, a
 # horizontal bus, then a vertical arrow into each box top, so the

@@ -10,10 +10,10 @@ idea, REMOVE information rather than enlarge the composition.
 This revision keeps ONLY:
   * three band titles  : PREFILL / PERSISTENT KV CACHE / DECODE
   * box labels (two lines where the granularity cue needs them):
-      prefill : prompt, tokens + positions (all in parallel), transformer,
-                logits + sampling, first token
-      decode  : previous token, token + position (one per step), transformer,
-                logits + sampling, next token
+      prefill : prompt (given), tokens + positions (all in parallel),
+                transformer, logits + sampling, first token
+      decode  : sampled token (prior step), token + position (one per step),
+                transformer, logits + sampling, next token
   * one-line transition labels : populate, read, initialize, loop
 
 Geometry carries the meaning:
@@ -24,9 +24,9 @@ Geometry carries the meaning:
     the visual middle.
   * GREEN "initialize" : starts at the RIGHT-MIDPOINT of the 'first token'
     box, runs down the right margin, left along a channel just above the decode
-    rail, and drops into the TOP of the 'previous token' box.
+    rail, and drops into the TOP of the 'sampled token' box.
   * GREY "loop"        : starts at the BOTTOM-MIDPOINT of the 'next token' box,
-    runs below the decode rail, and rises into the BOTTOM of 'previous token'
+    runs below the decode rail, and rises into the BOTTOM of 'sampled token'
     with a terminal arrowhead -- so the two feedback arrows land on OPPOSITE
     edges of the same input box.
   * The green channel's crossings of read/append carry small junction dots, and
@@ -64,7 +64,7 @@ C_LOOP  = '#6a6a6a'   # grey loop arrow (darkened from #8a8a8a for print contras
 C_GN    = '#2c7a4b'   # green initialize arrow
 C_EDGE  = '#5a5a5a'
 C_BOX   = '#f1f1f1'   # neutral boxes
-C_TOK   = '#e6e6e6'   # token boxes (first/next/previous) - shaded alike
+C_TOK   = '#e6e6e6'   # token boxes (first/next/sampled) - shaded alike
 C_TRANS = '#d8d8d8'   # transformer boxes (same model) - darkest
 C_BAND  = '#f8f8f8'
 C_BAND_E = '#c6c6c6'
@@ -82,13 +82,13 @@ def bw(n):
 
 # ---------------- shared columns (solved to fit the 6.1in column) ---------
 # transformer centre X_T is placed so the widest box left of the transformer
-# (decode's 'previous token') lands flush at LM; the token-output centre X_O is
+# (decode's 'sampled token') lands flush at LM; the token-output centre X_O is
 # derived so boxes never overlap and the right margin stays clear for green.
 wT   = bw('transformer')
 PF_TP = 'tokens + positions\n(all in parallel)'   # FIG-2.1-C: prefill = all tokens at once
 DC_TP = 'token + position\n(one per step)'        # FIG-2.1-C: decode = one token per step
 wTP  = bw(DC_TP)
-wIn  = max(bw('prompt'), bw('previous token'))
+wIn  = max(bw('prompt\n(given)'), bw('sampled token\n(prior step)'))
 wLog = bw('logits + sampling')
 wTok = max(bw('first token'), bw('next token'))
 X_T = LM + wT / 2 + GAP + wTP + GAP + wIn
@@ -174,10 +174,10 @@ def layout_row(names, cy, fills):
 # ==================== PREFILL ====================
 band(LM, pf_bot, X_BANDR, pf_top)
 label(LM + 2, pf_title, 'PREFILL', '#333333', FST, weight='bold', ha='left')
-pf_names = ['prompt', PF_TP, 'transformer',
+pf_names = ['prompt\n(given)', PF_TP, 'transformer',
             'logits + sampling', 'first token']
 pf = layout_row(pf_names, pf_rail, [C_BOX, C_BOX, C_TRANS, C_BOX, C_TOK])
-for a, b in [('prompt', PF_TP), (PF_TP, 'transformer'),
+for a, b in [('prompt\n(given)', PF_TP), (PF_TP, 'transformer'),
              ('transformer', 'logits + sampling'),
              ('logits + sampling', 'first token')]:
     arrow(pf[a][1] + 2, pf_rail, pf[b][0] - 2, pf_rail, C_AR, 1.2)
@@ -197,15 +197,15 @@ ax.text(X_T - 12, _py, 'populate', color='#333333', fontsize=FSN,
 
 # ==================== DECODE ====================
 band(LM, dc_bot, X_BANDR, dc_top)
-dc_names = ['previous token', DC_TP, 'transformer',
+dc_names = ['sampled token\n(prior step)', DC_TP, 'transformer',
             'logits + sampling', 'next token']
 dc = layout_row(dc_names, dc_rail, [C_TOK, C_BOX, C_TRANS, C_BOX, C_TOK])
-# DECODE band title: placed to the RIGHT of the previous-token box so the green
-# initialize drop (which enters the previous-token top at its centre) never passes
+# DECODE band title: placed to the RIGHT of the sampled-token box so the green
+# initialize drop (which enters the sampled-token top at its centre) never passes
 # through the label (A-014). Still at the top of the decode band.
-label(dc['previous token'][1] + 8, dc_title, 'DECODE', '#333333', FST,
+label(dc['sampled token\n(prior step)'][1] + 8, dc_title, 'DECODE', '#333333', FST,
       weight='bold', ha='left')
-for a, b in [('previous token', DC_TP),
+for a, b in [('sampled token\n(prior step)', DC_TP),
              (DC_TP, 'transformer'),
              ('transformer', 'logits + sampling'),
              ('logits + sampling', 'next token')]:
@@ -260,12 +260,12 @@ ax.text(298, 136, 'conceptual per-step,\nper-layer cache I/O',
 
 # ==================== GREEN initialize ====================
 # first token (right edge) -> down the right margin -> left along the channel
-# below the cache box -> drop into the TOP of previous token.  The channel
+# below the cache box -> drop into the TOP of sampled token.  The channel
 # (green_chan) sits in the empty gap between the cache box bottom (kc_bot) and
 # the decode rail top (dc_top), so the green line never pierces the cache box;
 # the read arrow is bridged where the green line crosses it.
 ft = pf['first token']
-prev = dc['previous token']
+prev = dc['sampled token\n(prior step)']
 # End the green drop 1pt INTO the box (below its top edge) so the arrowhead
 # tip clearly touches the previous-token box's top border (no floating gap).
 # FancyArrowPatch with a `path` does not render the -|> head, so the line body

@@ -55,7 +55,7 @@ def legend_row(ax, y, fc, ec, text, tcolor, va='center'):
 
 # ================= LEFT: Dense 70B (all resident & active) =================
 ax = axes[0]
-panel_setup(ax, 'Dense 70B', '#3a6ea5')
+panel_setup(ax, 'Dense 70B\n80L/8192H full-MHA', '#3a6ea5')
 for r in range(NROWS):
     y = cell_top(r) - CELL_H
     for cc in range(COLS):
@@ -73,7 +73,7 @@ ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', h
 
 # ================= RIGHT: MoE (8 experts, top-2 active) =================
 ax = axes[1]
-panel_setup(ax, 'MoE (8 experts)', '#e67e22', tx=3.9)   # centred over the 0.8..7.0 expert grid
+panel_setup(ax, 'MoE (8 experts)\n32L/4096H GQA', '#e67e22', tx=3.9)   # centred over the 0.8..7.0 expert grid
 # 8 experts in a 3-col x 3-row arrangement (last cell of row 3 empty), same cell grid
 expert_cells = [(r, c) for r in range(3) for c in range(3)][:8]   # 8 experts, not 9
 activated = {(0, 0), (1, 0)}   # E1 (row0,col0), E4 (row1,col0)
@@ -82,7 +82,8 @@ for idx, (r, c) in enumerate(expert_cells):
     active = (r, c) in activated
     fc = '#e67e22' if active else '#cccccc'
     ec = '#8a4a12' if active else '#888888'
-    ax.add_patch(Rectangle((0.8+c*2.15, y), 1.9, CELL_H, fc=fc, ec=ec, lw=1.0))
+    ax.add_patch(Rectangle((0.8+c*2.15, y), 1.9, CELL_H, fc=fc, ec=ec, lw=1.0,
+                  hatch='//' if active else None))
     ax.text(0.8+c*2.15+0.95, y+CELL_H/2, f'E{idx+1}', ha='center', va='center', fontsize=8.6,
             color='white' if active else '#555', fontweight='bold' if active else 'normal')
 # red bracket around the two active E1/E4 cells (col 0, rows 0-1)
@@ -104,7 +105,10 @@ legend_row(ax, A_ACT, '#e67e22', '#333', 'active experts \u2248 23 GB resident (
 # 94 GB (47B x 2 B) — as the second line of the block.  Measured 164.2pt at
 # 9.0pt, inside the block's existing 189.9pt widest line, so the axes geometry
 # is unchanged.
-ax.text(5, A_SENT, 'MoE total resident \u2248 94 GB\n= 91 GB experts + 3 GB always-on\nper token: 11.4B top-2 + 1.4B always-on\n= 12.8B \u2192 25.6 GB', fontsize=9.0, color='#333', ha='center', linespacing=1.25)
+# R5 FIG-3.4-02: state the per-expert values in the body so the legend's
+# 6x/2x GB sums are verifiable from the figure alone (5.7B params x 2 B = 11.4 GB).
+ax.text(5, 11.4, '1 expert = 5.7B params \u2248 11.4 GB (FP16)', fontsize=9.0, color='#333', ha='center')
+ax.text(5, A_SENT, 'MoE total resident \u2248 94 GB\n= 91 GB experts + 3 GB always-on\nper token: top-2 = 11.4B (2 \u00d7 5.7B)\n+ 1.4B always-on = 12.8B \u2192 25.6 GB', fontsize=9.0, color='#333', ha='center', linespacing=1.25)
 ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', ha='center')
 
 # ---- KV bars: bytes are set by attention SHAPE, not by MoE routing ----
@@ -120,7 +124,7 @@ ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', h
 # bar text <= ~140pt inside the 154.4pt bar, note lines <= 156.9pt (the original
 # widest line) -- measured: bar 133.2pt, note 149.7/150.1pt, so the axes, the bar
 # and every grid cell keep their original geometry (no reflow, no font shrinking).
-# Final strings (measured): bar 'dense 12 GB vs MoE 0.6 GB' 135.6pt < 154.4pt bar;
+# Final strings (measured): bars 'Dense KV ≈ 12 GB' 76.2pt / 'MoE KV ≈ 0.6 GB' 70.8pt < 154.4pt bar;
 # note '8-bit KV set by shape, not routing:' 144.6pt and '80L/8192H MHA vs
 # 32L/4096H GQA' 150.1pt, both < 156.9pt (the original widest line). The bar names
 # both models and the note carries the precision, so '12 vs 0.6' cannot be misread
@@ -131,9 +135,11 @@ ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', h
 # '(8 KV heads x 128), at 9.2K tokens' — 155.5pt at 8.4pt, inside the note's
 # existing 157.0pt widest line, so the note keeps its footprint; the block is
 # centred 0.20 units lower (KV_Y-0.75) so its top still clears the chip.
-for axx in axes:
+# R5 FIG-3.4-01/03: column-specific callouts (was one duplicated 'dense 12 GB
+# vs MoE 0.6 GB' in BOTH panels); the shared shape-not-routing note is unchanged.
+for axx, kv_label in zip(axes, ['Dense KV \u2248 12 GB', 'MoE KV \u2248 0.6 GB']):
     axx.add_patch(Rectangle((0.6, KV_Y), 8.8, 0.9, fc='#c0392b', ec='white'))
-    axx.text(5, KV_Y+0.45, 'dense 12 GB vs MoE 0.6 GB',
+    axx.text(5, KV_Y+0.45, kv_label,
              ha='center', va='center', fontsize=8.8, color='white', fontweight='bold')
     axx.text(5, KV_Y-0.75, '8-bit KV set by shape, not routing:\n80L/8192H MHA vs 32L/4096H GQA\n(8 KV heads \u00d7 128), at 9.2K tokens',
              ha='center', va='center', fontsize=8.4, color='#7a1f1f', style='italic')

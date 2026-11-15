@@ -52,7 +52,7 @@ IM_KEY = load_key()
 CHUNK_LIMIT = 190000  # chars per chunk (proven to fit all 4 models)
 
 
-def chat(model, prompt, images=None, max_tokens=32768, retries=5):
+def chat(model, prompt, images=None, max_tokens=65536, retries=5):
     """Streaming chat; streaming is required on im-eglb (300s idle reset on
     non-streaming long generations). reasoning_effort: max (im-eglb) / xhigh
     (qwen38 wrapper)."""
@@ -106,14 +106,15 @@ def chat(model, prompt, images=None, max_tokens=32768, retries=5):
             c = "".join(parts)
             if finish == "length":
                 # reasoning+content hit the cap -> output is TRUNCATED mid-stream
-                # (observed: a register cut mid-"evidence":). Retry once at 65536.
-                if body["max_tokens"] < 65536:
-                    body = dict(body, max_tokens=65536)
-                    last = RuntimeError("truncated at %d, retrying at 65536"
-                                        % max_tokens)
+                # (observed: a register cut mid-"evidence":). Retry up to 262144 —
+                # both endpoints accept it (probed 2026-11-13; MiniMax 1M context).
+                if body["max_tokens"] < 262144:
+                    body = dict(body, max_tokens=262144)
+                    last = RuntimeError("truncated at %d, retrying at 262144"
+                                        % body["max_tokens"])
                     time.sleep(3)
                     continue
-                return "[[TRUNCATED at 65536]] " + c
+                return "[[TRUNCATED at 262144]] " + c
             if not c and reason:
                 c = "[[NO-CONTENT: reasoning only]]"
             return c or ""

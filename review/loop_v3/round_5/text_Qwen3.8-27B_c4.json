@@ -1,0 +1,82 @@
+
+
+[
+  {
+    "id": "CH21-01",
+    "severity": "P0",
+    "confidence": "high",
+    "page_hint": "Ch 21 §3, 'The Economics of Promotion Gating' paragraph",
+    "chapter": "21",
+    "quoted_clause": "The canonical service does ~288,000 requests/workday (10 rps × 8 h × 3,600 s; ~6.24M/month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16).",
+    "observed": "The shown derivation 10 × 8 × 3,600 = 288,000/day is correct, but 288,000 × 260 = 74,880,000 ≈ 74.9M/month, not 6.24M. The 6.24M figure (used consistently in Ch 16, 17, 18, 21, 22) is a factor of 12 lower than the stated derivation produces. The 6.24M is consistent with 2,000 users × 12 requests/user/day × 260 days = 6,240,000, which implies an average rate of 0.833 rps over 8 h, not 10 rps.",
+    "evidence": "10 rps × 8 h × 3,600 s/h × 260 d/mo = 74,880,000. 6,240,000 / 260 = 24,000/day. 24,000 / (8 × 3,600) = 0.833 rps. The two canonical figures (10 rps average; 6.24M/month) are arithmetically incompatible under the stated 8-h × 260-d basis. The 6.24M is load-bearing: Ch 18 §18.3.2 computes 6.24M × 9,500 = 5.93×10¹⁰ tokens/mo and derives $2.63/1M from it; Ch 21 §21.3 uses 288,000/day for the canary arithmetic.",
+    "root_cause": "The 6.24M was likely computed from a user-based formula (2,000 × 12 × 260) while the '10 rps' was set as a rounded traffic figure without verifying consistency. The Ch 21 text then presents both as if they derive from the same calculation.",
+    "correction": "Either (a) change the monthly volume to ~74.9M and re-derive all downstream economics (fleet TCO, per-1M rates, canary arithmetic), or (b) change the average rate to ~0.83 rps (or state that 10 rps is a peak/illustrative figure and the 6.24M is the planning volume from a separate user-based calculation), or (c) add an explicit reconciliation sentence: 'The 6.24M/month planning volume corresponds to ~0.83 rps sustained over 8 h × 260 d; the 10 rps figure is the average during active business hours at the 2,000-user scale and is used for per-second capacity screens, while 6.24M is the monthly volume for cost amortization.' The chosen resolution must be propagated to every chapter that cites either figure.",
+    "acceptance_test": "A reader who multiplies 10 × 8 × 3,600 × 260 gets the same monthly figure the book states, OR the book explicitly states the two figures come from different bases and shows both derivations without implying they are the same calculation."
+  },
+  {
+    "id": "CH18-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 18 §2, Table 18-1 'Cost/SLO gate' row and the paragraph below it",
+    "chapter": "18",
+    "quoted_clause": "which minimizes weighted cost = α·token_cost + β·latency_cost? … token_cost is USD per 1M tokens (§18.3.2) and latency_cost is USD per ms of per-request service latency (or a normalized latency score), so α and β are dimensionless weights with α + β = 1",
+    "observed": "As written, α·(USD/1M-tokens) + β·(USD/ms) is dimensionally inconsistent: the two terms have different units and cannot be added. The parenthetical 'or a normalized latency score' suggests the latency should be normalized, but the token cost is stated in absolute USD/1M, not normalized. The reader cannot construct a valid scalar from the formula as printed.",
+    "evidence": "USD/1M-tokens ≠ USD/ms. For the sum to be a scalar, both terms must share units (e.g., both normalized to [0,1], or both in USD for a specific request: α·(rate×n_tokens) + β·(rate×n_ms)).",
+    "root_cause": "The formula was written at the per-unit level (rate) rather than the per-request level (total cost for one request), and the normalization step was mentioned only in a parenthetical.",
+    "correction": "Rewrite as: 'minimize the per-request weighted cost = α·(token_rate × n_tokens) + β·(latency_rate × n_ms), where token_rate is USD/1M-tokens, latency_rate is USD/ms (or a normalized 0–1 score), n_tokens and n_ms are the request's actual token count and service latency, and α + β = 1.' Alternatively, state that both rates are first normalized to [0,1] across the candidate set before weighting.",
+    "acceptance_test": "A reader can compute a single scalar for each candidate model from the formula without needing to guess at implicit normalization."
+  },
+  {
+    "id": "CH19-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 19 §8, 'Conditional completed-agent percentiles' paragraph and the 'Unconditional fallback-inclusive ledger' paragraph",
+    "chapter": "19",
+    "quoted_clause": "the 2% fallback is modeled as an immediate single-shot fallback, not a fourth attempted turn … a fallback request attempts the full cap (T = 3 — 3 model calls + 3 tool calls) before the guardrail trips, then re-dispatches a single-shot fallback",
+    "observed": "The first clause says the fallback is 'immediate' (suggesting no agent work is done), while the second says it 'attempts the full cap (T=3)' (3 model calls + 3 tool calls of real work). A reader encountering the first clause in the percentile discussion will form the mental model that the fallback is a zero-cost single-shot, then be contradicted by the ledger showing 39,395 input tokens and 860 ms for the fallback row.",
+    "evidence": "The conditional percentile paragraph uses 'immediate single-shot fallback, not a fourth attempted turn' to explain why the fallback doesn't appear at T=4. The unconditional ledger then shows the fallback consumed 3 full agent turns of work (30,195 tokens for the 3 attempted turns) plus a fresh single-shot (9,200 tokens).",
+    "root_cause": "The word 'immediate' modifies the re-dispatch (the single-shot is dispatched immediately after the 3-turn failure, without a 4th agent turn), but in context it reads as 'the fallback is an immediate single-shot' (no agent work at all).",
+    "correction": "Rewrite the first clause as: 'the 2% fallback is modeled as a 3-turn agent attempt that fails at the cap, followed by an immediate single-shot re-dispatch (not a fourth agent turn).' This makes the two statements consistent and prevents the 'zero-cost fallback' misreading.",
+    "acceptance_test": "A reader who stops after the percentile paragraph and before the ledger can correctly predict that the fallback row in the ledger will show non-zero model tokens and non-zero orchestration time."
+  },
+  {
+    "id": "CH20-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 20 §3, the paragraph beginning 'Call this quantity what it is'",
+    "chapter": "20",
+    "quoted_clause": "The ~2.0 req/s figure is a KV-slot-based analytical UPPER bound on admitted request completion rate, conditional on an assumed mean KV residency time — a necessary capacity screen: not a measured serving throughput, not a lower guaranteed rate, and not an SLO goodput. … the ~2.0 req/s/host figure is the KV-slot-based analytical UPPER bound on admitted request completion rate, conditional on an assumed mean KV residency time — model-derived, not an implied deployed rate.",
+    "observed": "The identical 24-word phrase 'KV-slot-based analytical UPPER bound on admitted request completion rate, conditional on an assumed mean KV residency time' appears twice within ~8 lines, and a third near-identical formulation appears in the 'Planning-bound caveat' sentence. The repetition is clearly intentional (emphasis), but at this density it degrades readability and makes the paragraph feel like a legal disclaimer rather than an architectural explanation. The reader must wade through three near-identical sentences to extract the single new piece of information in each (the negations, the 'model-derived' tag, the 'no p95/p99 guarantee' caveat).",
+    "evidence": "Counting the phrase occurrences in the paragraph: (1) 'is a KV-slot-based analytical UPPER bound…', (2) 'is the KV-slot-based analytical UPPER bound…', (3) 'the ~2.0 req/s/host figure is the KV-slot-based analytical UPPER bound…'. Three occurrences in ~15 lines.",
+    "root_cause": "Each occurrence was added in a different review round to address a different concern (definition, scope, planning-bound), without consolidating.",
+    "correction": "State the full 24-word definition once (first occurrence). In the second and third occurrences, use a short anaphoric reference: 'This upper bound is model-derived, not an implied deployed rate' and 'No p95/p99 performance guarantee has been shown for any host count derived from this bound.' This preserves the emphasis without the triple repetition.",
+    "acceptance_test": "The phrase 'KV-slot-based analytical UPPER bound on admitted request completion rate, conditional on an assumed mean KV residency time' appears at most once in the paragraph; the other two locations use a 5–10 word anaphoric reference."
+  },
+  {
+    "id": "CH19-02",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 19 §6, 'Inference scaling' paragraph, sentence beginning 'Agentic traffic is structurally more prefill-heavy'",
+    "chapter": "19",
+    "quoted_clause": "the prefill/decode ratio rises from ≈0.14 single-shot to ≈0.40 at T=3 (1 → T+1 = 4 prefills per request)",
+    "observed": "The ratio 0.14 → 0.40 is correct if defined as prefill_time/decode_time (1.08/7.5 = 0.144; 4.93/12.375 = 0.398). However, the term 'prefill/decode ratio' is not defined at this point, and the parenthetical '(1 → T+1 = 4 prefills per request)' suggests a count ratio (1 prefill vs 4 prefills) rather than a time ratio. A reader who interprets 'ratio' as a count (1/2 = 0.5 single-shot; 4/8 = 0.5 at T=3) will be confused by the 0.14 and 0.40 values.",
+    "evidence": "1.08/7.5 = 0.144 ≈ 0.14. 4.93/12.375 = 0.398 ≈ 0.40. The parenthetical '1 → T+1 = 4 prefills' describes the count change, not the time ratio.",
+    "root_cause": "The term 'prefill/decode ratio' was used without defining whether it refers to time, FLOPs, or invocation count. The parenthetical then describes the count, creating ambiguity.",
+    "correction": "Rewrite as: 'the prefill-time/decode-time ratio rises from ≈0.14 single-shot (1.08 s / 7.5 s) to ≈0.40 at T = 3 (4.93 s / 12.375 s), because the request goes from 1 prefill to T+1 = 4 prefills while decode grows only linearly in T·γ.' This makes the definition explicit and connects the ratio to the mechanism.",
+    "acceptance_test": "A reader can compute 0.14 and 0.40 from the stated times without guessing what 'ratio' means."
+  },
+  {
+    "id": "CH18-02",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 18 §3.1, the paragraph after the hardware table: 'With 8×H100 (640 GB), we can simultaneously run the weights of:'",
+    "chapter": "18",
+    "quoted_clause": "Two 70B 4-bit GGUF (≈70 GB total; the two 4-bit copies are reserved for edge spillover/fallback — no traffic in this 70/20/10 split — and hold no canonical KV reservation)",
+    "observed": "The 4-bit copies 'hold no canonical KV reservation,' yet the earlier table row for 4-bit says '~5 (canonical 436 GB KV budget reserved: (640−436)/35 = 5.83 → floor 5).' The table reserves 436 GB of KV for the 4-bit tier's capacity calculation, but the deployment paragraph says the 2 copies in the co-resident pool hold no KV reservation. These are not contradictory (the table computes maximum fit; the deployment uses only 2), but the transition is not explicit. A reader may wonder: if the 4-bit copies hold no KV, what is the 436 GB reserved for in the table row?",
+    "evidence": "Table: (640−436)/35 = 5.83 → 5 copies (KV budget reserved for the 4-bit tier's own concurrent requests). Deployment: 2 copies, 'no traffic in this 70/20/10 split — and hold no canonical KV reservation.' The 436 GB in the table is the KV that would be available to the 4-bit tier if it were the sole resident; in the co-resident deployment, the 4-bit tier gets no KV because it carries no traffic.",
+    "root_cause": "The table row computes a standalone capacity (as if the 4-bit tier were the only model), while the deployment paragraph describes the actual co-resident allocation. The distinction is implied but not stated.",
+    "correction": "Add a brief clause to the deployment paragraph: 'The table's ~5-copy figure assumes the 4-bit tier is the sole resident with the full 436 GB KV budget; in this co-resident deployment the 2 copies carry no traffic and therefore no KV reservation, freeing that memory for the active tiers.'",
+    "acceptance_test": "A reader can explain why the table says 5 copies fit but the deployment uses only 2, without re-deriving the KV budget logic."
+  }
+]

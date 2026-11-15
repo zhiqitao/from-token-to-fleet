@@ -1,0 +1,122 @@
+[
+ {
+  "id": "CH7-02",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "chapter-07.md (exact): 'turning \"5,000 employees\" into ~2,000 registered users (~100 concurrent typical / ~400 at peak), ~10 requests/s'. The 100/400 figures are the standard derived population figures: chapter-04.md operating-point table 'Average | 100 (5% × 2,000) | ~10 rps | ~86' and 'Peak | 400 (20% × 2,000) | ~40 rps | ~344'; chapter-12.md §8 uses the same convention: '~2,000 registered users, ~5% concurrent (~100), ~10 rps average / ~40 rps peak' — the book itself labels 5%×2,000 as 'concurrent'. So ~400 = 20% × 2,000 is derivable from the stated figures exactly as claimed, and ~100 = 5% × 2,000 (not 86 ≈ 100 as the finding assumed). The finding's fix (replace with ~344) would conflate population with in-flight occupancy — the very distinction Ch 4 insists on.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH5-12",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-05.md §3(b) (exact): 'the effective cost is ~0.40 $/tok/s, or equivalently ~2.5 (tok/s) per dollar‑per‑hour of budget'. Inputs from Table 5-1: 'Tokens per dollar (generation, runtime) | 9,000 tokens per dollar | 50 tok/s × 3600 s/hr ÷ $20/hr' — so $20/hr ÷ 50 tok/s = $0.40 per (tok/s) per hour ✓; per token: $20/(50 × 3600) = $0.000111 ✓ (3,600× ✓). The primary unit '$0.40 $/tok/s' omits the time basis that the reciprocal form carries ('per dollar-per-hour'); read as ($/tok)/s it is off by a factor of 3,600.",
+  "fix_instruction": "Write '$0.40 per (tok/s) per hour' or '$0.000111 per token at 50 tok/s', and make every per-dollar figure in the chapter state its time basis."
+ },
+ {
+  "id": "CH6-05",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-06.md §7 (exact): 'Mooncake 525% simulated throughput / 75% more requests [S4][1P][FACT]'. The paired metrics use asymmetric wording: '75% more requests' specifies an increase, while '525% simulated throughput' has neither 'more' nor 'of baseline' — 525% is ambiguous between an increase (6.25×) and a ratio of baseline (5.25×), and the line does not separate throughput from completed-request count.",
+  "fix_instruction": "Write: 'Mooncake reports up to a 525% throughput increase in simulated scenarios and 75% more completed requests [S4][1P][FACT] (simulated, not measured production)'."
+ },
+ {
+  "id": "CH10-DP-TRAFFIC-CONVENTION",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "chapter-10.md §3 DP (found after normalization): 'grad bytes = N_params × bytes/param = 70 × 10⁹ × 4 B ≈ 28 GB per step (FP32 gradient...) As in Chapter 9, a ring all‑reduce moves $2\\frac{N-1}{N}$ times the per‑rank gradient through each rank, so for $N=8$ the per‑rank traffic is $1.75 \\times 280 \\approx 490$ GB... At the H100 NVLink directional peak of 450 GB/s, the same ideal ring estimate is `490/450 ≈ 1.09 s`. The 900 GB/s bidirectional sum cannot divide a send‑only traffic count'. Key: M differs — Ch 10 assumes FP32 gradients (28 GB) and Ch 9 assumes FP16 (140 GB), and the chapter states: \"Chapter 9's separate 140 GB example assumes FP16 gradients, so the two examples must retain their different precision bases.\" The 2(N-1)/N × M form IS the send volume (chapter-09.md: 'Each phase sends $(N-1)M/N = 122.5$ GB per rank; reduce‑scatter followed by all‑gather therefore sends 245 GB' = 2×(7/8)×140 ✓): Ch 10: 1.75 × 28 = 490 = send (M=28) ✓; Ch 9: 245 = send (M=140) ✓. So 490/450 = 1.09 s = send ÷ directional — the same convention as Ch 9's 245/450 = 0.54 s. The finding's premise (490 = send+receive, total 980) misses the 2× precision difference; its fix (halve 490 to 245) would introduce an error.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH12-32-HOST-COST-INCONSISTENT",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "chapter-12.md (exact): '~$232.2K self-host ... at the same per‑host rates ($155,816.93...)'. chapter-16.md §16.3 reproduces both totals from the same stated model: 21 hosts = capex 21 × $350,000/60 = $122,500 + energy $23,316.93 + staff $10,000 = **$155,816.93** ✓; 32 hosts = capex 32 × $350,000/60 = $186,666.67 + energy 32 × $1,110.33 = $35,530.56 + $10,000 = **$232,197.23** ✓ ('≈ $232.2K/month ($232,197.23 computed exactly)'; 'the staff fixed at $10,000/mo in all four, as the table footnote above states'). The finding's implied $7,419.85/host slope assumes the fixed staff term scales with hosts — it is explicitly fixed. Cloud check ✓ (32 × $14,600 = $467,200). No printed number is wrong; the finding's fix ($237.4K) would break the stated model.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH12-TABLE12-1-SLO-CHECKMARK-VS-12-2-UNMEASURED",
+  "verdict": "CONFIRMED",
+  "evidence": "All three parts verified by grep in chapter-12.md: Table 12-1: '✓ memory 164 < 640 GB · ✓ TTFT SLO (median ≤1.2 s, p95 ≤2 s) | **conditional finalist**'; §3: 'Throughput at the SLO: per‑request prefill + decode stay within the latency budget thanks to prefix caching and the high bandwidth of 8×H100, but the sustained rate fails at one host...'; Table 12-2: '| Feasibility at declared SLO | **? unmeasured** — peak prefill and SLO not demonstrated; illustrative screen only |...'. The same chapter records the same TTFT SLO gate as ✓ passed in one table and ? unmeasured in another — a contradiction with the gate discipline ('a gate that is open is not a pass').",
+  "fix_instruction": "Replace the ✓ in the SLO column of Table 12-1 with the '? unmeasured' status used in Table 12-2 (or '✓ (design target, unmeasured)'), and rewrite §3 to 'per‑request prefill + decode are expected to stay within the latency budget at the admitted load; this is the SLO gate that Ch 14 must close'. Keep ✓ for memory (a deterministic calculation)."
+ },
+ {
+  "id": "CH9-DIRECTION-CONVENTION-40-2.5-GBPS",
+  "verdict": "DEFENSIBLE",
+  "evidence": "All fragments exist in chapter-09.md: 'A realistic *effective* throughput is roughly 40 GB/s (aggregated across 2 HDR rails/ports per node...)' with '$$T_\\text{ring} \\approx 2\\frac{7}{8}\\frac{140 \\text{ GB}}{40 \\text{ GB/s}} \\approx 6.1 \\text{ s}$$'; '25 Gb/s ≈ 3.125 GB/s unidirectional... a practical effective bandwidth might be 2.5 GB/s' with '$\\approx 98 \\text{ s}$'; and the rule in §2: 'The bandwidth denominator must use the same direction convention as the counted bytes.' The worked examples indeed lack an explicit direction label at point of use ✓. But the book's own convention pins the direction: Common Mistakes — \"the §9.3 worked example's 40 GB/s and 2.5 GB/s are optimistic ~80% upper bounds\" — 40/50 (2 rails × 25 GB/s per direction) = 80% ✓ and 2.5/3.125 = 80% ✓; the printed times (6.1 s, 98 s) are correct under that convention, and the finding's alternative reading (40 bidirectional → 12.25 s) is excluded by the ~80% statement the finding itself quotes. Residual defect: no explicit 'per direction' at point of use.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH11-VIDEO-BLOCK-PLACEMENT",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-11.md (exact): 'A video service still schedules requests, manages live state, reuses valid work, and chooses resource‑specialized pools...'. Heading: '### The serving concerns transfer; the text mechanisms do not transfer automatically'. Heading order confirms placement: §6 Architecture Consequence (line 126) → '### The Mechanisms, Not the Product Catalog' (148) → Table 11-2 engine-capability table (152) → '### What the capability table does not promise' (167) → video block (201) → §7 (213) — i.e. after the capability table and the chapter's closing subsection. The Architect's Question promises four mechanisms: 'how requests are batched, how KV cache memory is managed, how repeated prefixes are reused, and when to split prefill from decode onto separate pools'. chapter-14.md reopens the topic: '### A video benchmark is a workload tuple {#video-benchmark-contract}' — the repeated framing the finding describes.",
+  "fix_instruction": "Move the four video paragraphs to a single appendix ('Appendix — Beyond autoregressive text: video and diffusion serving'); replace them in Ch 11 §6 with three sentences stating that the four serving concerns are workload-independent while the mechanisms are not; keep the measurement protocol in Ch 14 and cross-reference the appendix for the serving side."
+ },
+ {
+  "id": "CH11-SERVING-QUALIFICATION-UNDER-MEASUREMENT",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-11.md headings: '## 4. Measurement' (line 92) → four numbered items, all measurement actions ('1. **Measure goodput, not raw throughput**... 2. **Measure KV utilization**... 3. **Measure prefill‑vs‑decode utilization separately**... 4. **Measure the scheduler's real occupancy**...') → '### Serving qualification: model support is not serving capability' (line 104, inside §4 before §5 at 114) whose content is non-measurement: 'Model support is not a complete serving capability. A hybrid model (a transformer interleaved with a recurrent/state‑space block) can require both paged history and bounded recurrent state.' → §6 later reopens the topic: 'A compact qualification record can contain seven gates: 1. Exact device, checkpoint, tokenizer, engine...' — the qualification contract is stated twice in two different vocabularies.",
+  "fix_instruction": "Move the 'Serving qualification' subsection and its depth-adaptation paragraphs into §6 immediately before the seven-gate qualification record and merge them (model-class requirements become the first gate); leave §4 with the four measurement habits plus one added item: 'record the model revision and the execution path in use, so a fallback is visible in telemetry'."
+ },
+ {
+  "id": "CH9-MINICASE-PER-LAYER-ACTIVATION-SCALE",
+  "verdict": "DEFENSIBLE",
+  "evidence": "chapter-09.md §8 (exact): 'for the canonical 8×H100 host the meaningful per‑step data movement is a TP all‑reduce of the per‑layer activations (tens of MBs, not GBs, at the canonical batch and hidden size — it scales with batch × hidden width per layer)'. chapter-10.md §3 TP verifies: 'M = 16 × 8,192 × 2 = 262,144 B = 256 KiB. The ring moves $1.75M = 448$ KiB per rank sent... Across 160 calls (two per block × 80 blocks), each rank sends 70 MiB and receives 70 MiB in that one decode step' — 448 KiB per layer, 70 MiB per step. 'tens of MBs' attaches to the sentence's head noun 'per‑step data movement' → 70 MiB ✓ correct; but its position (immediately after 'per‑layer activations') plus 'it scales with batch × hidden width per layer' makes the per-layer reading (448 KiB, wrong by ~150×) available — the finding itself phrases it as 'a reader could conclude'. The sentence is correct under the head-noun reading and wrong under the attachment reading — an ambiguity, not a wrong number.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH9-ETHERNET-LINE-CODE-CLAIM",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "chapter-09.md (found after normalization): '200/400GbE transcodes 64b/66b to 256b/257b before FEC; InfiniBand coding varies by generation...'. The book is correct on the standard: IEEE 802.3bs defines the PCS for both 200GbE and 400GbE with exactly this transcode — IEEE (Gustlin) presentation: 'Both 200GBASE-R and 400GBASE-R are based on a 64B/66B code... The 64B/66B code is then transcoded to 256B/257B encoding to reduce the overhead and make room for Forward Error Correction (FEC)' (matches the book's sentence verbatim in substance); Ethernet Alliance blog: 'it was decided to reuse... the transcoding and RS‑FEC from 802.3bj for the PCS for 200 Gigabit Ethernet (200GbE) and 400 Gigabit Ethernet (400GbE)'; Wikipedia: 'The 400 Gigabit Ethernet and 200 Gigabit Ethernet standard developed by the IEEE P802.3bs Task Force'. The finding's claim (256b/257b belongs only to 400G/800G; 200GbE has no such stage) is false; its standard citations are also wrong: 802.3ck is 100G/lane (no 800G), the 400G multi-lane 256b/257b came from 802.3bs/802.3bj, and '200GbE (802.3cd)... two lanes' is wrong (802.3cd 200G = four lanes KR4/CR4).",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH12-QUALITY-GATE-MET-BY-CONSTRUCTION",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "chapter-12.md: the gate criterion is relative, as §8 states: 'Quality requirements fix the model class: the system must achieve ~70B‑model answer quality on enterprise prompts' — candidate (a) IS the reference 70B model, so the relative condition holds by definition: 'Quality: the 70B is itself the workload's quality reference, so this gate is met by construction' (exact). The finding's 'overstates' does not touch the gate as worded; and 'empirical' in candidate (c) concerns a different candidate (a 7B model attempting to match the reference): 'Whether a 7B‑class model can match the 70B model's answer quality on *this* workload is **not** derivable from parameter count... It is an empirical question answered only by running the actual evaluation set' — different candidates, different epistemic situations, no contradiction. The finding's own fix concedes: 'the gate is satisfied relative to the reference'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH11-CH12-REGIME-STATEMENT-SCOPING",
+  "verdict": "CONFIRMED",
+  "evidence": "Both fragments verified by grep: chapter-11.md §2: 'Serving is **managing three precious resources against a stream of arrivals**: GPU compute (FLOPs, bound in prefill), GPU memory bandwidth (HBM, bound in decode), and GPU memory capacity (HBM bytes, bound by KV cache)' — no qualifier ✓; chapter-12.md §2: 'compute (prefill throughput — prefill is compute‑bound, Ch 11, scoped to the canonical architecture × batch × precision × kernel operating point), memory bandwidth (decode throughput — decode is bandwidth‑bound)' — scope attached to prefill only, decode bare ✓; chapter-11.md §3 qualifies both: 'prefill is **compute‑bound** — compute‑dominated there, a regime statement not a law (Ch 2)' and 'bandwidth‑dominated there, a regime statement not a law (Ch 2)'. The natural entry point (the mental model) presents the least-qualified version.",
+  "fix_instruction": "In Ch 11 §2 write 'GPU compute (FLOPs — the binding resource for prefill at the canonical operating point)' and 'GPU memory bandwidth (HBM — the binding resource for decode at the canonical operating point)', and add 'Both bindings are regime statements, not laws... re‑derived in §3'; in Ch 12 §2 extend the scope phrase to cover decode."
+ },
+ {
+  "id": "CH11-FIGURE-FILE-NAMES-SWAPPED",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-11.md (found after normalization, all fragments): '![Fig 11.1 — Discrete vs continuous batching (Orca‑style slot diagram)...](figures/fig-11-1102.png)' and '![Fig 11.2 — Serving is four separable concerns, not a stack...](figures/fig-11-1101.png)' — caption numbers and file names transposed ✓; and '![Fig 11.3...](figures/fig-11-1103.png)' matches ✓ (the anomaly is confined to 11.1/11.2). All of the finding's examples verified: fig-09-0901/0902/0903 for Figs 9.1/9.2/9.3 ✓; fig-10-1001 for Fig 10.1 ✓; fig-12-1201 for Fig 12.1 ✓; fig-13-1301 for Fig 13.1 ✓; fig-14-1401 for Fig 14.1 ✓ — 'every other chapter in the chunk' (ch9–14) holds.",
+  "fix_instruction": "Rename the assets so caption number and file name agree (fig-11-1101.png = discrete vs continuous batching; fig-11-1102.png = four serving concerns), or renumber the captions; then verify no other manuscript reference points at the old names."
+ },
+ {
+  "id": "CH11-CH13-CH14-FIGURE-SPEC-COMMENTS-IN-SOURCE",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-11.md (exact): '<!-- Figure spec: mechanism‑first serving‑flow diagram; request stream → scheduler → KV page table (+ prefix cache) → optional prefill pool / decode pool split → output; annotate the resource each stage trades. -->'. Grep for '<!-- Figure spec' across design/manuscript/**/*.md finds 12 comments in 11 chapters: chapter-04 (1), chapter-06 (1), chapter-07 (2), chapter-08 (1), chapter-10 (1), chapter-11 ✓, chapter-13 ✓, chapter-14 ✓, chapter-16 (1), chapter-21 (1), chapter-23 (1). The finding's scope detail is wrong: chapter-12.md contains NO Figure spec comment (while 8 chapters outside its list do) — the phenomenon is broader than reported (12 comments in 11 chapters, not 4). Core defect verified: image-generation instructions remain in the manuscript source.",
+  "fix_instruction": "Move every 'Figure spec' comment (12 across chapters 04/06/07/08/10/11/13/14/16/21/23) into the figure-generation repository or a build-time input, and delete them from the manuscript source; then verify the built PDF yields zero 'Figure spec' matches."
+ },
+ {
+  "id": "CH10-TABLE10-1-DP-REPLICATES-OPTIMIZER",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-10.md Table 10-1 (exact): '| Data (DP) | the data batch | model + optimizer | gradients → all‑reduce (per step) | model fits one GPU, need throughput (the canonical 70B is 140 GB > 80 GB per GPU, so it does not fit one GPU — DP is not its baseline; see §10.3) |' — the Replicates/Communicates cells do not distinguish the two modes. §1 framing note verbatim: 'In *inference*, DP simply means running independent model replicas to raise throughput — there is no gradient sync at all, because each request is served by one replica'; §1 item 3 also: '3. **Data parallelism (DP)** — *different in the two modes.* Training: ... Inference: independent replicas each serve a disjoint set of requests; no gradient sync...' — the chapter states DP has two meanings while the table prints only the training set.",
+  "fix_instruction": "Split the cell by mode: 'Training: model + optimizer state; Inference: model only (no optimizer, no gradient sync)'; and Communicates: 'Training: gradients → all‑reduce (per step); Inference: none'."
+ },
+ {
+  "id": "CH15-17-01",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-17.md (exact): 'The decode‑bandwidth floor for the canonical 8×H100 host is 140 GB ÷ (8 × 3.35 TB/s) ≈ 5.2 ms/step, so a well‑tuned decode can run well under the 25 ms SLO.' Arithmetic: 140/26.8 = 5.22 ✓ — weights only. Per-request KV verified: chapter-17.md 'Each request at 9,200 input + 300 output reserves a **9,500‑token max** KV of 9,500 ×2.62 MB ≈ 24.9 GB... C = 436 GB ÷ 24.9037 GB ≈ **17.5 concurrent requests**... floor **17**' ✓. Recompute: 17 × 24.9037 = 423.36 + 140 = 563.36 GB/step ÷ 26,800 GB/s = 21.02 ms/step ≈ 4× the printed floor ✓; and 12,000 output tok/s (40 × 300) × (140/17 + 24.1 GB/tok) = 388,000 GB/s = 388 TB/s ÷ 26.8 ≈ 14.5× HBM bandwidth ✓. 'never quantified' verified: grep across chapter-02/06/08/15/17/20 for (B × KV, batch × KV, weights + B, 140 + B) — zero matches; chapter-15.md §1 names the cost only qualitatively: 'the memory traffic of KV cache reads and writes on every token step'. At 21 ms/step (ideal) vs the 25 ms budget there is no 'well under' (84% of budget — any inefficiency exceeds it).",
+  "fix_instruction": "Add the KV term: bytes/step = 140 GB + B × 24.9 GB; step time = that ÷ 26.8 TB/s; at B = 17 → ~21 ms/step. Re-anchor Ch 17's sensitivity band (5.2/10/25) on the corrected floor, add a decode-leg feasibility check at the canonical peak load, and rewrite 'well under the 25 ms SLO'."
+ },
+ {
+  "id": "CH15-17-02",
+  "verdict": "CONFIRMED",
+  "evidence": "All fragments found (normalized): chapter-17.md '300 output tokens at ~25 ms/token, Chapter 8' and 'The 25 ms/token in W is the TPOT *budget*, not a measured per‑step time' and 'Sizing at the 25 ms budget is the conservative choice'; full context: 'The fleet number above therefore uses the *least‑favorable* (budget) pole... The sensitivity band... at 5.2 ms/step W ≈ 2.6 s...; at 10 ms/step W ≈ 4.1 s...; at the 25 ms budget W ≈ 8.6 s (in‑flight ≈ 344, ~21 hosts)' — band 5.2/10/25 with no SLO pole ✓. chapter-15.md §1: 'The canonical SLO this chapter measures against: TTFT median ≤ 1.2 s, p95 ≤ 2 s, TPOT ≤ 40 ms (Ch 4/Ch 14)' ✓ exists — while Ch 4 says 'TPOT budget ~25 ms/token; p95 TPOT ≤ 35 ms' and Ch 14 says 'TPOT ~25 ms/token' and 'median TPOT about 25 ms' (grep) — the 40 ms matches neither of the chapters it cites. Recompute: 300 × 40 ms = 12.0 s → W = 13.08 ✓; 40 × 13.08 = 523.2 ✓; 523.2/17 = 30.8 → 31 hosts ✓ (+48% vs 21) ✓. The 25 ms sizing pole is the most aggressive relative to the SLO poles (35/40) and the SLO pole is absent from the band.",
+  "fix_instruction": "Name one canonical TPOT sizing pole and state it once; if 40 ms is SLO-only, make the conservative sizing pole 40 ms and re-derive the host counts (or state that 25 ms is a tighter internal target and that sizing at the SLO pole gives ~31 hosts); add the 40 ms pole to the sensitivity band."
+ },
+ {
+  "id": "CH15-16-03",
+  "verdict": "CONFIRMED",
+  "evidence": "All fragments found (normalized) in chapter-15.md: 'with the §6 FP8‑KV decision, ⌈344/35⌉ = 10 hosts at 40 rps, bounded below by the ~7‑host prefill requirement — prefill compute then binds' (Scope note) and 'with §6's FP8 KV, ⌈344/35⌉ = 10, bounded below by ~7 prefill hosts' (mini-case). ~7 = 368,000/56,514 = 6.51 → 7 at 100% MFU ✓ (no MFU label anywhere in the text); the standard prefill screen = 368,000/19,780 = 18.6 → 19 at 35% MFU ✓ — chapter-16.md: 'the Independent prefill screen stays 19 at peak under case (i) (22 under case (ii))'; 19/7 = 2.7 ✓; 19 > 10 ⇒ prefill binds and the fleet is ~19, not 10 (and with the printed numbers 7 < 10, so 'prefill compute then binds' contradicts its own figures too). The book labels MFU bases explicitly elsewhere: chapter-08.md 'Ch 24's prefill screen: 1.63 nodes at 100% MFU, ~5 at 35% MFU'.",
+  "fix_instruction": "Replace in both places with: 'bounded below by the 19‑host prefill screen under case (i) (21 under case (iii), 22 under case (ii)) — prefill compute binds, so FP8 KV does not shrink the fleet below ~19 hosts at the canonical peak'."
+ },
+ {
+  "id": "CH16-17-04",
+  "verdict": "CONFIRMED",
+  "evidence": "chapter-17.md Table 17-2 (exact): '| N @ T=0, FP8 (C=35; 23.275) | ⌈344/23.275⌉ ≈ 15 | ⌈860/23.275⌉ ≈ 38 | ⌈1720/23.275⌉ ≈ 75 |'; the in-flight row above: '| in‑flight @ non‑agentic W=8.6s | 344 | 860 | 1,720 |'; rule: 'every N count is ceiled'. Recompute: 344/23.275 = 14.78 → 15 ✓ printed; 860/23.275 = 36.95 → 37, printed **38** ✗; 1720/23.275 = 73.90 → 74, printed **75** ✗. 23.275 = 35 × 0.70 × 0.95 ✓. Every other row follows plain ceil exactly (verified: FP16 row ⌈344/11.305⌉ = 31 ✓, ⌈860/11.305⌉ = 77 ✓, ⌈1720/11.305⌉ = 153 ✓; all T=3 rows ✓: 82/205/410, 66/164/328, 40/99/198, 32/79/158) — only cells 38 and 75 deviate by +1. A denominator of ~23.0–23.1 reproduces all three (860/23.1 = 37.23 → 38 ✓; 1720/23.1 = 74.46 → 75 ✓; 344/23.1 = 14.89 → 15 ✓) — the row was computed with a different denominator than the printed 23.275.",
+  "fix_instruction": "Print 37 and 74, or recompute the whole row from C × u × ρ = 23.275 and state the denominator used."
+ }
+]

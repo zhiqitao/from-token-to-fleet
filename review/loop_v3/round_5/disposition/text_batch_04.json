@@ -1,0 +1,382 @@
+[
+ {
+  "id": "CH15-SN-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chapter 15, Architect's Question scope note",
+  "chapter": "15",
+  "quoted_clause": "Scope of the one-host framing (stated up front, matching Chapter 8's Scope note): the 8×H100 host here is the per-request feasibility container...",
+  "observed": "The scope note is a single dense paragraph containing the chapter question, a scope disclaimer, Little's Law arithmetic, fleet sizing (21 hosts), FP8 alternative (10 hosts), prefill requirement (~7 hosts), multiple qualifications, and a chapter roadmap. The reader receives ~10 distinct claims and 3 host counts before the chapter's first section.",
+  "evidence": "Visual inspection of the paragraph structure and claim count.",
+  "root_cause": "All scope qualifications compressed into one paragraph.",
+  "correction": "Break into a short scope statement (2–3 sentences) plus a brief 'Fleet implication' callout or footnote for the host-count arithmetic, deferring detailed numbers to Ch 16/17. Preserve the protective function (preventing the reader from thinking one host serves 40 rps).",
+  "acceptance_test": "The opening paragraph contains at most one host-count derivation; remaining fleet numbers are cross-referenced.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "AGT-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Event-level call ledger / Derived totals — 'Processed (100% prefix reuse)' bullet",
+  "chapter": "Ch 19 (agentic systems)",
+  "quoted_clause": "only each call's newly appended tokens are re-processed, 9,200 + 3 × 865 = **11,795** input + 495 output = **12,290** tokens",
+  "observed": "The bullet uses 865 = δ + γ per turn as the re-processed count under 100% prefix reuse, yielding 11,795 input tokens. However, the W_reuse formula in the same section correctly states 'only the incremental prefix (9,200 + 3×800 = 11,600 — the γ reasoning tokens were generated in the prior call, so their KV already exists) is pre-filled.' Under prefix reuse, γ tokens' KV is created during the prior call's decode and does not need re-processing; only the δ tool-output tokens (800/turn) require new prefill. The correct re-processed input is 9,200 + 3×800 = 11,600, not 11,795. The corrected total would be 11,600 + 495 = 12,095 (which conveniently equals the peak residency, confirming every token is processed exactly once under full prefix reuse).",
+  "evidence": "W_reuse formula in the same section explicitly uses 11,600 and explains why γ's KV already exists. The ledger shows γ is generated during call k's decode, so its KV is in cache before call k+1 begins. 11,795 − 11,600 = 195 = 3×65 (the γ tokens incorrectly counted).",
+  "root_cause": "The 'processed (reuse)' bullet counts all newly appended context tokens (δ + γ) as re-processed, while the W_reuse formula correctly counts only tokens whose KV does not yet exist (δ only). Two different definitions of 're-processed' in the same section.",
+  "correction": "Change the bullet to: 'only each call's newly appended tokens whose KV does not yet exist are re-processed, 9,200 + 3 × 800 = **11,600** input + 495 output = **12,095** tokens' — and add a parenthetical noting that γ's KV already exists from the prior call's decode (consistent with the W_reuse formula's explanation).",
+  "acceptance_test": "The bullet's input total equals 11,600 (= 9,200 + 3×800), the output total equals 495, and the combined total equals 12,095 (= peak residency). The bullet is numerically consistent with the W_reuse formula's 11,600 prefill-token count.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "AGT-02",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Token-quantity definitions table — current_input_length row",
+  "chapter": "Ch 19 (agentic systems)",
+  "quoted_clause": "the full input of a given call (retained history + new retrieval δ + prompt)",
+  "observed": "The definition lists three additive components: retained history, new retrieval δ, and prompt. In the ledger's convention, retrieval/tool output occurs AFTER the model call, so there is no 'new retrieval δ' in any call's input — the example confirms this (call-2 input = 9,200 + 865 = 10,065, with no separate δ term). A reader could interpret 'new retrieval δ' as the prior turn's tool output (which IS part of retained_history), leading to double-counting: 865 + 800 + 9,200 = 10,865 ≠ 10,065. The definition is either describing a different calling convention (retrieval-before-model-call) without saying so, or the δ term is always zero in this context and should be removed or explicitly noted as zero.",
+  "evidence": "The example in the same cell computes 9,200 + 865 = 10,065 with no δ term. The ledger shows tool output arrives after each model call, not before. The retained_history row already includes δ₁ in its 865 value.",
+  "root_cause": "The definition mixes a general agentic-system input structure (which might include pre-call retrieval) with the ledger's specific convention (retrieval after model call) without distinguishing them.",
+  "correction": "Either (a) remove 'new retrieval δ' from the formula and note that in the ledger's convention retrieval arrives after the model call, or (b) add a qualifier: 'new retrieval δ (zero in the ledger's post-call retrieval convention; nonzero if the system retrieves before the model call)'.",
+  "acceptance_test": "A reader applying the definition to call 2 obtains 10,065 without ambiguity, and the definition explicitly addresses whether δ is zero or nonzero in the ledger's convention.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "AGT-03",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Multi-step reasoning cost — β discussion vs W_reuse formula",
+  "chapter": "Ch 19 (agentic systems)",
+  "quoted_clause": "(to ~14.16 s / ~1.65× with 100% prefix reuse, a full increase of ~5.6 s)",
+  "observed": "W_reuse(3) is stated as ≈ 14.14 s in the W formula section but as ~14.16 s in the β/task-multiplier discussion. The correct value from the stated inputs is 14.14 s: (11,600/9,200)×1.08 + 12.375 + 0.399 = 1.362 + 12.375 + 0.399 = 14.136 ≈ 14.14. The 14.16 s value is obtained by using 11,795 (the incorrect prefill count from AGT-01): (11,795/9,200)×1.08 + 12.375 + 0.399 = 14.159 ≈ 14.16. This also affects the stated multiplier: 14.14/8.58 = 1.648 ≈ 1.65× (correct with exact base 8.58), but 14.16/8.6 = 1.647 ≈ 1.65× (coincidentally also 1.65× with rounded base). The time value itself is inconsistent.",
+  "evidence": "W_reuse(3) formula section states ≈ 14.14 s. Recomputing with 11,600 prefill tokens gives 14.136. Recomputing with 11,795 gives 14.159. The β section uses 14.16.",
+  "root_cause": "Downstream consequence of AGT-01: the β discussion uses the incorrect 11,795 prefill count, producing 14.16 instead of 14.14.",
+  "correction": "Change '~14.16 s' to '~14.14 s' in the β/task-multiplier discussion. Verify the multiplier: 14.14/8.58 = 1.648 ≈ 1.65× (keep 1.65× if using exact base 8.58; or change to 1.64× if using rounded base 8.6 — be consistent).",
+  "acceptance_test": "W_reuse(3) is stated as 14.14 s in both locations, and the multiplier is consistent with the stated base (8.58 or 8.6).",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "AGT-04",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Tool-call latency budget — L_base description",
+  "chapter": "Ch 19 (agentic systems)",
+  "quoted_clause": "Every agentic request pays this at least once, and usually again for the intermediate reasoning the loop generates (the T·γ tokens).",
+  "observed": "'This' refers to L_base ≈ 8.6 s (1.08 s prefill + 7.5 s decode of 300 tokens). The intermediate reasoning is T×65 tokens, costing T×1.625 s of decode — far less than a full 8.6 s. A reader could conclude the full 8.6 s is paid twice (once for the final answer, once for intermediate reasoning), which would be incorrect. The intermediate reasoning adds decode time for γ tokens plus prefill of the grown prefix, not another full L_base.",
+  "evidence": "L_base = 8.6 s for 300 output tokens. Intermediate reasoning = T×65 tokens × 25 ms = T×1.625 s. For T=3: 4.875 s of decode, not 8.6 s. The W formula correctly separates these components.",
+  "root_cause": "Ambiguous pronoun 'this' — could refer to the specific 8.6 s value or the general concept of inference latency.",
+  "correction": "Reword to: 'Every agentic request pays L_base at least once for the final answer, and pays additional decode time for the intermediate reasoning the loop generates (the T·γ tokens, ~1.6 s per turn at ~25 ms/token).' Or: '...pays this at least once, and pays additional inference time again for the intermediate reasoning...'",
+  "acceptance_test": "A reader cannot reasonably conclude that the full 8.6 s L_base is paid twice for a T-turn request.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "AGT-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Tool-call latency budget — L_agent definition",
+  "chapter": "Ch 19 (agentic systems)",
+  "quoted_clause": "the per-turn agent step averages ~120 ms ... λ_tool ≈ 100 ms (median, tool backend) ... So per-turn orchestration overhead L_agent ≈ 220 ms (median).",
+  "observed": "λ_step is described as an 'average' (~120 ms) while λ_tool is described as a 'median' (~100 ms), but L_agent is claimed to be a 'median' (~220 ms). The sum of an average and a median is not necessarily a median (median(X+Y) ≠ median(X) + median(Y) in general). The text mixes statistical terms for components of the same sum.",
+  "evidence": "'averages ~120 ms' (average) + '~100 ms (median)' (median) = '~220 ms (median)' (claimed median). The sum of an average and a median does not yield a median without additional assumptions.",
+  "root_cause": "Inconsistent statistical terminology across components of the same quantity.",
+  "correction": "Either use 'average' for both components (giving an average L_agent ≈ 220 ms), use 'median' for both (if the 120 ms figure is also a median), or reword to 'L_agent ≈ 220 ms (typical/central estimate)' to avoid claiming a specific statistical measure.",
+  "acceptance_test": "The statistical term (average, median, or approximate central tendency) is consistent across λ_step, λ_tool, and L_agent.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "AGT-06",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Tool-call latency budget — λ_step parenthetical",
+  "chapter": "Ch 19 (agentic systems)",
+  "quoted_clause": "the model's own per-turn work, prefill of the grown prefix + decode of γ, is carried inside W, ≈ 3.0–3.1 s marginal per turn",
+  "observed": "The description says 'prefill + decode' (excluding tool), but the stated range 3.0–3.1 s matches the marginal cost INCLUDING the tool leg (2.94, 3.04, 3.14 s for turns 1–3). Prefill + decode only gives 2.80, 2.91, 3.01 s — a range of 2.8–3.0 s, not 3.0–3.1 s. Additionally, the range 3.0–3.1 does not cover turn 1's marginal cost (2.94 s with tool, 2.80 s without).",
+  "evidence": "Marginal cost of turn k = I_k/9,200 × 1.08 + 1.625 + 0.133. For k=1: 1.179+1.625+0.133=2.94 (with tool), 1.179+1.625=2.80 (without tool). For k=3: 1.381+1.625+0.133=3.14 (with tool), 1.381+1.625=3.01 (without tool).",
+  "root_cause": "The description ('prefill + decode') and the range (3.0–3.1) refer to different quantities — the range appears to include the tool leg while the description excludes it. Also, the range doesn't cover all turns.",
+  "correction": "Either (a) change the description to 'prefill + decode + tool' and widen the range to '≈ 2.9–3.2 s' to cover turns 1–4, or (b) keep 'prefill + decode' and change the range to '≈ 2.8–3.0 s'. Specify which turns the range applies to if it doesn't cover all.",
+  "acceptance_test": "The stated range matches the described components (prefill+decode or prefill+decode+tool) and covers the marginal costs for the turns it claims to describe.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH20-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 20 §8 mini-case, fleet aggregate bullet",
+  "chapter": "20",
+  "quoted_clause": "the ρ ≈ 0.95 factor used in this chapter and Ch 17 — a fractional-throughput efficiency derate on the rate, not a second slot floor and not a failure spare — raises it to 344/(0.95 × 17) = 344/16.15 ≈ 21.3 → 22 hosts (the ρ-derate of the KV screen; the *independent* full-square case (ii) prefill compute screen also gives 22, ⌈21.81⌉ — a different 22, from a FLOP-counting case rather than a ρ derate — but with the same ρ = 0.95 derate §3 applies to every throughput-bound screen, case (ii) rises to ⌈21.81/0.95⌉ = 23, the max over all screens; 23 is the ρ-derated requirement, 22 the raw-screen requirement, and 23 governs the screen set (§3: the larger requirement wins))",
+  "observed": "A single sentence contains four nested parenthetical qualifications covering the ρ-derate of the KV screen, the independent case (ii) screen, the ρ-derate of case (ii), and the hierarchy of 22 vs 23. The sentence spans ~120 words with three levels of parenthetical nesting and is extremely difficult to parse on first reading.",
+  "evidence": "All arithmetic verified correct: 344/16.15=21.3→22; 21.81/0.95=22.96→23; 21.81/0.665=32.80→33+1=34; 344/11.305=30.43→31+1=32. The content is numerically sound but the presentation defeats the pedagogical purpose of a mini-case.",
+  "root_cause": "All qualifications for the screen hierarchy were compressed into one sentence rather than decomposed into a structured presentation.",
+  "correction": "Decompose into a structured presentation: (a) state the KV screen result (21 raw, 22 with ρ), (b) state the case (ii) prefill screen result (22 raw, 23 with ρ), (c) state that 23 is the max before the full policy, (d) state the full-policy results (34/32). A compact table of screens with columns [Screen, Raw, With ρ, With full policy] would make the hierarchy immediately clear.",
+  "acceptance_test": "A reader can identify every screen, its raw requirement, its ρ-derated requirement, and which screen governs, without re-reading the passage more than once.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH20-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 20 §3 fleet aggregate throughput paragraph",
+  "chapter": "20",
+  "quoted_clause": "At the canonical peak of 40 rps, fleet size must satisfy **both** the KV-residency and the throughput/latency bounds *and whichever binds first*. With the per-host rate at ~2.0 req/s (17/8.6 = 1.977, the binding KV-slot upper bound on admitted rate above — whose *reciprocal* gives the lower bound on host count), a fleet for 40 rps starts at **21 hosts** on the Little-bound — ⌈40 × 8.6 / 17⌉ = ⌈344/17⌉ = ⌈20.24⌉ = 21. The KV-residency bound coincides here — by Little's law, the in-flight count at 40 rps is λ·W = 40 × 8.6 ≈ 344, and ⌈344/17⌉ = **21 hosts** (17 whole contexts per host, no fractional admission) — so the Little and KV-residency formulations *agree* at the peak: they are the same identity in two views (λW/C = λ/(C/W)), both giving 21, exactly as Chapter 17 notes — while the token-throughput ceiling (⌈40 / 3.684⌉ = 11 hosts) stays non-binding here; the ρ ≈ 0.95 fractional-throughput derate raises the requirement to 344 / (0.95 × 17) = 344/16.15 ≈ 21.3 → **22 hosts**.",
+  "observed": "A single paragraph of ~150 words contains five nested parenthetical qualifications, two em-dash asides, and three separate computations (Little bound, token-throughput ceiling, ρ-derate) compressed into one continuous flow.",
+  "evidence": "All arithmetic verified correct: 344/17=20.24→21; 40/3.684=10.86→11; 344/16.15=21.3→22. The paragraph requires multiple readings to extract the three distinct screens and their results.",
+  "root_cause": "Three independent screens (Little/KV, token-throughput, ρ-derate) were compressed into one paragraph rather than presented as a structured comparison.",
+  "correction": "Break into three short paragraphs or a compact table: (1) Little/KV screen → 21 hosts, (2) token-throughput screen → 11 hosts (non-binding), (3) ρ-derate → 22 hosts. State the identity λW/C = λ/(C/W) once, clearly, rather than embedding it in an em-dash aside.",
+  "acceptance_test": "A reader can identify all three screens and their results in a single pass without re-reading.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH20-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 20 §3 (three occurrences) and §8 mini-case (one occurrence)",
+  "chapter": "20",
+  "quoted_clause": "KV-slot-based analytical UPPER bound on admitted request completion rate, conditional on an assumed mean KV residency time",
+  "observed": "The full phrase appears verbatim four times within Chapter 20: twice in §3 (once in the binding-rate bullet, once in the 'Call this quantity what it is' paragraph), once in the §3 planning-bound caveat, and once in the §8 mini-case.",
+  "evidence": "Text search of the chunk confirms four verbatim occurrences of the full phrase within Ch 20.",
+  "root_cause": "The phrase was established for cross-chapter consistency (Ch 16, 17, 20) but repeated at full length within a single chapter rather than abbreviated after the first occurrence.",
+  "correction": "Establish the full phrase once in §3 (first occurrence). In subsequent occurrences within Ch 20, use a shorter reference such as 'the KV-slot upper bound' or 'the analytical upper bound' with a parenthetical cross-reference to the first definition. Keep the full phrase for cross-chapter references (Ch 16, 17).",
+  "acceptance_test": "The full phrase appears at most twice in Ch 20 (once in §3, once in §8); subsequent occurrences use a defined abbreviation.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH20-05",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 20 §3 Worked Example",
+  "chapter": "20",
+  "quoted_clause": "**Latency floor first, then reconcile the two capacity bounds.** ... **Throughput bound (tokens/s).** ... **KV-residency / latency bound (Little's law).** ... **Call this quantity what it is** ... **Simultaneous feasibility check (prefill + decode coexistence).** ... **Fleet aggregate throughput (illustrative form).** ... **Scheduling overhead.** ... **Autoscaling economics.**",
+  "observed": "The §3 Worked Example contains nine distinct sub-parts identified only by bold text within paragraphs, not by actual sub-headings. The section spans a very large portion of the chapter.",
+  "evidence": "The bold labels serve as de facto sub-headings but are visually indistinguishable from bold emphasis within paragraphs. A reader cannot easily navigate the section or locate a specific sub-part.",
+  "root_cause": "Sub-parts were compressed into bold labels rather than promoted to actual sub-headings.",
+  "correction": "Promote the bold labels to actual sub-headings (e.g., '#### Latency floor', '#### Throughput bound', '#### KV-residency bound', etc.) to improve navigability. Alternatively, restructure the section into fewer, larger sub-parts with clearer boundaries.",
+  "acceptance_test": "A reader can locate any sub-part of §3 by scanning headings alone, without reading paragraph text.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH20-06",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 20 Fig 20.1 caption",
+  "chapter": "20",
+  "quoted_clause": "Fig 20.1 — Fleet capacity vs host count: analytical C_analytic(N) = N × 17/8.6, efficiency-adjusted C_eff(N) = 0.95 × C_analytic, served demand S(N) = min(40, C_eff) — all in req/s. **Takeaway:** ... **Scope:** ... **Reading the two gaps:** ... **Measured-vs-illustrative:** ...",
+  "observed": "The Fig 20.1 caption contains five distinct labeled sections (description, Takeaway, Scope, Reading the two gaps, Measured-vs-illustrative) totaling ~200 words. This is a figure note, not a caption.",
+  "evidence": "The caption is longer than most paragraphs in the chapter. The information is valuable but its placement in a caption makes it hard to find and reference.",
+  "root_cause": "All figure-related qualifications were compressed into the caption rather than distributed between a concise caption and a figure note or surrounding prose.",
+  "correction": "Reduce the caption to the figure description + takeaway (2-3 sentences). Move the Scope, Reading the two gaps, and Measured-vs-illustrative content to a figure note below the caption or to the surrounding prose in §3.",
+  "acceptance_test": "The caption is ≤3 sentences; supplementary material is in a clearly labeled figure note or prose.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH20-07",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 20 §8 aggregate-rps note",
+  "chapter": "20",
+  "quoted_clause": "≥ 2× peak = 80 rps is a **stress/soak** target, not the planning screen: sustaining 80 rps needs ~41–43 hosts (80 / 1.977 = 40.5 → 41; with the ρ = 0.95 derate → 43), a larger pool than the 21/22-host KV-screen sizing, whose 21-host analytical capacity is ≈ 41.5 rps ≈ 1.04× peak (C_analytic = 21 × 17/8.6; the 22-host ρ-derated sizing gives ≈ 41.3 rps ≈ 1.03×; served demand still caps at the 40 rps peak). The KV-screen sizing passes its own screens at ≈ 1× peak; the 2× row is what a soak pool must sustain.",
+  "observed": "A single paragraph contains four nested parenthetical qualifications and three separate computations (80 rps host count, 21-host capacity, 22-host capacity).",
+  "evidence": "All arithmetic verified correct: 80/1.977=40.5→41; 80/1.878=42.6→43; 21×1.977=41.5; 22×1.977×0.95=41.3. The paragraph requires multiple readings.",
+  "root_cause": "Three computations were compressed into one paragraph with nested parentheticals.",
+  "correction": "Break into two short paragraphs: (1) the 80 rps stress target and its host count, (2) the 21/22-host capacity relative to peak. Or use a compact table.",
+  "acceptance_test": "A reader can extract all three computations in a single pass.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH20-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 20 §8 mini-case, fleet aggregate bullet",
+  "chapter": "20",
+  "quoted_clause": "23, the max over all screens; 23 is the ρ-derated requirement, 22 the raw-screen requirement, and 23 governs the screen set (§3: the larger requirement wins)",
+  "observed": "The mini-case states '23 governs the screen set' without the 'before the full policy' qualifier that §3 explicitly includes ('the largest requirement before the full policy'). The full-policy results (34/32) are mentioned only later in the planning-bound caveat.",
+  "evidence": "§3 says 'the largest requirement before the full policy'; the mini-case says 'the max over all screens' and '23 governs the screen set' without this qualifier. A reader encountering the mini-case first might conclude 23 is the final answer when 34 governs under the full policy.",
+  "root_cause": "The qualifier 'before the full policy' was omitted from the mini-case restatement of the screen hierarchy.",
+  "correction": "Add 'before the full policy' to the mini-case statement: '23 governs the screen set before the full policy' or '23 is the max over all screens before the 70% × 95% + N−1 policy.'",
+  "acceptance_test": "A reader of the mini-case alone can identify that 34 (not 23) is the requirement under the full policy.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH21-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 21 §6 Architecture Consequence",
+  "chapter": "21",
+  "quoted_clause": "The AI Factory is the operational backbone that makes the book's whole loop durable. Every architectural decision recomputes through it: model selection (Ch3/5) feeds the evaluation gate, serving choices (Ch11) determine canary mechanics, benchmarking (Ch14) becomes the recurring gate, TCO (Ch16) sets how much gating overhead is affordable, and fleet operations (Ch17-20) provide the rollout/rollback surfaces.",
+  "observed": "The Architecture Consequence section is a summary of how the factory connects to other chapters, not a discussion of architectural consequences (infrastructure requirements, design decisions, trade-offs in implementing the factory).",
+  "evidence": "The section contains no discussion of what infrastructure is needed, what design decisions implement the factory, or what trade-offs arise in factory design.",
+  "root_cause": "The section was written as a chapter summary rather than as an architecture consequence discussion.",
+  "correction": "Add 2-3 sentences on concrete architectural consequences: what services/components implement the factory (evaluation runner, canary router, rollback mechanism), what the key design decisions are (gate granularity, canary routing strategy, rollback trigger), and what trade-offs arise (gate latency vs. promotion speed, canary traffic vs. evaluation fidelity).",
+  "acceptance_test": "The section identifies at least one concrete architectural decision the reader must make when implementing the factory.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH21-02",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 21 (chapter structure)",
+  "chapter": "21",
+  "quoted_clause": "(no mini-case section present; chapter ends with §7 What We Still Don't Know)",
+  "observed": "Chapter 21 has no end-of-chapter mini-case (section 8), unlike Chapter 20 which has one. The chapter does have a Worked Example (§3) but no separate exercise for the reader.",
+  "evidence": "Ch 20 structure: §1-§7 + §8 mini-case. Ch 21 structure: §1-§7, no §8. The Worked Example in §3 presents the solution; a mini-case would ask the reader to apply the reasoning.",
+  "root_cause": "The mini-case was either intentionally omitted or overlooked during chapter construction.",
+  "correction": "Add a brief mini-case that requires the reader to apply the factory's gating reasoning: e.g., given a candidate model with specific quality/latency/cost metrics and a canary result, decide whether to promote, roll back, or extend the canary — and justify the decision using the chapter's framework.",
+  "acceptance_test": "The chapter has an end-of-chapter exercise that requires active application of the chapter's reasoning, not passive restatement.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH20-09",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 20 §2 and §8",
+  "chapter": "20",
+  "quoted_clause": "by Little's law (§2) vs Little's Law stays a mean relation (§8)",
+  "observed": "The text uses both 'Little's law' (lowercase, §2) and 'Little's Law' (capitalized, §8) for the same concept.",
+  "evidence": "§2: 'by Little's law'; §8: 'Little's Law stays a mean relation'.",
+  "root_cause": "Inconsistent capitalization of the same proper noun.",
+  "correction": "Standardize to one form throughout (either 'Little's law' or 'Little's Law').",
+  "acceptance_test": "Text search confirms a single capitalization form for 'Little's' across the manuscript.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH20-10",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 20 throughout",
+  "chapter": "20",
+  "quoted_clause": "~2.0 req/s (§3) vs ~10 rps average (§2) vs 40 rps peak (§2)",
+  "observed": "The text uses both 'req/s' and 'rps' for requests per second. 'rps' appears for arrival rates (10 rps, 40 rps); 'req/s' appears for capacity rates (~2.0 req/s).",
+  "evidence": "§2: '~10 rps average and ~40 rps peak'; §3: '~2.0 req/s'; §8: '16 req/s'.",
+  "root_cause": "Either an intentional distinction (arrival rate vs capacity rate) that is never stated, or an unintentional inconsistency.",
+  "correction": "If intentional, state the convention explicitly (e.g., 'rps denotes arrival rate; req/s denotes capacity rate'). If unintentional, standardize to one form.",
+  "acceptance_test": "Either the convention is stated explicitly or a single unit form is used throughout.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH20-11",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 20 §3",
+  "chapter": "20",
+  "quoted_clause": "~35,000 tokens/s (§3 throughput bound) vs ~19,800 tok/s (§3, referencing Ch 8)",
+  "observed": "The text uses both 'tokens/s' and 'tok/s' for the same unit.",
+  "evidence": "§3: '~35,000 tokens/s' and '~19,800 tok/s' appear in the same bullet.",
+  "root_cause": "Inconsistent abbreviation of the same unit.",
+  "correction": "Standardize to one abbreviation ('tokens/s' or 'tok/s') throughout.",
+  "acceptance_test": "Text search confirms a single abbreviation form for tokens per second.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH20-12",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 20 §3",
+  "chapter": "20",
+  "quoted_clause": "KV-holding time (§3 fleet aggregate) vs KV residency time (§3, §8)",
+  "observed": "The text uses both 'KV-holding time' and 'KV residency time' for the same concept (the time a request holds KV in memory).",
+  "evidence": "§3: 'concurrency × service-time' and 'KV-holding time'; §3/§8: 'KV residency time' and 'E[W_KV-resident]'.",
+  "root_cause": "Two terms for the same concept.",
+  "correction": "Standardize to one term ('KV residency time' appears more frequently and aligns with the E[W_KV-resident] notation).",
+  "acceptance_test": "Text search confirms a single term for the concept across the manuscript.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_triage": "ABSENT"
+ }
+]

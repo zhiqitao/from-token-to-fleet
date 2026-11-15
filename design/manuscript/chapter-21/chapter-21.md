@@ -41,7 +41,7 @@ We show the factory's value by comparing *ungated* and *gated* adoption of a can
 
 \Needspace{5\baselineskip}
 
-**Cost of a bad ungated release.** The canonical service does ~288,000 requests/workday (10 rps × 8 h × 3,600 s; ~6.24M/month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16). Suppose a regression raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery and rollback. That is 6/8 ×288,000 ≈ **216,000 requests** served at a broken SLO. At the Ch16 canonical self-hosted rate of ~$24.97/1K requests (active business-hours volume, Ch 4), the direct cost is 216,000 × $24.97/1K ÷ 1,000 ≈ **$5,394**, and it is ≈ **$3,032** on the Ch16 cloud-scaled ~$14.04/1K basis (216,000 × ~$14.038/1K ÷ 1,000 ≈ 3,032) — modest relative to the *business* cost, but the dominant term is users experiencing a 47% latency regression, trust erosion, and the fire drill. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
+**Cost of a bad ungated release.** The canonical service does ~288,000 requests/workday (10 rps × 8 h × 3,600 s; ~6.24M/month — Ch 4's 8-h × 260-workday calendar basis, computed in Ch 16). Suppose a regression raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery and rollback. That is 6/8 ×288,000 ≈ **216,000 requests** served at a broken SLO. At the Ch16 canonical self-hosted rate of ~$24.97/1K requests (active business-hours volume, Ch 4), the serving cost of the 216,000 requests exposed is 216,000 × $24.97/1K ÷ 1,000 ≈ **$5,394** (volume × unit rate — incurred whether or not the regression occurred), and it is ≈ **$3,032** on the Ch16 cloud-scaled ~$14.04/1K basis (216,000 × ~$14.038/1K ÷ 1,000 ≈ 3,032) — modest relative to the *business* cost, but the dominant term is users experiencing a 47% latency regression, trust erosion, and the fire drill. [ILLUSTRATIVE][DERIVED] *(worked example, not reference)*
 
 **Cost of a good gated release.** A canary at 5% traffic for 2 hours serves 5% × 288,000 ×2/8 ≈ **3,600 requests** through the candidate while it is measured against a full evaluation suite. If it passes, promotion is low-risk; if it fails, no users beyond canary were exposed. [ILLUSTRATIVE][DERIVED]
 
@@ -79,19 +79,20 @@ The factory is only as trustworthy as its gates. We measure four things continuo
 
 The AI Factory is the operational backbone that makes the book's whole loop durable. Every architectural decision recomputes through it: model selection (Ch3/5) feeds the evaluation gate, serving choices (Ch11) determine canary mechanics, benchmarking (Ch14) becomes the recurring gate, TCO (Ch16) sets how much gating overhead is affordable, and fleet operations (Ch17-20) provide the rollout/rollback surfaces. Without the factory, each chapter's decision is a one-off; with it, they compound into a system that gets better and safer every cycle.
 
+Three components implement the factory: an evaluation runner that executes the gate, a canary router that splits traffic between incumbent and candidate, and a rollback mechanism that restores the last-known-good model. Three design decisions shape each promotion: gate granularity (what the gate checks and how often), canary routing strategy (how traffic splits and for how long), and the rollback trigger (which metric breach fires it). Each decision is a trade-off: a finer, slower gate raises gate latency and delays promotion; a wider canary improves evaluation fidelity but exposes more users.
+
 \begingroup\makeatletter\def\fps@figure{!htb}\makeatother
 
 ![Fig 21.1 — The model-lifecycle layer runs Data → Train → Eval → Canary → Observe → Promote → Serve. Six gates align with the transition seams: PASS permits the next stage; each labeled FAIL branch restores last-known-good state and re-validates. Production feedback returns evidence to data/evaluation, where the gates apply again. [ILLUSTRATIVE] conceptual](figures/fig-21-2101.png)
 
 \endgroup
 
-<!-- Figure spec: seven forward stages; decision ticks at the six transition seams; six labeled failure branches to a separate rollback node; production feedback to data/evaluation. -->
 
 ## 7. What We Still Don't Know
 
-- **The true cost of model churn** (retraining + reeval + redeploy) per productivity gain is (a hypothesis) and workload-specific; there is no universal cadence.
-- **How well evaluation suites generalize** across distribution shifts in real traffic is (to be verified); a suite tuned on last quarter's data may misjudge this quarter's model.
-- **The right canary size** for a given risk posture is to be verified per service; 5% worked here but high-risk systems may need smaller, staged canaries.
+- **The true cost of model churn** (retraining + reeval + redeploy) per productivity gain is [HYPOTHESIS] and workload-specific; there is no universal cadence.
+- **How well evaluation suites generalize** across distribution shifts in real traffic is workload-dependent and evolves with traffic patterns — an ongoing verification requirement, not a gap in this manuscript's research; a suite tuned on last quarter's data may misjudge this quarter's model.
+- **The right canary size** for a given risk posture is [UNRESOLVED] per service; 5% worked here but high-risk systems may need smaller, staged canaries.
 
 ## 8. End-of-Chapter Mini-Case: The Vendor's 'Better Bench': Canary and Rollback
 

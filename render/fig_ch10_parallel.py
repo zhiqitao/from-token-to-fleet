@@ -108,16 +108,22 @@ txt(3.0, yB + 16.5, 'B · Pipeline parallel (PP) — splits the layer stack',
 stages = [(5.0, 'GPU 0', 'layers 1–8'), (22.5, 'GPU 1', 'layers 9–16'), (40.0, 'GPU 2', 'layers 17–24')]
 for x0, g, lay in stages:
     cbox(x0, yB + 7.0, 15.0, 5.0, ORAN_F, ORAN_E, hatch='xxx')
+    # dashed idle slots: each stage sits idle while the pipeline fills (left)
+    # and drains (right) -- the visible bubble region inside the stage boxes
+    for _sx in (x0 + 0.4, x0 + 11.6):
+        ax.add_patch(FancyBboxPatch((_sx, yB + 7.4), 3.0, 4.2,
+                                    boxstyle='round,pad=0.02,rounding_size=0.15',
+                                    fc='#f2f2f2', ec='#b8b8b8', lw=0.9, ls='--', zorder=3))
     txt(x0 + 7.5, yB + 10.5, g, size=9.5, weight='bold', color=INK)
     txt(x0 + 7.5, yB + 8.4, lay, size=8.6, color=INK)
 arrow(20.0, yB + 9.5, 22.5, yB + 9.5, RED)
 arrow(37.5, yB + 9.5, 40.0, yB + 9.5, RED)
 txt(30.0, yB + 13.3, 'activations  →  P2P at stage boundaries', size=8.5, color=MUTE)
-# the pipeline bubble: stage 1 idle while the pipeline fills / drains
-ax.add_patch(FancyBboxPatch((5.0, yB + 4.7), 15.0, 1.4,
-                            boxstyle='round,pad=0.05,rounding_size=0.2',
-                            fc='#f2f2f2', ec='#b8b8b8', lw=0.9, ls='--', zorder=1))
-txt(12.5, yB + 5.4, 'idle (bubble) at fill/drain — pipeline-wide', size=8.5, color=MUTE)
+# the pipeline bubble: annotation inset well over one text-height inside the
+# panel border (ha='left' at x=3.0 matches the other panel annotations; the
+# old centred placement crossed the card's left border)
+txt(3.0, yB + 5.4, 'idle (bubble) at fill/drain — pipeline-wide', size=8.5,
+    color=MUTE, ha='left')
 txt(3.0, yB + 2.3, 'communication-light: only stage boundaries move  →  spans nodes',
     size=8.5, color=MUTE, ha='left')
 

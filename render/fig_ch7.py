@@ -13,7 +13,7 @@ ctx = np.array([1, 4, 9.5, 32, 128])  # K tokens
 # real LLaMA-2-70B-class GQA (8 KV heads): 2*80*8*128*2 B = 0.33 MB/token (8x smaller)
 # FP8 = raw tensor byte-halving (exactly 50% of BF16): 2,621,440/2 = 1,310,720 B = 1.31 MB/tok.
 # (The vLLM "54%" figure is a decode-inter-token-latency slope ratio, NOT a memory footprint.)
-kv_fp16 = 2.5 * ctx   # GB  (full-MHA FP16 bound)
+kv_fp16 = 2.62144 * ctx   # GB  (full-MHA FP16 bound; 2.62144 GB per 1K tokens = 2.62 MB/token)
 kv_fp8  = 1.31 * ctx  # GB  (full-MHA raw byte-halving = 50% of BF16, ~1.31 MB/tok)
 kv_gqa  = 0.33 * ctx  # GB  (real GQA 70B-class)
 kv_gqa8 = 0.33 * 0.5 * ctx  # GB  GQA + raw FP8 byte-halving (~50% of GQA FP16)
@@ -36,7 +36,17 @@ ax.set_title('KV cache size vs context, by attention geometry (full-MHA vs GQA)'
 # KV budget ceiling: 640 total - 140 weights - ~64 runtime/NCCL = ~436 GB usable KV
 ax.axhline(640, color='#7f8c8d', ls=':', lw=1, label='8×H100 raw (640 GB)')
 ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB')
-ax.scatter([9.5], [2.5*9.5], color='#c0392b', zorder=5, s=25)
+# R5 fix (FIG-7.5-08): the full-MHA FP16 bound meets the 436 GB KV budget at
+# ~166K tokens (436 / 2.62144 = 166.3).  Extend the FP16 line to the crossing,
+# mark it and tag it; the leader runs through the open lower-right band (every
+# series ends at x=128) and lands ON the 436 GB rule, crossing no curve.
+_xc = 436 / 2.62144
+ax.plot([128, _xc], [kv_fp16[-1], 436], '-', color='#c0392b')
+ax.scatter([_xc], [436], color='#c0392b', zorder=5, s=25)
+ax.annotate('FP16 bound reaches the\n436 GB budget at ~166K', xy=(_xc, 436),
+            xytext=(250, 100), ha='left', va='center',
+            arrowprops=dict(arrowstyle='->', lw=0.8), fontsize=8.5)
+ax.scatter([9.5], [2.62144*9.5], color='#c0392b', zorder=5, s=25)
 # Loop-2 review (N1): at xytext=(10.2, 70) the label sat just above the red
 # FP16 curve and its right end crossed the line (measured: 0.0 pt clearance,
 # arrow shaft 0.1 pt) - same-colour annotation-on-curve.  In log-log space the
@@ -45,7 +55,7 @@ ax.scatter([9.5], [2.5*9.5], color='#c0392b', zorder=5, s=25)
 # curve and below the KV-budget rule.  Measured clearances: label 9.7 pt off the
 # red curve, 10.1 pt off the 436 GB rule, 19.1 pt inside the left frame; the
 # leader drops onto the 9.2K point from above and crosses no curve.
-ax.annotate('9.5K ≈ 24.9 GB (FP16 bound)', xy=(9.5, 2.62*9.5), xytext=(1.2, 107),
+ax.annotate('9.5K max context (9.2K in + 300 out)\n≈ 24.9 GB (FP16 bound)', xy=(9.5, 2.62*9.5), xytext=(1.2, 107),
             arrowprops=dict(arrowstyle='->', lw=0.8), fontsize=8.5)
 # R30 P2 (MiMo-F003): 9.5K IS a plotted point (ctx = 1/4/9.5/32/128) and the
 # arrow above already lands on its marker -- but on a log axis 9.5 sits only
@@ -53,7 +63,7 @@ ax.annotate('9.5K ≈ 24.9 GB (FP16 bound)', xy=(9.5, 2.62*9.5), xytext=(1.2, 10
 # as 10K, where the value would be 26.2 GB, not 24.9.  Make the x-position
 # explicit: a drop-line from the marker to the axis plus a "9.5K" label, so the
 # marker cannot be misread as the 10K gridline.
-ax.plot([9.5, 9.5], [0.05, 2.5*9.5], ':', color='#c0392b', lw=0.9,
+ax.plot([9.5, 9.5], [0.05, 2.62144*9.5], ':', color='#c0392b', lw=0.9,
         alpha=0.7, zorder=2)
 ax.text(9.5, 0.062, '9.5K', ha='center', va='bottom', fontsize=8.5,
         color='#c0392b', fontweight='bold', zorder=6,
@@ -114,7 +124,7 @@ plt.close()
 print('wrote fig-07-0701')
 
 # ---- fig-07-0702: Inference vs fine-tuning memory floor ----
-labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+opt)', 'QLoRA\n(weights+adapters)']
+labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+opt)', 'QLoRA\n(weights+KV+adapters)']
 vals = [165, 1120, 60]
 fig, ax = plt.subplots(figsize=(6.1, 4.9))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
@@ -146,7 +156,7 @@ fig.text(0.5, 0.01,
          'Each bar is a conditional floor (weights + the listed states), not a full deployment config.\n'
          'Full fine-tune: FP16 weights + FP16 grads + Adam m/v/master (~16 B/param).\n'
          'Activation, microbatch/sequence, and offload/checkpointing are NOT included (Table 7-2).\n'
-         'QLoRA: 4-bit (NF4) base + LoRA adapters + a small optimizer.\n'
+         'QLoRA: 4-bit (NF4) base 35 GB + KV 24 GB + LoRA adapters/optimizer ~1 GB.\n'
          'Specific adapter-rank value, activation memory, and offload/checkpointing are NOT included (Table 7-2).',
          fontsize=8.2, color='#555', ha='center', va='bottom', linespacing=1.5)
 # v9 review: all three host rules shared one dash pattern, so they were
@@ -171,7 +181,7 @@ ax.annotate('~5 GB over 2×H100', xy=(0.25, 160), xytext=(0.35, 330),
             ha='center', va='bottom', fontsize=8.2, color='#555555',
             bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.9),
             arrowprops=dict(arrowstyle='->', color='#555555', lw=0.8))
-ax.axhline(640, color='#27408b', ls='-.', lw=1.5, label='8×H100 (640 GB)')
+ax.axhline(640, color='#4a4a4a', ls='-.', lw=1.5, label='8×H100 (640 GB)')
 ax.axhline(80, color='#6f9e5f', ls=':', lw=1.4, label='1×H100 (80 GB)')
 ax.set_ylim(0, 1500)
 # red annotation sits directly above the red bar (x=1), just above its value

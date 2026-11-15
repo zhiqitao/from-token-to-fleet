@@ -2,6 +2,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Patch
 
 # ---- fig-26-2602: Workload fingerprints (grouped bars, NOT radar) ----
 # A radar chart's enclosed-area reading is invalid (axis-order + normalisation
@@ -18,9 +19,14 @@ batch   = [0.55, 0.60, 0.30, 0.85, 0.35, 0.90]
 x = np.arange(len(dims)); wdt = 0.25
 fig, ax = plt.subplots(figsize=(6.1, 4.13))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
-b1 = ax.bar(x-wdt, longctx, wdt, label='Long-context RAG Q&A', color='#3a6ea5', hatch='/')
-b2 = ax.bar(x,     chat,    wdt, label='High-throughput chat', color='#e67e22', hatch='x')
-b3 = ax.bar(x+wdt, batch,   wdt, label='Batch inference',      color='#6f9e5f', hatch='.')
+# FIG-425-01: hatch density quadrupled on bars AND legend swatches — matplotlib's
+# hatch cell (~22 pt) is far larger than an 8 pt legend swatch (~5 pt tall),
+# so single-density patterns rendered as solid blocks in the legend; quadrupling the
+# pattern character keeps the same pattern type (diagonal / crosshatch / dots)
+# while making the swatch carry a visible pattern that matches the bars.
+b1 = ax.bar(x-wdt, longctx, wdt, label='Long-context RAG Q&A', color='#3a6ea5', hatch='////')
+b2 = ax.bar(x,     chat,    wdt, label='High-throughput chat', color='#e67e22', hatch='xxxx')
+b3 = ax.bar(x+wdt, batch,   wdt, label='Batch inference',      color='#6f9e5f', hatch='....')
 
 ax.set_xticks(x)
 ax.set_xticklabels(dims, fontsize=9.2, rotation=0, ha='center')
@@ -37,10 +43,16 @@ ax.set_title('Workload fingerprints on six axes (grouped bars, not radar)', font
 # legend: with the limit at 1.0 it can no longer sit INSIDE the top band (the
 # tallest bar is 0.95), so it moves BELOW the axis, under the x tick labels,
 # drawn in figure coordinates inside a reserved band so it cannot clip.
+# FIG-425-01: each swatch must carry its series' hatch (grayscale-safe); the
+# BarContainer handles rendered as solid blocks, so build explicit Patch handles
+# with the same fill + hatch the bars use.
 ax.grid(axis='y', alpha=0.3)
 plt.tight_layout()
 plt.subplots_adjust(bottom=0.30)   # reserve the band for legend + scale note
-fig.legend(handles=[b1, b2, b3], labels=[b.get_label() for b in (b1, b2, b3)],
+_series = [('Long-context RAG Q&A', '#3a6ea5', '////'),
+           ('High-throughput chat', '#e67e22', 'xxxx'),
+           ('Batch inference',      '#6f9e5f', '....')]
+fig.legend(handles=[Patch(fc=c, ec='black', hatch=h, label=l) for l, c, h in _series],
            fontsize=8.2, loc='upper center', ncol=3, frameon=False,
            bbox_to_anchor=(0.5, 0.175), columnspacing=1.2, handlelength=1.4)
 fig.text(0.98, 0.03, 'per-axis 0-1 scale; compare within an axis, not across axes.',

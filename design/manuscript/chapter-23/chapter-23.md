@@ -31,7 +31,7 @@ The customer conversation is really about **buying information, not delivering a
 
 *(Worked example dialogue — illustrative, not reference.)* An internal-platform lead says: "We want an AI assistant for our sales teams — it should answer questions from our product docs and CRM data, and it should be fast." [ILLUSTRATIVE] *(Scenario provenance — a constructed worked-example dialogue, not a secondary source; the provenance/status label axes are defined in the Sources chapter.)*
 
-**Architect:** "~How many people will use it, and how often?"
+**Architect:** "How many people will use it, and how often?"
 **Lead:** "~2,000 on the platform; maybe 5% are in it at once at peaks."
 **Architect:** "So ~100 concurrent at peak, and realistically a fraction of that firing requests. Roughly how many questions per second at the busiest minute?"
 **Lead:** "If everyone on the sales floor asked at once, maybe 40 a second."
@@ -79,7 +79,7 @@ The requirements dialogue has its own quality metrics:
 1. **Bound coverage** — did the conversation surface all six numbers (traffic, tokens, SLO, quality, cost, ops)? Missing one is a future scope surprise.
 2. **Customer buy-in** — did the mirrored restatement get an explicit "yes"? An unconfirmed restatement is not a scope.
 3. **Decision lead time** — how quickly the six bounds let us produce a defensible draft architecture. The whole point is that extracting numbers, not more meetings, unlocks the design.
-4. **Assumption log** — every guess we made that the customer did not explicitly confirm, tracked as (to be verified) items, not silent defaults.
+4. **Assumption log** — every guess we made that the customer did not explicitly confirm, tracked as [UNRESOLVED] items, not silent defaults.
 
 ## 5. Common Mistakes
 
@@ -87,7 +87,7 @@ The requirements dialogue has its own quality metrics:
 - **Accepting aspirations as SLOs.** "Make it fast" is a goal; "p95 TTFT under 2 s" is a contract. Write the contract.
 - **Letting the customer choose the technology.** "We want a 70B model" is a solution, not a requirement; the architect derives the model from the bounds (Ch 5), not from the customer's guess.
 - **Ignoring the operational constraint.** "It has to be on-prem / private / no cloud" often decides more than any performance number — surface it early.
-- **Not logging assumptions.** Every silence becomes a hidden assumption that surfaces as a dispute later. Write them down as (to be verified) items.
+- **Not logging assumptions.** Every silence becomes a hidden assumption that surfaces as a dispute later. Write them down as [UNRESOLVED] items.
 
 ## 6. Architecture Consequence
 
@@ -97,14 +97,17 @@ The requirements conversation is where the book's entire loop is *fed.* The six 
 
 *The framing funnel: broad ask → five question gates (problem, success, data, constraints, scope) → confirmed bounds. The full worked example (figure plus the adjacent text) surfaces the six architectural numbers in Table 23-1: the figure's boxes draw five of them (traffic & concurrency, token profile, SLO, ops/tier, TCO), and the adjacent text supplies the sixth (quality bar). [ILLUSTRATIVE] conceptual*
 
-<!-- Figure spec: mechanism-first funnel diagram; top = vague ambition; five labeled question gates narrow it; bottom = quantified scope feeding the architecture loop. -->
 
 ## 7. What We Still Don't Know
 
-- **How accurate the customer's own-told numbers are** ("40 rps peak") is (unresolved: evidence pending); peak estimates are notoriously optimistic and should be triangulated with real logs where possible.
-- **Whether the quality bar once defined stays stable** is (a hypothesis awaiting verification); as users adopt the tool, their expectations and the data they query both shift.
-- **The right number of questions to lock quality** is (unresolved: evidence pending); 50 worked here as a representative proxy but a larger, task-distributed set is stronger.
+- **How accurate the customer's own-told numbers are** ("40 rps peak") is [UNRESOLVED]; peak estimates are notoriously optimistic and should be triangulated with real logs where possible.
+- **Whether the quality bar once defined stays stable** is [HYPOTHESIS]; as users adopt the tool, their expectations and the data they query both shift.
+- **The right number of questions to lock quality** is [UNRESOLVED]; 50 worked here as a representative proxy but a larger, task-distributed set is stronger.
 
 ## 8. End-of-Chapter Mini-Case: The 'Next Month' Customer Portal: Requirements Dialogue
 
-A CTO emails the architect: "We heard LLMs are great — let's put one on our customer portal to answer support tickets. Shipping it next month." Rather than confirm the launch date, the architect books a 30-minute session and runs the funnel. It emerges the portal gets ~5 rps average but 200-rps bursts during outage events (traffic), tickets are short (~500 tokens, not retrieval-heavy), quality means "resolve the ticket, not just answer" (a capability that rules out a sub-7B / answer-only model — 7B is the smallest tier that clears it, and the short ~500-token tickets are why 7B rather than 70B suffices), the SLO is 3 s because users are already frustrated (latency), and — critically — the portal sits on regulated payment data so nothing leaves the premises (ops). The mirrored restatement turns "let's ship AI next month" into "a 7B-class model on one on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst buffer (an arrival-rate buffer: bursts of duration D queue and drain at the measured per-host rate r (≤141 rps at 100% MFU, ~42–57 at 30–40%); max queue wait ≈ D·(200−r)/r must stay inside the 3 s SLO — so state D, the buffer depth D·(200−r) requests, and either add capacity, add admission control, or scope the SLO to non-burst traffic; worked: D = 1 s at 200 rps → queue depth 200 × 1 = 200 requests, drained at ~50 rps in ~4 s — burst-window requests miss the 3 s SLO, so the burst runs under a separate queue-and-drain degraded-mode SLO (option a)), quality-gated on real resolved tickets — and a two-week pilot on 5% of tickets to confirm the resolution quality before full rollout." The customer's vague excitement became a defensible, bounded, shippable scope — the 3 s SLO scoped to non-burst traffic, the burst served under the queue-and-drain degraded mode — and the architect is already architecting, not guessing.
+A CTO emails the architect: "We heard LLMs are great — let's put one on our customer portal to answer support tickets. Shipping it next month." Rather than confirm the launch date, the architect books a 30-minute session and runs the funnel. It emerges the portal gets ~5 rps average but 200-rps bursts during outage events (traffic), tickets are short (~500 tokens, not retrieval-heavy), quality means "resolve the ticket, not just answer" (a capability that rules out a sub-7B / answer-only model — 7B is the smallest tier that clears it, and the short ~500-token tickets are why 7B rather than 70B suffices), the SLO is 3 s because users are already frustrated (latency), and — critically — the portal sits on regulated payment data so nothing leaves the premises (ops). The mirrored restatement turns "let's ship AI next month" into "a 7B-class model on one on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst buffer, quality-gated on real resolved tickets — and a two-week pilot on 5% of tickets to confirm the resolution quality before full rollout."
+
+**The burst buffer, spelled out.** The buffer is an arrival-rate buffer: bursts of duration D queue and drain at rate r, an idealized 100% MFU ceiling (≤141 rps — 7B FP16, ~500 output tokens/request, H100; no derivation is given elsewhere in this manuscript), i.e. ~42–57 rps at 30–40% MFU; the measured per-host rate must replace this before the burst budget is trusted. Max queue wait ≈ D·(200−r)/r must stay inside the 3 s SLO — so state D, the buffer depth D·(200−r) requests, and either add capacity, add admission control, or scope the SLO to non-burst traffic. Worked: D = 1 s at 200 rps → 200 requests arrive, 50 served during the burst; queue depth at burst end = (200−50) × 1 = 150 requests; drained at ~50 rps in 150/50 = 3 s; max queue wait = 3 s; total time from burst start = 4 s — burst-window requests at/near the 3 s SLO boundary miss it, so the burst runs under a separate queue-and-drain degraded-mode SLO (option a).
+
+The customer's vague excitement became a defensible, bounded, shippable scope — the 3 s SLO scoped to non-burst traffic, the burst served under the queue-and-drain degraded mode — and the architect is already architecting, not guessing.

@@ -62,7 +62,7 @@ ax.text(4.7, 2.30, 'shared K/V heads', fontsize=8.2, ha='center', va='center',
         color='#b3591f', fontweight='bold')
 
 # 8 : 1 ratio badge (kept short; the MB/token takeaway is in the caption)
-ax.text(5.0, 1.62, '8 query heads : 1 K/V head  (× 8 groups)',
+ax.text(5.0, 1.62, '8 q : 1 KV per group (8 total; 3 shown)',
         fontsize=8.8, ha='center', va='center', color='#333333',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f5f5f5', ec='#b9b9b9', lw=0.8))
 

@@ -46,11 +46,11 @@ def main():
              ha='left', fontsize=12, weight='bold')
     fig.text(X_TEXT, .895, 'N = 8; sent bytes per rank = 1.75 × tensor bytes',
              ha='left', fontsize=9.5)
-    fig.text(X_TEXT, .85, '140 GB tensor (245 GB sent at 1.75×): NVLink 544 ms | HDR 6,125 ms | RoCE 98,000 ms',
+    fig.text(X_TEXT, .85, '140 GB per rank (245 GB sent at 1.75×): NVLink 544 ms | HDR 6,125 ms | RoCE 98,000 ms',
              ha='left', fontsize=9)
     fig.legend(*ax.get_legend_handles_labels(), loc='lower center',
                bbox_to_anchor=(.5, .055), fontsize=9, frameon=False)
-    fig.text(.5, .025, 'Analytical model; no offload, latency or overlap; not measured',
+    fig.text(.5, .025, 'Analytical model; no offload, no per-step latency, no comm/comp overlap; send/recv full-duplex; not measured',
              ha='center', fontsize=9)
     assert FACTOR * 140 == 245
     assert abs(245 / 450 - 490 / 900) < 1e-12

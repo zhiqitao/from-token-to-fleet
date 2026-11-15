@@ -30,20 +30,25 @@ x = Ts
 base  = np.full(5, I0)        # initial prompt context (constant)
 delta = Ts*d                  # retrieved per turn
 gamma = Ts*g                  # generated per turn
-ax1.bar(x - w/2, base,  w, color='#c8d8ea', hatch='//',  edgecolor='#27408b', linewidth=0.6, label='initial context (I\u2080)')
+ax1.bar(x - w/2, base,  w, color='#c8d8ea', hatch='//',  edgecolor='#27408b', linewidth=0.6, label='initial context (I₀ = 9,200)')
 ax1.bar(x - w/2, delta, w, bottom=base,        color='#7fc6b5', hatch='...', edgecolor='#1a7a63', linewidth=0.6, label='retrieved (\u03b4=800)')
 ax1.bar(x - w/2, gamma, w, bottom=base+delta,  color='#f5c98b', hatch='xx',  edgecolor='#e67e22', linewidth=0.6, label='generated (\u03b3=65)')
 ax1.bar(x - w/2, [Of]*5, w, bottom=inp,        color='#6f9e5f', hatch='\\\\', edgecolor='#1e7a59', linewidth=0.6, label='output (O=300)')
-# FIG-19.2-1: the floating orange leader is REMOVED — at print scale the gamma
-# sliver (65/14,000 of the panel height ≈ 2-3 px at 220 dpi) carries no
-# resolvable hatch, so a leader could not terminate on a visibly orange
-# segment. The slice is instead stated in the note under the panels, which
-# points at the legend swatch and Fig 19.3.
+# FIG-347-06: leader lines with VALUES call out the two thin bands (generated γ
+# and output O) — at print scale their hatches are below resolution, so each is
+# named with its value and pointed at its segment on the T = 4 bar; the note
+# under the panels still states γ's resolution limit.
+ax1.annotate('generated γ = 65/turn', xy=(3.8, 12530), xytext=(2.2, 13900),
+             ha='right', fontsize=8.0, color='#a35a10',
+             arrowprops=dict(arrowstyle='-', lw=0.8, color='#a35a10'))
+ax1.annotate('output O = 300', xy=(3.8, 12810), xytext=(4.35, 13900),
+             ha='right', fontsize=8.0, color='#3d6b33',
+             arrowprops=dict(arrowstyle='-', lw=0.8, color='#3d6b33'))
 ax1.set_ylabel('Tokens / request', fontsize=9)
 ax1.set_title('(a) Tokens accumulate', fontsize=9.5)
 ax1.grid(alpha=0.3, axis='y')
 _legend_a = [
-    ('initial context (I\u2080)', '#c8d8ea', '//'),
+    ('initial context (I₀ = 9,200)', '#c8d8ea', '//'),
     ('retrieved (\u03b4=800)',     '#7fc6b5', '...'),
     ('generated (\u03b3=65)',      '#f5c98b', 'xx'),
     ('output (O=300)',             '#6f9e5f', '\\\\'),
@@ -52,10 +57,11 @@ _legend_a = [
 # the four-line note (was -0.35, which dropped it below the note block). The
 # probe checks >= 6 pt clearance from the note and >= 8 pt legend type (8.6).
 ax1.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in _legend_a],
-           fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.29), ncol=2, frameon=False)
+           fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.25), ncol=1, frameon=False)
 ax1.tick_params(labelsize=8.6)
-# headroom so the tallest bar (turn 4 ~12.7K) is not clipped at the top spine
-ax1.set_ylim(0, 14000)
+# headroom so the tallest bar (turn 4 ~12.7K) plus the leader-line labels
+# (FIG-347-06, up to ~14.4K) are not clipped at the top spine
+ax1.set_ylim(0, 14600)
 
 # Panel 2: resulting KV
 ax2.bar(x, kv_gb, 0.5, color='#c0392b', hatch='..', edgecolor='white', linewidth=0.6, label='KV / request (FP16)')
@@ -96,12 +102,13 @@ fig.text(0.5, 0.86, 'append-only bounding case: context only ever accumulates ac
 # live agent.  Placed in the empty band between the x-labels and the legend —
 # NOTE (FIG-19.2-02): the legend now sits ABOVE this block, so the reader meets
 # the swatches before the note. Last line is the FIG-19.2-1 resolution note.
-fig.text(0.5, 0.085,
+fig.text(0.5, 0.060,
          'counterfactual: each column = a separate completion after T turns,\n'
          'including one final 300-token answer — not successive states of one live agent.\n'
          'Bars are RETAINED context/KV, not summed per-call processed or billed tokens;\n'
-         'tokens per submitted request grow ~2.5x under no prefix reuse (100-request ledger, Table 19-1).\n'
-         '(a) generated (γ=65/turn) is below visual resolution at this scale — see legend and Fig 19.3.',
+         'tokens per submitted request grow ~2.5x under no prefix reuse (mix 68/25/5/2%, Table 19-1: 2.52x).\n'
+         '(a) generated (γ=65/turn) is below visual resolution at this scale — see legend and Fig 19.3.\n'
+         '(b) KV GB = tokens × 2.62 MB/token (FP16).',
          ha='center', va='center', fontsize=8.6, color='#222')
 plt.subplots_adjust(left=0.12, right=0.97, top=0.78, bottom=0.385, wspace=0.40)
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',

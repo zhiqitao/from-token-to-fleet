@@ -21,7 +21,7 @@ os.environ["REVIEW_EFFORT"] = "max"
 os.environ.setdefault("CHAT_TIMEOUT", "300")
 chunks = rl.build_chunks()
 FLOOR = 40000
-R4 = os.path.join(rl.V3, "round_4")
+R4 = os.path.join(rl.V3, os.environ.get("ROUND_DIR", "round_4"))
 
 
 def probe() -> bool:
@@ -60,8 +60,8 @@ def review(piece, depth=0):
     print("    %d chars (depth %d, piece %d)%s"
           % (len(out), depth, len(piece),
              " TRUNC" if out.startswith("[[TRUNC") else ""), flush=True)
-    if (len(out) >= 200 and not out.startswith("[[TRUNC")) \
-            or len(piece) <= FLOOR:
+    if (len(out) >= 200 and not out.startswith("[[TRUNC")
+            and rl.parse_issues(out)) or len(piece) <= FLOOR:
         return out
     bounds = [m.start() for m in re.finditer(r"\n(?=#{1,3} )", piece)]
     mid = len(piece) // 2

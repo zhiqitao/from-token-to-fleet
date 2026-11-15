@@ -37,14 +37,14 @@ ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis('off')
 # Title (short)
 ax.text(0.5, 0.965, 'P/D disaggregation: two cases, two different KV links',
         fontsize=9.6, fontweight='bold', ha='center', color='#1a1a1a')
-ax.text(0.5, 0.925, 'the split is the same; the transfer link — and its cost — is not',
+ax.text(0.5, 0.925, 'the P/D split is the same; the transfer link — and its cost — is not',
         fontsize=8.6, ha='center', color='#555')
 
 # =========================== PANEL A =====================================
 # (A) prefill + decode partitions INSIDE ONE 8xH100 host = one NVLink domain.
-ax.text(0.255, 0.875, 'A. Within one NVLink 4 domain', fontsize=9.0,
+ax.text(0.262, 0.875, 'A. Within one NVLink domain (8 GPUs: 4+4)', fontsize=9.0,
         fontweight='bold', ha='center', color='#1a1a1a')
-ax.text(0.255, 0.825, '~35 GB ≈ 0.08 s (on-node, unidirectional)\nillustrative 13.3K-token, FP16 full-MHA', fontsize=8.0,
+ax.text(0.255, 0.825, '~35 GB ≈ 0.08 s (on-node, unidirectional)\nillustrative 13.3K-token, FP16 full-MHA', fontsize=8.6,
         ha='center', va='center', color='#2b2b2b')
 
 # host = one NVLink domain
@@ -53,13 +53,13 @@ ax.add_patch(FancyBboxPatch((0.03, 0.34), 0.45, 0.44, boxstyle='round,pad=0.01',
 ax.text(0.255, 0.745, '8× H100 host', fontsize=8.4,
         ha='center', va='center', color='#444')
 
-def _gpu_grid(x0, y0, fc, ec, cols=2, rows=2, gx=0.045, gy=0.07, pad=0.012):
+def _gpu_grid(x0, y0, fc, ec, cols=2, rows=2, gx=0.045, gy=0.07, pad=0.012, hatch=None):
     for c in range(cols):
         for r in range(rows):
             ax.add_patch(FancyBboxPatch((x0 + pad + c * (gx + 0.015),
                                          y0 + pad + r * (gy + 0.015)),
                                         gx, gy, boxstyle='round,pad=0.004',
-                                        fc=fc, ec=ec, lw=0.8))
+                                        fc=fc, ec=ec, lw=0.8, hatch=hatch))
 
 # prefill partition (4 of the 8 GPUs); x0/w set by the ROUND-4 label fix
 ax.add_patch(FancyBboxPatch((0.044, 0.38), 0.121, 0.34, boxstyle='round,pad=0.008',
@@ -67,7 +67,7 @@ ax.add_patch(FancyBboxPatch((0.044, 0.38), 0.121, 0.34, boxstyle='round,pad=0.00
 ax.text(0.1045, 0.685, 'PREFILL', fontsize=8.8, fontweight='bold',
         ha='center', va='center', color='#c0392b')
 ax.text(0.1045, 0.635, '4 GPUs', fontsize=8.2, ha='center', va='center', color='#2b2b2b')
-_gpu_grid(0.044, 0.38, '#e67e22', '#a04000', gx=0.038)
+_gpu_grid(0.044, 0.38, '#e67e22', '#a04000', gx=0.038, hatch='//')
 
 # decode partition (the other 4 GPUs)
 ax.add_patch(FancyBboxPatch((0.345, 0.38), 0.121, 0.34, boxstyle='round,pad=0.008',
@@ -76,6 +76,12 @@ ax.text(0.4055, 0.685, 'DECODE', fontsize=8.8, fontweight='bold',
         ha='center', va='center', color='#27408b')
 ax.text(0.4055, 0.635, '4 GPUs', fontsize=8.2, ha='center', va='center', color='#2b2b2b')
 _gpu_grid(0.345, 0.38, '#2980b9', '#154360', gx=0.038)
+
+# FIG-11.3-5: one-line key + grayscale cue (prefill glyphs hatched above;
+# decode glyphs stay solid), placed in the free strip inside the host box
+# below the two partition grids (y 0.34 box floor .. 0.392 grid floor).
+ax.text(0.255, 0.36, 'square = one GPU (hatched = prefill)', fontsize=8.0,
+        ha='center', va='center', color='#2b2b2b')
 
 # KV transfer, on-node (bandwidth stacked so it stays inside the link gap)
 ax.annotate('', xy=(0.334, 0.55), xytext=(0.176, 0.55),
@@ -103,10 +109,10 @@ ax.annotate('', xy=(0.395, 0.215), xytext=(0.395, 0.335),
 # (B) separate prefill host and decode host = the fabric is the KV link.
 ax.text(0.745, 0.875, 'B. Across hosts (fabric)', fontsize=9.0,
         fontweight='bold', ha='center', color='#1a1a1a')
-ax.text(0.745, 0.825, '~35 GB ≈ 0.9 s (cross-host)\nillustrative 13.3K-token, FP16 full-MHA', fontsize=8.0,
+ax.text(0.745, 0.825, '~35 GB ≈ 0.9 s (cross-host)\nillustrative 13.3K-token, FP16 full-MHA', fontsize=8.6,
         ha='center', va='center', color='#2b2b2b')
 
-def _host_box(x0, label, fc, ec, gfc, gec):
+def _host_box(x0, label, fc, ec, gfc, gec, hatch=None):
     w = 0.160
     ax.add_patch(FancyBboxPatch((x0, 0.40), w, 0.32, boxstyle='round,pad=0.008',
                                 fc=fc, ec=ec, lw=2.0))
@@ -119,9 +125,9 @@ def _host_box(x0, label, fc, ec, gfc, gec):
         for r in range(2):
             ax.add_patch(FancyBboxPatch((x0 + 0.018 + c * 0.032, 0.44 + r * 0.085),
                                         0.026, 0.07, boxstyle='round,pad=0.003',
-                                        fc=gfc, ec=gec, lw=0.7))
+                                        fc=gfc, ec=gec, lw=0.7, hatch=hatch))
 
-_host_box(0.510, 'PREFILL', '#fdecea', '#c0392b', '#e67e22', '#a04000')
+_host_box(0.510, 'PREFILL', '#fdecea', '#c0392b', '#e67e22', '#a04000', hatch='//')
 _host_box(0.820, 'DECODE', '#eaf2f8', '#27408b', '#2980b9', '#154360')
 
 # KV transfer, cross-host (bandwidth stacked so it stays inside the link gap)
@@ -147,13 +153,35 @@ ax.annotate('', xy=(0.887, 0.215), xytext=(0.887, 0.395),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#333'))
 
 # ---- aggregate KV-migration budget caveat (stated once, for both cases) ----
-ax.text(0.5, 0.13, 'Caveat — aggregate KV migration at peak:',
-        fontsize=8.4, fontweight='bold', ha='center', va='center', color='#7b241c')
-ax.text(0.5, 0.085, '35 GB/request × 40 req/s = 1.4 TB/s of payload.',
-        fontsize=8.4, fontweight='bold', ha='center', va='center', color='#7b241c')
-ax.text(0.5, 0.035, 'Per-request times assume an unshared per-GPU link; '
+# ROUND-5 fixes: FIG-11.3-1 — panel A's printed 0.08 s is stated as the
+# whole-35-GB-over-one-unsharded-450-GB/s-link bound (conservative), with the
+# sharded time printed beside it, so the 'per GPU' label, the 4+4 grids and the
+# header time are mutually consistent; FIG-11.3-4 — the assumption's unit now
+# names both panels' links (per-GPU in A, per-host NIC in B).
+# ROUND-5 (this pass): FIG-11.3-2/-6 — panel-A header no longer prints a bare
+# '4' (reads as a version) and states the domain's GPU count: 'A. Within one
+# NVLink domain (8 GPUs: 4+4)' (x shifted 0.255->0.262 so the wider header
+# stays inside the axes; measured 3.08 in at 9 pt vs 3.04 in budget).
+# FIG-11.3-3 — subtitle now says 'the P/D split is the same' (panels show
+# 4 vs 8 GPUs, so 'the split' alone implied identical GPU partitions).
+# FIG-11.3-5 — prefill GPU glyphs are hatched (grayscale-safe) with a one-line
+# key inside the panel-A host box; FIG-11.3-7 — panel subtitles and the caveat
+# raised 8.0/8.4 -> 8.6 pt so no header/caveat text is smaller than the box
+# labels (widest caveat line 5.61 in < axes 5.98 in; vertical gaps >= 0.003).
+# Layout: five line boxes below the I/O anchors (8.4pt line box = 0.0327 of the
+# axes; y 0.152/0.113/0.074/0.020 keeps >=0.005 gaps, clears the y=0.19
+# labels, and the widest line (5.48 in) stays under the current longest 5.56 in).
+ax.text(0.5, 0.152, 'Caveat — aggregate KV migration at peak:',
+        fontsize=8.6, fontweight='bold', ha='center', va='center', color='#7b241c')
+ax.text(0.5, 0.113, '35 GB/request × 40 req/s = 1.4 TB/s of payload.',
+        fontsize=8.6, fontweight='bold', ha='center', va='center', color='#7b241c')
+ax.text(0.5, 0.074, 'A: 0.08 s = whole 35 GB over one unsharded 450 GB/s link '
+        '(conservative; shard ≈ 0.02 s).',
+        fontsize=8.6, ha='center', va='center', color='#7b241c')
+ax.text(0.5, 0.020, 'Per-request times assume an unshared dedicated link '
+        '(per-GPU in A, per-host NIC in B);\n'
         '1.4 TB/s exceeds any single link above.',
-        fontsize=8.4, ha='center', va='center', color='#7b241c')
+        fontsize=8.6, ha='center', va='center', color='#7b241c')
 
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-11/figures/fig-11-1103.png', dpi=350)

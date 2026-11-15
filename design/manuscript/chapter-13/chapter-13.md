@@ -22,19 +22,22 @@ These are a *continuum*, not hard categories; the useful question is always **wh
 
 Each tier is a **box with a fixed memory budget and a fixed cross-node bandwidth**. A workload fits a tier if (a) the model's weight + KV residency fits the tier's total GPU memory (Ch7), and (b) the tier's interconnect can carry the communication the chosen parallelism requires (Ch9/Ch10), and (c) the resulting throughput + latency meets the SLO (Ch11).
 
-The mental model is a **ladder with explicit rungs**: we climb a rung when a binding constraint can no longer be met. The three classic triggers for climbing:
+The mental model is a **ladder with explicit rungs**: we climb a rung when a binding constraint can no longer be met. The classic triggers for climbing:
 
-- **Memory**: model + KV no longer fits one node → cluster (split weights).
+- **Memory**: model + KV no longer fits one node → cluster (split weights) — the Single host → Multi-host climb in Fig 13.1.
+- **KV residency per GPU**: model + KV no longer fits one GPU → single host — the within-tier step Fig 13.1 shows between Single GPU and Single host.
 - **Traffic**: one host's throughput ceiling (goodput) below demand → more replicas (DP across nodes) or P/D disaggregation → cluster.
 - **Latency/geography**: SLO can't be met due to distance or contention → split prefill/decode (a within-tier move). Note: *moving the serving edge closer (local)* is a placement move to a lower rung, not a climb trigger — it belongs with the de-escalation moves in Fig 13.1.
 
 We do not climb for fashion; we climb when a measured number crosses a threshold.
 
+\needspace{4\baselineskip}
+
 ## 3. Worked Example
 
 ### Placing the Canonical Workload
 
-The canonical enterprise-Q&A RAG workload sits on the **server** tier — as a *fleet* of ~21 such servers at the 40 rps peak (Ch 16/17), not as the Cluster tier, which is for splitting one model across nodes. We verify each bound:
+The canonical enterprise-Q&A RAG workload sits on the **server** tier as a *fleet* of ~21 server-class hosts at the 40 rps peak (Ch 16/17) — model residency is server-class, but by Table 13-1's *traffic > host goodput* trigger the traffic scaling is a **cluster** of server-class hosts, not weight-splitting. We verify each bound:
 
 - **Memory**: 70B FP16 weights = 140 GB; KV for the 9.5K max context at FP16 ≈ 24.9 GB; inference residency ≈ 165 GB [ILLUSTRATIVE][DERIVED]. An 8×H100 host (640 GB) fits this with ample headroom for concurrency (Ch11 showed ~24 GB per request × concurrent requests still fits). ✓ [ILLUSTRATIVE][DERIVED]
 
@@ -89,11 +92,10 @@ These three numbers support a defensible first-order placement on the ladder —
 
 The archetype sets the entire downstream design vocabulary. On the **server** tier (canonical), the consequences are already established: continuous batching + PagedAttention + prefix caching (Ch11), KV quantization when residency binds (Ch7), no *cross-host* model parallelism (Ch10; intra-host TP=8 fits the 140 GB model). Moving up to **cluster** introduces: DP/PP/TP replicas (Ch10), P/D disaggregation (Ch11), and interconnect budgeting (Ch9). Moving **down** to local forces distillation and on-device KV limits. The tier is the top-level decision; every other choice in the book slots beneath it.
 
-![Fig 13.1 — The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (blue) fires on privacy, sovereignty, and cost — but scale-down decisions should also reference **utilization** (sustained low load on a tier), **failure domain** (a smaller tier has a smaller blast radius), **operations burden** (fewer hosts to run), and **SLO margin** (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g. de-escalate when 30-day p95 utilization < 40% AND SLO margin > 2× AND the smaller tier's failure domain is acceptable. [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
+![Fig 13.1 — The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (blue) fires on privacy, sovereignty, and cost — but scale-down decisions should also reference **utilization** (sustained low load on a tier), **failure domain** (a smaller tier has a smaller blast radius), **operations burden** (fewer hosts to run), and **SLO margin** (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g. de-escalate when 30-day p95 utilization < 40% AND SLO margin > 2× AND the smaller tier's failure domain is acceptable. Rungs refine the §13.1 tiers: Single GPU = Local/edge, Single host = Server, Multi-host = Cluster, Cluster/fleet = Hyperscale fleet. [ILLUSTRATIVE conceptual]](figures/fig-13-1301.png)
 
 *The reference-architecture ladder: single GPU → single host → multi-host → cluster/fleet, with escalation triggers (red: KV/throughput outgrows a tier) and de-escalation (blue: privacy, sovereignty, cost) moving a workload between tiers.*
 
-<!-- Figure spec: mechanism-first diagram; two axes (model residency on one, throughput demand on the other); four tier regions; arrow annotations for the three escalation triggers. Canonical workload dot in the server tier. -->
 
 ## 7. What We Still Don't Know
 

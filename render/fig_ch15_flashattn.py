@@ -87,7 +87,19 @@ def draw_panel(x0, x1, title, subtitle, flash):
     hbw=x1-x0-24; hbh=34
     ax.add_patch(FancyBboxPatch((cb_cx-hbw/2, hb_cy-hbh/2), hbw, hbh,
                   boxstyle='round,pad=0.02', fc=C_HBM, ec='#8a3a12', lw=1.2, clip_on=False))
-    label(cb_cx, hb_cy, 'HBM', '#fff', FS-0.4, weight='bold')
+    if not flash:
+        # FIG-15.1-01: BEFORE's HBM box must visibly contain the materialized
+        # L×L intermediate (hatched, labelled) in addition to Q/K/V; AFTER
+        # keeps Q/K/V only.
+        label(x0+58, hb_cy, 'HBM', '#fff', FS-0.4, weight='bold', ha='left')
+        hx0 = x0 + 96; hx1 = cb_cx + hbw/2 - 6
+        ax.add_patch(FancyBboxPatch((hx0, hb_cy-hbh/2+5), hx1-hx0, hbh-10,
+                      boxstyle='round,pad=0.01', fc='#f2d9c0', ec='#8a3a12',
+                      lw=1.0, hatch='///', clip_on=False))
+        label((hx0+hx1)/2, hb_cy, 'L×L intermediate\n(materialized)', '#3a1e08', 6.5,
+              weight='bold')
+    else:
+        label(cb_cx, hb_cy, 'HBM', '#fff', FS-0.4, weight='bold')
 
     # explicit MANY (before) vs FEW (after) HBM round-trips between on-chip and HBM.
     # Double-headed arrows: a round-trip is a read AND a write, so traffic is
@@ -112,7 +124,9 @@ def draw_panel(x0, x1, title, subtitle, flash):
     # Anchor LEFT at x0+8 so the multi-line label stays fully inside the panel
     # and never crosses the panel's left border / the inter-panel gutter.
     label(x0+8, (cb_cy+hb_cy)/2,
-          ('many HBM\nround-trips' if not flash else 'few HBM\nround-trips'),
+          ('many HBM\nround-trips\n— per tile: count\nscales with\n(Q-block, KV-block) pairs'
+           if not flash else
+           'few HBM\nround-trips\n— per tile: count\nscales with\n(Q-block, KV-block) pairs'),
           C_TRAFFIC if not flash else C_OK, FS-1.0, weight='bold', ha='left')
     # Q/K/V note set fully ON the orange HBM box (white for contrast), anchored
     # inside the box's left edge so the leading 'Q' is never clipped by the box

@@ -1,0 +1,382 @@
+[
+ {
+  "id": "CH9-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 9, §1 Concept, Table 9-1 caption",
+  "chapter": "9",
+  "quoted_clause": "bandwidth drops ~2 orders of magnitude from HBM to the cluster fabric",
+  "observed": "HBM3 is 3.35 TB/s; the cluster-fabric rows are 25-50 GB/s per port. The ratio is ~67x to ~134x, i.e. ~1.8-2.1 orders of magnitude. '~2 orders' is defensible only if the reader accepts a broad order-of-magnitude reading; the caption presents it as a precise explanatory claim.",
+  "evidence": "3.35 TB/s = 3350 GB/s. 3350/50 = 67; 3350/25 = 134. A factor of 100 is 'two orders'; 67 is closer to 1.8 orders. The caption also says 'the reason the interconnect, not the GPU, often binds at scale', which is a causal claim that does not follow from the ratio alone.",
+  "root_cause": "The caption compresses a range into a single order-of-magnitude phrase and attaches a causal conclusion to it.",
+  "correction": "Say 'roughly two orders of magnitude (about 70x-130x depending on the fabric row)' and qualify the causal sentence: 'This steep drop is one reason interconnect can become the binding resource at scale, depending on workload and topology.'",
+  "acceptance_test": "The revised caption gives a ratio range consistent with the table and does not present the ratio alone as proof that the interconnect binds.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-03",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Chapter 9, §1 Concept, bullet list for all-gather",
+  "chapter": "9",
+  "quoted_clause": "Used when a model split across nodes needs the full weight or KV cache locally.",
+  "observed": "The sentence implies all-gather is a standard way to obtain a full weight tensor or full KV cache locally in distributed inference. In common tensor-parallel inference, weights and KV cache are deliberately sharded and each rank uses its local shard; all-gather of the full KV cache would usually defeat the memory-saving purpose. All-gather is used in some parallelisms and some weight-materialization paths, but the sentence is too broad.",
+  "evidence": "Tensor parallelism shards attention heads and KV heads; each GPU generally keeps only its local KV shard. All-gather may be used for weights in certain tensor-parallel layouts, but 'full KV cache locally' is not a general architectural use case and can mislead readers into thinking KV cache is normally all-gathered.",
+  "root_cause": "The bullet conflates 'all-gather can materialize a full tensor from fragments' with 'distributed inference normally all-gathers full weights or KV cache'.",
+  "correction": "Rewrite: 'Used when a consumer needs the concatenation of distributed fragments locally; examples include materializing a full weight tensor in some tensor-parallel layouts. It is not the normal way to handle KV cache, which is usually kept sharded.'",
+  "acceptance_test": "The revised bullet distinguishes fragment materialization from normal KV-cache residency and does not imply that full KV cache is commonly all-gathered.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-04",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 9, §3 Worked Example, final paragraph",
+  "chapter": "9",
+  "quoted_clause": "why model parallelism and pipeline parallelism exist",
+  "observed": "'Model parallelism' is the umbrella term that includes pipeline parallelism and tensor parallelism. The sentence lists a genus and one of its species as if they were coordinate alternatives.",
+  "evidence": "Standard usage: model parallelism partitions a model across devices; pipeline parallelism is a specific schedule/partitioning strategy within model parallelism. The sentence likely intends 'tensor parallelism and pipeline parallelism'.",
+  "root_cause": "Terminology drift between umbrella and specific parallelism terms.",
+  "correction": "Replace with 'why tensor parallelism and pipeline parallelism exist' or 'why model-parallel strategies such as tensor and pipeline parallelism exist'.",
+  "acceptance_test": "The revised sentence does not present pipeline parallelism as a separate category coordinate with model parallelism.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chapter 9, §3 Worked Example, final paragraph",
+  "chapter": "9",
+  "quoted_clause": "against the savings from fitting a larger model",
+  "observed": "Fitting a larger model is an enabling benefit, not a 'saving'. The phrase suggests a quantitative trade-off between communication seconds and memory savings, but no such comparison is defined.",
+  "evidence": "The worked example computes communication time only; it does not compute a memory-saving term or a net benefit. The sentence's rhetorical framing is looser than the chapter's otherwise careful accounting.",
+  "root_cause": "Informal causal phrasing at the end of a quantitative section.",
+  "correction": "Say 'against the benefit of enabling a model that does not fit on one device' or 'against the capability gained by fitting a larger model'.",
+  "acceptance_test": "The revised sentence does not imply a quantified 'savings' that the chapter has not computed.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 9 §5, Common Mistakes, first bullet",
+  "chapter": "9",
+  "quoted_clause": "PCIe Gen5 x16 peaks at ~64 GB/s, but a single all-reduce usually does not saturate the full link: in multi‑GPU topologies the traffic is split across multiple GPUs and multiple links, so one link rarely carries the whole transfer.",
+  "observed": "The passage gives a correct per-direction peak but then offers a non sequitur: a link can be saturated while carrying only a fraction of the tensor. In a ring all-reduce, each link carries (N−1)/N of the tensor per phase, which is 87.5% for N=8, not a small fraction. The reason effective bandwidth is below peak is protocol/latency/contention, not because 'one link rarely carries the whole transfer.'",
+  "evidence": "Ring all-reduce reduce-scatter and all-gather each move (N−1)/N of the tensor per link per phase; for N=8 that is 7/8. The text itself later says each link carries (N−1)/N. A link carrying 7/8 of the tensor is still nearly fully utilized; saturation is not determined by whether one link carries 100%.",
+  "root_cause": "Conflates 'no single link carries the entire tensor' with 'the link is not saturated.'",
+  "correction": "Rewrite the bullet to say: PCIe Gen5 x16 peak is ~64 GB/s per direction; a collective distributes traffic across links, and each link may carry a large fraction of the tensor; measured effective bandwidth is below peak because of protocol overhead, latency, message size, and contention. Do not imply that splitting traffic across links is itself the reason a link is unsaturated.",
+  "acceptance_test": "For N=2 and N=8 ring all-reduce, the revised text must correctly state per-link volume per phase and total volume, and must not use 'traffic is split across links' as the explanation for sub-peak effective bandwidth.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 9 §5, Common Mistakes, first bullet, parenthetical",
+  "chapter": "9",
+  "quoted_clause": "and by the ring model of §9.3 each link still carries (N−1)/N of the tensor.",
+  "observed": "The statement is true only per phase, not for the whole all-reduce. Total per-link traffic in a ring all-reduce is 2(N−1)/N of the tensor. For N=2, the per-phase fraction is 1/2, but the total per-link traffic is one full tensor, which is why the preceding sentence says a two-rank collective can saturate the link. As written, the parenthetical appears to contradict that sentence.",
+  "evidence": "Ring all-reduce consists of reduce-scatter plus all-gather. Each phase moves (N−1)/N of the tensor per link; total is 2(N−1)/N. For N=2, total is 1.0 tensor per link.",
+  "root_cause": "Omits the factor of two and the per-phase qualification.",
+  "correction": "State explicitly: 'per phase, each link carries (N−1)/N of the tensor; over the full reduce-scatter plus all-gather, each link carries 2(N−1)/N. For N=2 that totals one full tensor per link.'",
+  "acceptance_test": "Recompute the per-link volume for N=2 and N=8 and confirm the text matches both the per-phase and total values.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-03",
+  "severity": "P2",
+  "confidence": "medium-high",
+  "page_hint": "Chapter 9 §5, Common Mistakes, first bullet, final parenthetical",
+  "chapter": "9",
+  "quoted_clause": "the §9.3 worked example's 40 GB/s and 2.5 GB/s are optimistic ~80% upper bounds — label them as such",
+  "observed": "The 40 GB/s figure is not tied to a named link. If a reader associates it with the immediately preceding PCIe Gen5 x16 peak of ~64 GB/s, 40/64 = 62.5%, not ~80%. The 2.5 GB/s figure is ~80% of 25 Gb/s Ethernet (3.125 GB/s). The 40 GB/s figure is ~80% of 50 GB/s, i.e. a 400 Gb/s link, not PCIe Gen5 x16.",
+  "evidence": "40 / 64 = 0.625. 40 / 50 = 0.80. 2.5 / 3.125 = 0.80. The text does not state which link the 40 GB/s belongs to in this parenthetical.",
+  "root_cause": "Ambiguous antecedent for 40 GB/s; the percentage is correct only for a 400 Gb/s-class link, not for the PCIe Gen5 x16 peak just mentioned.",
+  "correction": "Name the link for each figure: 'the §9.3 example's 40 GB/s (≈80% of a 400 Gb/s-class InfiniBand link) and 2.5 GB/s (≈80% of 25 Gb/s Ethernet) are optimistic upper bounds.' If 40 GB/s is intended as a PCIe figure, change the percentage to ~63%.",
+  "acceptance_test": "Every percentage in the bullet recomputes against an explicitly named peak in the same sentence or immediately adjacent sentence.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 9 §5, Common Mistakes, second bullet",
+  "chapter": "9",
+  "quoted_clause": "spent exclusively in communication",
+  "observed": "The 56 s and 98 s figures are non-overlapped communication times. In real data-parallel training, all-reduce can overlap with backward compute via gradient bucketing. The phrase 'spent exclusively in communication' asserts that the entire time is communication, which is only true under an unstated no-overlap assumption.",
+  "evidence": "The arithmetic 140 GB / 2.5 GB/s = 56 s and 56 s × 1.75 = 98 s is correct for non-overlapped all-reduce. With overlap, exposed communication time can be lower. The text does not state the overlap assumption.",
+  "root_cause": "Claim strength exceeds the model: a lower-bound communication cost is presented as exclusively communication time.",
+  "correction": "Replace with: 'if this all-reduce is not overlapped with compute, the job spends up to ~56,000 s (15.6 h) or ~98,000 s (~27.2 h) in communication; with overlap, the exposed cost is lower and must be measured.'",
+  "acceptance_test": "The revised bullet explicitly states the no-overlap assumption and distinguishes total collective duration from exposed critical-path time.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-05",
+  "severity": "P2",
+  "confidence": "medium-high",
+  "page_hint": "Chapter 9 §6, Architecture Consequence, paragraph 1",
+  "chapter": "9",
+  "quoted_clause": "keeping the all-reduce on-node gives an ideal ring time about 1/11th the assumed InfiniBand case",
+  "observed": "The 1/11 ratio implies an InfiniBand effective bandwidth of about 40 GB/s (450/40 = 11.25). The Common Mistakes section separately says 'InfiniBand HDR 200 Gb/s gives ~25 GB/s unidirectional.' A reader cannot tell whether the 'assumed InfiniBand case' is HDR 200 Gb/s, NDR 400 Gb/s, or a 40 GB/s effective figure. The ratio is not reproducible from the nearest stated InfiniBand number.",
+  "evidence": "450 / 25 = 18, not 11. 450 / 40 = 11.25. The text does not name the InfiniBand rate behind the 40 GB/s assumption in this paragraph.",
+  "root_cause": "Cross-reference ambiguity: the ratio depends on an unstated effective bandwidth that differs from the HDR 200 Gb/s example elsewhere in the same section.",
+  "correction": "State the assumed InfiniBand link and effective bandwidth explicitly: e.g. 'against an NDR 400 Gb/s InfiniBand link modeled at 40 GB/s effective.' If the intended comparison is HDR 200 Gb/s at 25 GB/s, change the ratio to ~1/18.",
+  "acceptance_test": "The 1/11 ratio recomputes from an explicitly named InfiniBand rate and effective bandwidth in the same paragraph or a directly cited section.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-06",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Chapter 9 §8, Mini-Case, paragraph 3",
+  "chapter": "9",
+  "quoted_clause": "a TP all-reduce of the per-layer activations (tens of MBs, not GBs, at the canonical batch and hidden size — it scales with batch × hidden width per layer)",
+  "observed": "The phrase 'per-layer activations (tens of MBs ... per layer)' is ambiguous and likely wrong at the canonical batch. For a decode step, one TP all-reduce tensor is batch × hidden × bytes. At batch 32 and hidden 8192 in FP16, that is ~0.5 MB per all-reduce, not tens of MB per layer. Tens of MB is plausible only for the aggregate across many layers or for a much larger batch.",
+  "evidence": "32 × 8192 × 2 bytes = 524,288 bytes ≈ 0.5 MB per all-reduce. Even two all-reduces per layer give ~1 MB per layer. 'Tens of MBs per layer' would require batch × hidden ≈ 5–20 million elements.",
+  "root_cause": "Per-layer vs per-step aggregation is not stated; the parenthetical 'per layer' makes the quantity look much larger than it is at typical decode batch sizes.",
+  "correction": "Rewrite as: 'the aggregate per-step TP all-reduce volume across layers is tens of MBs, not GBs; each individual per-layer all-reduce is batch × hidden × bytes, typically sub-MB to a few MB at decode batch sizes.' If the canonical batch is large enough to make a per-layer all-reduce tens of MB, state the batch and hidden size.",
+  "acceptance_test": "The revised text gives a per-layer formula and a per-step aggregate, and the numbers recompute from the stated canonical batch and hidden size.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-07",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 9 §5, Common Mistakes, first bullet",
+  "chapter": "9",
+  "quoted_clause": "PCIe Gen5 x16 peaks at ~64 GB/s",
+  "observed": "The figure is per direction, but the text does not say so. PCIe is full duplex; a reader may compare it to bidirectional aggregate figures such as NVLink's 1.8 TB/s bidirectional aggregate and conclude the wrong ratio.",
+  "evidence": "PCIe Gen5 x16 is ~64 GB/s per direction, ~128 GB/s bidirectional aggregate. The manuscript elsewhere is careful to distinguish NVLink directional vs bidirectional.",
+  "root_cause": "Missing direction qualifier on a bandwidth figure.",
+  "correction": "Write 'PCIe Gen5 x16 peaks at ~64 GB/s per direction (~128 GB/s bidirectional aggregate).'",
+  "acceptance_test": "Every bandwidth figure in the bullet states whether it is per direction or bidirectional aggregate.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH9-08",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chapter 9 §5, Common Mistakes, second bullet",
+  "chapter": "9",
+  "quoted_clause": "A 70B model gradient all-reduce at 25 Gb/s Ethernet",
+  "observed": "The precision of the 70B gradient is not stated in this bullet. The 140 GB volume used to derive 56 s assumes 2-byte parameters. A reader using FP32 would get 280 GB and 112 s.",
+  "evidence": "70B × 2 bytes = 140 GB; 140 / 2.5 = 56 s. 70B × 4 bytes = 280 GB; 280 / 2.5 = 112 s. The bullet does not state FP16/BF16.",
+  "root_cause": "Missing precision assumption in a numerical example.",
+  "correction": "Add 'FP16/BF16 (2-byte) gradient' to the bullet, or state the 140 GB volume explicitly.",
+  "acceptance_test": "The 56 s and 98 s figures recompute from an explicitly stated parameter count, precision, and effective bandwidth.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH10-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 10 opening, The Architect's Question",
+  "chapter": "10",
+  "quoted_clause": "the five parallelization strategies — tensor, pipeline, data, expert, and sequence parallelism — plus a serving-only sixth (P/D disaggregation, which has no training counterpart)",
+  "observed": "The list mixes different axes and includes items that do not split the model. Data parallelism replicates the model and splits the data; P/D disaggregation splits request phases, not model parameters. The chapter title 'Splitting the Model Across Machines' and the opening promise 'what was split' therefore do not accurately categorize all six strategies.",
+  "evidence": "TP/PP/EP partition model parameters or experts; DP replicates parameters and partitions data; sequence parallelism partitions the sequence dimension; P/D disaggregation partitions prefill and decode phases. Calling all six 'parallelization strategies' and framing the chapter as 'splitting the model' is a category error.",
+  "root_cause": "The chapter's organizing metaphor ('splitting the model') is narrower than its actual content.",
+  "correction": "Reframe the chapter as 'Parallelism and Disaggregation: Splitting Work Across Machines' and explicitly distinguish parameter partitioning (TP, PP, EP), data replication (DP), sequence splitting (SP), and phase disaggregation (P/D). Do not call P/D a parallelization strategy; call it a serving architecture that disaggregates phases.",
+  "acceptance_test": "The chapter title, opening question, and strategy list each label what is split or replicated, and no item is misclassified as model partitioning.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH10-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chapter 10 opening, The Architect's Question",
+  "chapter": "10",
+  "quoted_clause": "a single GPU cannot hold this model or keep up with this workload",
+  "observed": "The 'or' suggests two mutually exclusive failure modes. In practice a single GPU may fail both constraints, and the scaling response differs depending on which constraint binds. The phrase is slightly imprecise for an architecture question.",
+  "evidence": "Memory capacity and throughput are separate constraints; a model may fit but be too slow, or be fast enough but not fit. The chapter later treats weight residency and batch shape separately.",
+  "root_cause": "Colloquial 'or' in a technical framing sentence.",
+  "correction": "Write 'cannot hold this model, cannot keep up with this workload, or both.'",
+  "acceptance_test": "The opening sentence distinguishes the capacity constraint from the throughput constraint.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH11-TTFT-SLO-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 11 §3, 'Discrete Batching Wastes the GPU', first bullet",
+  "chapter": "Ch 11",
+  "quoted_clause": "TTFT budget 1.2 s ... inflating TTFT toward the 2 s SLO breach",
+  "observed": "The canonical workload sets a 1.2 s TTFT budget, but the same paragraph refers to a 2 s SLO breach without defining a second SLO.",
+  "evidence": "The worked example immediately above states 'TTFT budget 1.2 s, TPOT ~25 ms/token'; the bullet then uses '2 s SLO breach'. A reader cannot tell whether the SLO is 1.2 s, 2 s, or two different thresholds.",
+  "root_cause": "Stale or undefined SLO value; likely a leftover from an earlier canonical workload.",
+  "correction": "Use the canonical 1.2 s TTFT SLO consistently. If 2 s is a separate breach threshold or a different workload, define it explicitly and label it.",
+  "acceptance_test": "Search every TTFT/SLO mention in Ch 11 and the canonical-workload table; exactly one canonical TTFT SLO value is used, and any second threshold is explicitly defined.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH11-PAGEDATTN-SHARING-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 11 §3, 'PagedAttention: Killing the Fragmentation Tax'",
+  "chapter": "Ch 11",
+  "quoted_clause": "allocates KV in fixed blocks shared and evicted like page frames",
+  "observed": "The wording implies general cross-request block sharing, which is not PagedAttention's core mechanism; sharing is an optional copy-on-write/prefix-reuse feature.",
+  "evidence": "The chapter's mental model correctly says PagedAttention reduces external fragmentation and over-reservation, while prefix caching separately dedupes shared prefixes. Table 11-1 also separates PagedAttention from prefix caching.",
+  "root_cause": "Imprecise wording blurs PagedAttention's block-mapping mechanism with prefix/KV sharing.",
+  "correction": "Say that PagedAttention allocates KV in fixed-size blocks mapped through a per-request block table; blocks may be shared only when the engine implements copy-on-write or prefix reuse.",
+  "acceptance_test": "The paragraph does not attribute prefix-sharing benefits to PagedAttention alone; PagedAttention and prefix caching remain distinguishable from the text.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH11-PD-SCALE-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 11 §1, paragraph after the four mechanisms",
+  "chapter": "Ch 11",
+  "quoted_clause": "P/D disaggregation makes it scale.",
+  "observed": "This is an unqualified universal claim. The same chapter later says P/D disaggregation is premature for the canonical single-host and pays off only when measured prefill/decode interference binds.",
+  "evidence": "Ch 11 §3 states: 'For the canonical single-host (~10 rps) this disaggregation is premature; it pays off when measured prefill/decode interference binds'. Table 11-1 also scopes it to 'workload outgrows a node'.",
+  "root_cause": "Summary sentence overstates a conditional optimization.",
+  "correction": "Replace with: 'P/D disaggregation can improve goodput at scale when measured phase interference and KV-transfer/orchestration costs justify it.'",
+  "acceptance_test": "No unqualified 'makes it scale' remains; the sentence states the condition and the transfer/orchestration cost.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH11-MOONCAKE-525-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 11 §1 item 4 and Ch 11 §3 'When to Disaggregate'",
+  "chapter": "Ch 11",
+  "quoted_clause": "reports up to 525% throughput lift ... reported up to 525% long-context throughput",
+  "observed": "One formulation says 'throughput lift'; the other says 'throughput'. A 525% figure can mean 5.25× baseline or 6.25× baseline, and the two sentences do not resolve which.",
+  "evidence": "The same source is described twice with different grammar; the later sentence adds 'a lift over the paper's own baseline configuration' but still does not state the multiplier unambiguously.",
+  "root_cause": "Ambiguous percentage wording carried across two locations.",
+  "correction": "State the baseline and multiplier explicitly, e.g. 'up to 525% higher throughput (6.25× baseline)' or '5.25× baseline', whichever matches the paper, and use the same formulation in both places.",
+  "acceptance_test": "Both locations use the same unambiguous formulation; no bare '525% throughput' remains without 'higher/lift' and a stated baseline.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH11-KV-UTIL-DEF-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 11 §4 Measurement, item 2",
+  "chapter": "Ch 11",
+  "quoted_clause": "Measure KV utilization — fraction of the 640 GB node memory consumed by live KV vs weights.",
+  "observed": "KV utilization is not the fraction of total node memory consumed by live KV versus weights. It is used KV capacity divided by available KV capacity (or live KV bytes divided by the KV budget).",
+  "evidence": "The same item then says 'PagedAttention raises effective KV packing (block utilization); prefix caching instead dedupes shared prefixes (prefix-hit rate) — track the two separately', which presumes a KV-capacity denominator, not total node memory.",
+  "root_cause": "Conflates a whole-node memory breakdown with the KV-cache utilization metric.",
+  "correction": "Define KV utilization as allocated/live KV blocks divided by total KV block capacity, or live KV bytes divided by the KV budget. Report weights, activations, workspace, and other memory separately.",
+  "acceptance_test": "The metric definition has the correct denominator and excludes weights; no 'vs weights' phrasing remains in the KV-utilization definition.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH11-ADAPTIVE-DEPTH-UNIT-06",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 11 §4, 'Serving qualification', adaptive-depth paragraph",
+  "chapter": "Ch 11",
+  "quoted_clause": "Requests that exit at different iterations can leave an initially uniform batch with different amounts of remaining computation.",
+  "observed": "Early exit is per-token, not per-request. A request contains many tokens, each of which may exit at a different depth; the scheduler's unit of work is the token/sequence state, not a request-level exit.",
+  "evidence": "The preceding sentence explicitly defines 'Adaptive depth (per-token early exit — the same early-exit interface above)'.",
+  "root_cause": "Unit-of-work confusion between requests and tokens.",
+  "correction": "Say: 'Tokens that exit at different iterations can leave a batch with different remaining computation per sequence; a request may contain a mix of depths.'",
+  "acceptance_test": "The paragraph consistently uses token-level exit; no request-level early-exit claim remains unless the model explicitly supports request-level exit.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ }
+]

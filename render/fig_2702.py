@@ -26,8 +26,8 @@ layers = [
     ("Across a fleet of models", "Ch18, Ch20", '#27408b', 8.8),
     ("Inside agent runtime", "Ch17-20, Ch24", '#3a6ea5', 7.8),
     ("Inside tools", "Ch19, Ch24", '#4d8fc4', 6.8),
-    ("Inside test-time search", "Ch8, Ch20", '#6aa0d8', 5.8),
-    ("Inside post-training", "Ch19, Ch21", '#8fb8e0', 4.8),
+    ("Inside test-time search", "Ch22", '#6aa0d8', 5.8),   # R5 (FIG-A4-06): Ch8/Ch20 hold no test-time-search content; Ch22 names the test-time-search loop.
+    ("Inside post-training", "", '#8fb8e0', 4.8),           # R5 (FIG-A4-06): no chapter covers post-training (0 hits Ch19/Ch21) - citation dropped.
     ("Inside MoE routing", "Ch10", '#4c7246', 3.8),
     ("Inside attention", "Ch7, Ch8", '#6f9e5f', 2.8),
     ("Inside weights", "Ch3, Ch8", '#9ac98a', 1.8),

@@ -1,0 +1,382 @@
+[
+ {
+  "id": "CH1-CH3-MLA-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 1 §1 'Attention' (final paragraph) vs Ch 3 §3 'Why MoE saves compute but not KV cache memory' (printed page not determinable from chunk)",
+  "chapter": "Ch 1 / Ch 3",
+  "quoted_clause": "Ch 1: \"A third family — **compressed per-token KV**: MLA-style latent attention, grouped-query attention (GQA) and multi-query attention (MQA) head sharing — still stores a per-token entry, so its cache *does* grow with token count, but at fewer bytes/token than full MHA.\"  |  Ch 3: \"Only changing the attention mechanism itself (e.g., hybrid/linear attention or compressed latent attention) can stop the cache from growing\"",
+  "observed": "The two chapters give opposite answers to the same question. Ch 1 classifies MLA as 'reduced-width per-token (per-token growth, smaller footprint)' and explicitly separates it from the 'constant-state (no per-token growth)' family. Ch 3 states that compressed latent attention can *stop* the cache from growing. MLA (DeepSeek-V2/V3 style) stores one compressed latent c_KV plus a decoupled RoPE key per token per layer; it reduces bytes/token by roughly an order of magnitude but the cache still grows linearly with sequence length.",
+  "evidence": "Independent rederivation: MLA per-token per-layer bytes = (d_c + d_rope) x bytes, e.g. (512 + 64) x 2 B = 1,152 B, versus full-MHA 2 x n_heads x d_head x 2 B = 2 x 128 x 128 x 2 = 65,536 B — a ~57x reduction in the *constant*, with the *linear-in-L* term unchanged. Ch 1's own framing ('constant-state (no per-token growth) versus reduced-width per-token (per-token growth, smaller footprint)') is the correct taxonomy; Ch 3's sentence contradicts it.",
+  "root_cause": "Ch 3's sentence was written as a loose enumeration of 'attention mechanisms that change the KV story' and was not checked against the taxonomy Ch 1 had already established two chapters earlier. The book has no single place where the three families (constant-state / reduced-width per-token / full-MHA) are enumerated once and referenced thereafter.",
+  "correction": "In Ch 3, delete 'or compressed latent attention' from the list of mechanisms that 'can stop the cache from growing', leaving hybrid/linear (constant-state) attention as the only growth-stopping family, and add the qualifier that MLA-style latent attention reduces the bytes/token constant (roughly 50-60x for DeepSeek-class geometry) while preserving linear growth. Better: add a single canonical three-row taxonomy table (constant-state | reduced-width per-token | full-MHA) in Ch 1 §1 and have Ch 3, Ch 7 and Appendix A reference it rather than re-describing the families.",
+  "acceptance_test": "A reader who has read only Ch 1 can correctly predict, from the taxonomy, whether MLA, GQA, MQA, Gated DeltaNet and sliding-window attention grow the KV cache with length and by what factor. No two chapters assert different growth behaviour for the same mechanism.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH4-COSTBASIS-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 4 §3 sidebar table ('Delivery mode (canonical workload)') vs Ch 4 §3 'Economic Constraints' bullet 'Cost per request' (printed page not determinable from chunk)",
+  "chapter": "Ch 4",
+  "quoted_clause": "Sidebar: \"| Cloud, 6 hosts — default paid-occupancy input | $87,600 | ≈ $14.04 | occupancy INPUT, not a measured duty cycle |\"  |  §3: \"the owned per-request cost is (N_hosts × $20/hr) ÷ (rps × 3600) ≈ (6 × $20) ÷ (10 × 3600) ≈ **~$0.0033 per request** at average\"",
+  "observed": "The chapter publishes two per-request cost figures for the *same* canonical fleet (6 hosts) at the *same* traffic (10 rps) that differ by a factor of 4.25: $14.04 per 1K requests (sidebar) versus $3.30 per 1K requests (§3). No reconciliation is offered anywhere in the chapter.",
+  "evidence": "Re-derivation: sidebar $87,600 ÷ 6,240K requests = $14.04/1K. §3 $120/hr ÷ (10 rps x 3600 s) = $0.003333/req = $3.33/1K. Ratio 14.04/3.33 = 4.22. Root cause of the ratio: the sidebar's cost numerator is a wall-clock month (6 hosts x 730 paid hours x $20 = $87,600) while its volume denominator is an *active-hours* month (10 rps x 3,600 x 8 h x 260 workdays / 12 = 6.24M requests, i.e. ~173.3 active hours/month). 730 / 173.3 = 4.21 — exactly the discrepancy. The §3 figure is a per-service-hour cost divided by per-service-hour volume, so it is internally consistent but is not the same quantity as the sidebar's figure.",
+  "root_cause": "The book has two cost bases (wall-clock paid occupancy vs active service hours) but applies them to the same numerator/denominator pair in different places without labelling the hour basis. The sidebar's 'Per 1K req' column is a hybrid: wall-clock cost ÷ active-hours volume. This is exactly the denominator/population integrity failure the book's own Table 4-1 derivation note warns about for tokens-per-dollar, but the same discipline was not applied to the $/1K-req column.",
+  "correction": "State the hour basis explicitly in both places and add the missing active-hours row. Suggested: (a) relabel the sidebar column 'Per 1K req (wall-clock paid-occupancy basis)' and add a second column 'Per 1K req (active-hours basis)'; (b) add the active-hours row to the sidebar: 6 hosts x 173.3 h x $20 = $20,800/mo -> $3.33/1K req, and 21 hosts x 173.3 h x $20 = $72,786/mo -> $11.66/1K req; (c) in §3, state that the $0.0033/request figure is 'per active service hour' and that the monthly figure is $87,600 only if the fleet is paid for 730 hours; (d) apply the same labelling to the '~2.76M input tokens per cloud dollar' and '~3.56M prefill tokens per host-dollar' figures, which inherit the same wall-clock-hour numerator.",
+  "acceptance_test": "Every per-request and per-dollar figure in Ch 4 (and Ch 16/17) states its hour basis, and a reader can reproduce $14.04/1K and $3.33/1K from stated inputs and explain the 4.2x difference without consulting the source. No figure mixes a wall-clock cost numerator with an active-hours volume denominator.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH3-LATEX-03",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 3 §3 'Why MoE saves compute but not KV cache memory', inline math after the KV formula (printed page not determinable from chunk)",
+  "chapter": "Ch 3",
+  "quoted_clause": "(full-MHA special case: $n_{<TAB>ext{KV-heads}} <TAB>imes d_{<TAB>ext{head}} = d_{<TAB>ext{hidden}}$)",
+  "observed": "The LaTeX source contains literal TAB characters where the escape sequence \\t of \\text was intended. The expression will typeset as n with an italic subscript 'extKV-heads' (and 'exthead', 'exthidden'), i.e. a garbled formula in the middle of the book's central KV equation.",
+  "evidence": "The same formula appears correctly two sentences earlier in the same paragraph: \"$KV_{\\text{per-token}} = 2 \\times n_{\\text{layers}} \\times (n_{\\text{KV-heads}} \\times d_{\\text{head}}) \\times \\text{bytes-per-value}$\", confirming the intended form and that this is a localized source corruption rather than a deliberate notation.",
+  "root_cause": "A text-substitution or copy/paste pass converted the two-character sequence \\t into a TAB character. The same paragraph's first occurrence survived, so the corruption is not systematic.",
+  "correction": "Restore the escapes: $n_{\\text{KV-heads}} \\times d_{\\text{head}} = d_{\\text{hidden}}$. Then grep the whole source for TAB characters inside math mode and for the literal string 'ext{' preceded by a non-backslash character, and add that grep to the pre-press check.",
+  "acceptance_test": "The rendered page shows 'n_KV-heads x d_head = d_hidden' in upright roman subscript; a source-wide scan finds zero TAB characters inside math delimiters.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH2-REMEDY-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 2 §3 'Worked example arithmetic details', Prefill FLOPs bullet (printed page not determinable from chunk)",
+  "chapter": "Ch 2",
+  "quoted_clause": "\"Therefore one H100 cannot satisfy the stated prefill budget under these assumptions. ... Meeting the latency SLO therefore calls for multiple GPUs (model parallelism or data parallelism) or more efficient attention implementations.\"",
+  "observed": "The remedy list includes 'more efficient attention implementations' for a shortfall that the paragraph has just shown is a *compute* shortfall against the theoretical peak. FlashAttention-style kernels reduce HBM traffic and improve achieved efficiency; they do not reduce the 2 x params x tokens FLOP floor that already exceeds peak. The same confusion recurs in §6, where 'kernel fusion (flash-attention, scaled-dot-product attention with fewer reads)' is listed as a lever under 'prefill in the compute-bound regime'.",
+  "evidence": "Re-derivation: the demand is 1.288e15 FLOP against a 0.989e15 FLOP/s peak; the argument's own logic is 'exceeding the theoretical peak proves the target is impossible'. A kernel that reduces bytes moved cannot reduce FLOPs, so it cannot move a point that is already past the compute roofline. The book's own resource framework (§1) says 'FlashAttention moves the bottleneck from *bandwidth* toward *compute*' — i.e. it helps only when the binding constraint is bandwidth.",
+  "root_cause": "The remedy list was assembled from a general catalogue of prefill optimizations rather than from the diagnosed constraint established two paragraphs earlier. This is the 'optimization before bottleneck' failure the book's own §1 discipline warns against.",
+  "correction": "Replace the remedy list with constraint-matched levers: (i) more FLOPs (more GPUs / model parallelism), (ii) a lower-precision path with a higher tensor-core peak (FP8/FP4), (iii) a smaller/quantized model, (iv) *reducing the token count* (retrieval quality, prefix reuse). Move 'better attention kernels' to the list of levers that matter when the prefill point is on the bandwidth side of the ridge, and say explicitly that at the canonical point (AI ~9.2K FLOP/byte >> ridge ~295) attention-kernel work cannot close the gap.",
+  "acceptance_test": "For every optimization named in Ch 2 §6, the text names the resource it shifts and states the regime in which it helps; no attention-kernel optimization is offered as a remedy for a compute-roofline shortfall.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "ABSENT"
+ },
+ {
+  "id": "CH4-KVSLOTS-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 4 §6 'Memory planning' bullet vs Ch 4 §3 'Economic Constraints' bullet and Ch 4 §8 mini-case (printed page not determinable from chunk)",
+  "chapter": "Ch 4",
+  "quoted_clause": "§6: \"the pool presses well before concurrency reaches 100 (around ~18–20 full-context requests once the ~64 GB runtime is reserved: 436 GB ÷ 24.1 GB ≈ 18)\"  |  §3: \"a single 8×H100 host holds ~17.5 KV‑resident requests (the conservative integer floor is 17)\"  |  §8: \"C ≈ 17.5 is the analytical quotient, floored to 17 deployable whole-context slots\"",
+  "observed": "Three different values for the same quantity (KV-resident whole-context slots per canonical host) appear in one chapter: '~18–20', '≈ 18', and '17.5 → 17'. The 17-slot figure is the load-bearing one (it drives the 6-host and 21-host fleet counts, the 1.977 req/s per-host rate, and the 26/37/39/40-host growth mini-case), yet the chapter never reconciles it with the 18 it derives in §6.",
+  "evidence": "Re-derivation: 640 GB pool − 140 GB weights − 64 GB runtime = 436 GB KV budget. 436 / 24.1 GB (input-only KV, 9,200 tokens) = 18.09 -> 18. 436 / 24.9 GB (input + 300 output tokens = 9,500 x 2.62 MB) = 17.52 -> 17. So the two numbers are reconcilable by a per-request KV basis the book never states: §6 uses input-only KV, §3/§8 use input+output KV. The '18–20' range has no derivation at all (the exact division gives 18.09, not a range).",
+  "root_cause": "Two different per-request KV footprints (9,200-token input-only vs 9,500-token input+output) are used in the same chapter without being named as distinct bases, and the §6 range was written loosely.",
+  "correction": "Pick one canonical per-request KV basis for slot counting (recommend input+output, since the generated tokens are resident for the whole decode) and state it once in the canonical box (e.g. 'KV per resident request = 9,500 tokens x 2.62 MB = 24.9 GB'). Then: replace 'around ~18–20' with the single derived figure; add one sentence reconciling the input-only 24.1 GB figure (used for the 10-concurrent-request illustration) with the 24.9 GB slot-counting figure; and state the runtime reserve (64 GB) as a named canonical input in Table 4-2 rather than only in prose.",
+  "acceptance_test": "Exactly one KV-resident-slot count per host appears in Ch 4 and Ch 17, derived from a stated per-request KV basis and a stated runtime reserve; a reader can reproduce 17 (or 18) from the canonical box without encountering a second value.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH2-DECODE-REGIME-06",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 2 'The Architect's Question' and §2 Mental Model vs §3 'Canonical host verdict' (printed page not determinable from chunk)",
+  "chapter": "Ch 2",
+  "quoted_clause": "Architect's Question: \"at the canonical low-batch operating point, decode is HBM-bandwidth-bound while prefill is compute-bound\"  |  §3: \"decode shard 70B/8 = 8.75B params = 17.5 GB/GPU per step → 17.5 GB / 3.35 TB/s = 5.2 ms, inside the 25 ms TPOT budget\"",
+  "observed": "The chapter's headline regime claim is demonstrated only through a hypothetical single-device comparison that the chapter itself labels hypothetical, while the chapter's own canonical-host arithmetic shows decode is *not* bandwidth-saturated at the canonical operating point. The reader can reasonably conclude that the canonical 8-GPU host runs decode at its HBM roofline; it does not.",
+  "evidence": "Re-derivation: per-GPU weight-shard traffic per decode step = 17.5 GB (independent of batch, since one forward pass reads each weight once). At the 25 ms TPOT budget that is 700 GB/s = 21% of the 3.35 TB/s H100 peak. At the canonical full-utilization occupancy (17 slots / 8 GPUs = 2.1 sequences per GPU) the bandwidth floor is 17.5/3.35e3 = 5.22 ms per step, i.e. ~4.8x headroom against the 25 ms budget. Decode becomes bandwidth-saturating only when the per-GPU batch exceeds ~4.8 (17.5 GB x B / 25 ms <= 3.35 TB/s), and becomes compute-bound only above ~295 sequences per GPU (2 x 8.75e9 x B / 989e12 > 5.22 ms). By contrast prefill *is* compute-saturated at the canonical point (92,000 tok/s offered vs 6 x 19,800 = 118,800 tok/s planning capacity, and AI ~9.2K >> ridge ~295).",
+  "root_cause": "The book distinguishes 'kernel regime' (arithmetic intensity vs ridge) from 'capacity verdict' in Fig 2.2's caption, but the Architect's Question and the Mental Model state the regime in a way that reads as a statement about the canonical host's saturation. The occupancy at which each regime binds is never computed anywhere.",
+  "correction": "Add one short paragraph (Ch 2 §3, after the canonical host verdict) giving the occupancy thresholds: 'at the canonical full-utilization occupancy of ~2 sequences per GPU, decode consumes ~21% of peak HBM bandwidth; the decode step becomes bandwidth-saturating above ~5 concurrent sequences per GPU (~40 per host) and compute-bound above ~295 per GPU.' Then restate the headline as 'decode is a bandwidth-bound *kernel* (AI ~1 FLOP/byte) whose bandwidth limit binds only at sufficient batch', and note that the prefill/decode asymmetry is therefore a kernel-regime asymmetry, not a capacity asymmetry at the canonical occupancy — which is exactly the caveat the P/D paragraph already needs.",
+  "acceptance_test": "A reader can state, from Ch 2 alone, at what concurrency the canonical host's decode step saturates HBM, and can explain why the P/D-disaggregation argument is a hypothesis rather than a conclusion without relying on Ch 11.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH2-SKU-REGIME-07",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 2 §7 'What We Still Don't Know', bullet 'Cross-technology bandwidth numbers' (printed page not determinable from chunk)",
+  "chapter": "Ch 2",
+  "quoted_clause": "\"the H200 (HBM3e successor to the H100) is 4.8 TB/s, B200-class HBM3e is ~8 TB/s, and AMD MI300X is ~5.3 TB/s. How these compare to the 5.6 TB/s decode demand shifts the GPU count equation but does not change the fundamental bandwidth-bound vs compute-bound classification.\"",
+  "observed": "The clause asserts regime invariance across SKUs, but the numbers the same sentence supplies contradict it for at least one SKU: the canonical batch-1 aggregate decode demand is 5.6 TB/s, and a B200-class device delivers ~8 TB/s, so the demand is met and the decode point moves to the compute side of the ridge at that operating point. The sentence also contradicts itself: it says the comparison 'shifts the GPU count equation' and then says it does not change the classification.",
+  "evidence": "Re-derivation: 5.6 TB/s demand vs 8 TB/s (B200) -> demand met; vs 4.8 TB/s (H200) -> not met; vs 5.3 TB/s (MI300X) -> not met. Ridge point for B200-class (BF16 dense ~2.25 PFLOPS / 8 TB/s) ~281 FLOP/byte; the decode point at ~1 FLOP/byte is still below the ridge, so the *kernel* remains bandwidth-bound, but the *device* is no longer the binding constraint at batch 1 — the regime statement and the capacity statement must be separated exactly as Fig 2.2's caption does.",
+  "root_cause": "The 'regime is a property of model x workload x kernel x hardware' principle stated in §1 was applied to the *classification* but not to the *capacity verdict*, and the sentence was written as a reassurance rather than as a derivation.",
+  "correction": "Rewrite the clause to separate the two: 'the kernel's arithmetic intensity (~1 FLOP/byte) stays below the ridge on every listed SKU, so decode remains a bandwidth-bound kernel; whether the device is actually bandwidth-saturated depends on the SKU: at ~8 TB/s (B200-class) the canonical batch-1 aggregate demand of 5.6 TB/s is met, so the binding constraint at that operating point moves to compute and to per-GPU sharding.' Add the ridge point per SKU so the reader can re-derive the classification for hardware the book has not yet seen.",
+  "acceptance_test": "For each SKU listed, the text states (a) the kernel's arithmetic intensity, (b) the device ridge point, (c) whether the canonical demand is met, and (d) which constraint binds. No sentence asserts regime invariance across SKUs.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH3-QWEN-BASELINE-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 3 §6 'The 2026 baseline shift', 'One verified 2026 transfer: Qwen3.8-Flash-Next' bullet 1 (printed page not determinable from chunk)",
+  "chapter": "Ch 3",
+  "quoted_clause": "\"the active-weight working set for Qwen is ~6 × 10⁹ params × 2 bytes/param = ~12 GB read per token, not the canonical 140 GB — MoE sparsity reduced the per-token weight traffic by ~12×\"",
+  "observed": "The ~12x factor is a cross-model comparison to the canonical dense 70B (140/12 = 11.7), but the sentence attributes it to 'MoE sparsity' within Qwen, whose own baseline is its ~250 GB total. Measured against Qwen's own total, the sparsity reduction is ~21x. The book explicitly warns elsewhere in the same chapter to 'always state which baseline the ratio is against' — the warning is not applied here.",
+  "evidence": "Re-derivation: 140 GB / 12 GB = 11.67 (~12x, vs the canonical 70B); 250 GB / 12 GB = 20.8 (~21x, vs Qwen's own 125B total). The sentence's own next clause supplies the 250 GB figure, so the two ratios are both derivable from the text and they differ by 1.75x.",
+  "root_cause": "The bullet was written to make the point 'this is not the canonical 140 GB' and the ratio was chosen to serve that rhetorical purpose, without the baseline being named.",
+  "correction": "State both ratios with their baselines: '~12x less per-token weight traffic than the canonical dense 70B (140 GB -> 12 GB), and ~21x less than Qwen's own total weight footprint (250 GB -> 12 GB)'. Apply the same discipline to the 'active-parameter FLOPs drop to ~2 x 6B per token' sentence, which currently has no ratio at all.",
+  "acceptance_test": "Every ratio in Ch 3 names its numerator, denominator and baseline model; a reader can compute each ratio from the stated figures and identify which comparison is being made.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH4-HOURBASIS-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 4 §3 'Economic Constraints' bullets 'Infrastructure' and 'Throughput per dollar'; canonical box 'Time basis' note (printed page not determinable from chunk)",
+  "chapter": "Ch 4",
+  "quoted_clause": "\"At the ~6-host average the whole-fleet spend is ~$120/hour (≈ $0.0333 per second), so ~92,000 / 0.0333 ≈ **~2.76 million input tokens per cloud dollar**\"  |  canonical box: \"this is the rate over the **active business-hours window** (an 8-hour × 260-workday schedule), not 24×7 wall-clock\"",
+  "observed": "The canonical box explicitly prices request *volume* on an active-hours schedule (~173.3 h/month), but the canonical *cost* is priced on wall-clock hours (730 h/month paid occupancy, $20/hr). The tokens-per-dollar figures therefore divide an active-hours token rate by a wall-clock-hours dollar rate, and the book never states the resulting sensitivity. The reader is given no way to price the workload on the hours it actually runs.",
+  "evidence": "Re-derivation: active hours/month = 8 h x (260/12) workdays = 173.3 h. Wall-clock paid hours = 730 h. Ratio 4.21. On the active-hours basis the 6-host fleet costs 6 x 173.3 x $20 = $20,800/mo (not $87,600), and the tokens-per-dollar figures rise by the same 4.21x (~11.6M input tokens per cloud dollar rather than ~2.76M). The book does flag 'the paid-occupancy hours are an explicit input, not a measured duty cycle', but never quantifies the alternative.",
+  "root_cause": "The canonical scenario mixes a business-hours traffic model with a 24x7 infrastructure cost model without declaring the mismatch or pricing the alternative. This is the same denominator-integrity discipline the chapter applies to tokens-per-dollar but not to the hour basis.",
+  "correction": "Add the active-hours basis as a named canonical input (e.g. 'Active service hours/month: ~173 (8 h x 21.67 workdays)') and present the monthly cost on both bases in the sidebar: 'wall-clock paid-occupancy basis: 730 h -> $87,600 (6 hosts)' and 'active-hours basis: 173.3 h -> $20,800 (6 hosts)'. State which basis each downstream figure (tokens-per-dollar, $/1K req, fleet TCO) uses, and note that a reserved-instance or committed-use purchase changes the wall-clock figure but not the active-hours traffic figure.",
+  "acceptance_test": "Every monthly cost and every per-dollar figure in Ch 4 and Ch 16/17 names its hour basis; the book states the sensitivity of the canonical cost to the duty-cycle assumption rather than leaving it implicit in a 730-hour constant.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH1-CH4-RATIO-10",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 1 §3 (final paragraph) and Ch 4 §3 'Token Profile in Detail' bullet 3 (printed page not determinable from chunk)",
+  "chapter": "Ch 1 / Ch 4",
+  "quoted_clause": "Ch 4: \"**Input-to-output ratio**: 9,200 ÷ 300 ≈ 30× more input tokens than output tokens. This ratio is [canonical scenario][DERIVED] from the canonical numbers and is the single biggest factor in why this workload is KV‑capacity‑ and prefill‑dominated rather than decode‑throughput‑limited.\"",
+  "observed": "The input:output ratio is credited with causing KV-capacity dominance. It does not: KV residency per request is set by the absolute context length (9,200 tokens), not by the ratio. A workload with a 30x ratio and 1,200-token inputs would have ~1/8 the KV per request of the canonical case while keeping the same ratio. The ratio governs the relative prefill-vs-decode *work*; the absolute input length governs KV residency.",
+  "evidence": "Counterexample: 1,200 in / 40 out is also 30x, but its KV per request is 1,200 x 2.62 MB = 3.1 GB, not 24.1 GB — an 8x difference in the very quantity the sentence attributes to the ratio. Conversely, 9,200 in / 9,200 out (1x ratio) would have identical KV residency to the canonical case. The chapter's own §5 Common Mistakes bullet partially acknowledges this ('long input raises KV residency'), which is inconsistent with the §3 attribution.",
+  "root_cause": "Two distinct quantities (token mix and context length) were compressed into one 'input-heavy' label and then used as the explanation for two different downstream effects.",
+  "correction": "Split the claim: 'The 30x input:output ratio sets the relative prefill-vs-decode work split; the 9,200-token absolute context length sets KV residency per request and therefore the concurrency ceiling. The canonical workload is KV-capacity-bound because of the long context, not because of the ratio.' Apply the same split in Ch 1 §3, where the ratio is called a hypothesis that 'memory (KV cache) and prefill dominate'.",
+  "acceptance_test": "A reader can answer 'would a workload with the same 30x ratio but 8x shorter inputs have the same KV-capacity problem?' with 'no', and the book's text supports that answer.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH3-OPENQ-11",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 3 §7 'What We Still Don't Know', third bullet (printed page not determinable from chunk)",
+  "chapter": "Ch 3",
+  "quoted_clause": "\"**KV cache behavior under MoE with expert swapping.** When experts do not fit on a single GPU and must be swapped (offloaded), does the KV cache interact with the swapping mechanism in ways that change its effective size or access pattern? This has not been systematically characterized.\"",
+  "observed": "This is the 'unknown because the manuscript has not done the work' category rather than a genuine open question. The KV cache is per-layer attention state whose size is a function of the attention geometry and sequence length only; expert placement cannot change its size. The real interaction is a bandwidth-contention question (expert weight transfers and KV transfers share the same PCIe/host path), which the chapter can and should answer by reasoning.",
+  "evidence": "The chapter has already established the invariant two paragraphs earlier: 'Routing still emits one key and one value per token per layer' and 'hold the attention geometry fixed and dense vs MoE KV is *identical*'. The open question as posed contradicts that invariant by implying the KV might behave differently under swapping.",
+  "root_cause": "The open-questions list was populated with 'things we have not measured' rather than 'things we do not know', and one item is answerable from the chapter's own established model.",
+  "correction": "Replace the bullet with the answerable version: 'Expert swapping does not change KV cache size (it is set by attention geometry and sequence length), but it competes with KV offloading for the same host-transfer path; the open question is the *bandwidth contention* between expert weight transfers and KV transfers at a given PCIe/NVLink budget, which is workload- and implementation-dependent.' If a literature gap is genuinely intended, name the specific measurement that has not been published.",
+  "acceptance_test": "Every bullet in Ch 3 §7 is answerable only by measurement or by evidence not yet available; none can be resolved by reasoning from the chapter's own established model.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH4-MISTAKES-12",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 4 §5 'Common Mistakes', bullets 2, 3 and 4 vs Ch 1 §5 bullets 1 and 3 (printed page not determinable from chunk)",
+  "chapter": "Ch 4",
+  "quoted_clause": "Ch 4 §5: \"**Assuming 'one token ≈ one word'**. Enterprise Q&A prompts with code snippets, JSON payloads, or technical terminology can run 2–5× the naive token estimate, silently inflating KV cache and cost.\"  |  Ch 1 §5: \"**Assuming one token ≈ one word.** ... The mapping is tokenizer-dependent ... so the 'one token ≈ 4 characters' rule of thumb is for rough estimation of general-English prose only — confirm against the model's own tokenizer before pricing anything.\"",
+  "observed": "Three of Ch 4's five Common Mistakes are re-runs of Ch 1's Common Mistakes with the canonical numbers substituted (tokenization ratio; context window as free capacity; input/output asymmetry). They add no new reasoning, and they displace workload-characterization mistakes that only Ch 4 can teach. Ch 4 §4 explicitly promises not to restate Ch 1's measurement content ('rather than restate them'), so §5 contradicts the chapter's own stated discipline.",
+  "evidence": "Ch 1 §5 bullet 1 ('Assuming one token ≈ one word') and Ch 4 §5 bullet 2 are the same mistake with the same correction. Ch 1 §5 bullet 3 ('Quoting context window as free capacity') and Ch 4 §5 bullet 4 are the same mistake with the same correction. Ch 1 §5 bullet 2 and Ch 4 §5 bullet 3 are the same mistake; Ch 4's version does add the compute-bound/bandwidth-bound distinction, so it is class B (useful reinforcement) rather than class C.",
+  "root_cause": "A per-chapter template ('Common Mistakes' with five bullets) was filled with the chapter's topic words rather than with the mistakes a reader of *this* chapter would actually make. Ch 4's distinctive mistakes — deriving an arrival rate from a registered-user count, using the ~10 s planning round as the Little's-law W, sizing the fleet from the mean context rather than the tail, treating the 6-host average as a peak capacity — are absent.",
+  "correction": "Rewrite Ch 4 §5 to five workload-characterization mistakes: (1) deriving arrival rate from registered users (already present, keep); (2) using the ~10 s planning round instead of W_exec ~8.6 s in Little's Law; (3) sizing KV capacity from the mean 9.2K context rather than the tail; (4) treating the 6-host average fleet as the peak fleet; (5) reading the six dimensions as a checklist rather than as a set of binding constraints. Move the tokenization and context-window items to a single cross-reference to Ch 1 §5.",
+  "acceptance_test": "No bullet in Ch 4 §5 could be moved to Ch 1 without loss; each bullet exposes a mistake specific to workload characterization and its correction follows from the six-dimension framework.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH1-VLLM54-13",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 1 §1 'KV cache as a concept', paragraph beginning 'That 8-bit figure is the raw tensor byte-halving' (printed page not determinable from chunk)",
+  "chapter": "Ch 1",
+  "quoted_clause": "\"the vLLM FP8-KV blog post's often-quoted '54%' is a decode inter-token-latency (ITL) slope, not a memory ratio or footprint coefficient\"",
+  "observed": "A specific numeric claim about a named third-party artifact (a 54% figure in a vLLM blog post, and its interpretation as an ITL slope) is asserted with no citation, no date, and no link, inside a paragraph otherwise carrying [ILLUSTRATIVE][DERIVED] labels. The book elsewhere cites vendor material precisely (e.g. the H100 datasheet, the Wan2.2 pinned revision, the vLLM expert-parallel docs).",
+  "evidence": "The claim is plausible (vLLM's FP8-KV-cache material reports an inter-token-latency improvement in the ~50% range), but 'plausible' is not evidence, and the interpretation ('ITL slope, not a memory ratio') is the book's own reading of a vendor's framing — exactly the kind of claim that needs a citation and a date because it will age.",
+  "root_cause": "The paragraph was written as a guard against a common mis-citation, but the guard itself was left uncited, so a reader cannot check it and the book cannot be held to it later.",
+  "correction": "Add the citation with a pinned URL and retrieval date, and label the interpretation explicitly as the book's reading: e.g. '[1P][FACT] the vendor post reports a ~54% reduction in decode inter-token-latency (link, retrieved YYYY-MM-DD); the book's reading is that this is an ITL slope rather than a memory-footprint coefficient [DERIVED].' If the post cannot be pinned, remove the '54%' figure and keep only the general warning.",
+  "acceptance_test": "Every named third-party numeric claim in Ch 1–4 carries a resolvable citation with a date, or is removed.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH3-236B-14",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 3 §1 Concept, second bullet (MoE) and §5 Common Mistakes, first bullet (printed page not determinable from chunk)",
+  "chapter": "Ch 3",
+  "quoted_clause": "\"A MoE model may have 236B total parameters (an illustrative figure) distributed across eight experts, but only the top-2 (or top-1) experts are activated per token.\"",
+  "observed": "The '236B' figure and the 'eight experts' figure belong to two different real architectures. The widely cited 236B MoE total (DeepSeek-V2/V3 lineage) uses 256 routed experts plus a shared expert with top-8 routing; the eight-expert, top-2 configuration is the Mixtral lineage, whose total is ~47B. Pairing them in one sentence, and then repeating '236B' in §5 as an example of 'the total across all experts', invites the reader to believe a 236B/8-expert configuration exists.",
+  "evidence": "The chapter's own Table 3-2 uses the Mixtral-class geometry (~47B, 8 experts, top-2) and labels it [ILLUSTRATIVE][ASSUMPTION]; the 236B figure appears nowhere else in the chapter's arithmetic. The two figures are never reconciled.",
+  "root_cause": "A generic 'large MoE' placeholder was written with a real headline number attached, and the expert count was carried over from the Mixtral example used later in the chapter.",
+  "correction": "Either (a) replace '236B' with a non-numeric placeholder ('a several-hundred-billion-parameter MoE') and keep the eight-expert/top-2 geometry consistent with Table 3-2, or (b) keep 236B and state its real geometry (256 routed experts + 1 shared, top-8) with a first-party citation, and use it as a second worked MoE column. Apply the same fix to the §5 bullet that repeats '236B'.",
+  "acceptance_test": "Every parameter-count figure quoted in Ch 3 is either the book's own constructed reference (labelled) or a named model with a cited geometry; no figure is paired with an expert count from a different architecture.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH4-MONTHBASIS-16",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 4 §3 canonical box, 'Average arrival rate' row, Time basis note (printed page not determinable from chunk)",
+  "chapter": "Ch 4",
+  "quoted_clause": "\"Over 24×7 the same 10 rps would extrapolate to ~25.9M requests/month, or ~12,960 requests/user/month for 2,000 users — an implausible all-day activity level for an internal enterprise document-Q&A tool.\"",
+  "observed": "The 24x7 extrapolation uses a 30-day month (10 x 3,600 x 24 x 30 = 25.92M) while the active-hours figure immediately above it uses a 21.67-day month (260 workdays / 12). The two are not on the same calendar basis, so the implied contrast (25.9M vs 6.24M = 4.15x) overstates the true hour ratio (24 h / 8 h = 3x).",
+  "evidence": "Re-derivation: 10 rps x 3,600 s x 24 h x (260/12) workdays = 18.72M requests/month on the book's own 260-workday calendar; on a 30-day calendar it is 25.92M. The book's stated conclusion (implausible) survives either way, but the comparison as printed mixes bases.",
+  "root_cause": "The 24x7 figure was computed with a 30-day month for convenience while the adjacent figure used the 260-workday calendar; the calendar basis was stated for one and not the other.",
+  "correction": "Use the book's own calendar for both: 'Over 24x7 the same 10 rps would extrapolate to ~18.7M requests/month on the same 260-workday calendar (~9,360 requests/user/month) — still implausible for an internal document-Q&A tool.' If a 30-day calendar is preferred for the 24x7 figure, state it and recompute the active-hours figure on the same basis.",
+  "acceptance_test": "All monthly request volumes in the canonical box and sidebar use one stated calendar basis; the 24x7 and active-hours figures differ by exactly the hour ratio.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH1-CH4-12GB-17",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 1 §1 'KV cache as a concept' and Ch 3 §3 vs Ch 4 §6 'Memory planning' (printed page not determinable from chunk)",
+  "chapter": "Ch 1 / Ch 3 / Ch 4",
+  "quoted_clause": "Ch 1: \"At 9.2K tokens the raw byte-halving figure gives ~12.06 GB\"  |  Ch 3: \"KV cache ~1.31 MB per token × 9,200 tokens ≈ 12.06 GB\"  |  Ch 4: \"quantize KV (FP8 → ~1.31 MB/token, ~12.05 GB/request at the same 9.2K context)\"",
+  "observed": "The same quantity is printed as 12.06 GB in two chapters and 12.05 GB in a third. The exact value is 1,310,720 B x 9,200 = 12,058,624,000 B = 12.0586 GB, which rounds to 12.06; the 12.05 figure comes from multiplying the already-rounded 1.31 MB by 9,200.",
+  "evidence": "Re-derivation confirms 12.0586 GB. The FP16 counterpart is consistent across chapters at 24.1 GB (2,621,440 x 9,200 = 24.117 GB), so only the FP8 figure drifted.",
+  "root_cause": "Rounded intermediate values were carried into a final figure in one place and not the others; the book has no rule about rounding intermediates.",
+  "correction": "Adopt 12.06 GB everywhere (or state the per-token figure as 1.3107 MB and let the product stand). Add a one-line house rule to the front matter: 'carry at least four significant figures through intermediate products; round only at the printed result.'",
+  "acceptance_test": "Every derived KV total in the book prints the same value to the same precision; a source-wide scan of '12.05'/'12.06' returns one value.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH1-NOTATION-18",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 1 §1 'KV cache as a concept' display equation vs Ch 3 §3 KV formula (printed page not determinable from chunk)",
+  "chapter": "Ch 1 / Ch 3",
+  "quoted_clause": "Ch 1: \"KV_{\\text{per-token}} = 2 \\times n_\\text{layers} \\times n_\\text{KV heads} \\times d_\\text{head} \\times \\text{bytes-per-value}\"  |  Ch 3: \"n_{\\text{KV-heads}} \\times d_{\\text{head}} = d_{\\text{hidden}}\"",
+  "observed": "The same symbol is written 'n_KV heads' (space, unbraced) in Ch 1's display equation and prose, and 'n_{KV-heads}' (hyphen, braced) in Ch 3. The book's own notation is otherwise careful, and the two forms will not match under a symbol search.",
+  "evidence": "Direct comparison of the two occurrences; Ch 1 also writes 'n_KV heads × d_head = d_hidden' in prose while Ch 3 writes 'n_{KV-heads} × d_head = d_hidden'.",
+  "root_cause": "Notation drift introduced when the formula was restated in Ch 3 with a hyphenated subscript.",
+  "correction": "Standardise on n_{\\text{KV-heads}} (hyphenated, braced) in Ch 1's display equation and prose, and add the symbol to the notation list in the front matter or Appendix A alongside n_layers, d_head, d_hidden, bytes-per-value.",
+  "acceptance_test": "A source-wide search for 'KV heads' and 'KV-heads' returns only the hyphenated form; every symbol in the KV formula appears in the book's notation list.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH3-QWEN-NAMES-19",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 3 §6 'One verified 2026 transfer: Qwen3.8-Flash-Next', KV cache bullet (printed page not determinable from chunk)",
+  "chapter": "Ch 3",
+  "quoted_clause": "\"Chapter 7 works a configuration-backed version of exactly this two-term budget — Qwen3.8-27B's 16 full-attention layers priced separately from its 48 Gated DeltaNet layers — into its own history-state arithmetic, so we do not re-derive it here.\"",
+  "observed": "The subsection is about Qwen3.8-Flash-Next (125B total / 6B active, 512 experts, GDN + QSA) but the layer-count example is attributed to Qwen3.8-27B, a different model that the same section has just described as a dense 27.8B model. The reader cannot tell whether Ch 7's two-term budget is computed for Flash-Next or for 27B, and the 16/48 split (1/4 full-attention, 3/4 GDN) matches the Flash-Next description rather than the 27B description.",
+  "evidence": "The section's own text: 'Qwen3.8-27B ... is a dense 27.8B model whose 4-bit weights fit on a single 24 GB consumer GPU' versus 'Qwen3.8-Flash-Next ... 125B total / 6B active ... Gated DeltaNet (GDN) on three of every four layers plus Qwen Sparse Attention (QSA) on the fourth'. The 16/48 split is 1/4 vs 3/4, matching the latter.",
+  "root_cause": "Two similarly named models are used in one subsection without a disambiguating note, and the forward reference to Ch 7 does not name the model it will price.",
+  "correction": "Name the model explicitly in the forward reference ('Chapter 7 prices Qwen3.8-Flash-Next's 16 QSA layers separately from its 48 Gated DeltaNet layers'), and if the 27B model genuinely has the same hybrid layer split, say so and give its layer count; otherwise drop the 27B attribution.",
+  "acceptance_test": "Every forward reference to a model-specific arithmetic names exactly one model, and the reader can tell which model Ch 7's two-term budget is computed for.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "CH3-MUSE-20",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 3 §6 'Why the trend signal should not be read as dense is dead', second bullet (printed page not determinable from chunk)",
+  "chapter": "Ch 3",
+  "quoted_clause": "\"**Muse Glimmer 30B** ([1P][FACT], source: Meta via vLLM-Recipes) is a dense 29.6B local-agentic model that runs in ~18 GB\"",
+  "observed": "Two issues in one clause. (a) The provenance label [1P] (first-party) is applied to a figure sourced from a third-party recipe blog quoting Meta; by the book's own taxonomy that is [2°] (reputable second-hand). (b) 'runs in ~18 GB' does not state the precision or quantization, so the figure is not reproducible: 29.6B at 4-bit is 14.8 GB, and ~18 GB implies roughly 4.9 bits/parameter.",
+  "evidence": "The book's own taxonomy (Ch 4 Note 1) defines [1P] as 'first-party (vendor spec, method paper)' and [2°] as 'reputable second-hand'. The adjacent Qwen3.8-27B claim is properly sourced to the HF model card and does state its precision ('4-bit weights').",
+  "root_cause": "Provenance labels were applied by habit rather than by the taxonomy, and a memory figure was quoted without the precision that determines it.",
+  "correction": "Relabel as [2°][FACT] (or cite the Meta model card directly and keep [1P]), and state the precision: 'a dense 29.6B local-agentic model that runs in ~18 GB at ~5-bit weights (source: Meta via vLLM-Recipes, retrieved YYYY-MM-DD)'. Apply the same precision-stating rule to the Qwen3.8-27B '4-bit weights' claim, which already complies.",
+  "acceptance_test": "Every [1P] label in Ch 3 points to a first-party artifact; every quoted memory footprint states the precision that produces it.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ },
+ {
+  "id": "BOOK-XREF-21",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 4 §4 ('Ch 1 §1.4'), Ch 4 §3 ('§4.3', '§4.3 and Ch 8/16–17'), Ch 2 §1 ('§2.2'), Ch 3 §8 ('Ch 3 §3.6') (printed page not determinable from chunk)",
+  "chapter": "Ch 2 / Ch 3 / Ch 4",
+  "quoted_clause": "\"The token-counting habits of Ch 1 §1.4 apply unchanged\"  |  \"see §4.3 and Ch 8/16–17\"  |  \"the qualification is developed in §2.2 and Ch 8\"  |  \"expert offload/swapping (Ch 3 §3.6, Ch. 18)\"",
+  "observed": "The book uses a '§chapter.section' notation ('§1.4' = Ch 1 section 4 = Measurement; '§4.3' = Ch 4 section 3 = Worked Example; '§2.2' = Ch 2 section 2 = Mental Model; '§3.6' = Ch 3 section 6 = Architecture Consequence). All four references resolve correctly under that reading, but the notation is indistinguishable from the far more common 'section.subsection' reading, under which '§1.4' would mean Ch 1 section 1, subsection 4 (which is 'Attention', not Measurement) and '§3.6' would mean a sixth subsection of Ch 3 section 3 (which does not exist). The convention is never stated.",
+  "evidence": "Verified each target against the chunk's own section structure: Ch 1 §4 contains exactly the three measurement items the Ch 4 reference describes; Ch 4 §3 contains the traffic walk-through and the cost-basis table; Ch 3 §6 contains the expert-offload discussion. The references are correct; only the notation is ambiguous.",
+  "root_cause": "The notation was introduced ad hoc and never documented, and the redundant form 'Ch 3 §3.6' (chapter stated twice) shows the convention was not settled.",
+  "correction": "State the convention once in the front matter ('Cross-references use §chapter.section; a bare §N.M refers to chapter N, section M') and normalise the redundant form: write 'Ch 3 §6' rather than 'Ch 3 §3.6'. Consider using 'Ch 3 §6' style throughout for consistency.",
+  "acceptance_test": "Every §-reference in the book resolves unambiguously under the stated convention, and no reference is written with the chapter number twice.",
+  "_tag": "UNIQUE",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_triage": "PRESENT"
+ }
+]

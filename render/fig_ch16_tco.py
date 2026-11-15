@@ -13,8 +13,8 @@ Values (computed at run time, not stated here):
                    P2-05: it is ONE priced operating point (6.24M req/mo), so it
                    is drawn as a MARKER at that point, never as a flat line
                    across the volume axis, and it takes no part in the crossover.
-  managed API    = $0.0208/req linear ($20.80/1K)
-  break-even     = self / api_per_req, with the $15-25/1K price band
+  managed API    = $0.0208/req linear ($20.80 per 1,000 requests)
+  break-even     = self / api_per_req, with the $15-25 per 1,000 requests band
 
 X-AXIS DIMENSION (R04 / F0201) — stated, not implied:
   The x-axis varies (A) served volume through duration / duty-cycle at a FIXED
@@ -114,7 +114,8 @@ fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/
 # managed curve read through it.  No text sits on the band (checked: every
 # annotation box / legend / vline label is far outside it at its own x).
 ax.fill_between(req, managed_lo, managed_hi, color='#c0392b', alpha=0.60,
-                label='price band $15–25/1K')
+                label=f'price band ${api_lo*1000:.0f}–{api_hi*1000:.0f} per 1K '
+                      f'requests (≈${api_lo:.3f}–{api_hi:.3f}/req)')
 ax.loglog(req, managed_lo, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, managed_hi, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, self_host, '-', color='#27408b', lw=2.0,
@@ -124,8 +125,9 @@ ax.plot([req_month], [cloud_total], 'D', ms=8, color='#6f9e5f',
         mec='#2e5c3a', mew=1.2, zorder=6,
         label=f'cloud ${cloud_total/1000:.1f}K/mo @ {req_month/1e6:.2f}M '
               f'(occupancy input)')
-ax.loglog(req, managed, '--', color='#c0392b', lw=2.0,
-          label=f'managed ${m3["per_1k"]:.2f}/1K')
+ax.loglog(req, managed, '--', color='#8e44ad', lw=2.0,
+          label=f'managed ${api_per_req:.4f}/req '
+                f'(${m3["per_1k"]:.2f} per 1K requests)')
 
 # ---- feasible bound + INFEASIBLE band (R04 / F0201) -----------------------
 # Drawn at zorder 0 so it sits under every curve, band and reference line.
@@ -209,8 +211,8 @@ ax.annotate(f'break-even ≈ {be_mid/1e6:.1f}M\n'
             xy=(be_mid, self_total), xytext=(6.0e4, 4.2e5),
             ha='center', va='center', fontsize=8.5, color='#c0392b',
             fontweight='bold',
-            arrowprops=dict(arrowstyle='-', lw=0.5, color='#c0392b',
-                            shrinkA=1, shrinkB=1),
+            arrowprops=dict(arrowstyle='-|>', lw=0.8, color='#c0392b',
+                            mutation_scale=11, shrinkA=1, shrinkB=1),
             bbox=dict(boxstyle='round,pad=0.30', fc='white', ec='#c0392b',
                       lw=0.8), zorder=8)
 
@@ -219,8 +221,9 @@ ax.legend(fontsize=8.8, loc='upper left', ncol=1, frameon=False,
           handlelength=1.3, labelspacing=0.25, bbox_to_anchor=(0.02, 0.97))
 # The x-axis dimension is named ON the axis (R04/F0201): option (A),
 # duration/duty-cycle varied at a FIXED 40 rps peak + FIXED 21-host fleet.
-ax.set_xlabel('Requests/month (log) — duration varied at FIXED 40 rps peak, '
-              'FIXED 21-host fleet', fontsize=9, labelpad=6)
+ax.set_xlabel(f'Requests/month (log) — load duration varied within the fixed '
+              f'{active_s:,.0f} s active window; {sc["peak_rps"]:.0f} rps peak, '
+              f'{n_hosts}-host fleet', fontsize=9, labelpad=6)
 # Header: two fig.text lines with a clear box-gap (va='top', stepped y).
 fig.text(0.5, 0.99,
          'ILLUSTRATIVE SCENARIO — NOT APPLES-TO-APPLES (see Table 16-1 / Ch 16)',
@@ -233,7 +236,8 @@ fig.text(0.11, 0.012,
          f'incl. ${m1["staff"]/1000:.0f}K/mo staff);\n'
          f'cloud ${cloud_total/1000:.1f}K/mo = {m2["paid_host_hours"]:,.0f} paid '
          f'host-hours (occupancy INPUT, not a measured duty cycle).\n'
-         f'Sensitivity: a ${api_lo*1000:.0f}–{api_hi*1000:.0f}/1K price band moves '
+         f'Sensitivity: a ${api_lo*1000:.0f}–{api_hi*1000:.0f} per 1K requests '
+         f'price band moves '
          f'the break-even to ~{be_lo/1e6:.1f}–{be_hi/1e6:.1f}M req/mo.\n'
          f'x = {sc["avg_rps"]:.0f} rps average × duration for the workload points; '
          f'x varies duration/duty-cycle\n'

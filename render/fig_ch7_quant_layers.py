@@ -46,7 +46,7 @@ ctext(W / 2, 5.65, 'Quantization choices are not execution guarantees',
 # row 1: two independent questions
 rbox(0.18, 4.72, 2.82, 0.70, LEAF, STROKE, 1.4)
 rbox(3.10, 4.72, 2.82, 0.70, LEAF, STROKE, 1.4)
-ctext(1.59, 5.24, 'Error-control method', size=9.5, weight='bold')
+ctext(1.59, 5.24, 'Quantization (calibration) method', size=9.5, weight='bold')
 ctext(1.59, 5.02, 'AWQ / GPTQ')
 ctext(1.59, 4.84, 'Calibration guides error reduction')
 ctext(4.51, 5.24, 'Numerical representation', size=9.5, weight='bold')
@@ -83,6 +83,13 @@ ax.plot([centers[0], centers[-1]], [1.62, 1.62], color=STROKE, lw=1.4,
         solid_capstyle='butt')
 for x in centers:
     down(x, 1.62, 1.325)
+
+# R5 fix (FIG-7.3-01): mark the fan-out as exclusive - exactly one of the
+# three execution paths is taken (caption: 'execution paths' / 'Only supported
+# combinations').  Right-aligned above the bar's right end: clear of the
+# 'compatible dispatch' tag (ends ~x=4.1) and of the bar itself (y=1.62).
+ax.text(5.95, 1.75, 'exactly one path', ha='right', va='center',
+        fontsize=8.5, color=INK)
 
 # row 4: the three execution paths
 bw = 1.7467

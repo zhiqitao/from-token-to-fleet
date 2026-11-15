@@ -79,30 +79,42 @@ v=Drawing('video-latent-work',600)
 v.text(305,23,'Whole-clip denoising: Wan2.2 TI2V-5B',17,True)
 for x,s in [(10,'Prompt'),(218,'Optional reference image'),(426,'Initial noise (FP32)')]:
  v.box(x,48,174,42,BLUE,'#F1F4FA');v.text(x+87,74,s,14)
-v.box(10,117,174,60,BLUE,'#F1F4FA');v.text(97,141,'UMT5-XXL',15,True);v.text(97,163,'≤512 prompt tokens',13)
-v.box(218,117,174,60,BLUE,'#F1F4FA');v.text(305,141,'VAE encode',15,True);v.text(305,163,'I2V condition only',13)
+v.box(10,117,174,60,ORANGE,'#FFF5EB',sw=2.5);v.text(97,141,'UMT5-XXL',15,True);v.text(97,163,'≤512 prompt tokens',13)
+v.box(218,117,174,60,ORANGE,'#FFF5EB',sw=2.5);v.text(305,141,'VAE encode',15,True);v.text(305,163,'I2V condition only',13)
 v.box(426,117,174,60,BLUE,'#F1F4FA');v.text(513,140,'Latent: T × H × W × C',14,True);v.text(513,163,'31 × 44 × 80 × 48',13)
 v.arrow([(97,90),(97,117)])
 v.arrow([(305,90),(305,117)])
 v.arrow([(513,90),(513,117)])
-v.box(40,213,530,126,ORANGE,'#FFF5EB')
+# Round-5 FIG-8.3-1: compute boxes carry a HEAVIER border, so the data/state
+# vs compute split survives grayscale without relying on the blue/orange hue.
+v.box(40,213,530,126,ORANGE,'#FFF5EB',sw=2.5)
 v.text(305,238,'Wan2.2 dense TI2V-5B + scheduler',16,True)
 v.text(305,265,'Patch (1, 2, 2): N = 27,280 video tokens',14)
 v.text(305,292,'50 steps × 2 CFG branch evaluations',14)
 v.text(305,319,'Loop: denoising / scheduler iteration',13)
-v.arrow([(97,177),(97,195),(124,195),(124,213)],True,BLUE)
-v.arrow([(305,177),(305,213)],True,BLUE)
+# Round-5 FIG-8.3-01: the encoder outputs are data artifacts, so each
+# (now orange) compute stage feeds a blue data box, which then conditions
+# the denoiser via the dashed blue link.
+v.arrow([(97,177),(97,181)])
+v.box(10,181,174,24,BLUE,'#F1F4FA');v.text(97,197,'Prompt embeddings',13)
+v.arrow([(97,205),(97,209),(124,209),(124,213)],True,BLUE)
+v.arrow([(305,177),(305,181)])
+v.box(218,181,174,24,BLUE,'#F1F4FA');v.text(305,197,'I2V condition',13)
+v.arrow([(305,205),(305,209),(332,209),(332,213)],True,BLUE)
 v.arrow([(513,177),(513,213)])
 v.arrow([(570,240),(591,240),(591,323),(570,323)])
 v.arrow([(305,339),(305,373)])
-v.box(105,373,400,86,ORANGE,'#FFF5EB');v.text(305,397,'VAE decode',16,True)
+v.box(105,373,400,86,ORANGE,'#FFF5EB',sw=2.5);v.text(305,397,'VAE decode',16,True)
 v.text(305,420,'VAE stride (T, H, W) = (4, 16, 16)',13)
 v.text(305,443,'Aligned endpoint: 1 + 4 × (31 − 1) = 121 frames',13)
 v.arrow([(305,459),(305,490)])
 v.box(153,490,304,44,BLUE,'#F1F4FA',sw=2.5,double=True);v.text(305,517,'121 frames · 704 (H) × 1280 (W) · 24 fps',14)
-v.text(305,562,'Solid: data/state flow. Dashed: denoiser conditioning. Blue: data/state. Orange: compute.',13)
-v.text(305,582,'Token partitioning adds communication between devices.',13)
-cap1='Figure V1 — Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T_l=(F−1)//4+1, H_l=H//16 and W_l=W//16. For aligned F=4k+1, F=1+4(T_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. [1P][FACT] geometry and loop; [1P][DERIVED] aligned inverse and token count. Schematic, not a latency or peak-memory measurement.'
+# Round-5 FIG-8.3-02: the token-partitioning sentence moved to the caption as
+# a scope note (this schematic is single-device); y=582 now carries the border
+# half of the key, so the legend explains every visible encoding without colour.
+v.text(305,562,'Solid: data/state flow. Dashed: denoiser conditioning.',13)
+v.text(305,582,'Blue, thin border: data/state. Orange, heavy border: compute.',13)
+cap1='Figure V1 — Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T_l=(F−1)//4+1, H_l=H//16 and W_l=W//16. For aligned F=4k+1, F=1+4(T_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. Token partitioning adds communication between devices. [1P][FACT] geometry and loop; [1P][DERIVED] aligned inverse and token count. Schematic, not a latency or peak-memory measurement.'
 alt1='Prompt encoding, labeled at most 512 prompt tokens, and optional reference-image VAE encoding condition a whole-clip denoising block. Initial FP32 latent noise enters from the right. The feedback loop is labeled denoising / scheduler iteration. The VAE stride is temporal 4 and spatial 16 by 16. The aligned endpoint formula 1+4 times (31 minus 1) gives 121 output frames at 1280 by 704 pixels and 24 frames per second. Solid data/state arrows and dashed conditioning arrows are distinct without color.'
 f1=v.finish(cap1,alt1,['video-resource-budget','video-work-unit'],['VG005','VG006','VG007','VG008','VG009','VG010','VG024','VG025','VG029','VG031'])
 
