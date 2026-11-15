@@ -12,7 +12,8 @@ updates it at every phase transition.
 | 2 | DONE | DONE | — | DONE | DONE | — | closed |
 | 3 | DONE | DONE | — | DONE | DONE | DONE (462pp, 4 gates green) | close-out commits e186c904/51f818b8/05e48956 |
 | 4 | DONE (653 findings: text 315 + vision 338) | DONE (common 8/unique 637) | DONE (compact register; 12 prompt edits saved) | DONE (286 CONFIRMED / 180 FP / 187 DEFENSIBLE; ledger disposition.md) | DONE (278 deduped → 245 applied / 17 skipped-premise / 17 duplicates; 77 chunks) | DONE (486pp, all gates green; commits fdc95be5 + 1f2a1473) | closed; round 5 data in flight |
-| 5–14 | round 5 DATA in flight (parallel process: text 5 + vision 5 running) | | | | | | |
+| 5 | DONE (823 findings: text 450 + vision 373; 72/72 clean files via effort ladder + max_tokens=262144 for MiniMax 1M ctx) | DONE (common 21/unique 802) | DONE (compact register 102/40K; 4/4; prompt_edits_r5.json) | DONE (341 CONFIRMED / 242 FP / 239 DEFENSIBLE / 1 UNVERIFIABLE; 42/42 batches gate 0 problems; ledger disposition.md) | DONE (292 deduped → 189 applied / 58 skipped-premise / 45 duplicates / 0 needs-regen; 13 packs; commit 910aa565) | DONE (497pp tagged + plain green, all audits; 89 vision pages re-rendered; commits 910aa565 + d438ac05) | closed; NOT converged (292 CONFIRMED > 0) → round 6 required |
+| 6–14 | next: DATA (panel: DS/MiniMax alternating as delegate backends per user directive 2026-11-14) | | | | | | |
 
 Panel: MiMo-V2.6-Flash-RL, DeepSeek-V4.1-Flash, Qwen3.8-27B,
 MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
