@@ -42,8 +42,8 @@ The loop below turns that unit into concrete bounds.
 \ntsection{Mental Model}\label{mental-model}
 
 
-The prefill/decode split is the figure the rest of the book builds on,
-and it was established in Ch 2 §2 (in the canonical operating point,
+The prefill/decode split is the distinction the rest of the book builds
+on, and it was established in Ch 2 §2 (in the canonical operating point,
 long-prompt prefill is compute-bound --- a large burst of FLOPs once per
 request --- while low-batch decode is bandwidth-bound --- a small amount
 of work repeated for every output token). Ch 22 does not re-derive that
@@ -121,7 +121,7 @@ architecture, attention/KV-head count, precision, batching, hardware,
 kernel efficiency, prefix caching, and output-generation speed --- but
 under the canonical assumptions the prefill-compute and KV-capacity
 terms are where the pressure lands, not decode bandwidth (the
-\textasciitilde5.6 TB/s weight-read rate is a whole-model, fleet-level
+\textasciitilde5.6 TB/s weight-read rate is a whole-model, host-level
 requirement that tensor parallelism shards to \textasciitilde0.70 TB/s
 per GPU on the canonical host, Ch 6 --- a per-host constraint, not a
 fleet-wide one). Every downstream chapter (memory, compute, cost) will
@@ -234,37 +234,39 @@ hosts at 100\% of peak and \textasciitilde4.1 at 40\% MFU (Ch 24 §3.3).
 with sequence length while the MLP/projection portion stays roughly
 linear, so total prefill compute becomes increasingly dominated by the
 quadratic attention term as context grows (including the 9.2K canonical
-case). Name the ratios explicitly: \textbf{at 9.2K the quadratic
-attention term is \textasciitilde17\% of the parameterized-linear 2NL
-term} (so it is still subordinate), \textbf{at 128K it is
-\textasciitilde2.4× the linear term} (attention relative to linear), and
-\textbf{total prefill FLOPs at 128K are \textasciitilde3.4× the 2NL
-baseline} (linear + quadratic, i.e.~1 + 2.4). Prefill is compute-bound
-(\textasciitilde1.29 PFLOP/request \textbf{case (i), linear-only} →
-\textasciitilde1.19 PFLOPS required at the \textasciitilde1.08 s prefill
-budget (Ch 4, \hyperref[tab:4.2]{Table 4-2}: the 1.2 s TTFT budget minus the
-\textasciitilde120 ms retrieval term --- an upper reach, not a deployed
-target); case (ii) full-square gives \textasciitilde1.5099 PFLOP →
-\textasciitilde1.40 PFLOPS). \textbf{Scope the rate comparison.}
-\textasciitilde1.19 PFLOPS is the \textbf{aggregate (whole-model)
-linear-only deadline demand} for one 9.2K prefill, so it may be compared
-only against an equally-scoped \textbf{aggregate host peak --- 8 × 0.989
-= 7.91 PFLOPS} --- which it clears with headroom; against a
-\emph{single} GPU's \textasciitilde0.989 PFLOPS peak it does not, and
-that is a \textbf{single-GPU counterfactual} (one device doing the
-entire prefill alone), not the canonical 8×H100 host's capacity. The
-plotted decode series includes only the parameter term, so it is flat.
-Full decode also attends over the growing KV cache; that
-context-dependent work and traffic are not plotted here (\hyperref[chap:8]{Chapter 8}).
-Note the aggregation units differ per series: the two prefill series are
-FLOPs \emph{per request} (whole-context), the decode series is FLOPs
-\emph{per generated token} (\textasciitilde140 GFLOP/token, independent
-of context length at the decoding step considered) --- this is why the
-y-axis is labeled per series (prefill: PFLOP/request; decode:
-PFLOP/token). The two regimes remain deliberately separate: decode lands
-in the bandwidth-bound regime at low batch (Ch 6), prefill in the
-compute-bound regime at long prompt (Ch 8) --- each an operating-point
-property, not an identity.}
+case). Name the ratios explicitly (under full-square counting):
+\textbf{at 9.2K the quadratic attention term is \textasciitilde17\% of
+the parameterized-linear 2NL term} (so it is still subordinate),
+\textbf{at 128K it is \textasciitilde2.4× the linear term} (attention
+relative to linear), and \textbf{total prefill FLOPs at 128K are
+\textasciitilde3.4× the 2NL baseline} (linear + quadratic, i.e.~1 +
+2.4). Under causal-triangle counting the same three ratios are
+\textasciitilde8.6\%, \textasciitilde1.2×, and \textasciitilde2.2×.
+Prefill is compute-bound (\textasciitilde1.29 PFLOP/request \textbf{case
+(i), linear-only} → \textasciitilde1.19 PFLOPS required at the
+\textasciitilde1.08 s prefill budget (Ch 4, \hyperref[tab:4.2]{Table 4-2}: the 1.2 s TTFT
+budget minus the \textasciitilde120 ms retrieval term --- an upper
+reach, not a deployed target); case (ii) full-square gives
+\textasciitilde1.5099 PFLOP → \textasciitilde1.40 PFLOPS). \textbf{Scope
+the rate comparison.} \textasciitilde1.19 PFLOPS is the
+\textbf{aggregate (whole-model) linear-only deadline demand} for one
+9.2K prefill, so it may be compared only against an equally-scoped
+\textbf{aggregate host peak --- 8 × 0.989 = 7.91 PFLOPS} --- which it
+clears with headroom; against a \emph{single} GPU's \textasciitilde0.989
+PFLOPS peak it does not, and that is a \textbf{single-GPU
+counterfactual} (one device doing the entire prefill alone), not the
+canonical 8×H100 host's capacity. The plotted decode series includes
+only the parameter term, so it is flat. Full decode also attends over
+the growing KV cache; that context-dependent work and traffic are not
+plotted here (\hyperref[chap:8]{Chapter 8}). Note the aggregation units differ per series:
+the two prefill series are FLOPs \emph{per request} (whole-context), the
+decode series is FLOPs \emph{per generated token} (\textasciitilde140
+GFLOP/token, independent of context length at the decoding step
+considered) --- this is why the y-axis is labeled per series (prefill:
+PFLOP/request; decode: PFLOP/token). The two regimes remain deliberately
+separate: decode lands in the bandwidth-bound regime at low batch (Ch
+6), prefill in the compute-bound regime at long prompt (Ch 8) --- each
+an operating-point property, not an identity.}
 
 \ntsection{Measurement}\label{measurement}
 
@@ -289,10 +291,10 @@ and should check:
 \item
   \textbf{Input vs output split.} Measure both legs of the request
   (prompt tokens and generated tokens), because they land on different
-  bottlenecks --- input on memory/prefill, output on decode --- and on
-  different cost line items. A request that is 90\% input and 10\%
-  output has a very different cost profile than one that is 50/50, even
-  at the same total token count.
+  bottlenecks --- input on prefill compute and KV-cache capacity, output
+  on decode bandwidth --- and on different cost line items. A request
+  that is 90\% input and 10\% output has a very different cost profile
+  than one that is 50/50, even at the same total token count.
 \item
   \textbf{Peak vs average context.} Log the distribution of context
   lengths, not just the mean. A workload that averages 9.2K input tokens
@@ -436,9 +438,10 @@ least-cost pick.}
   \textasciitilde\$87.6K/mo (\textasciitilde\$14.04/1K) on the cloud
   default paid-occupancy input, and \textasciitilde\$129.8K/mo
   (\textasciitilde\$20.8/1K) managed API at the canonical 6.24M
-  requests/mo (business-hours basis: 10 rps × 8 h × 260 workdays ÷ 12
-  --- not 24×7, Ch 4/Ch 16). The canonical workload's own 99.9\%
-  multi-region active-active requirement is in none of those numbers.
+  requests/mo (business-hours basis: 10 rps × 8 h × 3,600 s/h × 260
+  workdays ÷ 12 --- not 24×7, Ch 4/Ch 16). The canonical workload's own
+  99.9\% multi-region active-active requirement is in none of those
+  numbers.
 \item
   \textbf{Decision:} None yet. The least-cost row --- the cloud default
   paid-occupancy input at \textasciitilde\$14.04/1K --- is explicitly
@@ -490,21 +493,21 @@ fuller treatment:
   \textbf{Sustained HBM bandwidth for weight-read kernels} --- discussed
   in \hyperref[chap:2]{Chapter 2} §7; the 3.35 TB/s H100 figure is a theoretical peak
   (published spec --- FACT), while real serving kernels may sustain less
-  (a hypothesis awaiting verification).
+  \mbox{{[}HYPOTHESIS{]}}.
 \item
   \textbf{Prefill FLOP cost under continuous batching} --- \hyperref[chap:2]{Chapter 2} §7;
   the 2 × params × tokens approximation may ignore activation reuse
   across batched requests (the size of the correction is
-  workload-dependent). (a hypothesis awaiting verification)
+  workload-dependent). \mbox{{[}HYPOTHESIS{]}}
 \item
   \textbf{Effect of quantization on decode vs prefill} --- \hyperref[chap:2]{Chapter 2} §7;
   quantization shifts both bottlenecks but the precise trade-off point
-  is workload-dependent. (a hypothesis awaiting verification)
+  is workload-dependent. \mbox{{[}HYPOTHESIS{]}}
 \item
   \textbf{Cross-technology bandwidth numbers} --- \hyperref[chap:2]{Chapter 2} §7; HBM3e
   and MI300X publish higher peaks, which would move the GPU-count
   equation without changing the compute-bound vs bandwidth-bound
-  classification. (a hypothesis awaiting verification)
+  classification. \mbox{{[}HYPOTHESIS{]}}
 \end{itemize}
 
 \section{End-of-Chapter Mini-Case: The Token-to-Fleet Thought

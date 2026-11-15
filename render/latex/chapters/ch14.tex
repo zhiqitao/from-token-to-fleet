@@ -25,12 +25,11 @@ instruments:
   on standardized tasks (MMLU, GSM8K, HumanEval, MT-Bench, retrieval-QA
   suites). They answer: \emph{is this model good enough at the skill our
   workload needs?} They do NOT tell us how fast, how cheap, or how it
-  behaves under our traffic --- model capability is the goal (Ch4's
-  Quality dimension) --- the quality gate --- while deployment
-  benchmarks measure the constraints (latency, throughput, cost) that
-  capability benchmarks do not; if capability fails its quality gate (Ch
-  12's candidate (c)), it becomes the binding constraint before any
-  serving optimization.
+  behaves under our traffic. Model capability is the goal (Ch4's Quality
+  dimension) and forms the quality gate; deployment benchmarks measure
+  the constraints (latency, throughput, cost) that capability benchmarks
+  do not. If capability fails its quality gate (Ch 12's candidate (c)),
+  it becomes the binding constraint before any serving optimization.
 \item
   \textbf{Deployment benchmarks} --- measure the \emph{system's}
   behavior on a representative workload: TTFT, TPOT, throughput,
@@ -43,9 +42,10 @@ instruments:
 The core insight: \textbf{a capability leaderboard is a poor proxy for
 serving performance.} Two models with identical MMLU can differ wildly
 in TTFT under the same batching, because serving depends on tokenizer,
-context length, KV layout, and scheduler --- none of which a leaderboard
-scores. Benchmarks select models only after capability filters and
-deployment measurement both pass.
+context length, KV layout, scheduler, model size, architecture, and
+hardware --- none of which a leaderboard scores. Benchmarks select
+models only after capability filters and deployment measurement both
+pass.
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -88,25 +88,25 @@ p95 ≤ 2 s), TPOT \textasciitilde25 ms/token. {[}canonical scenario (Ch
 4, \hyperref[tab:4.2]{Table 4-2}){]}
 
 \textbf{Step 1 --- representative queries.} We sample real user
-questions and run them through the rag pipeline to produce the actual
+questions and run them through the RAG pipeline to produce the actual
 prompt shapes, matching the \textasciitilde9.2K-in /
 \textasciitilde300-out token profile with the model's own tokenizer (not
 a heuristic). \mbox{{[}2°{]}}
 
 \textbf{Step 2 --- sweep the offered load, not a single point.} The
-analytical KV quotient C ≈ 17.5 (the 436 GB canonical KV budget ÷ 24.9
-GB per 9,500-token whole-context request) gives at most 17 whole-context
-slots, not a deployable concurrency of 17.5. At the assumed 8.6-second
-execution time, 17/8.6 ≈ 1.98 req/s is a single-host residency ceiling
-before headroom and competing resource limits (the unfloored 17.5-slot
-quotient gives \textasciitilde2.03 req/s on the analytical planning
-screens; the \textasciitilde3\% gap is the fractional-slot rounding ---
-floor 17 for provisioning, 17.5 for analysis). We sweep offered load and
-measure the tail rather than treating that ceiling as achieved capacity.
-An illustrative single-host sweep can cover 2, 4, 8, 12 and 16 active
-requests. Higher offered concurrency tests queueing or rejection; it
-does not imply that all requests are simultaneously resident. At each
-level we record:
+analytical KV quotient C ≈ 17.5 FP16-KV request-equivalents (436 GB FP16
+KV budget ÷ 24.9 GB per 9,500-token request; 9,500 × 2.62 MB ≈ 24.9 GB)
+gives at most 17 whole-context slots, not a deployable concurrency of
+17.5. At the assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a
+single-host residency ceiling before headroom and competing resource
+limits (the unfloored 17.5-slot quotient gives \textasciitilde2.03 req/s
+on the analytical planning screens; the \textasciitilde3\% gap is the
+fractional-slot rounding --- floor 17 for provisioning, 17.5 for
+analysis). We sweep offered load and measure the tail rather than
+treating that ceiling as achieved capacity. An illustrative single-host
+sweep can cover 2, 4, 8, 12 and 16 active requests. Higher offered
+concurrency tests queueing or rejection; it does not imply that all
+requests are simultaneously resident. At each level we record:
 
 \begin{itemize}
 \tightlist
@@ -169,14 +169,14 @@ TPOT & p50 / p95 & \textasciitilde25 ms/token median &
 SLO-goodput & tokens/s meeting the SLO (Ch 6), not raw throughput & ---
 & \mbox{{[}UNMEASURED{]}} \\
 KV allocator usage & resident bytes per rank, block occupancy,
-prefix-cache hit ratio & C ≈ 17.5 whole-context slots/host &
-\mbox{{[}UNMEASURED{]}} \\
+prefix-cache hit ratio & C ≈ 17.5 request-equivalents/host (analytical);
+integer whole-context slots = 17 & \mbox{{[}UNMEASURED{]}} \\
 Rank imbalance & max − min load and memory across the 8 GPUs & --- &
 \mbox{{[}UNMEASURED{]}} \\
 Admission rejection & offered load at the saturation knee (Step 2) & ---
 & \mbox{{[}UNMEASURED{]}} \\
-Hardware utilization & achieved FLOP/s ÷ peak FLOP/s (MFU, Ch 8
-definition) & planning assumption 35\% & \mbox{{[}UNMEASURED{]}} \\
+Hardware utilization & achieved FLOP/s ÷ peak FLOP/s (achieved FLOP/s
+utilization, per Ch 8) & planning assumption 35\% & \mbox{{[}UNMEASURED{]}} \\
 Model ID + backend commit & exact weights revision and serving-engine
 commit under test & to be recorded & \mbox{{[}UNMEASURED{]}} \\
 
@@ -249,7 +249,7 @@ Four habits make benchmarks trustworthy:
   \textbf{Use the model's own tokenizer} on representative real prompts.
   The ``4 chars ≈ 1 token'' estimate can be \textasciitilde1.5--3× off
   for code/JSON/technical text (measure chars/token with the model's own
-  tokenizer; no Ch 6 figure is cited).
+  tokenizer).
 \item
   \textbf{Measure distributions, not means} --- log p50/p90/p95/p99 for
   every latency metric and the full token-length distribution. A
@@ -367,6 +367,11 @@ criteria. It also identifies the timing boundary. Seconds per denoising
 step, seconds for all sampling steps, and seconds to a finalized clip
 are not interchangeable. \mbox{{[}DERIVED{]}}
 
+This section keeps the video measurement protocol; the serving side ---
+request scheduling, live state, reuse, and resource-specialized pools
+for a video workload --- is treated in the Ch 11 appendix, ``Beyond
+autoregressive text: video and diffusion serving''.
+
 A primary report can still leave that tuple incomplete. HunyuanVideo-1.5
 reports 5.5070 versus 2.9475 seconds per diffusion step for dense versus
 sparse attention at 720 × 1,280 pixels and 241 frames. Those
@@ -464,8 +469,9 @@ supplies the correctness and traffic-accounting contract. \mbox{{[}DERIVED{]}}
   via the 4-char heuristic mis-sizes KV cache and prefill.
 \item
   \textbf{Optimizing raw throughput past the SLO window.} Bigger batch
-  sizes raise tokens/s but push TTFT over the deadline, zeroing goodput
-  (Ch6, Ch11).
+  sizes raise tokens/s but push TTFT over the deadline for the affected
+  requests and can reduce goodput --- to zero only if no request in the
+  measurement window meets the SLO (Ch6, Ch11).
 \end{itemize}
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
@@ -497,9 +503,10 @@ memory pressure) before they breach the SLO.
 \pandocbounded{\includegraphics[keepaspectratio,alt={Capability screen then deployment benchmark \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-14-1401.pdf}}
 \caption{Capability screen then deployment benchmark \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
-\label{fig:14.1}\emph{Two-stage benchmarking: capability screen (which models qualify) →
-deployment benchmark (which system meets our SLO), feeding selection and
-TCO.}
+\label{fig:14.1}\emph{Two-stage benchmarking: the capability screen (which models
+qualify) feeds the deployment benchmark (which system meets our SLO),
+whose results pass the TCO + SLO gate to the deployed system, feeding
+selection and TCO.}
 
 \end{figure}\ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 

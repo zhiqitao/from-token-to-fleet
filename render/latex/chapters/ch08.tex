@@ -26,8 +26,12 @@ every activation function evaluation contributes to the total. The
 architect's first principle is that FLOPs scale linearly with parameter
 count and token count for projection-dominated work (\textasciitilde2N
 per token), while attention adds a term quadratic in context length
-(\textasciitilde4·n\_layers·L²·d, §1 below) --- the hardware ridge point
-and the kernel's arithmetic intensity decide the efficiency of both.
+(\textasciitilde4·n\_layers·L²·d, where d is the model hidden dimension,
+d = n\_heads × d\_head = 8192 here; the term counts both the QK\^{}T and
+AV matmuls for full dense attention and excludes projections and
+softmax; derived in §3 (\hyperref[tab:8.1]{Table 8-1}) and Ch 22) --- the hardware ridge
+point and the kernel's arithmetic intensity decide the efficiency of
+both.
 
 For a dense transformer layer, the dominant cost is the matrix
 multiplication --- the attention-score and value-aggregation matmuls,
@@ -57,27 +61,29 @@ evaluation over length L, attention work grows quadratically with L. For
 K active queries over a cached prefix of length C, the attention main
 term grows with K(C + K), before the architecture's head and layer
 factors. Reducing the number of recomputed query positions does not
-eliminate reads of a long prefix. \mbox{{[}DERIVED{]}}
-
-Consider an explicitly illustrative 7B-active-parameter model that emits
-256 tokens in 32-token blocks and uses eight decoder evaluations per
-block. There are eight blocks, hence 64 sequential decoder evaluations.
-The decoder nevertheless evaluates 256 × 8 = 2,048 output positions. Its
-projection proxy is 2 × 7B × 2,048 = 28.672 TFLOP. A simplified
-output-only AR counter evaluates 256 positions and gives 3.584 TFLOP.
-The block example has one quarter as many sequential evaluations but
-eight times as much output-side projection work. These are different
-quantities, not contradictory results.
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
-
-This arithmetic omits prompt encoding, context attention,
-block-finalization encoding, the output head, refresh, classifier-free
-guidance, verification and communication. It also simplifies the book's
-first-token-from-prefill convention. It compares counters, not
-equal-quality models, and predicts neither a fourfold speedup nor an
-eightfold end-to-end slowdown. A network-evaluation count must include
-extra verification passes and the shapes of any combined guidance
-branches, rather than count only outer sampler rounds. \mbox{{[}DERIVED{]}}
+eliminate reads of a long prefix. The 2N rule therefore applies to
+processed positions, not just output tokens: a diffusion-style generator
+that evaluates 8× positions per step has 8× the projection work even
+with ¼ the sequential steps --- fewer rounds ≠ less total work. Profile
+the actual position count before quoting FLOPs. \mbox{{[}DERIVED{]}}\footnote{Worked
+  example, illustrative: a 7B-active-parameter model that emits 256
+  tokens in 32-token blocks and uses eight decoder evaluations per
+  block. There are eight blocks, hence 64 sequential decoder
+  evaluations. The decoder nevertheless evaluates 256 × 8 = 2,048 output
+  positions. Its projection proxy is 2 × 7B × 2,048 = 28.672 TFLOP. A
+  simplified output-only AR counter evaluates 256 positions and gives
+  3.584 TFLOP. The block example has one quarter as many sequential
+  evaluations but eight times as much output-side projection work. These
+  are different quantities, not contradictory results.
+  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} This arithmetic omits
+  prompt encoding, context attention, block-finalization encoding, the
+  output head, refresh, classifier-free guidance, verification and
+  communication. It also simplifies the book's first-token-from-prefill
+  convention. It compares counters, not equal-quality models, and
+  predicts neither a fourfold speedup nor an eightfold end-to-end
+  slowdown. A network-evaluation count must include extra verification
+  passes and the shapes of any combined guidance branches, rather than
+  count only outer sampler rounds. \mbox{{[}DERIVED{]}}}
 
 Why might the higher-work path still finish earlier? Processing more
 positions together can reuse loaded weights across more matrix rows and
@@ -134,18 +140,18 @@ moving per second). \textbf{Memory-capacity-constrained} (often
 KV-capacity-constrained in long-context inference) means feasible
 concurrency or context is limited by \emph{how much data fits in HBM}
 --- not by how fast it moves. The canonical RAG workload illustrates all
-three without overlap: prefill is compute-bound (high intensity), decode
-is bandwidth-bound (low intensity), and long input raises KV residency,
-which capacity-constrains how many requests can be resident at once.
-These regime labels are operating-point properties: they shift with
-batch size and precision, and in a serving system prefill and decode
-from different requests overlap on the same devices, so the regimes
-coexist rather than partition the timeline. ``Input-heavy'' does
-\textbf{not} by itself mean ``memory-bound'' --- it tends to raise
-prefill compute \emph{and} KV-capacity pressure, two distinct effects.
-When the book says ``memory-bound'' without qualification, it means
-\emph{bandwidth-bound} in the roofline sense; capacity pressure is
-stated explicitly.
+three as distinct constraints: prefill is compute-bound (high
+intensity), decode is bandwidth-bound (low intensity), and long input
+raises KV residency, which capacity-constrains how many requests can be
+resident at once. These regime labels are operating-point properties:
+they shift with batch size and precision, and in a serving system
+prefill and decode from different requests overlap on the same devices,
+so the regimes coexist rather than partition the timeline.
+``Input-heavy'' does \textbf{not} by itself mean ``memory-bound'' --- it
+tends to raise prefill compute \emph{and} KV-capacity pressure, two
+distinct effects. When the book says ``memory-bound'' without
+qualification, it means \emph{bandwidth-bound} in the roofline sense;
+capacity pressure is stated explicitly.
 \end{quote}
 
 \subsection{A resource model survives a backend change; an
@@ -155,40 +161,39 @@ not}\label{a-resource-model-survives-a-backend-change-an-implementation-may-not}
 \emph{Backend-documentation observations: 2026-10-28. They do not
 establish feature availability at the edition's 2026-08-30 cutoff.}
 
-The compute and memory equations apply across accelerator vendors. Their
+The compute and memory equations apply across accelerator vendors; their
 constants belong to a specific device and execution path. A peak INT8
 dense TOPS figure does not describe BF16 throughput, a sparse peak does
 not describe a dense workload, and aggregate device memory is not one
-allocation pool. The useful comparison starts with the model's
-operators, resident bytes and communication pattern. It then asks which
-kernels implement those operations on the candidate hardware
-(\href{https://intel.com/content/dam/www/central-libraries/us/en/documents/2026-03/datasheet-b70-gpu.pdf}{Arc
-Pro B70 datasheet},
-\href{https://intel.com/content/dam/www/central-libraries/us/en/documents/2026-03/datasheet-b65-gpu.pdf}{Arc
-Pro B65 datasheet},
-\href{https://cdrdv2-public.intel.com/817486/gaudi-3-ai-accelerator-white-paper.pdf}{Gaudi
-3 Accelerator white paper}). \mbox{{[}1P{]}}
-
-In PyTorch, \texttt{torch.xpu} names the Intel GPU device backend
-(\href{https://raw.githubusercontent.com/pytorch/pytorch/5c4886908584029761b579af026dcfb627c84070/docs/source/notes/get_start_xpu.md}{PyTorch
-XPU getting-started note}, pinned revision \texttt{5c48869}). It does
-not name every Intel accelerator. Intel Gaudi uses a separate
-\texttt{hpu} path and software stack
-(\href{https://docs.habana.ai/en/latest/PyTorch/PyTorch_Model_Porting/Porting_PyTorch_Models_to_Gaudi.html}{Gaudi
-PyTorch porting guide}, which allocates tensors as
-\texttt{torch.device("hpu")}). A client NPU can use the OpenVINO NPU
-plugin rather than the GPU backend
-(\href{https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai.html}{OpenVINO
-GenAI documentation}). Even within Intel GPU inference, an engine-native
-SYCL path can bypass PyTorch
-(\href{https://raw.githubusercontent.com/ggml-org/llama.cpp/8ca4060b7e30e76baaa5670ee1ec1b760b7f8552/docs/backend/SYCL.md}{llama.cpp
-SYCL backend documentation}, pinned revision \texttt{8ca4060}). oneAPI
-libraries, SYCL execution and Level Zero provide different parts of the
-software path; none supplies a serving scheduler by itself, and Habana's
-collectives run through their own HCCL library
-(\href{https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html}{HCCL
-API reference}). \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} for the stack boundaries; the
-portability consequence is \mbox{{[}DERIVED{]}}.
+allocation pool --- so the useful comparison starts with the model's
+operators, resident bytes and communication pattern, then asks which
+kernels implement those operations on the candidate hardware. \mbox{{[}1P{]}}
+One example: in PyTorch, \texttt{torch.xpu} names the Intel GPU device
+backend, while Intel Gaudi uses a separate \texttt{hpu} path, a client
+NPU can use the OpenVINO NPU plugin, and an engine-native SYCL path can
+bypass PyTorch --- the API name alone does not establish operator
+support. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} for the stack boundaries; the portability
+consequence is \mbox{{[}DERIVED{]}}.\footnote{Backend documentation inspected
+  2026-10-28:
+  \href{https://raw.githubusercontent.com/pytorch/pytorch/5c4886908584029761b579af026dcfb627c84070/docs/source/notes/get_start_xpu.md}{PyTorch
+  XPU getting-started note}, pinned revision \texttt{5c48869};
+  \href{https://docs.habana.ai/en/latest/PyTorch/PyTorch_Model_Porting/Porting_PyTorch_Models_to_Gaudi.html}{Gaudi
+  PyTorch porting guide}, which allocates tensors as
+  \texttt{torch.device("hpu")};
+  \href{https://docs.openvino.ai/2026/openvino-workflow-generative/inference-with-genai.html}{OpenVINO
+  GenAI documentation};
+  \href{https://raw.githubusercontent.com/ggml-org/llama.cpp/8ca4060b7e30e76baaa5670ee1ec1b760b7f8552/docs/backend/SYCL.md}{llama.cpp
+  SYCL backend documentation}, pinned revision \texttt{8ca4060};
+  \href{https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html}{HCCL
+  API reference}; oneAPI libraries, SYCL execution and Level Zero
+  provide different parts of the software path and none supplies a
+  serving scheduler by itself. Device constants:
+  \href{https://intel.com/content/dam/www/central-libraries/us/en/documents/2026-03/datasheet-b70-gpu.pdf}{Arc
+  Pro B70 datasheet},
+  \href{https://intel.com/content/dam/www/central-libraries/us/en/documents/2026-03/datasheet-b65-gpu.pdf}{Arc
+  Pro B65 datasheet},
+  \href{https://cdrdv2-public.intel.com/817486/gaudi-3-ai-accelerator-white-paper.pdf}{Gaudi
+  3 Accelerator white paper}.}
 
 This distinction changes a portability decision. A device API can be
 available while a required model operator or cache layout is not.
@@ -210,35 +215,36 @@ closes with a mini-case that threads the prefill/decode divide.
 FLOPs are like the total distance of a trip: they tell us how much work
 the request requires, not how fast the system can cover it. The ridge
 point picks which ceiling binds the trip: if the arithmetic intensity is
-below the ridge, adding more FLOPs won't help because we are waiting for
-data. If we are above the ridge, we are limited by how fast the compute
-can chew through operations. The roofline chart --- attainable
-performance on the vertical axis (bounded by the hardware's peak
-TFLOPS), FLOP/byte on the horizontal --- is the map that resolves this.
-Where our kernel lands on that chart decides whether we should profile
-memory bandwidth or compute throughput.
+below the ridge, adding more compute throughput (FLOP/s) won't help
+because we are waiting for data. If we are above the ridge, we are
+limited by how fast the compute can chew through operations. The
+roofline chart --- attainable performance on the vertical axis (bounded
+by the hardware's peak TFLOPS), FLOP/byte on the horizontal --- is the
+map that resolves this. Where our kernel lands on that chart decides
+whether we should profile memory bandwidth or compute throughput.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The resource stack runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- compute, memory and interconnect are separate groups within this stack, not levels of one ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.pdf}}
-\caption[Where inference computation and data movement actually live]{Where inference computation and data movement actually live. The resource stack runs from the smallest/fastest/closest resource (registers, tensor cores, on-chip SRAM) to the largest/slower/farther (HBM, GPU interconnect, other GPUs). Inference work maps onto it: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- compute, memory and interconnect are separate groups within this stack, not levels of one ladder. \textbf{Schematic note:} the vertical ordering is a \emph{relative} speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The figure groups the resources three ways: compute units (tensor cores/ALU); the memory hierarchy, whose levels run from the smallest/fastest/closest (registers, shared memory, L2) to the largest/slower/farther (HBM); and interconnect (GPU interconnect, other GPUs/remote). Inference work maps onto these groups: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- compute, memory and interconnect are separate groups in this figure, not levels of one ladder. Color key: blue = compute, orange = memory (registers to HBM), green = interconnect --- the colors mark the groups, and only the memory hierarchy is a smallest-to-largest ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.pdf}}
+\caption[Where inference computation and data movement actually live]{Where inference computation and data movement actually live. The figure groups the resources three ways: compute units (tensor cores/ALU); the memory hierarchy, whose levels run from the smallest/fastest/closest (registers, shared memory, L2) to the largest/slower/farther (HBM); and interconnect (GPU interconnect, other GPUs/remote). Inference work maps onto these groups: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- compute, memory and interconnect are separate groups in this figure, not levels of one ladder. \textbf{Color key:} blue = compute, orange = memory (registers to HBM), green = interconnect --- the colors mark the groups, and only the memory hierarchy is a smallest-to-largest ladder. \textbf{Schematic note:} the vertical ordering is a \emph{relative} speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:8.1}\end{figure}
 
-\emph{Read this ladder together with the roofline:} the roofline's
+\emph{Read this figure together with the roofline:} the roofline's
 vertical axis (peak TFLOPS) is set by the hardware ceiling, while a
 kernel's horizontal position (FLOP/byte) is set by its arithmetic
-intensity --- not by where the work sits on this resource stack. A
-kernel is compute-bound when its arithmetic intensity sits above the
-ridge point (keeping data on-chip raises that intensity); it is
-bandwidth-bound when its intensity sits below the ridge, so it must
-stream large tensors from HBM faster than the bytes can move. So the
-``bound'' classification of Ch. 8 is not a property of the model alone
---- it follows from where the model's weights and the KV cache happen to
-be resident, and how much of the computation a kernel can keep on-chip.
-Ch. 15's FlashAttention discussion is exactly this ladder in action:
-keep more of the tile on-chip, move fewer bytes between HBM and the
-compute units.
+intensity, which depends on the kernel's data reuse and tiling ---
+including how much data it keeps on-chip --- not merely on the nominal
+memory level. A kernel is compute-bound when its arithmetic intensity
+sits above the ridge point (keeping data on-chip raises that intensity);
+it is bandwidth-bound when its intensity sits below the ridge, so it
+must stream large tensors from HBM faster than the bytes can move. So
+the ``bound'' classification of Ch. 8 is not a property of the model
+alone --- it follows from where the model's weights and the KV cache
+happen to be resident, and how much of the computation a kernel can keep
+on-chip. Ch. 15's FlashAttention discussion is exactly this ladder in
+action: keep more of the tile on-chip, move fewer bytes between HBM and
+the compute units.
 
 \ntsection{Worked Example: Canonical Scenario
 Arithmetic}\label{worked-example-canonical-scenario-arithmetic}
@@ -258,14 +264,14 @@ latency and memory SLO). It is \textbf{not} a claim that one host
 absorbs the 40 rps peak arrival rate --- as Ch 17 derives, that peak
 puts in-flight concurrency λ·W ≈ 344 at the \textasciitilde8.6 s service
 time, far above one host's KV-residency ceiling (C ≈ 17.5, conservative
-integer floor 17), so the \emph{fleet} needs \textasciitilde21 hosts (Ch
-17's floor-17 screen at full utilization; 31 working / 32 total at the
-70\% × 95\% policy --- \hyperref[tab:17.1]{Table 17-1}). The compute/roofline arithmetic of
-this chapter answers the per-request and per-host-shard question; the
-fleet question is a separate multiplication that Ch 17 performs (with
-the cost basis in Ch 16). We keep them distinct because each requires
-measuring against a different quantity (a latency budget vs an arrival
-rate).
+integer floor 17), so the full-utilization KV-residency floor is
+\textasciitilde21 hosts (Ch 17's floor-17 screen), while at the 70\% ×
+95\% policy the fleet is 31 working / 32 total --- \hyperref[tab:17.1]{Table 17-1}). The
+compute/roofline arithmetic of this chapter answers the per-request and
+per-host-shard question; the fleet question is a separate multiplication
+that Ch 17 performs (with the cost basis in Ch 16). We keep them
+distinct because each requires measuring against a different quantity (a
+latency budget vs an arrival rate).
 
 \subsection{FLOPs per token}\label{flops-per-token}
 
@@ -284,17 +290,18 @@ This applies to both prefill and decode: each token that enters the
 forward pass costs \textasciitilde140 GFLOP. The distinction between
 prefill and decode is not in the per-token FLOP count but in the data
 movement pattern --- prefill reads the full context once, while decode
-re-reads weights per token.
+re-reads weights per decode step (a \textbf{batch-1-equivalent} read per
+sequence, amortized across the batch at batch \textgreater{} 1).
 
-The implementation examples in this paragraph were inspected on
-2026-10-28. The 2P estimate (two FLOPs per parameter --- the 2 ×N rule
-above) applies to the parameterized matrix work in a specified execution
-path. It does not account for all history-dependent attention, indexing,
-routing, or repeated-depth computation. A shared core executed several
-times reuses weights but repeats arithmetic. A phase-dependent
-architecture can also activate different paths during prefill and
-decode. The parameter estimate therefore needs a phase and an execution
-count before it enters the roofline analysis.
+The cited implementation reports were inspected on 2026-10-28. The 2N
+estimate (two FLOPs per parameter --- the 2 ×N rule above) applies to
+the parameterized matrix work in a specified execution path. It does not
+account for all history-dependent attention, indexing, routing, or
+repeated-depth computation. A shared core executed several times reuses
+weights but repeats arithmetic. A phase-dependent architecture can also
+activate different paths during prefill and decode. The parameter
+estimate therefore needs a phase and an execution count before it enters
+the roofline analysis.
 (\href{https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/resolve/main/DeepSeek_V41_Tech_Report.pdf}{DeepSeek-V4.1-Flash
 technical report};
 \href{https://huggingface.co/tomg-group-umd/huginn-0125/raw/main/README.md}{Huginn
@@ -347,8 +354,10 @@ For a single request with 9.2K input tokens, the prefill FLOP cost is:
 \]
 
 {[}DERIVED: 2 × N × L where N=70B, L=9,200; the figure is large because
-the full context is attended to, but it is a one-time cost per request,
-not a sustained rate{]}
+every input token is processed through the model's parameterized layers
+(2NL); attention adds a separate quadratic term; this is the linear term
+only --- attention adds \textasciitilde17\% at 9.2K (case (ii), below);
+it is a one-time cost per request, not a sustained rate{]}
 
 \emph{Accuracy of the 2 ×N × L approximation.} This linear prefill count
 omits the quadratic attention term,
@@ -460,7 +469,15 @@ NVIDIA H100 SXM5 lists \textasciitilde1,979 TFLOPS FP16 Tensor Core peak
 sparsity {[}1P: NVIDIA H100 datasheet{]}. In practice, sustained model
 FLOPs utilization (MFU) for a well-tuned transformer workload typically
 runs at 30--40\% of peak on H100 {[}2°: industry benchmark reports,
-derived from real kernel profiles{]}. At 35\% MFU:
+derived from real kernel profiles{]}. The 35\% point used throughout
+this section is an explicit \textbf{\mbox{{[}ASSUMPTION{]}}}, not a measured
+value --- §7 notes that no systematic MFU atlas exists --- so every host
+count below is traceable to it. Sensitivity: 25\% MFU →
+\textasciitilde247 TFLOPS → \textasciitilde1,766 tokens/s per GPU,
+\textasciitilde14,100 per host, ⌈368,000 ÷ 14,100⌉ = 27 hosts at peak
+case (i); 35\% → \textasciitilde346 TFLOPS, \textasciitilde19,800 per
+host, 19 hosts; 45\% → \textasciitilde445 TFLOPS, \textasciitilde25,400
+per host, 15 hosts. At 35\% MFU:
 
 \[
 \text{sustained} = \text{peak} \times \text{MFU} = 989 \text{ TFLOPS} \times 0.35 \approx 346 \text{ TFLOPS}
@@ -549,14 +566,21 @@ screens --- \textbf{21 hosts under case (i) and case (iii), 22 under
 case (ii)} --- with the cost basis in \hyperref[chap:16]{Chapter 16} pricing both
 (\textasciitilde\$155,816.93/mo ≈ \$24.97/1K at 21 hosts;
 \textasciitilde\$162,760.59/mo ≈ \$26.08/1K at 22 --- illustrative
-included-cost on the canonical 6.24M-req/mo basis, Ch 16). That two
-fundamentally different constraints (prefill FLOP throughput vs.~KV
-residency/service time) land within one host of each other is the useful
-cross-check that they point at the same order of fleet. \textbf{19 / 21
-/ 22 --- and 32 (KV-only) / 34 (case (ii)) at the 70\% × 95\% + N−1
-policy, Ch 16/17 (the ρ = 1 u-only screen reads 30 / 33) --- are
-illustrative planning screens under the stated FLOP-counting case and
-the 35\% MFU assumption, NOT measured SLO-goodput.}
+included-cost on the canonical 6.24M-req/mo basis, Ch 16; the two totals
+do not scale linearly with host count: each host adds
+\textasciitilde\$6,943.67/mo of capex and energy while the \$10,000/mo
+staff allocation is fixed, Ch 16). That two fundamentally different
+constraints (prefill FLOP throughput vs.~KV residency/service time) land
+within one host of each other for cases (ii) and (iii) --- and two hosts
+apart for case (i) --- is the useful cross-check that they point at the
+same order of fleet. \textbf{19 / 21 / 22 --- the full-utilization
+compute screens for cases (i) / (iii) / (ii) --- and their labeled 70\%
+× 95\% + N−1 policy totals, Ch 16/17: case (i) compute screen 19 → 29
+and fleet 21 → 32, case (iii) 21 → 32, case (ii) 22 → 34, KV-only 21 →
+32 (the ρ = 1 u-only screen reads 30 / 32 --- ceil(N ÷ 0.7) for KV-only
+21 and case (ii) 22) --- are illustrative planning screens under the
+stated FLOP-counting case and the 35\% MFU assumption, NOT measured
+SLO-goodput.}
 
 \textbf{Honest boundary on both numbers.} The per-GPU
 \texttt{2,471\ tokens/s} is itself an \emph{analytical} figure at an
@@ -570,30 +594,34 @@ analysis value, not a servable goodput. Actual reachable prefill
 throughput must come from benchmark goodput under the target workload
 (\hyperref[chap:14]{Chapter 14}). Treat both numbers as scope-disciplined \emph{models},
 never as measured capacity --- and treat every host count they produce
-(19 / 21 / 22, and 32 / 34 at the 70\% × 95\% + N−1 policy --- 30 / 33
-on the ρ = 1 u-only screen) as an \textbf{illustrative planning screen
-under its stated FLOP-counting case and the 35\% MFU assumption, not
-measured SLO-goodput}.
+(19 / 21 / 22 full-utilization compute screens for cases (i) / (iii) /
+(ii), and the labeled 70\% × 95\% + N−1 policy totals --- case (i) 19 →
+29 compute and 21 → 32 fleet, case (iii) 21 → 32, case (ii) 22 → 34,
+KV-only 21 → 32 --- 30 / 32 on the ρ = 1 u-only screen, ceil(N ÷ 0.7))
+as an \textbf{illustrative planning screen under its stated
+FLOP-counting case and the 35\% MFU assumption, not measured
+SLO-goodput}.
 
 This rough sizing illustrates that prefill is FLOP-bound at this scale
 --- its arithmetic intensity sits far above the ridge, so memory
 bandwidth (HBM at 3.35 TB/s per H100) is sufficient to keep the compute
 fed if the kernel is efficient. Whether prefill \emph{compute} or KV
 \emph{residency} is the binding fleet constraint depends on the
-FLOP-counting case: KV residency binds under cases (i) and (iii) (21
-hosts), compute under case (ii) (22 hosts). The ridge point for dense
-FP16 on H100 is \textasciitilde295 FLOP/byte (989 ÷ 3.35); the
-arithmetic intensity of a mature attention kernel sits near or above
-this ridge, meaning the kernel is compute-saturated rather than
-bandwidth-starved once the batch is large enough.
+FLOP-counting case: KV residency binds under case (i); case (iii) is a
+21/21 tie; compute binds under case (ii). The screens are within one
+host for cases (ii) and (iii); case (i) is two hosts apart. The ridge
+point for dense FP16 on H100 is \textasciitilde295 FLOP/byte (989 ÷
+3.35); the arithmetic intensity of a mature attention kernel sits near
+or above this ridge, meaning the kernel is compute-saturated rather than
+bandwidth-starved once the sequence is long enough (attention intensity
+scales with L; at the canonical 9.2K it sits far above the ridge).
 
-\subsection{Decode: bandwidth-bound at low
-batch}\label{decode-bandwidth-bound-at-low-batch}
+\subsection{Decode: bandwidth-bound}\label{decode-bandwidth-bound}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as 2 FLOPs (the FMA convention of §8.1); dense (no sparsity) FP16; the ceilings are peak/theoretical datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input) and decode (batch=1) points are illustrative operating points, and a kernel's position on the roofline is a theoretical bound on its FLOP/byte intensity --- it is not a measured latency. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge classification (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0801.png}}
-\caption[Per-GPU roofline for dense FP16, one H100 vs one H200]{Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as \textbf{2 FLOPs} (the FMA convention of §8.1); \textbf{dense} (no sparsity) FP16; the ceilings are \textbf{peak/theoretical} datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input) and decode (batch=1) points are \textbf{illustrative operating points}, and a kernel's position on the roofline is a \emph{theoretical} bound on its FLOP/byte intensity --- it is \textbf{not a measured latency}. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge \emph{classification} (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as 2 FLOPs (the FMA convention of §8.1); dense (no sparsity) FP16; the ceilings are peak/theoretical datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input), decode (batch=1) and decode (batch B=8, intensity ≈ 8 FLOP/byte) points are illustrative operating points, and a kernel's position on the roofline is a theoretical bound on its FLOP/byte intensity --- it is not a measured latency. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge classification (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0801.pdf}}
+\caption[Per-GPU roofline for dense FP16, one H100 vs one H200]{Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as \textbf{2 FLOPs} (the FMA convention of §8.1); \textbf{dense} (no sparsity) FP16; the ceilings are \textbf{peak/theoretical} datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input), decode (batch=1) and decode (batch B=8, intensity ≈ 8 FLOP/byte) points are \textbf{illustrative operating points}, and a kernel's position on the roofline is a \emph{theoretical} bound on its FLOP/byte intensity --- it is \textbf{not a measured latency}. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge \emph{classification} (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}}
 
 \label{fig:8.2}\emph{The roofline: at the canonical long-prompt operating point prefill
 is compute-bound; at low batch decode is memory-bound.}
@@ -609,8 +637,10 @@ memory-bound. Batching and quantization shift kernels rightward toward
 the ridge; the distinction between the two phases is the single most
 important reading of this chart.}
 
-For decode, the per-token FLOP cost is the same \textasciitilde140
-GFLOP, but the arithmetic intensity drops sharply. Each decoded token
+For decode, the parameterized linear FLOP cost is the same
+\textasciitilde140 GFLOP; decode attention adds a context-dependent term
+(\textasciitilde24 GFLOP/token at 9.2K), about 164 GFLOP/token in total
+--- but the arithmetic intensity drops sharply. Each decoded token
 re-reads all 70B weights from HBM (a \textbf{batch-1-equivalent}
 weight-streaming read). A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140
 GB --- one full pass reads \textbf{140 GB} (batch-1-equivalent), not 280
@@ -618,17 +648,18 @@ GB. (The naïve ``2 ×70 ×10⁹ × 2 B ≈ 280 GB'' double-counts the FP16
 footprint: the leading ``2'' is the FLOPs-per-parameter factor (2N
 FLOPs/token), which has no place in a byte expression --- multiplying it
 into N × 2 B doubles the FP16 footprint, so writing 2 ×70 ×10⁹ × 2 B
-counts the weight bytes twice. Any KV/output-projection reads are a
-separate, smaller term on top, not a second full weight footprint.) The
-effective arithmetic intensity is therefore:
+counts the weight bytes twice. Any KV-cache reads are a separate term on
+top; the output projection is already included in the 140 GB weight
+footprint.) The effective arithmetic intensity is therefore:
 
 \[
 \text{arithmetic intensity}_{\text{decode}} \approx \frac{140 \text{ GFLOP}}{140 \text{ GB}} \approx 1.0 \text{ FLOP/byte}
 \]
 
-{[}DERIVED; a lower-bound bandwidth model --- real kernels also read
-activations and KV, so measured intensity is typically below this and
-heavily dependent on fusion and cache residency{]}
+{[}DERIVED; a minimum-bytes model, hence an upper bound on intensity ---
+real kernels also read activations and KV, so measured intensity is
+typically below this and heavily dependent on fusion and cache
+residency{]}
 
 This is well below the H100 dense-FP16 ridge of \textasciitilde295
 FLOP/byte, meaning single-stream decode is overwhelmingly
@@ -641,15 +672,16 @@ halve bytes and double intensity), and TFLOP/s utilization increases
 accordingly. \textbf{KV-read caveat:} the weight-only intensity above
 omits the per-sequence KV re-read (\textasciitilde24 GB at the canonical
 9.2K context, FP16 full-MHA). Including it, the decode intensity is
-(140·b)/(140 + 24·b) FLOP/byte --- (140 GFLOP × b) ÷ (140 GB + 24 GB ×
-b) for batch b --- which \emph{saturates} at \textasciitilde5.8
-FLOP/byte as b→∞ --- far below the 295 ridge. So with the KV term,
-decode stays bandwidth-bound at every batch size; the ``batch ≈ 295''
-figure is the weight-only first-order estimate (valid when the KV
-re-read is small relative to the weight stream, e.g.~short contexts or
-KV quantization). This is why continuous-batching systems (Orca, vLLM)
-prioritize batch growth: it is the primary lever for pushing decode
-arithmetic intensity toward the ridge (on the weight-only term).
+(164·b)/(140 + 24·b) FLOP/byte --- (164 GFLOP × b) ÷ (140 GB + 24 GB ×
+b) for batch b, where 164 = 140 linear + 24 attention --- which
+\emph{saturates} at \textasciitilde6.8 FLOP/byte as b→∞ --- far below
+the 295 ridge. So with the KV term, decode stays bandwidth-bound at
+every batch size; the ``batch ≈ 295'' figure is the weight-only
+first-order estimate (valid when the KV re-read is small relative to the
+weight stream, e.g.~short contexts or KV quantization). This is why
+continuous-batching systems (Orca, vLLM) prioritize batch growth: it is
+the primary lever for pushing decode arithmetic intensity toward the
+ridge (on the weight-only term).
 
 \emph{Scope note on the single-device roofline here:} the 140 GB
 weight-read and the per-GPU \textasciitilde3.35 TB/s HBM bandwidth are
@@ -757,12 +789,14 @@ separates their mechanisms and measurement boundaries. \mbox{{[}DERIVED{]}}
 \item
   \textbf{Treating prefill and decode as having the same FLOP/byte
   profile.} At the canonical operating point, prefill reads the full
-  context once and is FLOP-bound (intensity \textasciitilde9,200
-  FLOP/byte, far above the \textasciitilde295 ridge); low-batch decode
-  re-reads weights per token and is memory-bound (\textasciitilde1
-  FLOP/byte) - both are operating-point properties: decode's intensity
-  rises with batch, and prefill's falls as context shortens. The
-  arithmetic-intensity roofline distinguishes them.
+  context once and is FLOP-bound (weight-only intensity
+  \textasciitilde9,200 FLOP/byte --- an upper bound that omits the
+  \textasciitilde24 GB KV write; including it, \textasciitilde7,850
+  FLOP/byte --- both far above the \textasciitilde295 ridge); low-batch
+  decode re-reads weights per token and is memory-bound
+  (\textasciitilde1 FLOP/byte) - both are operating-point properties:
+  decode's intensity rises with batch, and prefill's falls as context
+  shortens. The arithmetic-intensity roofline distinguishes them.
 \item
   \textbf{Using peak TFLOP/s as sustained throughput.} Peak includes
   sparsity or BF16/FP8 variants that may not be available in the chosen
@@ -842,6 +876,10 @@ work}\label{from-video-dimensions-to-repeated-attention-work}
 The same derive-then-decide move applies to a workload that evaluates
 all of its token positions together rather than one per step: the budget
 below is derived from counted dimensions, not from a duration label.
+This example applies the §1 principle (fewer sequential evaluations ≠
+less total work) to a whole-clip denoiser, where 50 timesteps × 2 CFG
+branches = 100 evaluations each process all 27,280 tokens
+simultaneously.
 
 A worked example makes the new work unit concrete. We use Wan2.2 TI2V-5B
 in its text-to-video path, not the A14B expert model. Its configuration
@@ -868,13 +906,13 @@ loop}, pinned revision \texttt{1ea34ff}, retrieved 2026-10-28).
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T\_l=(F−1)//4+1, H\_l=H//16 and W\_l=W//16. For aligned F=4k+1, F=1+4(T\_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} geometry and loop. The aligned inverse and token count are arithmetic derivations from that geometry. Schematic, not a latency or peak-memory measurement.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0803-video-latent-work.pdf}}
-\caption[Wan2.2 TI2V-5B whole-clip denoising]{Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T\_l=(F−1)//4+1, H\_l=H//16 and W\_l=W//16. For aligned F=4k+1, F=1+4(T\_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} geometry and loop. The aligned inverse and token count are arithmetic derivations from that geometry. Schematic, not a latency or peak-memory measurement.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T\_l=(F−1)//4+1, H\_l=H//16 and W\_l=W//16. For aligned F=4k+1, F=1+4(T\_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. Token partitioning adds communication between devices. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} geometry and loop. The aligned inverse and token count are arithmetic derivations from that geometry. Schematic, not a latency or peak-memory measurement.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0803-video-latent-work.pdf}}
+\caption[Wan2.2 TI2V-5B whole-clip denoising]{Wan2.2 TI2V-5B whole-clip denoising. The T2V worked example starts from a 31×44×80×48 latent tensor and patchifies it into 27,280 video tokens. The fetched implementation uses T\_l=(F−1)//4+1, H\_l=H//16 and W\_l=W//16. For aligned F=4k+1, F=1+4(T\_l−1): 31 latent time positions correspond to 121 frames. The optional I2V branch is separate from the T2V budget. The feedback loop is denoising/scheduler iteration, not architectural recurrence. Fifty upstream timesteps use two CFG branch evaluations each. The VAE decode is not autoregressive text decode. Token partitioning adds communication between devices. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} geometry and loop. The aligned inverse and token count are arithmetic derivations from that geometry. Schematic, not a latency or peak-memory measurement.}
 
 \label{fig:8.3}\end{figure}
 
-For this aligned shape, the temporal latent count includes the
-first-frame convention:
+\textbf{Geometry: from pixels to tokens.} For this aligned shape, the
+temporal latent count includes the first-frame convention:
 
 \[T_l=\left\lfloor\frac{F-1}{4}\right\rfloor+1=31, \qquad H_l=704/16=44, \qquad W_l=1280/16=80.\]
 
@@ -890,8 +928,8 @@ require separate accounting. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 (\href{https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py}{sampling
 loop}).
 
-For batch size one, full noncausal attention with hidden width \(d\)
-requires approximately
+\textbf{Attention FLOPs per evaluation.} For batch size one, full
+noncausal attention with hidden width \(d\) requires approximately
 
 \[C_{\mathrm{attention,layer}}=4N^2d\]
 
@@ -907,22 +945,23 @@ module};
 geometry}). A triangular autoregressive reduction does not apply.
 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} attention mode; \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} arithmetic.
 
-At this shape the attention core requires 9,144,709,939,200 FLOP per
-layer, or about 9.145 TFLOP. Across 30 layers it requires about 274.341
-TFLOP per branch evaluation. The inspected upstream loop evaluates
-conditional and unconditional predictions separately at each of its 50
-default scheduler timesteps (same pinned revision \texttt{1ea34ff}).
-That is 100 single-sample branch evaluations, giving about 27.434 PFLOP
-of attention-core work over the trajectory. This is not the whole
-model's FLOP count and is not a GPU execution time. A runtime may batch
-the two branches into one forward call without removing their two-sample
-arithmetic. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+\textbf{Total trajectory work.} At this shape the attention core
+requires 9,144,709,939,200 FLOP per layer, or about 9.145 TFLOP. Across
+30 layers it requires about 274.341 TFLOP per branch evaluation. The
+inspected upstream loop evaluates conditional and unconditional
+predictions separately at each of its 50 default scheduler timesteps
+(same pinned revision \texttt{1ea34ff}). That is 100 single-sample
+branch evaluations, giving about 27.434 PFLOP of attention-core work
+over the trajectory. This is not the whole model's FLOP count and is not
+a GPU execution time. A runtime may batch the two branches into one
+forward call without removing their two-sample arithmetic.
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 (\href{https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_ti2v_5B.py}{configuration};
 \href{https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py}{sampling
 loop}).
 
-The memory calculation has an equally important boundary. One
-hypothetical BF16 hidden tensor contains
+\textbf{Memory boundary.} The memory calculation has an equally
+important boundary. One hypothetical BF16 hidden tensor contains
 \(N\times d\times2=167{,}608{,}320\) bytes. Materializing one BF16 score
 tensor for 24 heads would require
 \(24\times N^2\times2=35{,}721{,}523{,}200\) bytes, or about 33.268 GiB.
@@ -937,14 +976,14 @@ module};
 \href{https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py}{sampling
 loop}).
 
-The sensitivity explains the architectural consequence. Extending 121 to
-241 frames changes the temporal latent count from 31 to 61. Token count
-rises by about 1.968×; the dense pairwise term rises by about 3.872×.
-Doubling both spatial dimensions gives four times the tokens and sixteen
-times the pairwise work. These are algebraic sensitivities, not claims
-that either larger workload meets the release's quality or memory
-envelope. A request limit expressed only in clip-seconds misses this
-distinction. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+\textbf{Sensitivity.} This explains the architectural consequence.
+Extending 121 to 241 frames changes the temporal latent count from 31 to
+61. Token count rises by about 1.968×; the dense pairwise term rises by
+about 3.872×. Doubling both spatial dimensions gives four times the
+tokens and sixteen times the pairwise work. These are algebraic
+sensitivities, not claims that either larger workload meets the
+release's quality or memory envelope. A request limit expressed only in
+clip-seconds misses this distinction. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 At 24 frames/s, 121 frames also exposes a measurement convention. The
 final frame's timestamp is 5 seconds after the first. A

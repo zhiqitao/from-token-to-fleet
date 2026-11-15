@@ -77,6 +77,21 @@ is \emph{not} a \mbox{{[}1P{]}} model: being constructed (Ch 4, \hyperref[tab:4.
 carries \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}, reserving \mbox{{[}1P{]}} for
 named, traceable first-party specifications.
 
+\textbf{Rule key (R-codes).} The pattern templates cite the book's
+standing rules by code; the codes and their text: \textbf{R-01} each
+cost figure states its own basis --- marginal generation work, metered
+API spend, and all-in TCO are separate units, never collapsed;
+\textbf{R-03} a cache key carries authorization and corpus-version
+isolation, and a TTL never repairs an authorization mismatch;
+\textbf{R-04} a change already present in the baseline is configuration,
+not a claimed gain; \textbf{R-05} a cost result is not collapsed into a
+single headline percentage --- the saving names its basis and its lever;
+\textbf{R-07} assumed scenario inputs are labeled as inputs, not
+presented as gathered FACTs; \textbf{R-10} a degraded or fallback answer
+is not an SLO success --- the denominator is completed useful requests;
+\textbf{R-13} a raw query hash is an exact-match cache, not a semantic
+one.
+
 \subsection{Workload-to-Strategy decision
 matrix}\label{workload-to-strategy-decision-matrix}
 
@@ -90,11 +105,11 @@ and Ch 15's congestion check are how to confirm it).
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{0.1647\linewidth}
-  >{\raggedright\arraybackslash}p{0.1647\linewidth}
-  >{\raggedright\arraybackslash}p{0.1647\linewidth}
-  >{\raggedright\arraybackslash}p{0.1647\linewidth}
-  >{\raggedright\arraybackslash}p{0.1647\linewidth}@{}}
+  >{\raggedright\arraybackslash}p{0.1467\linewidth}
+  >{\raggedright\arraybackslash}p{0.0897\linewidth}
+  >{\raggedright\arraybackslash}p{0.0978\linewidth}
+  >{\raggedright\arraybackslash}p{0.1386\linewidth}
+  >{\raggedright\arraybackslash}p{0.3505\linewidth}@{}}
 \toprule\noalign{}
 \begin{minipage}[b]{\linewidth}\raggedright
 Workload
@@ -114,6 +129,9 @@ First strategy to evaluate
 Long-context RAG Q\&A & Long (8K+) & Short (\textless500) & KV / memory
 & 8-bit or FP16 KV sizing, prefix caching, P/D separation (Ch 7, 17,
 20) \\
+Short-prompt RAG Q\&A & Short (\textless2K) & Short (\textless500) &
+Tail latency / queueing (p99 TTFT) & Semantic response cache, circuit
+breaker (Ch 26) \\
 High-throughput chat & Short (\textless2K) & Med-Long (\textgreater1K) &
 Decode bandwidth & Continuous batching, KV pool sizing, possibly P/D (Ch
 8, 20) \\
@@ -196,10 +214,11 @@ Scenario}\label{worked-example-capstone-scenario}
 Take the canonical deployment: \textasciitilde2,000 registered users
 with \textasciitilde5\% concurrently active at peak (\textasciitilde100
 concurrent \emph{users}, a population measure), RAG Q\&A over a 70B
-dense FP16 model. The architect faces three interlocked questions: how
-to scale inference, how to cache retrieved context, and how to keep the
-model-service latency under its SLO --- here the model-service latency
-SLO is defined as \textbf{time-to-first-token (TTFT)}, and for the
+dense FP16 model (FP16 label; see ADR 0016). The architect faces three
+interlocked questions: how to scale inference, how to cache retrieved
+context, and how to keep the model-service latency under its SLO ---
+here the model-service latency SLO is defined as
+\textbf{time-to-first-token (TTFT)}, and for the
 \emph{retrieved-context/short-prompt} leg of this scenario we adopt a
 \emph{stricter} p99 ≤ 800 ms TTFT target (a scenario input, not the
 canonical p95-TTFT ≤ 2 s of Ch 4: the capstone deliberately uses a
@@ -207,7 +226,7 @@ harder tail target to exercise the patterns). This is a \textbf{TTFT}
 budget, not an end‑to‑end one --- the canonical request's total
 end‑to‑end time is \textasciitilde8.6 s (1.08 s prefill +
 \textasciitilde7.5 s decode of 300 output tokens), and the per‑host
-ceiling is \textasciitilde2.0 req/s (Ch 17/20), both of which still hold
+ceiling is \textasciitilde2.0 rps (Ch 17/20), both of which still hold
 here. Do not read the sub‑second capstone figures as end‑to‑end request
 latency. (All the other numbers below are the canonical values
 established in Parts I--V --- Ch 4's workload, Ch 7/15's KV and memory
@@ -295,7 +314,7 @@ validated, not assumed).
 degrades past the 800 ms SLO under concurrent load; downstream network
 jitter p99 = 120 ms (scenario inputs to be measured). \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- the diagnosed symptom: when a host's
-arrival rate exceeds the \textasciitilde2.0 req/s per-host ceiling (Ch
+arrival rate exceeds the \textasciitilde2.0 rps per-host ceiling (Ch
 17/20) --- as the canonical \textasciitilde40 rps peak (Ch 4) would if
 concentrated on one host --- the request queue grows and queueing delay
 alone pushes TTFT p99 past the 800 ms SLO, the condition Pattern C
@@ -336,9 +355,9 @@ self-hosted TCO of §16's fixed fleet, which is almost entirely
 capex/opex and is unchanged by cache hits unless the fleet is also
 re-sized. A typical re-sizing that lets the peak load concentrate on the
 canonical fleet would have to be computed under §26.8's cost-basis rules
---- §26.8 states those rules but does not perform the re-sizing --- and
-it is \emph{not} a 48\% figure; a ``48\% (or 47\%)'' headline mixed a
-marginal-work saving with a fixed-fleet all-in cost and is not used. The
+--- §26.8 states those rules but does not perform the re-sizing --- so
+the only defensible saving stated here is the marginal-generation-work
+cache-hit share, and no all-in percentage is claimed. The
 Pattern-Measurement-Feedback Loop illustrates the hypothesis that
 caching + load shedding is net positive on latency (to be validated by
 the load test of §8 Step 3), and the architect documents the
@@ -503,34 +522,35 @@ prototype to a fleet serving \textasciitilde3,000 users. The initial
 deployment is a 70B FP16 model on a single 8×H100 node (the canonical
 host). Note the per‑host ceiling: with the canonical \textasciitilde8.6
 s service time and C ≈ 17.5 KV‑resident requests, one host serves
-\textasciitilde2.0 req/s (Ch 17/20) --- so the figures below are
-expressed as \textbf{TTFT p99} on that host (the sub‑second latencies
-are time‑to‑first‑token, not end‑to‑end), and the rps is the
-\textasciitilde2 req/s the host can actually sustain, not a multiple of
+\textasciitilde2.0 rps (Ch 17/20) --- so the figures below are expressed
+as \textbf{TTFT p99} on that host (the sub‑second latencies are
+time‑to‑first‑token, not end‑to‑end), and the rps is the
+\textasciitilde2 rps the host can actually sustain, not a multiple of
 it.
 
 \textbf{Step 0 --- Read the fingerprint.} Before selecting patterns, the
 architect reads the capstone's workload against \hyperref[fig:26.1]{Fig 26.1} --- a
-short-prompt, latency-sensitive RAG workload, closest to the matrix's
-short-input latency-bound rows --- and applies the §26.2.1 method
-(locate the dominant constraint: tail latency/queueing under the p99 ≤
-800 ms TTFT target), which motivates evaluating the semantic response
-cache (Pattern B) and the circuit breaker (Pattern C).
+short-prompt, latency-sensitive RAG workload, matching the matrix's
+Short-prompt RAG Q\&A row (short input, tail latency/queueing dominant
+constraint) --- and applies the §26.2.1 method (locate the dominant
+constraint: tail latency/queueing under the p99 ≤ 800 ms TTFT target),
+which motivates evaluating the semantic response cache (Pattern B) and
+the circuit breaker (Pattern C).
 
 \textbf{Step 1 --- Instrument.} The capstone declares a \textbf{distinct
 short-prompt workload} --- it is \emph{not} the canonical
 9.2K-input/1.08-s-prefill case of Ch 4. It uses the same 70B/8×H100 host
-and the same per-host ceiling (\textasciitilde2.0 req/s; C ≈ 17.5
+and the same per-host ceiling (\textasciitilde2.0 rps; C ≈ 17.5
 KV-resident requests, Ch 17/20), but a much smaller prompt such that the
 model's prefill contribution to client TTFT is well under the canonical
-1.08 s. The canonical C ≈ 17.5 and \textasciitilde2.0 req/s ceiling are
+1.08 s. The canonical C ≈ 17.5 and \textasciitilde2.0 rps ceiling are
 held as \emph{conservative planning caps}: a shorter prompt only lowers
 per-request KV (which would raise C) and shortens service time (which
 would raise the ceiling), so the canonical values sit on the safe side
 of this workload's real limits. This declared boundary is explicit so
 the sub-second numbers are not read as a re-derivation of Ch 4's latency
 budget. The \emph{baseline inputs} for this worked example are: request
-rate \textasciitilde2 rps (within the \textasciitilde2.0 req/s per-host
+rate \textasciitilde2 rps (within the \textasciitilde2.0 rps per-host
 analytical planning ceiling), SM utilization 45\%, per-query latency
 breakdown for a \emph{baseline} (uncached) request: model compute 320
 ms, I/O 80 ms, retrieval 50 ms --- the RAG retrieval step every request
@@ -548,19 +568,25 @@ declares as the baseline \textbf{p99} scenario value (a scenario input,
 not a derived quantile of a distributed sample; a real baseline p99 must
 come from a measured latency distribution). The 450 ms is a
 \emph{service-time sum with a queue-inflated compute term}: at the
-offered \textasciitilde2 rps against the \textasciitilde2.0 req/s
+offered \textasciitilde2 rps against the \textasciitilde2.0 rps
 analytical ceiling (ρ near 1) the prefill queue already sits inside the
 320 ms compute term, so the baseline is queue-inflated, not queue-free
 --- one more reason this baseline is a scenario input to re-measure.
 Note the component values are \emph{representative worst-case} estimates
 for a baseline request, and the \textasciitilde450 ms is therefore the
 baseline TTFT figure used throughout; the per-query values are not a p99
-of a separate measured distribution. Because the 50 ms retrieval term is
-part of the baseline, the headline \textbf{−44\%} is measured against
-the full 450 ms path (a queue-inflated baseline --- 320 + 80 + 50 = 450
---- against a queue-drained miss --- 120 + 80 + 50 = 250, Step 2);
-excluding that term entirely (a 400 ms baseline) would report (400 −
-250) / 400 = \textbf{37.5\%} instead.
+of a separate measured distribution. One declared value carries both
+names: for this scenario the capstone \emph{declares} the representative
+worst-case component sum to be the baseline p99 input ---
+\emph{worst-case} describes how the components were chosen, \emph{p99}
+the role the 450 ms total plays --- a declared equivalence for this
+worked example, not a claim that a measured worst case equals a measured
+p99. Because the 50 ms retrieval term is part of the baseline, the
+headline \textbf{−44\%} is measured against the full 450 ms path (a
+queue-inflated baseline --- 320 + 80 + 50 = 450 --- against a
+queue-drained miss --- 120 + 80 + 50 = 250, Step 2); excluding that term
+entirely (a 400 ms baseline) would report (400 − 250) / 400 =
+\textbf{37.5\%} instead.
 
 \textbf{Step 2 --- Pattern Apply.} The architect works with Pattern A
 (inference sharding across an 8×H100 node --- baseline configuration,
@@ -575,17 +601,19 @@ requests that reach the model engine from \textasciitilde2.0 rps to
 figures below are \emph{scenario estimates} for this illustrative
 configuration, not measured values. \textbf{A weighted average of
 component latency values is a mean, not a quantile, so the capstone
-separates the two.} Under the transparent two-point model --- a cache
-hit returns at a fixed \textasciitilde50 ms (query encoding + cache
-lookup, no corpus retrieval and no LLM prefill), and a cache miss is
-served by the engine at \textasciitilde250 ms (a scenario \emph{input},
-not the 450 ms sum minus a computed term: the baseline's 320 ms compute
-is a worst-case figure carrying prefill-queue inflation at ρ near 1, and
-the miss value assumes that queue has drained at the cached
-\textasciitilde1.3 rps (compute falls from the inflated 320 ms to
-\textasciitilde120 ms, so 250 ≈ 120 + 80 + 50) --- both distributions
-are Step 3 load-test targets) --- the pooled latency has the CDF
-\(F(50)=0.35\), \(F(250)=1.0\). Its \textbf{mean} is
+separates the two.} Under the transparent two-point model, a cache hit
+returns at a fixed \textasciitilde50 ms (query encoding + cache lookup,
+no corpus retrieval and no LLM prefill), and a cache miss is served by
+the engine at \textasciitilde250 ms. The \textasciitilde250 ms miss is a
+scenario \emph{input}, not the 450 ms sum minus a computed term: the
+baseline's 320 ms compute is a worst-case figure carrying prefill-queue
+inflation at ρ near 1, and the miss value assumes that queue has drained
+at the cached \textasciitilde1.3 rps. When that queue has drained,
+compute falls from the inflated 320 ms to \textasciitilde120 ms, so 250
+≈ 120 + 80 + 50. Both distributions --- the \textasciitilde50 ms hit and
+the \textasciitilde250 ms miss --- are Step 3 load-test targets. Under
+this model the pooled latency has the CDF \(F(50)=0.35\),
+\(F(250)=1.0\). Its \textbf{mean} is
 \(0.35\times50 + 0.65\times250 = 180\) ms, but its \textbf{p99 is 250
 ms} (because the 0.99 quantile falls in the miss population:
 \(0.35 < 0.99 \le 1.0\)). So \textbf{mean TTFT ≈ 180 ms}. \textbf{p99
@@ -601,13 +629,13 @@ fixed set of hosts whose capex/opex does not shrink with cache hits
 unless the fleet is also re-sized; and sharding is \textbf{baseline
 configuration} (the 140 GB weights are already tensor-parallel across
 the 8 GPUs), so it is \emph{not} an incremental gain over the baseline.
-A ``−48\% generation cost'' figure additionally credited a
-\textbf{deeper-continuous-batching} \textasciitilde20\% per-token
-saving, but deeper batching is the exact lever \textbf{rejected} above
-because it lengthens the queue and harms p99 TTFT --- a single lever
-cannot be both rejected and credited, so that term is removed. A
-defensible cost statement separates (A) marginal generation work
-(cache-hit share), (B) variable metered API spend, and (C) all-in
+A cost figure that credits a \textbf{deeper-continuous-batching}
+\textasciitilde20\% per-token saving is rejected on the same grounds:
+deeper batching is the exact lever \textbf{rejected} above because it
+lengthens the queue and harms p99 TTFT --- a single lever cannot be both
+rejected and credited --- so the cost statement keeps only the cache-hit
+share. A defensible cost statement separates (A) marginal generation
+work (cache-hit share), (B) variable metered API spend, and (C) all-in
 self-hosted TCO, and never multiplies the fixed-fleet all-in \$/request
 by a fraction of requests. The reproducible two-point model that yields
 these numbers is \texttt{render/capstone\_calc.py}; a real deployment
@@ -627,7 +655,18 @@ scaling assumption (the same \textasciitilde2.0 rps sustained offered
 rate, \textasciitilde5\% concurrently active at peak, and a 35\%
 cache-hit ratio held constant for illustration) and validates capacity
 and fallback quality against that assumption, rather than treating a
-user count as an arrival model. Suppose a staged load test at
+user count as an arrival model. The offered rate stays flat at 1.5×
+users because it is a declared scenario input capped at the host's
+\textasciitilde2.0 rps sustainable ceiling (the Scenario above), not a
+per-user rate. The user count does not raise what one host sustains:
+holding \textasciitilde2.0 rps while the concurrent population grows
+from \textasciitilde100 to \textasciitilde150 implies a
+\textasciitilde33\% lower per-concurrent-user rate. The staged test
+therefore covers configuration robustness under constant load --- cache
+and breaker behavior at the assumed inputs --- not user scaling. A
+genuine user-scaling test would grow the offered rate with the
+population (\textasciitilde3.0 rps at 3,000 users) and recheck the queue
+and TTFT consequences. Suppose a staged load test at
 \textasciitilde3,000 users reports TTFT p99 = 285 ms and a
 cache-hit-driven reduction in marginal generation work at the assumed
 hit ratio --- in this scenario these are illustrative values to show how
@@ -661,7 +700,8 @@ Modeled example
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-GPU Shard & 8×H100 80 GB & SM util \textless{} 80\% & 68\% \\
+GPU Shard & 8×H100 80 GB & SM util \textless{} 80\% &
+\textasciitilde29\% \\
 Semantic Response Cache & LRU, TTL 5 min & hit ratio \textgreater{} 30\%
 & 35\% \\
 Circuit Breaker & trip after 5 timeouts, 2s grace & fallback rate
@@ -684,28 +724,39 @@ whose capex/opex (hardware amortization, site power, the fixed
 fleet is also re-sized, so one must \textbf{not} multiply the §16 all-in
 \$0.02497/request (\$24.97 per 1,000 requests, Ch 16) by a fraction of
 requests. The hosted-API cost is a separate basis: \$0.0116/request
-(unrounded \$0.01164 ≈ \$11.6 per 1,000 requests, Ch 4); per Ch 4's
-basis note, the two cost bases are not interchangeable --- the self-host
-figure is an illustrative included-cost rate and the API figure is a
-mid-tier managed-API list price, so the two scopes are not comparable
+(unrounded \$0.01164 ≈ \$11.6 per 1,000 requests, Ch 4 --- the
+\emph{mid-tier} API at \$1.20/\$2.00 per 1M), which is not Ch 16's
+\emph{frontier-class} \textasciitilde\$20.8 per 1,000 (\$0.0208/request
+at \$2/\$8 per 1M, the managed-API price ADR 0015 carries): both are
+per-request managed-API prices at the canonical 9,200/300 token mix and
+6.24M requests/mo, but at different model tiers, so the two API figures
+are not interchangeable either; per Ch 4's basis note, the two cost
+bases are not interchangeable --- the self-host figure is an
+illustrative included-cost rate and the API figure is a mid-tier
+managed-API list price, so the two scopes are not comparable
 unconditionally. A defensible cost statement keeps (A) marginal
 generation work, (B) variable metered API spend, and (C) all-in
 self-hosted TCO as separate units and denominators (see §26.8).
 \textbf{Provenance note: the ``Modeled example'' column is a worked-out
-illustrative instance, not gathered telemetry.} The values in it (68\%
-SM util, 35\% hit ratio, 7\% fallback) are scenario outputs chosen to
-illustrate how the pattern library is applied and validated --- the 68\%
-is \emph{not} derived from Step 1's 45\% baseline input; the two are
-separate scenario values that one load test must measure under a single
-SM-utilization definition; they are \emph{not} FACTs measured on a
-deployed system, and the marginal-work saving (not an all-in TCO number)
-is what a real deployment must confirm from a recorded load test. Use a
-blank instrumentation template to record the real FACTs separately.}
+illustrative instance, not gathered telemetry.} The values in it
+(\textasciitilde29\% SM util, 35\% hit ratio, 7\% fallback) are scenario
+outputs chosen to illustrate how the pattern library is applied and
+validated --- each carries its measurement point: Step 1's 45\%
+SM-utilization baseline is measured at the uncached \textasciitilde2.0
+rps offered rate, and the \textasciitilde29\% is the same definition at
+the cached \textasciitilde1.3 rps engine load (45\% × 1.3/2.0 ≈ 29\%,
+scaled with engine load), so the before/after direction matches the
+cache's mechanism --- lower engine load cannot raise SM utilization ---
+and one load test must measure both under a single SM-utilization
+definition; they are \emph{not} FACTs measured on a deployed system, and
+the marginal-work saving (not an all-in TCO number) is what a real
+deployment must confirm from a recorded load test. Use a blank
+instrumentation template to record the real FACTs separately.}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone, closing the loop ASSUMPTION → DERIVED → PATTERN → ASSUMPTION (box 1 holds assumed scenario inputs, not instrumented FACTs).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2601.pdf}}
-\caption[Pattern Application Diagram]{Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone, closing the loop ASSUMPTION → DERIVED → PATTERN → ASSUMPTION (box 1 holds assumed scenario inputs, not instrumented FACTs).}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone, closing the loop ASSUMPTION → DERIVED → PATTERN → ASSUMPTION (box 1 holds assumed scenario inputs, not instrumented FACTs). The validate step compares the load test's measured TTFT p99 against the hypothesis criterion (TTFT p99 \textless{} 300 ms, §8 Step 3) under the capstone's p99 ≤ 800 ms TTFT target (§8 Step 0).},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-26-2601.pdf}}
+\caption[Pattern Application Diagram]{Pattern Application Diagram: the Pattern-Measurement-Feedback Loop applied to the capstone, closing the loop ASSUMPTION → DERIVED → PATTERN → ASSUMPTION (box 1 holds assumed scenario inputs, not instrumented FACTs). The \emph{validate} step compares the load test's measured TTFT p99 against the hypothesis criterion (TTFT p99 \textless{} 300 ms, §8 Step 3) under the capstone's p99 ≤ 800 ms TTFT target (§8 Step 0).}
 
 \label{fig:26.2}\end{figure}
 
@@ -736,19 +787,21 @@ utilizations depending on whether the workload is prefill-bound
 is therefore not ``is utilization high enough?'' but \textbf{``which
 resource is saturated when the SLO is satisfied, and does the pattern
 keep the fleet the right side of that saturation?''} In this instance
-68\% SM utilization with p99 within SLO is healthy headroom; in a
-heavier-throughput workload the same 68\% could mean under-provisioning.
-State the SLO-bound resource, not a bare percentage.
+\textasciitilde29\% SM utilization with p99 within SLO is healthy
+headroom; in a heavier-throughput workload the same \textasciitilde29\%
+could mean under-provisioning. State the SLO-bound resource, not a bare
+percentage.
 
 \section{Patterns Library}\label{patterns-library}
 
 §1 names this library and the chapter title promises it. This section is
-the catalog. Each entry is a pattern template with eight fields: name,
-problem solved, triggering symptom, mechanism, minimal FACT set,
-trade-off, conditions of failure, and chapter pointer. Patterns A--C
-from §3 are the first three entries. §8 Step 4 records the capstone's
-filled-in instance as \hyperref[tab:26.2]{Table 26-2}. The two model-selection patterns that
-Ch 5 files here close the catalog.
+the catalog. Each entry is a pattern template with seven table columns
+covering eight fields (problem solved and triggering symptom share one
+column): name, problem solved, triggering symptom, mechanism, minimal
+FACT set, trade-off, conditions of failure, and chapter pointer.
+Patterns A--C from §3 are the first three entries. §8 Step 4 records the
+capstone's filled-in instance as \hyperref[tab:26.2]{Table 26-2}. The two model-selection
+patterns that Ch 5 files here close the catalog.
 
 \textbf{\hyperref[tab:26.3]{Table 26-3}} --- Pattern templates in the library.
 
@@ -782,7 +835,7 @@ Pointer
 \bottomrule\noalign{}
 \endlastfoot
 Inference Sharding (Pattern A) & One host saturates: TTFT p99 crosses
-the SLO as requests queue past the \textasciitilde2.0 req/s per-host
+the SLO as requests queue past the \textasciitilde2.0 rps per-host
 ceiling & Place the model across the node's GPUs with tensor parallelism
 (baseline configuration here, R-04) & SM utilization \%; per-GPU token
 latency p99; All-Reduce time (\hyperref[tab:26.1]{Table 26-1}) & Weight fit and KV headroom

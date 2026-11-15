@@ -13,16 +13,17 @@ ultimately a statement about \emph{tokens}.
 
 
 A \textbf{token} is the atomic unit of \emph{text} that a language model
-reads and writes. It is not a word, not a character, and not a byte ---
-it is whatever the model's \emph{tokenizer} decided to carve the text
-into. A single token can be a whole word (\texttt{handbook}), a common
-subword (\texttt{hand}), a single character, a short punctuation+space
-pair, or in worst cases a fragment of a character. (This chapter scopes
-to \emph{text-tokenized} autoregressive models. Modern multimodal
-systems also use non-text token-like representations --- image patches,
-audio frames --- that are not produced by a text tokenizer; for those,
-``token count'' is a different quantity from text-token count and does
-not map one-to-one onto model compute the way it does here.)
+reads and writes. It is not necessarily a word, a character, or a byte
+--- it is a vocabulary item, often a byte sequence, chosen by the
+model's \emph{tokenizer}. A single token can be a whole word
+(\texttt{handbook}), a common subword (\texttt{hand}), a single
+character, a short punctuation+space pair, or in worst cases a single
+byte (a fragment of a character). (This chapter scopes to
+\emph{text-tokenized} autoregressive models. Modern multimodal systems
+also use non-text token-like representations --- image patches, audio
+frames --- that are not produced by a text tokenizer; for those, ``token
+count'' is a different quantity from text-token count and does not map
+one-to-one onto model compute the way it does here.)
 
 The disconnection from human units is the first thing an architect has
 to internalize: \textbf{cost and capacity in an LLM are measured in
@@ -144,9 +145,11 @@ producing the next one.
 The architect-relevant fact: attention's cost scales
 \textbf{quadratically with context length} in the full-attention regime
 --- the number of input×output position pairs grows as \texttt{L²}. That
-quadratic term is the single biggest reason context windows feel
-expensive, and it is the pivot for every optimization downstream
-(sparse/linear attention, KV caching, retrieval to keep context short).
+quadratic term is one of the two biggest reasons context windows feel
+expensive (the other being KV-cache memory growth), and it is the pivot
+for every optimization downstream: sparse/linear attention and retrieval
+cut the quadratic prefill term, while KV caching separately avoids
+recomputing the prefix's K/V during decode.
 
 One precision matters before the mental model hardens: the \texttt{L²}
 term is a \textbf{prefill} cost --- it describes computing attention
@@ -186,24 +189,24 @@ When the model generates one token at a time, it recomputes the same
 prefix repeatedly unless it saves the intermediate results. The
 \textbf{KV cache} (key--value cache) is the stored key and value tensors
 for every token in the context, so that generating the next token only
-computes attention against the new token rather than re-deriving the
-whole prefix. It is the reason ``long conversations are expensive in
-memory, not just in compute.''
+computes the new token's query and attends against all cached K/V,
+rather than re-deriving the whole prefix. It is the reason ``long
+conversations are expensive in memory, not just in compute.''
 
 KV cache size per token scales with
 
 \[
-KV_{\text{per-token}} = 2 \times n_\text{layers} \times n_\text{KV heads} \times d_\text{head} \times \text{bytes-per-value}
+KV_{\text{per-token}} = 2 \times n_\text{layers} \times n_{\text{KV-heads}} \times d_\text{head} \times \text{bytes-per-value}
 \]
 
 (one key and one value per layer per \textbf{KV head}). For \textbf{full
-multi-head attention (MHA)} the KV heads are all the query heads, so
-\texttt{n\_KV\ heads\ ×\ d\_head\ =\ d\_hidden} and the formula reduces
+multi-head attention (MHA)} the KV-heads are all the query heads, so
+\texttt{n\_KV-heads\ ×\ d\_head\ =\ d\_hidden} and the formula reduces
 to the simpler introductory form
 \texttt{2\ ×\ n\_layers\ ×\ d\_hidden\ ×\ bytes-per-value}. The general
 form matters once we meet \textbf{grouped-query (GQA)} and
-\textbf{multi-query (MQA)} attention, which share a small number of KV
-heads across many query heads and can make the cache several times
+\textbf{multi-query (MQA)} attention, which share a small number of
+KV-heads across many query heads and can make the cache several times
 smaller than the full-MHA figure (Ch. 7) --- so \texttt{d\_hidden} alone
 is \emph{not} the correct KV width for those architectures. It is on the
 order of \textbf{\textasciitilde256 KiB (0.26 MB) per token for a
@@ -215,42 +218,44 @@ the formula above with one byte per value: 2 × 32 × 4096 = 262,144 B and
 byte-halving} of the FP16 value: 1.31 MB/token vs 2.62 MB/token, exactly
 50\%, with any block-allocation/metadata overhead NOT vendor-measured
 here and to be filled by a deployment benchmark; the vLLM FP8-KV blog
-post's often-quoted `54\%' is a decode inter-token-latency (ITL) slope,
-not a memory ratio or footprint coefficient. At 9.2K tokens the raw
-byte-halving figure gives \textasciitilde12.06 GB (not
-\textasciitilde13.4 GB --- the figure one gets by assuming
-\textasciitilde11\% block/metadata overhead on top of the raw tensor
-bytes). A different engine or a GQA/hybrid-attention model has a
-different per-token footprint, so re-derive it for the target stack; the
-standing FP8-KV qualifiers are stated once in the \textbf{Evidence
-boundary} panel (Preface), and the geometry and ``do not generalize''
-caveat are in Ch. 7. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Either way, a long
-context (say 32K tokens) alone can be tens of GB of memory. A first
-non-obvious architectural lesson hides here: \emph{MoE expert sparsity
-alone does not reduce per-token KV state.} A Mixture-of-Experts model
-activates only a fraction of its neurons per token, which saves compute,
-but the attention layers still process every token densely and emit a
-key/value per token --- so MoE shrinks compute-per-token, not
-memory-per-context. What actually determines KV memory is the
-\emph{attention architecture and cache policy}, not the expert count:
-GQA/MQA shrink the per-token K/V width, hybrid/linear/compressed-latent
-attention change how much context is retained, sliding-window caps some
-layers' retained context, and quantization (FP8) reduces the bytes per
-element without stopping the linear growth. This is a controlled
-comparison --- it holds the attention geometry, context length, and
-cache dtype fixed; an MoE model that also uses GQA or a different
-attention mechanism can have a much smaller KV footprint than a dense
-full-MHA baseline. The distinction --- compute-sparsity vs
-memory-sparsity --- is one an architect has to get exactly right, and it
-is why ``the KV problem'' is an attention-architecture question more
-than a model-size question (developed fully in Ch. 3 and Ch. 7). We
-deliberately keep this to concept + order of magnitude here; \hyperref[chap:7]{Chapter 7}
-(Memory) does the verified arithmetic against the canonical scenario.
+post's often-quoted `54\%' --- from its Llama-3.1-8B Table 3 (post dated
+2026-04-22) \mbox{{[}S6{]}} --- is, on this book's reading, a decode
+inter-token-latency (ITL) slope, not a memory ratio or footprint
+coefficient. At 9.2K tokens the raw byte-halving figure gives
+\textasciitilde12.06 GB (not \textasciitilde13.4 GB --- the figure one
+gets by assuming \textasciitilde11\% block/metadata overhead on top of
+the raw tensor bytes). A different engine or a GQA/hybrid-attention
+model has a different per-token footprint, so re-derive it for the
+target stack; the standing FP8-KV qualifiers are stated once in the
+\textbf{Evidence boundary} panel (Preface), and the geometry and ``do
+not generalize'' caveat are in Ch. 7. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+Either way, a long context (say 32K tokens) alone can be tens of GB of
+memory. A first non-obvious architectural lesson hides here: \emph{MoE
+expert sparsity alone does not reduce per-token KV state.} A
+Mixture-of-Experts model activates only a fraction of its neurons per
+token, which saves compute, but the attention layers still process every
+token densely and emit a key/value per token --- so MoE shrinks
+compute-per-token, not memory-per-context. What actually determines KV
+memory is the \emph{attention architecture and cache policy}, not the
+expert count: GQA/MQA shrink the per-token K/V width,
+hybrid/linear/compressed-latent attention change how much context is
+retained, sliding-window caps some layers' retained context, and
+quantization (FP8) reduces the bytes per element without stopping the
+linear growth. This is a controlled comparison --- it holds the
+attention geometry, context length, and cache dtype fixed; an MoE model
+that also uses GQA or a different attention mechanism can have a much
+smaller KV footprint than a dense full-MHA baseline. The distinction ---
+compute-sparsity vs memory-sparsity --- is one an architect has to get
+exactly right, and it is why ``the KV problem'' is an
+attention-architecture question more than a model-size question
+(developed fully in Ch. 3 and Ch. 7). We deliberately keep this to
+concept + order of magnitude here; \hyperref[chap:7]{Chapter 7} (Memory) does the verified
+arithmetic against the canonical scenario.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The KV cache: every token adds one K/V per layer per head --- written when that token is next processed as input, one step after it is sampled. This is a single-layer detail view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄); the full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the end-to-end pipeline in \hyperref[fig:2.1]{Fig 2.1}, where the cache persists across the whole loop. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-kv-cache.png}}
-\caption[The KV cache: every token adds one K/V per layer per head]{The KV cache: every token adds one K/V per layer per head --- written when that token is next processed as input, one step after it is sampled. This is a \textbf{single-layer detail} view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄); the full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the end-to-end pipeline in \hyperref[fig:2.1]{Fig 2.1}, where the cache persists across the whole loop. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The KV cache: every token adds one K/V per layer per head --- for a generated token, written when that token is next processed as input, one step after it is sampled; prompt-token K/V is written during prefill. This is a single-layer detail view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄); the full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the end-to-end pipeline in \hyperref[fig:2.1]{Fig 2.1}, where the cache persists across the whole loop. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-kv-cache.png}}
+\caption[The KV cache: every token adds one K/V per layer per head]{The KV cache: every token adds one K/V per layer per head --- for a generated token, written when that token is next processed as input, one step after it is sampled; prompt-token K/V is written during prefill. This is a \textbf{single-layer detail} view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄); the full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the end-to-end pipeline in \hyperref[fig:2.1]{Fig 2.1}, where the cache persists across the whole loop. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:1.1}\emph{The KV cache: attention keeps every past token's key and value, so
 cache memory grows linearly with sequence length (concept; the verified
@@ -272,8 +277,8 @@ A useful image for the full pipeline:
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. Conceptual only: what is drawn is the one-time token-to-state construction --- a one-pass abstraction of how a token becomes state, not the full transformer and not the step-to-step loop. The K/V are produced within every applicable layer (not after a single ``attention'' stage), and the KV cache is a persistent state --- written (append) and read (attend, the backward read arrow from the KV cache back to attention) across steps --- not a processing stage. The full read-side mechanics and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1} (the backward read arrow drawn here is schematic). \mbox{{[}ILLUSTRATIVE conceptual{]}} Color is figure-local decoration --- each box is titled; do not carry a color meaning from \hyperref[fig:1.1]{Fig 1.1} into this figure.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-token-travel.png}}
-\caption[How a token travels: text → tokenizer → IDs → embedding → attention → KV cache]{How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. \textbf{Conceptual only:} what is drawn is the \textbf{one-time token-to-state construction} --- a one-pass abstraction of how a token becomes state, not the full transformer and not the step-to-step loop. The K/V are produced \emph{within every applicable layer} (not after a single ``attention'' stage), and the KV cache is a \emph{persistent state} --- written (append) and read (attend, the backward read arrow from the KV cache back to attention) across steps --- not a processing stage. The full read-side mechanics and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1} (the backward read arrow drawn here is schematic). \mbox{{[}ILLUSTRATIVE conceptual{]}} Color is figure-local decoration --- each box is titled; do not carry a color meaning from \hyperref[fig:1.1]{Fig 1.1} into this figure.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. Conceptual only: what is drawn is the one-time token-to-state construction --- a one-pass abstraction of how a token becomes state, not the full transformer and not the step-to-step loop. The K/V are produced within every applicable layer (not after a single ``attention'' stage), and the KV cache is a persistent state --- written (append) and read (read past K,V, the backward read arrow from the KV cache back to attention) across steps --- not a processing stage. The full read-side mechanics and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1} (the backward read arrow drawn here is schematic). \mbox{{[}ILLUSTRATIVE conceptual{]}} Color is figure-local decoration --- each box is titled; do not carry a color meaning from \hyperref[fig:1.1]{Fig 1.1} into this figure.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-token-travel.png}}
+\caption[How a token travels: text → tokenizer → IDs → embedding → attention → KV cache]{How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. \textbf{Conceptual only:} what is drawn is the \textbf{one-time token-to-state construction} --- a one-pass abstraction of how a token becomes state, not the full transformer and not the step-to-step loop. The K/V are produced \emph{within every applicable layer} (not after a single ``attention'' stage), and the KV cache is a \emph{persistent state} --- written (append) and read (read past K,V, the backward read arrow from the KV cache back to attention) across steps --- not a processing stage. The full read-side mechanics and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1} (the backward read arrow drawn here is schematic). \mbox{{[}ILLUSTRATIVE conceptual{]}} Color is figure-local decoration --- each box is titled; do not carry a color meaning from \hyperref[fig:1.1]{Fig 1.1} into this figure.}
 
 \label{fig:1.2}\emph{How a token travels. The token is the interface between a human's
 request and the machine's arithmetic: carved by the tokenizer, embedded
@@ -359,7 +364,7 @@ input / output ratio & \textasciitilde30× & 9,200 ÷ 300 \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 input tokens/s @ 10 rps & \textasciitilde92,000 & 9,200 ×10 \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-input tokens/s @ peak 40 rps & \textasciitilde368k & 9,200 ×40
+input tokens/s @ peak 40 rps & \textasciitilde368,000 & 9,200 ×40
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 output tokens/s @ 10 rps & \textasciitilde3,000 & 300 ×10 \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\

@@ -25,8 +25,10 @@ however, is roughly constant in this model --- one host buys
 \textasciitilde2.0 req/s (17/8.6 = 1.977, \mbox{{[}ANALYTICAL{]}}) at
 \textasciitilde\$20/hr, so the marginal cost stays near
 \textasciitilde\$10 per req/s per hour (Ch 17 §7 frames the Nth host as
-diminishing marginal \emph{benefit}, not falling marginal cost). The
-economic lever is amortizing the fixed term, not the marginal one.
+diminishing marginal \emph{benefit}, not falling marginal cost). Unit
+convention for this chapter: \emph{rps} denotes an arrival rate and
+\emph{req/s} a capacity rate; both are requests per second. The economic
+lever is amortizing the fixed term, not the marginal one.
 
 \Needspace{7\baselineskip}
 
@@ -63,8 +65,8 @@ distribution. Poor placement can cause some hosts to saturate while
 others remain underutilized, inflating the 99th-percentile latency even
 when aggregate throughput is ample. Conversely, intelligent
 scheduling---such as consistent hashing for session affinity or
-predictive placement based on historical patterns---keeps utilization
-flat across the fleet and minimizes tail latency.
+predictive placement based on historical patterns---tends to keep
+utilization more uniform across the fleet and reduces tail latency.
 
 A critical assumption in this model is that the workload follows a known
 arrival process. For the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}):
@@ -73,7 +75,7 @@ arrival process. For the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}
 query, a \textasciitilde8.6 s service time per request (1.08 s prefill +
 \textasciitilde7.5 s decode), and a 70B dense FP16 model running on
 8×H100 (640 GB total HBM3), the fleet must sustain
-\textbf{\textasciitilde40 requests/s at peak}, which --- by Little's law
+\textbf{\textasciitilde40 requests/s at peak}, which --- by Little's Law
 --- corresponds to \textbf{λ·W ≈ 40 × 8.6 ≈ 344 requests in flight} (W
 here is Ch 17's assumed mean KV-residency time E{[}W\_KV-resident{]} ≈
 8.6 s, a conditional scenario proxy --- not the end-to-end W\_e2e, which
@@ -94,49 +96,50 @@ requests) --- and neither can be reduced to a single ``rps'' constant,
 because rps is workload-specific (per-request input/output tokens,
 context length, batch).
 
-\textbf{Latency floor first, then reconcile the two capacity bounds.} A
-300-output-token request at a \textasciitilde25 ms/token decode rate
+\subsubsection{Latency floor first, then reconcile the two capacity
+bounds}\label{latency-floor-first-then-reconcile-the-two-capacity-bounds}
+
+A 300-output-token request at a \textasciitilde25 ms/token decode rate
 (\hyperref[chap:8]{Chapter 8}) takes \textasciitilde7.5 s of generation alone, plus 1.08 s
 prefill, so the service time is \textasciitilde8.6 s per request (before
 tool calls). Two separate ceilings bound how many requests a host can
 \emph{serve per second}, and they must be reconciled --- they are not
-interchangeable:
+interchangeable.
 
-\begin{itemize}
-\tightlist
-\item
-  \textbf{Throughput bound (tokens/s).} A host sustains an illustrative
-  \textasciitilde35,000 tokens/s of \emph{total} (prefill+decode)
-  serving throughput --- the conservative low end of the
-  \textasciitilde35,000--56,000 tokens/s range in \hyperref[chap:15]{Chapter 15}
-  \mbox{{[}ILLUSTRATIVE{]}} achievable range --- distinct from the
-  \textasciitilde19,800 tok/s \emph{prefill-only} ideal in \hyperref[chap:8]{Chapter 8} (8
-  × 2,472 at 35\% MFU), which counts prefill compute alone.
-  \textbf{These two are not directly comparable as single numbers:
-  \textasciitilde35,000 is a phase-mixed \emph{prefill+decode} total and
-  \textasciitilde19,800 is a \emph{prefill-only} figure. To compare them
-  one must first phase-resolve both, then compare prefill with prefill
-  (the presented workload's prefill leg is 2.0 req/s × 9,200 = 18,400
-  input tok/s) and decode with decode (2.0 × 300 = 600 output tok/s);
-  aggregating the two phases into one ``total'' rate requires an
-  explicit cost/phase-equivalence model.} Dividing the total by the
-  \textasciitilde9,500 tokens/request gives \textasciitilde3.7
-  requests/s --- \textbf{but this is not achievable here}, because it
-  would require \textasciitilde3.7 × 8.6 ≈ 32 concurrent requests in
-  flight, roughly double the host's KV-residency ceiling (C ≈ 17.5,
-  conservative integer floor 17, \hyperref[chap:17]{Chapter 17}). The token-throughput
-  figure is thus a non-binding upper edge for this canonical workload.
-\item
-  \textbf{KV-residency / latency bound (Little's law).} The real ceiling
-  is set by concurrency and KV-holding time together: a host holds 17
-  whole concurrent full-context requests (the \textasciitilde17.5 KV
-  ceiling, \hyperref[chap:17]{Chapter 17}, floored to whole contexts --- no fractional
-  admission) each for an assumed mean KV residency E{[}W\_KV-resident{]}
-  ≈ 8.6 s, so C/W = 17 / 8.6 = 1.977 ≈ \textbf{2.0 requests/s}
-  \mbox{{[}ANALYTICAL{]}} at steady state --- a \textbf{KV-slot-based
-  analytical UPPER bound on admitted request completion rate,
-  conditional on an assumed mean KV residency time}.
-\end{itemize}
+\subsubsection{Throughput bound
+(tokens/s)}\label{throughput-bound-tokenss}
+
+A host sustains an illustrative \textasciitilde35,000 tokens/s of
+\emph{total} (prefill+decode) serving throughput --- the conservative
+low end of the \textasciitilde35,000--56,000 tokens/s range in \hyperref[chap:15]{Chapter 15} \mbox{{[}ILLUSTRATIVE{]}} achievable range --- distinct from the
+\textasciitilde19,800 tokens/s \emph{prefill-only} ideal in \hyperref[chap:8]{Chapter 8} (8
+× 2,472 at 35\% MFU), which counts prefill compute alone. \textbf{These
+two are not directly comparable as single numbers: \textasciitilde35,000
+is a phase-mixed \emph{prefill+decode} total and \textasciitilde19,800
+is a \emph{prefill-only} figure. To compare them one must first
+phase-resolve both, then compare prefill with prefill (the presented
+workload's prefill leg is 2.0 req/s × 9,200 = 18,400 input tokens/s) and
+decode with decode (2.0 × 300 = 600 output tokens/s); aggregating the
+two phases into one ``total'' rate requires an explicit
+cost/phase-equivalence model.} Dividing the total by the
+\textasciitilde9,500 tokens/request gives \textasciitilde3.7 requests/s
+--- \textbf{but this is not achievable here}, because it would require
+\textasciitilde3.7 × 8.6 ≈ 32 concurrent requests in flight, roughly
+double the host's KV-residency ceiling (C ≈ 17.5, conservative integer
+floor 17, \hyperref[chap:17]{Chapter 17}). The token-throughput figure is thus a non-binding
+upper edge for this canonical workload.
+
+\subsubsection{KV-residency / latency bound (Little's
+Law)}\label{kv-residency-latency-bound-littles-law}
+
+The real ceiling is set by concurrency and KV residency time together: a
+host holds 17 whole concurrent full-context requests (the
+\textasciitilde17.5 KV ceiling, \hyperref[chap:17]{Chapter 17}, floored to whole contexts
+--- no fractional admission) each for an assumed mean KV residency
+E{[}W\_KV-resident{]} ≈ 8.6 s, so C/W = 17 / 8.6 = 1.977 ≈ \textbf{2.0
+requests/s} \mbox{{[}ANALYTICAL{]}} at steady state --- a \textbf{KV-slot upper
+bound on admitted rate} (the full phrase is given once, in \emph{Call
+this quantity what it is} below).
 
 The binding per-host rate is the \emph{minimum} of the two --- here the
 KV/latency bound. This is exactly why a token-throughput number must not
@@ -149,39 +152,43 @@ host capacity. The per-host request rate is a \emph{concurrency ×
 service-time} quantity --- what makes the division wrong here is what
 its numerator mixes and its answer assumes, not its units.
 
-\textbf{Call this quantity what it is --- one phrase, used identically
-in Chapters 16, 17 and 20.} The \textasciitilde2.0 req/s figure is a
-\textbf{KV-slot-based analytical UPPER bound on admitted request
-completion rate, conditional on an assumed mean KV residency time} --- a
-necessary capacity screen: not a measured serving throughput, not a
-lower guaranteed rate, and not an SLO goodput. The \emph{lower} bound on
-host count derives FROM this upper bound on the per-host rate (⌈λ/(C/W)⌉
-= ⌈λ·W/C⌉); it is never a lower bound on the rate itself. It is
-achievable only if serving C concurrent sequences does \emph{not}
-inflate W beyond the assumed \textasciitilde8.6 s, and neither a
-compute, bandwidth, nor scheduler constraint binds first. In real
-continuous batching, W is a function of batch occupancy, scheduler
-policy, prefill interference, decode batching, the arrival process,
-tensor-parallel communication, and the context distribution --- so C and
-W are not always independent constants. Treat \textasciitilde2.0 req/s
-as an upper-bound model, and require benchmarked goodput (\hyperref[chap:14]{Chapter 14})
-under the target arrival process for actual fleet sizing.
-\textbf{Planning-bound caveat:} like the \textasciitilde19,800 prefill
-tok/s/host figure (Ch. 8, idealized prefill only), the
-\textasciitilde2.0 req/s/host figure is the \emph{KV-slot-based
-analytical UPPER bound on admitted request completion rate, conditional
-on an assumed mean KV residency time} --- model-derived, \textbf{not an
-implied deployed rate}. \textbf{No p95/p99 performance guarantee has
-been shown} for any of the host counts in this chapter; the p95/p99 tail
-latency and achieved goodput must be measured on the target deployment
-(\hyperref[chap:14]{Chapter 14}) before the 21/22-host sizing (21 = the KV/Little screen
-under case (i); 22 = the ρ ≈ 0.95 derate of that screen --- and,
-independently, the full-square case (ii) prefill compute screen, which
-also gives 22, with 34 at the 70\% × 95\% + N−1 policy against 32 for
-KV-only --- Ch 17 \hyperref[tab:17.1]{Table 17-1}, u and ρ independent) is treated as
-validated.
+\subsubsection{Call this quantity what it is --- one phrase, used
+identically in Chapters 16, 17 and
+20}\label{call-this-quantity-what-it-is-one-phrase-used-identically-in-chapters-16-17-and-20}
 
-\textbf{Simultaneous feasibility check (prefill + decode coexistence).}
+The \textasciitilde2.0 req/s figure is a \textbf{KV-slot-based
+analytical UPPER bound on admitted request completion rate, conditional
+on an assumed mean KV residency time} --- a necessary capacity screen:
+not a measured serving throughput, not a lower guaranteed rate, and not
+an SLO goodput. The \emph{lower} bound on host count derives FROM this
+upper bound on the per-host rate (⌈λ/(C/W)⌉ = ⌈λ·W/C⌉); it is never a
+lower bound on the rate itself. It is achievable only if serving C
+concurrent sequences does \emph{not} inflate W beyond the assumed
+\textasciitilde8.6 s, and neither a compute, bandwidth, nor scheduler
+constraint binds first. In real continuous batching, W is a function of
+batch occupancy, scheduler policy, prefill interference, decode
+batching, the arrival process, tensor-parallel communication, and the
+context distribution --- so C and W are not always independent
+constants. Treat \textasciitilde2.0 req/s as an upper-bound model, and
+require benchmarked goodput (\hyperref[chap:14]{Chapter 14}) under the target arrival
+process for actual fleet sizing. \textbf{Planning-bound caveat:} like
+the \textasciitilde19,800 prefill tokens/s/host figure (Ch. 8, idealized
+prefill only), the \textasciitilde2.0 req/s/host figure is the
+\emph{KV-slot upper bound on admitted rate} named above ---
+model-derived, \textbf{not an implied deployed rate}. \textbf{No p95/p99
+performance guarantee has been shown} for any of the host counts in this
+chapter; the p95/p99 tail latency and achieved goodput must be measured
+on the target deployment (\hyperref[chap:14]{Chapter 14}) before the governing 23-host
+sizing (21 = the KV/Little screen under case (i); 22 = the ρ ≈ 0.95
+derate of that screen --- and, independently, the raw full-square case
+(ii) prefill compute screen, which also gives 22 and rises to 23 with
+the same ρ derate, the governing screen; 34 at the 70\% × 95\% + N−1
+policy against 32 for KV-only --- Ch 17 \hyperref[tab:17.1]{Table 17-1}, u and ρ independent)
+is treated as validated.
+
+\subsubsection{Simultaneous feasibility check (prefill + decode
+coexistence)}\label{simultaneous-feasibility-check-prefill-decode-coexistence}
+
 The \textasciitilde2.0 req/s/host bound assumes prefill and decode run
 on the same host at the same time. Evaluated at the displayed
 \textasciitilde2.0 rps --- a deliberate stress screen, slightly above
@@ -189,15 +196,18 @@ the unrounded 17/8.6 = 1.977 --- the prefill demand is 2.0 × 9,200 =
 \textbf{18,400 input tokens/s per host} (§3). The idealized prefill
 ceiling is 8 × 0.989 PF/s × 35\% / (2 × 70e9) ≈ \textbf{19,780 tokens/s}
 (\hyperref[chap:8]{Chapter 8}, 35\% MFU, prefill-only --- \textbf{case (i), linear-only
-FLOP convention}). The ratio is 18,400 ÷ 19,780 ≈ \textbf{93\%} under
-case (i); under case (ii) (full-square, ×1.1723) the ceiling falls to
-≈16,870 linear-equivalent tok/s and the ratio becomes 18,400 ÷ 16,870 ≈
-\textbf{109\%} (the same demand ÷ ceiling in PFLOP/s: 2 × 1.5099 ÷
-2.7692, with 2.7692 PFLOP/s the \hyperref[chap:8]{Chapter 8} 35\%-MFU host peak), and under
-case (iii) (causal-triangle, ×1.0861), ceiling ≈18,210 tok/s, 18,400 ÷
-18,210 ≈\textbf{101\%} --- above 100\% the prefill leg alone does not
-fit at 2 req/s --- so the \textasciitilde7\% headroom under case (i) is
-a property of the linear-only convention, not of the hardware. Prefill
+FLOP convention}). \emph{Cross-note on MFU:} Ch 20 uses the conservative
+35\% planning MFU (Ch 8); Ch 22/24 use 40\% sustained (Ch 24 §3.3) ---
+the choice moves the case-(i) screen from 19 to 17 hosts. The ratio is
+18,400 ÷ 19,780 ≈ \textbf{93\%} under case (i); under case (ii)
+(full-square, ×1.1723) the ceiling falls to ≈16,870 linear-equivalent
+tokens/s and the ratio becomes 18,400 ÷ 16,870 ≈ \textbf{109\%} (the
+same demand ÷ ceiling in PFLOP/s: 2 × 1.5099 ÷ 2.7692, with 2.7692
+PFLOP/s the \hyperref[chap:8]{Chapter 8} 35\%-MFU host peak), and under case (iii)
+(causal-triangle, ×1.0861), ceiling ≈18,210 tokens/s, 18,400 ÷ 18,210
+≈\textbf{101\%} --- above 100\% the prefill leg alone does not fit at 2
+req/s --- so the \textasciitilde7\% headroom under case (i) is a
+property of the linear-only convention, not of the hardware. Prefill
 must run at \textasciitilde93\% of the idealized prefill ceiling under
 case (i). This is \textbf{\mbox{{[}ANALYTICAL{]}}} (Axis-3 measurement status;
 defined with the evidence taxonomy in the Sources, Method, and
@@ -211,70 +221,87 @@ bound}, \textbf{NOT a claim that a host serves 2 req/s at SLO}. Before
 treating 2 req/s/host as deployable, measure the p95 TTFT, p95 TPOT, and
 SLO-goodput on a representative host (\hyperref[chap:14]{Chapter 14}).
 
-\textbf{Fleet aggregate throughput (illustrative form).} Keeping the
-illustrative per-host rps = Q for the algebra, aggregate throughput is
+\subsubsection{Fleet aggregate throughput (illustrative
+form)}\label{fleet-aggregate-throughput-illustrative-form}
+
+Keeping the illustrative per-host rps = Q for the algebra, aggregate
+throughput is
 
 \[
 \Lambda_\text{fleet} = N \times Q
 \]
 
 At the canonical peak of 40 rps, fleet size must satisfy \textbf{both}
-the KV-residency and the throughput/latency bounds \emph{and whichever
-binds first}. With the per-host rate at \textasciitilde2.0 req/s (17/8.6
-= 1.977, the binding KV-slot upper bound on admitted rate above ---
-whose \emph{reciprocal} gives the lower bound on host count), a fleet
-for 40 rps starts at \textbf{21 hosts} on the Little-bound --- ⌈40 × 8.6
-/ 17⌉ = ⌈344/17⌉ = ⌈20.24⌉ = 21. The KV-residency bound coincides here
---- by Little's law, the in-flight count at 40 rps is λ·W = 40 × 8.6 ≈
-344, and ⌈344/17⌉ = \textbf{21 hosts} (17 whole contexts per host, no
-fractional admission) --- so the Little and KV-residency formulations
-\emph{agree} at the peak: they are the same identity in two views (λW/C
-= λ/(C/W)), both giving 21, exactly as \hyperref[chap:17]{Chapter 17} notes --- while the
-token-throughput ceiling (⌈40 / 3.684⌉ = 11 hosts) stays non-binding
-here; the ρ ≈ 0.95 fractional-throughput derate raises the requirement
-to 344 / (0.95 × 17) = 344/16.15 ≈ 21.3 → \textbf{22 hosts}. Separately,
-the independent prefill compute screen (Ch. 8, 35\% MFU) gives
-\textbf{19 hosts under case (i)} (⌈18.60⌉, linear-only), \textbf{21
-under case (iii)} (⌈20.21⌉, causal-triangle) and \textbf{22 under case
-(ii)} (⌈21.81⌉, full-square conservative) --- note that case (ii)'s 22
-is a \emph{different} 22 from the ρ-derate's 22 (one comes from a
-FLOP-counting case, the other from a throughput-efficiency derate of the
-KV screen); they coincide in value only by arithmetic accident. The
-``far fewer hosts (\textasciitilde6)'' figure applies only to the 10-rps
-average (⌈86/17⌉ = 6), not the 40-rps peak. The correct statement is:
-the fleet must satisfy every named screen, and the \emph{larger}
-requirement wins --- \textbf{21 hosts under case (i), 22 under case
-(ii)}; with the standalone ρ = 0.95 derate applied to the prefill screen
-exactly as the policy arithmetic applies it, case (ii) rises to ⌈21.81 /
-0.95⌉ = \textbf{23 hosts} --- the largest requirement before the full
-policy (ρ = 0.95 is a throughput-efficiency derate: dividing the host
-requirement by ρ is the same as dividing each host's effective rate by
-ρ, so it applies to any throughput-bound screen --- KV or prefill ---
-and does not re-derive the 35\% MFU assumption itself); and at the 70\%
-× 95\% + N−1 policy \textbf{34 under case (ii) versus 32 for KV-only}
-(⌈21.81/0.665⌉+1 = 34; ⌈344/11.305⌉+1 = 32 --- Ch 17 \hyperref[tab:17.1]{Table 17-1}, u =
-0.70 and ρ = 0.95 applied as two independent factors); \textbf{all of
-19/21/22/23/32/34 are illustrative planning screens under their stated
-FLOP/MFU assumptions, not measured SLO-goodput.} \textbf{Reading \hyperref[fig:20.1]{Fig 20.1}'s two gaps:} below saturation the \textasciitilde5\% gap between
-C\_analytic(N) = N × 17/8.6 and C\_eff(N) = 0.95 × C\_analytic is the
-assumed throughput-efficiency derate; above saturation C\_eff − S, with
-S = min(40, C\_eff), is \emph{unused} capacity from insufficient offered
-demand --- not scheduling overhead. Queueing and tail-latency penalties
-are not determined by this two-line calculation and must be shown
-separately if claimed.
+the KV-residency and the throughput/latency bounds, whichever binds
+first. The Little and the KV-residency bound are the same identity
+written in two views: λW/C = λ/(C/W). They agree at the peak, exactly as
+\hyperref[chap:17]{Chapter 17} notes.
 
-\textbf{Scheduling overhead.} A lightweight round-robin scheduler adds
-\textasciitilde0.5 ms of dispatch latency per request \mbox{{[}ILLUSTRATIVE{]}}
---- negligible next to a real 7.5 s decode, but it must stay under
-\textasciitilde5\% of the \emph{measured} per-request time.
+\textbf{Little/KV screen → 21 hosts.} With the per-host rate at
+\textasciitilde2.0 req/s (17/8.6 = 1.977, the binding KV-slot upper
+bound on admitted rate above; its \emph{reciprocal} gives the lower
+bound on host count), a fleet for 40 rps starts at \textbf{21 hosts}:
+⌈40 × 8.6 / 17⌉ = ⌈344/17⌉ = ⌈20.24⌉ = 21. By Little's Law the in-flight
+count at 40 rps is λ·W = 40 × 8.6 ≈ 344, and ⌈344/17⌉ = \textbf{21
+hosts} (17 whole contexts per host, no fractional admission).
 
-\textbf{Autoscaling economics.} Each 8×H100 host costs
-\textasciitilde\$20/hour (cloud, \$2.50/GPU-hr canonical) or
-\textasciitilde\$8/hour amortized (owned) --- \mbox{{[}ILLUSTRATIVE{]}}. The
-marginal cost per additional rps is \$20 ÷ (rps gained per host); the
-economic lesson (declining average cost per request as fixed costs
-amortize across more requests) is sound, but the exact per-rps figure is
-only meaningful after the real per-host throughput is benchmarked.
+\textbf{Token-throughput screen → 11 hosts (non-binding).} The
+token-throughput ceiling gives ⌈40 / 3.684⌉ = 11 hosts, which stays
+non-binding here.
+
+\textbf{ρ-derate → 22 hosts.} The ρ ≈ 0.95 fractional-throughput derate
+raises the requirement to 344 / (0.95 × 17) = 344/16.15 ≈ 21.3 →
+\textbf{22 hosts}.→ \textbf{22 hosts}.
+
+Separately, the independent prefill compute screen (Ch. 8, 35\% MFU)
+gives \textbf{19 hosts under case (i)} (⌈18.60⌉, linear-only),
+\textbf{21 under case (iii)} (⌈20.21⌉, causal-triangle) and \textbf{22
+under case (ii)} (⌈21.81⌉, full-square conservative) --- note that case
+(ii)'s 22 is a \emph{different} 22 from the ρ-derate's 22 (one comes
+from a FLOP-counting case, the other from a throughput-efficiency derate
+of the KV screen); they coincide in value only by arithmetic accident.
+
+The ``far fewer hosts (\textasciitilde6)'' figure applies only to the
+10-rps average (⌈86/17⌉ = 6), not the 40-rps peak.
+
+The correct statement is: the fleet must satisfy every named screen, and
+the \emph{larger} requirement wins --- \textbf{21 hosts under case (i),
+22 under case (ii)}; with the standalone ρ = 0.95 derate applied to the
+prefill screen exactly as the policy arithmetic applies it, case (ii)
+rises to ⌈21.81 / 0.95⌉ = \textbf{23 hosts} --- the largest requirement
+before the full policy (ρ = 0.95 is a throughput-efficiency derate:
+dividing the host requirement by ρ is the same as dividing each host's
+effective rate by ρ, so it applies to any throughput-bound screen --- KV
+or prefill --- and does not re-derive the 35\% MFU assumption itself);
+and at the 70\% × 95\% + N−1 policy \textbf{34 under case (ii) versus 32
+for KV-only} (⌈21.81/0.665⌉+1 = 34; ⌈344/11.305⌉+1 = 32 --- Ch 17 \hyperref[tab:17.1]{Table 17-1}, u = 0.70 and ρ = 0.95 applied as two independent factors);
+\textbf{all of 19/21/22/23/32/34 are illustrative planning screens under
+their stated FLOP/MFU assumptions, not measured SLO-goodput.}
+
+\textbf{Reading \hyperref[fig:20.1]{Fig 20.1}'s two gaps:} below saturation the
+\textasciitilde5\% gap between C\_analytic(N) = N × 17/8.6 and C\_eff(N)
+= 0.95 × C\_analytic is the assumed throughput-efficiency derate; above
+saturation C\_eff − S, with S = min(40, C\_eff), is \emph{unused}
+capacity from insufficient offered demand --- not scheduling overhead.
+Queueing and tail-latency penalties are not determined by this two-line
+calculation and must be shown separately if claimed.
+
+\subsubsection{Scheduling overhead}\label{scheduling-overhead}
+
+A lightweight round-robin scheduler adds \textasciitilde0.5 ms of
+dispatch latency per request \mbox{{[}ILLUSTRATIVE{]}} --- negligible next to a
+real 7.5 s decode, but it must stay under \textasciitilde5\% of the
+\emph{measured} per-request time.
+
+\subsubsection{Autoscaling economics}\label{autoscaling-economics}
+
+Each 8×H100 host costs \textasciitilde\$20/hour (cloud, \$2.50/GPU-hr
+canonical) or \textasciitilde\$8/hour amortized (owned) ---
+\mbox{{[}ILLUSTRATIVE{]}}. The marginal cost per additional rps is \$20 ÷ (rps
+gained per host); the economic lesson (declining average cost per
+request as fixed costs amortize across more requests) is sound, but the
+exact per-rps figure is only meaningful after the real per-host
+throughput is benchmarked.
 
 \Needspace{13\baselineskip}
 
@@ -364,12 +391,13 @@ placement contract.
 \item
   \textbf{Overlooking data movement cost}: In RAG workloads, the
   retrieved-context portion of the \textasciitilde9,200 in-tokens per
-  query must be fetched from a vector database or cache (the
-  \textasciitilde300 out-tokens are generated locally; only their egress
-  crosses the network). If every host pulls data independently, the
-  network cost scales linearly with fleet size. A better approach is to
-  colocate vector stores with serving hosts or use a shared cache layer
-  that amortizes fetch cost across concurrent queries.
+  query must be fetched from a vector database or cache over the
+  network, while the \textasciitilde300 out-tokens are generated
+  entirely on the host --- only the final response needs to reach the
+  user. If every host pulls data independently, the network cost scales
+  linearly with fleet size. A better approach is to colocate vector
+  stores with serving hosts or use a shared cache layer that amortizes
+  fetch cost across concurrent queries.
 \item
   \textbf{Autoscaling too aggressively}: Adding hosts at the first sign
   of latency increase can be suboptimal if the bottleneck is scheduler
@@ -436,25 +464,25 @@ ways:
 \subsection{The useful completion is an accepted
 clip}\label{the-useful-completion-is-an-accepted-clip}
 
-The same accepted-completion goodput accounting applies to any
-fixed-output-contract workload; a video-generation fleet is the clearest
-parallel beyond RAG. For a fixed output contract the useful completion
-is the accepted output --- a clip that passes the completion deadline,
-output-integrity, quality, and safety gates in the same observation
-window --- while raw work rates (frames/s, clip-seconds/s) need a stated
-denominator and do not normalize the nonlinear attention cost. The
-rejection/OOM/cancellation counters, the cost-per-accepted-clip basis,
-and the zero-pass edge case follow the accepted-completion rule stated
-in the previous sentence (a useful completion is an output that passes
-the deadline, integrity, quality, and safety gates in the observation
-window); placement follows the measured-service-time rule (place warm
-replicas where measured service time, not nominal load time, sets the
-request path), with warm replicas trading idle cost for avoiding
-checkpoint downloads, initialization, compilation, and encoder loading
-on the request path. For a RAG fleet architect the parallel is direct:
-both fleets size hosts against accepted outputs in the observation
-window, not raw work, so the same capacity screens and placement rules
-apply. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} proposed service accounting.
+For a RAG fleet the useful completion is an \emph{accepted} output --- a
+response that passes the deadline, integrity, quality, and safety gates
+in the observation window --- so hosts are sized against accepted
+outputs per observation window, not raw work; the
+rejection/OOM/cancellation counters and the cost-per-accepted-completion
+basis follow that rule, and placement follows the measured-service-time
+rule (place warm replicas where measured service time, not nominal load
+time, sets the request path). The same accepted-completion goodput
+accounting applies to any fixed-output-contract workload; a
+video-generation fleet is the clearest parallel beyond RAG --- there the
+accepted output is a clip passing the same four gates in the same
+observation window, raw work rates (frames/s, clip-seconds/s) need a
+stated denominator and do not normalize the nonlinear attention cost,
+and warm replicas trade idle cost for avoiding checkpoint downloads,
+initialization, compilation, and encoder loading on the request path.
+For a RAG fleet architect the parallel is direct: both fleets size hosts
+against accepted outputs in the observation window, not raw work, so the
+same capacity screens and placement rules apply.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} proposed service accounting.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -472,13 +500,14 @@ Several open questions remain at the fleet level:
   crossover point where heterogeneity hurts versus helps is not well
   quantified.
 \item
-  \textbf{Multi-model serving}: When multiple model sizes coexist (e.g.,
-  70B for complex queries, 7B for quick ones), the scheduling problem
-  gains a new dimension---placement must balance model size against
-  query urgency and host memory. Mixed-precision serving (FP16, FP8,
-  INT4) adds another layer: lower precision increases throughput but may
-  degrade answer quality on subtle reasoning tasks, and the
-  quality-throughput trade-off curve is model-specific.
+  \textbf{Multi-model serving}: Ch 18 covers routing, tiering, and
+  quantization trade-offs for mixed model sizes; what this chapter
+  leaves open is how to compute a fleet's aggregate capacity when
+  per-host rates differ by model --- the N × Q identity in §3 assumes a
+  single Q --- and how the scheduler should place a request whose model
+  is not resident on the least-loaded host without breaking session
+  affinity or the shared KV budget. Joint placement of heterogeneous
+  model sizes under one KV budget (Ch 18 §3.3) remains unresolved.
 \item
   \textbf{Economic auto-scaling}: The break-even point between owning
   hardware versus cloud-on-demand depends on utilization patterns that
@@ -539,31 +568,83 @@ by KV residency per \hyperref[chap:17]{Chapter 17}):
   decode of 300 output tokens at \textasciitilde25 ms/token, \hyperref[chap:8]{Chapter 8}
   --- Ch 17's conditional proxy for E{[}W\_KV-resident{]}). So C/W = 17
   / 8.6 = 1.977 ≈ \textbf{2.0 requests/s} \mbox{{[}ANALYTICAL{]}} at steady
-  state --- a \textbf{KV-slot-based analytical UPPER bound on admitted
-  request completion rate, conditional on an assumed mean KV residency
-  time}, the defensible capacity number, from concurrency × KV-holding
-  time (Little's law), not a token throughput ÷ tokens per request (§3:
-  \textasciitilde35,000 tok/s ÷ \textasciitilde9,500 needs
-  \textasciitilde32 in flight --- 17 slots cannot hold).
+  state --- a \textbf{KV-slot upper bound on admitted rate} (the full
+  phrase defined in §3), the defensible capacity number, from
+  concurrency × KV residency time (Little's Law), not a token throughput
+  ÷ tokens per request (§3: \textasciitilde35,000 tokens/s ÷
+  \textasciitilde9,500 needs \textasciitilde32 in flight --- 17 slots
+  cannot hold).
 \item
   \textbf{Fleet aggregate (8 hosts):} 8 × (17/8.6) = 15.8 ≈ \textbf{16
-  req/s}, \textbf{below} the canonical 40-rps peak. The idealized
-  minimum is ⌈344/17⌉ = \textbf{21 hosts}; the ρ ≈ 0.95 factor used in
-  this chapter and Ch 17 --- a fractional-throughput efficiency derate
-  on the rate, not a second slot floor and not a failure spare ---
-  raises it to 344/(0.95 × 17) = 344/16.15 ≈ 21.3 → \textbf{22 hosts}
-  (the ρ-derate of the KV screen; the \emph{independent} full-square
-  case (ii) prefill compute screen also gives 22, ⌈21.81⌉ --- a
-  different 22, from a FLOP-counting case rather than a ρ derate --- but
-  with the same ρ = 0.95 derate §3 applies to every throughput-bound
-  screen, case (ii) rises to ⌈21.81/0.95⌉ = 23, the max over all
-  screens; 23 is the ρ-derated requirement, 22 the raw-screen
-  requirement, and 23 governs the screen set (§3: the larger requirement
-  wins)). (⌈86/17⌉ = \textbf{6} is not a second, tighter constraint: it
-  is the \emph{same} identity λW/C = λ/(C/W) --- the KV-residency view
-  of §3 --- evaluated at the 10-rps average instead of the 40-rps peak;
-  at the peak both views give ⌈344/17⌉ = \textbf{21} (→ \textbf{22} with
-  the ρ ≈ 0.95 derate), so the peak requirement governs.)
+  req/s}, \textbf{below} the canonical 40-rps peak.
+\end{itemize}
+
+The idealized minimum, screen by screen:
+
+\nopagebreak[4]
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}
+  >{\raggedright\arraybackslash}p{0.2127\linewidth}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Screen
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Raw
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+With ρ = 0.95
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+With full policy (70\% × 95\% + N−1)
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+KV screen (§3) & 21 hosts (⌈344/17⌉) & 22 hosts (⌈344/16.15⌉ ≈ 21.3) &
+32 (KV-only) \\
+Case (ii) prefill compute screen & 22 hosts (⌈21.81⌉) & 23 hosts
+(⌈21.81/0.95⌉) & 34 (case (ii)) \\
+
+\noalign{\label{tab:20.2}}\end{longtable}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{(a) KV screen:} the idealized minimum is ⌈344/17⌉ = \textbf{21
+  hosts}. The ρ ≈ 0.95 factor used in this chapter and Ch 17 --- a
+  fractional-throughput efficiency derate on the rate, not a second slot
+  floor and not a failure spare --- raises it to 344/(0.95 × 17) =
+  344/16.15 ≈ 21.3 → \textbf{22 hosts}.
+\item
+  \textbf{(b) Case (ii) prefill screen:} the \emph{independent}
+  full-square case (ii) prefill compute screen also gives \textbf{22}
+  raw, ⌈21.81⌉ --- a different 22, from a FLOP-counting case rather than
+  a ρ derate. With the same ρ = 0.95 derate §3 applies to every
+  throughput-bound screen, case (ii) rises to ⌈21.81/0.95⌉ =
+  \textbf{23}.
+\item
+  \textbf{(c) Max over all screens, before the full policy:} 23 is the
+  ρ-derated requirement, 22 the raw-screen requirement, and 23 governs
+  the screen set before the full policy (§3: the larger requirement
+  wins).
+\item
+  \textbf{(d) Full policy:} under the 70\% × 95\% + N−1 policy the
+  requirements are \textbf{34} under case (ii) and \textbf{32} for
+  KV-only --- see the planning-bound caveat below.
+\end{itemize}
+
+(⌈86/17⌉ = \textbf{6} is not a second, tighter constraint: it is the
+\emph{same} identity λW/C = λ/(C/W) --- the KV-residency view of §3 ---
+evaluated at the 10-rps average instead of the 40-rps peak; at the peak
+both views give ⌈344/17⌉ = \textbf{21} (→ \textbf{22} with the ρ ≈ 0.95
+derate), so the peak requirement governs.)
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{At 16 hosts:} 16 × (17/8.6) = 31.6 ≈ \textbf{32 req/s} ---
+  still below the 40-rps peak, so 16 hosts would not meet peak demand.
 \item
   \textbf{Marginal cost (real basis):} adding one host at
   \textasciitilde\$20/hr (cloud, \mbox{{[}ILLUSTRATIVE{]}}) buys
@@ -606,32 +687,50 @@ by KV residency per \hyperref[chap:17]{Chapter 17}):
   \textbf{Planning-bound caveat (sizing tail).} §3's caveat governs:
   analytical upper bounds (the KV-slot bound on admitted rate for
   \textasciitilde2.0 req/s; the idealized Ch 8 roofline for
-  \textasciitilde19,800 prefill tok/s), not implied deployed rates; no
-  p95/p99 guarantee for the 21/22-host sizing (21 = KV screen under case
-  (i); 22 = the ρ ≈ 0.95 derate and, separately, the full-square case
-  (ii) prefill compute screen; 34 at 70\% × 95\% + N−1 under case (ii)
-  versus 32 for KV-only) --- the host count is a
-  KV-residency/service-time \textbf{capacity floor} (derived from the
-  KV-slot upper bound on the per-host rate), and the deployable host
-  count is \textbf{max(capacity requirement, tail-latency requirement
-  N\_SLO)}, so measure p95/p99 and SLO-goodput (\hyperref[chap:14]{Chapter 14}) before
-  committing hardware. Little's Law stays a mean relation there:
-  E\mbox{{[}L{]}} = λ·E\mbox{{[}W{]}} with E\mbox{{[}W{]}} the mean KV residency --- never a
-  p95/p99 W.
+  \textasciitilde19,800 prefill tokens/s), not implied deployed rates;
+  no p95/p99 guarantee for the governing 23-host sizing (21 = KV screen
+  under case (i); 22 = the ρ ≈ 0.95 derate of that screen; 23 = the
+  ρ-derated full-square case (ii) prefill compute screen, which governs;
+  34 at 70\% × 95\% + N−1 under case (ii) versus 32 for KV-only) --- the
+  host count is a KV-residency/service-time \textbf{capacity floor}
+  (derived from the KV-slot upper bound on the per-host rate), and the
+  deployable host count is \textbf{max(capacity requirement,
+  tail-latency requirement N\_SLO)}, so measure p95/p99 and SLO-goodput
+  (\hyperref[chap:14]{Chapter 14}) before committing hardware. Little's Law stays a mean
+  relation there: E\mbox{{[}L{]}} = λ·E\mbox{{[}W{]}} with E\mbox{{[}W{]}} the mean KV
+  residency --- never a p95/p99 W.
 \end{itemize}
 
 {\intextsep=6pt\relax\begin{figure}[H]
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. Takeaway: the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency on the KV screen / 23 with the ρ derate on the case (ii) prefill screen (§3) --- a plateau at the workload's demand ceiling (40 rps is the peak arrival rate, not the fleet's capacity limit). Scope: this figure models the KV-residency/throughput screen only (21 hosts ideal, 22 at ρ = 0.95); the prefill screen in §3 binds higher --- 23 hosts (case (ii) with the ρ derate), up to 34 under the full 70\% × 95\% + N−1 policy --- so 21/22 is not the fleet size. Reading the two gaps: below saturation the \textasciitilde5\% gap between C\_analytic and C\_eff is the assumed throughput-efficiency derate; above saturation C\_eff − S is unused capacity from insufficient offered demand, not scheduling overhead (demand is capped at 40 rps). Queueing/tail-latency penalties are not determined by this two-line calculation and must be shown separately if claimed. Measured-vs-illustrative: the served-demand curve is a derived construction --- modeled served demand, not measured throughput --- and validation (p95/p99, Ch 14) precedes treating the 21/22-host KV-screen peak sizing as validated. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio,trim=0 3.58 0 8.80,clip]{figures/fig-20-2001.pdf}}
-\caption[Fleet capacity vs host count]{Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. \textbf{Takeaway:} the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency on the KV screen / 23 with the ρ derate on the case (ii) prefill screen (§3) --- a plateau at the \textbf{workload's demand ceiling} (40 rps is the peak arrival rate, not the fleet's capacity limit). \textbf{Scope:} this figure models the KV-residency/throughput screen only (21 hosts ideal, 22 at ρ = 0.95); the prefill screen in §3 binds higher --- 23 hosts (case (ii) with the ρ derate), up to 34 under the full 70\% × 95\% + N−1 policy --- so 21/22 is not the fleet size. \textbf{Reading the two gaps:} below saturation the \textasciitilde5\% gap between C\_analytic and C\_eff is the assumed throughput-efficiency derate; above saturation C\_eff − S is \textbf{unused capacity from insufficient offered demand, not scheduling overhead} (demand is capped at 40 rps). Queueing/tail-latency penalties are not determined by this two-line calculation and must be shown separately if claimed. \textbf{Measured-vs-illustrative:} the served-demand curve is a derived construction --- \textbf{modeled served demand, not measured throughput} --- and validation (p95/p99, Ch 14) precedes treating the 21/22-host KV-screen peak sizing as validated. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. Takeaway: the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency on the KV screen / 23 with the ρ derate on the case (ii) prefill screen (§3) --- a plateau at the workload's demand ceiling (40 rps is the peak arrival rate, not the fleet's capacity limit). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio,trim=0 3.58 0 8.80,clip]{figures/fig-20-2001.pdf}}
+\caption[Fleet capacity vs host count]{Fleet capacity vs host count: analytical C\_analytic(N) = N × 17/8.6, efficiency-adjusted C\_eff(N) = 0.95 × C\_analytic, served demand S(N) = min(40, C\_eff) --- all in req/s. \textbf{Takeaway:} the served-demand curve (17/8.6 = 1.977 ≈ 2.0 req/s/host × \textasciitilde95\% throughput-efficiency derate) flattens at the canonical 40 rps peak once 22 hosts are provisioned --- 21 ideal / 22 at 95\% efficiency on the KV screen / 23 with the ρ derate on the case (ii) prefill screen (§3) --- a plateau at the \textbf{workload's demand ceiling} (40 rps is the peak arrival rate, not the fleet's capacity limit). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:20.1}\end{figure}
+
+\emph{\hyperref[fig:20.1]{Fig 20.1} note.} \textbf{Scope:} this figure models the
+KV-residency/throughput screen only (21 hosts ideal, 22 at ρ = 0.95);
+the prefill screen in §3 binds higher --- 23 hosts (case (ii) with the ρ
+derate), up to 34 under the full 70\% × 95\% + N−1 policy --- so 21/22
+is not the fleet size. \textbf{Reading the two gaps:} below saturation
+the \textasciitilde5\% gap between C\_analytic and C\_eff is the assumed
+throughput-efficiency derate; above saturation C\_eff − S is
+\textbf{unused capacity from insufficient offered demand, not scheduling
+overhead} (demand is capped at 40 rps). Queueing/tail-latency penalties
+are not determined by this two-line calculation and must be shown
+separately if claimed. \textbf{Measured-vs-illustrative:} the
+served-demand curve is a derived construction --- \textbf{modeled served
+demand, not measured throughput} --- and validation (p95/p99, Ch 14)
+precedes treating the 21/22-host KV-screen peak sizing as validated.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \emph{Aggregate-rps note}: ≥ 2× peak = 80 rps is a \textbf{stress/soak}
 target, not the planning screen: sustaining 80 rps needs
 \textasciitilde41--43 hosts (80 / 1.977 = 40.5 → 41; with the ρ = 0.95
-derate → 43), a larger pool than the 21/22-host KV-screen sizing, whose
-21-host analytical capacity is ≈ 41.5 rps ≈ 1.04× peak (C\_analytic = 21
-× 17/8.6; the 22-host ρ-derated sizing gives ≈ 41.3 rps ≈ 1.03×; served
-demand still caps at the 40 rps peak). The KV-screen sizing passes its
-own screens at ≈ 1× peak; the 2× row is what a soak pool must sustain.
+derate → 43), a larger pool than the 21/22-host KV-screen sizing.
+
+The 21-host KV-screen sizing has an analytical capacity of ≈ 41.5 rps ≈
+1.04× peak (C\_analytic = 21 × 17/8.6); the 22-host ρ-derated sizing
+gives ≈ 41.3 rps ≈ 1.03×, and served demand still caps at the 40 rps
+peak. The KV-screen sizing passes its own screens at ≈ 1× peak; the 2×
+row is what a soak pool must sustain.

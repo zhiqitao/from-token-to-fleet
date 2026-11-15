@@ -4,13 +4,15 @@ After this chapter we should be able to answer the inevitable scaling
 question: \emph{a single GPU cannot hold this model or keep up with this
 workload --- how do we split the work across many GPUs, and which split
 is right?} We will build the arithmetic for why a model outgrows one
-GPU, then study the five parallelization strategies --- tensor,
-pipeline, data, expert, and sequence parallelism --- plus a serving-only
-sixth (P/D disaggregation, which has no training counterpart), and
-develop a rule for choosing among them based on the model's
-weight-residency, the workload's batch shape, and the interconnect
-speed. After this chapter, ``we scaled it out'' becomes a precise claim
-about \emph{what} was split and \emph{why}.
+GPU, then study the five parallelization strategies --- tensor (a
+layer's weights), pipeline (the layer stack), data (replicates the
+model, splits the batch), expert (MoE experts), and sequence parallelism
+(the sequence) --- plus a serving-only sixth, P/D disaggregation, which
+splits request phases rather than model parameters and has no training
+counterpart, and develop a rule for choosing among them based on the
+model's weight-residency, the workload's batch shape, and the
+interconnect speed. After this chapter, ``we scaled it out'' becomes a
+precise claim about \emph{what} was split and \emph{why}.
 
 \ntsection{Concept}\label{concept}
 
@@ -22,18 +24,21 @@ prevents a common source of confusion: \textbf{the parallelism toolkit
 differs between training and inference, and ``data parallelism'' means
 different things in each mode.} In \emph{training}, DP means replicated
 weights plus gradient all-reduce every step (plus FSDP, which shards and
-re-gathers weights/optimizer state); the communication load is at the
-gradient-sync point. In \emph{inference}, DP simply means running
-independent model replicas to raise throughput --- there is no gradient
-sync at all, because each request is served by one replica. There is
-also a serving-relevant family --- context/pipeline partitioning, expert
-parallelism, and \textbf{P/D disaggregation} (splitting the prefill
-stage from the decode stage into separate pools) --- repurposed here for
-serving; of the three, only P/D disaggregation has no training analogue
-(context/pipeline partitioning and expert parallelism both appear in
-training too). The rest of this section defines the strategies, and
-§10.3 applies them to inference (the book's canonical serving context)
-unless a strategy is explicitly training-only.
+re-gathers weights/optimizer state); for plain DP the communication load
+is at the gradient-sync point, while FSDP also communicates during the
+forward pass when it all-gathers parameter shards and during backward
+when it reduce-scatters gradients. In \emph{inference}, DP simply means
+running independent model replicas to raise throughput --- there is no
+gradient sync at all, because each request is served by one replica.
+There is also a serving-relevant family --- context/pipeline
+partitioning, expert parallelism, and \textbf{P/D disaggregation}
+(splitting the prefill stage from the decode stage into separate pools)
+--- repurposed here for serving; of the three, only P/D disaggregation
+has no training analogue (context/pipeline partitioning and expert
+parallelism both appear in training too). The rest of this section
+defines the strategies, and §10.3 applies them to inference (the book's
+canonical serving context) unless a strategy is explicitly
+training-only.
 
 The strategy names tell us what gets split:
 
@@ -89,12 +94,10 @@ TP+CP within a decode pool + a separate prefill pool). The architect's
 job is deciding which dimension to split first, and in which mode
 (training vs inference) the parallelism is being applied.
 
-\begin{figure}
-\centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits and what communicates; replication is described where it exists (TP's activations in the text; DP's whole model in the panel). Communication-specificity note: the TP collective is algorithm-dependent --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on microbatch scheduling (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count; GPU counts and layer ranges schematic --- the canonical host is 8×H100 and the canonical 70B has 80 layers); substitute the actual collective and schedule for the target stack. Grayscale note: each box's text label carries its role, so the in-figure color key (blue = weights · orange = GPU · green = data · red = comms) is redundant, not load-bearing. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-10-1001.pdf}}
-\caption[Three parallelism patterns, one per panel]{Three parallelism patterns, one per panel: tensor parallel shards one layer's weights (activations replicated; partial sums all-reduced every layer), pipeline parallel splits the layer stack into stages (hidden states move P2P; an idle bubble at fill/drain), and data parallel replicates the model while splitting the batch (training all-reduces gradients; inference replicas run unsynced). Each panel names what splits and what communicates; replication is described where it exists (TP's activations in the text; DP's whole model in the panel). \textbf{Communication-specificity note:} the TP collective is \emph{algorithm-dependent} --- a plain all-reduce of partial sums is one option, but fused kernels often use reduce-scatter + all-gather (or a single all-reduce) depending on the framework; the PP bubble size depends on \emph{microbatch scheduling} (more microbatches shrink the bubble but add memory). The panels show the canonical configuration (TP all-reduce per layer; PP with a small fixed microbatch count; GPU counts and layer ranges schematic --- the canonical host is 8×H100 and the canonical 70B has 80 layers); substitute the actual collective and schedule for the target stack. \textbf{Grayscale note:} each box's text label carries its role, so the in-figure color key (blue = weights · orange = GPU · green = data · red = comms) is redundant, not load-bearing. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
-
-\label{fig:10.1}\end{figure}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Three parallelism patterns, one per panel: tensor parallel shards one layer's weights, pipeline parallel splits the layer stack into stages with an idle bubble at fill/drain, and data parallel replicates the model while splitting the batch. Each panel names what splits and what communicates; replication is described where it exists. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-10-1001.pdf}}
+\emph{Figure note (grayscale): each box's text label carries its role,
+so the in-figure color key (blue = weights · orange = GPU · green = data
+· red = comms) is redundant, not load-bearing.}
 
 The strategies are not either/or. \hyperref[fig:10.1]{Fig 10.1} shows the three canonical
 patterns in three stacked panels. \textbf{Tensor parallel} shards one
@@ -110,9 +113,16 @@ replicates the whole model and splits the batch --- in training every
 replica all-reduces its gradient each step; in inference the replicas
 are independent, each serving a disjoint slice of requests with no sync
 at all. Expert and sequence parallelism (EP/CP) are additional axes that
-reuse the same machinery. The three primary patterns \textbf{compose}
-(e.g.~DP across nodes × TP within a node × PP across a few nodes) ---
-which dimension binds determines which to split first.
+reuse the same machinery. \textbf{Communication-specificity note:} the
+TP collective is \emph{algorithm-dependent} --- a plain all-reduce of
+partial sums is one option, but fused kernels often use reduce-scatter +
+all-gather (or a single all-reduce) depending on the framework; the PP
+bubble size depends on \emph{microbatch scheduling} (more microbatches
+shrink the bubble but add memory). The panels show the canonical
+configuration (TP all-reduce per layer; PP with a small fixed microbatch
+count; GPU counts and layer ranges schematic); substitute the actual
+collective and schedule for the target stack. Which dimension binds
+determines which to split first.
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -164,16 +174,19 @@ Fits when
 Tensor (TP) & a layer's weights within a GPU group & activations &
 layer-result collectives; fabric-dependent cost & weight shards fit;
 measured exchange meets the SLO \\
-Pipeline (PP) & the layer stack into stages & hidden states & hidden
+Pipeline (PP) & the layer stack into stages & nothing (full hidden state
+passes unsharded)\footnote{In the \emph{Replicates} column, an entry
+  names an object held in multiple copies on multiple devices.} & hidden
 states →~P2P (stage boundaries only) & model spans nodes \\
-Data (DP) & the data batch & model + optimizer & gradients → all-reduce
-(per step) & model fits one GPU, need throughput (the canonical 70B is
-140 GB \textgreater{} 80 GB per GPU, so it does not fit one GPU --- DP
-is not its baseline; see §10.3) \\
+Data (DP) & the data batch & Training: model + optimizer state;
+Inference: model only (no optimizer, no gradient sync) & Training:
+gradients → all-reduce (per step); Inference: none & model fits one GPU;
+need throughput\footnote{The canonical 70B (140 GB) exceeds one H100 (80
+  GB), so DP is not its baseline; see §10.3.} \\
 Expert (EP) & MoE experts & attention / weights & routes → all-to-all
 (per token) & MoE models \\
-Sequence (CP) & the token sequence & model weights & KV → ring & long
-contexts, KV too big \\
+Sequence (CP) & the token sequence & model weights & KV → sequence
+collectives (implementation-dependent) & long contexts, KV too big \\
 
 \noalign{\label{tab:10.1}}\end{longtable}
 
@@ -209,8 +222,9 @@ canonical prompt needs \textasciitilde24.1 GB more (initial KV)).
 
 The canonical 8×H100 host (640 GB total) fits the weights + KV
 comfortably, which is why the single-host baseline in earlier chapters
-works. But if the model grows (say to 400B) or owns more, the split
-becomes mandatory:
+works. But if the model grows (say to 400B) or its context/state grows,
+the split becomes mandatory. The next three subsections take that split
+in turn: tensor, pipeline, and data parallelism.
 
 \subsection{Tensor Parallelism: Splitting Weights Across
 GPUs}\label{tensor-parallelism-splitting-weights-across-gpus}
@@ -269,7 +283,9 @@ received --- the physical volume moved exceeds the logical payload
 above.\footnote{Ring normalization 2(N-1)/N and the
   algorithmic/bus-bandwidth conventions: nccl-tests PERFORMANCE.md at
   pinned revision \texttt{afd59abab774a6a4b492eb344bd0c845a0b7bb4d}
-  (retrieved 2026-10-27):
+  (retrieved 2026-10-27; post-cutoff exception --- pinned-revision
+  implementation observation, not load-bearing for time-sensitive
+  claims):
   \url{https://raw.githubusercontent.com/NVIDIA/nccl-tests/afd59abab774a6a4b492eb344bd0c845a0b7bb4d/doc/PERFORMANCE.md}}
 Across 160 calls (two per block × 80 blocks), each rank sends 70 MiB and
 receives 70 MiB in that one decode step. The ideal byte term is about
@@ -349,16 +365,21 @@ sends its gradient tensor once per step. The gradient bytes are
 per step (FP32 gradient; the all-reduce moves the gradient once, not
 weights+gradients). As in \hyperref[chap:9]{Chapter 9}, a ring all-reduce moves
 \(2\frac{N-1}{N}\) times the per-rank gradient through each rank, so for
-\(N=8\) the per-rank traffic is \(1.75 \times 280 \approx 490\) GB and
-the sync time is
-\(T_\text{ring} = 2\frac{N-1}{N}\,\text{bytes} / B_\text{eff}\). At 25
-GB/s (single 200Gb/s link) that is \texttt{490\ /\ 25\ ≈\ 19.6\ s} per
-step --- far too slow if the step takes \textasciitilde1 s. At the H100
-NVLink directional peak of 450 GB/s, the same ideal ring estimate is
-\texttt{490/450\ ≈\ 1.09\ s}. The 900 GB/s bidirectional sum cannot
-divide a send-only traffic count; this remains a communication model,
-not proof of training-state fit. The sync cost, not compute, often caps
-DP at small scale unless the interconnect is fast. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+\(N=8\) the per-rank \textbf{send} volume is
+\(\frac{N-1}{N} \times 280 \approx 245\) GB and the send-plus-receive
+total is \(1.75 \times 280 \approx 490\) GB; here and in \hyperref[chap:9]{Chapter 9},
+\emph{per-rank traffic} means send volume unless stated otherwise, and
+the sync time is \(T_\text{ring} = \text{send volume} / B_\text{dir}\)
+with \(B_\text{dir}\) the directional bandwidth. At 25 GB/s (single
+200Gb/s link) that is \texttt{245\ /\ 25\ ≈\ 9.8\ s} per step --- far
+too slow if the step takes \textasciitilde1 s. At the H100 NVLink
+directional peak of 450 GB/s, the same ideal ring estimate is
+\texttt{245/450\ ≈\ 0.54\ s} (equivalently, 490 GB of sent-plus-received
+traffic divided by the 900 GB/s bidirectional sum gives the same time).
+The 900 GB/s bidirectional sum divides only that send-plus-receive
+total, never a send-only count; this remains a communication model, not
+proof of training-state fit. The sync cost, not compute, often caps DP
+at small scale unless the interconnect is fast. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 The 280 GB is the logical FP32 gradient for a full model replica, not a
 feasible single-H100 allocation. In hybrid DP×TP training, a DP
@@ -384,7 +405,8 @@ fits. Specialized dispatch/combine implementations may exploit structure
 that a fixed-count all-to-all does not expose.\footnote{Dispatch/combine
   structure in DeepSeek DeepEP at pinned revision
   \texttt{f6aa38fe06cd4a0489e7730365d4e0114970a2f3} (retrieved
-  2026-10-27):
+  2026-10-27; post-cutoff exception --- pinned-revision implementation
+  observation, not load-bearing for time-sensitive claims):
   \url{https://raw.githubusercontent.com/deepseek-ai/DeepEP/f6aa38fe06cd4a0489e7730365d4e0114970a2f3/README.md}}
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}\hspace{0pt}\mbox{{[}ANALYTICAL{]}}
 
@@ -396,7 +418,9 @@ all-gather; the same full-size gradient gives the same per-rank
 reduce-scatter volumes. This is a unit-sized calculation, not a claim
 that every forward gathers the whole model or every optimizer
 state.\footnote{FSDP \texttt{\_fully\_shard} implementation, PyTorch
-  v2.9.0 tag (retrieved 2026-10-27):
+  v2.9.0 tag (retrieved 2026-10-27; post-cutoff exception ---
+  pinned-revision implementation observation, not load-bearing for
+  time-sensitive claims):
   \url{https://raw.githubusercontent.com/pytorch/pytorch/v2.9.0/torch/distributed/fsdp/_fully_shard/_fully_shard.py}}
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}\hspace{0pt}\mbox{{[}ANALYTICAL{]}}
 
@@ -499,14 +523,16 @@ constraint is usually \textbf{memory} for large models:
   full expert set must be resident (the active count sets compute per
   token, not residency) and EP shards the experts across GPUs.
 \item
-  \textbf{The canonical answer}: the book's \textasciitilde70B/8×H100
-  baseline uses intra-host TP=8 to distribute the 140 GB weights and
-  serving state. It requires model parallelism within the host, but not
-  cross-host model parallelism. Eight ranks are the chosen baseline, not
-  a minimum derived from weight bytes alone. TP, PP and independent
-  replicas can then be composed according to measured capacity,
-  communication and SLO constraints; their names do not establish a
-  universal escalation order.
+  \textbf{The canonical answer}: the book's canonical host uses
+  intra-host TP=8 to distribute the model weights and serving state. It
+  requires model parallelism within the host, but not cross-host model
+  parallelism. Eight ranks are the chosen baseline, not a minimum
+  derived from weight bytes alone --- TP=2 would hold the weights, but
+  TP=8 matches the node's 8-GPU topology and NVLink, keeps per-rank
+  weight reads well within HBM bandwidth, and leaves headroom for KV and
+  activations. TP, PP and independent replicas can then be composed
+  according to measured capacity, communication and SLO constraints;
+  their names do not establish a universal escalation order.
 \end{itemize}
 
 \hyperref[tab:10.1]{Table 10-1} above consolidates the five parallelization strategies; P/D
@@ -527,23 +553,31 @@ stacked panels; the table adds the specialist EP and CP rows.)
   crossover for a given model is unmeasured \mbox{{[}UNRESOLVED{]}} --- measure
   on the target cluster.
 \item
-  \textbf{2026 MoE scaling has moved the specialist/EP frontier.} Kimi
-  K3 activates just 16 of 896 routed experts per token (2.8T total /
-  104B active) via its Stable LatentMoE {[}1P: arXiv 2607.24653{]};
-  Qwen3.8-Flash-Next routes 10+1 of 512 experts (125B total / 6B active)
-  {[}1P: HF Qwen/Qwen3.8-Flash-Next{]}. This combination --- extreme
-  sparsity (16/896 ≈ 1.8\% expert activation), the total expert
-  residency that must be sharded, and the all-to-all routing it forces
-  --- is why expert-parallel and fused cross-expert comm kernels
-  (e.g.~MoE expert parallelism with fused compute/communication, as in
-  DeepSeek's DeepEP/TileLang infra) are increasingly central to serving
-  large MoE fleets {[}1P: arXiv 2606.19348{]}. For the architect this
-  changes the serving calculus: a frontier MoE's activated footprint
-  (Kimi 104B, Qwen 6B) can be dramatically smaller than its total size,
-  so the \emph{compute} decision is made against active parameters ---
-  but the \emph{memory-bound} EP decision (how many experts must be
-  resident) is made against \textbf{total} parameters, since the full
-  expert set occupies HBM even when only a fraction is routed per token.
+  \textbf{How should EP sizing and all-to-all communication be budgeted
+  for frontier MoE models at extreme sparsity?} 2026 MoE scaling has
+  moved the specialist/EP frontier: Kimi K3 activates just 16 of 896
+  routed experts per token (2.8T total / 104B active) via its Stable
+  LatentMoE {[}1P: arXiv 2607.24653{]}; Qwen3.8-Flash-Next routes 10+1
+  of 512 experts (125B total / 6B active) {[}1P: HF
+  Qwen/Qwen3.8-Flash-Next{]}. This combination --- extreme sparsity
+  (16/896 ≈ 1.8\% expert activation), the total expert residency that
+  must be sharded \emph{if the deployment keeps all experts resident in
+  HBM} (expert offloading or caching otherwise changes the capacity
+  calculus), and the all-to-all routing EP \emph{can require when
+  experts are distributed across devices} (replicated or cached expert
+  placements avoid it) --- is why expert-parallel and fused cross-expert
+  comm kernels (e.g.~MoE expert parallelism with fused
+  compute/communication, as in DeepSeek's DeepEP/TileLang infra) are
+  increasingly central to serving large MoE fleets {[}1P: arXiv
+  2606.19348{]}. For the architect this changes the serving calculus: a
+  frontier MoE's activated footprint (Kimi 104B, Qwen 6B) can be
+  dramatically smaller than its total size, so the \emph{compute}
+  decision is made against active parameters --- but the
+  \emph{memory-bound} EP decision (how many experts must be resident) is
+  made against \textbf{total} parameters when the full expert set must
+  occupy HBM even when only a fraction is routed per token. The
+  activated-vs-total residency crossover at current interconnect
+  bandwidths is unmeasured \mbox{{[}UNRESOLVED{]}}.
 \item
   \textbf{Communication-overlap efficiency} in real kernels is hard to
   predict from spec; sustained all-reduce throughput is a
@@ -560,28 +594,33 @@ Slow}\label{end-of-chapter-mini-case-diagnosing-why-the-grown-400b-moe-is-slow}
 
 An architect inherits a deployment where the internal Q\&A model (from
 Ch1's mini-case) has been fine-tuned and grown to a 400B-parameter MoE.
-The team reports ``parallelism is killing us --- everything is slow.''
-The architect applies this chapter's lens. First, weight residency: a
-400B model needs \textasciitilde{}\texttt{400e9\ ×2\ bytes\ =\ 800\ GB}
-even before KV --- that is \textasciitilde10×H100 for weights alone
+The team reports ``parallelism is killing us --- everything is slow'':
+TPOT is measured at 80 ms against a 25 ms target \mbox{{[}ILLUSTRATIVE{]}}. The
+architect applies this chapter's lens. First, weight residency: a 400B
+model needs \textasciitilde{}\texttt{400e9\ ×2\ bytes\ =\ 800\ GB} even
+before KV --- that is \textasciitilde10×H100 for weights alone
 (\textasciitilde11 once KV/workspace is included), far beyond one node.
 \textbf{The model necessarily spans nodes; the architect must choose an
 inter-node decomposition} --- often PP and/or EP for MoE --- while
 avoiding expensive cross-node TP where possible (TP benefits from a
 tightly coupled NVLink-style interconnect; across a slower network its
 per-layer all-reduce cost grows fast). Within each node, the MoE active
-weights are small (state the split explicitly: \textasciitilde40B active
-of the 400B total \mbox{{[}ASSUMPTION{]}}, checked against the node's 640 GB
-HBM), so the team uses EP to shard the \textbf{total} expert set (EP
-shards total residency, not the active count) + TP inside the node. The
-architect measures the interconnect: the cross-node PP boundary runs
-over the cluster fabric (not NVLink), so they choose the stage count P
-and micro-batch count m jointly to shrink the bubble (utilization u =
-m/(m+P−1); each stage also carries its own activation memory, so
-per-stage memory cost bounds P from below), and they verify the DP
-gradient-sync (if fine-tuning) stays under \textasciitilde20\%
+weights are small (\textasciitilde40B active of the 400B total
+\mbox{{[}ASSUMPTION{]}}) --- active parameters set compute per token, not
+residency --- so the team uses EP to shard the \textbf{total} expert set
+(EP shards total residency, not the active count) + TP inside the node,
+and checks the sharded total resident bytes per node against the node's
+640 GB HBM. The architect measures the interconnect: profiling the
+inherited configuration attributes 45 ms of the 80 ms TPOT to its
+cross-node per-layer all-reduce \mbox{{[}ILLUSTRATIVE{]}}; the cross-node PP
+boundary runs over the cluster fabric (not NVLink), so they choose the
+stage count P and micro-batch count m jointly to shrink the bubble
+(utilization u = m/(m+P−1); each stage also carries its own activation
+memory, so per-stage memory cost bounds P from below), and they verify
+the DP gradient-sync (if fine-tuning) stays under \textasciitilde20\%
 \mbox{{[}ILLUSTRATIVE heuristic{]}} of step time. The result: a composed PP ×
 EP × TP configuration whose binding constraints (memory across nodes +
 expert routing) are each addressed by the strategy that trades the right
-bandwidth. The team's ``parallelism is slow'' becomes a precise,
-diagnosed, and fixed split.
+bandwidth. Moving the cross-node decomposition from TP to PP cuts TPOT
+from 80 ms to 35 ms \mbox{{[}ILLUSTRATIVE{]}}, and the team's ``parallelism is
+slow'' becomes a precise, diagnosed, and fixed split.

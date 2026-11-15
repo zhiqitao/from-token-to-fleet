@@ -153,7 +153,10 @@ decision.
 \item
   \textbf{Positive:} range robustness in attention/softmax and
   long-context accumulation; no change in weight residency (both
-  precisions are \textasciitilde140 GB).
+  precisions are \textasciitilde140 GB). Accepted, this record sets the
+  canonical deployment's precision label to BF16; because FP16 and BF16
+  are both 2 B/parameter, every footprint, KV and cost figure in this
+  handbook is unchanged.
 \item
   \textbf{Negative:} lower mantissa precision than FP16 in the weights
   (BF16 has 7 mantissa bits vs FP16's 10), so FP16 is more precise where
@@ -198,6 +201,12 @@ FP16↔BF16 choice. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}
 difference between FP16 and BF16 on the held-out Q\&A set --- an assumed
 outcome for this worked ADR, to be confirmed by the deployment quality
 gate (not a measurement in this handbook).
+
+\emph{Record scope:} ADR 0016 is a deliberately minimal record --- the
+five core fields of §25.1 plus a Rationale and Evidence Tags. The
+apparatus blocks the copy-ready template adds --- decision owner,
+validation plan, rollback plan, review trigger, falsification path ---
+are demonstrated in full in the worked HOLD record ADR 0015 below.
 
 \subsection{A copy-ready blank
 template}\label{a-copy-ready-blank-template}
@@ -298,9 +307,10 @@ model-shape ADR above, the derived quantities are:
   GB parameters, plus \textasciitilde30 GB KV + workspace
   (single-request working set) at the peak for this worked example
   \mbox{{[}DERIVED{]}}, giving ≈ \(170\) GB total derived footprint:\\
-  per-request KV at 9.2K = 24.2 GB (2 × 80 layers × 9.2K × 8,192 × 2 B):
+  per-request KV at 9.2K = 24.1 GB (2 × 80 layers × 9.2K × 8,192 × 2 B):
   KV, already inside the \textasciitilde436 GB KV budget at concurrency
-  (17 × \textasciitilde24.9 GB ≈ 423 GB);\\
+  --- at concurrency the 9.5K-maximum per-request figure applies (17 ×
+  \textasciitilde24.9 GB ≈ 423 GB);\\
   transient activation/workspace ≈ 6 GB (hidden/MLP working tensors ---
   inside the 64 GB runtime/workspace reserve). This \textasciitilde30 GB
   is a \emph{per-request working-set} figure for this ADR's
@@ -316,7 +326,7 @@ model-shape ADR above, the derived quantities are:
   workspace line (workspace includes activation buffers) --- that
   \textasciitilde6 GB is a transient single-request prefill peak, reused
   across the batch rather than held per request in flight (17 concurrent
-  × 6 GB is not implied), while the 24.2 GB KV is held per request in
+  × 6 GB is not implied), while the 24.1 GB KV is held per request in
   flight --- so the envelope closes as 140 + 436 + 64 = 640, not 670.
 \item
   \textbf{Weight-quantization residency lever} --- quantizing the
@@ -397,7 +407,7 @@ link. Do not delete history. \\
 \ntsection{Architecture Consequence}\label{architecture-consequence}
 
 
-Introducing ADRs into the ``From Token to Fleet'' handbook has several
+Introducing ADRs into the fleet team's engineering practice has several
 architecture-level consequences:
 
 \begin{itemize}
@@ -425,8 +435,9 @@ architecture-level consequences:
   top-level index (ADR index) prevent the record from becoming unwieldy.
 \item
   \textbf{Integration with CI:} ADRs can be validated as part of the CI
-  pipeline --- e.g., ensuring every ADR has a status, a rationale, and
-  at least one evidence tag. This automation reinforces the habit.
+  pipeline --- e.g., ensuring every ADR has a status, a trade-offs
+  section, and at least one evidence tag. This automation reinforces the
+  habit.
 \end{itemize}
 
 On the negative side, ADRs add a small writing overhead. For a team of
@@ -476,9 +487,13 @@ capability screen, and the single-region arithmetic gives
 \textasciitilde\$87.6K/mo (\textasciitilde\$14.04/1K) on the cloud
 default paid-occupancy input, and \textasciitilde\$129.8K/mo
 (\textasciitilde\$20.8/1K) managed API at the canonical 6.24M
-requests/mo. The canonical workload's own 99.9\% multi-region
-active-active requirement sits in none of those numbers (Ch 16 §16.3,
-\hyperref[tab:16.2]{Table 16-2}).
+requests/mo --- the \emph{frontier-class} API tier (\$2/\$8 per 1M at
+the canonical 9,200/300 token mix, Ch 16), not Ch 4's \emph{mid-tier}
+\textasciitilde\$11.6/1K (\$1.20/\$2.00 per 1M = \$0.01164/request):
+same token mix and request volume, different model tier, so the two
+managed-API per-request prices are not interchangeable (Ch 4's basis
+note). The canonical workload's own 99.9\% multi-region active-active
+requirement sits in none of those numbers (Ch 16 §16.3, \hyperref[tab:16.2]{Table 16-2}).
 
 \textbf{Decision:} No delivery mode is committed. The least-cost option
 --- the cloud default paid-occupancy input at \textasciitilde\$14.04/1K
@@ -620,9 +635,9 @@ not describe the same system.
 
 
 Despite the structured format, several questions remain open and would
-benefit from future ADRs or empirical studies. Each item below is a
-\textbf{hypothesis awaiting verification} --- none has FACT
-instrumentation yet:
+benefit from future ADRs or empirical studies. Each item below is either
+an open hypothesis or, where tagged \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, a factual
+observation --- the open items have no FACT instrumentation yet:
 
 \begin{itemize}
 \tightlist
@@ -679,8 +694,8 @@ below the target request rate.
   \textbf{Status:} Proposed
 \item
   \textbf{Context:} The canonical 70B RAG workload is bandwidth-bound at
-  decode (Ch. 8's ``memory-bound'' = low arithmetic intensity,
-  \textasciitilde1 FLOP/byte), and its \emph{concurrency} is
+  decode (Ch. 8's ``memory-bound'' = low arithmetic intensity ---
+  \textasciitilde1 FLOP/byte at batch 1), and its \emph{concurrency} is
   capacity-constrained by KV residency (a distinct constraint from the
   decode bandwidth bound --- Ch. 15). At the \textasciitilde436 GB
   practical KV budget, full FP16 KV caps concurrency at
@@ -709,11 +724,17 @@ below the target request rate.
     (FP16) to \textasciitilde12.45 GB (FP8, raw byte-halving --- 50\% of
     FP16) at the 9,500-token max, so the canonical budget supports
     \textasciitilde35.0 concurrent requests rather than
-    \textasciitilde17.5. This is a memory lever, not a compute lever: it
-    leaves the weight-read-dominated decode cost per token nearly
-    unchanged (it does halve the KV-read bytes, a secondary
-    \textasciitilde15\% term), and it raises the concurrency the host
-    can hold under the same KV budget.
+    \textasciitilde17.5. This is a memory lever, not a compute lever. At
+    batch 1 the weight read dominates a decode step: 140 GB of weights
+    against \textasciitilde24.9 GB of KV, so the KV read is a secondary
+    \textasciitilde15\% term and intensity is \textasciitilde1
+    FLOP/byte. At this ADR's own operating point, C ≈ 17.5 concurrent
+    9,500-token requests, the KV read dominates instead: 17.5 ×
+    \textasciitilde24.9 GB ≈ 435.6 GB (FP16) against 140 GB of weights.
+    Halving the KV-read bytes then cuts decode memory traffic ≈38\%
+    (575.6 → 357.8 GB) and raises arithmetic intensity from ≈4.3 to ≈6.9
+    FLOP/byte. The lever also raises the concurrency the host can hold
+    under the same KV budget.
   \item
     Negative: FP8 KV has lower precision in the cached K/V tensors,
     which can add small retrieval-fidelity error on long contexts. The
@@ -743,7 +764,7 @@ below the target request rate.
   \item
     \textbf{GQA (grouped-query attention) reduction} --- not available
     for the canonical model: the 70B reference geometry is full
-    multi-head attention (64 KV heads, 2.62 MB/token, Ch 7). Adopting
+    multi-head attention (64 KV-heads, 2.62 MB/token, Ch 7). Adopting
     GQA would cut KV per token by \textasciitilde8× (the largest single
     capacity lever in this book, Ch 16), but it changes the model
     architecture and requires retraining and re-evaluation --- it is
