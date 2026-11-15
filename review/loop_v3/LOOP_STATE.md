@@ -76,3 +76,16 @@ MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
   stale-pages kill); this driver re-rendered pages/manifest post-rebuild and
   owns merge onward. text c0 was an ERR stub during the md-race — verify/fill
   before merge.
+- 2026-11-15: ROUND 5 CLOSED (second, independent disposition — this session's
+  847-unique verification track): 849 collected -> 847 unique -> 847 verified
+  by 5 read-only waves (528 ACCEPT / 155 ACCEPT-PARTIAL / 164 REJECT; both P0
+  REJECT) -> 683 fixable -> 27 per-chapter batches + 1 cross-chapter batch ->
+  494 FIXED / 189 ALREADY-FIXED (parallel's 189-fix pass) / 0 BLOCKED;
+  responses.md 847 rows; gap_ledger.json fix_status written. Rebuild 501pp
+  (497->501 from post-d438ac05 fixes) all gates green, SAME-LINE overlap 0
+  (fixed Table 15-1 col-6 header overflow: soft hyphen in "parameter-matmul",
+  introduced by 910aa565 header rename). Commit de040ac2 pushed. FIX BACKENDS:
+  user directive 2026-11-14 — delegate subagents alternate DeepSeek-V4.1-Flash
+  and MiniMax-M3.1-Flash (im-eglb); MiniMax delegate backend DOWN 2026-11-15
+  ~00:00-07:30 (6 casualties: ch18/21/22/23/25/26 all re-dispatched on DS,
+  zero-loss or partial-resume). R6 data (parallel-driven) in flight.
