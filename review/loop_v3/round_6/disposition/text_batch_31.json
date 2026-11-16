@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH18-26",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.5, Common Mistakes #1",
+  "chapter": "18",
+  "quoted_clause": "**Treating quantization as free.** 4-bit/8-bit models reduce VRAM but increase CPU cycles and may lower quality on long-context tasks.",
+  "observed": "The stated cost of quantization is CPU cycles, which is the mechanism for CPU/GGUF execution, not for GPU-resident 8-bit weights. The chapter's own 8-bit tier runs on H100s (§18.3.1, §18.8 Tier 2), where the cost of 8-bit is dequantization overhead and reduced Tensor Core efficiency at that precision, plus a possible KV-format change — not CPU cycles. As written, the mistake entry teaches the wrong mechanism for the chapter's dominant tier.",
+  "evidence": "§18.3.1: 8-bit tier on H100; §18.3.2 row hardware: \"70B dense 8-bit on 2×H100\"; §18.8 Tier 2: 8-bit on 1×H100.",
+  "root_cause": "The entry was written from the GGUF/CPU perspective and generalized to GPU quantization.",
+  "correction": "Split the mechanism by execution device: \"quantization is not free: on CPU/GGUF it adds dequantization work per token (and the §18.3.4 arithmetic shows why the CPU tier cannot meet an interactive SLO); on GPU it reduces weight memory and can raise effective latency at reduced-precision Tensor Core throughput, and it may lower quality on long contexts.\"",
+  "acceptance_test": "Each quantization claim in §18.5 names the execution device whose behavior it describes.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-27",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.3.2, basis note",
+  "chapter": "18",
+  "quoted_clause": "the Ch 17 provisioned fleet is 32 hosts, whose amortized rate would be ~$4.01/1M at the same volume",
+  "observed": "The $4.01/1M figure assumes the 32-host fleet's total cost is exactly 32/21 of the 21-host fleet's TCO, i.e. that all cost scales linearly with host count. That is not stated and is not generally true (staff allocation, shared networking, and cluster-level costs do not scale with host count), so the derived rate is presented with more precision than its assumption supports. Recomputed under the stated linear assumption: 155,817 × 32/21 = $237,386 ÷ 5.93×10¹⁰ = $4.00/1M, so the printed $4.01 also does not reproduce exactly.",
+  "evidence": "155,817 × 32/21 = 237,386; 237,386/5.928×10¹⁰ = 4.004×10⁻⁶ → $4.00/1M.",
+  "root_cause": "A proportional-scaling assumption was applied silently and the result printed to three significant figures.",
+  "correction": "State the assumption (\"assuming per-host cost scales linearly, which ignores fixed staff and cluster costs\") and print $4.00/1M, or drop the figure.",
+  "acceptance_test": "The $4.01/1M figure is either reproducible from printed inputs or removed.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-28",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.3.1, 4-bit row of the capacity table",
+  "chapter": "18",
+  "quoted_clause": "| 70B 4-bit GGUF | — | — | ~35 GB | ~5 (canonical 436 GB KV budget reserved: (640−436)/35 = 5.83 → floor 5; ~18 by weights alone; the worked deployment below uses 2 copies) |",
+  "observed": "The \"~5\" is derived on a basis that contradicts the column header (\"this model alone\"): (640 − 436)/35 subtracts the FP16 tier's 140 GB of weights and the 64 GB reserve, i.e. it assumes the FP16 tier is co-resident — the opposite of \"alone\". The \"~18 by weights alone\" figure is the one that matches the header (640/35 = 18.3). Two figures on two bases sit in one cell, and the \"~5\" is also inconsistent with the deployment's 2 copies in the same section.",
+  "evidence": "(640−436)/35 = 5.83; 640/35 = 18.3; the co-resident configuration of §18.3.1 uses 2 copies.",
+  "root_cause": "The cell accumulated two different configurations without labelling either.",
+  "correction": "Split the cell: \"~18 by weights alone (640/35 = 18.3); ~5 if the FP16 tier's 140 GB and the 64 GB reserve are also resident ((640−436)/35 = 5.8); the worked deployment uses 2 copies.\"",
+  "acceptance_test": "Every figure in the capacity table names the configuration it is computed for.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "§6 'Architecture Consequence' → 'Inference scaling' paragraph (printed page not determinable from chunk)",
+  "chapter": "Ch 19",
+  "quoted_clause": "cap T, cache prefixes, or quantize KV (FP8), as these levers can repeatedly beat adding hosts on price — each relaxes the KV-capacity ceiling without commissioning new hardware",
+  "observed": "The sentence lists three levers and asserts that *each* relaxes the KV-capacity ceiling. The same section, three paragraphs later, and Fig 19.3's caption assert the opposite for one of the three: 'prefix-cache eviction leaves the request's own context and KV unchanged (still 34.0 GB) while freeing cached prefix memory and costing a re-prefill', and 'Prefix-cache eviction moves neither: the request still carries the full accumulated context (34.0 GB at turn 4), so its own KV is unchanged'.",
+  "evidence": "Internal contradiction within §6. Prefix caching reduces *recomputation* (processed tokens, prefill time) but does not reduce the request's KV-resident context; §6's own Fig 19.3 analysis and the 'Three policies, three different levers' paragraph state this explicitly. Only 'cap T' and 'quantize KV (FP8)' reduce per-request KV residency.",
+  "root_cause": "A single sentence conflates three levers with three different resource effects (compute-reuse vs memory-capacity vs memory-precision), contradicting the chapter's own three-levers framing.",
+  "correction": "Rewrite as: 'cap T and quantize KV (FP8) relax the KV-capacity ceiling; prefix caching reduces recomputation and prefill time but leaves the request's KV-resident context unchanged (§6, Fig 19.3) — it is a throughput lever, not a capacity lever.'",
+  "acceptance_test": "The revised sentence must not assert that prefix caching reduces KV-resident context; a reader who reads only that sentence must not predict a lower per-host concurrency from prefix caching.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH19-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§8 'Architectural actions' paragraph",
+  "chapter": "Ch 19",
+  "quoted_clause": "at T = 3, billed 4.47× → ≈1.27× and W 17.70 s → 14.14 s at 100% reuse",
+  "observed": "The word 'billed' is used for a quantity that §4 explicitly defines differently. §4: 'billed tokens follow the provider's cache rate schedule and lie between the two processed totals' (i.e. between 12,095 and 42,485 tokens). Under 100% prefix reuse the *processed* total is 12,095 (1.27×), but the *billed* total is strictly greater than 12,095 under any provider that charges a discounted rate for cached tokens. §6 likewise says 'billed ≈ 4.47× vs α = 1.27×', treating the upper processed total as 'billed'.",
+  "evidence": "§4's own definitions: processed totals are 42,485 (no reuse) and 12,095 (100% reuse); billed is a third, provider-dependent quantity lying between them. The §8 sentence therefore reports a 3.5× reduction in *billed* spend that the chapter's own definitions do not support; the defensible claim is a reduction in *processed* tokens.",
+  "root_cause": "Terminology drift: 'billed', 'processed', and 'retained' are used interchangeably in §6/§8 after §4 defines them as three distinct quantities.",
+  "correction": "Replace 'billed 4.47× → ≈1.27×' with 'processed tokens 4.47× → 1.27× (billed tokens fall by less, depending on the provider's cached-token rate)'. Apply the same substitution in §6's 'billed ≈ 4.47× vs α = 1.27×'.",
+  "acceptance_test": "Every occurrence of 'billed' in Ch 19 is either (a) the provider-rate quantity defined in §4, or (b) explicitly qualified as 'billed under a no-cache policy'. No sentence equates 'billed' with the lower processed total.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§8 'Token and latency impact' bullet list, first bullet",
+  "chapter": "Ch 19",
+  "quoted_clause": "Expected input tokens: 0.68×(9,200+865) + 0.25×(9,200+1,730) + 0.05×(9,200+2,595) + 0.02×9,200 ≈ 6,844 + 2,733 + 590 + 184 ≈ **10,350 tokens** (expected total incl. 300-token output ≈ 10,650)",
+  "observed": "The quantity computed is the expected *retained/final context* (the α basis), but it is labeled 'Expected input tokens'. The chapter's own §8 ledger gives the expected *processed* input tokens per submitted request as ≈23,536 (23,927 total − 390 output), i.e. 2.27× the number printed here. The label 'Expected input tokens' is the exact term §4 reserves for 'the full input of a given call'.",
+  "evidence": "Recomputed from the §8 ledger: total tokens per submitted request = 2,392,670/100 = 23,927; total output per submitted request = 0.68×365 + 0.25×430 + 0.05×495 + 0.02×495 = 390.35; processed input per submitted request = 23,536. Retained-context expectation = 10,350. Ratio 2.27×.",
+  "root_cause": "The chapter's careful retained-vs-processed distinction (§4) is not carried into the mini-case's headline bullet, where the retained-context expectation is presented under a processed-token label.",
+  "correction": "Rename the bullet to 'Expected retained-context tokens (final context, α basis)' and add a companion bullet 'Expected processed input tokens per submitted request ≈ 23,536 (2.27× the single-shot 9,200) — from the unconditional ledger below'.",
+  "acceptance_test": "No bullet in §8 labels a retained-context quantity as 'input tokens' without the qualifier 'retained' or 'final context'.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§4 'Tool-call latency budget' bullet 2 and the paragraphs following it; §8 'Note on the latency rows'",
+  "chapter": "Ch 19",
+  "quoted_clause": "**Agent orchestration / tool-call overhead *L*agent** — the per-turn cost of the loop *around* the model: per-invocation orchestration overhead — scheduling, KV-slot setup, kernel launch — excluding model compute, plus the tool backend round-trip. ... So per-turn orchestration overhead *L*agent ≈ 220 ms (typical/central estimate).",
+  "observed": "L_agent is defined as orchestration overhead *plus* the tool backend round-trip (120 + 100 = 220 ms), but is then repeatedly and exclusively described as 'orchestration-only': 'the incremental orchestration overhead is T·L_agent', 'β is β_orch (orchestration-only)', 'the added agent-orchestration latency is comfortably under 1 s'. Roughly half of the 220 ms is tool-backend time, not orchestration.",
+  "evidence": "Definition: L_agent = λ_step + λ_tool with λ_tool ≈ 100 ms (tool backend). The chapter's own §4 note concedes the distinction exists for W's tool leg (Ch 17's 133 ms/turn) but not for L_agent's internal composition. Consequence: an architect scoping an '<1 s orchestration SLA' (§8) would be budgeting 220 ms/turn of which ~100 ms is a search/SQL round-trip that belongs to a different failure domain and a different capacity plan.",
+  "root_cause": "A composite quantity (orchestration + tool) was named and then re-labelled as a single component when convenient.",
+  "correction": "Rename L_agent to 'per-turn loop overhead (orchestration + tool)' and report the two components separately wherever the term is used: β_orch = 1 + T·λ_step/L_base (≈1.04× at T=3) and β_loop = 1 + T·L_agent/L_base (≈1.08× at T=3). In §8, scope the '<1 s' claim to the component the SLA actually covers.",
+  "acceptance_test": "Every use of 'orchestration-only' in Ch 19 is followed by a quantity that excludes λ_tool, or the term is replaced by 'loop overhead (orchestration + tool)'.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH19-05",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§6 'Architecture Consequence' — the seven-item list (no scheduling item)",
+  "chapter": "Ch 19",
+  "quoted_clause": "Introducing an agentic layer reshapes the system architecture in seven ways:",
+  "observed": "None of the seven consequences addresses the scheduling unit. The chapter never states that an agentic request holds its KV slot for the entire multi-turn duration, including the tool-execution interval during which the GPU is idle. This is the single most consequential scheduling fact about agentic traffic and it is absent from a chapter whose §6 otherwise argues that agentic depth is a fleet-sizing problem.",
+  "evidence": "The chapter's own numbers make the point: at T=3 the request occupies 31.7 GB of KV for 17.70 s, of which 3×0.133 = 0.399 s is tool wait and the rest is model work; the KV slot is held throughout. The in-flight calculation in §6 (86 → 115) implicitly counts tool-wait time as occupancy but never says so. Nothing in Ch 19 connects agentic requests to the scheduler's admission control, chunked-prefill interleaving, or head-of-line blocking, even though §6 asserts 'chunked prefill, prefix caching and prefill/decode scheduling ... become first-order here'.",
+  "root_cause": "The chapter treats the agentic layer as a token/latency phenomenon and stops short of the scheduling-system consequences that the book's own architecture narrative requires.",
+  "correction": "Add a short subsection to §6 (or a sixth bullet) titled 'The agentic request is a scheduling unit', stating: (i) KV residency is held for the whole request duration including tool wait; (ii) therefore concurrency limits must be computed as (KV budget ÷ per-request KV) and separately as (throughput target × service time), and the binding one is the former; (iii) tool wait is GPU-idle time that reduces effective utilization, so a request's *GPU-occupancy* fraction is (W − tool wait)/W ≈ 98% at T=3 but the *slot-occupancy* fraction is 100%; (iv) chunked prefill and prefill/decode admission control must be sized for the agentic prefill/decode ratio computed in §6 (≈0.40 at T=3).",
+  "acceptance_test": "A reader can answer, from Ch 19 alone, 'during a tool call, does the request still hold its KV slot, and does it occupy a GPU?'",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-06",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§6 'Inference scaling' paragraph",
+  "chapter": "Ch 19",
+  "quoted_clause": "so **agents do not just stress memory, they force a fleet** (Chapter 17)",
+  "observed": "The chapter asserts the fleet consequence but never quantifies it, even though every input needed is present in the chapter (436 GB per-host KV budget, 24.9 GB vs 31.7 GB per-request KV, 8.58 s vs 17.70 s service time). The reader is left with 'a fleet is needed' rather than a sizing ratio.",
+  "evidence": "Recomputed from the chapter's own numbers: per-host concurrency = 436 ÷ 24.9 = 17.5 (single-shot) vs 436 ÷ 31.7 = 13.8 (T=3); per-host request rate = concurrency ÷ service time = 17.5/8.58 = 2.04 req/s vs 13.8/17.70 = 0.78 req/s. Per-host throughput therefore falls to ≈38% of the single-shot baseline, i.e. ≈2.6× the hosts are needed to hold 10 rps — a materially larger effect than the memory-only framing suggests, because the service time and the concurrency limit degrade simultaneously.",
+  "root_cause": "The chapter computes the two degradation factors separately (KV per request; service time) but never multiplies them into the quantity that actually determines fleet size.",
+  "correction": "Add the derived ratio to §6: 'At fixed per-host KV budget, agentic depth degrades per-host throughput twice over — concurrency falls from 17.5 to 13.8 (KV) and service time rises from 8.58 s to 17.70 s — so per-host request throughput falls to ≈38%, and holding 10 rps requires ≈2.6× the hosts of the single-shot baseline.' Cross-reference Ch 17's host count for the same T.",
+  "acceptance_test": "Ch 19 contains a single stated host-multiplier for the canonical agentic T=3 case, and it is consistent with Ch 17's host count at the same T.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-07",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§8 'Unconditional fallback-inclusive ledger' table and the paragraph following it",
+  "chapter": "Ch 19",
+  "quoted_clause": "**Peak residency** = 12,095 tokens (synthesis input + $O_\\text{final}$) → × 2.62 MB ≈ **31.7 GB** FP16 KV = Ch 17's I(3)",
+  "observed": "The mini-case computes per-class token totals and orchestration latency but never computes per-class *peak KV residency* — the quantity §6 explicitly identifies as the first-order capacity driver ('the KV-residency conclusion is far more severe than a per-latency convenience'). The fallback class in particular is invisible in the memory dimension: it peaks at 11,795 tokens (30.9 GB), higher than the completed T=1 and T=2 classes, yet the mini-case's only memory-adjacent statement is that the fallback 'adds zero' to the retained-context expectation.",
+  "evidence": "Per-class peak KV at 2.62 MB/token: T=1 → 10,365 tok = 27.2 GB; T=2 → 11,230 tok = 29.4 GB; T=3 → 12,095 tok = 31.7 GB; fallback → max(11,795 attempted, 9,500 single-shot) = 11,795 tok = 30.9 GB. Weighted expectation over the §8 distribution = 0.68×27.2 + 0.25×29.4 + 0.05×31.7 + 0.02×30.9 = 28.05 GB, i.e. +12.6% over the 24.9 GB single-shot — a different and smaller number than the +36% by turn 4 quoted in §6, and the reader is never given the distribution-weighted figure.",
+  "root_cause": "The mini-case's ledger tracks tokens and milliseconds but not bytes, even though the chapter's own thesis is that bytes (KV residency) is what forces a fleet.",
+  "correction": "Add a 'Peak KV (FP16)' column to the §8 ledger table (27.2 / 29.4 / 31.7 / 30.9 GB) and one sentence giving the distribution-weighted expectation (≈28.05 GB, +12.6% over single-shot), explicitly noting that the fallback class is the second-heaviest resident despite its zero added turns.",
+  "acceptance_test": "The §8 ledger reports peak KV per class and a weighted expectation; the fallback row's memory footprint is visible.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-08",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§4 'Scope note — two different quantities' paragraph (the W(T) evaluation paragraph)",
+  "chapter": "Ch 19",
+  "quoted_clause": "the quadratic attention term adds +17.2% at 9.2K under case (ii) and grows with context, giving $W_\\text{no-reuse}(3) \\approx 18.68$ s under case (ii) and $\\approx 18.19$ s under case (iii) rather than 17.70 s",
+  "observed": "Case (i) is defined in-chapter ('linear-only, per Ch 22 Table 22-1'), but cases (ii) and (iii) are named without definition, and the ordering is unexplained: case (iii) is *lower* than case (ii) (18.19 s vs 18.68 s) with no statement of what distinguishes them. A reader cannot tell whether (iii) is a better model, a different decomposition, or a different policy.",
+  "evidence": "Case (ii) is reproducible: with d_model = 8192, n_layers = 80, attention FLOPs = 4·L²·d·n = 2.62e6·L², giving 222 TFLOPs at L = 9,200 against 2·70e9·9,200 = 1,288 TFLOPs linear — a ratio of exactly 17.2%, matching the printed figure. Applying the same quadratic model per call (I_k = 9,200 / 10,065 / 10,930 / 11,795) yields a prefill sum of 5.905 s and W = 18.68 s, matching the printed case (ii) value. I could not reproduce 18.19 s from any quadratic variant I tried (mean-context, final-context, incremental-δ, ΣI²/ΣI variants all give 18.04–18.82 s).",
+  "root_cause": "Two externally-defined cases are quoted as results without their definitions, and one of them could not be reproduced from the stated inputs.",
+  "correction": "State each case inline in one clause (e.g. 'case (ii) = linear + full quadratic attention over each call's input; case (iii) = linear + quadratic attention computed over the incremental prefix only'), and give the prefill sum for each so the reader can check 18.68 s and 18.19 s. If case (iii) is a policy rather than an arithmetic variant, say so explicitly.",
+  "acceptance_test": "A reader can reproduce both 18.68 s and 18.19 s from the text of Ch 19 alone, or is told precisely which Ch 22 table rows define them.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§4 'Tool-call latency budget' bullet 2; §3 'Call 2' bullet",
+  "chapter": "Ch 19",
+  "quoted_clause": "On 8×H100 the per-turn agent step is ~120 ms (typical) for a 10,000-token context; tool backends (search, SQL) add 50–150 ms depending on data volume. So per-turn orchestration overhead *L*agent ≈ 220 ms (typical/central estimate).",
+  "observed": "λ_step ≈ 120 ms, λ_tool ≈ 100 ms, and §3's '85 ms (local PostgreSQL on H100 host)' are unsourced scenario assumptions that drive β, the p50/p90/p95 headline (220/440/660 ms), the W tool leg, and the §8 SLA scoping. None carries an evidence label, even though the chapter labels its turn distribution [ILLUSTRATIVE][ASSUMPTION] and Table 19-1's outputs [DERIVED]. The book's evidence-label taxonomy (Ch 4, Appendix A) requires the *inputs* to be labeled, not only the derived outputs.",
+  "evidence": "The chapter's own label discipline: 'the illustrative turn distribution here has median T = 1 ... [ILLUSTRATIVE][ASSUMPTION]'; Table 19-1 caption: 'Canonical-model [DERIVED] values, not measured production figures'. The 120 ms and 100 ms inputs are neither [DERIVED] nor [1P]; they are [ASSUMPTION] and are presented in the same register as the measured-looking 8.6 s and 25 ms/token.",
+  "root_cause": "Labeling was applied to distributions and outputs but not to the scalar scenario constants that carry the most interpretive weight in the chapter.",
+  "correction": "Tag λ_step ≈ 120 ms and λ_tool ≈ 100 ms as [ASSUMPTION] at first use, state their provenance (engineering estimate for the canonical 8×H100 deployment; no published source), and add a one-line sensitivity note (e.g. 'at λ_tool = 150 ms the p95 loop overhead rises to 810 ms').",
+  "acceptance_test": "Every numeric input in §4 and §8 carries an evidence label consistent with the Ch 4 / Appendix A taxonomy.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-10",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§4 footnote [^oct19-depth]",
+  "chapter": "Ch 19",
+  "quoted_clause": "Geiping et al., *Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach*, arXiv:2502.05171v2, 17 February 2025",
+  "observed": "The author attribution appears incorrect. arXiv:2502.05171 is the Google DeepMind paper by Junda Feng, Jordan Ash, Surbhi Goel, Akshay Krishnamurthy and Cyril Zhang; Geiping is associated with a different test-time-compute paper (ReFT, arXiv:2504.10454). The footnote's other two references (Ornith-1.5, and Chen et al. arXiv:2107.03374 for pass@k) appear correctly attributed.",
+  "evidence": "NOT VERIFIED by fetch — I could not retrieve arXiv metadata in this pass. The attribution mismatch is based on my recollection of the paper's author list, which is exactly the kind of claim that must be checked against the primary source before it is corrected in print.",
+  "root_cause": "Citation metadata (author list) appears to have been carried over from a different reference in the same topical cluster.",
+  "correction": "Verify arXiv:2502.05171v2's author list and date against the arXiv abstract page and replace 'Geiping et al.' with the correct authors; if the intended source is Geiping et al.'s ReFT paper, cite that instead and keep 2502.05171 for the recurrent-depth paper.",
+  "acceptance_test": "Every author list in Ch 19's footnotes matches the arXiv abstract page for that identifier; a spot check of the three footnotes in this chapter passes.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-11",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§4 'Tool-call latency budget' bullet 2, parenthetical",
+  "chapter": "Ch 19",
+  "quoted_clause": "the model's own per-turn work, prefill of the grown prefix + decode of *γ*, is carried inside *W*, ≈ 2.8–3.0 s marginal per turn",
+  "observed": "The stated marginal range does not match the chapter's own W table. Marginal per-turn cost from the printed W values: W(1) − W(0) = 11.52 − 8.58 = 2.94 s; W(2) − W(1) = 14.56 − 11.52 = 3.04 s; W(3) − W(2) = 17.70 − 14.56 = 3.14 s. The upper end (3.14 s) exceeds the printed 3.0 s, and the lower end (2.94 s) exceeds the printed 2.8 s.",
+  "evidence": "Recomputed from the chapter's own W(T) formula and printed values; also consistent with the per-turn decomposition (prefill increment ≈1.18–1.42 s + γ decode 1.625 s + tool leg 0.133 s).",
+  "root_cause": "The parenthetical was written before the W table was finalized and not re-derived against it.",
+  "correction": "Change to '≈2.9–3.1 s marginal per turn' (or state '≈3.0 s marginal per turn, rising with T').",
+  "acceptance_test": "The marginal range quoted in §4 equals the differences of the printed W column within rounding.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-12",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§6 'Inference scaling' paragraph (FP8 clause)",
+  "chapter": "Ch 19",
+  "quoted_clause": "see Ch 25 §8 for the FP8 KV arithmetic: 436 GB ÷ 12.45 GB ≈ 35 concurrent vs 17.5 at FP16",
+  "observed": "The quoted concurrency figures are single-shot figures (12.45 GB = 9,500 tokens × 1.31 MB FP8; 24.9 GB = 9,500 × 2.62 MB FP16) placed inside a paragraph whose subject is agentic depth. A reader in the middle of the agentic argument will read '35 concurrent' as the agentic (T=3) concurrency. At T=3 the FP8 residency is 12,095 × 1.31 MB = 15.8 GB → 436 ÷ 15.8 ≈ 27.6 concurrent, and the FP16 comparison is 13.8.",
+  "evidence": "Recomputed: 9,500 × 1.31 MB = 12,445 MB = 12.45 GB; 436/12.45 = 35.0; 436/24.9 = 17.5 (both single-shot). 12,095 × 1.31 MB = 15,844 MB = 15.8 GB; 436/15.8 = 27.6.",
+  "root_cause": "A cross-referenced figure from another chapter was imported into an argument about a different workload profile without restating its basis.",
+  "correction": "Add the basis inline: '(Ch 25 §8's FP8 arithmetic, at the single-shot 9,500-token residency: 436 GB ÷ 12.45 GB ≈ 35 concurrent vs 17.5 at FP16; at the agentic T = 3 residency of 12,095 tokens the figures are ≈27.6 vs 13.8).'",
+  "acceptance_test": "Every concurrency figure quoted in Ch 19 names the token residency it assumes.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-13",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§8 'Architectural actions' paragraph",
+  "chapter": "Ch 19",
+  "quoted_clause": "adds prefix caching (or compaction) for the grown prefix — at T = 3, billed 4.47× → ≈1.27× and W 17.70 s → 14.14 s at 100% reuse; prefix caching leaves KV residency unchanged, while compaction reduces the resident context itself (it moves the footprint — §6)",
+  "observed": "The action list presents prefix caching and compaction as alternatives ('or'), then immediately distinguishes them. The parenthetical 'or' invites the reader to treat them as interchangeable levers, which is precisely the misconception §6 and Fig 19.3 are written to prevent.",
+  "evidence": "§6: 'Three policies, three different levers.' Prefix caching changes recomputation and prefill time; compaction changes the resident footprint. They are not substitutes.",
+  "root_cause": "The action list was written as a shopping list before the three-levers distinction was established.",
+  "correction": "Replace '(or compaction)' with 'and, if the KV-capacity ceiling binds, compaction — the two act on different quantities (§6): prefix caching removes recomputation, compaction removes residency'.",
+  "acceptance_test": "No sentence in Ch 19 offers prefix caching and compaction as interchangeable alternatives.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-14",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§8 'Scenario' paragraph",
+  "chapter": "Ch 19",
+  "quoted_clause": "The guardrail budget caps total input at 13,000 tokens — a safety margin above the append-only worst case (12,660 at T = 4, Table 19-1), so the turn cap binds before the guardrail does.",
+  "observed": "The guardrail introduced by the scenario never fires for any modeled class: the maximum input in the distribution is 11,795 tokens (T=3) and even the out-of-policy T=4 case is 12,660 < 13,000. The scenario therefore introduces a control and then demonstrates nothing about it, while §5's mistake 5 argues that guardrails are 'not optional'.",
+  "evidence": "Max modeled input = 11,795 (T=3, §4 ledger); out-of-policy T=4 = 12,660 (Table 19-1); guardrail = 13,000. Margin at the worst modeled case = 1,205 tokens (10.2%).",
+  "root_cause": "The guardrail value was chosen as a safety margin above the worst case rather than as a binding constraint, so the scenario cannot show the guardrail's effect.",
+  "correction": "Either (a) state explicitly that the 13,000-token guardrail is non-binding for every modeled class and is retained only as a defence against a mis-calibrated turn count, or (b) set the guardrail at a binding value (e.g. 11,000 tokens) and show the class it truncates and the resulting fallback rate.",
+  "acceptance_test": "The mini-case states whether the token guardrail binds for any modeled class, and if it does, shows the affected class.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-15",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§4 'Tool-call latency budget' bullet 2, final sentences",
+  "chapter": "Ch 19",
+  "quoted_clause": "*T* is capped at 3; the 2% fallback adds zero turns to this incremental expectation, and its failed-attempt work is counted unconditionally in the §8 fallback ledger.",
+  "observed": "The fallback class does not add zero turns: per §8's own ledger it attempts the full cap (3 model calls + 3 tool calls) and therefore contributes 660 ms of loop overhead plus ~200 ms of guardrail/re-dispatch. What is zero is the fallback's contribution to the *retained-context* expectation. The sentence conflates the two, and it sits in the paragraph that defines the p95 headline.",
+  "evidence": "§8 ledger: 'Fallback: 3 attempted turns + single-shot (2%) | 660 ms + ~200 ms ≈ 860 ms'; unconditional mean 310 ms vs conditional 299 ms — the difference is precisely the fallback's orchestration.",
+  "root_cause": "A retained-context statement was generalized to the latency expectation.",
+  "correction": "Rewrite: 'the 2% fallback contributes zero *retained-context* tokens to this expectation (it is modeled as a single-shot for the α basis) but does contribute 860 ms of loop overhead per request; §8's unconditional ledger carries it.'",
+  "acceptance_test": "The §4 sentence and the §8 ledger agree on the fallback's orchestration contribution.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-16",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§6 'Task economics' displayed equation",
+  "chapter": "Ch 19",
+  "quoted_clause": "model calls/task × (input tokens/call × $/in token + output tokens/call × $/out token + cached tokens/call × $/cached token)",
+  "observed": "The numerator adds a 'cached tokens/call × $/cached token' term to an 'input tokens/call × $/in token' term without specifying that the latter applies only to uncached input. If $/in token is the standard published input rate, cached tokens are charged twice.",
+  "evidence": "The chapter's own §4 ledger distinguishes 'cached / uncached / billed' and states that 'billed input differs from context-carried input'; the equation does not carry that distinction.",
+  "root_cause": "The three-way token taxonomy from §4 was not propagated into the cost equation.",
+  "correction": "Rewrite the term as '(uncached input tokens/call × $/uncached in token + cached input tokens/call × $/cached in token + output tokens/call × $/out token)'.",
+  "acceptance_test": "The cost equation's token categories are a subset of §4's seven defined quantities, with no overlap.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH19-17",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§8 'Lesson' paragraph",
+  "chapter": "Ch 19",
+  "quoted_clause": "improved answer correctness on multi-step reasoning queries by an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE] scenario result, not a reported production measurement",
+  "observed": "'Improved ... by an estimated 22%' is ambiguous between a relative improvement (e.g. 60% → 73.2%) and an absolute one (60% → 82%). The number is then used in a trade-off comparison ('against an estimated +22% correctness'), so the ambiguity propagates into the chapter's verdict.",
+  "evidence": "The same paragraph compares it against '+34%' service time and '2.52×' processed tokens, all of which are unambiguous ratios; the correctness figure is the only one whose base is unstated.",
+  "root_cause": "The illustrative quality figure was inserted without its baseline.",
+  "correction": "State the baseline and the form: 'an estimated 22% relative improvement in task success on multi-step queries (e.g. 61% → 74%) in an illustrative human-eval reading [ILLUSTRATIVE]'.",
+  "acceptance_test": "Every percentage in the §8 Lesson paragraph has a stated base and a stated form (relative or absolute).",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ }
+]

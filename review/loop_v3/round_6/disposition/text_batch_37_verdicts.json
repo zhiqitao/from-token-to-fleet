@@ -1,0 +1,122 @@
+[
+ {
+  "id": "CH26-01",
+  "verdict": "DEFENSIBLE",
+  "evidence": "L107 declares the single-slot assumption \u2014 'the 50 ms is plain corpus retrieval, and Pattern B's hit path later covers the same ground \u2014 query encoding + cache lookup, of similar cost' \u2014 and render/capstone_calc.py L5-7 prices the hit's 50 ms as 'retrieval + cache lookup'; the reviewer's 300 ms double-counts the query encoding that both paths pay.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-02",
+  "verdict": "CONFIRMED",
+  "evidence": "L109 attributes the 200 ms delta to 'queue drain on the compute term (320 -> 120 ms)' while the baseline is at 'rho near 1'; under M/M/1 the pair 320@rho1 -> 120@0.65 forces rho1 = 1 - 120*0.35/320 = 0.87, and any finite 320 ms at rho->1 is unbounded, so 120 ms is below the implied service-time floor.",
+  "fix_instruction": "Drop the queue-drain derivation: present 320 -> 120 ms as a declared scenario assumption (as the text already does for '~120 ms is a scenario input'), or state the service time S and the actual utilisation (rho ~ 0.87, not 'near 1') for both points; do not claim the delta is a derived queueing result."
+ },
+ {
+  "id": "CH26-03",
+  "verdict": "CONFIRMED",
+  "evidence": "\u00a73 L55 opens 'Take the canonical deployment' and L63 reports 'one 8xH100 serving host + a 35% semantic response cache + circuit breaker yields an illustrative p99 TTFT ~ 250 ms' with no offered rate; the ~2 rps short-prompt basis is only declared later at L107, while the canonical peak is ~40 rps (one host ~2.0 rps).",
+  "fix_instruction": "In \u00a73's Capstone Execution sentence, state the basis: 'at the declared short-prompt ~2 rps offered load on one 8xH100 host \u2026 p99 TTFT ~ 250 ms', and add one clause that the canonical ~40 rps peak still needs the 21-host screen."
+ },
+ {
+  "id": "CH26-04",
+  "verdict": "CONFIRMED",
+  "evidence": "Recomputed: $0.01164 = 9,200 x $1.20/1M + 300 x $2.00/1M, i.e. the canonical 9,200/300 mix, but Table 26-2 is the capstone instance whose workload L107 declares 'a much smaller prompt \u2026 not the canonical 9.2K-input'; a 1,000-token prompt prices at $0.0018 + $0.0006 = $0.0024, so the $0.0076 cell overstates the short-prompt cost ~3-6x.",
+  "fix_instruction": "Either price the cost cell at the capstone's own short-prompt token mix (and label the mix used), or add to the row/note that the $0.01164 unit price is the canonical 9,200/300-mix API price and is a conservative upper bound for the short-prompt leg."
+ },
+ {
+  "id": "CH26-05",
+  "verdict": "CONFIRMED",
+  "evidence": "L107 states the ~2.0 rps ceiling is a 'conservative planning cap' whose real limit is higher (shorter prompt 'shortens service time (which would raise the ceiling)'), then in the same paragraph says 'at the offered ~2 rps against the ~2.0 rps analytical ceiling (rho near 1) the prefill queue already sits inside the 320 ms compute term' \u2014 rho cannot be near 1 against a ceiling known to be conservative.",
+  "fix_instruction": "Pick one reading: if 2.0 rps is a conservative cap, drop 'rho near 1' and state the actual utilisation the 320 ms embeds; if rho ~ 1 is intended, delete the claim that the true ceiling is above 2.0 rps."
+ },
+ {
+  "id": "CH26-06",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "Table 26-1 L77 defines 'degraded-outcome (shed) rate over completed useful requests' as a ratio of shed count to completed-useful count \u2014 computable and not identically zero \u2014 and the R-10 denominator (L23, L61) deliberately excludes shed requests from the SLO-success count.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-07",
+  "verdict": "CONFIRMED",
+  "evidence": "L61 and L79 write 'the fallback-rate FACT target < 10%', contradicting the Table 26-2 note (L124) that 'The Verification target column states thresholds to be met, not FACTs'; L79 also lists the p99 TTFT SLO among 'DERIVED quantities'.",
+  "fix_instruction": "Delete the word FACT from both threshold references ('the fallback-rate target < 10% of Table 26-2') and rephrase L79 as 'alerts fire when measured or DERIVED quantities cross the SLO/target boundaries (e.g. \u2026)'."
+ },
+ {
+  "id": "CH26-08",
+  "verdict": "CONFIRMED",
+  "evidence": "Table 26-2 provenance note L124 says 'Step 1's 45% SM-utilization baseline is measured at the uncached ~2.0 rps offered rate', while Step 1 L107 says 'These are assumed baseline inputs, not gathered FACTs (R-07): no author-run load test produced them'.",
+  "fix_instruction": "Change 'is measured at' to 'is assumed at' in the Table 26-2 note (L124) so it matches Step 1's R-07 labelling."
+ },
+ {
+  "id": "CH26-09",
+  "verdict": "DEFENSIBLE",
+  "evidence": "L55 labels the ~100 as 'concurrent *users*, a population measure' and L111 states 'A user *population* is not an offered-load law'; the ~344 in-flight figure is a request-level quantity at the 40 rps peak, a different unit that the chapter explicitly refuses to equate.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-10",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "In continuous batching the batch depth *is* the resident-request count, which L107 caps at C ~ 17.5 by KV residency; 'deeper batching' therefore means admitting more requests, exactly the move L65 rejects, so the argument is sound rather than stronger than its support.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-11",
+  "verdict": "CONFIRMED",
+  "evidence": "Table 26-3's Inference Sharding row pairs the symptom 'requests queue past the ~2.0 rps per-host ceiling' with the mechanism 'Place the model across the node's GPUs with tensor parallelism (baseline configuration here, R-04)', while \u00a73 L65 says 'an independent replica adds KV slots and capacity, which is precisely what relieves a queue'.",
+  "fix_instruction": "Re-pair the row: keep TP=8 as the baseline precondition and name horizontal/replica sharding as the mechanism for the 'one host saturates' symptom (cross-reference \u00a73's 'a second host' alternative); do not present intra-node TP as the remedy for a capacity queue."
+ },
+ {
+  "id": "CH26-12",
+  "verdict": "CONFIRMED",
+  "evidence": "\u00a71 L9 promises 'sharding strategies for RAG pipelines \u2026 circuit breaker patterns for inter-service communication', a cache-invalidation example, and a 'compendium of patterns, checklists, and mental models'; \u00a79 L134-144 delivers five entries \u2014 Inference Sharding (model placement), Semantic Response Cache, Circuit Breaker (model-service), Fine-tuning, RAG model selection \u2014 with no RAG-pipeline sharding, no inter-service breaker, no invalidation pattern and no checklist.",
+  "fix_instruction": "Align \u00a71's sentence with the actual catalog (name the five patterns and the \u00a72.1 matrix / Table 26-1 FACT set as the 'checklist'), or add the missing entries to \u00a79."
+ },
+ {
+  "id": "CH26-13",
+  "verdict": "CONFIRMED",
+  "evidence": "Fig 26.2's caption (L126) makes 'a baseline that is bandwidth-bound in decode (box 2)' the first link in the chain to 'the p99 tail the validate step measures', but \u00a78 L107 puts the 320 ms in a 'queue-inflated' *prefill* compute term and decode bandwidth governs TPOT/ITL, not TTFT.",
+  "fix_instruction": "Rewrite the figure's causal chain to start from the TTFT-relevant term \u2014 prefill compute inflated by queueing at the per-host ceiling \u2014 and move 'bandwidth-bound decode' to a note about TPOT. (The ASSUMPTION-first chain vs \u00a72's FACT-first loop is already annotated in the same caption and needs no change.)"
+ },
+ {
+  "id": "CH26-14",
+  "verdict": "DEFENSIBLE",
+  "evidence": "L111 is a counterfactual about what a *genuine* scaling test would require ('would grow the offered rate with the population (~3.0 rps at 3,000 users)'), and \u00a73 L65 defers the second host as an open sizing question, so 3.0 rps presumes added capacity rather than an overloaded single host.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-15",
+  "verdict": "DEFENSIBLE",
+  "evidence": "L111 states plainly that 'The staged test therefore covers configuration robustness under constant load \u2026 not user scaling' and that 'The hypothesis is accepted only on a genuine load test's numbers'; the 285 ms is introduced as 'Suppose \u2026' and labelled 'illustrative values', not as a second capstone result (250 ms is the modeled p99).",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-16",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "'[canonical scenario]' is a defined Axis-1 provenance token, lower-case by definition (Ch 4 Note 1 L130), used 114 times in the manuscript, and Ch 27 L52 states 'The workload-scoping marker [canonical scenario] rides alongside these'; only 1 instance of '[CANONICAL]' exists in the book.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-17",
+  "verdict": "DEFENSIBLE",
+  "evidence": "Both '\u00a726.8' (L59, 63, 65, 122, 124, 128) and '\u00a78 Step' (L63, 126, 134) occur, and 'Chapter 15' (L57) alongside 'Ch 15' (L65), but each resolves unambiguously to the same section; the finding's '\u00a72.1' claim does not hold \u2014 only '\u00a726.2.1' appears (L49, 51, 105).",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-18",
+  "verdict": "DEFENSIBLE",
+  "evidence": "Every \u00a72.1 matrix row carries a chapter pointer, so '(Ch 26)' on Ch 26's own Short-prompt RAG Q&A row is consistent formatting and accurate \u2014 the two named strategies are Pattern B and Pattern C in \u00a73/\u00a79.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-19",
+  "verdict": "DEFENSIBLE",
+  "evidence": "The pointer is written 'Ch 5, \u00a75.3' (Table 26-3) with the chapter named first, so it cannot be read as \u00a75.3 of Ch 26; 'the two model-selection patterns that Ch 5 files here' is a loose umbrella for Ch 5's two model-choice entries (fine-tuning, RAG model selection).",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH26-20",
+  "verdict": "CONFIRMED",
+  "evidence": "Fig 26.1's caption (L51) opens 'The canonical scenario's workload, rendered as a six-axis fingerprint' but the scored table (L49) carries three families (RAG / chat / batch), and chat's output-token score is 0.55 against batch's 0.90, so 'chat \u2026 with long outputs' mis-assigns the long-output family.",
+  "fix_instruction": "Rewrite the caption's first sentence to name the three families (with the canonical scenario as the RAG anchor) and change chat's clause to 'med-long outputs' so the long-output label lands on batch."
+ }
+]

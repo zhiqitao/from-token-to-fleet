@@ -40,7 +40,7 @@ for name, x in zip(stages, xs):
 
 # R4 P3 (w18b02): the hatch on Serve was the figure's only texture with no
 # stated meaning -- state the encoding in-figure (grayscale-safe: it is text).
-ax.text(23.8, 11.2, 'hatched = live production stage (no gate follows it): Serve',
+ax.text(23.8, 11.2, 'hatched = live production stage (no gate follows Serve)',
         fontsize=8.0, ha='right', va='center', color='#555')
 
 # forward arrows along stage row

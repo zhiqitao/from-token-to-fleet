@@ -15,10 +15,10 @@ should we choose?'' can be answered with numbers, not intuition.
 \subsection{The Six-Dimension Workload-Characterization
 Framework}\label{the-six-dimension-workload-characterization-framework}
 
-A workload is defined by six orthogonal dimensions (\hyperref[tab:4.1]{Table 4-1} applies
-the framework to the canonical workload). Together they form a complete
-specification that --- taken alone --- determines model selection,
-system architecture, and economic feasibility. No single dimension is
+A workload is defined by six dimensions (\hyperref[tab:4.1]{Table 4-1} applies the framework
+to the canonical workload). Together they form a complete specification
+that --- jointly, not taken alone --- constrains model selection, system
+architecture, and economic feasibility. No single dimension is
 sufficient; the architect must characterize all six before committing to
 a design.
 
@@ -34,9 +34,10 @@ a design.
 \item
   \textbf{Traffic} --- the request rate the system must sustain,
   expressed in requests per second (rps) or queries per second, plus
-  concurrency levels and burstiness. Traffic determines the compute and
-  memory bandwidth required to keep the serving pipeline saturated
-  without excessive queuing.
+  concurrency levels and burstiness. Traffic, combined with the token
+  profile and the latency SLO, determines the compute and memory
+  bandwidth required to keep the serving pipeline saturated without
+  excessive queuing.
 \item
   \textbf{Token profile} --- the distribution of input length, output
   length, and context length per request. This is the workload's
@@ -48,10 +49,11 @@ a design.
   \textbf{Latency} --- the time budget for different stages of request
   processing. Typically split into \emph{time-to-first-token} (TTFT),
   which encompasses retrieval and prefill, and
-  \emph{time-per-output-token} (TPOT), which governs decode length.
-  Latency budgets feed directly into SLOs and serve as the key
-  differentiator between serving configurations (e.g.~continuous
-  batching vs.~discrete batching).
+  \emph{time-per-output-token} (TPOT), which governs decode speed (the
+  rate of token generation, not the number of tokens generated). Latency
+  budgets feed directly into SLOs and serve as the key differentiator
+  between serving configurations (e.g.~continuous batching vs.~discrete
+  batching).
 \item
   \textbf{Economic constraints} --- the cost budget denominated in
   tokens per dollar, dollars per million tokens, or cost per request.
@@ -164,13 +166,16 @@ list price, 2026); infrastructure cost ≈ \$20/hour for an 8×H100 host
 (\$2.50/GPU-hr on-demand); at the \textasciitilde6-host average the
 whole-fleet spend is \textasciitilde\$120/hour, giving
 \textbf{\textasciitilde2.76M input and \textasciitilde90K output tokens
-per cloud dollar} (full-utilization KV-screen basis, no headroom --- the
-70\% × 95\% + N−1 policy fleet is 9 hosts avg / 32 peak) &
-\textbf{illustrative 2026 cloud-price input} (\$2.50/H100-GPU-hour,
-\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}, not a market fact) → \$20/hr
-per 8-GPU node; \$/1M and tokens-per-dollar values derived on the
-whole-fleet basis (rationale: derivation note beneath the table; §4.3,
-Ch 8/16--17) \\
+per cloud dollar} (full-utilization KV-screen basis, no headroom, during
+active hours --- on the always-on monthly basis the same fleet yields
+\textasciitilde655K input tokens per dollar; the 70\% × 95\% + N−1
+policy fleet is 9 hosts avg / 32 peak: a 70\% max-utilization target
+times 95\% SLO-compliance headroom, plus an N−1 failover spare, derived
+in Ch 17) & \textbf{illustrative 2026 cloud-price input}
+(\$2.50/H100-GPU-hour, \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}, not a
+market fact) → \$20/hr per 8-GPU node; \$/1M and tokens-per-dollar
+values derived on the whole-fleet basis (rationale: derivation note
+beneath the table; §4.3, Ch 8/16--17) \\
 \textbf{Operational constraints} & Multi‑region deployment
 (active‑active for availability); embeddings refreshed daily from
 document store; privacy‑sensitive documents force on‑prem or VPC‑local
@@ -341,7 +346,7 @@ Delivery mode (canonical workload)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Monthly
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Per 1K req (wall-clock paid-occupancy cost ÷ active-hours volume)
+Per 1K req (row's monthly cost basis ÷ 6.24M active-hours requests)
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Qualifier
 \end{minipage} \\
@@ -486,7 +491,7 @@ Prefill compute budget --- two-term-only upper cap, NOT a feasible
 deployed prefill target & 1.08 s & \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 = TTFT budget (1.2 s) − retrieval (120 ms). This is the residual after
 only the two dominant terms; it leaves zero allowance for
-admission/queue, tokenization/transfer and the first decode step, so
+admission/queue and tokenization/transfer, so
 \texttt{budget\_prefill\ ≤\ 1.08\ s\ −\ B\_other} where B\_other is
 positive and must be measured. Treat 1.08 s as an upper reach (a real
 deployed prefill budget is smaller), not an achievable allocation \\
@@ -756,20 +761,20 @@ consequences for system design:
 
 The input-heavy profile means the system's dominant resource demands are
 \textbf{prefill compute and KV-memory capacity}; under the canonical
-timing assumptions it is \textbf{not} the dominant wall-clock component
-of an individual request. Prefill takes about 1.08 s, while generating
-the 300-token answer takes about 7.5 s (300 × 25 ms/TPOT) --- so decode
-is the dominant per-request wall-clock component (\textasciitilde87\% of
-the \textasciitilde8.58 s total). A model that processes the 9.2K-token
-input in \textasciitilde1.08 s of prefill is important to keep the
-prefill leg within the 1.2 s TTFT budget, but it does not make prefill
-the latency bottleneck; that distinction is a resource-regime statement
-(in the canonical long-prompt, low-batch regime, prefill is
-compute-bound and decode is bandwidth-bound), not a wall-clock latency
-ranking. Architecture choices must be based on phase-specific demand,
-measured utilization, and SLO-goodput, rather than the input/output
-token ratio alone. This is why the token profile is the primary
-architectural driver for this workload.
+timing assumptions prefill is \textbf{not} the dominant wall-clock
+component of an individual request. Prefill takes about 1.08 s, while
+generating the 300-token answer takes about 7.5 s (300 × 25 ms/TPOT) ---
+so decode is the dominant per-request wall-clock component
+(\textasciitilde87\% of the \textasciitilde8.58 s total). A model that
+processes the 9.2K-token input in \textasciitilde1.08 s of prefill is
+important to keep the prefill leg within the 1.2 s TTFT budget, but it
+does not make prefill the latency bottleneck; that distinction is a
+resource-regime statement (in the canonical long-prompt, low-batch
+regime, prefill is compute-bound and decode is bandwidth-bound), not a
+wall-clock latency ranking. Architecture choices must be based on
+phase-specific demand, measured utilization, and SLO-goodput, rather
+than the input/output token ratio alone. This is why the token profile
+is the primary architectural driver for this workload.
 
 \subsubsection{Latency from SLO}\label{latency-from-slo}
 
@@ -789,16 +794,15 @@ which translate user‑experience goals into concrete time budgets:
   ceiling above the 1.2 s target budget, allowing occasional cache
   misses or network jitter to land between the 1.2 s target and the 2 s
   ceiling. \textbf{TTFT\_e2e convention (used throughout):}
-  \(\text{TTFT}_{\text{e2e}} = \text{retrieval} + \text{admission/queue} + \text{tokenization/transfer} + \text{prefill} + \text{first decode step}\).
+  \(\text{TTFT}_{\text{e2e}} = \text{retrieval} + \text{admission/queue} + \text{tokenization/transfer} + \text{prefill}\).
   Here the 1.2 s budget names the \emph{two dominant modeled terms} ---
   retrieval (\textasciitilde120 ms) + prefill (\textasciitilde1.08 s)
   --- and the 1.08 s is therefore a \textbf{two-term-only upper reach,
   NOT a feasible deployed prefill target}: it leaves zero allowance for
-  admission/queue, tokenization/transfer and the first decode step,
-  which are positive. Write it as
-  \texttt{budget\_prefill\ ≤\ 1.08\ s\ −\ B\_other} until measurement
-  supplies B\_other; every ``meets 1.2 s'' statement needs a named
-  tested workload and end-to-end timing (see the ``Prefill compute
+  admission/queue and tokenization/transfer, which are positive. Write
+  it as \texttt{budget\_prefill\ ≤\ 1.08\ s\ −\ B\_other} until
+  measurement supplies B\_other; every ``meets 1.2 s'' statement needs a
+  named tested workload and end-to-end timing (see the ``Prefill compute
   budget --- two-term-only upper cap, NOT a feasible deployed prefill
   target'' row in \hyperref[tab:4.2]{Table 4-2}). The 1.2 s is an \textbf{aspirational SLO
   budget} (a sub-2-second user-experience target), not a demonstrated
@@ -1078,11 +1082,11 @@ as numbers an architecture decision can be defended on.
 \item
   \textbf{Treating ``5\% concurrency'' as the throughput}. Concurrency
   is a snapshot of simultaneous users; throughput depends on how long
-  each request takes. 100 concurrent users with 200 s per request yield
-  0.5 rps, not 10 rps. The binding connection is through request
-  duration (Little's Law). Catch this by always asking ``how long is
-  each request in system?'' before quoting a concurrency-derived
-  throughput.
+  each request takes. 100 concurrent in-flight requests with a 200 s
+  service time yield 0.5 rps, not 10 rps. The binding connection is
+  through request duration (Little's Law). Catch this by always asking
+  ``how long is each request in system?'' before quoting a
+  concurrency-derived throughput.
 \item
   \textbf{Using the \textasciitilde10 s planning round as Little's-law
   W.} The planning round (\textasciitilde10 s) is not the execution
@@ -1134,9 +1138,9 @@ architectural path for the canonical enterprise‑Q\&A RAG workload:
 \caption[Six-dimension workload characterization mapped to architectural decisions]{Six-dimension workload characterization mapped to architectural decisions. Each arrow means the dimension \emph{constrains/informs} the corresponding architectural choice --- it is a heuristic influence, not a deterministic one-to-one mapping. The arrows are \textbf{non-exclusive}: in practice a dimension often influences several decisions at once (e.g.~latency SLO shapes both model choice and serving configuration), and the six axes are a starting lens, not a partition. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:4.1}\emph{The six workload dimensions and the architectural decision each
-one drives: Quality requirements → model size/type; Request rate \&
-arrival pattern → concurrency \& batching; Token profile → KV cache size
-\& prefill demand; Latency SLO → TTFT/TPOT \& batch window; Economic
+one drives: Quality requirements → model size/type; Traffic /
+concurrency → concurrency \& batching; Token profile → KV cache size \&
+prefill demand; Latency SLO → TTFT/TPOT \& batch window; Economic
 constraints → host count \& cost ceiling; Operational constraints →
 multi-region vs.~single-region deployment.}
 
@@ -1161,16 +1165,16 @@ multi-region vs.~single-region deployment.}
   mandatory under this load to hold the 1.2 s TTFT budget: it reduces
   queueing and improves utilization under concurrency (it does not
   shorten a single request's 9.2 K prefill); without admission
-  scheduling, prefills queue behind one another and TTFT under load
-  pushes well above 2 s --- chunked prefill and priority scheduling are
-  the levers that address prefill/decode interference directly. The
-  input‑heavy token profile (30× more input than output) makes
-  continuous batching especially effective: with long prefills and short
-  outputs, decode slots would otherwise sit idle between admissions, and
-  continuous batching keeps them filled. The benefit of many requests
-  sharing the same retrieved-context prefix belongs to prefix caching
-  --- a distinct mechanism (Ch 2 §1, developed in Ch 11) --- not to
-  continuous batching.
+  scheduling, queued prefills can push p95 TTFT past the 2 s ceiling ---
+  chunked prefill and priority scheduling are the levers that address
+  prefill/decode interference directly. The input‑heavy token profile
+  (30× more input than output) makes continuous batching especially
+  effective: with long prefills and short outputs, decode slots would
+  otherwise sit idle between admissions, and continuous batching keeps
+  them filled. The benefit of many requests sharing the same
+  retrieved-context prefix belongs to prefix caching --- a distinct
+  mechanism (Ch 2 §1, developed in Ch 11) --- not to continuous
+  batching.
 \item
   \textbf{Memory planning}: KV cache for 9.2 K context on the canonical
   model --- a 70B \textbf{full-MHA reference model} (every query head
@@ -1199,10 +1203,11 @@ multi-region vs.~single-region deployment.}
   mid-tier API list prices (from \$1.20/M input × 9.2 K + \$2.00/M
   output × 0.3 K --- an API-basis figure, not a self-host TCO). On the
   API basis the request cost is driven by the 9.2 K input tokens: if the
-  input token count could be reduced to 2 K (e.g.~via better retrieval
-  or query expansion), cost per request drops to \textasciitilde\$0.003,
-  and the same traffic fits within a much lower budget. This is the
-  lever the architect pulls when TCO is the binding constraint.
+  input token count could be reduced to 2 K (e.g.~tighter
+  retrieval/reranking to fewer chunks, context compression, or prefix
+  caching), cost per request drops to \textasciitilde\$0.003, and the
+  same traffic fits within a much lower budget. This is the lever the
+  architect pulls when TCO is the binding constraint.
 \item
   \textbf{Operational topology}: Multi‑region deployment (active‑active)
   provides region-failure tolerance at an illustrative \textasciitilde2×

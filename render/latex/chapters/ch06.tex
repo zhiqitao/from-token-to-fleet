@@ -37,11 +37,12 @@ different role:
 \item
   \textbf{Serving metrics} --- how \emph{well} the system performs under
   that workload. Time-to-first-token (TTFT), time-per-output-token
-  (TPOT), inter-token latency, \textbf{queue depth} (a scheduler state),
-  and \textbf{goodput} (tokens per second that actually meet the SLO).
-  These are the dependent variables; they are what the SLO is written
-  against --- the canonical SLO targets are TTFT 1.2 s / TPOT
-  \textasciitilde25 ms.
+  (TPOT), inter-token latency, and \textbf{goodput} (tokens per second
+  that actually meet the SLO). These are the dependent variables; they
+  are what the SLO is written against --- the canonical SLO targets are
+  TTFT 1.2 s / TPOT \textasciitilde25 ms. \textbf{Queue depth} is not
+  one of them: it is a scheduler state, a leading indicator that helps
+  explain these serving metrics.
 \item
   \textbf{Resource metrics} --- \emph{why} performance is what it is.
   HBM bandwidth utilization, FLOP utilization / model FLOPs utilization
@@ -140,25 +141,27 @@ The two-point approximation of the mean is \[
 \] --- looks fine. But the distribution actually has a long tail: p50 ≈
 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s --- a knife-edge
 property of \emph{this} N = 10,000 sample, not of the distribution:
-linear interpolation lands on the largest non-straggler draw
-(sorted-sample ranks: 9,900 → 1.33 s, 9,901 → 5.0 s; population p99 →
-5.0 s), while the population p99 of the stated 99 \% log-normal + 1 \%
-straggler mixture is 5.0 s (one extra straggler, 101 of 10,000, moves
-the sample p99 to 5.0 s too). The mean hides the tail; percentiles
-expose it --- but notice how far one has to go to expose \emph{this}
-tail. Under the canonical p95 TTFT SLO of ≤ 2 s, \textbf{even this
-sample's p99 (≈ 1.33 s) still looks healthy --- the population p99 is
-5.0 s, sitting on the straggler cluster.} Request latency ≥ TTFT, so a
-TTFT-budget line drawn on request latency flags a superset of TTFT
-violations. The 5 s stragglers are the top 1\% of the stream --- in this
-sample they sit \emph{between} the 99th and 100th percentile, so the
-interpolated p99 line alone does not bring them into view. Only the
-p99.9 / maximum reading (or the full distribution) surfaces them. This
-is the sharper lesson: a tail can hide not just behind the mean but
-behind any single percentile, and the choice of which percentile to SLO
-against matters. It is why we log the full distribution and also watch
-the \emph{outlier fraction} (how much probability mass sits beyond the
-SLO line), not just one percentile.
+linear interpolation lands just past the largest non-straggler draw,
+between it and the first straggler (percentile position 1 + (N−1)×0.99 =
+9,900.01; sorted-sample ranks: 9,900 → 1.30 s, 9,901 → 5.0 s; 1.30 +
+0.01 × (5.0 − 1.30) ≈ 1.33 s; population p99 → 5.0 s), while the
+population p99 of the stated 99 \% log-normal + 1 \% straggler mixture
+is 5.0 s (one extra straggler, 101 of 10,000, moves the sample p99 to
+5.0 s too). The mean hides the tail; percentiles expose it --- but
+notice how far one has to go to expose \emph{this} tail. Under the
+canonical p95 TTFT SLO of ≤ 2 s, \textbf{even this sample's p99 (≈ 1.33
+s) still looks healthy --- the population p99 is 5.0 s, sitting on the
+straggler cluster.} Request latency ≥ TTFT, so a TTFT-budget line drawn
+on request latency flags a superset of TTFT violations. The 5 s
+stragglers are the top 1\% of the stream --- in this sample they sit
+\emph{between} the 99th and 100th percentile, so the interpolated p99
+line alone does not bring them into view. Only the p99.9 / maximum
+reading (or the full distribution) surfaces them. This is the sharper
+lesson: a tail can hide not just behind the mean but behind any single
+percentile, and the choice of which percentile to SLO against matters.
+It is why we log the full distribution and also watch the \emph{outlier
+fraction} (how much probability mass sits beyond the SLO line), not just
+one percentile.
 
 \begin{figure}
 \centering
@@ -211,11 +214,11 @@ is a separate measurement: compute it from the compliant fraction, not
 from the p95 alone.
 
 \emph{Scope note: the 50→70 tok/s figures are low-batch decode operating
-points (Ch 5's illustrative basis, \textasciitilde20 ms/token; canonical
-batch-1 is 40 tok/s at 25 ms/token), not the host's aggregate serving
-rate (Ch 15: \textasciitilde8.5K tok/s prefill-side,
-\textasciitilde35,000--56,000 tok/s batched) --- the goodput argument
-holds at any consistent operating point.}
+points (Ch 5's illustrative basis, \textasciitilde14--20 ms/token across
+the 50--70 tok/s range; canonical batch-1 is 40 tok/s at 25 ms/token),
+not the host's aggregate serving rate (Ch 15: \textasciitilde8.5K tok/s
+prefill-side, \textasciitilde35,000--56,000 tok/s batched) --- the
+goodput argument holds at any consistent operating point.}
 
 Goodput is the metric the customer experiences; raw throughput is what
 the GPU achieves. The architect optimizes goodput. This is why
@@ -261,8 +264,12 @@ bandwidth-bound or compute-bound? We recall the arithmetic from \hyperref[chap:2
   honest statement is: decode is memory-bound because its intensity is
   low and batching raises it, not merely because an aggregate 5.6 TB/s
   exceeds one GPU's 3.35 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. (This is
-  an operating-point property, not an identity: at high batch decode
-  climbs the intensity slope and can become compute-bound.)
+  an operating-point property, not an identity, and it is a
+  \textbf{weight-only} statement: at high batch decode climbs the
+  intensity slope and can become compute-bound. With the canonical 9.2K
+  KV re-read included, intensity saturates at \textasciitilde6.8
+  FLOP/byte, so decode stays bandwidth-bound at every batch size --- Ch
+  8.)
 \item
   \textbf{Prefill is compute-bound at the canonical long-prompt
   operating point.} The reason prefill lands on the compute plateau of
@@ -296,9 +303,10 @@ utilization is compute-bound. \textbf{The same hardware, the same model
 --- the boundary flips between prefill and decode.} This is precisely
 why Splitwise/DistServe (and Mooncake's KV-centric disaggregation) split
 prefill from decode onto different pools: the bottleneck-regime
-difference justifies it. \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (source keys: each
-\texttt{{[}S\#{]}} names one entry in the References chapter, where
-\texttt{\mbox{{[}S3{]}}}--\texttt{\mbox{{[}S7{]}}} resolve; Ch 11 lists
+difference is the primary motivation for disaggregation --- see §6 for
+the conditions under which it pays. \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (source
+keys: each \texttt{{[}S\#{]}} names one entry in the References chapter,
+where \texttt{\mbox{{[}S3{]}}}--\texttt{\mbox{{[}S7{]}}} resolve; Ch 11 lists
 \texttt{\mbox{{[}S1{]}}}--\texttt{\mbox{{[}S6{]}}} inline.) \emph{These percentages
 are \textbf{hypothetical telemetry signatures} used to illustrate how to
 read utilization --- not a measured benchmark find from any trace. They
@@ -342,8 +350,9 @@ Resource tell
 \endlastfoot
 Prefill (9.2K input) & \textasciitilde1.19 PFLOPS (1.29 PFLOP ÷ 1.08 s)
 & \textasciitilde0.989 PFLOPS BF16 & compute-bound (from intensity
-\textasciitilde9.2K FLOP/byte ≫ ridge \textasciitilde295, not this rate
-comparison) & high FLOP / MFU util, mid bandwidth \\
+\textasciitilde9,200 FLOP/byte = 1.29 PFLOP linear ÷ 140 GB weights ≫
+ridge \textasciitilde295, not this rate comparison) & high FLOP / MFU
+util, mid bandwidth \\
 Decode (per token) & \textasciitilde140 GB weight-read →
 \textasciitilde5.6 TB/s rate (batch-1-equivalent) & \textasciitilde3.35
 TB/s HBM (single-device) & bandwidth-bound (25 ms TPOT is a budget;
@@ -356,7 +365,9 @@ HBM util, low FLOP util \\
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} arithmetic traced to the canonical scenario (Ch
 4, \hyperref[tab:4.2]{Table 4-2}) and \hyperref[chap:2]{Chapter 2}. The regime verdict follows from arithmetic
 intensity, not from the demand-vs-capacity rate comparison: prefill
-\textasciitilde9,200 FLOP/byte ≫ ridge \textasciitilde295
+\textasciitilde9,200 FLOP/byte = 1.29 PFLOP linear FLOPs ÷ 140 GB
+weights (adding the quadratic attention term raises it to
+\textasciitilde10.6K, activation traffic lowers it --- either way ≫ 295)
 (compute-bound), decode \textasciitilde1.0 FLOP/byte ≪ ridge
 (bandwidth-bound). The 1.19-vs-0.989 PFLOPS and 5.6-vs-3.35 TB/s rate
 comparisons are illustrative single-device roofline arguments (a
@@ -403,10 +414,11 @@ Three practical habits anchor the architect:
 \item
   \textbf{Instrument the hierarchy, not just the app.} Deploy counters
   at all three layers from day one --- rps and token profile (workload);
-  TTFT/TPOT/goodput percentiles (serving); HBM bandwidth, FLOP/MFU, KV
-  cache occupancy, queue depth (resource). A system that only logs
-  serving metrics cannot tell \emph{why}; one that only logs resource
-  metrics cannot tell \emph{what it was asked}.
+  TTFT/TPOT/goodput percentiles and queue depth (serving --- queue depth
+  being the scheduler state that explains the others); HBM bandwidth,
+  FLOP/MFU, KV cache occupancy, memory pressure (resource). A system
+  that only logs serving metrics cannot tell \emph{why}; one that only
+  logs resource metrics cannot tell \emph{what it was asked}.
 \item
   \textbf{Always qualify ``throughput.''} rps ≠ tokens/s ≠ goodput. The
   same number, three stories. State the SLO window (p95 ≤ 2 s TTFT)
@@ -539,8 +551,13 @@ capacity); prefix caching is a partial mitigation (\textasciitilde13\%
 of prefill FLOPs), not the fix. The resolution is capacity/scheduling
 --- additional hosts, chunked prefill, admission control/backpressure,
 or P/D disaggregation. The architect re-checks the dashboard an hour
-later: p95 TTFT back under 2 s, and the mechanism check confirms it ---
-prefix-cache hit ratio \textasciitilde13\% and the predicted
-\textasciitilde13\% prefill reduction explain the 2.4 s → \textless2 s
-move; goodput restored --- because they measured the right thing at the
-right layer.
+later: p95 TTFT is back under 2 s, and the mechanism check confirms the
+\emph{capacity/scheduling} change rather than the cache: a
+\textasciitilde13\% prefill reduction alone cannot close an
+\textasciitilde18.6× oversubscription (it still leaves
+\textasciitilde44.9 PFLOP/s of demand against \textasciitilde2.77
+PFLOP/s of sustained capacity, \textasciitilde16.2×), so hosts were
+added to raise sustained prefill capacity and admission control held the
+queue inside it, with the \textasciitilde13\% prefill reduction from
+prefix caching contributing on top; goodput restored --- because they
+measured the right thing at the right layer.

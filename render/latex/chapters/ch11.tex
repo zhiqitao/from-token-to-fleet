@@ -176,10 +176,10 @@ Problems compound at this workload's 9.2K-input shape:
   \textbf{wait} for the batch to fill, inflating TTFT toward the 2 s SLO
   breach (budget 1.2 s, p95 ≤ 2 s).
 \item
-  The batch is locked until its \emph{slowest} member finishes
-  (fits-all-in-one-run), so a short 100-token output tails behind the
-  longest while the GPU finishes the whole batch --- idle bubbles at the
-  end of every batch.
+  The batch is locked until its \emph{slowest} member finishes (the
+  batch runs to completion), so a short 100-token output tails behind
+  the longest while the GPU finishes the whole batch --- idle bubbles at
+  the end of every batch.
 \item
   Batch boundaries create periods where the GPU drains (no work) then
   floods --- utilization is spiky around the mean.
@@ -260,38 +260,38 @@ adaptive-depth execution all constrain what a cache may evict or reuse
 Pools}\label{when-to-disaggregate-prefill-and-decode-want-different-pools}
 
 Recall from Ch2/Ch6, at the canonical operating point (9.2K/300, FP16,
-the stated batch on 8×H100): prefill is \textbf{compute-bound} ---
-compute-dominated there, a regime statement not a law (Ch 2)
-(\textasciitilde1.29 PFLOP → \textasciitilde1.19 PFLOPS required over
-the \textasciitilde1.08 s prefill budget, vs 0.989 PFLOPS peak on a
-single H100; under the canonical 8xH100 TP=8 host the same prefill is
+the stated batch on 8×H100), the two phases sit in different regimes:
+prefill is \textbf{compute-bound} and decode is \textbf{bandwidth-bound}
+--- regime statements, not laws (Ch 2). Prefill needs
+\textasciitilde1.29 PFLOP, or \textasciitilde1.19 PFLOPS over the
+\textasciitilde1.08 s prefill budget, against a 0.989 PFLOPS peak on a
+single H100; under the canonical 8×H100 TP=8 host the same prefill is
 \textasciitilde0.16 PFLOP per GPU and takes \textasciitilde0.47 s at
 35\% MFU (Ch 12), so the single-device figure describes a one-GPU
-deployment, not the canonical host), decode is \textbf{bandwidth-bound}
-(arithmetic intensity = B FLOP/byte for FP16 weights: \textasciitilde1.0
-at batch 1, \textasciitilde17.5 at the canonical
-\textasciitilde17.5-concurrent operating point (Ch 4 §6 / Ch 7 / Ch 17;
-436 GB ÷ 24.9 GB = KV budget ÷ per-request KV) --- both far below the
-H100 ridge of \textasciitilde295 FLOP/byte, so bandwidth binds; the
-whole-model weight-read rate is \textasciitilde5.6 TB/s if served by one
-device vs 3.35 TB/s per GPU, sharded to \textasciitilde0.70 TB/s per GPU
-under the canonical 8×H100 host, Ch 6) --- bandwidth-dominated there, a
-regime statement not a law (Ch 2) \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Serving both
-from one pool forces a compromise: batch for prefill and it slows
-decode; optimize for decode and prefill starves. \textbf{P/D
-disaggregation (Splitwise/DistServe/Mooncake \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}})} runs
-prefill nodes at high FLOP-utilization and decode nodes at high
-bandwidth-utilization, transferring KV across via the fabric
-(\textbf{\hyperref[fig:11.3]{Fig 11.3}} shows the two-pool topology and what moves between
-them). Mooncake's reported up to 525\% higher long-context throughput
-(6.25× the paper's own baseline, from its long-context \emph{simulation}
-results) and +75\% request count (vs the paper's baseline method on a
-real Kimi workload) are the quantitative anchor \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}} ---
-paper-specific scope, not a portable serving figure. Before the
-canonical 10 rps aggregate is scaled to a fleet (per-host ≈1.3--2
-req/s), this disaggregation is premature; it pays off when measured
-prefill/decode interference binds --- evaluate it against measured phase
-conflict, not topology alone (e.g.~when the workload outgrows a node).
+deployment, not the canonical host. Decode's arithmetic intensity is B
+FLOP/byte for FP16 weights: \textasciitilde1.0 at batch 1 and
+\textasciitilde17.5 at the canonical \textasciitilde17.5-concurrent
+operating point (Ch 4 §6 / Ch 7 / Ch 17; 436 GB ÷ 24.9 GB = KV budget ÷
+per-request KV). Both are far below the H100 ridge of \textasciitilde295
+FLOP/byte, so bandwidth binds: the whole-model weight-read rate is
+\textasciitilde5.6 TB/s if served by one device, 3.35 TB/s per GPU, and
+\textasciitilde0.70 TB/s per GPU when sharded across the canonical
+8×H100 host (Ch 6). \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Serving both from one pool
+forces a compromise: batch for prefill and it slows decode; optimize for
+decode and prefill starves. \textbf{P/D disaggregation
+(Splitwise/DistServe/Mooncake \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}})} runs prefill nodes at
+high FLOP-utilization and decode nodes at high bandwidth-utilization,
+transferring KV across via the fabric (\textbf{\hyperref[fig:11.3]{Fig 11.3}} shows the
+two-pool topology and what moves between them). Mooncake's reported up
+to 525\% higher long-context throughput (6.25× the paper's own baseline,
+from its long-context \emph{simulation} results) and +75\% request count
+(vs the paper's baseline method on a real Kimi workload) are the
+quantitative anchor \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}} --- paper-specific scope, not a
+portable serving figure. Before the canonical 10 rps aggregate is scaled
+to a fleet (per-host ≈1.3--2 req/s), this disaggregation is premature;
+it pays off when measured prefill/decode interference binds --- evaluate
+it against measured phase conflict, not topology alone (e.g.~when the
+workload outgrows a node).
 
 The state crossing between prefill and decode pools is a different
 communication object from a TP activation reduction. Its endpoints,
@@ -321,7 +321,7 @@ Technique
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Mechanism
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Primary resource traded
+Resource affected
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 When it matters
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -339,8 +339,9 @@ PagedAttention / vLLM & Block-based KV pages & memory capacity & many
 concurrent requests & \mbox{{[}S2{]}}\hspace{0pt}\mbox{{[}1P{]}} \\
 Prefix caching (RadixAttention/APC) & Cache shared-prefix KV & prefill
 FLOPs +~memory & repeated-context RAG & \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}} \\
-P/D disaggregation & Split prefill/decode pools + KV transfer & both at
-scale & workload outgrows a node & \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}} \\
+P/D disaggregation & Split prefill/decode pools + KV transfer & compute
+on prefill, bandwidth on decode (both, at scale) & workload outgrows a
+node & \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}} \\
 
 \noalign{\label{tab:11.1}}\end{longtable}
 
@@ -412,7 +413,7 @@ The serving mechanisms dictate the deployment choices:
 \item
   \textbf{Baseline (canonical single-host):} continuous batching
   (vLLM/Orca) is near-mandatory to hold TTFT under the SLO (1.2 s, p95 ≤
-  2 s) at the replica's admitted load (≈1.3-2 req/s per Ch 14 Step 3);
+  2 s) at the replica's admitted load (≈1.3--2 req/s per Ch 14 Step 3);
   at the canonical 10 rps average the host class must be replicated
   \textasciitilde5-6x (Ch 12/17); PagedAttention packs the
   \textasciitilde24.1 GB-per-request KV densely (fixed-size pages,
@@ -436,8 +437,8 @@ The serving mechanisms dictate the deployment choices:
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four separable concerns, not a stack (they interact --- batching pressure feeds KV residency --- but each is addressable in any order) (request scheduling, state management, reuse, resource specialization). A concrete serving design that chooses one mechanism per concern: request scheduling = continuous (Orca-style) batching; state management = PagedAttention (fixed-size KV pages); reuse = prefix caching of shared context; resource specialization = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- mechanisms can be combined in principle, subject to implementation support and resource interactions (e.g.~prefix caching under aggressive continuous batching: cached prefixes and the live batch's pages draw on the same 640 GB KV pool, so reuse needs headroom) --- and the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node (dashed border = not in the canonical baseline; see ``When to Disaggregate'', §11.3). \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1102.png}}
-\caption[Serving is four separable concerns, not a stack (they interact]{Serving is four separable concerns, not a stack (they interact --- batching pressure feeds KV residency --- but each is addressable in any order) (request scheduling, state management, reuse, resource specialization). A concrete serving design that chooses one mechanism per concern: \textbf{request scheduling} = continuous (Orca-style) batching; \textbf{state management} = PagedAttention (fixed-size KV pages); \textbf{reuse} = prefix caching of shared context; \textbf{resource specialization} = P/D disaggregation (separate prefill and decode pools). The four are independent dials --- mechanisms can be combined in principle, subject to implementation support and resource interactions (e.g.~prefix caching under aggressive continuous batching: cached prefixes and the live batch's pages draw on the same 640 GB KV pool, so reuse needs headroom) --- and the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node (dashed border = not in the canonical baseline; see ``When to Disaggregate'', §11.3). \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Serving is four separable concerns, not a stack (they interact --- batching pressure feeds KV residency --- but each is addressable in any order) (request scheduling, state management, reuse, resource specialization). A concrete serving design that chooses one mechanism per concern: request scheduling = continuous (Orca-style) batching; state management = PagedAttention (fixed-size KV pages); reuse = prefix caching of shared context; resource specialization = P/D disaggregation (separate prefill and decode pools). The four are separable dials --- mechanisms can be combined in principle, subject to implementation support and resource interactions (e.g.~prefix caching under aggressive continuous batching: cached prefixes and the live batch's pages draw on the same 640 GB KV pool, so reuse needs headroom) --- and the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node (dashed border = not in the canonical baseline; see ``When to Disaggregate'', §11.3). \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-11-1102.png}}
+\caption[Serving is four separable concerns, not a stack (they interact]{Serving is four separable concerns, not a stack (they interact --- batching pressure feeds KV residency --- but each is addressable in any order) (request scheduling, state management, reuse, resource specialization). A concrete serving design that chooses one mechanism per concern: \textbf{request scheduling} = continuous (Orca-style) batching; \textbf{state management} = PagedAttention (fixed-size KV pages); \textbf{reuse} = prefix caching of shared context; \textbf{resource specialization} = P/D disaggregation (separate prefill and decode pools). The four are separable dials --- mechanisms can be combined in principle, subject to implementation support and resource interactions (e.g.~prefix caching under aggressive continuous batching: cached prefixes and the live batch's pages draw on the same 640 GB KV pool, so reuse needs headroom) --- and the canonical baseline uses the first three; resource specialization joins when the workload outgrows a node (dashed border = not in the canonical baseline; see ``When to Disaggregate'', §11.3). \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:11.2}\emph{The design lever is what each concern trades: \textbf{request
 scheduling} exchanges latency for utilization, \textbf{state management}

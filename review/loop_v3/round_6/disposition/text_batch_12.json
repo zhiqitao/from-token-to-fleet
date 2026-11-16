@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH4-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 4 §1, Traffic dimension",
+  "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+  "quoted_clause": "Traffic determines the compute and memory bandwidth required to keep the serving pipeline saturated without excessive queuing.",
+  "observed": "Traffic alone (requests per second) cannot determine compute or memory-bandwidth requirements. The token profile (input/output lengths), latency SLO, batching policy, model architecture, and hardware all materially change the required compute and bandwidth. For example, 10 rps of 100-token requests and 10 rps of 9,200-token requests have vastly different prefill and KV demands.",
+  "evidence": "The chapter's own canonical workload uses 9,200 input tokens and 300 output tokens; the same 10 rps with a short-context workload would not imply the same compute or bandwidth. The statement is therefore false as written.",
+  "root_cause": "Compressing a multi-variable relationship into a single-dimension causal claim.",
+  "correction": "Rewrite as: 'Traffic, together with the token profile and latency SLO, determines the compute and memory-bandwidth required to keep the serving pipeline saturated without excessive queuing.'",
+  "acceptance_test": "The revised sentence explicitly names token profile and latency SLO as co-determinants, and no longer implies that traffic alone determines compute or bandwidth.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 4 §3 Arithmetic Walk-Through, step 3; also §5 Common Mistakes",
+  "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+  "quoted_clause": "So the ~10 rps average is declared as a scenario input (≈ 2,000 registered users × one request ~every 200 s → ~10 rps), not solved for from the 100-user population.",
+  "observed": "The text says the 10 rps is 'declared' and 'not derived from the user population,' but the parenthetical explicitly derives it from 2,000 registered users and a 200-second per-user request interval. The distinction the chapter wants is that 10 rps is not a Little's-law occupancy derived from the 100 active-user population; it is still a derivation from a declared per-user request-rate assumption over the registered-user population. The same conflation appears in §5: '100 concurrent users with 200 s per request yield 0.5 rps' treats active users as if they were in-flight requests, contradicting the chapter's repeated separation of active-user population from request occupancy.",
+  "evidence": "Step 3 says 'not solved for from the 100-user population' but the formula uses 2,000 users × 1/200 s. The Common Mistakes example uses '100 concurrent users' to compute a request rate, which is only valid if those users are in-flight requests, not merely active users. This undermines the chapter's central pedagogical distinction.",
+  "root_cause": "Imprecise use of 'users' for both population and request occupancy, and 'declared' for a value that is arithmetically derived from a declared per-user request interval.",
+  "correction": "Rewrite step 3 to say: 'The ~10 rps is a declared per-user request-rate assumption: 2,000 registered users × one request every ~200 s ≈ 10 rps. This is not a Little's-law occupancy derivation and does not use the 100 active-user population.' In §5, change '100 concurrent users with 200 s per request yield 0.5 rps' to '100 concurrent in-flight requests with 200 s service time yield 0.5 rps' (or explicitly state one in-flight request per user).",
+  "acceptance_test": "The revised text distinguishes (a) declared per-user request-rate assumptions, (b) active-user population, and (c) in-flight request occupancy; no sentence uses 'concurrent users' to compute a request rate without stating that each user has one in-flight request.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH4-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Chapter 4 §6 Architecture Consequence, Serving configuration bullet",
+  "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+  "quoted_clause": "On each host, continuous batching (e.g. vLLM) is nearly mandatory under this load to hold the 1.2 s TTFT budget",
+  "observed": "The phrase 'nearly mandatory' is a strong product/mechanism claim. Continuous batching is an important mechanism, but whether it is 'nearly mandatory' depends on the serving engine, workload shape, SLO, and alternative scheduling mechanisms (e.g. chunked prefill, priority scheduling, admission control). The sentence also conflates continuous batching with admission scheduling in the following clause.",
+  "evidence": "The same paragraph later says 'chunked prefill and priority scheduling are the levers that address prefill/decode interference directly,' which implies continuous batching alone is not the mandatory mechanism. The claim is not supported by a named benchmark or a stated operating point.",
+  "root_cause": "Mechanism claim stated with excessive strength and without scoping to the canonical workload and serving configuration.",
+  "correction": "Rewrite as: 'Under the canonical load, continuous batching is an important mechanism for holding the 1.2 s TTFT budget because it reduces queueing and improves utilization under concurrency; it does not shorten a single request's 9.2K prefill. Chunked prefill and priority scheduling are the levers that directly address prefill/decode interference.' Avoid 'nearly mandatory' unless a specific tested configuration is named.",
+  "acceptance_test": "The revised sentence no longer uses 'nearly mandatory' without a named tested workload and configuration, and it does not imply that continuous batching is the same mechanism as admission scheduling.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH5-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 5 §8 mini-case, final shortlist paragraph",
+  "chapter": "Chapter 5",
+  "quoted_clause": "the MoE challenger from Ch 3 was rejected on total-weight residency and compute grounds: MoE total parameters exceed the dense 70B, so the 140 GB weight floor grows, and expert dispatch adds overhead",
+  "observed": "The clause uses total parameter count to justify a compute rejection. Total parameters determine weight residency, not per-token compute; MoE compute depends on active parameters and routing. A MoE with total params >70B can have active params <70B and lower per-token FLOPs, while adding dispatch/communication overhead.",
+  "evidence": "Standard MoE arithmetic: per-token FLOPs scale with active parameters, not total parameters; memory residency scales with total parameters. The clause conflates the two and does not provide measured active-param compute or dispatch cost.",
+  "root_cause": "Conflation of memory residency with compute cost; missing active-parameter distinction.",
+  "correction": "Rewrite to separate: (a) total-weight residency may exceed 140 GB, increasing HBM pressure; (b) per-token compute depends on active parameters and may be lower or higher; (c) expert dispatch adds communication/overhead. Reject MoE only after comparing measured active-param compute, dispatch overhead, and residency against the SLO. If Ch 3 already establishes this, cite it and avoid the total-params-to-compute inference.",
+  "acceptance_test": "The revised paragraph must not infer compute cost from total parameter count; it must state active-parameter compute and dispatch overhead as separate criteria, with a measured or clearly labeled illustrative comparison.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH5-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3(b) 'Derived arithmetic for the 70B candidate'",
+  "chapter": "Chapter 5",
+  "quoted_clause": "for a Llama-style 70B model, n_layers = 80, d_model = 8192, bytes per element = 2 (FP16). KV cache per token = n_layers × 2 × d_model × bytes = 80 ×2 × 8192 ×2 = 2,621,440 bytes ≈ 2.62 MB/token",
+  "observed": "The formula assumes full multi-head attention (all d_model dimensions have K/V per layer). Actual Llama 2 70B uses grouped-query attention with 8 KV heads, so its KV cache is much smaller. Calling the geometry 'Llama-style' while using full-MHA arithmetic can mislead readers into applying 2.62 MB/token to a real Llama 70B checkpoint.",
+  "evidence": "Llama 2 70B config: 80 layers, hidden 8192, 64 attention heads, 8 KV heads. KV per token = n_layers * 2 * n_kv_heads * head_dim * bytes = 80*2*8*128*2 = 327,680 bytes ≈0.33 MB/token, not 2.62 MB/token. The book's house convention says canonical 70B full-MHA reference, but the text says 'Llama-style' without that qualifier.",
+  "root_cause": "Terminology drift between canonical full-MHA teaching geometry and real Llama GQA architecture.",
+  "correction": "Replace 'Llama-style 70B model' with 'canonical full-MHA 70B teaching geometry' and add a parenthetical: 'A real GQA Llama 70B checkpoint would use n_kv_heads < n_heads and a correspondingly smaller KV cache; the full-MHA figure is the book's conservative canonical reference.' Or explicitly state the full-MHA assumption in the formula.",
+  "acceptance_test": "The paragraph must not call the full-MHA geometry 'Llama-style' without qualification; it must state the full-MHA assumption and note GQA reduces KV by n_heads/n_kv_heads.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH5-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3(b) 'tokens/s per dollar with prefill included'",
+  "chapter": "Chapter 5",
+  "quoted_clause": "The 9,000 tokens-per-dollar figure is an output-token metric (50 output tok/s × 3600 ÷ $20); under continuous batching ... on a combined prefill+decode basis the same host moves 50 × (1 + 9,200/300) ≈ 1,583 tok/s ≈ 285,000 tokens/$ ...; the single-stream floor is 9,500/7.08 ≈ 1,342 tok/s ≈ 242,000 tokens/$",
+  "observed": "The 9,000 figure counts output tokens only and ignores prefill time. The 285,000 and 242,000 figures count combined input+output tokens and include prefill time. They are different denominators and token populations, so presenting them in one sequence as if they were comparable can mislead. The 'single-stream floor' 242,000 is not a floor for the 9,000 output-token metric; it is a combined-token metric.",
+  "evidence": "9,000 = 50 output tok/s * 3600 / 20. 242,000 = (9,500 tokens/request / 7.08 s) * 3600 / 20. The first is output-only decode rate; the second is combined input+output full-request rate. A full-request output-token metric would be (300/7.08)*3600/20 ≈ 7,627 output tokens/$, not 9,000.",
+  "root_cause": "Mixing output-token and combined-token denominators in the same economic comparison.",
+  "correction": "Label each metric explicitly: (a) 9,000 output tokens/$ at decode-only 50 tok/s; (b) ~7,600 output tokens/$ for the single-stream full request including prefill; (c) ~242,000 combined tokens/$ single-stream; (d) ~285,000 combined tokens/$ at the stated batched output rate. Do not call 242,000 a floor for the 9,000 output-token figure.",
+  "acceptance_test": "The revised passage must state the token population (output-only vs combined) and whether prefill time is included for every tokens/$ figure, and must not compare figures with different denominators as if they were the same metric.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH5-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3(a) 'The decision hinges...' paragraph",
+  "chapter": "Chapter 5",
+  "quoted_clause": "The decision hinges on whether the top-of-range ~15% MAP gain ... translates into sufficient answer-quality improvement to justify the ~4.8×FLOP cost (14.08 vs 2.94 GFLOP per 64-token query, Table 5-1)",
+  "observed": "The ~15% MAP prior is introduced as a within-family/controlled-dimension effect. The 4.8× FLOP cost is a cross-model comparison between all-mpnet-base-v2 (768-d, ~110M) and all-MiniLM-L6-v2 (384-d, ~23M). The text uses a dimension-only prior as if it were the expected quality gain of the cross-model choice.",
+  "evidence": "The preceding HYPOTHESIS says 'within a given embedding family or a controlled dimensionality experiment' and 'reports range from a few to ~15% MAP difference'. The cost ratio 14.08/2.94 is from Table 5-1 total-parameter proxy, not a dimension-only comparison. The text later admits the quality gain is 'not quantified for this model pair', which contradicts using the 15% prior as the decision hinge.",
+  "root_cause": "Conflating a dimension-only quality prior with a cross-model quality difference.",
+  "correction": "Rewrite: 'The cross-model quality gain of all-mpnet over MiniLM is unmeasured; the ~15% MAP prior is a dimension-only upper bound and cannot be assumed to transfer across model families. The decision therefore requires measuring the actual mpnet-vs-MiniLM quality gap on the target corpus before paying the ~4.8× FLOP cost.' Or if a cross-model prior exists, cite it.",
+  "acceptance_test": "The revised passage must not use the dimension-only ~15% prior as the expected cross-model quality gain; it must state that the cross-model gain is unmeasured and require target-corpus measurement.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH5-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3(b) final paragraph of 'tokens/s per dollar with prefill included'",
+  "chapter": "Chapter 5",
+  "quoted_clause": "GPU-hour cost follows occupancy, batching and scheduling — it is not proportional to either share without a stated utilization assumption. The per-dollar economics therefore favor models that reduce the prefill compute burden ... more than models that optimize decode throughput alone",
+  "observed": "The first sentence denies a fixed proportionality between cost and FLOP share; the next sentence draws a directional cost conclusion from the FLOP share. The 'therefore' does not follow without a stated operating regime (throughput-bound vs latency-bound) and utilization assumption.",
+  "evidence": "If the deployment is latency-bound by decode, reducing decode time may improve goodput or allow higher batch, even if prefill is 97% of FLOPs. If prefill is the throughput bottleneck at high utilization, prefill reduction may dominate. The text itself says 'a deployment must balance both' and 'decode still sets the latency SLO', which undercuts the unqualified 'favor'.",
+  "root_cause": "Missing operating-point qualifier; cost conclusion drawn from FLOP share after explicitly saying cost is not proportional to FLOP share.",
+  "correction": "Qualify: 'Under a throughput-bound, high-utilization regime where prefill FLOPs are the limiting resource, reducing prefill compute can improve tokens/$ more than decode-only optimizations. Under a latency-bound regime, decode optimizations may dominate. The architect must measure the bottleneck and utilization before choosing.' Remove or condition the unqualified 'therefore favor'.",
+  "acceptance_test": "The revised passage must state the operating regime and utilization assumption under which prefill optimization is favored, and must not infer cost direction from FLOP share alone.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH5-06",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5 §5 Common Mistakes, 'Ignoring the KV cache cost of long contexts'",
+  "chapter": "Chapter 5",
+  "quoted_clause": "hit SLO violations when the cache spills to host memory or SSD",
+  "observed": "'Spills' suggests automatic cache-like behavior. Serving engines may preempt, swap, or offload KV blocks, but the mechanism is implementation-specific and not a generic spill. The phrase can mislead readers about how KV capacity pressure manifests.",
+  "evidence": "PagedAttention/vLLM can preempt sequences and recompute or swap KV blocks; other engines may reject/admit differently. There is no universal 'spill to SSD' behavior.",
+  "root_cause": "Informal cache terminology applied to KV memory management.",
+  "correction": "Replace with 'when KV capacity pressure forces preemption, swapping, recomputation, or admission control (depending on the serving engine)'.",
+  "acceptance_test": "The revised sentence must not imply a universal automatic spill-to-host/SSD behavior; it must name the engine-dependent mechanisms.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH5-07",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5 §7 What We Still Don't Know, first paragraph",
+  "chapter": "Chapter 5",
+  "quoted_clause": "no public study quantifies this domain-dependence",
+  "observed": "This is a strong negative literature claim. The chapter does not cite a literature search, and embedding-dimension/domain studies may exist. In a HYPOTHESIS paragraph, 'no public study' reads as an asserted fact.",
+  "evidence": "The manuscript provides no citation or search protocol for the absence claim. The surrounding text already labels the relationship as domain-specific and unverified; the absolute 'no public study' is unnecessary.",
+  "root_cause": "Overstrong negative claim in an uncertainty section.",
+  "correction": "Soften to 'we are not aware of a public study that quantifies this domain-dependence for these model families' or 'the public evidence is insufficient to quantify it for this corpus.' If a literature search was performed, cite its scope and date.",
+  "acceptance_test": "The revised sentence must either cite a search scope/date or be phrased as the authors' awareness/evidence gap, not as an absolute absence of public studies.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH6-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Chapter 6, §1 and §3; mini-case §8",
+  "chapter": "6",
+  "quoted_clause": "canonical SLO targets are TTFT 1.2 s / TPOT ~25 ms",
+  "observed": "The chapter states the canonical SLO is TTFT 1.2 s, but later repeatedly uses a 2 s p95 TTFT SLO: 'canonical p95 TTFT SLO of ≤ 2 s', 'with a p95 ≤ 2 s', and the mini-case uses 'a 2 s SLO'. The goodput example also assumes a 2 s threshold.",
+  "evidence": "These are not compatible as stated: a 1.2 s TTFT SLO and a 2 s p95 TTFT SLO are different operating contracts. The later examples depend on the 2 s value, while the canonical SLO statement depends on 1.2 s.",
+  "root_cause": "Canonical SLO definition has drifted or is being used at two different scopes (design target vs p95 SLO) without explicit distinction.",
+  "correction": "Define one canonical SLO contract explicitly: either TTFT p95 ≤ 1.2 s, or TTFT target 1.2 s with p95 SLO ≤ 2 s. Then update every downstream example, table, and mini-case to use that contract consistently.",
+  "acceptance_test": "Search all occurrences of '1.2 s', '2 s', 'p95 TTFT', and 'SLO' in Chapter 6. Every occurrence must resolve to the same explicitly defined canonical SLO contract, with no example using a different threshold without labeling it as a separate illustrative scenario.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Chapter 6, §8 mini-case",
+  "chapter": "6",
+  "quoted_clause": "prefix caching is a partial mitigation (~13% of prefill FLOPs), not the fix",
+  "observed": "The mini-case later says: 'prefix-cache hit ratio ~13% and the predicted ~13% prefill reduction explain the 2.4 s → <2 s move; goodput restored.' This directly contradicts the earlier statement that prefix caching is not the fix.",
+  "evidence": "If the system is ~18.6× oversubscribed at the 40 rps peak, a 13% prefill-FLOP reduction leaves it ~16.2× oversubscribed. That cannot by itself bring p95 TTFT from 2.4 s to below 2 s. The mini-case also says the resolution is capacity/scheduling, but then credits prefix caching with the recovery.",
+  "root_cause": "The mini-case's causal closure is inconsistent: it mixes a partial compute-saving mitigation with a capacity/scheduling fix and then attributes the observed recovery to the partial mitigation.",
+  "correction": "Rewrite the mini-case so the mechanism check matches the arithmetic. Either (a) state that additional hosts/scheduling were applied and quantify the new capacity, or (b) keep prefix caching as a partial mitigation and show that it alone cannot close an 18.6× gap. Do not claim that a 13% prefill reduction explains a 2.4 s → <2 s recovery under 18.6× oversubscription.",
+  "acceptance_test": "Recompute the post-mitigation prefill demand and capacity in the mini-case. The stated cause of the p95 TTFT recovery must be quantitatively sufficient to move the system from 2.4 s to below the SLO. If prefix caching is credited, the arithmetic must show that the remaining oversubscription is compatible with the observed latency.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-03",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Chapter 6, §8 mini-case",
+  "chapter": "6",
+  "quoted_clause": "The architecture is memory- and compute-sane at the 10 rps design point but was never sized for the lunch peak.",
+  "observed": "The mini-case diagnoses ~18.6× prefill oversubscription at 40 rps using a host capacity of ~2.77 PFLOP/s. At 10 rps, the same arithmetic gives 10 × 1.29 ≈ 12.9 PFLOP/s, which is ~4.66× the stated host capacity. A single host is therefore not compute-sane at 10 rps either.",
+  "evidence": "10 rps × 1.29 PFLOP/request = 12.9 PFLOP/s. 12.9 / 2.77 ≈ 4.66. The text's own capacity figure makes the 10 rps design point oversubscribed if only one host is assumed. If multiple hosts are assumed, the 18.6× figure at 40 rps no longer follows from the stated host capacity.",
+  "root_cause": "The mini-case does not specify the host count consistently. The 18.6× figure assumes one host; the 'sane at 10 rps' claim assumes enough hosts to serve 10 rps. Both cannot be true with the same host count.",
+  "correction": "Specify the deployed host count in the mini-case. Then recompute both the 10 rps design-point utilization and the 40 rps peak oversubscription against that host count. If the architecture has N hosts, state N and use N × 2.77 PFLOP/s as capacity throughout.",
+  "acceptance_test": "The mini-case must contain an explicit host count and a capacity calculation that is consistent at both 10 rps and 40 rps. The 18.6× oversubscription figure must be reproducible from the stated host count and per-host capacity.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 6, §3 worked example",
+  "chapter": "6",
+  "quoted_clause": "p99 ≈ 1.33 s",
+  "observed": "The text says percentiles are read by linear interpolation on the sorted sample. With N = 10,000 and exactly 100 stragglers at 5.0 s, the p99 rank is approximately 1 + (N−1)×0.99 = 9900.01. Linear interpolation between rank 9900 (1.33 s) and rank 9901 (5.0 s) gives approximately 1.37 s, not 1.33 s.",
+  "evidence": "1.33 + 0.01 × (5.0 − 1.33) = 1.3667 s. The printed p99 ≈ 1.33 s is the nearest-rank or floor value, not the linear-interpolation value.",
+  "root_cause": "The percentile convention stated in the text does not match the percentile value printed.",
+  "correction": "Either change the p99 value to ≈1.37 s under linear interpolation, or state that the p99 is computed by nearest-rank/floor convention. Do not say 'linear interpolation' and then print the floor value.",
+  "acceptance_test": "Recompute p99 from the stated sample and percentile convention. The printed value must match the stated convention within rounding tolerance.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 6, §3 prefill arithmetic and Table 6-1",
+  "chapter": "6",
+  "quoted_clause": "≈ 1.5 PFLOP full-square total",
+  "observed": "The text computes linear prefill FLOPs as ≈1.29 PFLOP, then says the quadratic attention term adds ≈0.2 PFLOP for a ≈1.5 PFLOP full-square total. But the required rate and Table 6-1 use 1.29 PFLOP ÷ 1.08 s ≈ 1.19 PFLOPS, not 1.5 PFLOP ÷ 1.08 s ≈ 1.39 PFLOPS.",
+  "evidence": "1.5 / 1.08 ≈ 1.39 PFLOPS. The text and table use 1.19 PFLOPS while also presenting 1.5 PFLOP as the full-square total.",
+  "root_cause": "The chapter mixes linear-only and full-square prefill FLOPs without consistently labeling which one is used in the rate calculation.",
+  "correction": "Choose one convention and use it consistently. Either use linear-only 1.29 PFLOP throughout and remove the full-square total from the rate discussion, or use the full-square 1.5 PFLOP and update the required rate to ≈1.39 PFLOPS and Table 6-1 accordingly.",
+  "acceptance_test": "Every prefill FLOP total, required PFLOPS value, and Table 6-1 entry must use the same stated convention. Recompute 1.29/1.08 and 1.5/1.08 and verify that the printed values match the chosen convention.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-06",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 6, Table 6-1",
+  "chapter": "6",
+  "quoted_clause": "high HBM util, low FLOP util",
+  "observed": "The decode row's resource tell says 'high HBM util', but the same row states '~21–25% achieved HBM util at the canonical point'. 21–25% is not high HBM utilization.",
+  "evidence": "The table's own number contradicts its resource-tell label. The text also says a decode kernel pinned at ~95% HBM bandwidth is the illustrative bandwidth-bound signature, which is far above 21–25%.",
+  "root_cause": "The resource-tell column describes a generic bandwidth-bound signature, while the verdict column describes the canonical operating point where HBM utilization is only ~21–25% because the TPOT budget includes other costs.",
+  "correction": "Either change the resource tell to 'moderate HBM util, low FLOP util' for the canonical point, or explicitly distinguish the generic signature (~95% HBM) from the canonical operating point (~21–25% HBM). Do not label 21–25% as 'high'.",
+  "acceptance_test": "The resource-tell text for the decode row must be consistent with the utilization number printed in the same row. If the table keeps 'high HBM util', the number must be high; if the number stays 21–25%, the label must be changed or qualified.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-07",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 6, Table 6-1",
+  "chapter": "6",
+  "quoted_clause": "high FLOP / MFU util, mid bandwidth",
+  "observed": "The prefill row's resource tell says 'high FLOP / MFU util', but the text says the canonical 8×H100 host has aggregate peak ~7.9 PFLOPS and 'comfortably satisfies' the ~1.19 PFLOPS prefill rate. That is ~15% MFU, not high FLOP/MFU utilization.",
+  "evidence": "1.19 / 7.9 ≈ 0.15. The table's H100 capacity column is single-device (~0.989 PFLOPS), but the canonical host is 8×H100. The resource tell conflates a single-device roofline illustration with the canonical host's actual utilization.",
+  "root_cause": "The table mixes single-device capacity comparisons with canonical-host utilization language without distinguishing the two scopes.",
+  "correction": "Qualify the prefill resource tell as a single-device roofline illustration, or change it to 'compute-regime (intensity above ridge), not necessarily high MFU on the 8-GPU host'. If the table is about the canonical host, use the aggregate 7.9 PFLOPS capacity and state the actual MFU.",
+  "acceptance_test": "The prefill resource-tell text must be consistent with the capacity basis used in the same row. If the row uses single-device capacity, say so; if it uses the canonical 8×H100 host, the MFU number must match 1.19/7.9 ≈ 15%.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 6, §5 Common Mistakes",
+  "chapter": "6",
+  "quoted_clause": "zeroing goodput",
+  "observed": "The common-mistakes bullet says bigger batches can 'zero goodput'. The earlier goodput example says the extra tokens can leave goodput 'effectively unchanged' in Scenario A, and Scenario B shows goodput rising from 48 to 65.8. Neither is zero.",
+  "evidence": "The chapter's own worked example does not support 'zeroing goodput'. A p95 breach can reduce or fail to improve goodput, but it does not necessarily zero it.",
+  "root_cause": "Overstated claim strength in a summary bullet.",
+  "correction": "Replace 'zeroing goodput' with 'reducing goodput or preventing it from improving' or similar qualified language.",
+  "acceptance_test": "The common-mistakes bullet must be consistent with the goodput scenarios in §3. No claim of zero goodput should appear unless a scenario actually computes zero.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-09",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 6, §3 goodput scope note",
+  "chapter": "6",
+  "quoted_clause": "~20 ms/token",
+  "observed": "The scope note says the 50→70 tok/s figures are low-batch decode operating points with '~20 ms/token'. 50 tok/s corresponds to 20 ms/token, but 70 tok/s corresponds to ~14.3 ms/token.",
+  "evidence": "1 / 50 = 0.020 s = 20 ms. 1 / 70 ≈ 0.0143 s = 14.3 ms. The single '~20 ms/token' label does not apply to both rates.",
+  "root_cause": "The per-token latency label is attached to a range of throughput values without recomputing per-token latency for the upper value.",
+  "correction": "State the per-token latency for each rate, or say '~14–20 ms/token' for the 50–70 tok/s range.",
+  "acceptance_test": "The per-token latency range must be consistent with the stated tokens/s range: 50 tok/s ↔ 20 ms/token, 70 tok/s ↔ ~14.3 ms/token.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-10",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 6, §3 Reading Telemetry Into a Decision",
+  "chapter": "6",
+  "quoted_clause": "byte-identical shared prefix",
+  "observed": "Prefix caching operates on token sequences, not raw bytes. 'Byte-identical' is imprecise and can mislead readers into thinking the cache matches raw text bytes rather than tokenized prefixes.",
+  "evidence": "The chapter elsewhere correctly describes prefix caching as reusing a shared prompt prefix and discusses token counts (1,200-token prompt). The mechanism is token-level KV reuse.",
+  "root_cause": "Terminology drift between byte-level and token-level descriptions of caching.",
+  "correction": "Replace 'byte-identical shared prefix' with 'token-identical shared prefix' or 'exact token prefix'.",
+  "acceptance_test": "Search Chapter 6 for 'byte-identical' in the context of prefix caching. It should be replaced with token-level terminology unless the text is explicitly discussing byte-level storage.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ }
+]

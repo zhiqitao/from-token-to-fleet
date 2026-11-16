@@ -79,11 +79,14 @@ triggers for climbing:
   \textbf{Traffic}: one host's throughput ceiling (goodput) below demand
   → more replicas (DP across nodes) or P/D disaggregation → cluster.
 \item
-  \textbf{Latency/geography}: SLO can't be met due to distance or
-  contention → split prefill/decode (a within-tier move). Note:
-  \emph{moving the serving edge closer (local)} is a placement move to a
-  lower rung, not a climb trigger --- it belongs with the de-escalation
-  moves in \hyperref[fig:13.1]{Fig 13.1}.
+  \textbf{Contention / phase interference}: SLO can't be met because
+  prefill and decode contend for the same resources → split
+  prefill/decode (a within-tier move).
+\item
+  \textbf{Distance / geography}: SLO can't be met because the users are
+  too far from the serving site → move the serving edge closer or add
+  regional replicas (a \emph{placement} move, not a climb --- it belongs
+  with the de-escalation moves in \hyperref[fig:13.1]{Fig 13.1}).
 \end{itemize}
 
 We do not climb for fashion; we climb when a measured number crosses a
@@ -97,11 +100,11 @@ threshold.
 \subsection{Placing the Canonical
 Workload}\label{placing-the-canonical-workload}
 
-The canonical enterprise-Q\&A RAG workload sits on the \textbf{server}
-tier as a \emph{fleet} of \textasciitilde21 server-class hosts at the 40
-rps peak (Ch 16/17) --- model residency is server-class, but by \hyperref[tab:13.1]{Table 13-1}'s \emph{traffic \textgreater{} host goodput} trigger the traffic
-scaling is a \textbf{cluster} of server-class hosts, not
-weight-splitting. We verify each bound:
+The canonical enterprise-Q\&A RAG workload's model residency is
+\textbf{server-class}, and at the 40 rps peak its deployment is a
+\textbf{cluster} of \textasciitilde21 server-class hosts (Ch 16/17) ---
+placed there by \hyperref[tab:13.1]{Table 13-1}'s \emph{traffic \textgreater{} host goodput}
+trigger, not by weight-splitting. We verify each bound:
 
 \begin{itemize}
 \item
@@ -127,11 +130,16 @@ weight-splitting. We verify each bound:
   provisioning uses) --- so a single host is a \emph{latency-feasible}
   but not \emph{capacity-sufficient} server (Ch16/17 size the fleet to
   \textasciitilde21 hosts at the 40 rps peak on the full-utilization
-  screen --- ⌈344/17⌉ = 21; under the 70\% × 95\% policy --- applied to
-  the unrounded 344/17 ≈ 20.2, not the rounded 21 --- that becomes 31
-  working + 1 spare = 32 total, \hyperref[tab:17.1]{Table 17-1}). The tier choice here is
-  about model residency and per-request latency, not about whether one
-  host serves the entire peak arrival. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+  screen --- ⌈344/17⌉ = 21; under the 70\% × 95\% policy (u = 0.70
+  utilization target, ρ = 0.95 load-balancer efficiency, per \hyperref[tab:17.1]{Table 17-1})
+  --- applied to the unrounded 344/17 ≈ 20.2, not the rounded 21 ---
+  that becomes 31 working + 1 spare = 32 total, \hyperref[tab:17.1]{Table 17-1}). On the
+  compute axis a single host also serves only \textasciitilde19.8K of
+  the \textasciitilde92K input tokens/s the 10 rps average needs
+  (\textasciitilde5 hosts, Ch 12/8), so the peak failure is a compute
+  shortfall, not merely queueing delay. The tier choice here is about
+  model residency and per-request latency, not about whether one host
+  serves the entire peak arrival. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \item
   \textbf{Interconnect}: no \emph{cross-host} model parallelism is
   required (one node; intra-host TP=8 fits the 140 GB model) --- the
@@ -159,8 +167,11 @@ screen below is run at the average --- at peak it reads ⌈400 × 8.6 / 17⌉
   \textbf{Throughput ceiling of one host}: continuous batching on 8×H100
   at \textasciitilde9.5K tokens/request sustained roughly tens of
   thousands of tokens/s; goodput against the SLO is the binding number.
-  At \textasciitilde100 rps × 9.5K tokens = \textasciitilde950K
-  tokens/s, one host's goodput is exceeded.
+  At \textasciitilde920K input tokens/s (100 rps × 9.2K input;
+  \textasciitilde950K total tokens including the 300 output tokens), far
+  above one host's \textasciitilde19.8K prefill ceiling, one host's
+  goodput is exceeded; the host count that follows comes from the
+  KV/service-time screen below, not from a tokens/s comparison.
   \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \item
   \textbf{Response}: replicate the model across multiple servers (data
@@ -172,32 +183,36 @@ screen below is run at the average --- at peak it reads ⌈400 × 8.6 / 17⌉
   compute or goodput benchmark) gives ⌈100 × 8.6 / 17⌉ = ⌈50.59⌉ =
   \textbf{51 hosts at full utilization}, and Ch17's 70\% utilization
   target plus the N−1 spare gives 73 working + 1 spare = \textbf{74
-  hosts} on the ρ = 1 u-only screen --- 77 working + 1 spare =
-  \textbf{78 hosts} at the \hyperref[tab:17.1]{Table 17-1} policy (u × ρ = 0.665;
-  ⌈860/11.305⌉ = ⌈76.07⌉ = 77) --- not a handful. (The naive
-  \textasciitilde100 ÷ 2.0 ≈ 50 understates the fleet: the
-  \textasciitilde2.0 rps screen uses the unfloored 17.5-slot quotient
-  and applies no utilization headroom, so 50 hosts could only deliver 50
-  × 17/8.6 ≈ 98.8 rps --- below demand.) The escalation is still the
-  \textbf{cluster} tier: the model fits one node (no weight-splitting),
-  but the \emph{fleet} is a real cluster sized by the per-host goodput
-  ceiling. The escalation is driven by traffic, not memory.
-  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+  hosts} on the u-only screen (ρ = 1) --- 77 working + 1 spare =
+  \textbf{78 hosts} at the \hyperref[tab:17.1]{Table 17-1} policy (u × ρ = 0.70 × 0.95 =
+  0.665; ⌈860/(17 × 0.665)⌉ = ⌈76.07⌉ = 77) --- not a handful. (The
+  naive screen is one host short --- 50 vs ⌈50.59⌉ = 51 --- because it
+  uses the unfloored 17.5-slot quotient: 50 × (17.5 ÷ 8.6 ≈ 2.03) ≈
+  101.7 rps, exactly at the 100 rps demand with zero utilization
+  headroom; on the conservative floored 17 whole-context slots, 50 hosts
+  deliver only 50 × 17/8.6 ≈ 98.8 rps. The larger 50 → 74/78 gap comes
+  from the 70\% × 95\% headroom and the N−1 spare, not from slot
+  flooring.) The escalation is still the \textbf{cluster} tier: the
+  model fits one node (no weight-splitting), but the \emph{fleet} is a
+  real cluster sized by the per-host goodput ceiling. The escalation is
+  driven by traffic, not memory. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \end{itemize}
 
-\subsection{Dropping a Tier: When Privacy Forces
-Local}\label{dropping-a-tier-when-privacy-forces-local}
+\subsection{Dropping a Tier: When On-Device Execution Forces
+Local}\label{dropping-a-tier-when-on-device-execution-forces-local}
 
-If the workload must run fully on-site without data leaving a facility,
-privacy alone forces the on-prem \textbf{server} tier (data stays in the
-facility; the canonical 70B still runs on server hardware). The
-\textbf{local/edge} tier applies only when the model can be distilled to
-a 7-13B capable of the Q\&A task \emph{and} must run on-device
-(offline/connectivity or tight on-device latency): a single GPU runs the
-distilled model at reduced (but acceptable --- verified against Ch 14's
-quality gate) accuracy for privacy. The tier choice traded capability
-for the operational constraint (privacy).
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+Two distinct constraints are often filed under ``privacy,'' and they
+have different tier consequences. \textbf{Data residency / sovereignty}
+--- data must not leave the facility or the jurisdiction --- forces the
+on-prem \textbf{server} (or \textbf{cluster}) tier: data stays in the
+facility, and the canonical 70B still runs on server hardware.
+\textbf{On-device execution} --- offline/connectivity, or a tight
+on-device latency --- is what forces the \textbf{local/edge} tier, and
+it applies only when the model can be distilled to a 7-13B capable of
+the Q\&A task: a single GPU then runs the distilled model at reduced
+(but acceptable --- verified against Ch 14's quality gate) accuracy.
+That second move trades capability for the operational constraint; the
+first trades only deployment location. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \subsubsection{Table 13-1 --- Reference architecture
 archetypes}\label{table-13-1-reference-architecture-archetypes}
@@ -229,7 +244,8 @@ When to use
 \bottomrule\noalign{}
 \endlastfoot
 Local / edge & 1 & n/a (memory-bound) & 7-13B dense & low (on-device) &
-on-device/offline/connectivity (privacy alone → on-prem server tier) \\
+on-device/offline/connectivity (data residency → on-prem server or
+cluster tier) \\
 Server & 1-8 & scale-up fabric (NVLink/NVSwitch) &
 \textasciitilde70-180B dense & workload-dependent; canonical example:
 median ≤1.2 s TTFT, p95 ≤2 s (Ch 4) & most single-tenant enterprise \\
@@ -289,9 +305,10 @@ ladder --- validate it by measurement.
   server; traffic, not size, usually forces the cluster --- an architect
   who only watches parameters escalates too early or too late.
 \item
-  \textbf{Ignoring the operational constraint.} Privacy/geography can
-  force a \emph{lower} tier regardless of what compute wants; the ladder
-  is bounded by operations, not just performance.
+  \textbf{Ignoring the operational constraint.}
+  Data-residency/sovereignty or on-device requirements can force a
+  \emph{different} --- often lower --- tier regardless of what compute
+  wants; the ladder is bounded by operations, not just performance.
 \item
   \textbf{Assuming a smaller model can't serve the tier.} Distilled
   small models on local GPUs can meet the goal when the capability
@@ -318,13 +335,13 @@ beneath it.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (blue) fires on privacy, sovereignty, and cost --- but scale-down decisions should also reference utilization (sustained low load on a tier), failure domain (a smaller tier has a smaller blast radius), operations burden (fewer hosts to run), and SLO margin (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g.~de-escalate when 30-day p95 utilization \textless{} 40\% AND SLO margin \textgreater{} 2× AND the smaller tier's failure domain is acceptable. Rungs refine the §13.1 tiers: Single GPU = Local/edge, Single host = Server, Multi-host = Cluster, Cluster/fleet = Hyperscale fleet. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-13-1301.pdf}}
-\caption[The reference-architecture ladder and its escalation triggers]{The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (blue) fires on privacy, sovereignty, and cost --- but scale-down decisions should also reference \textbf{utilization} (sustained low load on a tier), \textbf{failure domain} (a smaller tier has a smaller blast radius), \textbf{operations burden} (fewer hosts to run), and \textbf{SLO margin} (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g.~de-escalate when 30-day p95 utilization \textless{} 40\% AND SLO margin \textgreater{} 2× AND the smaller tier's failure domain is acceptable. Rungs refine the §13.1 tiers: Single GPU = Local/edge, Single host = Server, Multi-host = Cluster, Cluster/fleet = Hyperscale fleet. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (blue) fires on data-residency/sovereignty, on-device requirements, and cost --- but scale-down decisions should also reference utilization (sustained low load on a tier), failure domain (a smaller tier has a smaller blast radius), operations burden (fewer hosts to run), and SLO margin (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g.~de-escalate when 30-day p95 utilization \textless{} 40\% AND SLO headroom ≥ 2× (30-day p95 TTFT ≤ half the SLO) AND the smaller tier's failure domain is acceptable. Rungs refine the §13.1 tiers: Single GPU = Local/edge, Single host = Server, Multi-host = Cluster, Cluster/fleet = Hyperscale fleet. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-13-1301.pdf}}
+\caption[The reference-architecture ladder and its escalation triggers]{The reference-architecture ladder and its escalation triggers. Escalation (red) fires when demand, KV residency, or goodput outgrows a tier; de-escalation (blue) fires on data-residency/sovereignty, on-device requirements, and cost --- but scale-down decisions should also reference \textbf{utilization} (sustained low load on a tier), \textbf{failure domain} (a smaller tier has a smaller blast radius), \textbf{operations burden} (fewer hosts to run), and \textbf{SLO margin} (headroom to absorb a burst without breaching the SLO). Make these measurable: thresholds are examples to calibrate to your SLO headroom policy, e.g.~de-escalate when 30-day p95 utilization \textless{} 40\% AND SLO headroom ≥ 2× (30-day p95 TTFT ≤ half the SLO) AND the smaller tier's failure domain is acceptable. Rungs refine the §13.1 tiers: Single GPU = Local/edge, Single host = Server, Multi-host = Cluster, Cluster/fleet = Hyperscale fleet. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:13.1}\emph{The reference-architecture ladder: single GPU → single host →
 multi-host → cluster/fleet, with escalation triggers (red: KV/throughput
-outgrows a tier) and de-escalation (blue: privacy, sovereignty, cost)
-moving a workload between tiers.}
+outgrows a tier) and de-escalation (blue: data-residency/sovereignty,
+on-device, cost) moving a workload between tiers.}
 
 \end{figure}\ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -364,13 +381,14 @@ on-prem --- run a fleet of 8×H100 replicas behind a load balancer. With
 the canonical whole-slot KV/service-time screen (Ch 16/17), the fleet is
 ⌈100 × 8.6 / 17⌉ = \textbf{51 hosts at full utilization} --- 73 working
 + 1 spare = \textbf{74 hosts} at Ch17's 70\% target and N−1 rule on the
-ρ = 1 u-only screen, or 77 working + 1 spare = \textbf{78 hosts} at the
-\hyperref[tab:17.1]{Table 17-1} policy (u × ρ = 0.665) --- a real cluster rather than a
-handful; at 51 hosts each replica sits right at its per-host ceiling
-(100 ÷ 51 ≈ 1.96 rps vs the 17 ÷ 8.6 ≈ 1.98 rps ceiling), which is
-exactly why the sizing rule adds the 70\% × 95\% headroom and the spare
-host. The result, with the 74-host headroom fleet (78 hosts at the \hyperref[tab:17.1]{Table 17-1} policy): p95 TTFT back under 1.8 s at 100 rps \mbox{{[}ILLUSTRATIVE
-SCENARIO RESULT{]}}, on site, without hyperscale --- because the
-architect climbed the ladder precisely one rung, and the correct rung
-was determined by the measured traffic trigger, not by fashion or by
-model size alone.
+u-only screen (ρ = 1), or 77 working + 1 spare = \textbf{78 hosts} at
+the \hyperref[tab:17.1]{Table 17-1} policy (u × ρ = 0.70 × 0.95 = 0.665) --- a real cluster
+rather than a handful; at 51 hosts each replica sits right at its
+per-host ceiling (100 ÷ 51 ≈ 1.96 rps vs the 17 ÷ 8.6 ≈ 1.98 rps
+ceiling), which is exactly why the sizing rule adds the 70\% × 95\%
+headroom and the spare host. The result, with the 74-host headroom fleet
+(78 hosts at the \hyperref[tab:17.1]{Table 17-1} policy): p95 TTFT back under 1.8 s at 100
+rps \mbox{{[}ILLUSTRATIVE SCENARIO RESULT{]}}, on site, without hyperscale ---
+because the architect moved from single-host to multi-host deployment
+--- one step up the ladder, taken because the measured traffic trigger
+said so, not because of fashion or model size.

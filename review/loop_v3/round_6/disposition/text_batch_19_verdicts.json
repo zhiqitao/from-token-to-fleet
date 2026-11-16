@@ -1,0 +1,122 @@
+[
+ {
+  "id": "CH10-DP-001",
+  "verdict": "CONFIRMED",
+  "evidence": "ch10: 'a ring all-reduce moves 2(N-1)/N times the per-rank gradient through each rank, so for N=8 the per-rank send volume is (N-1)/N \u00d7 280 \u2248 245 GB ... At 25 GB/s that is 245 / 25 \u2248 9.8 s ... 245/450 \u2248 0.54 s'. 2\u00d77/8\u00d7280 = 490 GB per rank (send+receive 980), so the times are 19.6 s and 1.09 s; 245 GB and 9.8 s/0.54 s are exactly ch9's M=140 GB figures (ch9: 'each phase sends (N-1)M/N=122.5 GB per rank ... therefore sends 245 GB and receives another 245 GB per rank').",
+  "fix_instruction": "Restate at M=280: two phases \u00d7 245 GB = 490 GB sent per rank (490 GB received), so T \u2248 490/25 \u2248 19.6 s on a 200 Gb/s link and 490/450 \u2248 1.09 s at the NVLink directional peak; label 490 GB as the send volume (send+receive = 980 GB), not 'the send-plus-receive total'."
+ },
+ {
+  "id": "CH9-ARCH-001",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "The passage exists (paraphrased, not absent) and already carries the requested caveat in the same paragraph: 'An eight-node data-parallel job uses NVLink/NVSwitch for intra-node exchanges and InfiniBand/RoCE for inter-node exchanges; compare InfiniBand vs Ethernet only for the inter-node portion. The 1/11 and 1/180 ratios compare an eight-rank single-host collective with an eight-rank cross-host collective ..., not two fabrics for the same job.'",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH12-RESID-001",
+  "verdict": "DEFENSIBLE",
+  "evidence": "Sentence: 'up to ~576 GB (140 + 436) at the canonical per-host KV budget (\u00a712.3)' inside a weights+KV bracket; Table 12-1's column is headed 'weights+KV' and the cell reads '~576 GB at the full KV budget (140 + 436)'. 140+436 = 576 is correct and the quantity is named; \u00a712.3's 640 GB is the pool total including the ~64 GB reserve, not a competing value.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH9-MISTAKE-001",
+  "verdict": "CONFIRMED",
+  "evidence": "ch9 Common Mistakes: 'if other collectives (e.g., all-gather for optimizer state) are running simultaneously, the bisection bandwidth is shared' \u2014 but FSDP/ZeRO all-gathers parameter shards and reduce-scatters gradients; ch10 itself writes 'FSDP ... all-gathers parameter shards and ... reduce-scatters gradients'. Optimizer state is sharded and updated locally, never all-gathered.",
+  "fix_instruction": "Replace the example with 'all-gather for parameter shards (FSDP) or reduce-scatter for gradients'."
+ },
+ {
+  "id": "CH10-MOE-001",
+  "verdict": "DEFENSIBLE",
+  "evidence": "'the full expert set must be resident' is the default HBM-resident case, and ch10 \u00a77 supplies the condition in the same chapter: 'the total expert residency that must be sharded if the deployment keeps all experts resident in HBM (expert offloading or caching otherwise changes the capacity calculus)'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH11-PAGED-001",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch11 \u00a72 carries the precise claim ('reduces external fragmentation and over-reservation ...; block-level internal fragmentation and metadata overhead remain'), while \u00a76's 'minimal fragmentation' is a summary gloss that is quantitatively fair: with 16-token blocks, internal waste is \u226416 \u00d7 2.62 MB \u2248 42 MB per 24.1 GB request (~0.2%).",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH13-LADDER-001",
+  "verdict": "CONFIRMED",
+  "evidence": "The escalation bullet reads '**Latency/geography**: SLO can't be met due to distance or contention \u2192 split prefill/decode (a within-tier move)', yet the same paragraph assigns distance to placement: 'moving the serving edge closer (local) is a placement move to a lower rung, not a climb trigger'. P/D splits phases; it does not shorten a network path.",
+  "fix_instruction": "Split the trigger: 'contention/phase interference \u2192 split prefill/decode (a within-tier move)' and 'distance/geography \u2192 move the serving edge closer or add regional replicas (a placement move, not a climb)'."
+ },
+ {
+  "id": "CH13-MINICASE-001",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch13 \u00a73 fixes the tier vocabulary before the mini-case: 'sits on the **server** tier as a *fleet* of ~21 server-class hosts ... the traffic scaling is a **cluster** of server-class hosts', and reiterates 'The tier choice here is about model residency and per-request latency, not about whether one host serves the entire peak arrival' \u2014 so 'one rung' (server \u2192 cluster) is the chapter's own tier step, not a host-count step.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH12-COST-001",
+  "verdict": "CONFIRMED",
+  "evidence": "'Total fleet cost $155.8K/mo (21 hosts) \u00f7 $15K = ~10.4\u00d7 over the total budget' \u2014 155.8/15 = 10.39 is the ratio, so the excess over budget is 9.4\u00d7; the same paragraph later phrases it correctly as '~10.4\u00d7 the stakeholder's stated $15,000 total monthly budget'.",
+  "fix_instruction": "Change to '10.4\u00d7 the total budget' (or '9.4\u00d7 over') so the two sentences in the paragraph agree."
+ },
+ {
+  "id": "CH13-NAIVE-001",
+  "verdict": "CONFIRMED",
+  "evidence": "ch13: 'the ~2.0 rps screen uses the unfloored 17.5-slot quotient ..., so 50 hosts could only deliver 50 \u00d7 17/8.6 \u2248 98.8 rps' \u2014 the label says 17.5 but the arithmetic uses 17. 50 \u00d7 17.5/8.6 \u2248 101.7 rps; 50 \u00d7 17/8.6 \u2248 98.8 rps, and 101.7 > 100 rps demand.",
+  "fix_instruction": "State the screen honestly: 'the ~2.0 rps screen (17.5 slots \u00f7 8.6 s \u2248 2.03 rps/host) gives 50 \u00d7 2.03 \u2248 101.7 rps \u2014 exactly at the 100 rps demand with zero utilization headroom; on the floored 17 whole-context slots, 50 hosts deliver only 98.8 rps.'"
+ },
+ {
+  "id": "CH12-TABLE-001",
+  "verdict": "CONFIRMED",
+  "evidence": "Table 12-1 (c) row: '\u2717 ~4 avg / ~15 peak hosts at the single-H100 rate (Table 12-2)', while Table 12-2 heads the column 'Prefill capacity (hosts or cards)', gives '~4 H100 cards ... ~15 H100 cards', and its units note says '(c) is sized in single H100 cards (one card per 7B instance)'.",
+  "fix_instruction": "Change Table 12-1's cell to '~4 avg / ~15 peak single-H100 cards' to match Table 12-2's units."
+ },
+ {
+  "id": "CH9-FIG92-001",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "Fig 9.2's rule is self-consistent on 1-indexed rounds (r = 1..N-1): chunk c is sent by rank c+r in round r, so every rank except c sends chunk c and rank c ends owning reduced chunk c \u2014 matching 'rank r ends the reduce-scatter holding reduced chunk r'. The off-by-one only appears if rounds are read as 0-indexed.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH10-TRIANGLE-001",
+  "verdict": "CONFIRMED",
+  "evidence": "Mental model: 'When a GPU is *idle* waiting, we reach for DP (more work per GPU)' \u2014 DP replicates the model and splits the batch (ch10: 'training: replicates all weights on every GPU, feeds each a different batch'; inference: 'independent replicas each serve a disjoint set of requests'), so it adds devices/work in parallel; it does not put more work on an idle device, and if arrivals are low it cannot fill one.",
+  "fix_instruction": "Reword: 'When aggregate throughput, not memory, is the limit \u2014 the data corner is what is starved \u2014 we reach for DP (more replicas, each with its own batch). DP does not create work for an idle GPU; if the device is idle for lack of arrivals, DP makes it idler.'"
+ },
+ {
+  "id": "CH11-APPENDIX-001",
+  "verdict": "DEFENSIBLE",
+  "evidence": "The footnote distinguishes the two repos explicitly: Wan2.2 README at commit 1ea34ff for 'Multi-GPU inference using FSDP + DeepSpeed Ulysses', and 'The head-divisibility requirement ... is stated in Wan's official README at commit 9737cba9...' with a raw.githubusercontent.com/Wan-Video/Wan2.1/... URL. The main text's claim is about the cited README, which is accurately identified.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH13-FIG-001",
+  "verdict": "CONFIRMED",
+  "evidence": "The caption's de-escalation rule reads '30-day p95 utilization < 40% AND SLO margin > 2\u00d7 AND the smaller tier's failure domain is acceptable' \u2014 no quantity is defined for the 2\u00d7 multiplier (latency headroom? utilization headroom?), and the body never defines it.",
+  "fix_instruction": "Define the metric in the caption: 'AND SLO headroom \u2265 2\u00d7 (30-day p95 TTFT \u2264 half the SLO) AND ...'."
+ },
+ {
+  "id": "CH11-PD-001",
+  "verdict": "DEFENSIBLE",
+  "evidence": "The claim is conditional on the conflict binding \u2014 'when prefill FLOPs and decode bandwidth fight on one pool, P/D disaggregation ... is the architecture of choice' \u2014 and the same chapter supplies the cost test ('it pays off when measured prefill/decode interference binds \u2014 evaluate it against measured phase conflict, not topology alone').",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH12-THROUGHPUT-001",
+  "verdict": "DEFENSIBLE",
+  "evidence": "The per-device number is defined as 'measured on the target hardware' for the candidate layout, so summing it over devices is the same arithmetic ch12 itself uses for TP=8 ('~19,800 prefill-tokens/s at the idealized aggregate (8 \u00d7 2,472 per GPU)'); communication loss is carried in the per-device rate/MFU, not assumed away silently.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH16-002",
+  "verdict": "CONFIRMED",
+  "evidence": "ch16: 'H_required = \u222b_0^T N_required(t) dt + N_warm\u00b7T_warm + R_reserved' with 'N_required(t) is the number of hosts that must be running at time t' and 'H_required already includes the warm-pool and reservation terms, so ... every term is counted exactly once'. If N_required(t) counts all running hosts, the integral already contains the warm-pool and reserved running hours \u2014 the added terms double-count.",
+  "fix_instruction": "Define the integrand as burst-only and say so: 'H_required = \u222b_0^T N_burst(t) dt + N_warm\u00b7T_warm + R_reserved, where N_burst(t) is the number of load-following hosts above the warm/reserved baseline at time t' (or drop the two extra terms and define N_required(t) as total running hosts)."
+ },
+ {
+  "id": "CH14-001",
+  "verdict": "CONFIRMED",
+  "evidence": "ch15 \u00a71: 'The canonical SLO this chapter measures against: TTFT median \u2264 1.2 s, p95 \u2264 2 s, TPOT \u2264 40 ms (Ch 4/Ch 14)'. Ch4 Table 4-2 gives 'TPOT SLO | 25 ms/token; p95 \u2264 35 ms', ch14 uses 'TPOT ~25 ms/token' and 'median TPOT about 25 ms', and a grep of ch4/ch14 finds no 40 ms TPOT value; ch17 then inherits it ('the canonical SLO pole is 40 ms/token (Ch 15 \u00a71)').",
+  "fix_instruction": "Make ch15 \u00a71 read 'TPOT median \u2264 25 ms, p95 \u2264 35 ms (Ch 4, Table 4-2)' and correct ch17's '40 ms/token SLO pole' (and its sensitivity band) to the p95 35 ms figure, or \u2014 if 40 ms is the intended tail SLO \u2014 state it as p95 TPOT in Ch 4 and Ch 14 first."
+ },
+ {
+  "id": "CH15-002",
+  "verdict": "DEFENSIBLE",
+  "evidence": "'the expensive part of decode is not the arithmetic per token but the serialization \u2014 each target-model step streams the weights from HBM' matches ch8's operating point for this book's canonical 9.2K workload (decode intensity 'saturates at ~6.8 FLOP/byte ... far below the 295 ridge ... bandwidth-bound at every batch size'), and ch15 states the operating-point rule earlier in the chapter.",
+  "fix_instruction": ""
+ }
+]

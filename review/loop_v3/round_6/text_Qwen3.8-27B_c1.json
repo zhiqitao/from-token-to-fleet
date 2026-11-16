@@ -1,0 +1,135 @@
+
+
+[
+  {
+    "id": "CH6-001",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 6 §1, Metric Hierarchy, item 2",
+    "chapter": "6",
+    "quoted_clause": "the canonical SLO targets are TTFT 1.2 s / TPOT ~25 ms.",
+    "observed": "1.2 s and ~25 ms are design budgets in Ch 5 and Ch 8; the canonical p95 SLOs are TTFT ≤ 2 s and TPOT ≤ 35 ms.",
+    "evidence": "Ch 5 §3: 'TTFT budget 1.2 s ... p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms'; Ch 6 §3: 'We budget TTFT ≤ 1.2 s ... with a p95 ≤ 2 s'; Ch 8 §3: 'TTFT budget 1.2 s ... TPOT budget ~25 ms/token'.",
+    "root_cause": "Conflation of internal design budget with external SLO target.",
+    "correction": "Reword to 'the canonical design budgets are TTFT 1.2 s / TPOT ~25 ms, with p95 SLOs TTFT ≤ 2 s / TPOT ≤ 35 ms' or align with Ch 4 Table 4-2 if it defines SLOs.",
+    "acceptance_test": "Search Ch 6 for 'SLO targets'; ensure 1.2 s and 25 ms are labeled budgets, and p95 SLO values match Ch 5/Ch 4."
+  },
+  {
+    "id": "CH5-001",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 5 §8 mini-case, second bullet",
+    "chapter": "5",
+    "quoted_clause": "the ~436 GB KV budget (640 − 140 − 64, §3(b)) supports ~436/24.1 ≈ 18 concurrent 9.2K-token requests per host before KV pressure.",
+    "observed": "Uses initial 9.2K KV (24.1 GB) to estimate concurrent requests, while Ch 7's canonical concurrency uses max 9.5K KV (24.9 GB) and gives 17.51, floor 17.",
+    "evidence": "Ch 7 §3 note: '~436 GB KV budget and ~17.5 requests/host (byte-accurate 17.51; conservative integer floor 17)'; Ch 7 Fig 7.7: 'at 24.9 GB/request max-FP16 KV (9.5K max context), C ≈ 17.5 concurrent (floor 17, not 18)'.",
+    "root_cause": "Concurrency should be sized against end-of-generation KV, not initial prefill KV, unless explicitly scoped to prefill-only residency.",
+    "correction": "Either change to '~436/24.9 ≈ 17.5, floor 17' or add 'initial prefill-only; end-of-generation capacity is 17'.",
+    "acceptance_test": "Ch 5 mini-case concurrency matches Ch 7 canonical floor 17 for full request lifetime, or explicitly distinguishes initial vs max KV."
+  },
+  {
+    "id": "CH6-002",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 6 §8 mini-case, final sentence",
+    "chapter": "6",
+    "quoted_clause": "prefix-cache hit ratio ~13% and the predicted ~13% prefill reduction explain the 2.4 s → <2 s move",
+    "observed": "13% is the maximum fraction of prefill FLOPs represented by the shared 1,200-token prompt, not a request-level prefix-cache hit ratio; also a 13% prefill-FLOP reduction does not by itself guarantee p95 TTFT falls from 2.4 s to <2 s without a queueing model.",
+    "evidence": "Ch 6 §3: 'shared prefix is at most the ~1,200-token prompt (~13% of prefill FLOPs)'; 1,200/9,200 = 13.0%. The mini-case earlier says low prefix-hit ratio, then later says hit ratio ~13%.",
+    "root_cause": "Conflation of prefix-cache coverage/FLOP saving with hit ratio, and over-attribution of a p95 improvement to a single 13% saving.",
+    "correction": "Reword to 'prefix-cache coverage of the shared prompt is ~13% of prefill FLOPs; if that work is avoided, prefill demand falls ~13%, which can help p95 TTFT but must be confirmed by the queueing model/telemetry'.",
+    "acceptance_test": "No sentence equates 'hit ratio' with the 1,200/9,200 FLOP fraction; the 2.4→<2 s move is stated as consistent with, not explained solely by, the 13% reduction."
+  },
+  {
+    "id": "CH6-003",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 6 §3, Detecting the Regime, decode paragraph, final parenthetical",
+    "chapter": "6",
+    "quoted_clause": "(This is an operating-point property, not an identity: at high batch decode climbs the intensity slope and can become compute-bound.)",
+    "observed": "Ch 8 later shows that including the canonical 9.2K KV re-read, decode intensity saturates at ~6.8 FLOP/byte and remains bandwidth-bound at every batch size; the weight-only 'can become compute-bound' is only valid when KV traffic is small or quantized.",
+    "evidence": "Ch 8 §3: 'Including it, the decode intensity is (164·b)/(140 + 24·b) ... saturates at ~6.8 FLOP/byte ... So with the KV term, decode stays bandwidth-bound at every batch size; the batch ≈ 295 figure is the weight-only first-order estimate (valid when the KV re-read is small relative to the weight stream, e.g. short contexts or KV quantization).'",
+    "root_cause": "Missing KV-term caveat in Ch 6, creating a cross-chapter inconsistency for the canonical long-context workload.",
+    "correction": "Add 'in the weight-only model, or when KV traffic is small/quantized; with the canonical 9.2K KV term, decode remains bandwidth-bound at all batch sizes (Ch 8)'.",
+    "acceptance_test": "Ch 6 statement no longer implies canonical long-context decode can become compute-bound at high batch without the KV caveat."
+  },
+  {
+    "id": "CH7-001",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 7 §3, Fig 7.7 technical note, first sentence",
+    "chapter": "7",
+    "quoted_clause": "at 17.5 concurrent requests a rank reaches ~99.7% of its 80 GB capacity (17.5 + 8 + 54.25 = 79.75 GB)",
+    "observed": "The same note lists KV budget per rank as 436 ÷ 8 = ~54.5 GB and per-rank budget 17.5 + 54.5 + 8 = 80 GB; 54.25 is inconsistent with the stated 436 GB aggregate KV budget.",
+    "evidence": "436/8 = 54.5; 17.5+8+54.5=80.0. If using 17.5 requests and per-request KV 24.9/8=3.1125, KV per rank = 54.47, not 54.25.",
+    "root_cause": "Arithmetic typo or stale value from a different reserve/weight split.",
+    "correction": "Change 54.25 to 54.5 and 79.75 to 80.0, or recompute with byte-accurate values and state the exact percentage.",
+    "acceptance_test": "The per-rank sum uses the same 436/8 value as the bullet list and equals 80 GB at the 17.5 ceiling."
+  },
+  {
+    "id": "CH5-002",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 5 §3, Table 5-2",
+    "chapter": "5",
+    "quoted_clause": "Tokens per dollar (generation, runtime) | 9,000 tokens per dollar",
+    "observed": "The 50 tok/s input is an output-token rate; later text explicitly calls 9,000 an output-token metric. The table label can be read as total generation tokens per dollar.",
+    "evidence": "Ch 5 §3(b): 'The 9,000 tokens-per-dollar figure is an output-token metric (50 output tok/s × 3600 ÷ $20)'.",
+    "root_cause": "Missing output qualifier in table.",
+    "correction": "Change to 'Output tokens per dollar (generation, runtime)' or 'Output tokens per dollar at the 50 output tok/s low-batch point'.",
+    "acceptance_test": "Table row matches the later output-token scope and cannot be read as total input+output tokens per dollar."
+  },
+  {
+    "id": "CH7-002",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 7 §1, Practical host requirement paragraph",
+    "chapter": "7",
+    "quoted_clause": "and (on a multi-GPU host) tensor- or pipeline-parallel copies.",
+    "observed": "Tensor parallelism generally shards tensors and pipeline parallelism partitions layers; neither inherently requires 'copies' of the model. Some components may be replicated, but the term is too broad and can mislead the memory ledger.",
+    "evidence": "Ch 7 later treats TP=8 as sharding weights 140/8 and KV 24.9/8, not replication; Ch 8/9 parallelism discussions distinguish sharding from replication.",
+    "root_cause": "Imprecise wording in the runtime/workspace list.",
+    "correction": "Replace with 'tensor- or pipeline-parallel communication buffers and any replicated components (e.g., embeddings/LM head where applicable)' or remove 'copies'.",
+    "acceptance_test": "The practical host requirement list does not imply whole-model replication for TP/PP."
+  },
+  {
+    "id": "CH7-003",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 7 §3, GQA paragraph after Fig 7.1",
+    "chapter": "7",
+    "quoted_clause": "Because GQA caches only one K/V per group (8 K/V per token) instead of one per query head (64 K/V per token), the per-token KV falls ~8×",
+    "observed": "The counts 8 and 64 are per layer (KV heads vs query heads), not total K/V tensors per token across all 80 layers. As written, '8 K/V per token' can be misread as 8 total K/V entries for the whole model.",
+    "evidence": "The formula uses 2 × 80 × (8 × 128) × 2 B; the 8 is n_KV-heads per layer, and 64 is n_query-heads per layer.",
+    "root_cause": "Missing 'per layer' qualifier.",
+    "correction": "Say '8 KV heads per layer (64 query heads per layer)' or '8 K/V head pairs per token per layer'.",
+    "acceptance_test": "The sentence cannot be read as 8 total K/V tensors per token for the full model."
+  },
+  {
+    "id": "CH8-001",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 8 §8 mini-case, paragraph after 'So a high TTFT is not evidence...'",
+    "chapter": "8",
+    "quoted_clause": "Prefill's effective intensity is (2 × N × L) / (N × 2 bytes/param) = L = 9,200 FLOP/byte at the canonical 9.2K context",
+    "observed": "This is the weight-only upper bound; Ch 8 §5 says including the ~24 GB KV write gives ~7,850 FLOP/byte. Calling it 'effective intensity' without 'weight-only' may overstate the actual prefill intensity.",
+    "evidence": "Ch 8 §5: 'weight-only intensity ~9,200 FLOP/byte — an upper bound that omits the ~24 GB KV write; including it, ~7,850 FLOP/byte'.",
+    "root_cause": "Omitted scope qualifier in mini-case.",
+    "correction": "Say 'weight-only prefill intensity' or add 'including KV write, ~7,850 FLOP/byte; both are far above the ridge'.",
+    "acceptance_test": "Mini-case intensity statement matches the qualified value in Common Mistakes."
+  },
+  {
+    "id": "CH8-002",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 8 §6, third bullet, final sentence",
+    "chapter": "8",
+    "quoted_clause": "This is why the H200 represents an inflection point where inference and training hardware lines begin to converge [1P: NVIDIA H200 SXM datasheet].",
+    "observed": "The datasheet supports the ridge change (989 TFLOPS / 4.8 TB/s), not the broader market/architecture claim that inference and training hardware lines begin to converge.",
+    "evidence": "The preceding arithmetic only shows H200's lower ridge and possible regime shift; no source is cited for the convergence characterization.",
+    "root_cause": "Interpretive claim attached to a first-party spec label.",
+    "correction": "Reword to 'This is one reason H200 is often discussed as an inference-oriented Hopper variant; the datasheet supports the ridge change, not the convergence claim' or remove the convergence clause.",
+    "acceptance_test": "No broad hardware-line convergence claim is labeled [1P] or presented as derived from the ridge arithmetic alone."
+  }
+]
+COVERAGE: Read the supplied text chunks for Chapters 5-8; recomputed all consequential arithmetic in Tables 5-1/5-2, 6-1, 7-1/7-2/7-3, 8-1, embedding FLOPs, KV bytes, concurrency, prefill/decode roofline, host screens, quantization storage, and video attention; checked cross-chapter canonical values for 9.2K/9.5K, 140 GB, 640 GB, 436 GB, 1.08 s, 25 ms, 1.2 s, 2 s, 35 ms, 10/40 rps, 19/21/22 hosts, and 17/18 concurrency; did not view rendered figures, fetch external sources, or verify pages outside the supplied chunk.

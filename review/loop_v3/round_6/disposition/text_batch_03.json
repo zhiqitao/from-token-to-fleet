@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH4-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Architecture Consequence, workload shape table, row 'Long-context retrieval (32K–128K)'",
+  "chapter": "4",
+  "quoted_clause": "FP8/GQA KV and P/D disaggregation become first-class, not optional",
+  "observed": "The claim 'not optional' applies uniformly across the 32K–128K range. At 32K on the MHA reference model, a single request uses ~84 GB KV, leaving ~5 concurrent requests per host (436/84 ≈ 5.19). This is low but not zero — a low-traffic deployment with generous SLOs could run 32K contexts without FP8/GQA. At 128K (~335 GB/request, ~1.3 concurrent/host), the claim is well-justified.",
+  "evidence": "32,000 × 2.62 MB = 83,840 MB ≈ 84 GB; 436 GB ÷ 84 GB ≈ 5.19 concurrent requests per host at 32K. 128,000 × 2.62 MB ≈ 335 GB; 436 ÷ 335 ≈ 1.30 concurrent per host at 128K.",
+  "root_cause": "Summary table uses a strong universal claim ('not optional') across a wide context-length range where the justification strength varies by roughly 4×.",
+  "correction": "Qualify the claim or split the range: e.g., 'FP8/GQA KV becomes increasingly necessary as context grows; P/D disaggregation becomes first-class at the long end' — or add a threshold (e.g., 'beyond ~64K').",
+  "acceptance_test": "The table row either qualifies 'not optional' with a context-length threshold or uses proportionate language that does not imply a universal requirement across the full 32K–128K range.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-02",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "End-of-chapter mini-case, host-sizing paragraph",
+  "chapter": "4",
+  "quoted_clause": "roughly ~37 hosts on the u-only screen at a 70% target utilization ... which multiplies the independent ρ = 0.95 as well",
+  "observed": "The terms 'u-only screen' and 'ρ = 0.95' are used without definition in this chunk. 'u-only' appears to mean 'utilization-only' (applying only the 70% target before the availability factor and N−1 spare). ρ = 0.95 appears to be an availability factor, but ρ conventionally denotes utilization (ρ = λ/μ) in queueing theory, which could confuse readers familiar with the standard notation. The full calculation is shown (⌈430/(17 × 0.70 × 0.95)⌉), so the reader can follow the arithmetic, but the terminology is undefined.",
+  "evidence": "The chunk uses 'u-only screen' and 'ρ = 0.95' with forward references to Ch 17 Table 17-1 but no in-chunk definition. ρ is standard notation for utilization in queueing theory, not availability.",
+  "root_cause": "Mini-case forward-references provisioning-policy terminology from Ch 17 without in-chunk gloss; ρ notation may conflict with queueing-theory convention.",
+  "correction": "NEEDS VERIFICATION: check whether 'u-only screen' and 'ρ = 0.95' are defined in an earlier chapter. If not, add a brief parenthetical gloss at first use (e.g., 'u-only = utilization-target-only, before the availability factor and N−1 spare'). Consider whether ρ is the right symbol for an availability factor given its standard queueing-theory meaning.",
+  "acceptance_test": "A reader encountering 'u-only screen' and 'ρ = 0.95' in Ch 4 can find a definition without jumping to Ch 17, or the terms are defined in a chapter the reader has already read.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH4-03",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Architecture Consequence, serving configuration bullet",
+  "chapter": "4",
+  "quoted_clause": "with long prefills and short outputs, decode slots would otherwise sit idle between admissions, and continuous batching keeps them filled",
+  "observed": "The phrase 'decode slots would otherwise sit idle between admissions' is imprecise. The issue is not that decode slots sit idle — it is that the pipeline has gaps between batch completions and new batch admissions. With static batching, after a batch finishes decoding, the next batch must complete its prefill before decoding begins, creating a pipeline gap. Continuous batching fills these gaps by admitting new requests as soon as slots free up, overlapping new prefill with ongoing decode.",
+  "evidence": "In static batching, the gap between batches is the prefill time of the next batch (~1.08 s for 9.2K tokens), during which no decoding occurs. Continuous batching eliminates this gap by admitting new requests incrementally.",
+  "root_cause": "Phrasing conflates 'idle decode slots' (slots exist but unused) with 'pipeline gaps between batch phases' (the actual mechanism).",
+  "correction": "Rewrite: 'with long prefills and short outputs, static batching leaves pipeline gaps between batch completions and the next batch's prefill; continuous batching fills these gaps by admitting new requests as slots free up, overlapping new prefill with ongoing decode.'",
+  "acceptance_test": "The sentence accurately describes the mechanism (pipeline gaps between batch phases) rather than implying decode slots exist but are unused.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-04",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Latency from SLO, paragraph after TTFT bullet",
+  "chapter": "4",
+  "quoted_clause": "under the canonical timing assumptions it is **not** the dominant wall-clock component of an individual request",
+  "observed": "The pronoun 'it' is ambiguous. The preceding clause's subject is 'The input-heavy profile,' which is not a wall-clock component. The intended referent is 'prefill' (the first of the two dominant resource demands), confirmed by the next sentence ('Prefill takes about 1.08 s, while generating the 300-token answer takes about 7.5 s').",
+  "evidence": "Clause 1: 'The input-heavy profile means the system's dominant resource demands are prefill compute and KV-memory capacity.' Clause 2: 'under the canonical timing assumptions it is not the dominant wall-clock component.' 'It' cannot grammatically refer to 'the input-heavy profile' (a profile is not a wall-clock component).",
+  "root_cause": "Semicolon joins two clauses whose subjects do not align for the pronoun reference.",
+  "correction": "Replace 'it' with the explicit referent: 'under the canonical timing assumptions, prefill is not the dominant wall-clock component of an individual request.'",
+  "acceptance_test": "The pronoun 'it' is replaced with an explicit noun ('prefill') so the referent is unambiguous.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Cost-basis distinction table, second row header",
+  "chapter": "4",
+  "quoted_clause": "Self-host cost per million input-only / output-only tokens (denominator-specific normalizations; not additive — blended rate below; whole-fleet infrastructure divided by the offered token rate)",
+  "observed": "The table header for the self-host row is extremely long (~30 words) and packs four distinct pieces of information (what it is, that it is not additive, where the blended rate is, and the derivation) into a single header cell. This reduces readability and may cause wrapping issues in the rendered table.",
+  "evidence": "Header word count: ~30 words. Compare with the first row header: 'Cloud-provider list price (what a customer pays on a mid-tier managed-API-by-token)' (~15 words).",
+  "root_cause": "All explanatory content for the row is crammed into the header rather than distributed across the row cells or a footnote.",
+  "correction": "Shorten the header to 'Self-host cost per million tokens (denominator-specific)' and move the derivation and non-additivity warning to a footnote or the Derivation column.",
+  "acceptance_test": "The header cell is under ~15 words; the non-additivity warning and derivation are preserved in a footnote or adjacent cell.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-06",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Architecture Consequence, figure caption vs prose bullets",
+  "chapter": "4",
+  "quoted_clause": "The six workload dimensions and the architectural decision each one drives: Quality requirements → model size/type; Request rate & arrival pattern → concurrency & batching; Token profile → KV cache size & prefill demand; Latency SLO → TTFT/TPOT & batch window; Economic constraints → host count & cost ceiling; Operational constraints → multi-region vs. single-region deployment.",
+  "observed": "The figure caption lists six dimension-to-decision mappings, but the prose below has only five bold-lead bullets (Model selection, Serving configuration, Memory planning, Economic feasibility, Operational topology). The latency dimension is folded into the 'Serving configuration' bullet rather than having its own bullet, creating a structural mismatch between the figure's six mappings and the prose's five bullets.",
+  "evidence": "Caption lists 6 mappings; prose has 5 bold-lead bullets. Latency SLO → TTFT/TPOT & batch window is covered within 'Serving configuration' (which mentions the 1.2 s TTFT budget) but has no standalone bullet.",
+  "root_cause": "Prose groups traffic and latency under one bullet while the figure shows them as separate mappings.",
+  "correction": "Either add a sixth bullet for latency (Latency SLO → TTFT/TPOT budget and batch window) to match the figure, or adjust the figure caption to note that traffic and latency are addressed together in the serving-configuration bullet.",
+  "acceptance_test": "The number of prose bullets matches the number of figure mappings, or the caption explicitly notes the grouping.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH5-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Section 8, End-of-Chapter Mini-Case, final paragraph",
+  "chapter": "5",
+  "quoted_clause": "MoE total parameters exceed the dense 70B",
+  "observed": "The claim is phrased as a general property of MoE models. Not all MoE models have more than 70B total parameters — e.g., Mixtral 8x7B has ~47B total (8 experts × ~7B, with ~13B active per token), which is less than 70B. A reader could generalize this to 'all MoE models are bigger than 70B' and incorrectly reject viable MoE options.",
+  "evidence": "Mixtral 8x7B: ~47B total parameters < 70B. The claim is correct for a 70B-class MoE designed to match dense-70B quality (where total params exceed 70B because only a fraction of experts activate per token), but the sentence uses 'MoE' as a category noun without that qualification. The preceding clause 'the MoE challenger from Ch 3' scopes it to a specific model, but the colon-introduced reason reads as a general property.",
+  "root_cause": "Category-level phrasing for what is a model-specific (or model-class-specific) claim.",
+  "correction": "Qualify: 'the MoE challenger's total parameters exceed the dense 70B' or 'a 70B-class MoE's total parameters exceed the dense 70B, so the 140 GB weight floor grows.'",
+  "acceptance_test": "The corrected sentence cannot be read as a universal claim about all MoE models; a counterexample (Mixtral 8x7B at ~47B total) no longer contradicts it.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH5-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Section 5, Common Mistakes, 4th bullet (embedding-dimension mistake)",
+  "chapter": "5",
+  "quoted_clause": "see the caveat in §5.3(a); section references §N.M read as chapter N, section M",
+  "observed": "Two section-reference formats coexist within the same chapter: bare §3(a) (used in the §3(a) takeaway: 'the §3(a)/§7 item') and chapter-qualified §5.3(a) (used here in Common Mistakes). Both resolve to Chapter 5, Section 3(a).",
+  "evidence": "§3(a) appears in the §3(a) takeaway paragraph; §5.3(a) appears in the Common Mistakes 4th bullet; §5.3(c) appears in §3(c) note; §5.3 appears in Common Mistakes 5th bullet. The convention note itself uses the §5.3(a) form.",
+  "root_cause": "Inconsistent application of the section-reference convention within a single chapter.",
+  "correction": "Standardize: either always include the chapter number (§5.3(a)) or always omit it when the reference is within the current chapter (§3(a)). Apply the chosen convention uniformly across all in-chapter section references.",
+  "acceptance_test": "All section references within Chapter 5 use one consistent format.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Section 3, Worked Example — Latency Is a Distribution, paragraph beginning 'A very common measurement error'",
+  "chapter": "6",
+  "quoted_clause": "p99 ≈ 1.33 s — a knife-edge property of *this* N = 10,000 sample … linear interpolation lands on the largest non-straggler draw (sorted-sample ranks: 9,900 → 1.33 s, 9,901 → 5.0 s",
+  "observed": "The text states that percentiles are 'read by linear interpolation on the sorted sample' and that linear interpolation gives p99 ≈ 1.33 s by landing on rank 9,900. However, standard linear interpolation for percentiles uses position = 1 + (N−1)×p = 1 + 9,999 × 0.99 = 9,900.01, which is 0.01 past rank 9,900. Interpolating between rank 9,900 (1.33 s) and rank 9,901 (5.0 s) gives 1.33 + 0.01 × (5.0 − 1.33) ≈ 1.367 ≈ 1.37 s, not 1.33 s. The value 1.33 s corresponds to the nearest-rank method (ceil(0.99 × 10,000) = 9,900), not linear interpolation. The claim that interpolation 'lands on' rank 9,900 is false for standard linear interpolation — it lands between ranks 9,900 and 9,901.",
+  "evidence": "Position = 1 + (N−1)×p = 1 + 9,999 × 0.99 = 9,900.01. Fractional part = 0.01. Interpolated value = x[9,900] + 0.01 × (x[9,901] − x[9,900]) = 1.33 + 0.01 × 3.67 = 1.3667 ≈ 1.37 s. Nearest-rank: ceil(0.99 × 10,000) = 9,900 → value = 1.33 s. The two methods disagree by ≈ 0.04 s.",
+  "root_cause": "Method-value mismatch: the text names 'linear interpolation' but reports the nearest-rank result. Either the method description or the value is wrong.",
+  "correction": "Either (a) change 'linear interpolation' to 'nearest-rank' (or 'the value at rank ⌈pN⌉') throughout the paragraph and figure caption, keeping p99 ≈ 1.33 s; or (b) keep 'linear interpolation' and update p99 to ≈ 1.37 s, adjusting the sentence 'lands on the largest non-straggler draw' to 'interpolates between the largest non-straggler draw and the first straggler.' Option (a) is simpler and preserves the knife-edge narrative. Also update the figure caption if it repeats the method claim.",
+  "acceptance_test": "The stated percentile method and the reported p99 value must be mutually consistent under independent recomputation. The sentence describing where interpolation 'lands' must match the method's actual behavior.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH6-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Section 3, Worked Example — Latency Is a Distribution, paragraph beginning 'Apply this to the canonical workload'",
+  "chapter": "6",
+  "quoted_clause": "We budget TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s)",
+  "observed": "The TTFT budget decomposition accounts for retrieval (120 ms) + prefill (1,080 ms) = 1,200 ms = 1.2 s, but TTFT also includes the first-token decode step (~25 ms at the canonical TPOT) and potentially tokenization/network overhead. Full TTFT at the 10 rps baseline ≈ 120 + 1,080 + 25 = 1,225 ms ≈ 1.23 s, which exceeds the stated 1.2 s budget. The decomposition as presented implies these two components account for the entire budget, but they do not.",
+  "evidence": "TTFT = queueing + retrieval + prefill + first decode step + network. At baseline (no queueing): 0 + 120 + 1,080 + 25 = 1,225 ms > 1,200 ms. The 25 ms first-token decode is implied by the canonical TPOT ~25 ms stated in §1.",
+  "root_cause": "Budget closure: the parenthetical decomposition does not sum to the full TTFT quantity it purports to explain. Either the budget is for retrieval+prefill only (and should be labeled as such), or the decomposition is incomplete.",
+  "correction": "Either (a) relabel as 'We budget the retrieval+prefill component of TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s), with first-token decode adding ~25 ms'; or (b) expand the decomposition: 'TTFT ≤ 1.2 s (retrieval ~120 ms + prefill ~1.08 s + first decode ~25 ms ≈ 1.23 s, rounded to 1.2 s)' — but then the budget number should be 1.23 s or the components should be adjusted. Option (a) is cleanest.",
+  "acceptance_test": "The stated components must sum to (or explicitly explain the gap with) the stated budget total. A reader adding the components must arrive at the budget figure or understand why they do not.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Section 7, What We Still Don't Know, first bullet",
+  "chapter": "6",
+  "quoted_clause": "Mooncake: a 525% throughput increase (simulated) and 75% more requests [S4][1P][FACT]",
+  "observed": "'525% throughput increase' is ambiguous: standard English reads this as the increase being 525%, i.e., the result is 625% of baseline (6.25×). However, some sources use '525% improvement' to mean 'reached 525% of baseline' (5.25×, a 425% increase). The two interpretations differ by 1× baseline throughput. NOT VERIFIED: I did not check the Mooncake paper's exact wording.",
+  "evidence": "Standard interpretation: 'X% increase' → result = (100+X)% of baseline → 625% of baseline = 6.25×. Alternative interpretation seen in some papers: 'X% improvement' → result = X% of baseline → 5.25×. The text does not disambiguate.",
+  "root_cause": "Ambiguous percentage phrasing without explicit baseline-to-result conversion.",
+  "correction": "Verify against the Mooncake paper [S4] and rewrite with explicit multiplication: e.g., 'a 6.25× throughput increase (525% over baseline, simulated)' or 'reaching 525% of baseline throughput (5.25×, simulated)' — whichever matches the source. NOT VERIFIED: primary source not checked in this pass.",
+  "acceptance_test": "The stated multiplier, when checked against the Mooncake paper's exact figure, matches. The text includes an explicit × multiplier alongside the percentage to eliminate ambiguity.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-06",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Section 3, Table 6-1, Prefill row, Verdict column",
+  "chapter": "6",
+  "quoted_clause": "intensity ~9.2K FLOP/byte ≫ ridge ~295",
+  "observed": "The prefill arithmetic intensity of ~9,200 FLOP/byte appears to be computed as linear FLOPs ÷ weight bytes = 1.29 PFLOP ÷ 140 GB ≈ 9,214. Including the quadratic attention term (total ≈ 1.49 PFLOP) gives ≈ 10,643 FLOP/byte. Including activation traffic in the denominator would reduce it further (rough estimate ≈ 5,000–7,000 FLOP/byte depending on activation read/write pattern). The table does not state what is in the numerator or denominator. The conclusion (≫ 295) holds under all these compositions, but the specific number 9,200 implies a particular (unstated) composition.",
+  "evidence": "1.29e15 / 140e9 = 9,214 ≈ 9,200 (linear FLOPs / weight bytes). 1.49e15 / 140e9 = 10,643 (total FLOPs / weight bytes). 1.49e15 / ~290e9 ≈ 5,138 (total FLOPs / (weights + activations)).",
+  "root_cause": "The intensity figure's composition (numerator: linear-only vs total FLOPs; denominator: weight bytes vs total HBM traffic) is not stated, making the number non-reproducible from the table alone.",
+  "correction": "Add a brief parenthetical or table footnote specifying the composition, e.g., 'intensity ~9.2K FLOP/byte (linear FLOPs ÷ weight bytes; including attention and activation traffic lowers this but remains ≫ 295)'. Alternatively, use the total-FLOP figure (~10.6K) if that is the intended roofline quantity.",
+  "acceptance_test": "A reader can reproduce the stated intensity from the table's own numbers by knowing (or being told) which FLOPs and which bytes are counted.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH6-07",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Section 3, Detecting the Regime, final paragraph (before Table 6-1)",
+  "chapter": "6",
+  "quoted_clause": "the bottleneck-regime difference justifies it [S4][1P][FACT]",
+  "observed": "Section 3 states that the prefill/decode bottleneck-regime difference 'justifies' P/D disaggregation (Splitwise/DistServe/Mooncake). Section 6 of the same chapter properly scopes the same recommendation: 'is a candidate remedy at scale when prefill/decode imbalance is large, scale is sufficient, and KV-transfer + extra pool/scheduling costs stay below the interference savings.' The §3 phrasing 'justifies it' is stronger than the §6 scoping and could lead a reader to conclude P/D disaggregation is unconditionally warranted by the regime difference alone.",
+  "evidence": "§3: 'the bottleneck-regime difference justifies it.' §6: 'is a candidate remedy at scale when [conditions].' Same recommendation, different claim strength within one chapter.",
+  "root_cause": "Claim-strength inconsistency between §3 (strong) and §6 (properly scoped) for the same architectural recommendation.",
+  "correction": "Soften §3 to match §6's scoping, e.g., 'the bottleneck-regime difference is the primary motivation for P/D disaggregation (see §6 for conditions and trade-offs)' or 'the bottleneck-regime difference motivates splitting prefill from decode — under conditions discussed in §6.'",
+  "acceptance_test": "The claim strength for P/D disaggregation in §3 does not exceed the scoped version in §6.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH6-08",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Section 1, Concept — The Metric Hierarchy, item 2 (Serving metrics)",
+  "chapter": "6",
+  "quoted_clause": "queue depth (a scheduler state) … These are the dependent variables; they are what the SLO is written against",
+  "observed": "Queue depth is listed among serving metrics and the sentence 'they are what the SLO is written against' grammatically applies to the entire list including queue depth. However, queue depth is a scheduler/diagnostic state, not typically an SLO metric — SLOs are written against TTFT, TPOT, ITL, and goodput. The parenthetical '(a scheduler state)' acknowledges the categorization is imperfect but does not prevent the 'SLO is written against' claim from applying to it.",
+  "evidence": "The sentence structure: 'Time-to-first-token (TTFT), time-per-output-token (TPOT), inter-token latency, queue depth (a scheduler state), and goodput (tokens per second that actually meet the SLO). These are the dependent variables; they are what the SLO is written against.' The demonstrative 'they' refers to all five items.",
+  "root_cause": "Queue depth is a leading indicator / diagnostic metric, not an SLO metric. Listing it in a set described as 'what the SLO is written against' is imprecise.",
+  "correction": "Either move queue depth to a separate sentence (e.g., 'Queue depth, a scheduler state, is a leading indicator that helps explain serving behavior') or qualify the SLO claim: 'TTFT, TPOT, ITL, and goodput are what the SLO is written against; queue depth is a scheduler state that helps explain them.'",
+  "acceptance_test": "Queue depth is not described as an SLO metric. The SLO claim applies only to metrics that SLOs are actually written against.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§1 'Fewer sequential evaluations' subsection (LLaDA2.2 citation); §1 'A resource model survives a backend change' header; §3 'FLOPs per token' paragraph ('cited implementation reports were inspected on 2026-10-28')",
+  "chapter": "8",
+  "quoted_clause": "retrieved 2026-10-28 / inspected on 2026-10-28 / Implementation observations: 2026-10-28",
+  "observed": "Three post-cutoff inspection/retrieval dates (2026-10-28) appear without the cutoff disclaimer that the backend-documentation subsection carries ('They do not establish feature availability at the edition's 2026-08-30 cutoff'). The backend subsection sets a precedent; the other three do not follow it.",
+  "evidence": "Backend section: 'Backend-documentation observations: 2026-10-28. They do not establish feature availability at the edition's 2026-08-30 cutoff.' Other instances: LLaDA2.2 'retrieved 2026-10-28' (no disclaimer); 'The cited implementation reports were inspected on 2026-10-28' (no disclaimer); '*Implementation observations: 2026-10-28*' (disclaims measurement quality but not cutoff).",
+  "root_cause": "Inconsistent application of the post-cutoff observation disclaimer across the chapter.",
+  "correction": "Either add the same cutoff disclaimer to each post-cutoff date, or verify that the underlying documents were published before 2026-08-30 and note that only the inspection date is post-cutoff.",
+  "acceptance_test": "Every date later than 2026-08-30 in the chapter either carries the cutoff disclaimer or is accompanied by evidence that the underlying document predates the cutoff.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-02",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§3, paragraph beginning 'Under case (ii) the compute screen binds above…'",
+  "chapter": "8",
+  "quoted_clause": "the labeled 70% × 95% + N−1 policy totals",
+  "observed": "The policy label includes '+ N−1' but the arithmetic shown for every case is consistent with ceil(N ÷ 0.665) alone (e.g., ceil(19/0.665)=29, ceil(21/0.665)=32, ceil(22/0.665)=34). No N−1 term is visible in the derivation. A reader cannot determine what '+ N−1' contributes.",
+  "evidence": "ceil(19/0.665)=28.57→29; ceil(21/0.665)=31.58→32; ceil(22/0.665)=33.08→34. All match the printed totals without an additional N−1 host.",
+  "root_cause": "The policy name references an N−1 redundancy component that is either already absorbed into the 95% availability factor, handled in Ch 16/17, or absent from the arithmetic shown.",
+  "correction": "Either explain in a parenthetical how N−1 is incorporated (e.g., 'the 95% availability factor implicitly covers one-host loss'), or remove '+ N−1' from the label if it is not applied in this calculation and is handled only in Ch 16/17.",
+  "acceptance_test": "A reader can trace the '+ N−1' component to a specific factor in the arithmetic or to an explicit cross-reference that explains where it is applied.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§6, Architecture Consequence, third bullet",
+  "chapter": "8",
+  "quoted_clause": "a higher ridge moves the boundary right and makes compute-bound harder (H200's ~412 FLOP/byte ridge in dense FP8 — ~1.98 PFLOPS ÷ 4.8 TB/s, never the sparsity-inclusive ~4 PFLOPS (§8.5) — would do the opposite)",
+  "observed": "The parenthetical compares H200 FP8 ridge (412) to H100 FP16 ridge (295), mixing both hardware and precision. 'Would do the opposite' of the H200 FP16 shift is logically correct (412 > 295 means harder to be compute-bound) but the cross-precision comparison muddles the two separate points the paragraph is making: (a) hardware change at fixed precision shifts the ridge, (b) precision change moves intensity and ridge together so classification is unchanged.",
+  "evidence": "H100 FP16 ridge = 989/3.35 = 295; H200 FP8 ridge = 1,978/4.8 = 412. The comparison 412 vs 295 crosses both hardware (H200 vs H100) and precision (FP8 vs FP16). A same-hardware comparison (H100 FP8 ridge = 1,978/3.35 = 590 vs H100 FP16 = 295) would illustrate 'higher ridge' without the hardware confound.",
+  "root_cause": "The example conflates a hardware-change illustration with a precision-change illustration in a single parenthetical.",
+  "correction": "Replace the H200 FP8 example with a same-hardware, different-precision comparison (e.g., 'H100's FP8 ridge of ~590 FLOP/byte is higher than its FP16 ridge of ~295 — but precision scaling also doubles intensity, so the classification is unchanged'), or explicitly state that the comparison crosses both hardware and precision and explain why.",
+  "acceptance_test": "The parenthetical illustrates 'higher ridge makes compute-bound harder' using a comparison that varies only one factor (hardware or precision), or explicitly names both factors being varied.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§6, 'From video dimensions to repeated attention work' subsection and Fig 8.3",
+  "chapter": "8",
+  "quoted_clause": "Take Wan2.2 TI2V-5B's text-to-video path",
+  "observed": "This subsection (one paragraph, one figure, one scaling discussion) introduces a video-generation workload entirely outside the canonical LLM inference scenario. It occupies significant space in §6 (Architecture Consequence) for a workload class the book's primary audience is unlikely to size. The transferable reasoning method (count dimensions → derive FLOPs → observe exponent) is valuable but could be delivered more concisely or in a sidebar.",
+  "evidence": "The subsection spans a full paragraph of prose, Fig 8.3, and a scaling paragraph. No later section in the chapter references Wan2.2 or video generation. The canonical scenario (70B RAG) is not connected to this example.",
+  "root_cause": "A breadth-oriented example placed in the main narrative rather than condensed or moved to a sidebar/appendix.",
+  "correction": "Condense to a 3–4 sentence sidebar that states the reasoning method (count dimensions, derive FLOPs, observe the exponent) with one illustrative scaling ratio, moving the full Wan2.2 derivation and Fig 8.3 to Appendix A (which already hosts the video-attention note).",
+  "acceptance_test": "The main §6 text delivers the transferable reasoning method in ≤5 sentences; the full derivation and figure reside in an appendix or are removed.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-06",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§3, parenthetical in the long host-count paragraph",
+  "chapter": "8",
+  "quoted_clause": "the ρ = 1 u-only screen reads 30 / 32 — ceil(N ÷ 0.7) for KV-only 21 and case (ii) 22",
+  "observed": "The terms 'ρ = 1' and 'u-only' are not defined anywhere in Chapter 8. A reader encountering this parenthetical cannot determine what ρ represents or what 'u-only' distinguishes from the main 70% × 95% screen.",
+  "evidence": "No definition of ρ or 'u-only' appears in the chapter. The parenthetical does provide the formula ceil(N ÷ 0.7), which partially self-explains, but the labels remain opaque.",
+  "root_cause": "Jargon imported from Ch 16/17 without a local gloss.",
+  "correction": "Add a brief parenthetical: '(ρ = 1 means 100% target utilization; \"u-only\" applies just the 70% utilization derate without the 95% availability factor — see Ch 16)' or equivalent.",
+  "acceptance_test": "A reader who has not read Ch 16/17 can determine what ρ and 'u-only' mean from the Ch 8 text alone.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-07",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§6, Architecture Consequence, third bullet parenthetical",
+  "chapter": "8",
+  "quoted_clause": "never the sparsity-inclusive ~4 PFLOPS (§8.5)",
+  "observed": "The section reference '§8.5' is ambiguous. The chapter uses '§1'–'§8' for its eight sections; there is no Section 8.5. The intended target is almost certainly §5 (Common Mistakes), which discusses the H100 sparsity-inclusive peak. The notation '§8.5' does not match the chapter's own convention.",
+  "evidence": "Chapter sections are labeled §1 Concept, §2 Mental Model, §3 Worked Example, §4 Measurement, §5 Common Mistakes, §6 Architecture Consequence, §7 What We Still Don't Know, §8 Mini-Case. No §8.5 exists.",
+  "root_cause": "Inconsistent section-reference notation (possibly a leftover from a different numbering scheme).",
+  "correction": "Change '(§8.5)' to '(§5)' to match the chapter's own section-labeling convention.",
+  "acceptance_test": "Every intra-chapter section reference uses the same notation as the section headings.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ }
+]

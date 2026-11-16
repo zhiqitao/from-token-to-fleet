@@ -105,8 +105,8 @@ ax.text(0.5, 0.965, 'Serving = four separable concerns, not a stack',
 
 # 2x2 grid -- numbered in reading order, one mechanism exemplar per card
 card(0.025, 0.52, 0.455, 0.30, 1, 'REQUEST\nSCHEDULING', 'e.g. continuous batching', PURPLE, '#f7f3fb')
-card(0.520, 0.52, 0.455, 0.30, 2, 'STATE\nMANAGEMENT', 'e.g. PagedAttention (KV pages)', RED, '#fdecea', ls='dotted')
-card(0.025, 0.10, 0.455, 0.30, 3, 'REUSE', 'e.g. prefix caching', GREEN, '#eafaf0', ls='dashdot')
+card(0.520, 0.52, 0.455, 0.30, 2, 'STATE\nMANAGEMENT', 'e.g. PagedAttention (KV pages)', RED, '#fdecea', ls='solid')
+card(0.025, 0.10, 0.455, 0.30, 3, 'REUSE', 'e.g. prefix caching', GREEN, '#eafaf0', ls='solid')
 card(0.520, 0.10, 0.455, 0.30, 4, 'RESOURCE\nSPECIALIZATION', 'e.g. P/D disaggregation', ORANGE, '#fdf3e0', ls='dashed')
 
 plt.tight_layout()
@@ -114,6 +114,10 @@ plt.tight_layout()
 # agree, so the four-concerns figure is fig-11-1102 (Fig 11.2) and the batching
 # figure is fig-11-1101 (Fig 11.1, render/fig_ch11_batch.py). base can only
 # emit *01 names, so this block writes its explicit path.
+# FIG-11.2-01: one visual channel for the border (solid on 1-3, dashed on 4
+# only), with the dashed style explained in-figure so it is not a stray cue.
+ax.text(0.5, 0.045, 'Dashed border: a deployment-level concern, chosen after the engine internals (1-3).',
+        fontsize=7.4, ha='center', va='center', color='#555')
 plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=350); plt.close()
 print('Ch11 done')
 

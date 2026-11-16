@@ -112,13 +112,18 @@ ax.text(0.745, 0.875, 'B. Across hosts (fabric)', fontsize=9.0,
 ax.text(0.745, 0.825, '~35 GB ≈ 0.9 s (cross-host)\nillustrative 13.3K-token, FP16 full-MHA', fontsize=8.6,
         ha='center', va='center', color='#2b2b2b')
 
-def _host_box(x0, label, fc, ec, gfc, gec, hatch=None):
+def _host_box(x0, label, sublabel, fc, ec, gfc, gec, hatch=None):
     w = 0.160
+    # FIG-11.3-5: light-grey host enclosure, same device as panel A, so the
+    # host boundary reads from geometry alone in both cases.
+    ax.add_patch(FancyBboxPatch((x0 - 0.013, 0.387), w + 0.026, 0.346,
+                                boxstyle='round,pad=0.008', fc='#fdfdfd',
+                                ec='#9aa0a6', lw=1.2, zorder=0))
     ax.add_patch(FancyBboxPatch((x0, 0.40), w, 0.32, boxstyle='round,pad=0.008',
                                 fc=fc, ec=ec, lw=2.0))
     ax.text(x0 + w / 2, 0.685, label, fontsize=8.6, fontweight='bold',
             ha='center', va='center', color=ec)
-    ax.text(x0 + w / 2, 0.635, '8× H100 host', fontsize=8.2,
+    ax.text(x0 + w / 2, 0.635, sublabel, fontsize=8.2,
             ha='center', va='center', color='#2b2b2b')
     # 8 GPU glyphs = the 8-GPU host (4 x 2)
     for c in range(4):
@@ -127,8 +132,8 @@ def _host_box(x0, label, fc, ec, gfc, gec, hatch=None):
                                         0.026, 0.07, boxstyle='round,pad=0.003',
                                         fc=gfc, ec=gec, lw=0.7, hatch=hatch))
 
-_host_box(0.510, 'PREFILL', '#fdecea', '#c0392b', '#e67e22', '#a04000', hatch='//')
-_host_box(0.820, 'DECODE', '#eaf2f8', '#27408b', '#2980b9', '#154360')
+_host_box(0.510, 'PREFILL', '8 GPUs prefill', '#fdecea', '#c0392b', '#e67e22', '#a04000', hatch='//')
+_host_box(0.820, 'DECODE', '8 GPUs decode', '#eaf2f8', '#27408b', '#2980b9', '#154360')
 
 # KV transfer, cross-host (bandwidth stacked so it stays inside the link gap)
 ax.annotate('', xy=(0.809, 0.54), xytext=(0.681, 0.54),

@@ -62,7 +62,7 @@ N1res_085 = 3 * host_cap * 0.85       # ~5.1 (ρ = 0.85)
 ax.axhline(N1res_085, color='#e67e22', ls='-.', lw=1.2, alpha=0.9)
 # N-1 residual label lifted clear ABOVE its dotted line so the line no longer
 # cuts through the text (previously y = 6.2 against the y=6 line).
-ax.text(0.9, N1res+0.72, 'N-1 residual (~6.0 ideal, ρ = 1)', fontsize=8,
+ax.text(0.9, N1res+0.72, 'N-1 residual (~6.0 ideal, ρ = 1)', fontsize=7.0,
         color='#b5590a', ha='left', fontweight='bold')
 # FIG17.1-GRAY-01: the N = 4 line/legend sample is a LONG dash so all four
 # legend samples are unique by style alone in grayscale (vs the solid burst).
@@ -90,18 +90,23 @@ ax.annotate('one host cannot meet load\nabove ~2.0 req/s',
             arrowprops=dict(arrowstyle='->', color='#555'))
 
 # Distinguish headroom vs failover (v8 review: the combined "(headroom +
-# failover)" annotation lumped them). The failover margin (burst peak 5.5 ->
-# N-1 residual 6.0) is only ~0.5 req/s, too thin to shade, so a right-side
-# vertical brace spans the whole margin (5.5 -> 8.0) with a tick at 6.0; the
-# two labels sit to the RIGHT of the brace, clear of the reference lines.
-ax.axhspan(N1res, N4, color='#2c7a4b', alpha=0.16)   # headroom band (visible)
-bx = 9.7
-ax.plot([bx, bx], [peak, N4], color='#555', lw=1.2)   # brace
-ax.plot([bx-0.15, bx+0.15], [N1res, N1res], color='#555', lw=1.2)  # tick at N-1
-ax.text(bx+0.3, peak - 1.15, 'failover', fontsize=8, color='#27408b',
-        ha='left', va='center', fontweight='bold')
-ax.text(9.4, 6.9, 'headroom 2.5 req/s (8.0 − 5.5)', fontsize=8, color='#1e6b3a',
-        ha='right', va='center', fontweight='bold')
+# failover)" annotation lumped them). Round-6 review: the shaded band was
+# labelled with a quantity it does not span, so each number now sits on the
+# feature it measures — the green band is what the reserve host adds
+# (6.0 -> 8.0 = 2.0 req/s), the 2.5 req/s headroom is a bracket from the burst
+# peak (5.5) to the N=4 line (8.0), and the 0.5 req/s failover margin
+# (5.5 -> 6.0) is labelled on its own just above the N-1 line.
+ax.axhspan(N1res, N4, color='#2c7a4b', alpha=0.16)   # reserve-host band, 6.0 -> 8.0
+ax.text(0.9, N1res+1.45, 'reserve host: 2.0 req/s, 6.0 → 8.0', fontsize=7.6,
+        color='#1e6b3a', ha='left', va='center', fontweight='bold')
+bx = 10.6
+ax.plot([bx, bx], [peak, N4], color='#555', lw=1.2)   # bracket 5.5 -> 8.0 (headroom)
+ax.plot([bx-0.15, bx+0.15], [N4, N4], color='#555', lw=1.2)         # top tick at N = 4
+ax.plot([bx-0.15, bx+0.15], [N1res, N1res], color='#555', lw=1.2)   # tick at N-1
+ax.text(bx-0.15, N1res+1.36, 'N=4 headroom 2.5 req/s\n(8.0 − 5.5)', fontsize=7.0,
+        color='#27408b', ha='right', va='center', linespacing=1.05, fontweight='bold')
+ax.text(bx-0.25, N1res-0.06, '0.5 req/s margin (6.0 − 5.5)', fontsize=7.0,
+        color='#b5590a', ha='right', va='top')
 
 ax.set_xlabel('time of day (h, schematic)', fontsize=9)
 ax.set_ylabel('load or capacity (req/s)', fontsize=9)

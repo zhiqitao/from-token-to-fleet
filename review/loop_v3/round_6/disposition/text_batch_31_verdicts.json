@@ -1,0 +1,122 @@
+[
+ {
+  "id": "CH18-26",
+  "verdict": "CONFIRMED",
+  "evidence": "ch18 L148 says '4-bit/8-bit models reduce VRAM but increase CPU cycles', yet the 8-bit tiers run on H100s (L52 '2 (70 GB weights + 24.9 GB FP16 KV ...)'; L81 '70B dense 8-bit on 2×H100'; L186 Tier 2 '1×H100'), where the quantization cost is dequant/reduced-precision Tensor Core throughput, not CPU cycles.",
+  "fix_instruction": "Split the mechanism by device: 'Quantization is not free: on CPU/GGUF it adds per-token dequantization work (the §18.3.4 arithmetic shows why a CPU 4-bit tier cannot meet an interactive SLO); on GPU it trades weight memory for lower-precision Tensor Core throughput and sometimes a KV-format change, and either can cost quality on long-context tasks.'"
+ },
+ {
+  "id": "CH18-27",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch18 L83 hedges the figure ('would be ~$4.01/1M at the same volume'); recomputation gives 155,817 × 32/21 = $237,435 → $237,435/5.93e10 × 1e6 = $4.004/1M, i.e. the printed $4.01 is within 0.15% of the linear-scaling value (reviewer's own $237,386/$4.00 is the less accurate of the two), so no material error.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH18-28",
+  "verdict": "CONFIRMED",
+  "evidence": "ch18 L55 puts three bases in one cell under a header that says '(this model alone)': ~5 from (640−436)/35 = 5.83 (which assumes the FP16 tier's 140 GB and the 64 GB reserve are held, i.e. not alone), ~18 from 640/35 = 18.3 (the alone reading), and 'the worked deployment below uses 2 copies'.",
+  "fix_instruction": "Keep only the header-consistent figure in this column ('~18 by weights alone; ~5 if the 436 GB canonical KV budget is reserved for the active tiers; the worked deployment reserves 2') and move the co-resident reading into the note below the table."
+ },
+ {
+  "id": "CH19-01",
+  "verdict": "CONFIRMED",
+  "evidence": "ch19 L221 asserts 'cap T, cache prefixes, or quantize KV (FP8), as these levers ... each relaxes the KV-capacity ceiling', while L223/Fig 19.3 caption and L229 ('Prefix-cache eviction moves neither: the request still carries the full accumulated context (34.0 GB at turn 4), so its own KV is unchanged') say prefix caching does not relax the per-request KV ceiling.",
+  "fix_instruction": "Rewrite: 'cap T, quantize KV (FP8), or compact the accumulated context — these relax the per-request KV ceiling without new hardware; prefix caching is a separate lever that lowers recomputation and billable tokens but leaves the request's own resident KV unchanged (§6, Fig 19.3).'"
+ },
+ {
+  "id": "CH19-02",
+  "verdict": "CONFIRMED",
+  "evidence": "ch19 L287 writes 'billed 4.47× → ≈1.27×', but 4.47× is the *processed* no-reuse multiplier (42,485/9,500, L145) and 1.27× is the processed 100%-reuse total (12,095/9,500, L146); L146 defines billed as lying between the two processed totals, so neither number is a billed quantity.",
+  "fix_instruction": "Replace 'billed' with 'processed': 'processed tokens 4.47× → ≈1.27× and W 17.70 s → 14.14 s at 100% reuse', and add '(billed lies between the two under the provider's cache schedule — §4)'."
+ },
+ {
+  "id": "CH19-03",
+  "verdict": "CONFIRMED",
+  "evidence": "ch19 L272 labels 10,350 'Expected input tokens' (arithmetic verified: 6,844.2 + 2,732.5 + 589.75 + 184 = 10,350.45), but it is the retained-context expectation (the α basis); the §8 ledger's Σ per-call input per submitted request is 23,927 tokens (L284), and §4 reserves 'input' for a call's full input sum (L115, L125).",
+  "fix_instruction": "Relabel to 'Expected final-call retained-context input' and add the contrast: '(Σ per-call input across the task is 23,927 tokens/request — §8 ledger; this figure is the α basis, not the token count the cost model uses)'."
+ },
+ {
+  "id": "CH19-04",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch19 L155 defines L_agent as 'orchestration overhead — scheduling, KV-slot setup, kernel launch — excluding model compute, plus the tool backend round-trip', and 'orchestration-only' is used consistently as the contrast to model compute/full service time W (L185, L191), which is what β_orch excludes.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-05",
+  "verdict": "CONFIRMED",
+  "evidence": "ch19 §6 L217-247 lists the consequences (state policy, inference scaling, task economics, tool backend, observability, fallback) and nowhere states that an agentic request holds its KV slot/reservation across the tool round-trip; grep for 'slot' returns only L155/L161 (per-invocation slot setup, not occupancy), and L243 treats only λ_tool as the tool-backend coupling.",
+  "fix_instruction": "Add to 'Inference scaling' (§6): 'The scheduling unit is the whole request, not the model call: the request holds its KV slot across every tool round-trip, so a T = 3 request occupies capacity for W ≈ 17.70 s even though the GPU is idle for the tool legs — concurrency is set by wall-clock occupancy, not by GPU-busy time.'"
+ },
+ {
+  "id": "CH19-06",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "The same paragraph quantifies the fleet consequence: ch19 L221 gives 'the aggregate KV alone is already ~86 × 24.9 GB ≈ 2.1 TB ... far beyond one host's ~436 GB KV budget' and L138 gives '436 GB ÷ 31.7 GB ≈ 13.8/host', so a sizing ratio is present, not absent.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-07",
+  "verdict": "CONFIRMED",
+  "evidence": "ch19 §8's ledger (L277-282) reports only 'Model input tok / output tok / Total tok' per class; no peak-KV column exists, and on the chapter's own arithmetic the fallback row peaks at 11,795 tokens ≈ 30.9 GB (11,795 × 2.62 MB), above completed T = 1 (10,065 ≈ 26.4 GB) and T = 2 (10,930 ≈ 28.6 GB).",
+  "fix_instruction": "Add a 'Peak KV residency (2.62 MB/token)' column to the §8 ledger (T=1 ≈26.4 GB, T=2 ≈28.6 GB, T=3 ≈31.7 GB, fallback ≈30.9 GB) and note that the fallback's peak exceeds the completed T=1/T=2 classes even though it adds zero retained-context turns."
+ },
+ {
+  "id": "CH19-08",
+  "verdict": "DEFENSIBLE",
+  "evidence": "The case names are Ch 22's defined conventions and the sentence cross-references them: ch22 L58-60 define case (i) linear-only, case (ii) full-square attention (+17.23%), case (iii) causal-triangle (+8.61%); ch19 L179 cites 'per Ch 22 Table 22-1', so (iii) < (ii) is the documented causal-mask halving, not an unexplained ordering.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-09",
+  "verdict": "CONFIRMED",
+  "evidence": "ch19 L155/L161 introduce λ_step ≈ 120 ms and λ_tool ≈ 100 ms (50–150 ms) and L56 gives '85 ms (local PostgreSQL on H100 host)' with no evidence label, while the turn distribution is tagged '[ILLUSTRATIVE][ASSUMPTION]' (L109, L263) and Table 19-1 outputs '[DERIVED]' (L140, L311); Ch 4's convention (ch4 L52) makes latency/price inputs [canonical scenario][ASSUMPTION].",
+  "fix_instruction": "Tag the three latency inputs where they are introduced: 'λ_step ≈ 120 ms [ILLUSTRATIVE][ASSUMPTION]', 'λ_tool ≈ 50–150 ms, typical 100 ms [ILLUSTRATIVE][ASSUMPTION]', '85 ms local PostgreSQL [ILLUSTRATIVE][ASSUMPTION] — no measurement cited', and note that they drive β and the p50/p90/p95 headline."
+ },
+ {
+  "id": "CH19-10",
+  "verdict": "FALSE_POSITIVE",
+  "evidence": "arXiv abs page for 2502.05171 (fetched) reads 'Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach', v2 17 Feb 2025, authors Jonas Geiping, Sean McLeish, Neel Jain, John Kirchenbauer, Siddharth Singh, Brian R. Bartoldson, Bhavya Kailkhura, Abhinav Bhatele, Tom Goldstein — exactly the manuscript's attribution; the reviewer's 'Junda Feng et al.' attribution is wrong.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-11",
+  "verdict": "CONFIRMED",
+  "evidence": "ch19 L161/L307: W(0)=8.58, W(1)=11.52, W(2)=14.56, W(3)=17.70, W(4)=20.95 → marginals 2.94 / 3.04 / 3.14 / 3.25 s, so the stated '≈ 2.8–3.0 s marginal per turn' excludes the T=3 value (3.14) and its floor lies below the smallest marginal (2.94).",
+  "fix_instruction": "Change to '≈ 2.9–3.3 s marginal per turn (W(1)−W(0)=2.94 s … W(4)−W(3)=3.25 s on the printed no-reuse values)'."
+ },
+ {
+  "id": "CH19-12",
+  "verdict": "CONFIRMED",
+  "evidence": "ch19 L221 quotes '436 GB ÷ 12.45 GB ≈ 35 concurrent vs 17.5 at FP16' inside the agentic-depth paragraph; 12.45 GB and 24.9 GB are the 9,500-token single-shot residences, so the figures hold only at T=0 — at the paragraph's own T=3 basis they are 12,095 × 1.31 MB ≈ 15.8 GB → ≈27.5 concurrent (and ≈13.8 at FP16, per L138).",
+  "fix_instruction": "Qualify the parenthetical: '(see Ch 25 §8 for the FP8 KV arithmetic: at the single-shot 9,500-token request, 436 GB ÷ 12.45 GB ≈ 35 concurrent vs 17.5 at FP16; at the T = 3 profile above the same budget gives ≈27.5 vs ≈13.8)'."
+ },
+ {
+  "id": "CH19-13",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch19 L287's 'or' is resolved in the same sentence: 'prefix caching leaves KV residency unchanged, while compaction reduces the resident context itself (it moves the footprint — §6)', so the two levers are explicitly distinguished where the alternative is offered.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-14",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch19 L261 states the guardrail is non-binding by design — 'a safety margin above the append-only worst case (12,660 at T = 4, Table 19-1), so the turn cap binds before the guardrail does' — so the never-fires outcome is the declared intent, not an unexamined control.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-15",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch19 L161 qualifies the claim ('adds zero turns to this incremental expectation') and in the same sentence discloses the failed-attempt work ('its failed-attempt work is counted unconditionally in the §8 fallback ledger'); L274/§8 then give the fallback's 860 ms and 39,395 input tokens, so the retained-context vs attempted-work distinction is drawn in the text.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH19-16",
+  "verdict": "CONFIRMED",
+  "evidence": "The quoted formula IS present at ch19 L235 (triage's ABSENT label is wrong): 'input tokens/call × $/in token + output tokens/call × $/out token + cached tokens/call × $/cached token' — the cached term is added alongside the input term with no statement that 'input tokens/call' is uncached-only, although §4 (L117-127) insists cached/uncached/billed be kept distinct.",
+  "fix_instruction": "Change the term to 'uncached input tokens/call × $/in token' and add a clause: 'the cached share is billed at its own rate and must not also be counted as input'."
+ },
+ {
+  "id": "CH19-17",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch19 L289 phrases the figure as 'an estimated 22% in an illustrative human-eval reading [ILLUSTRATIVE] scenario result, not a reported production measurement'; 'improved ... by X%' conventionally reads as relative, and no arithmetic in the trade-off depends on which reading is taken (it is compared qualitatively against +34% W and 2.52× tokens).",
+  "fix_instruction": ""
+ }
+]

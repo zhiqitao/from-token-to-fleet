@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH25-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 25 §8 (mini-case), ADR 0017 → Decision",
+  "chapter": "25",
+  "quoted_clause": "Render the KV cache in FP16 for the long-context decode path, keeping prefill and the retrieval/prompt phase in FP16.",
+  "observed": "The Decision splits the KV cache by phase ('FP8 for the long-context decode path, keeping prefill ... in FP16'). The KV cache is *produced* during prefill and *consumed* during decode; it is a single stored state, not a per-phase one. As written, the decision is not implementable and implies a prefill-time FP16 KV that then becomes FP8.",
+  "evidence": "Mechanism: prefill computes K and V for the prompt and writes them into the cache; decode appends one token's K/V per step and reads the whole cache. The precision choice is a storage-format choice applied at write time (and inherited by all later reads). There is no 'FP16 prefill KV' that coexists with an 'FP8 decode KV' for the same sequence.",
+  "root_cause": "Phase-scoped phrasing of a state-scoped decision.",
+  "correction": "Rewrite as: 'Store the KV cache in FP8 (E4M3 with per-tensor/per-head scales) for all sequences, including the prefill-produced K/V; the prefill computation itself remains in BF16/FP16 and the K/V tensors are quantized on write into the cache.' Optionally note that K is more quantization-sensitive than V and that per-head scaling is the usual mitigation.",
+  "acceptance_test": "The Decision names the storage format of the cache and the write-time quantization point; no sentence implies two coexisting KV precisions for one sequence.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH25-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 25 §4 (Measurement), opening sentence and items 1–2",
+  "chapter": "25",
+  "quoted_clause": "This chapter recommends that each ADR include at least two derived quantities — quantities computed from raw data, not merely observed.",
+  "observed": "The definition ('computed from raw data') does not describe either of the two examples given. Both examples are analytical derivations from published specifications (parameter count × bytes/param), not computations over measured data.",
+  "evidence": "Item 1: W = 70 × 10^9 × 2 B = 140 GB — derived from a model specification, not raw data. Item 2: 2 B/param → 1 B/param → ~70 GB — likewise a specification-derived calculation. The chapter's own evidence taxonomy (Ch 4 / Appendix A) separates [DERIVED] from measurement; the sentence conflates 'derived' with 'measured'.",
+  "root_cause": "The recommendation's definition was written for measurement and then illustrated with analytical derivations.",
+  "correction": "Rewrite as: 'each ADR should include at least two derived quantities — quantities computed from stated inputs (specifications, measurements, or a mix) rather than asserted — and should state which of the two kinds each one is.' Then mark item 1 as analytical-from-specification and item 2 as analytical-from-specification, and add one genuinely measured quantity (e.g. the p99 TTFT from the Ch 14 load test) to show the contrast.",
+  "acceptance_test": "The definition sentence is satisfied by both listed examples as printed, or the examples are re-labelled to match the definition.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-06",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 25 §6, ADR 0015 → Context (parenthetical on request volume)",
+  "chapter": "25",
+  "quoted_clause": "at the canonical 6.24M requests/mo (business-hours basis: 10 rps average × 8 h × 260 workdays, Ch 16 arithmetic — so the monthly denominator averages ~2.4 rps, while the 21-host capacity screen is peak-sized at 40 rps)",
+  "observed": "The stated basis does not produce the stated volume. 10 rps × 8 h × 3600 s/h × 260 workdays = 74.88M requests, which is 12× the printed 6.24M requests/mo. The parenthetical is an annual figure presented as the monthly basis.",
+  "evidence": "10 × 8 × 3600 × 260 = 74,880,000 requests per year; 74.88M / 12 = 6.24M requests per month — so the printed monthly volume is correct and the parenthetical is missing the annual→monthly step. Cross-check: 6.24M / (30 × 86400 s) = 2.407 rps, matching the printed '~2.4 rps' monthly average. The $/1K figures are therefore correct (155.8/6.24 = 24.97; 87.6/6.24 = 14.04; 129.8/6.24 = 20.80) and are not affected; only the derivation as printed is wrong.",
+  "root_cause": "Period slip in the volume derivation (per-year workdays used to justify a per-month denominator).",
+  "correction": "Rewrite as: 'at the canonical 6.24M requests/mo (business-hours basis: 10 rps average × 8 h × 260 workdays per year = 74.88M requests/yr = 6.24M requests/mo; the monthly denominator therefore averages ~2.4 rps across the full month, while the 21-host capacity screen is peak-sized at 40 rps)'.",
+  "acceptance_test": "The parenthetical's arithmetic, evaluated as printed, yields 6.24M requests/mo; a reader recomputing it gets the printed number without an unstated ÷12.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Fig 25.1 caption (Ch 25 §6) vs Ch 25 §1 and Table 25-1",
+  "chapter": "25",
+  "quoted_clause": "an ADR is a fixed five-field record — Title & status, Context (the situation), Decision (the choice), Consequences (the effects), Alternatives (the rejected options) — and it is *kept, not edited*",
+  "observed": "'Kept, not edited' contradicts the chapter's own status-tracking practice. §1 says ADRs are 'living, reviewed in pull requests'; Table 25-1's fix for 'No status tracking' is to 'update the ADR status and add a superseding ADR link'; and the ADR 0015 falsification path says a successor 'lifts the HOLD and supersedes this one' — a status edit.",
+  "evidence": "The distinction the figure needs is between rewriting the historical reasoning (forbidden) and updating the record's lifecycle metadata (status, supersession link, review date) (required). The caption as written forbids the latter.",
+  "root_cause": "The caption compressed 'the original record is not rewritten' into 'not edited', losing the lifecycle-metadata distinction.",
+  "correction": "Rewrite as: 'and it is *kept, not rewritten*: the reasoning of a superseded ADR is preserved verbatim, while only its status, supersession link and review date are updated.'",
+  "acceptance_test": "The figure caption and Table 25-1 can be read together without contradiction; the caption explicitly permits status/supersession updates.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 25 §1 (status list), §3.1 (template '## Status' line), §6 (ADR 0015 Status field)",
+  "chapter": "25",
+  "quoted_clause": "**Title** and status (proposed, accepted, superseded, deprecated) ... ## Status <proposed | accepted | superseded | deprecated>  (date) ... **Status:** **HOLD** — screened, not committed.",
+  "observed": "HOLD is used as a Status value in ADR 0015 and defended in the DECISION STATE callout ('Writing HOLD into the Status field is the correct, auditable record'), but HOLD is not in the enumerated status vocabulary in §1 and is not an option in the copy-ready template's Status line. A reader copying the template cannot record the very state the chapter calls correct.",
+  "evidence": "§1 enumerates four statuses; the template offers exactly those four; ADR 0015 uses a fifth. The callout asserts HOLD is 'the correct, auditable record' without reconciling it with the format the chapter defines.",
+  "root_cause": "The HOLD state was introduced by the canonical-scenario material without being added to the format definition.",
+  "correction": "Add HOLD to the status vocabulary in §1 and to the template's Status line, with a one-line definition ('HOLD — screened, not committed; exit criteria recorded'), and note in §1 that HOLD is a first-class status rather than a misuse of 'proposed'. Alternatively, define HOLD as 'proposed' plus an explicit 'exit criteria' block and say so.",
+  "acceptance_test": "Every status value used anywhere in Ch 25 appears in the §1 list and in the template's Status line.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH25-10",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §7 (What We Still Don't Know), 'Tooling gaps' bullet",
+  "chapter": "25",
+  "quoted_clause": "**Tooling gaps:** [1P][FACT] — no widely adopted tool exists for ADR graph visualization or impact analysis (a factual tooling observation, not an open hypothesis).",
+  "observed": "A claim of universal absence is labelled [1P][FACT] with no first-party source and no date. '[1P]' denotes a first-party specification or artifact; no first-party artifact can attest that no tool exists. The claim is also undated in a field where tooling changes quarterly.",
+  "evidence": "The claim is a survey assertion, not a first-party fact. It is also the only [1P][FACT] in a section that otherwise lists open hypotheses, and the section's own framing ('the open items have no FACT instrumentation yet') sits awkwardly with a FACT-labelled absence claim.",
+  "root_cause": "The label was chosen to signal 'this is not speculation', but the taxonomy's provenance axis does not have a slot for 'surveyed absence'.",
+  "correction": "Either (a) relabel as [FACT] with a dated observation ('as of <month year>, no tool with broad adoption provides ADR dependency-graph visualization; the common practice remains hand-maintained indexes') and cite the survey or the absence of one, or (b) move it into the open-question list as 'Is there a maintained tool for ADR dependency-graph analysis, and what would it need to model?'",
+  "acceptance_test": "The bullet carries a date and a source, or is reclassified as an open question; no [1P] label is attached to a claim of absence.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-11",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 25 §4 (Measurement), item 1 heading",
+  "chapter": "25",
+  "quoted_clause": "**70B FP16 model footprint** — $W = N \\times \\text{bytes-per-param} = 70 \\times 10^9 \\times 2 \\text{ B} = 140$ GB parameters",
+  "observed": "The derived quantity is labelled 'FP16' although ADR 0016's decision is BF16, and the same 140 GB figure is labelled '[ILLUSTRATIVE][DERIVED]' in ADR 0016's Evidence Tags but bare '[DERIVED]' here. The number is right (both formats are 2 B/param); the labels are not.",
+  "evidence": "ADR 0016 Decision: 'Render the serving model in BF16.' The chapter's own point is that the footprint is format-invariant, so naming the quantity after one of the two formats invites exactly the misreading the ADR exists to prevent.",
+  "root_cause": "The measurement section was written before the ADR's decision was fixed, and the label set was not carried over.",
+  "correction": "Rename to '**70B weight footprint at 16-bit (FP16 or BF16)**' and use the same evidence label as ADR 0016 ('[ILLUSTRATIVE][DERIVED]'), or state explicitly that the quantity is invariant across the two candidate formats.",
+  "acceptance_test": "The quantity's name and label match ADR 0016's decision and Evidence Tags; no reader can infer that the footprint depends on the FP16/BF16 choice.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-12",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 25 §3 (ADR 0016 → Context) and §8 (mini-case Scenario)",
+  "chapter": "25",
+  "quoted_clause": "The fleet runs a 70-billion-parameter dense model for RAG Q&A serving on an 8×H100 host (640 GB). ... The fleet serves the canonical RAG Q&A workload on an 8×H100 host.",
+  "observed": "Both passages describe 'the fleet' as a single 8×H100 host, while the canonical fleet in the same chapter is 21 hosts (32 under the N−1 policy). The per-host figure is being used with fleet-level nouns.",
+  "evidence": "ADR 0015 R1: 21 hosts (KV screen) / 32 hosts (N−1 policy). §8 mini-case: 'the canonical peak already needs 21 hosts on the KV screen'.",
+  "root_cause": "Per-host and fleet-level quantities share the same noun phrase.",
+  "correction": "Rewrite as 'serving on 8×H100 hosts (640 GB of HBM per host; the canonical fleet is 21 hosts — see ADR 0015 R1)' in §3, and 'on 8×H100 hosts' in the mini-case scenario.",
+  "acceptance_test": "No sentence in Ch 25 uses 'the fleet' to denote a single host.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH25-13",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 25 §2 (Mental Model), final paragraph",
+  "chapter": "25",
+  "quoted_clause": "This alone often reveals overlooked options or clarifies why the chosen path is genuinely optimal.",
+  "observed": "Articulating alternatives does not establish optimality; it establishes that alternatives were considered and why they were rejected. The claim overstates what the practice can deliver.",
+  "evidence": "The chapter's own worked records demonstrate the point: ADR 0015 explicitly declines to rank the three delivery modes ('NOT COMPARABLE — scopes unmatched'), and ADR 0016's FP8 alternative is 'deferred', not rejected on merit. Neither record claims optimality.",
+  "root_cause": "Rhetorical strengthening of a modest, correct claim.",
+  "correction": "Rewrite as: 'This alone often reveals overlooked options, or makes explicit that the chosen path is the best of the options actually considered — which is a weaker and more defensible claim than optimality.'",
+  "acceptance_test": "No sentence in Ch 25 asserts that an ADR establishes optimality.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-14",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 25 §1 (Concept), paragraph 1",
+  "chapter": "25",
+  "quoted_clause": "The format was popularized by Michael Nygard and has been adopted by teams ranging from startups to enterprises managing complex AI/ML stacks.",
+  "observed": "A historical attribution and a broad adoption claim are stated without a citation, a date, or an evidence label, in a chapter that otherwise applies the book's evidence taxonomy rigorously (ADR 0016 Evidence Tags, §7 [1P][FACT]).",
+  "evidence": "The Nygard attribution is checkable against a primary source (Nygard, 'Documenting Architecture Decisions', 2011). The adoption claim ('startups to enterprises') is an unsourced generalization about the whole industry.",
+  "root_cause": "The chapter's evidence discipline was applied to the worked records but not to its own narrative claims.",
+  "correction": "Cite the primary source for the format's origin (with year) and either source the adoption claim or replace it with a bounded statement ('the format has been adopted in both small-team and large-organisation settings').",
+  "acceptance_test": "Every factual attribution in §1 carries a citation or an evidence label consistent with the book's taxonomy.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-15",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §3.1 (template, '## Evidence' block) and §4 (final paragraph of Measurement)",
+  "chapter": "25",
+  "quoted_clause": "- <claim> — FACT/DERIVED/HYPOTHESIS\n  [1P]/[2°]/(to be verified) ... Each derived quantity should be tagged with its evidence source [1P]/[2°]/(to be verified)",
+  "observed": "'(to be verified)' is used as if it were a member of the book's evidence-label vocabulary, but the vocabulary defined in Ch 4 / Appendix A uses [UNRESOLVED] on the status axis. The template therefore teaches a label the book does not define, and the §4 sentence mixes a placeholder with two defined provenance labels.",
+  "evidence": "House taxonomy: provenance [1P] [2°] [LAB] [ILLUSTRATIVE]; status [FACT] [DERIVED] [ASSUMPTION] [HYPOTHESIS] [UNRESOLVED]. '(to be verified)' is not among them.",
+  "root_cause": "A template placeholder was promoted into the label list in prose.",
+  "correction": "In the template, write '[1P]/[2°]/[LAB] + status: FACT/DERIVED/ASSUMPTION/HYPOTHESIS/UNRESOLVED' and, in §4, replace '(to be verified)' with '[UNRESOLVED]'.",
+  "acceptance_test": "Every label string that appears in Ch 25 is a member of the Ch 4 / Appendix A vocabulary.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH25-16",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 25 §8 (mini-case) vs Ch 25 §3, §6",
+  "chapter": "25",
+  "quoted_clause": "Ch. 8's \"memory-bound\" = low arithmetic intensity ... (Ch. 15) ... (Ch. 16/17/20) ... (Ch. 15, Ch. 17)",
+  "observed": "Cross-references in the mini-case use 'Ch. N' with a period, while the rest of the chapter uses 'Ch N' without one ('Ch 16', 'Ch 17', 'Ch 22', 'Ch 7', 'Ch 4', 'Ch 14'). The mini-case also quotes Ch 8's term 'memory-bound' while the chapter's own prose uses 'bandwidth-bound'.",
+  "evidence": "Inconsistent citation form within one chapter; and two different terms for the same regime ('memory-bound' vs 'bandwidth-bound') with the quoted form attributed to another chapter.",
+  "root_cause": "The mini-case was drafted separately from the chapter body and did not inherit its citation and terminology conventions.",
+  "correction": "Normalize to 'Ch N' throughout Ch 25, and either adopt 'bandwidth-bound' throughout with a one-time note that Ch 8 uses 'memory-bound', or use 'memory-bandwidth-bound' consistently.",
+  "acceptance_test": "All chapter cross-references in Ch 25 use one form; the decode-regime term is used identically in Ch 25 and in the quoted Ch 8 passage.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH25-17",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §3 (ADR 0016 → Evidence Tags) and §8 (ADR 0017 → Evidence Tags)",
+  "chapter": "25",
+  "quoted_clause": "[canonical scenario][DERIVED] — weight residency is unchanged by the FP16↔BF16 choice. ... [canonical scenario][DERIVED] — at ~2.62 MB/token a 9,500-token request needs ~24.9 GB FP16 KV",
+  "observed": "The provenance label is written in lower case ('[canonical scenario]') whereas the book's canonical vocabulary uses the upper-case token '[CANONICAL]'.",
+  "evidence": "House vocabulary: [CANONICAL] [DERIVED] [ILLUSTRATIVE] [ASSUMPTION] [1P] [HYPOTHESIS]. A case-sensitive label-matching tool (or a reader building a label index) will not match '[canonical scenario]'.",
+  "root_cause": "Free-text spelling of a defined label token.",
+  "correction": "Use '[CANONICAL]' in both places.",
+  "acceptance_test": "All label tokens in Ch 25 match the Ch 4 / Appendix A vocabulary exactly, including case.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH25-18",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Fig 25.1 caption vs Ch 25 §3, §6, §8",
+  "chapter": "25",
+  "quoted_clause": "the Consequences of ADR-001 may become part of the Context of ADR-002, which supersedes it while the original stays on file.",
+  "observed": "The figure uses the identifier form 'ADR-001'/'ADR-002' while the chapter's records use 'ADR 0015', 'ADR 0016', 'ADR 0017'. Two identifier formats for the same object type in one chapter.",
+  "evidence": "§3: 'ADR 0016 — Model Precision'; §6: 'ADR 0015 — Delivery mode...'; §8: 'ADR 0017 — KV Cache Precision'. The figure's hyphenated form also implies zero-padding to three digits, which the chapter's own numbering (0015–0017) does follow, so the difference is purely the separator.",
+  "root_cause": "Figure artwork and body text were authored with different identifier conventions.",
+  "correction": "Pick one form (recommend 'ADR-0016', matching the figure's zero-padded convention and the §6 'ADR 0015 R1' style reference) and apply it in the body, or change the figure to 'ADR 0015'/'ADR 0016'.",
+  "acceptance_test": "Every ADR identifier in Ch 25, including inside the figure, uses one separator convention.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-19",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §8 (mini-case), ADR 0017 → Consequences → Positive",
+  "chapter": "25",
+  "quoted_clause": "so the KV read is a secondary ~15% term (~15% of batch-1 decode reads; halving it cuts total read traffic ≈7.5% at batch 1) and intensity is ~1 FLOP/byte.",
+  "observed": "The bullet states '~15%' twice in one sentence, and packs five distinct quantitative claims (KV share of batch-1 reads, traffic reduction at batch 1, batch-1 intensity, KV-dominant share at C≈17.5, traffic reduction and intensity change at C≈17.5) into a single ~120-word bullet that mixes two operating points.",
+  "evidence": "The arithmetic is correct (24.9/164.9 = 15.1%; 12.45/164.9 = 7.6%; 140 GFLOP/164.9 GB = 0.85 FLOP/byte; 17.5 × 24.9 = 435.6 GB vs 140 GB; 575.6 → 357.8 GB = −37.8%; 2450/575.6 = 4.26 → 2450/357.8 = 6.85 FLOP/byte). The problem is presentational: the reader must hold two operating points (batch 1 and C≈17.5) in one bullet, and the duplicated '~15%' reads as an editing artifact.",
+  "root_cause": "Two operating-point analyses were merged into one bullet during drafting.",
+  "correction": "Split into two bullets — 'At batch 1 (weight-dominated)' and 'At the ADR's operating point C ≈ 17.5 (KV-dominated)' — each with its own numbers, and delete the duplicated '~15%'. A small two-row table (operating point | weight bytes | KV bytes | total | traffic change | intensity) would read faster than prose.",
+  "acceptance_test": "Each operating point's numbers appear in one place; no figure is stated twice in the same sentence.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-20",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §8 (mini-case), ADR 0017 → Alternatives considered, item 2",
+  "chapter": "25",
+  "quoted_clause": "Adopting GQA would cut KV per token by ~8× (the largest single capacity lever in this book, Ch 16)",
+  "observed": "The '~8×' is not checkable from the text: the target group count is never given, and the reader is not told whether the comparison is against the canonical 64 KV-heads or against a hypothetical 8-head GQA model.",
+  "evidence": "The canonical geometry is 64 KV-heads (stated in the same bullet). 64 → 8 KV-heads (GQA-8) gives exactly 8×; 64 → 4 (GQA-16) gives 16×. The lever magnitude therefore depends entirely on the target group count, which is the actual architectural decision.",
+  "root_cause": "The comparison was compressed to a ratio without the parameter that determines it.",
+  "correction": "Write: 'Adopting GQA with 8 KV-heads (GQA-8) would cut KV per token by 8× (64 → 8 heads); GQA-16 would give 16×. The group count is itself a model-architecture decision and must be fixed before the KV budget can be sized.'",
+  "acceptance_test": "The KV reduction factor is stated together with the target KV-head count and the baseline head count.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-21",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §3.1 (template) vs Ch 25 §1 (core fields)",
+  "chapter": "25",
+  "quoted_clause": "## Architecture Decision Context  (from Ch 22's loop) ... These five are the *core* fields. ... the template adds Evidence, decision owner, validation, rollback, review trigger, and falsification path — without changing the core.",
+  "observed": "The template renames the core 'Context' field to 'Architecture Decision Context' and the chapter asserts the template 'does not change the core'. A reader mapping the template back to the five core fields has to guess that the renamed block is the Context field.",
+  "evidence": "§1's five core fields: Title and status, Context, Decision, Consequences, Alternatives considered. The template's blocks: Status, Decision, Architecture Decision Context, Alternatives considered, Evidence, Trade-offs & consequences, Decision owner, Validation plan, Rollback plan, Review trigger, Falsification path. 'Trade-offs & consequences' is likewise a renamed 'Consequences'.",
+  "root_cause": "The template was extended from Ch 22's loop vocabulary without an explicit mapping back to the ADR core fields.",
+  "correction": "Add a one-line mapping note under the template: 'Core-field mapping: Status → Title & status; Architecture Decision Context → Context; Decision → Decision; Trade-offs & consequences → Consequences; Alternatives considered → Alternatives considered.'",
+  "acceptance_test": "A reader can map every template block to one of the five core fields without inference.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH25-22",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §3 (ADR 0016 → Rationale, bullet 4)",
+  "chapter": "25",
+  "quoted_clause": "A100 and H100 GPUs natively support BF16 and TF32 on their Tensor Cores. There is no \"next GPU generation\" required and no explicit-casting penalty; the premise that these formats wait for future hardware is itself the kind of error an ADR should catch.",
+  "observed": "TF32 is a matmul *compute* format (19-bit: 8-bit exponent, 10-bit mantissa) used inside Tensor Core instructions; it is not a weight-storage format and is not an alternative to FP16 or BF16 for holding weights. Listing it in a storage-precision ADR invites the reader to treat TF32 as a third candidate precision.",
+  "evidence": "The ADR's decision is about the format in which weights are stored and served; the relevant hardware facts are BF16 Tensor Core support (Ampere and later) and FP8 support (Hopper and later). TF32's role is in the training matmul path, which the ADR's 'operational consistency' rationale already references separately.",
+  "root_cause": "A hardware-capability fact was listed without checking whether the format is a candidate for the decision at hand.",
+  "correction": "Rewrite as: 'A100 and H100 Tensor Cores support BF16 natively (Ampere onward), so no hardware change is required and no runtime casting penalty applies.' If TF32 is mentioned, add one clause: 'TF32 is a matmul compute format, not a weight-storage format, and is therefore not a candidate for this decision.'",
+  "acceptance_test": "Every format named in ADR 0016 is a candidate for the decision being recorded, or is explicitly marked as not a candidate.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH25-23",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §8 (mini-case), ADR 0017 → Context; and Ch 25 §6, ADR 0015 → R2",
+  "chapter": "25",
+  "quoted_clause": "Ch. 17 shows that ~40 rps at the canonical ~8.6 s service time implies ~344 in-flight requests ... R2 | TTFT ≤ 2 s (p95), ~25 ms/token decode",
+  "observed": "The 8.6 s service time is used to size the fleet, but the chapter never shows how it decomposes against the stated SLO (TTFT ≤ 2 s p95 plus ~25 ms/token decode over 300 output tokens, which alone implies 7.5 s of decode and a ~9.5 s SLO envelope). A reader cannot tell whether 8.6 s is a measured mean, a p95, or an SLO-derived figure, and whether it is consistent with the R2 SLO.",
+  "evidence": "300 tokens × 25 ms = 7.5 s decode; 8.6 s − 7.5 s = 1.1 s implied TTFT, which is inside the 2 s SLO but is nowhere stated. The distinction matters because the fleet screen is driven by in-flight count (rate × service time), so a mean-vs-p95 mismatch here propagates into the 21-host screen and the 344-request figure.",
+  "root_cause": "A canonical service-time value is imported from Ch 15/17 without its measurement basis or its relation to the SLO decomposition being restated where it is used for sizing.",
+  "correction": "State the decomposition at first use in Ch 25: 'the canonical ~8.6 s service time (≈1.1 s TTFT + 300 × ~25 ms decode, measured at the Ch 14 load test) implies ~344 in-flight requests at 40 rps', and note whether it is a mean or a percentile.",
+  "acceptance_test": "The 8.6 s figure is accompanied by its TTFT/decode decomposition and its statistic (mean vs p95) at the point where it is used for fleet sizing.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH25-24",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §6 (Architecture Consequence), bullet 2",
+  "chapter": "25",
+  "quoted_clause": "**Reasoned quality optimization:** the discipline of improving an architecture decision's quality by forcing the articulation of alternatives and evidence, so the trade-off surface is explicit rather than tacit.",
+  "observed": "The bullet label ('Reasoned quality optimization') does not name what the bullet is about, and the sentence is a definitional gloss of its own label rather than a consequence. The other bullets in the list are consequences with a subject and a verb ('New engineers can audit...', 'Engineers no longer need to re-derive...').",
+  "evidence": "The bullet's actual content — that alternatives and evidence are made explicit — is a genuine consequence, but it is stated as a tautology ('the discipline of improving ... quality by forcing ...').",
+  "root_cause": "A term was imported as a heading without being turned into a claim.",
+  "correction": "Rewrite as: '**Explicit trade-off surface:** forcing the articulation of alternatives and evidence turns tacit reasoning into a reviewable artifact, so a decision can be challenged on its reasoning rather than on its outcome.'",
+  "acceptance_test": "Each bullet in §6 states a consequence with a subject and a predicate; no bullet is a definition of its own label.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ }
+]

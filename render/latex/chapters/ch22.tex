@@ -170,14 +170,14 @@ output tokens / request & \textasciitilde300 & generated answer length
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
 input / output ratio & \textasciitilde30× & 9,200 ÷ 300 \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-input tokens/s @ 10 rps & \textasciitilde92,000 & 9,200 ×10
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+input tokens/s @ 10 rps & \textasciitilde92,000 & 9,200 ×10 \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 input tokens/s @ peak 40 rps & \textasciitilde368,000 & 9,200 ×40
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-output tokens/s @ 10 rps & \textasciitilde3,000 & 300 ×10
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+output tokens/s @ 10 rps & \textasciitilde3,000 & 300 ×10 \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 output tokens/s @ peak 40 rps & \textasciitilde12,000 & 300 ×40
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 prefill FLOPs per request (parameterized-linear, excl. attention term) &
 \textasciitilde1.29 PFLOP & 2 ×70B × 9.2K ≈ 1.29 ×10¹⁵ {[}DERIVED;
 \textbf{case (i) linear-only lower bound}{]} \\
@@ -219,9 +219,11 @@ workload is \emph{output}-heavy, and Step 4 flips the verdict: prefill
 compute collapses (2N·L at 400 tokens is \textasciitilde0.056 PFLOP per
 request) while the decode leg carries the weight-read rate
 (\textasciitilde140 GB per token over the \textasciitilde25 ms interval,
-unchanged), and the KV footprint per request is 2.62 MB × 400 ≈ 1.05 GB
-rather than \textasciitilde24.1 GB. Nothing about the loop changed; only
-which term dominates. That transferability --- same order of steps,
+unchanged), and the prompt-only KV at 400 tokens is 2.62 MB × 400 ≈ 1.05
+GB (≈3.41 GB at the end-of-turn 1,300 tokens), against
+\textasciitilde24.1 GB prompt-only / \textasciitilde24.9 GB end-of-turn
+for the canonical 9.2K/9.5K request. Nothing about the loop changed;
+only which term dominates. That transferability --- same order of steps,
 opposite conclusion --- is the content the loop is supposed to add, not
 the arithmetic itself.
 
@@ -389,10 +391,10 @@ traffic / TPOT.)
 
 These opposite bottlenecks lead to a central architectural decision:
 \textbf{can we disaggregate prefill and decode?} If prefill needs FLOPS
-and decode needs bandwidth, a single homogeneous GPU pool is suboptimal.
-A two-pool architecture --- a prefill cluster optimized for compute
-(more GPUs, higher FLOPS, model parallelism) and a decode pool whose
-hardware property is HBM bandwidth (faster HBM), managed with
+and decode needs bandwidth, a single homogeneous GPU pool can be
+suboptimal. A two-pool architecture --- a prefill cluster optimized for
+compute (more GPUs, higher FLOPS, model parallelism) and a decode pool
+whose hardware property is HBM bandwidth (faster HBM), managed with
 PagedAttention (KV allocation) and continuous batching (scheduling) ---
 software mechanisms that raise utilization, not bandwidth --- is an
 architecture worth benchmarking. Whether it needs fewer GPUs than a
@@ -515,19 +517,21 @@ itself:
   (published spec --- FACT), while real serving kernels may sustain less
   \mbox{{[}HYPOTHESIS{]}}.
 \item
-  \textbf{Prefill FLOP cost under continuous batching} --- \hyperref[chap:2]{Chapter 2} §7;
-  the 2 × params × tokens approximation may ignore activation reuse
-  across batched requests (the size of the correction is
-  workload-dependent). \mbox{{[}HYPOTHESIS{]}}
+  \textbf{Achieved prefill efficiency under continuous batching} ---
+  \hyperref[chap:2]{Chapter 2} §7; 2 × params × tokens is exact per token and batching does
+  not change it, but sustained MFU does, and it swings the canonical
+  prefill host count from \textasciitilde1.6 (100\% of peak) to
+  \textasciitilde4.1 (40\% MFU) at average load. \mbox{{[}HYPOTHESIS{]}}
 \item
   \textbf{Effect of quantization on decode vs prefill} --- \hyperref[chap:2]{Chapter 2} §7;
   quantization shifts both bottlenecks but the precise trade-off point
   is workload-dependent. \mbox{{[}HYPOTHESIS{]}}
 \item
   \textbf{Cross-technology bandwidth numbers} --- \hyperref[chap:2]{Chapter 2} §7; HBM3e
-  and MI300X publish higher peaks, which would move the GPU-count
-  equation without changing the compute-bound vs bandwidth-bound
-  classification. \mbox{{[}HYPOTHESIS{]}}
+  parts (e.g.~H200) and the MI300X (HBM3, \textasciitilde5.3 TB/s)
+  publish higher peaks, which would move the GPU-count equation without
+  changing the compute-bound vs bandwidth-bound classification.
+  \mbox{{[}HYPOTHESIS{]}}
 \end{itemize}
 
 Three uncertainties are specific to this loop rather than to the
@@ -544,10 +548,14 @@ mechanism layer, and none of them is settled by the canonical scenario:
 \item
   \textbf{How the derived quantities move when the model is replaced.}
   Swapping the 70B for a smaller dense model moves the 2NL prefill term
-  and the \textasciitilde140 GB weight read in the same direction but
-  not the KV-cache term, which depends on context length and layer count
-  rather than parameter count --- so the loop's ranking of the two
-  bottlenecks can flip without any change in traffic. \mbox{{[}HYPOTHESIS{]}}
+  and the \textasciitilde140 GB weight read roughly in proportion to
+  parameter count, but the KV-cache term by a different proportion,
+  because it scales with layer count × hidden (KV-head) size and context
+  length rather than with parameters. So the relative weight of the
+  compute and bandwidth terms versus the KV-capacity term can shift the
+  binding constraint --- without any change in traffic, and even though
+  the prefill-compute and decode-bandwidth classifications themselves
+  are unchanged. \mbox{{[}HYPOTHESIS{]}}
 \item
   \textbf{Whether the loop's inputs are stable upstream of it.} The 8K
   retrieved context is an input to the loop and a policy choice upstream
@@ -592,25 +600,31 @@ the 10 rps average (10 × 1.288 = 12.88 PFLOP/s, \textasciitilde1.6 hosts
 at peak, Ch 24 §3.3). At the 40 rps peak the same demand is 40 × 1.288 ≈
 51.5 PFLOP/s --- 6.5 hosts at 100\% of the canonical aggregate host peak
 (8 × 0.989 = 7.91 PFLOPS), and \textasciitilde16.3 hosts at 40\% MFU
-(7.91 × 0.4 = 3.16 PFLOPS/host). Sizing on the average rate and meeting
-the peak would need four times the fleet. \textbf{The decision the team
-must make:} does the homogeneous pool absorb that 4× peak-to-average
-swing, or must prefill and decode be separated so each pool is sized for
-its own leg? Two readings compete. (i) \emph{One pool is enough}: if
-measured prefill occupancy at the peak stays below the point where
-prefill steals decode's bandwidth, a homogeneous cluster sized at
-\textasciitilde16 hosts clears both budgets and avoids duplicated model
-residency and KV-transfer cost. (ii) \emph{Separation wins}: if the
-measured prefill/decode GPU-time split shows each leg saturating at
-different times, two pools let each be sized for its own peak and keep
-the TPOT budget off the prefill queue. The loop does not settle it ---
-it names what would. \textbf{HOLD, with exit criteria:} the P/D
-candidate (Ch 12, candidate b) stays a candidate until (i) the measured
-prefill/decode GPU-time split at the 40 rps peak is recorded (Ch 14
-benchmark protocol), (ii) p95 TTFT ≤ 2 s and p95 TPOT ≤ 35 ms are met by
-each candidate configuration at the offered load, and (iii) the
-KV-transfer cost and duplicated-residency penalty of the two-pool option
-are priced against the homogeneous alternative (Ch 16 TCO gate).
+(7.91 × 0.4 = 3.16 PFLOPS/host) --- 16.3 rounded up is 17, since 16 ×
+3.164 PFLOPS/host = 50.6 PFLOP/s falls short of the 51.5 required. The
+KV budget binds at a similar scale: Ch 17's 436 GB of KV per host (640 −
+140 − 64) ÷ 24.1 GB/request ≈ 18 in-flight requests per host, and 40 rps
+× 8.58 s ≈ 343 in flight needs \textasciitilde19 hosts. Sizing on the
+average rate and meeting the peak would need four times the fleet.
+\textbf{The decision the team must make:} does the homogeneous pool
+absorb that 4× peak-to-average swing, or must prefill and decode be
+separated so each pool is sized for its own leg? Two readings compete.
+(i) \emph{One pool is enough}: if measured prefill occupancy at the peak
+stays below the point where prefill steals decode's bandwidth, a
+homogeneous cluster sized at \textasciitilde17--19 hosts clears both
+budgets (prefill- or KV-bound depending on the KV budget, with a 21-host
+build carrying the margin) and avoids duplicated model residency and
+KV-transfer cost. (ii) \emph{Separation wins}: if the measured
+prefill/decode GPU-time split shows each leg saturating at different
+times, two pools let each be sized for its own peak and keep the TPOT
+budget off the prefill queue. The loop does not settle it --- it names
+what would. \textbf{HOLD, with exit criteria:} the P/D candidate (Ch 12,
+candidate b) stays a candidate until (i) the measured prefill/decode
+GPU-time split at the 40 rps peak is recorded (Ch 14 benchmark
+protocol), (ii) p95 TTFT ≤ 2 s and p95 TPOT ≤ 35 ms are met by each
+candidate configuration at the offered load, and (iii) the KV-transfer
+cost and duplicated-residency penalty of the two-pool option are priced
+against the homogeneous alternative (Ch 16 TCO gate).
 
 Before the memory-sizing step --- the KV and residency arithmetic
 \hyperref[chap:7]{Chapter 7} already built --- the architect locks in one more number: the

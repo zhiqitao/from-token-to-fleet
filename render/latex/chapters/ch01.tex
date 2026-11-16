@@ -144,12 +144,12 @@ producing the next one.
 
 The architect-relevant fact: attention's cost scales
 \textbf{quadratically with context length} in the full-attention regime
---- the number of input×output position pairs grows as \texttt{L²}. That
-quadratic term is one of the two biggest reasons context windows feel
-expensive (the other being KV-cache memory growth), and it is the pivot
-for every optimization downstream: sparse/linear attention and retrieval
-cut the quadratic prefill term, while KV caching separately avoids
-recomputing the prefix's K/V during decode.
+--- the number of (query, key) position pairs within the sequence grows
+as \texttt{L²}. That quadratic term is one of the two biggest reasons
+context windows feel expensive (the other being KV-cache memory growth),
+and it is the pivot for every optimization downstream: sparse/linear
+attention and retrieval cut the quadratic prefill term, while KV caching
+separately avoids recomputing the prefix's K/V during decode.
 
 One precision matters before the mental model hardens: the \texttt{L²}
 term is a \textbf{prefill} cost --- it describes computing attention
@@ -206,7 +206,9 @@ attention (Mamba-style state, linear-attention kernels) & no per-token
 term \\
 Reduced-width per-token & yes, linearly & MLA-style latent attention,
 GQA, MQA head sharing & fewer than full MHA (MLA \textasciitilde50--60×
-less for DeepSeek-class geometry, \mbox{{[}DERIVED{]}}) \\
+less for DeepSeek-class geometry: 2·n\_h·d\_h = 2×128×128 = 32,768 dims
+per layer per token for full MHA vs d\_c + d\_h\^{}R = 512+64 = 576 for
+MLA, 32,768/576 ≈ 57× \mbox{{[}DERIVED{]}}) \\
 Full-MHA per-token & yes, linearly & dense full multi-head attention & 2
 × n\_layers × n\_KV-heads × d\_head × bytes-per-value \\
 
@@ -415,16 +417,18 @@ conclusion token counts alone establish. Be precise about which quantity
 does what: the ratio sets the relative prefill-versus-decode \emph{work}
 split, while the \textasciitilde9,200-token absolute context length sets
 KV residency per request and therefore the concurrency ceiling --- the
-canonical workload is KV-capacity-bound because of the long context, not
-because of the ratio. Decode's serial nature, per-step weight reads,
-batching, cache residency, and the latency SLO can still dominate
-capacity economics even on an input-heavy workload; the token mix is the
-first signal, and the measured per-phase utilization and goodput
-(throughput that meets the SLO; Ch 7, Ch 8, Ch 14) are what confirm it.
-We will not act on it here; \hyperref[chap:7]{Chapter 7} (Memory) and \hyperref[chap:8]{Chapter 8} (Compute)
-do. The point of the worked example in this chapter is to fix \emph{the
-unit}: every one of those numbers is a statement about tokens, and we
-can now say it without translating from words or pages.
+canonical workload's concurrency ceiling is set by KV residency because
+of the long context, not by the input/output ratio --- whether KV
+capacity dominates overall cost is what Ch 7/Ch 8 measurement confirms.
+Decode's serial nature, per-step weight reads, batching, cache
+residency, and the latency SLO can still dominate capacity economics
+even on an input-heavy workload; the token mix is the first signal, and
+the measured per-phase utilization and goodput (throughput that meets
+the SLO; Ch 7, Ch 8, Ch 14) are what confirm it. We will not act on it
+here; \hyperref[chap:7]{Chapter 7} (Memory) and \hyperref[chap:8]{Chapter 8} (Compute) do. The point of the
+worked example in this chapter is to fix \emph{the unit}: every one of
+those numbers is a statement about tokens, and we can now say it without
+translating from words or pages.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -444,8 +448,8 @@ everything downstream. Three things an architect can actually check:
 \item
   \textbf{Input vs output split.} Measure both legs of the request
   (prompt tokens and generated tokens), because they land on different
-  bottlenecks --- input on memory/prefill, output on decode --- and on
-  different cost line items.
+  bottlenecks --- input on prefill compute and KV-cache capacity, output
+  on decode bandwidth --- and on different cost line items.
 \item
   \textbf{Peak vs average context.} Log the distribution of context
   lengths, not just the mean. A workload that averages 9.2K input tokens

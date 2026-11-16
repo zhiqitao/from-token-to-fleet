@@ -13,7 +13,8 @@ updates it at every phase transition.
 | 3 | DONE | DONE | — | DONE | DONE | DONE (462pp, 4 gates green) | close-out commits e186c904/51f818b8/05e48956 |
 | 4 | DONE (653 findings: text 315 + vision 338) | DONE (common 8/unique 637) | DONE (compact register; 12 prompt edits saved) | DONE (286 CONFIRMED / 180 FP / 187 DEFENSIBLE; ledger disposition.md) | DONE (278 deduped → 245 applied / 17 skipped-premise / 17 duplicates; 77 chunks) | DONE (486pp, all gates green; commits fdc95be5 + 1f2a1473) | closed; round 5 data in flight |
 | 5 | DONE (823 findings: text 450 + vision 373; 72/72 clean files via effort ladder + max_tokens=262144 for MiniMax 1M ctx) | DONE (common 21/unique 802) | DONE (compact register 102/40K; 4/4; prompt_edits_r5.json) | DONE (341 CONFIRMED / 242 FP / 239 DEFENSIBLE / 1 UNVERIFIABLE; 42/42 batches gate 0 problems; ledger disposition.md) | DONE (292 deduped → 189 applied / 58 skipped-premise / 45 duplicates / 0 needs-regen; 13 packs; commit 910aa565) | DONE (497pp tagged + plain green, all audits; 89 vision pages re-rendered; commits 910aa565 + d438ac05) | closed; NOT converged (292 CONFIRMED > 0) → round 6 required |
-| 6–14 | next: DATA (panel: DS/MiniMax alternating as delegate backends per user directive 2026-11-14) | | | | | | |
+| 6 | DONE (76/72 files on 501pp: text 28/28 + vision 48/48; stubs purged x3 waves; MiniMax discuss 3x failed, dropped, 3/4 discuss) | DONE (common 33/unique 1091) | DONE (compact register; 3/4 models) | DONE (62 batches: 58 parallel + 4 this session after it stalled; 374 CONFIRMED / 305 DEFENSIBLE / 186 FP of 865 unique; ledger gap_ledger.json) | DONE (374 rows: 13 groups x 27 chapter batches, 371 DONE + 2 SKIP + 1 PARTIAL + 3 lead loose-ends; DS critical path; responses.md 865 rows) | DONE (514pp, all gates green, overlap 0; 93 vision pages re-rendered) | closed; NOT converged (374 CONFIRMED > 0) → round 7 required |
+| 7–14 | next: DATA on 514pp build (93-page manifest ready; panel 4 models; delegate backends DS/MiniMax alternating, DS on critical path) | | | | | | |
 
 Panel: MiMo-V2.6-Flash-RL, DeepSeek-V4.1-Flash, Qwen3.8-27B,
 MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
@@ -104,3 +105,13 @@ MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
   and MiniMax-M3.1-Flash (im-eglb); MiniMax delegate backend DOWN 2026-11-15
   ~00:00-07:30 (6 casualties: ch18/21/22/23/25/26 all re-dispatched on DS,
   zero-loss or partial-resume). R6 data (parallel-driven) in flight.
+- 2026-11-16: ROUND 6 CLOSED (this session drove data completion + took over
+  disposition at 58/62 when the parallel pipeline stalled, then fix): 865
+  unique findings -> 374 CONFIRMED all fixed (13 groups, DS backend, ~50 min
+  per group wave) + 305 DEFENDED + 186 REJECTED; responses.md 865 rows;
+  gap_ledger.json written. Rebuild 514pp (501->514) all gates green,
+  SAME-LINE overlap 0; 93 vision pages + manifest re-rendered for R7.
+  Speed rules applied end-to-end (single track, bigger batches, DS critical
+  path, stub purge before re-run). MiniMax delegate casualties this round:
+  batch_10 verifier stalled -> stopped and re-dispatched on DS (5 min).
+  NOT converged (374 > 0) -> round 7.

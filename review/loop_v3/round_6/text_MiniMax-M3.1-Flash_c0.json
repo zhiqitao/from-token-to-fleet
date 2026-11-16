@@ -1,0 +1,48 @@
+```json
+[
+  {
+    "id": "CH2-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 2, Section 3 (Worked Example), paragraph 'Occupancy thresholds' (printed page not determinable from chunk)",
+    "chapter": "Ch 2",
+    "quoted_clause": "At the canonical operating point the 5.2 ms decode step is not HBM-saturating. It becomes bandwidth-saturating above ~5 concurrent sequences per GPU (~40 per host) and compute-bound above ~295 concurrent sequences per GPU.",
+    "observed": "Neither threshold is derived, and neither is reproducible from the chapter's own arithmetic. (a) The '~5' has no derivation under any reading I can construct, and the natural reading ('the GPU becomes HBM-saturated at 5 concurrent sequences') is false: the 17.5 GB shard weight read alone consumes 3.35 TB/s for 5.2 ms at batch 1, so the decode step is already bandwidth-saturated at batch 1. (b) The '~295' is the ridge-crossing batch of the weight-streaming model only (decode intensity = b FLOP/byte, since FLOPs/step = 2 x 8.75e9 x b and bytes/step = 17.5 GB), and it is unreachable in the canonical configuration (17 KV slots/host ~ 2.1 sequences/GPU). Worse, once KV traffic is included the crossover disappears entirely: bytes/step = 17.5 GB + 3.11 GB x b (24.9 GB/request / 8 ranks), so bandwidth time = 5.22 + 0.928b ms while compute time = 0.0177b ms - bandwidth dominates for every b. The paragraph is the only place in Ch 2 that states a concurrency threshold, and it is the one place a reader would use to size decode occupancy.",
+    "evidence": "Recomputed from the chapter's own constants: 17.5 GB / 3.35 TB/s = 5.22 ms (Ch 2 'Canonical host verdict'); 2 x 8.75e9 x b / 989e12 = 0.0177b ms compute; (17.5e9 + 3.11e9 x b)/3.35e12 = 5.22 + 0.928b ms bandwidth; KV per request 24.9 GB and 17 slots/host from Ch 4 Table 4-2 and Ch 4 Section 6. The only quantity near 5 that is derivable is the KV-vs-weight traffic parity point (3.11b = 17.5 -> b ~ 5.6), which is a different statement from 'bandwidth-saturating'.",
+    "root_cause": "The thresholds were derived from the weight-streaming model alone and then stated as properties of the decode phase, without the KV-traffic term or the slot-count constraint; the '~5' appears to be the KV-vs-weight parity point mislabeled as 'bandwidth-saturating'.",
+    "correction": "Either delete the paragraph or restate it with explicit derivations and assumptions, e.g.: 'At batch 1 the shard weight read alone saturates HBM (17.5 GB / 3.35 TB/s = 5.2 ms), so the decode step is bandwidth-bound from the first sequence; what changes with concurrency is the step duration (5.2 ms at b=1; ~9.9 ms at b=5; 25 ms at b~21 with FP16 KV), i.e. the point at which the 25 ms TPOT budget is exhausted. KV traffic equals weight traffic above ~6 sequences/GPU. The compute-bound ridge crossing (b ~ 295) applies to the weight-streaming model only and is unreachable at the canonical 17 slots/host.'",
+    "acceptance_test": "Every threshold in the paragraph is reproducible from the chapter's stated constants (17.5 GB shard, 3.35 TB/s, 989 TFLOPS, 24.9 GB/request / 8 ranks, 25 ms TPOT), each carries its assumption (weight-stream only vs weight+KV; per-GPU vs per-host), and no threshold is stated for a regime the canonical configuration cannot reach without saying so."
+  },
+  {
+    "id": "CH4-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 4, Section 3 (Worked Example), 'Canonical Workload' box and 'Table 4-2' (printed page not determinable from chunk)",
+    "chapter": "Ch 4",
+    "quoted_clause": "Canonical Workload - the single reference set. This box is the one authoritative set of numbers every chapter disciplines on. ... Table 4-2 - Canonical-scenario provenance ledger (which value is assumed, derived, or factual) ... This is the authority for which is which; chapters refer back to it rather than restating provenance each time.",
+    "observed": "Two blocks inside one section each claim to be THE authority for the same numbers, and they duplicate a substantial subset of the values: 9,200 input; 300 output; 2.62 MB/token; 1.08 s; 25 ms TPOT; 8xH100 / 640 GB; $20/hr; 10/40 rps; ~86/~344 occupancy; 99.9% availability. The reader cannot tell which block governs when they differ, and a future edit can silently desynchronize them (the box already carries a 'TEACHING GEOMETRY' note and a KV-precision row that Table 4-2 restates differently).",
+    "evidence": "Side-by-side comparison of the canonical box rows and the Table 4-2 rows in Ch 4 Section 3; both carry an explicit authority claim in their own lead-in sentences.",
+    "root_cause": "The box was written as a value list and Table 4-2 as a provenance ledger, but both were given the same authority language and neither was explicitly subordinated to the other.",
+    "correction": "Keep both but state the relationship once: 'Table 4-2 is the provenance ledger for the box above; where a value appears in both, Table 4-2 governs its status label.' Alternatively fold the box's value column into Table 4-2 and keep the box only for fields the ledger does not carry (planning service time, monthly budget, availability-topology note, teaching-geometry warning).",
+    "acceptance_test": "Exactly one block in Ch 4 Section 3 claims authority; every duplicated value appears in both with identical numbers and identical status labels; a mechanical comparison of the two lists shows no divergence."
+  },
+  {
+    "id": "CH4-02",
+    "severity": "P2",
+    "confidence": "medium-high",
+    "page_hint": "Ch 4, Section 3 (Worked Example), 'Economic Constraints' bullet 'Cost per request' (printed page not determinable from chunk)",
+    "chapter": "Ch 4",
+    "quoted_clause": "So the owned per-request cost on the active service-hour basis (the sidebar's $87,600/month, by contrast, assumes the fleet is paid for all 730 wall-clock hours) is (N_hosts x $20/hr) / (rps x 3600) ~= (6 x $20) / (10 x 3600) ~= ~$0.0033 per request at average, and (21 x $20) / (40 x 3600) ~= ~$0.0029 per request at peak (6/21-host full-util basis; the 9/32-host policy basis gives ~$0.0050 / ~$0.0044)",
+    "observed": "This paragraph performs the fleet-cost-per-request computation that Ch 16 owns, using host counts (6/21/9/32) that are themselves derived in Ch 8/17, and it introduces a third name for a basis already called 'active-hours basis' and 'wall-clock paid-occupancy basis' in the same subsection ('active service-hour basis'). It is the densest passage in the chapter and the one most likely to drift out of sync with Ch 16/17, which will re-derive the same quantities. The arithmetic itself is correct (120/36,000 = $0.00333; 420/144,000 = $0.00292; 180/36,000 = $0.0050; 640/144,000 = $0.00444).",
+    "evidence": "Ch 4 Section 3 'Economic Constraints' bullet; compare the sidebar's four-row table and the cost-basis table immediately below, which already carry the same two-basis distinction; compare Ch 4 Section 8 mini-case, which re-derives the 9/32-host policy fleet.",
+    "root_cause": "The chapter wants the 'two cost bases' distinction taught early, but the owned-fleet half of that distinction requires fleet-sizing results the reader has not yet been given, so the results were imported rather than deferred.",
+    "correction": "Keep the distinction and the API-basis per-request figure (~$0.012) in Ch 4; replace the owned-fleet per-request numbers with one sentence and a pointer ('the owned-fleet per-request cost is fleet-spend / fleet-rps and is computed in Ch 16; it is not the API-basis figure above'). Move the 6/21/9/32-host per-request numbers to Ch 16, where the host counts are derived. Standardize the basis vocabulary to exactly two names: 'active-hours basis' and 'wall-clock paid-occupancy basis'.",
+    "acceptance_test": "Ch 4 contains at most one owned-fleet per-request figure and it is attributed to Ch 16; the basis vocabulary used in Ch 4 has exactly two names, each defined once and used consistently; every host count quoted in Ch 4 Section 3 is either derived in Ch 4 or attributed to the chapter that derives it."
+  },
+  {
+    "id": "CH4-03",
+    "severity": "P2",
+    "confidence": "medium-high",
+    "page_hint": "Ch 4, Section 8 (End-of-Chapter Mini-Case) (printed page not determinable from chunk)",
+    "chapter": "Ch 4",
+    "quoted_clause": "Using the canonical per-host bound from Chapters 15-20 (a single 8xH100 host serves ~2.0 rps at full modeled utilization, i.e. the whole-slot floor 17 KV-resident requests / 8.6 s = 1.977 - C ~= 17.5

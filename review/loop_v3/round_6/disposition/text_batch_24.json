@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH8-03",
+  "severity": "P1",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §3, 'The 1.08 s budget versus the 35% planning rate'",
+  "chapter": "8",
+  "quoted_clause": "1.288 PFLOP ÷ 1.08 s ÷ 8 GPUs ≈ 149 TFLOPS/GPU ≈ 15% MFU",
+  "observed": "The 15% figure is derived from an end-to-end prefill latency that the same paragraph says 'absorbs queueing, scheduling, tokenization and admission overhead'. Dividing request FLOPs by end-to-end wall time yields an average end-to-end rate, not kernel MFU. Because the overheads inflate the denominator, the true compute-only MFU is ≥ 15%, not 15%. The paragraph then uses the 1.08 s-implied rate as if it were a compute rate ('if a deployment sustained only the 1.08 s-implied rate ... would need 51.6 ÷ 1.19 ≈ 43 hosts'), which overstates the hosts required at that MFU.",
+  "evidence": "The chapter's own §4 rule ('below 20% suggests a memory or communication bottleneck that should be diagnosed before scaling') would misfire on the 15% number, which is an end-to-end average, not a kernel measurement. The 43-host figure is therefore an upper bound on the hosts needed at the true (higher) kernel MFU, not a point estimate; the text presents it as the latter.",
+  "root_cause": "Two different quantities (end-to-end request-leg rate and kernel MFU) are collapsed into one number because both are expressed in TFLOPS. The chapter is otherwise careful about scope labels (per-GPU vs per-host, peak vs sustained); this one lacks a scope label.",
+  "correction": "Relabel: '1.288 PFLOP ÷ 1.08 s ÷ 8 GPUs ≈ 149 TFLOPS/GPU is an end-to-end-derived average rate, equivalent to ≈15% MFU if the entire 1.08 s were compute. Because the 1.08 s also absorbs queueing, scheduling, tokenization and admission, the kernel MFU is at least this and probably higher; the 43-host figure is therefore an upper bound on the fleet needed at that MFU, not a point estimate.' Add the missing scope label to the 149 TFLOPS figure.",
+  "acceptance_test": "Confirm the 15% figure is labeled as an end-to-end-derived lower bound on kernel MFU, that the 43-host number is labeled an upper bound, and that §4's 'below 20%' diagnostic rule is not applied to it.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §3, paragraph beginning 'Under case (ii) the compute screen binds above the KV-residency / Little's-Law fleet sizing'",
+  "chapter": "8",
+  "quoted_clause": "so the capacity floor is the *max* of the named screens — 21 hosts under case (i) and case (iii), 22 under case (ii)",
+  "observed": "The compute screen counts only prefill FLOPs; the KV-residency screen counts only KV capacity. Neither screen accounts for the GPU-time consumed by the decode leg (300 output tokens per request), which competes for the same GPUs. The max() of two lower bounds is a valid lower bound, but the phrasing 'the capacity floor is the max of the named screens' invites the reader to treat 21/22 as a fleet size. The chapter never computes the decode leg's FLOP or bandwidth demand, so the reader cannot see how much headroom the prefill screen leaves for decode.",
+  "evidence": "Decode demand at the canonical workload: 300 output tokens × ~164 GFLOP/token ≈ 49.2 TFLOP/request; at 40 rps ≈ 1.97 PFLOP/s, versus prefill's 51.5 PFLOP/s (case i) — i.e. prefill dominates FLOPs by ~26×, so the prefill screen is a tight lower bound on FLOP-time but says nothing about decode's bandwidth-time. The decode leg's weight-streaming traffic (140 GB per step per host, batch-1-equivalent) is the same traffic the §3 decode section shows is bandwidth-bound.",
+  "root_cause": "The chapter's scope note ('the compute/roofline arithmetic of this chapter answers the per-request and per-host-shard question; the fleet question is a separate multiplication that Ch 17 performs') is correct but is not carried into the sentence that names 21/22 as 'the capacity floor'.",
+  "correction": "Either (a) add the decode leg's FLOP and bandwidth demand to §3 and state explicitly that the prefill screen is a lower bound that ignores decode GPU-time, or (b) reword to 'the prefill-FLOP screen and the KV-residency screen are two independent lower bounds on fleet size; the true fleet must satisfy prefill throughput, decode throughput and KV residency simultaneously, and Ch 17 performs that joint sizing.'",
+  "acceptance_test": "Confirm that no sentence in Ch 8 presents 21/22 hosts as a fleet size rather than a screen, and that the decode leg's resource demand appears somewhere in the chapter (or is explicitly deferred with a pointer).",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, 'Prefill PFLOP for 9.2K input', paragraph beginning 'But the omission grows with context'",
+  "chapter": "8",
+  "quoted_clause": "at 32K the attention term is ~**+60%** of the linear term and at 128K it *dominates* (~2.4× the linear term, ≈+240%)",
+  "observed": "These two figures are case-(ii) (full-square) values, but the case is not stated, in a chapter that explicitly promises 'The ONE prefill-FLOP accounting convention used in this book ... every prefill FLOP figure and every prefill host count states which case it uses'. Under case (iii) (causal triangle) the same ratios are +30% and ~1.2×.",
+  "evidence": "Recomputed with the book's decimal-K convention (L = 32,000 and 128,000): case (ii) attention = 4×80×L²×8192 → 2.684 PFLOP at 32K vs linear 4.48 PFLOP (59.9%) and 42.95 PFLOP at 128K vs linear 17.92 PFLOP (2.40×); case (iii) is exactly half of each (30.0% and 1.20×). The mini-case later cites the same '+60%' with the formula '4·n_layers·L²·d', which does disambiguate it — the §3 statement does not.",
+  "root_cause": "The convention paragraph was written immediately above and then not applied to the very next paragraph.",
+  "correction": "Append the case label: 'at 32K the attention term is ~+60% of the linear term (case ii; ~+30% under case iii) and at 128K it dominates (~2.4× the linear term under case ii, ≈+240%; ~1.2× under case iii).'",
+  "acceptance_test": "Grep Ch 8 for every percentage or multiple describing the attention term's share of prefill FLOPs and confirm each carries an explicit case label (i/ii/iii).",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-06",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, 'Honest boundary on both numbers'",
+  "chapter": "8",
+  "quoted_clause": "treat every host count they produce (19 / 21 / 22 full-utilization compute screens for cases (i) / (iii) / (ii), and the labeled 70% × 95% + N−1 policy totals — case (i) 19 → 29 compute and 21 → 32 fleet, case (iii) 21 → 32, case (ii) 22 → 34, KV-only 21 → 32 — 30 / 32 on the ρ = 1 u-only screen, ceil(N ÷ 0.7)) as an **illustrative planning screen under its stated FLOP-counting case and the 35% MFU assumption, not measured SLO-goodput**",
+  "observed": "This parenthetical reproduces, nearly verbatim, the host-count list already given in the immediately preceding paragraph ('19 / 21 / 22 — the full-utilization compute screens for cases (i) / (iii) / (ii) — and their labeled 70% × 95% + N−1 policy totals, Ch 16/17: case (i) compute screen 19 → 29 and fleet 21 → 32, case (iii) 21 → 32, case (ii) 22 → 34, KV-only 21 → 32 (the ρ = 1 u-only screen reads 30 / 32 ...)'). The second occurrence adds no new qualification, number, or caveat.",
+  "evidence": "Class C (redundant repetition) under the book's own progressive-disclosure taxonomy: the second occurrence does not deepen, quantify, operationalize, or apply the first. The reader has to parse a 60-word parenthetical of host counts twice.",
+  "root_cause": "The 'honest boundary' paragraph was written to carry the scope caveat, and the caveat was pasted with the numbers attached rather than referring back to them.",
+  "correction": "Delete the parenthetical from the second paragraph and replace with a back-reference: '...as an illustrative planning screen under its stated FLOP-counting case and the 35% MFU assumption (the host counts are listed in the preceding paragraph), not measured SLO-goodput.'",
+  "acceptance_test": "Confirm the host-count list appears exactly once in §3 and that the second mention is a back-reference, not a repetition.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §4, 'Measurement', item 3",
+  "chapter": "8",
+  "quoted_clause": "H200: ~989 TFLOPS ÷ 4.8 TB/s ≈ 206 FLOP/byte — H200 keeps H100's GH100 die and its dense FP16 peak, trading a bigger/faster HBM3e for bandwidth — more bandwidth at a similar BF16 peak, so its ridge is *lower*; GB200 superchip (2 GPUs): higher on both terms (dense BF16 peak 4,500 TFLOPS = 2× B200's 2,250 per GPU, over 16 TB/s HBM3e = 2× 8 TB/s per GPU → 4,500 ÷ 16 ≈ 281 FLOP/byte, granularity-invariant, just below H100's ~295 — as superchip-vs-single-GPU its 4.8× bandwidth advantage slightly outpaces its 4.5× compute advantage; per GPU the factors are 2.28× compute and 2.39× bandwidth), while its NVFP4 ridge is far higher again",
+  "observed": "A four-device, multi-precision ridge comparison — the single most reused number family in the chapter (295, 206, 281, 412, 'far higher again') — is compressed into a 90-word parenthetical inside a numbered list item. The reader cannot compare the devices at a glance, and the 'granularity-invariant' and '4.8× vs 4.5×' remarks are asserted without explanation of what an architect should do with them.",
+  "evidence": "The chapter cites these ridges in at least five separate places (§3 Table 8-1, §4 item 3, §6 bullet 3, Fig 8.2 caption, and the mini-case). A table would make the comparison the point of the section rather than a parenthetical. The arithmetic in the parenthetical is correct (4500/16 = 281.25; per-GPU 2250/8 = 281.25; 16/3.35 = 4.78; 4500/989 = 4.55; 2250/989 = 2.28; 8/3.35 = 2.39), so this is a presentation defect, not a numerical one.",
+  "root_cause": "The material was added as an annotation to a list item rather than as the section's central comparison.",
+  "correction": "Promote the ridge data to a small table in §4 (columns: device, dense FP16/BF16 peak, HBM bandwidth, FP16 ridge, FP8 peak, FP8 ridge, source), and reduce the prose to one sentence on what the table shows (H200's ridge is lower than H100's; GB200's per-GPU ridge is essentially H100's; FP8 raises both intensity and ridge).",
+  "acceptance_test": "Confirm a ridge-point table exists in §4 with one row per device and one column per precision, that every ridge quoted elsewhere in the book matches the table, and that the parenthetical has been removed from list item 3.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-09",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §1, 'A resource model survives a backend change; an implementation may not', footnote ch8-backends",
+  "chapter": "8",
+  "quoted_clause": "Device constants: [Arc Pro B70 datasheet], [Arc Pro B65 datasheet], [Gaudi 3 Accelerator white paper].",
+  "observed": "Three hardware datasheets are cited as 'Device constants' but no constant from any of them appears anywhere in the chapter. The chapter's own argument is that 'their constants belong to a specific device and execution path' — yet the only device constants actually used are NVIDIA's (989 TFLOPS, 3.35 TB/s). The Intel/Gaudi citations are decorative.",
+  "evidence": "No FP16/FP8 peak, no HBM bandwidth, and no ridge point from B70, B65, or Gaudi 3 is computed or quoted in §1, §3, §4, §6, or §8. The subsection's substantive content (PyTorch `torch.xpu` vs `torch.device(\"hpu\")` vs OpenVINO NPU vs SYCL) is about API surface, not device constants.",
+  "root_cause": "The subsection grew from a portability note into a sourcing exercise; the citations were added to make it look evidenced rather than to support a claim.",
+  "correction": "Either (a) use the citations — e.g. add one sentence computing a non-NVIDIA ridge (Gaudi 3: 1,835 TFLOPS BF16 dense ÷ 3.7 TB/s HBM2e ≈ 496 FLOP/byte) to demonstrate that the roofline method is vendor-neutral, which is exactly the subsection's thesis, or (b) delete the three datasheet citations and keep only the API-boundary citations that the prose actually relies on.",
+  "acceptance_test": "Confirm every citation in footnote ch8-backends is referenced by at least one quantitative claim in the text, or that the unused ones have been removed.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH8-10",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §6, 'From video dimensions to repeated attention work'; Fig 8.3 caption",
+  "chapter": "8",
+  "quoted_clause": "Its \"720P\" example yields a 31×44×80×48 latent tensor (121 frames at the stated strides), patchified into **27,280 video tokens** per evaluation",
+  "observed": "The token count 27,280 is not derived in the text, and the caption foregrounds three derived quantities (T_l = (F−1)//4+1, H_l = H//16, W_l = W//16) that are not the divisors used to obtain the token count. A reader who applies the caption's own H_l = 44//16 = 2 and W_l = 80//16 = 5 gets 31×2×5 = 310, not 27,280 — an apparent contradiction that the prose never resolves.",
+  "evidence": "27,280 = 31 × 22 × 40 = T_latent × (H/2) × (W/2), i.e. a 1×2×2 spatial patch over the 31×44×80 latent with 48 channels — a different patchification rule from the H_l/W_l rule the caption cites. The frame arithmetic in the caption is correct (F = 121 → T_l = (121−1)//4+1 = 31; F = 1 + 4(T_l−1) = 121), and the FLOP arithmetic is correct (4N²d = 4 × 27,280² × 3,072 = 9.145 TFLOP/layer; ×30 layers = 274 TFLOP/branch; ×100 branch-evaluations = 27.4 PFLOP). Only the token-count derivation and its relation to H_l/W_l are missing.",
+  "root_cause": "Two different spatial reductions (H//16, W//16 for one path; H/2, W/2 for the token patchification) are cited in the same caption without distinguishing which produces the token count.",
+  "correction": "Show the derivation in the prose: '27,280 = 31 × 22 × 40 tokens (latent time × H/2 × W/2, i.e. a 1×2×2 spatial patch over the 31×44×80 latent with 48 channels)'. In the caption, state explicitly which of T_l/H_l/W_l governs the token count and which governs something else (e.g. the text-branch or RoPE grid), so the reader is not left with two incompatible spatial reductions.",
+  "acceptance_test": "A reader can reproduce 27,280 from the printed latent dimensions and the printed patch rule without consulting the source repository; the caption contains no spatial-reduction constant that is not tied to a stated use.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-11",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §8, 'End-of-Chapter Mini-Case: Continuous Deployment Scenario'",
+  "chapter": "8",
+  "quoted_clause": "the TTFT budget is being missed: p95 TTFT is 2.8 s, exceeding the 2 s p95 TTFT SLO (the 1.2 s figure is the internal design budget). The TPOT of 28 ms/token is within the 35 ms p95 TPOT SLO (though above the 25 ms design budget)",
+  "observed": "The mini-case introduces a two-tier SLO scheme (2 s p95 TTFT SLO, 35 ms p95 TPOT SLO) that is not established anywhere in this chunk and is not reconciled with the canonical scenario's 'TTFT budget 1.2 s ... TPOT budget ~25 ms/token' stated in §3. The parenthetical 'the 1.2 s figure is the internal design budget' is the only bridge, and it appears once, in passing, for TTFT but not for TPOT.",
+  "evidence": "§3 states the canonical scenario as 'TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT budget ~25 ms/token' with no mention of a separate SLO tier. If Ch 4 Table 4-2 defines both tiers, the mini-case must cite it; if it does not, the mini-case has silently introduced a second, looser target that changes the meaning of 'budget missed'.",
+  "root_cause": "The mini-case was written as a standalone scenario and its SLO frame was not reconciled with the canonical frame the rest of the chapter uses.",
+  "correction": "Add one sentence at the start of the mini-case establishing the two tiers and their source: 'The canonical SLO set (Ch 4, Table 4-2) is p95 TTFT ≤ 2 s and p95 TPOT ≤ 35 ms; the internal design budgets are tighter (1.2 s and 25 ms) and are what the fleet was sized against.' Then use the same two-tier vocabulary for TTFT and TPOT.",
+  "acceptance_test": "Confirm the mini-case's SLO numbers appear in Ch 4 Table 4-2 (or wherever the canonical SLO set is defined) and that the design-budget/SLO distinction is stated once, explicitly, before the numbers are used.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-12",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §8, mini-case closing paragraphs",
+  "chapter": "8",
+  "quoted_clause": "The recommendation is therefore: profile first (MEASURE, do not assume), and only then pick the intervention.",
+  "observed": "The mini-case ends on a process instruction rather than an architecture decision. It never states what the architect decides, what the resulting fleet or configuration change is, what evidence would confirm the diagnosis, or what the cost/benefit of the chosen intervention is. The chapter's own §6 promises 'architecture consequences', and the mini-case is the chapter's payoff.",
+  "evidence": "The mini-case supplies a good four-way diagnosis and a decision rule keyed on measured MFU, but the reader is left without: (a) the decision outcome for the stated measurements (p95 TTFT 2.8 s, TPOT 28 ms), (b) the resulting host/fleet implication, (c) the validation criterion (what telemetry, at what threshold, would confirm the fix), and (d) the trade-off accepted (e.g. P/D disaggregation adds a network hop and a second failure domain).",
+  "root_cause": "The mini-case was written to teach the diagnosis (which it does well) and stopped before the decision and validation steps.",
+  "correction": "Extend the mini-case with a short 'Decision' block: given the measured MFU and the four candidates, state which branch applies, the intervention, the expected effect on p95 TTFT and on host count, the validation telemetry and threshold, and the trade-off introduced. This also lets the mini-case close the loop with the §3 host screens rather than leaving them as a separate calculation.",
+  "acceptance_test": "The mini-case ends with a stated decision, a stated validation criterion, and a stated trade-off, and the reader can trace the decision back to the four candidates and forward to the §3/§6 consequences.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-13",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §1 roadmap paragraph; Fig 8.2 caption; §6 bullet 3",
+  "chapter": "8",
+  "quoted_clause": "§1–§3 build the core arithmetic ... §4 turns to measurement ... (Fig 8.2 caption) the FMA convention of §8.1 ... sustained MFU is 30–40%, §8.3 ... never the sparsity-inclusive ~4 PFLOPS (§8.5)",
+  "observed": "The chapter uses two incompatible section-reference schemes. The body and roadmap use chapter-relative numbering (§1, §3, §4, §5, §6, §7, §8); the Fig 8.2 caption and §6 bullet 3 use chapter.section numbering (§8.1, §8.3, §8.5) for the same sections. §8.1 = 'Concept', §8.3 = 'Worked Example', §8.5 = 'Common Mistakes' — the same targets as §1, §3, §5. A reader following '§8.5' will look for a subsection of the mini-case.",
+  "evidence": "All four §8.x references resolve to sections that exist under the other scheme; the ambiguity is purely notational but affects at least four cross-references in the chapter, including two inside a figure caption where the reader has no surrounding context.",
+  "root_cause": "Two editing passes (or two authoring conventions) applied different section-numbering styles to the same chapter.",
+  "correction": "Pick one scheme for the whole book. If chapter.section is the house style, convert the body references (§1, §3, §7) to §8.1, §8.3, §8.7; if chapter-relative is the style, convert the caption and §6 references to §1, §3, §5. Then sweep the whole manuscript for the other scheme.",
+  "acceptance_test": "Grep the manuscript for '§\\d+\\.\\d+' and for '§\\d+' and confirm only one scheme survives, and that every reference resolves to a section that exists.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-14",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, 'The 1.08 s budget versus the 35% planning rate'",
+  "chapter": "8",
+  "quoted_clause": "would need 51.6 ÷ 1.19 ≈ **43 hosts**, not 19",
+  "observed": "51.6 ÷ 1.19 = 43.36. Every other host count in the chapter is a ceiling (⌈18.60⌉ = 19, ⌈20.21⌉ = 21, ⌈21.81⌉ = 22, ⌈368,000 ÷ 14,100⌉ = 27), so a host count here should be ⌈43.36⌉ = 44. The '≈' makes the arithmetic defensible but the number is used as a host count, which is a discrete decision quantity.",
+  "evidence": "Recomputed: 51.52 PFLOP/s ÷ 1.1868 PFLOP/s (8 GPUs × 149 TFLOPS) = 43.41 → 44 hosts. The chapter's own convention (ceil for host counts) is violated here.",
+  "root_cause": "The comparison was written as a magnitude comparison ('not 19') rather than as a sizing result, but the reader will read it as a sizing result.",
+  "correction": "Write '≈ 43–44 hosts (⌈43.4⌉ = 44), not 19', or state 'more than twice the 19-host screen' if the point is only the magnitude.",
+  "acceptance_test": "Every host count in Ch 8 is either a ceiling expression or explicitly labeled an approximation with its rounding direction.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-15",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §3, 'The execution path determines the applicable roofline'",
+  "chapter": "8",
+  "quoted_clause": "a dense 2N useful-operation convention and one complete weight stream give about 3.567 FLOP/B at batch one, compared with 1 FLOP/B for BF16 weights",
+  "observed": "3.567 FLOP/B is not reproducible from the stated inputs (98% MXFP4, 2% BF16). The reader needs the effective MXFP4 footprint including block scales, which is not given.",
+  "evidence": "Reverse-engineering: 2 FLOP/param ÷ 3.567 FLOP/B = 0.5607 B/param. With MXFP4 at 4 bits + an 8-bit scale per 32 elements (4.25 bits = 0.53125 B) and BF16 at 2 B: 0.98 × 0.53125 + 0.02 × 2 = 0.5606 B → 2/0.5606 = 3.567 ✓. Without the scale overhead (naive 0.53 B) the result is 3.774 FLOP/B. The figure is therefore correct but only under an unstated assumption.",
+  "root_cause": "The derivation was carried over from Ch 7 without restating the scale-overhead assumption that makes the number reproducible.",
+  "correction": "Add the derivation inline: '0.98 × 0.53125 B (MXFP4: 4 bits + 8-bit scale per 32 elements) + 0.02 × 2 B (BF16) = 0.5606 B/param; 2 ÷ 0.5606 ≈ 3.567 FLOP/B', or cross-reference the exact Ch 7 derivation.",
+  "acceptance_test": "A reader can reproduce 3.567 from the printed inputs alone, or the number is replaced by a pointer to the Ch 7 derivation.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-16",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, 'Decode: bandwidth-bound'",
+  "chapter": "8",
+  "quoted_clause": "decode intensity ≈ batch size (weight-only), so at batch=32 the effective intensity is ~32 FLOP/byte",
+  "observed": "The '≈ batch size' relation uses the linear-only FLOP count (140 GFLOP/token) in the numerator, while the same section's KV-inclusive model uses 164 GFLOP/token. With attention included, the weight-only intensity is ≈1.17 × batch, not ≈ batch. The two numerators are used without being distinguished.",
+  "evidence": "Weight-only intensity with attention = 164b/140 = 1.17b FLOP/byte; at b = 32 that is 37.5 FLOP/byte, not 32. The '≈' absorbs the 17% but the reader cannot tell which FLOP count is in play, and the KV caveat two paragraphs later switches to 164 without comment.",
+  "root_cause": "Two FLOP conventions (linear-only vs linear+attention) coexist in one subsection without a stated rule for which applies where.",
+  "correction": "State the convention once: 'using the linear-only 140 GFLOP/token, weight-only decode intensity ≈ batch size (with the attention term included it is ≈1.17 × batch)'. Apply the same convention in the KV-inclusive formula.",
+  "acceptance_test": "Every decode-intensity figure in §3 and §6 states which FLOP count (140 or 164 GFLOP/token) it uses.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-18",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, Table 8-1 caption",
+  "chapter": "8",
+  "quoted_clause": "the ~295 FLOP/byte ridge is [2°][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s",
+  "observed": "The ridge is derived entirely from first-party datasheet values (989 TFLOPS, 3.35 TB/s), both of which the same caption labels [1P]. Labeling the derived ridge [2°] (secondary) contradicts the provenance of its inputs and the table's own row label ('[DERIVED: peak TFLOPS ÷ HBM bandwidth]').",
+  "evidence": "The book's provenance axis distinguishes [1P] from [2°]; a value computed from two [1P] inputs is [1P][DERIVED]. The same table labels the H100 peak row '[1P: NVIDIA H100 datasheet]'.",
+  "root_cause": "The caption's label list was written as a blanket description of the table's contents rather than per-row.",
+  "correction": "Change to '[1P][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s', and check the same caption's other labels: the 30–40% MFU row is correctly [2°], the per-token/prefill rows are correctly [ILLUSTRATIVE][DERIVED].",
+  "acceptance_test": "Every label in Table 8-1's caption matches the provenance of that row's inputs, and no [2°] label sits on a value computed from [1P] inputs.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-19",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §7, 'What We Still Don't Know', bullet 3",
+  "chapter": "8",
+  "quoted_clause": "Linear attention (DeltaNet, MLA), compressed attention (CSA, HCA), and hybrid sparse patterns have different FLOP profiles and data movement.",
+  "observed": "MLA (Multi-head Latent Attention) is grouped under 'linear attention'. MLA is a low-rank KV-compression mechanism: its FLOP profile and its KV footprint change because the latent cache is small and is re-expanded per step, not because attention is linear in sequence length. The grouping will mislead a reader who then reasons about MLA's roofline position using linear-attention intuition.",
+  "evidence": "MLA's defining property is a c_KV-dimensional latent cache with up-projection at decode; its per-token cost is dominated by the up-projection and the cache read, and its KV footprint is a fraction of full MHA. That is a different mechanism from DeltaNet's recurrent state update.",
+  "root_cause": "Mechanisms grouped by 'attention alternatives' rather than by the mechanism that determines their FLOP/byte profile.",
+  "correction": "Separate them: 'Linear attention (DeltaNet) replaces the KV cache with a fixed-size recurrent state; compressed/low-rank attention (MLA) shrinks the KV cache by a rank bottleneck and adds an up-projection; sparse patterns (CSA, HCA) reduce the number of attended pairs. Each changes the FLOP/byte profile for a different reason, so their roofline positions must be derived separately.'",
+  "acceptance_test": "No mechanism is grouped under a category whose defining property it does not share; MLA is discussed as a cache-compression mechanism wherever it appears.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-20",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §3, 'Scope' paragraph",
+  "chapter": "8",
+  "quoted_clause": "far above one host's KV-residency ceiling (C ≈ 17.5, conservative integer floor 17)",
+  "observed": "The KV-residency ceiling C is quoted without derivation and cannot be reconstructed from anything in this chapter, even though the chapter supplies every input that would be needed (2.62 MB/token FP16, 9,200 tokens → 24.1 GB KV per request; 8 × 80 GB = 640 GB HBM; 140 GB of weights).",
+  "evidence": "A naive reconstruction gives (640 − 140) / 24.1 ≈ 20.7 requests per host, or 640/24.1 ≈ 26.6 if weights are ignored — neither is 17.5. The 17.5 presumably reflects additional reservations (activation workspace, fragmentation, a utilization cap) that are not stated here. The reader therefore cannot tell whether C = 17.5 is a per-host figure, a per-GPU figure, or a policy-capped figure.",
+  "root_cause": "A number imported from Ch 17 is used in Ch 8's scope argument without the minimum derivation needed to make it checkable.",
+  "correction": "Add one line: 'C ≈ 17.5 concurrent requests per host (Ch 17: 640 GB of HBM less 140 GB of weights, less activation workspace and a utilization cap, ÷ 24.1 GB of KV per request at 9.2K)'. If the derivation genuinely lives in Ch 17, cite the specific table/equation rather than the chapter.",
+  "acceptance_test": "A reader can reconstruct C from the printed inputs, or the text points to the exact Ch 17 location where C is derived.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-21",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §3, 'Worked Example: Canonical Scenario Arithmetic', opening paragraph",
+  "chapter": "8",
+  "quoted_clause": "the canonical 80-layer, hidden-8192, full-MHA 70B reference (a 70B-class dense model)",
+  "observed": "The canonical reference's parameter count and its layer/hidden geometry are not mutually consistent under standard transformer sizing: 80 layers × d = 8192 with full MHA and an FFN ratio of 4 gives ≈12·L·d² ≈ 64.4B parameters, not 70B. The chapter uses N = 70B for the linear FLOP term and (n_layers = 80, d = 8192) for the quadratic attention term, so the two terms come from slightly different models.",
+  "evidence": "12 × 80 × 8192² = 64.4B. Reaching 70B with d = 8192 requires ~87 layers, or a wider FFN (e.g. ratio ≈ 4.7). The effect on the attention term is second-order (attention is +17% of prefill FLOPs at 9.2K), but the inconsistency is exactly the kind that a careful reader will notice and that undermines the 'one canonical model' discipline the chapter enforces elsewhere.",
+  "root_cause": "The canonical reference was assembled from familiar 70B-class attributes (80 layers, d = 8192) without reconciling them against a single parameter count.",
+  "correction": "State the reconciliation explicitly: either give the FFN intermediate size and note that N = 70B is a rounded class label for a 64–70B parameter geometry, or adjust n_layers to the value implied by N = 70B at d = 8192 and note the change to the attention term. Either way, add one sentence: 'N = 70B is a class label; the FLOP term uses N and the attention term uses (n_layers, d), which are not exactly self-consistent under 12·L·d² sizing — the resulting error in the attention term is under 10% at 9.2K.'",
+  "acceptance_test": "The canonical model's parameter count, layer count, hidden size and FFN size are mutually consistent, or the residual inconsistency is stated and bounded.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-23",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §1, 'Fewer sequential evaluations can mean more total work' vs §1, 'A resource model survives a backend change'",
+  "chapter": "8",
+  "quoted_clause": "*Implementation observations: 2026-10-28. The work counters below are illustrative, not measured performance.* ... *Backend-documentation observations: 2026-10-28. They do not establish feature availability at the edition's 2026-08-30 cutoff.*",
+  "observed": "Two sibling subsections carry the same 2026-10-28 observation date, but only one states its relationship to the edition's 2026-08-30 evidence cutoff. The reader is left unsure whether the DiffusionGemma/LLaDA2.2 material is inside or outside the book's evidence window.",
+  "evidence": "The book clearly maintains an evidence cutoff (stated in the backend subsection and consistent with the §7 citation of a 2026-08-26 release article). The implementation-observations subsection cites material retrieved 2026-10-28 without the same qualifier.",
+  "root_cause": "The cutoff caveat was added to one dated subsection but not propagated to the other.",
+  "correction": "Add the same qualifier to the implementation-observations subsection: 'Implementation observations: 2026-10-28. These post-date the edition's 2026-08-30 evidence cutoff; they are reported as context, not as edition-scoped facts.'",
+  "acceptance_test": "Every dated observation block in Ch 8 states its relationship to the edition's evidence cutoff.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-24",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8, closing italic paragraph after the mini-case",
+  "chapter": "8",
+  "quoted_clause": "*Prefill PFLOP also grows with context: 2 ×70B × L tokens scales linearly — ~0.28 PFLOP at 2K → ~4.5 PFLOP at 32K (K = 1,000, the book's convention: 9.2K = 9,200) — so the longer the window, the larger the one-time compute cost of loading it. Sustained throughput (tokens/s) is what matters for continuous serving, and at the canonical 9.2K point the prefill is ~1.29 PFLOP (Table 8-1).*",
+  "observed": "An unlabeled italic paragraph floats after the mini-case's closing rule, separated by a horizontal rule. It is not a mini-case, not a summary, and not labeled; it reads as an orphaned fragment. Its content (prefill FLOPs scaling with context; the canonical 1.29 PFLOP) partly repeats §3, and its most useful content (the 2K/32K figures and the K = 1,000 convention reminder) belongs in §3 where the 32K/128K attention growth is already discussed.",
+  "evidence": "Arithmetic is correct under the book's decimal-K convention: 2 × 70e9 × 2,000 = 0.28 PFLOP; 2 × 70e9 × 32,000 = 4.48 ≈ 4.5 PFLOP. The problem is placement and labeling, not the numbers.",
+  "root_cause": "A note written for the chapter's end was left after the mini-case, which should be the chapter's final element.",
+  "correction": "Move the content into §3's 'Prefill PFLOP for 9.2K input' subsection (adjacent to the 32K/128K attention-growth paragraph), and either delete the trailing paragraph or convert it into a labeled 'Chapter note' with a heading so it does not read as a stray fragment.",
+  "acceptance_test": "The chapter ends with the mini-case (or a clearly labeled closing element); no unlabeled italic paragraph follows the mini-case.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-25",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §3, 'A small execution-budget example'",
+  "chapter": "8",
+  "quoted_clause": "An illustrative work model makes the distinction precise. Let `C` be fixed work outside a repeated core, `F` the work of one core pass, and `r` the executed pass count.",
+  "observed": "This subsection sits between 'FLOPs per token' and 'Prefill PFLOP for 9.2K input', interrupting the canonical arithmetic that the section is named for. Its subject (repeated core passes, pass-count vs total-work accounting) is the subject of §1's 'Fewer sequential evaluations can mean more total work' subsection, with which it shares the C + rF framing.",
+  "evidence": "The subsection's own content (C + rF, 9 vs 7 units, 22.2% vs 25%) is a self-contained illustration of §1's principle; §1 already introduces the position-count accounting that the subsection generalizes. Placing it in §3 gives the reader two explanations of the same idea in different chapters without the second advancing the first.",
+  "root_cause": "Placement by topic adjacency rather than by argumentative function.",
+  "correction": "Move the subsection into §1 immediately after 'Fewer sequential evaluations can mean more total work' (where it becomes the general form of that principle), or convert it into a boxed sidebar attached to §1. §3 should then flow: FLOPs per token → prefill PFLOP → MFU → decode.",
+  "acceptance_test": "§3 contains no material whose subject is introduced in §1, and the C + rF example appears once, adjacent to the principle it illustrates.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ }
+]

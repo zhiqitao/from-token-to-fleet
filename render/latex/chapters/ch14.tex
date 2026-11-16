@@ -95,12 +95,14 @@ a heuristic). \mbox{{[}2°{]}}
 
 \textbf{Step 2 --- sweep the offered load, not a single point.} The
 analytical KV quotient C ≈ 17.5 FP16-KV request-equivalents (436 GB FP16
-KV budget ÷ 24.9 GB per 9,500-token request; 9,500 × 2.62 MB ≈ 24.9 GB)
-gives at most 17 whole-context slots, not a deployable concurrency of
-17.5. At the assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a
-single-host residency ceiling before headroom and competing resource
-limits (the unfloored 17.5-slot quotient gives \textasciitilde2.03 req/s
-on the analytical planning screens; the \textasciitilde3\% gap is the
+KV budget ÷ 24.9 GB per 9,500-token maximum sequence; 9,500 = 9,200
+input + 300 output, the conservative whole-context basis, not the
+input-only 9,200; 9,500 × 2.62 MB ≈ 24.9 GB) gives at most 17
+whole-context slots, not a deployable concurrency of 17.5. At the
+assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a single-host
+residency ceiling before headroom and competing resource limits (the
+unfloored 17.5-slot quotient gives \textasciitilde2.03 req/s on the
+analytical planning screens; the \textasciitilde3\% gap is the
 fractional-slot rounding --- floor 17 for provisioning, 17.5 for
 analysis). We sweep offered load and measure the tail rather than
 treating that ceiling as achieved capacity. An illustrative single-host
@@ -113,7 +115,8 @@ requests are simultaneously resident. At each level we record:
 \item
   \textbf{TTFT} p50/p95/p99 (must be median ≤ 1.2 s, p95 ≤ 2 s).
 \item
-  \textbf{TPOT} p50/p95 (≤ \textasciitilde25 ms median).
+  \textbf{TPOT} p50/p95 (SLO: p50 ≤ \textasciitilde25 ms/token; record
+  p95 for tail diagnosis, not SLO-bound).
 \item
   \textbf{Goodput} --- tokens/s that meet the SLO (Ch6), not raw
   throughput.
@@ -247,9 +250,11 @@ Four habits make benchmarks trustworthy:
 \tightlist
 \item
   \textbf{Use the model's own tokenizer} on representative real prompts.
-  The ``4 chars ≈ 1 token'' estimate can be \textasciitilde1.5--3× off
-  for code/JSON/technical text (measure chars/token with the model's own
-  tokenizer).
+  The ``4 chars ≈ 1 token'' heuristic can be materially wrong for
+  code/JSON/technical text --- the often-quoted \textasciitilde1.5--3×
+  shortfall is \mbox{{[}ILLUSTRATIVE{]}}, not a measured range --- so measure
+  chars/token with the model's own tokenizer rather than assuming a
+  fixed ratio.
 \item
   \textbf{Measure distributions, not means} --- log p50/p90/p95/p99 for
   every latency metric and the full token-length distribution. A
@@ -298,13 +303,13 @@ particular format passes them.
 The load test keeps arrival traces, prompt/output distributions,
 parallelism and cache state fixed. It measures load peak,
 steady/reserved HBM, kernel selection, TTFT, inter-token latency,
-completion time, errors and task quality. A bounded first screen can use
-at least 200 paired examples per critical task and three repetitions per
-load point, but these are illustrative starting budgets, not proof of
-rare-failure or p99 reliability. Final sample sizes follow the
-predeclared degradation bound and statistical power. Only candidates
-that pass the quality gate enter a comparison of SLO-goodput and cost
-per successful task. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}\hspace{0pt}\mbox{{[}UNMEASURED{]}}
+completion time, errors and task quality. A bounded first screen might
+use 200 paired examples per critical task and three repetitions per load
+point as a smoke test; this is not sufficient for p99 or rare-failure
+claims. Final sample sizes follow the predeclared degradation bound and
+statistical power. Only candidates that pass the quality gate enter a
+comparison of SLO-goodput and cost per successful task.
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}\hspace{0pt}\mbox{{[}UNMEASURED{]}}
 
 \subsection{Measure drafts, commitments and valid results
 separately}\label{measure-drafts-commitments-and-valid-results-separately}
@@ -316,8 +321,7 @@ A first-draft timestamp measures early visibility. A first-commit
 timestamp measures when a downstream consumer can safely act on text
 that will not be overwritten. Time to a validated answer includes any
 required schema checks, unit tests or task acceptance. Comparisons need
-the same boundary on both sides. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}; metric definitions
-\mbox{{[}DERIVED{]}}
+the same boundary on both sides. \mbox{{[}DERIVED{]}}
 
 Burst streaming also changes the meaning of inter-token latency. A
 runtime may deliver an entire block in one event and pause while
@@ -428,8 +432,10 @@ SLO. Token goodput counts the output tokens of those compliant requests
 over the same wall-clock interval. Timeouts, failed attempts and
 fallback work still consume resources. A p95 threshold is a
 configuration-level statistic; it is not itself a count of compliant
-work. An increase in raw tokens per second can therefore coexist with
-unchanged or lower goodput. \mbox{{[}DERIVED{]}}
+work. A p95 SLO is evaluated over a defined population and window, while
+goodput counts the requests that individually meet their SLOs within
+that window. An increase in raw tokens per second can therefore coexist
+with unchanged or lower goodput. \mbox{{[}DERIVED{]}}
 
 Graph startup, cache warmth, host-side conversion and request isolation
 belong in the record. Reasoning workloads also need total
@@ -504,9 +510,9 @@ memory pressure) before they breach the SLO.
 \caption{Capability screen then deployment benchmark \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:14.1}\emph{Two-stage benchmarking: the capability screen (which models
-qualify) feeds the deployment benchmark (which system meets our SLO),
-whose results pass the TCO + SLO gate to the deployed system, feeding
-selection and TCO.}
+qualify) feeds the deployment benchmark (which system meets our SLO);
+those results drive selection, which then passes the TCO + SLO gate to
+the deployed system.}
 
 \end{figure}\ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 

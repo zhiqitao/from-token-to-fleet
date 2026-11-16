@@ -48,8 +48,9 @@ for text, col, ls, lw in legend:
 y = yl - 0.4
 for i, (name, kind, yr) in enumerate(steps):
     col = colors[kind]
+    lw = 2.4 if kind == 'fleet' else 1.4   # FIG-A.3-03: legend says 'Fleet (thick)' - apply it to the bar
     ax.add_patch(FancyBboxPatch((0.4, y), 9.6, row_h, boxstyle='round,pad=0.02',
-                                fc=col, ec='#333', lw=1.4, ls=border[kind], alpha=0.92))
+                                fc=col, ec='#333', lw=lw, ls=border[kind], alpha=0.92))
     ax.text(5.2, y+row_h/2, name, fontsize=8.5, fontweight='bold', color='white',
             ha='center', va='center')
     ax.text(10.35, y+row_h/2, yr, fontsize=8.8, color='#444', va='center', style='italic')

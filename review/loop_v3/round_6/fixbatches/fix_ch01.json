@@ -1,0 +1,54 @@
+[
+ {
+  "id": "CH1-01",
+  "severity": "P2",
+  "chapter_hint": "1",
+  "page_hint": "Ch 1 §3 Worked Example (PDF ~p. 21–22)",
+  "quoted_clause": "the canonical workload is KV-capacity-bound because of the long context, not because of the ratio.",
+  "observed": "The sentence asserts the canonical workload *is* KV-capacity-bound as a fact, but the immediately preceding sentence calls the input-heavy ratio a *hypothesis* that memory and prefill dominate, and the immediately following sentence says the measured per-phase utilization and goodput 'are what confirm it.' The chapter thus asserts the conclusion it says still needs measurement.",
+  "correction": "Either (a) weaken to 'the canonical workload's *concurrency ceiling* is set by KV residency because of the long context, not by the input/output ratio — whether KV capacity dominates overall cost is what Ch 7/8 measurement confirms'; or (b) keep 'KV-capacity-bound' but define it explicitly at first use as 'concurrency ceiling set by KV residency' and remove the 'hypothesis ... confirm it' hedge for that specific sub-claim. Do not leave both the assertion and the hedge.",
+  "acceptance_test": "Re-read §3: the sentence no longer asserts as fact a conclusion the same paragraph says requires measurement, and 'KV-capacity-bound' is either defined or replaced with the narrower phrase.",
+  "verdict_evidence": "grep -n '50.60|MLA' ch1/ch3 shows the claim twice ('MLA ~50–60× less for DeepSeek-class geometry, [DERIVED]' at chapter-01.md:40 table row; '(~50–60× ... [DERIVED])' at chapter-03.md:93) and grep for '576|latent|c_KV' finds no derivation anywhere in design/manuscript. Recompute: MHA per layer/token 2×128×128 = 32,768 dims vs MLA cache d_c+d_h^R = 512+64 = 576 -> 56.9×, so the printed range is right but the reviewer's 64× / 1.94× alternatives omit the decoupled RoPE key and mis-model the cache; the defect is the unearned [DERIVED] label, not the number.",
+  "fix_instruction": "At chapter-01.md:40 replace '[DERIVED]' support with the inline ratio, e.g. 'MLA ~50–60× less for DeepSeek-class geometry: 2·n_h·d_h = 2×128×128 = 32,768 dims per layer per token for full MHA vs d_c + d_h^R = 512+64 = 576 for MLA, 32,768/576 ≈ 57× [DERIVED]', and repeat the same parenthetical at chapter-03.md:93 (or cross-reference Ch 1).",
+  "is_vision": false
+ },
+ {
+  "id": "CH1-02",
+  "severity": "P2",
+  "chapter_hint": "1",
+  "page_hint": "Ch 1, Attention section, second paragraph (quadratic scaling)",
+  "quoted_clause": "the number of input×output position pairs grows as L²",
+  "observed": "During prefill, all positions are input positions; there are no output tokens yet. The quadratic term counts (query position, key position) pairs within the input sequence, not 'input×output' pairs. The phrasing could lead a reader to think the quadratic cost arises from cross-attention between input and output, which does not apply to decoder-only prefill.",
+  "correction": "Replace with: 'each of the L positions attends to up to L prior positions, giving on the order of L² (query, key) pairs' or 'the number of position pairs within the sequence grows as L².'",
+  "acceptance_test": "A reader can identify which positions form the pairs without needing to reconcile 'input×output' with the prefill context, and does not infer a cross-attention mechanism.",
+  "verdict_evidence": "chapter-01/chapter-01.md:31 reads 'the number of input×output position pairs grows as L²'; during prefill every position is an input position (query and key are both input tokens), so 'input×output' has no referent and misdescribes the (query, key) pair count.",
+  "fix_instruction": "At chapter-01/chapter-01.md:31 replace 'the number of input×output position pairs' with 'the number of (query, key) position pairs within the sequence'.",
+  "is_vision": false
+ },
+ {
+  "id": "CH1-03",
+  "severity": "P2",
+  "chapter_hint": "1",
+  "page_hint": "Ch 1, Measurement section, item 2",
+  "quoted_clause": "input on memory/prefill, output on decode",
+  "observed": "The slash construction 'memory/prefill' is ambiguous. It is unclear whether 'memory' refers to memory bandwidth, memory capacity, KV-cache writes, or is simply a loose synonym for 'prefill.' Prefill is typically compute-bound (not memory-bandwidth-bound) for large batches; input tokens do create KV-cache entries (memory capacity), but the primary resource stressed by prefill is compute.",
+  "correction": "Clarify the specific resource: e.g., 'input tokens are processed during prefill (compute-intensive) and create KV-cache entries (memory capacity), while output tokens are processed during decode (memory-bandwidth-intensive per step).'",
+  "acceptance_test": "A reader can identify which specific resource each token type stresses without guessing, and the phrasing is consistent with the capacity-vs-bandwidth distinction made elsewhere in the chapter.",
+  "verdict_evidence": "chapter-01/chapter-01.md:107 reads 'they land on different bottlenecks — input on memory/prefill, output on decode'; the slash conflates memory bandwidth with capacity, and labels prefill a memory bottleneck although the chapter argues prefill is compute-bound. Ch 22:5 already carries the resolved wording ('input on prefill compute and kv-cache capacity, output on decode bandwidth').",
+  "fix_instruction": "Rewrite chapter-01/chapter-01.md:107 to match Ch 22: 'input on prefill compute and KV-cache capacity, output on decode bandwidth'.",
+  "is_vision": false
+ },
+ {
+  "id": "FIG-1.1-01",
+  "severity": "P1",
+  "chapter_hint": null,
+  "page_hint": "PDF 27 / printed 7",
+  "quoted_clause": "Figure 1.1",
+  "observed": "The figure encodes the KV write one decode step too early and contains an off-by-one token label. It shows token1 (sampled by prefill) and token2 (sampled by the first decode) being appended in the same step they are sampled, and labels token n as 'nth decode' even though token2 is labeled 'first decode'. This contradicts the caption's 'one step after it is sampled' and the prose on p. 14 that a token's K/V enters the cache on the step in which it is the input, not the step in which it is sampled.",
+  "correction": null,
+  "acceptance_test": "Relabel or annotate the figure so the append arrows are offset by one step: prompt tokens append during prefill; token1 (prefill output) appends at first decode; token2 (first decode output) appends at second decode; ... token n appends at nth decode. Remove the 'token n nth decode' label or renumber tokens so token2 is not both 'first decode' and appended at first decode. Verify the rendered figure matches the caption and p. 14 timing convention.",
+  "verdict_evidence": "Page 27 drawing encodes only 'these tokens are appended', not when: no timing marker on the append box or the arrows, and the token sublabels name the sampling pass ('from prefill', 'first decode') rather than the write step; caption prose alone forbids the off-by-one reading.",
+  "fix_instruction": "Encode the delay in the drawing itself — put 'one step later' (already in the archify JSON spec) back into the append box sublabel, or annotate the token sequence as 'sampled at step k / appended at step k+1'; rebuild fig-01-kv-cache.{pdf,png} and re-render p.7.",
+  "is_vision": true
+ }
+]

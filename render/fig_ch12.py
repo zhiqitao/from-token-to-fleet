@@ -75,12 +75,19 @@ divider(0.323)
 sw = (W - 0.04) * 0.58
 sx = X0
 box(sx, 0.090, sw, 0.200, '#e7f5ec', '#1e8449')
-stagelabel(sx + sw / 2, 0.245, '\u2463  OUTCOME \u2014 THROUGHPUT GATE', '#145a32')
-ax.text(sx + sw / 2, 0.180, 'CAPACITY SCREEN: (a) \u00b7 (b) pass', ha='center', va='center',
+# FIG-12.1-02: the 11.5pt title overran the card on both sides; fit it to the
+# card width (and keep the marker with the title, per FIG-12.1-1).
+stagelabel(sx + sw / 2, 0.245, '\u2463  OUTCOME \u2014 THROUGHPUT GATE', '#145a32', size=9.0)
+ax.text(sx + sw / 2, 0.186, 'CAPACITY SCREEN: (a) \u00b7 (b) pass', ha='center', va='center',
         fontsize=8.4, color='#145a32', fontweight='bold', zorder=3)
-ax.text(sx + sw / 2, 0.140, 'validation open until Chs. 14\u201317', ha='center', va='center',
+ax.text(sx + sw / 2, 0.152, 'validation open until Chs. 14\u201317', ha='center', va='center',
         fontsize=8.0, color='#145a32', zorder=3)
-ax.text(sx + sw / 2, 0.104, '~5 avg / ~19 peak hosts, headroom not demonstrated', ha='center', va='center',
+# FIG-12.1-02: the single bottom line ran flush against the card border; split
+# it into two shorter lines (with padding on both sides of the card) so every
+# glyph sits inside the border.
+ax.text(sx + sw / 2, 0.122, '~5 avg / ~19 peak hosts', ha='center', va='center',
+        fontsize=7.4, color='#145a32', zorder=3)
+ax.text(sx + sw / 2, 0.100, 'headroom not demonstrated', ha='center', va='center',
         fontsize=7.4, color='#145a32', zorder=3)
 bx = sx + sw + 0.04
 bw = W - sw - 0.04

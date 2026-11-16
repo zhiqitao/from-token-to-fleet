@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH7-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Table 7-2 and its note; Fig 7.6 caption",
+  "chapter": "Chapter 7",
+  "quoted_clause": "fine-tuning (QLoRA, 4-bit base + LoRA) | quantized base + LoRA adapters + KV ... the ~24 GB KV that Fig 7.6 lists",
+  "observed": "The QLoRA fine-tuning row and note include a KV cache in the training memory floor. Fine-tuning does not use an autoregressive KV cache; it uses activations, gradients, optimizer state, and workspace. Including ~24 GB of inference KV overstates the QLoRA training floor and contradicts the chapter's own definition of the fine-tuning floor as weights + gradients + optimizer states.",
+  "evidence": "The chapter states earlier: 'In fine-tuning, the floor rises further to weights + gradients + optimizer states.' Table 7-2 then lists 'quantized base + LoRA adapters + KV' and the note says the QLoRA floor 'holds ... the ~24 GB KV that Fig 7.6 lists.' That is an inference-state component, not a training-state component.",
+  "root_cause": "Inference KV residency was carried into the fine-tuning comparison without re-inventorying state by lifetime.",
+  "correction": "Remove KV from all fine-tuning rows and from the QLoRA note. Replace it with an explicit activation/workspace term or state that activations are excluded from the floor and must be measured. If the book wants to discuss inference after fine-tuning, separate that from the training floor.",
+  "acceptance_test": "No fine-tuning row or note includes KV cache as a training memory component; the QLoRA floor is derived from 4-bit base + adapters + optimizer + explicitly labeled activation/workspace assumptions.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "§4 Measurement, point 1",
+  "chapter": "Chapter 7",
+  "quoted_clause": "When evaluating a model where the hidden dimension or layer count differs from LLaMA-70B, recompute the constant factor",
+  "observed": "The text uses LLaMA-70B as if it followed the full-MHA formula and had ~2.62 MB/token at FP16. Earlier in the same chapter, LLaMA-2 70B is correctly described as GQA with 64 query heads and 8 KV heads, giving ~0.33 MB/token. The measurement formula is explicitly the full-MHA formula using d_hidden, so it cannot be applied to LLaMA-70B by changing only layer count and hidden dimension.",
+  "evidence": "The chapter's GQA sensitivity note says: 'LLaMA-2 70B, for instance, has 64 query heads but only 8 KV-heads, so per-token KV shrinks by the head ratio to ... ≈0.33 MB/token.' Measurement point 1 then says 'For a 70B model at FP16 the answer is 2×80×8192×2 B = 2,621,440 B ≈ 2.62 MB/token' and refers to 'LLaMA-70B' as the baseline.",
+  "root_cause": "The canonical full-MHA teaching geometry and the named LLaMA-70B GQA model were conflated.",
+  "correction": "Replace 'LLaMA-70B' in measurement point 1 with 'the canonical full-MHA 70B teaching geometry.' State that for any real model the formula is 2 × layers × n_KV-heads × head_dim × bytes, and that LLaMA-2 70B must use 8 KV heads, not hidden_dim.",
+  "acceptance_test": "No passage implies LLaMA-70B has 2.62 MB/token at FP16; every per-model KV calculation uses n_KV-heads and head_dim, and the canonical full-MHA geometry is labeled as constructed.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§1 Concept, paragraph on residency floor",
+  "chapter": "Chapter 7",
+  "quoted_clause": "The residency floor is therefore set by weights + KV (+ activations, in fine-tuning)",
+  "observed": "This sentence omits gradients and optimizer states from the fine-tuning floor, even though the next paragraph correctly says fine-tuning requires weights + gradients + optimizer states. The parenthetical '( + activations, in fine-tuning)' is incomplete and can mislead a reader into thinking activations are the only additional training term.",
+  "evidence": "The immediately following paragraph: 'In fine-tuning, the floor rises further to weights + gradients + optimizer states, because every parameter update requires its own momentum and velocity vectors (Adam) or per-parameter scaling (LAMB/RMSProp).'",
+  "root_cause": "Compressed summary sentence dropped the dominant training-state terms.",
+  "correction": "Rewrite as: 'The residency floor is weights + KV for inference; for fine-tuning it is weights + gradients + optimizer states + activations/workspace.'",
+  "acceptance_test": "No sentence in the chapter states or implies that fine-tuning residency is only weights + KV + activations.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§3 Technical note — per-rank fit",
+  "chapter": "Chapter 7",
+  "quoted_clause": "at 17.5 concurrent requests a rank reaches ~99.7% of its 80 GB capacity (17.5 + 8 + 54.25 = 79.75 GB) ... Per-rank budget: 17.5 + 54.5 + 8 = 80 GB ≤ 80 GB",
+  "observed": "The note mixes two KV-per-rank quantities without labeling them: 54.25 GB is 17.5 × the rounded 3.1 GB/request per rank, while 54.5 GB is the full 436/8 KV budget. The 99.7% figure is computed from the rounded 3.1 GB/request; using the chapter's own 24.90368 GB/request gives 17.5 × 3.11296 = 54.4768 GB and 79.9768 GB, i.e. ~99.97%, not ~99.7%. The difference is small but the arithmetic is presented as a hard-ceiling check.",
+  "evidence": "The chapter gives per-request KV per rank as '24.9 ÷ 8 = ~3.1 GB' and later uses 54.25 = 17.5 × 3.1. It also gives '436 ÷ 8 = ~54.5 GB' as the full KV budget per rank. The two are different quantities and should not be interchanged in a capacity check.",
+  "root_cause": "Rounding 3.11296 GB to 3.1 GB and then using the rounded value in a percentage-of-capacity calculation.",
+  "correction": "Either use exact values (24.90368/8 = 3.11296 GB; 17.5 × 3.11296 = 54.4768 GB; total 79.9768 GB ≈ 99.97%) or explicitly label 54.25 GB as 'using rounded 3.1 GB/request' and 54.5 GB as 'full KV budget per rank.' Do not present both as if they were the same per-rank KV quantity.",
+  "acceptance_test": "The per-rank capacity check uses one clearly labeled KV-per-rank value and the percentage follows from that value; no unlabeled 54.25 vs 54.5 swap remains.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§1 Concept, first paragraph",
+  "chapter": "Chapter 7",
+  "quoted_clause": "its size depends on the model's layer count, hidden dimension, and the precision chosen for key and value storage",
+  "observed": "This early sentence names layer count and hidden dimension but omits KV-head count and head dimension. For GQA/MQA models, KV size depends on n_KV-heads × head_dim, not hidden_dim. The chapter later corrects this, but the first definition is incomplete and can seed the exact misconception the chapter later tries to prevent.",
+  "evidence": "The chapter's own GQA note says per-token KV is 2 × layers × n_KV-heads × head_dim × bytes, and LLaMA-2 70B is ~8× smaller than the full-MHA hidden-dim formula.",
+  "root_cause": "The opening definition was written for the full-MHA special case and not generalized.",
+  "correction": "Change to: 'its size depends on layer count, KV-head count, head dimension, and KV precision (equivalently, the KV width per layer).'",
+  "acceptance_test": "The first definition of KV size includes KV-head count/head dimension or explicitly says it is stating the full-MHA special case.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-06",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§1 Concept, quantization paragraph; §5 Common Mistakes, KV-quant bullet",
+  "chapter": "Chapter 7",
+  "quoted_clause": "realized savings land between these 2× and 4× reduction factors ... realized savings land between, once block/scale metadata is counted",
+  "observed": "The phrase 'land between' has no clear referents and is repeated in the Common Mistakes bullet. For 4-bit KV, the raw bound is 4×; metadata reduces the realized reduction below 4×, but the text does not justify 2× as a lower bound. A reader can reasonably ask 'between what and what?' and may infer a guaranteed 2×–4× range that the arithmetic does not establish.",
+  "evidence": "The sentence contrasts FP8 2× and 4-bit raw 4×, then says realized savings land 'between these 2× and 4× reduction factors.' But the realized 4-bit reduction could be below 2× if metadata/block overhead is large, and the text gives no lower-bound derivation.",
+  "root_cause": "Compressed prose replaced an explicit inequality with an ambiguous 'between.'",
+  "correction": "State the bound explicitly: 'For 4-bit KV the raw payload bound is 4×; scale/zero metadata and block layout reduce the realized reduction below 4×. Do not assume a specific realized multiplier without the actual layout.' If a 2× lower bound is intended, derive it or label it as a typical planning assumption.",
+  "acceptance_test": "The text no longer says 'between' without naming both endpoints and the condition under which the lower bound holds.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-07",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Table 7-1, FP8 KV row",
+  "chapter": "Chapter 7",
+  "quoted_clause": "any block-layout/scale-offset metadata overhead is NOT vendor-measured",
+  "observed": "The intended meaning is that metadata overhead is not included in the 1.31 MB/token figure. 'NOT vendor-measured' is the wrong phrase: the overhead is not measured by the vendor, but the real issue is that it is not included in the accounting. This is a small wording defect but it weakens the precision of the table note.",
+  "evidence": "The same row says 'raw tensor byte-halving' and the surrounding text says metadata is not included. The phrase 'NOT vendor-measured' does not say 'not included.'",
+  "root_cause": "Wording slip in a table note.",
+  "correction": "Replace with: 'block-layout/scale-offset metadata overhead is NOT included in this raw-tensor figure.'",
+  "acceptance_test": "The table note says the metadata is excluded from the quoted figure, not that it is 'not vendor-measured.'",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-08",
+  "severity": "P3",
+  "confidence": "low",
+  "page_hint": "§3 Note on 'does it fit?'",
+  "chapter": "Chapter 7",
+  "quoted_clause": "the ~500 GB headroom (Ch. 4/7, single-request)",
+  "observed": "The ~500 GB figure is 640 − 140, i.e. headroom after weights only. For a single request at 9.5K, weights + KV ≈ 165 GB, so the actual single-request headroom is ~475 GB, not ~500 GB. The parenthetical 'single-request' makes the number ambiguous.",
+  "evidence": "The chapter's own numbers: 640 GB pool, 140 GB weights, 24.9 GB KV at 9.5K. 640 − 140 − 24.9 = 475.1 GB.",
+  "root_cause": "Headroom after weights was labeled as single-request headroom without subtracting the single-request KV.",
+  "correction": "Either call it '~500 GB after weights' or use '~475 GB after weights + one 9.5K request's KV.'",
+  "acceptance_test": "The headroom number is labeled with the exact subtraction it represents.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, 'The 1.08 s budget versus the 35% planning rate' paragraph",
+  "chapter": "8",
+  "quoted_clause": "The canonical prefill takes about 1.08 s for 9.2K input tokens (Ch 4)",
+  "observed": "The sentence states as fact that canonical prefill 'takes about 1.08 s', but 1.08 s is the design *budget* (1.2 s TTFT minus ~120 ms retrieval), not a measured or derived prefill time. The very next sentence correctly calls it 'the end-to-end prefill budget'. At the chapter's own 35% MFU planning rate, prefill would take ~0.465 s, not 1.08 s.",
+  "evidence": "1.288 PFLOP ÷ (8 × 346 TFLOPS) = 0.465 s at 35% MFU. The 1.08 s figure is 1.2 s − 0.12 s retrieval, i.e. a budget allocation, not a measured duration. The text itself says '1.08 s is the end-to-end prefill budget inside the 1.2 s TTFT'.",
+  "root_cause": "Wording conflates a design budget with a measured/derived time, creating a false impression that the canonical prefill actually consumes the full 1.08 s.",
+  "correction": "Replace 'The canonical prefill takes about 1.08 s' with 'The canonical prefill budget is 1.08 s' or 'If prefill consumes the full 1.08 s budget, that implies ~15% MFU'. Keep the subsequent clarification.",
+  "acceptance_test": "The sentence no longer asserts a measured prefill time; the 15% MFU is explicitly framed as the rate implied by consuming the full budget, not as the actual prefill rate.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §8 mini-case, fourth candidate bullet",
+  "chapter": "8",
+  "quoted_clause": "**Attention / memory constrained (within prefill)** — the quadratic attention term, not the linear weights, grows with context",
+  "observed": "The label says 'Attention / memory constrained', but the explanation is entirely about the quadratic attention *compute* term (4·n_layers·L²·d FLOPs), not about memory bandwidth or capacity. The label conflates attention compute with memory pressure.",
+  "evidence": "The bullet's own text: 'the quadratic attention term... grows with context; at 128K+ contexts this term dominates prefill cost (at 32K it is already ~+60% — the 4·n_layers·L²·d term)'. This is a FLOP-count argument, not a memory argument.",
+  "root_cause": "Label drift: 'memory' is carried over from the general prefill/decode discussion but does not describe the actual constraint being diagnosed.",
+  "correction": "Rename the candidate to 'Attention-compute constrained (within prefill)' or 'Attention-term dominated'. If KV-cache write pressure during prefill is also intended, state it explicitly as a separate sub-case.",
+  "acceptance_test": "The label matches the explanation: a reader can tell from the label alone that the constraint is attention FLOPs, not memory bandwidth or capacity.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §8 mini-case, fourth candidate bullet, final clause",
+  "chapter": "8",
+  "quoted_clause": "so the fix is to reduce the attention term (flash-attention, sparse/linear attention), not to batch harder",
+  "observed": "FlashAttention is listed as a fix for reducing the attention *term* (a FLOP count), but FlashAttention is an I/O-aware kernel that reduces HBM traffic, not attention FLOPs. If the attention term dominates the FLOP count, FlashAttention does not reduce it; sparse/linear attention does.",
+  "evidence": "FlashAttention reorganizes attention to tile through on-chip memory and cut HBM traffic while preserving the mathematical result (the book's own Ch 15 framing). It does not change the 4·n_layers·L²·d FLOP count. Sparse/linear attention changes the FLOP count.",
+  "root_cause": "Conflation of two distinct optimizations: reducing attention FLOPs (sparse/linear attention) vs. reducing attention memory traffic (FlashAttention).",
+  "correction": "Rewrite as: 'the fix is to reduce the attention FLOP term (sparse/linear attention) or, if the attention kernel is memory-bound, to reduce its HBM traffic (FlashAttention)'. Distinguish the two mechanisms explicitly.",
+  "acceptance_test": "The text no longer implies FlashAttention reduces attention FLOPs; the two optimizations are assigned to their correct resource (FLOPs vs. bytes).",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-05",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §6 Architecture Consequence, second bullet, final clause",
+  "chapter": "8",
+  "quoted_clause": "while decode's bandwidth demand is served by wide-memory GPUs or even CPU offload",
+  "observed": "'or even CPU offload' is a hand-wavy claim. CPU decode is dramatically slower and viable only for very low-throughput or latency-tolerant scenarios; presenting it as a peer option alongside wide-memory GPUs overstates its practicality.",
+  "evidence": "CPU decode throughput is typically orders of magnitude below GPU decode for 70B-class models; it is not a general-purpose alternative for the canonical 10–40 rps workload.",
+  "root_cause": "Compression of a nuanced trade-off into a two-word aside.",
+  "correction": "Either remove 'or even CPU offload' or qualify it: 'or, for latency-tolerant or very low-throughput workloads, CPU offload'. Do not present it as a peer option for the canonical scenario.",
+  "acceptance_test": "The CPU-offload mention is either removed or explicitly scoped to latency-tolerant/low-throughput workloads.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-06",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, paragraph beginning '19 / 21 / 22 — the full-utilization compute screens...'",
+  "chapter": "8",
+  "quoted_clause": "19 / 21 / 22 — the full-utilization compute screens for cases (i) / (iii) / (ii) — and their labeled 70% × 95% + N−1 policy totals, Ch 16/17: case (i) compute screen 19 → 29 and fleet 21 → 32, case (iii) 21 → 32, case (ii) 22 → 34, KV-only 21 → 32 (the ρ = 1 u-only screen reads 30 / 32 — ceil(N ÷ 0.7) for KV-only 21 and case (ii) 22)",
+  "observed": "This is a single ~90-word sentence packing six host-count pairs, two policy formulas, and a parenthetical sub-screen. The arithmetic checks out, but the sentence is very hard to parse on first reading.",
+  "evidence": "The sentence contains: three FLOP cases, three compute-screen values, three policy-total values, a KV-only case, a ρ=1 sub-screen, and a formula — all in one sentence.",
+  "root_cause": "Information density exceeds what a single sentence can carry without losing the reader.",
+  "correction": "Split into a short table or a bulleted list: one line per case (i)/(iii)/(ii)/KV-only, each showing compute screen → policy total. Keep the prose to a one-sentence summary ('the screens cluster at 19–22 full-utilization and 29–34 under policy').",
+  "acceptance_test": "A reader can extract the six host-count pairs without re-reading the sentence more than once; the values are presented in a scannable structure.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-07",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8 Table 8-1, 'prefill throughput per GPU' row",
+  "chapter": "8",
+  "quoted_clause": "prefill throughput per GPU | ~2,471 tokens/s | 346 TFLOPS ÷ 140 GFLOP/token [DERIVED; **per-GPU scope**]",
+  "observed": "The throughput is derived from the linear-only 140 GFLOP/token, but the row does not say 'linear only'. A reader could mistake it for the full per-token cost including attention (~164 GFLOP/token at 9.2K), which would give ~2,110 tokens/s.",
+  "evidence": "The prefill FLOP rows above it are explicitly labeled 'linear only' / 'full-square' / 'causal-triangle', but the throughput row is not. The 140 GFLOP/token is the linear term; the full per-token cost at 9.2K is ~164 GFLOP/token.",
+  "root_cause": "Labeling inconsistency within the same table: the FLOP rows carry the case label, the throughput row does not.",
+  "correction": "Add 'linear-only case (i)' to the throughput row's derivation cell, or add a footnote: 'throughput uses the linear-only 140 GFLOP/token; including attention at 9.2K gives ~2,110 tokens/s'.",
+  "acceptance_test": "The throughput row's scope (linear-only vs. full per-token) is unambiguous from the table alone.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-08",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §1, chapter roadmap paragraph",
+  "chapter": "8",
+  "quoted_clause": "§1–§3 build the core arithmetic (FLOPs per token, prefill PFLOP counts, H100 sustained utilization) and the roofline that explains why prefill is compute-bound while decode is memory-bound",
+  "observed": "The roadmap says §1–§3 build 'the core arithmetic', but §2 is titled 'Mental Model' and is conceptual (the trip/ridge analogy, the resource-hierarchy figure), not arithmetic. The parenthetical does mention the roofline, but the framing '§1–§3 build the core arithmetic' is imprecise.",
+  "evidence": "Section headers: §1 Concept, §2 Mental Model, §3 Worked Example. §2 contains no arithmetic.",
+  "root_cause": "Roadmap written from memory of the section contents rather than from the section titles.",
+  "correction": "Reword to '§1–§3 establish the concept, mental model, and worked arithmetic (FLOPs per token, prefill PFLOP counts, H100 sustained utilization) and the roofline...'.",
+  "acceptance_test": "The roadmap's description of §1–§3 matches the actual section titles and contents.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH9-FIG92-RING-INDEX",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 9 §2, Fig 9.2 caption",
+  "chapter": "Chapter 9 — Communication",
+  "quoted_clause": "In round r, rank i sends chunk (i−r) mod N in both phases, so rank r ends the reduce-scatter holding reduced chunk r.",
+  "observed": "The caption states that the same chunk-index formula applies in both reduce-scatter and all-gather, and that rank r ends reduce-scatter holding chunk r. In the standard balanced ring all-reduce, reduce-scatter and all-gather use different chunk indices. With 0-indexed rounds, rank r ends reduce-scatter holding chunk (r+1) mod N; all-gather then sends chunk (i−r+1) mod N at round r. With 1-indexed rounds, the reduce-scatter formula can be made to leave rank r holding chunk r, but the all-gather formula is still not the same as the reduce-scatter formula.",
+  "evidence": "Simulate N=4, rank 0. Reduce-scatter step 0 sends chunk 0 and receives chunk 3; step 1 sends chunk 3 and receives chunk 2; step 2 sends chunk 2 and receives chunk 1. Rank 0 ends holding reduced chunk 1, not chunk 0. All-gather step 0 must send chunk 1, not chunk 0. The caption's 'both phases' claim is therefore false under either indexing convention.",
+  "root_cause": "The caption collapses two different ring phases into one chunk-index formula and uses an ambiguous round index.",
+  "correction": "State the two phase-specific formulas explicitly, or re-index rounds and chunks so that the figure's arrows and the caption agree. For 0-indexed rounds: reduce-scatter sends chunk (i−r) mod N; all-gather sends chunk (i−r+1) mod N. For 1-indexed rounds: reduce-scatter sends chunk (i−r) mod N; all-gather sends chunk (i−r+1) mod N. Verify the figure arrows against a four-rank simulation.",
+  "acceptance_test": "A four-rank simulation of the caption's stated algorithm produces the same send/receive chunk indices as the figure and leaves each rank with the correct reduced chunk before all-gather.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH10-RESOURCE-TRIANGLE-DP",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 10 §2, resource-triangle paragraph",
+  "chapter": "Chapter 10 — Parallelism",
+  "quoted_clause": "When a GPU is idle waiting, we reach for DP (more work per GPU)",
+  "observed": "Data parallelism does not give an idle GPU more work. It adds independent replicas, each with its own model copy and its own request stream. If a single GPU is idle because arrivals are insufficient, DP does not raise that GPU's utilization; it adds another underutilized GPU. DP is a response to aggregate demand exceeding one replica's goodput, not to a single GPU being idle.",
+  "evidence": "The chapter's own definition says inference DP means 'independent model replicas each serve a disjoint set of requests; no gradient sync; throughput scales linearly until KV or memory binds.' That mechanism increases aggregate capacity by replication, not per-GPU work.",
+  "root_cause": "The resource-triangle heuristic conflates 'system has idle capacity' with 'a GPU is idle waiting for work.'",
+  "correction": "Replace with: 'When aggregate demand exceeds one replica's goodput, add DP replicas. When a single GPU is idle because the batch or arrival stream is too small, increase batching/admission or reduce over-provisioning; DP does not fill that GPU.'",
+  "acceptance_test": "A reader can explain why DP does not increase utilization of an already-idle GPU and can name the correct levers for low arrival rate versus insufficient aggregate capacity.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH10-THREE-THINGS-FRAMING",
+  "severity": "P2",
+  "confidence": "medium-high",
+  "page_hint": "Ch 10 §1, opening paragraph",
+  "chapter": "Chapter 10 — Parallelism",
+  "quoted_clause": "parallelism is splitting one of the three things a model occupies — its weights, its layers, or its data — across multiple devices.",
+  "observed": "The chapter immediately lists five strategies (TP, PP, DP, EP, CP) plus a sixth serving-only strategy (P/D disaggregation). Expert parallelism splits experts, which are weights; sequence/context parallelism splits the token sequence, which is neither 'weights,' 'layers,' nor 'data batch' in the sense used here. The 'three things' framing does not map cleanly onto the chapter's own taxonomy.",
+  "evidence": "The chapter's Table 10-1 has rows for Tensor, Pipeline, Data, Expert, and Sequence. The opening sentence names only three axes. The later 'resource triangle' names weights, activations, and data, which also does not include sequence/context as a separate axis.",
+  "root_cause": "A simplified three-axis framing was retained after the chapter expanded to five/six strategies.",
+  "correction": "Either (a) explicitly say 'three canonical axes plus specialist axes: expert and sequence/context parallelism,' or (b) replace the three-things sentence with a taxonomy that matches the five strategies in Table 10-1. Do not let the opening claim a three-way partition that the body contradicts.",
+  "acceptance_test": "Every strategy named in §10.1 maps to a named axis in the opening framing, and the opening framing does not imply that EP/CP are subcases of DP or PP without saying so.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH9-ON-NODE-DP-RATIO",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 9 §6, Architecture Consequence",
+  "chapter": "Chapter 9 — Communication",
+  "quoted_clause": "If the budget can accommodate NVLink‑equipped hosts (GPUs connected on‑node), keeping the all-reduce on-node gives an ideal ring time about 1/11th the assumed InfiniBand case and about 1/180th the assumed RoCE case (§9.3)",
+  "observed": "The preceding sentence describes an eight-node data-parallel training job with one rank per node. An eight-node DP all-reduce cannot be 'kept on-node' by buying NVLink-equipped hosts; the collective is cross-host by construction. The later clarification says the ratios compare an eight-rank single-host collective with an eight-rank cross-host collective, but the earlier sentence reads as a deployment option for the same eight-node job.",
+  "evidence": "The paragraph itself later says: 'An eight-node data-parallel job uses NVLink/NVSwitch for intra-node exchanges and InfiniBand/RoCE for inter-node exchanges; compare InfiniBand vs Ethernet only for the inter-node portion. The 1/11 and 1/180 ratios compare an eight-rank single-host collective with an eight-rank cross-host collective ... not two fabrics for the same job.' That clarification contradicts the earlier 'keeping the all-reduce on-node' phrasing.",
+  "root_cause": "The text mixes a topology-change comparison (single host vs cross-host) with a fabric-choice comparison for the same job.",
+  "correction": "Rewrite the paragraph to say explicitly: 'The 1/11 and 1/180 ratios are not a fabric choice for the same eight-node job. They compare an eight-rank single-host collective with an eight-rank cross-host collective. For the eight-node job, NVLink/NVSwitch handles intra-node traffic and the inter-node fabric handles the DP all-reduce; compare InfiniBand vs Ethernet only for that inter-node portion.'",
+  "acceptance_test": "A reader cannot infer that buying NVLink hosts eliminates the cross-host all-reduce in an eight-node DP job; the ratio's scope is stated before the ratio is used.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH12-CANDIDATE-C-STATUS",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §12.3, §12.6, §12.8",
+  "chapter": "Chapter 12 — Designing the AI System",
+  "quoted_clause": "Candidate (c) does not advance as a finalist; it is carried only as a labeled sensitivity case",
+  "observed": "Earlier, §12.3 says candidate (c) is 'flagged for measurement against the quality gate, not dismissed by parameter counting' and 'its fate depends on the measured quality gate.' Section 12.8 says it 'stays in the gate evaluation (Ch 14) rather than being excluded pre-measurement.' Section 12.6 then says it 'does not advance as a finalist.' These are not the same status. A candidate cannot simultaneously be excluded from the finalist set before measurement and have its finalist fate determined by a later measurement.",
+  "evidence": "The contradiction is internal to Chapter 12: §12.3 calls (c) provisional and gate-dependent; §12.6 says it does not advance as a finalist; §12.8 says it remains in gate evaluation. Table 12-1 labels it 'gated, not a finalist.'",
+  "root_cause": "The manuscript uses 'finalist' in two senses: 'carried into Ch 14 evaluation' and 'survives the quality gate.' The text does not distinguish them.",
+  "correction": "Define a single status vocabulary. For example: 'Candidate (c) is a conditional candidate carried into the Ch 14 quality gate. If it passes, it becomes a finalist; if it fails, it is retained only as a labeled sensitivity case. It is not a finalist before that measurement.' Then make §12.6, §12.8, Table 12-1, and Fig 12.1 use that vocabulary consistently.",
+  "acceptance_test": "Every mention of candidate (c)'s status in Ch 12 uses the same term and the same decision rule; a reader can state exactly what measurement promotes or rejects it.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ }
+]

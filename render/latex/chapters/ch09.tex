@@ -140,6 +140,12 @@ scale. Bandwidth and latency figures are established hardware specs
 column is a relative capital-intensity ordering \mbox{{[}ILLUSTRATIVE{]}}, not
 a spec.)}
 
+\emph{Latency note for the four network rows: all four are
+microsecond-class, and the table specifies only the order of magnitude.
+Indicative ranges, not specs \mbox{{[}ILLUSTRATIVE{]}}: NVLink
+\textasciitilde1--2 μs, PCIe \textasciitilde1--2 μs, RoCE/Ethernet
+\textasciitilde2--10 μs, InfiniBand \textasciitilde1--5 μs.}
+
 Behind these collectives sits one contract. For a fixed-count
 all-reduce, each rank contributes an equal-length typed buffer;
 corresponding elements are reduced, and every rank receives the result.
@@ -258,8 +264,8 @@ require §9.4 measurements.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={One SUM through a balanced four-rank ring. Reduce-scatter leaves one reduced element per rank; all-gather then replicates the already-reduced fragments. Illustrative FP16 inputs, exactly representable; each rank sends 12 B and receives 12 B across both phases. In round r, rank i sends chunk (i−r) mod N in both phases, so rank r ends the reduce-scatter holding reduced chunk r. No averaging or measured performance is implied. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0902-collective-semantics.pdf}}
-\caption[One SUM through a balanced four-rank ring]{One SUM through a balanced four-rank ring. Reduce-scatter leaves one reduced element per rank; all-gather then replicates the already-reduced fragments. Illustrative FP16 inputs, exactly representable; each rank sends 12 B and receives 12 B across both phases. In round r, rank i sends chunk (i−r) mod N in both phases, so rank r ends the reduce-scatter holding reduced chunk r. No averaging or measured performance is implied. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={One SUM through a balanced four-rank ring. Reduce-scatter leaves one reduced element per rank; all-gather then replicates the already-reduced fragments. Illustrative FP16 inputs, exactly representable; each rank sends 12 B and receives 12 B across both phases. Indexing is per phase, 0-indexed ranks and 1-indexed reduce-scatter rounds: in round r of the reduce-scatter (r = 1\ldots N−1) rank i sends chunk (i−r) mod N and retains chunk i; in round r of the all-gather (r = 0\ldots N−2) rank i sends chunk (i−r) mod N, beginning with its own reduced chunk i. No averaging or measured performance is implied. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0902-collective-semantics.pdf}}
+\caption[One SUM through a balanced four-rank ring]{One SUM through a balanced four-rank ring. Reduce-scatter leaves one reduced element per rank; all-gather then replicates the already-reduced fragments. Illustrative FP16 inputs, exactly representable; each rank sends 12 B and receives 12 B across both phases. Indexing is per phase, 0-indexed ranks and 1-indexed reduce-scatter rounds: in round r of the reduce-scatter (r = 1\ldots N−1) rank i sends chunk (i−r) mod N and retains chunk i; in round r of the all-gather (r = 0\ldots N−2) rank i sends chunk (i−r) mod N, beginning with its own reduced chunk i. No averaging or measured performance is implied. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:9.2}\end{figure}
 
@@ -575,9 +581,10 @@ communicator errors and abort}).
 \item
   \textbf{Ignoring contention from other traffic.} NVSwitch can carry
   many concurrent channels, but if other collectives (e.g., all-gather
-  for optimizer state) are running simultaneously, the bisection
-  bandwidth is shared. Measure with the full production workload
-  pattern, not an isolated micro‑benchmark.
+  for parameter shards (FSDP) or reduce-scatter for gradients) are
+  running simultaneously, the bisection bandwidth is shared. Measure
+  with the full production workload pattern, not an isolated
+  micro‑benchmark.
 \item
   \textbf{Using InfiniBand as a default without checking the
   cost--performance ratio.} InfiniBand HDR 200 Gb/s gives
@@ -593,11 +600,12 @@ communicator errors and abort}).
   (802.3ck) use 256b/257b block coding before FEC, while InfiniBand HDR
   and NDR both use 64b/66b) --- use the specific standard's
   payload-efficiency figure. An NDR 400 Gb/s InfiniBand link delivers a
-  \textasciitilde380 Gb/s class useful payload; a 200 Gb/s RoCEv2 link
-  delivers \textasciitilde180 Gb/s. The difference matters when we are
-  computing per-second throughput for a fixed data volume.
-  \mbox{{[}ILLUSTRATIVE{]}}{[}DERIVED: 64/66 line code plus framing/FEC
-  overhead{]}
+  \textasciitilde380 Gb/s class useful payload {[}DERIVED: 64b/66b line
+  code plus framing/FEC overhead{]}; a 200 Gb/s RoCEv2 link delivers
+  \textasciitilde180 Gb/s {[}DERIVED: 256b/257b block coding plus
+  RS(544,514) FEC and Ethernet framing overhead{]}. The difference
+  matters when we are computing per-second throughput for a fixed data
+  volume. \mbox{{[}ILLUSTRATIVE{]}}
 \end{itemize}
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
@@ -610,18 +618,20 @@ calls for data-parallel training of a 70B FP16 model across 8 nodes (an
 eight-rank DP group, e.g.~one rank per node), the all-reduce bandwidth
 dictates whether the nodes are connected by InfiniBand, 200 GbE, or even
 100 GbE. If the budget can accommodate NVLink‑equipped hosts (GPUs
-connected on‑node), keeping the all-reduce on-node gives an ideal ring
-time about 1/11th the assumed InfiniBand case and about 1/180th the
-assumed RoCE case (§9.3) (NVLink figure is a directional peak; fabric
-figures are effective --- the ratios are peak-vs-effective upper bounds
-on the on-node advantage). These ratios apply to this communication-only
-model, not to end-to-end throughput. An eight-node data-parallel job
-uses NVLink/NVSwitch for intra-node exchanges and InfiniBand/RoCE for
-inter-node exchanges; compare InfiniBand vs Ethernet only for the
-inter-node portion. The 1/11 and 1/180 ratios compare an eight-rank
-single-host collective with an eight-rank cross-host collective
-(communication-only, peak-vs-effective), not two fabrics for the same
-job.
+connected on‑node), the ratios are: an ideal ring time about 1/11th the
+assumed InfiniBand case and about 1/180th the assumed RoCE case (§9.3),
+for a single-host eight-rank collective against a cross-host one (NVLink
+figure is a directional peak; fabric figures are effective --- the
+ratios are peak-vs-effective upper bounds). For the eight-node DP job
+the all-reduce is necessarily inter-node, so compare InfiniBand with
+Ethernet only for that portion. These ratios apply to this
+communication-only model, not to end-to-end throughput. An eight-node
+data-parallel job uses NVLink/NVSwitch for intra-node exchanges and
+InfiniBand/RoCE for inter-node exchanges; compare InfiniBand vs Ethernet
+only for the inter-node portion. The 1/11 and 1/180 ratios compare an
+eight-rank single-host collective with an eight-rank cross-host
+collective (communication-only, peak-vs-effective), not two fabrics for
+the same job.
 
 The architecture consequence also flows in the other direction: a
 tighter communication budget (e.g., target \textless0.5 s per
@@ -674,11 +684,13 @@ vs.~opex by way of the communication arithmetic shown in this chapter.
   and the next‑generation switch fabrics are pushing intra‑node
   bandwidth higher (NVLink 5 provides 1.8 TB/s per GPU bidirectional
   aggregate, i.e.~900 GB/s per direction), and optical intra‑rack
-  fabrics (400 Gb/s--800 Gb/s per lane) are entering data centers. The
-  arithmetic base --- the relative magnitudes of PCIe, NVLink, Ethernet,
-  InfiniBand --- is stable in the near term, but the absolute numbers
-  will shift as new silicon and cable technologies ship. Keep the
-  framework; update the constants.
+  fabrics are entering data centers: 400--800 Gb/s aggregate module
+  rates ship today, with per‑lane (per‑wavelength) rates of 100--200
+  Gb/s deployed and 400 Gb/s per lane in development {[}1P: vendor
+  datasheet{]}. The arithmetic base --- the relative magnitudes of PCIe,
+  NVLink, Ethernet, InfiniBand --- is stable in the near term, but the
+  absolute numbers will shift as new silicon and cable technologies
+  ship. Keep the framework; update the constants.
 \item
   \textbf{Cross‑domain generalization.} Most published bandwidth
   measurements use standard dense buffers (e.g., an all‑reduce of a
@@ -862,11 +874,13 @@ sharded-inference arrangements) does all-gather weight shards before the
 forward pass. So the architect must name the scheme before doing the
 arithmetic. Concretely, for the canonical 8×H100 host the meaningful
 per-step data movement is a TP all-reduce of the per-layer activations
-(each per-layer all-reduce is \textasciitilde0.45 MB sent per rank ---
-batch × hidden × bytes, sub-MB to a few MB; the tens of MBs, not GBs, is
-the per-step total across all 80 layers at the canonical batch and
-hidden size). In disaggregated serving a separate, one-time movement ---
-not a per-step one --- moves the KV cache fragment:
+(each per-layer all-reduce operates on a \textasciitilde256 KiB logical
+tensor --- batch × hidden × bytes --- so an 8-rank ring sends 1.75 ×
+that ≈ 0.45 MB per rank; across all 80 layers the per-step total is
+\textasciitilde36 MB of per-rank send traffic, against \textasciitilde20
+MB of logical volume, sub-MB to tens of MB and not GBs at the canonical
+batch and hidden size). In disaggregated serving a separate, one-time
+movement --- not a per-step one --- moves the KV cache fragment:
 e.g.~\textasciitilde35 GB of KV moved over NVLink (\textasciitilde0.08 s
 at 450 GB/s per direction, §9.2) when a P/D sequence transfers a
 \textasciitilde13K-token context (35 GB ÷ 2.62 MB/token ≈ 13.3K) between

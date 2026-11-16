@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH8-26",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8 §5, 'Common Mistakes'",
+  "chapter": "8",
+  "quoted_clause": "- **Using peak TFLOP/s as sustained throughput.** ... - **Ignoring the batch-size dependence of arithmetic intensity.**",
+  "observed": "The chapter's own figure caption insists that 'a kernel's position on the roofline is a *theoretical* bound on its FLOP/byte intensity — it is **not a measured latency**', but the Common Mistakes list contains no entry for the most consequential roofline misuse: treating a roofline position as a latency or throughput prediction. The list covers FLOP-count exactness, prefill/decode intensity, peak vs sustained, batch dependence, and sparsity — all real, but the latency-prediction trap is the one a solution architect actually falls into.",
+  "evidence": "The chapter repeatedly warns against exactly this in captions and prose (Fig 8.2 caption; 'It is an upper-bound analysis value, not a servable goodput'; 'Actual reachable prefill throughput must come from benchmark goodput'), but a reader scanning the Common Mistakes list — the part most likely to be read and remembered — will not find it.",
+  "root_cause": "The mistake list was assembled from the chapter's arithmetic topics rather than from the chapter's stated warnings.",
+  "correction": "Add an entry: '**Reading a roofline position as a latency.** The roofline bounds attainable FLOP/s for a given intensity; it does not predict milliseconds. A kernel at 1 FLOP/byte on an H100 is bounded by 3.35 TB/s, but the achieved latency also depends on kernel efficiency, launch overhead, synchronization and the scheduler. Use the roofline to choose what to measure, then measure.'",
+  "acceptance_test": "The Common Mistakes list contains an entry on roofline-as-latency, and its wording matches the Fig 8.2 caption's caveat.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH8-27",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 8, figure assets Fig 8.1 / Fig 8.2 / Fig 8.3",
+  "chapter": "8",
+  "quoted_clause": "![Fig 8.1 ...](figures/fig-08-0802.png) ... ![Fig 8.2 ...](figures/fig-08-0801.png) ... ![Fig 8.3 ...](figures/fig-08-0803-video-latent-work.png)",
+  "observed": "Figure numbers and asset filenames disagree: Fig 8.1 is backed by fig-08-0802.png and Fig 8.2 by fig-08-0801.png. The numbering appears to have been swapped at some point in production.",
+  "evidence": "The mismatch is consistent with a swap of the 0801/0802 assets. The rendered pages cannot be checked from this chunk (figures are stripped), so the risk is that Fig 8.1 (the resource-hierarchy diagram) and Fig 8.2 (the roofline) are currently transposed in the built PDF — which would be a serious defect, since the prose around them is specific about which is which.",
+  "root_cause": "Asset naming and figure numbering diverged during editing.",
+  "correction": "Verify in the built PDF that Fig 8.1 is the resource-hierarchy diagram and Fig 8.2 is the roofline chart, and rename the assets to match (fig-08-01.png, fig-08-02.png) so the mismatch cannot recur.",
+  "acceptance_test": "In the rendered PDF, the figure on the page captioned 'Fig 8.1' shows the compute/memory/interconnect hierarchy and the figure captioned 'Fig 8.2' shows the roofline; asset filenames match figure numbers.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH8-28",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8, throughout (e.g. 'Ch 4, Table 4-2', 'Ch 17', 'Chapter 16', 'Chapter 14', 'Chapter 9', 'Chapter 7', 'Chapter 22', 'Ch 15', 'Ch 6', 'Ch 24')",
+  "chapter": "8",
+  "quoted_clause": "Ch 4, Table 4-2 ... Ch 17 ... Chapter 16 ... Chapter 14 ... Chapter 9 ... Chapter 7 ... Chapter 22 ... Ch 15 ... Ch 6 ... Ch 24",
+  "observed": "The chapter mixes the abbreviations 'Ch N' and 'Chapter N' for the same kind of reference, sometimes within a single paragraph ('Ch 17's floor-17 screen' and 'Chapter 17 performs').",
+  "evidence": "At least ten cross-references in one chapter use two forms. The book's cross-reference system is a navigation aid; inconsistent forms make grep-based checking and reader lookup harder.",
+  "root_cause": "Two authoring passes with different habits.",
+  "correction": "Fix one form for the whole book (recommend 'Ch N' for in-text references, 'Chapter N' only in prose that begins a sentence) and sweep the manuscript.",
+  "acceptance_test": "Grep the manuscript for 'Chapter \\d+' and 'Ch \\d+'; only one form survives in cross-reference position.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH12-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (Candidate (a)); Ch 12 §8 mini-case; Tables 12-1 and 12-2; Ch 13 §3",
+  "chapter": "12 (spills into 13)",
+  "quoted_clause": "a single 8×H100 host sustains only ~19,800 prefill-tokens/s at the idealized 35%-MFU aggregate (8 × 2,472; see the Ch. 8 scope note) ... the per-GPU figure is ~2,472, not per-host",
+  "observed": "The host aggregate is presented as 8 × a per-GPU rate of 2,472 tok/s, i.e. as if one 8-GPU host ran eight independent full-model replicas. But the same chapter (and Ch 13) assume the 70B is sharded across the 8 GPUs with TP=8 (140 GB of weights on 8×80 GB). Under TP=8 each GPU computes 1/8 of the FLOPs for the *shared* token stream, so each GPU sustains ~19,780 tok/s and the host aggregate is ~19,780 tok/s — the host aggregate is NOT 8× a per-GPU rate. The two printed numbers (per-GPU 2,472 and aggregate 19,776) cannot both be true under the stated layout: 2,472 = 989 TF/s × 35% ÷ 140 GFLOP/token is the rate of one GPU executing the *whole* model's FLOPs, which is impossible on one 80 GB card (140 GB of weights). The aggregate happens to be numerically right (8 × 2,472 ≈ 19,780 = the correct TP=8 aggregate) but for the wrong reason, and the printed per-GPU figure is a false statement about a single GPU's capability.",
+  "evidence": "Recomputation: 989e12 × 0.35 = 346.15e12 FLOP/s per GPU. 70B prefill = 2 × 70e9 = 140 GFLOP/token total; under TP=8 each GPU does 17.5 GFLOP/token → 346.15e12 / 17.5e9 = 19,780 tok/s per GPU, and the host aggregate = 19,780 tok/s (all 8 GPUs advance the same token stream). The book's 2,472 = 346.15e12 / 140e9 is the whole-model rate for one GPU. 8 × 2,472 = 19,776 ≈ 19,780 — equal by cancellation, not by the stated reasoning. Consequence: a reader who takes 'one GPU sustains 2,472 tok/s of 70B prefill' concludes a single H100 could serve the 70B, contradicting the memory gate (140 GB > 80 GB). The derived comparison in Candidate (c) — '24,725 prefill tok/s per H100 vs the 70B's 2,472' — overstates the per-GPU advantage by 8×; the true per-GPU ratio is 24,725 / 19,780 ≈ 1.25× (the 10× advantage is per *host-equivalent*, not per GPU).",
+  "root_cause": "Conflation of 'one GPU's share of a TP=8 group' with 'one GPU running the whole model', with the '8 ×' multiplier presented as the source of the host's capacity. The 'idealized' label covers the MFU assumption but not this decomposition error.",
+  "correction": "Restate the prefill arithmetic as: per-GPU rate under TP=8 = 989 TF/s × 35% ÷ 17.5 GFLOP/token/GPU ≈ 19,780 tok/s; host aggregate ≈ 19,780 tok/s. If the '2,472' figure is retained, label it explicitly as a full-model-equivalent FLOP rate ('one GPU's worth of the 70B's FLOPs'), never as a per-GPU capability. Restate Candidate (c)'s throughput comparison as ≈1.25× per GPU (or 10× per host-equivalent) and adjust the surrounding prose ('throughput is genuinely much higher on the smaller model') accordingly. Reconcile with Ch 8's scope note so the two chapters use one decomposition.",
+  "acceptance_test": "In Ch 12 §3, the mini-case, Tables 12-1/12-2 and Ch 13 §3, the per-GPU and host-aggregate prefill numbers satisfy: under TP=8 the host aggregate equals the per-GPU rate (each GPU contributes 1/8 of the FLOPs for the same token stream); the per-GPU rate reads 19,780 tok/s; the '2,472' figure is labelled as a full-model-equivalent FLOP rate, not a per-GPU capability; and the Candidate (c) per-GPU comparison reads ≈1.25×. A reader who asks 'could one H100 serve the 70B?' gets a consistent answer across Ch 8, Ch 12 and Ch 13.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH12-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (Candidate (a)) vs Ch 13 §3 'Placing the Canonical Workload' and Ch 13 §8 mini-case",
+  "chapter": "12 vs 13",
+  "quoted_clause": "Ch 12: \"far below the ~92K input tokens/s the workload needs on average ... a single host fails the throughput gate too\"; Ch 13: \"Ch11's serving analysis indicates that continuous batching + prefix caching keeps p95 TTFT under the 2 s SLO on a single 8×H100 host *below capacity*\"; Ch 13 mini-case: \"The on-prem service is saturated: p95 TTFT has drifted to 3 s against the 2 s SLO\"",
+  "observed": "Ch 12 states that one host delivers ~19.8K prefill tok/s against 92K tok/s of average demand (≈21% of demand) and therefore fails the throughput gate at the canonical 10 rps average. Ch 13 states that the same single host is 'below capacity' at the canonical load, and its mini-case builds on the premise that the service was healthy at 10 rps and only became saturated after 10× traffic growth. Both cannot be true. Ch 13's further claim that 'at the 40 rps peak the queueing delay breaches it' also mischaracterizes a 18.6× aggregate capacity shortfall as a queueing-delay effect.",
+  "evidence": "92,000 / 19,776 = 4.65 hosts required at the 10 rps average (Ch 12's own arithmetic); 368,000 / 19,776 = 18.6 at peak. Ch 12 §3 also states '~6 hosts are needed for the canonical average'. Ch 13's mini-case premise (a single on-prem host serving 10 rps with p95 TTFT under 2 s) is therefore inconsistent with Ch 12's screen by a factor of ~4.6–6.",
+  "root_cause": "Ch 13's worked example and mini-case were written against a 'one host serves the canonical workload' premise that Ch 12's prefill screen contradicts. The two chapters use different notions of capacity (per-request latency feasibility vs aggregate prefill throughput) without ever saying which is being asserted.",
+  "correction": "State explicitly which notion each claim uses. If Ch 12's prefill screen stands, Ch 13's canonical placement must say the canonical workload already requires a ~6-host fleet at the 10 rps average, and the mini-case's premise must be rewritten so that the thing that saturated was the *fleet* (sized on the KV/service-time screen), not a single host. If instead Ch 11's per-host latency analysis is the intended basis, Ch 12's prefill screen must be reconciled with it (e.g., by showing that the 19.8K figure is a prefill-only ceiling that continuous batching raises, or by correcting the screen).",
+  "acceptance_test": "Ch 13 §3 contains one sentence that states the canonical 10 rps average prefill demand (92K tok/s) against the per-host prefill ceiling (~19.8K) and the resulting host count (5–6), and the mini-case's premise is rewritten so that no single host is claimed to have served the canonical average load. A reader can trace the same capacity statement in Ch 12, Ch 13, Ch 16 and Ch 17 without contradiction.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH13-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 13 §3 'Placing the Canonical Workload'; Table 13-1; Fig 13.1 caption; Ch 13 §8 mini-case",
+  "chapter": "13",
+  "quoted_clause": "\"the canonical enterprise-Q&A RAG workload sits on the **server** tier as a *fleet* of ~21 server-class hosts at the 40 rps peak ... the traffic scaling is a **cluster** of server-class hosts\"; \"So the **server** tier is the right *model-residency* archetype\"; Table 13-1: \"Cluster | tens-hundreds | ... | model > node, or traffic > host goodput\"; Fig 13.1 caption: \"Multi-host = Cluster\"; mini-case: \"the architect climbed the ladder precisely one rung\"",
+  "observed": "The chapter simultaneously places the canonical 21-host fleet on the 'server tier' and calls the same fleet a 'cluster of server-class hosts'. Table 13-1 and Fig 13.1's rung mapping (Multi-host = Cluster) place any multi-host deployment on the Cluster rung, so the canonical workload is already on the cluster rung by the chapter's own figure. The mini-case then claims the architect 'climbed the ladder precisely one rung' from server to cluster, which contradicts §3's placement of the canonical workload on the multi-host rung.",
+  "evidence": "Fig 13.1 caption explicitly enumerates the rung mapping: 'Single GPU = Local/edge, Single host = Server, Multi-host = Cluster, Cluster/fleet = Hyperscale fleet'. 21 hosts is multi-host. Table 13-1's Cluster row lists 'traffic > host goodput' as its trigger, which is exactly the canonical workload's condition (10 rps average exceeds one host's goodput per Ch 12).",
+  "root_cause": "The taxonomy conflates hardware form factor (server-class vs cluster-class hardware) with deployment scale (single host vs multi-host fleet), and 'server tier' is used for both a single 8×H100 host and a 21-host fleet.",
+  "correction": "Separate the two axes explicitly and use one term per axis — e.g. 'server-class hardware' (form factor) and 'cluster deployment' (scale) — and restate the canonical placement as 'server-class hardware, cluster deployment (21 hosts at the 40 rps peak)'. Restate the mini-case's climb as 'from single-host to multi-host deployment' rather than 'one rung', and make Table 13-1 and Fig 13.1's rung labels consistent with the prose.",
+  "acceptance_test": "Ch 13 uses a single consistent term for each axis; the canonical workload's placement and the mini-case's escalation are stated in those terms and do not conflict; Table 13-1's 'When to use' column and Fig 13.1's rung mapping agree with the prose.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH13-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 13 §3 subsection heading 'Dropping a Tier: When Privacy Forces Local'; Ch 13 §5 Common Mistakes; Fig 13.1 caption",
+  "chapter": "13",
+  "quoted_clause": "Heading: \"### Dropping a Tier: When Privacy Forces Local\"; body: \"privacy alone forces the on-prem **server** tier (data stays in the facility; the canonical 70B still runs on server hardware)\"; Common Mistakes: \"Privacy/geography can force a *lower* tier regardless of what compute wants\"; Fig 13.1 caption: \"de-escalation (blue) fires on privacy, sovereignty, and cost\"",
+  "observed": "Three places (the subsection heading, the common-mistake bullet, and the figure caption) treat privacy as a trigger to move *down* to the local/edge tier, while the subsection's own body says privacy forces the on-prem *server* tier and that local/edge applies only when the model can be distilled *and* must run on-device. 'Data must stay in the facility' and 'inference must run on the device' are different constraints with different tier consequences; the chapter conflates them.",
+  "evidence": "The subsection's own text: 'The **local/edge** tier applies only when the model can be distilled to a 7-13B capable of the Q&A task *and* must run on-device (offline/connectivity or tight on-device latency)'. The heading asserts the opposite conclusion for the same constraint.",
+  "root_cause": "Conflation of a data-residency/sovereignty constraint (a hosting constraint) with an on-device execution constraint (a local/edge constraint), and a heading written before the body was worked out.",
+  "correction": "Split the constraint into two named constraints — data residency/sovereignty → on-prem server or cluster; on-device/offline/connectivity → local/edge — retitle the subsection accordingly (e.g. 'When On-Device Execution Forces Local'), and correct the common-mistake bullet and Fig 13.1's caption so each names the specific constraint it refers to.",
+  "acceptance_test": "No text in Ch 13 asserts that privacy alone forces the local/edge tier; the subsection title, the common-mistake bullet and Fig 13.1's caption each name the specific constraint they refer to; the mini-case's 'data privacy requirement still forbids a public hyperscale cloud' is consistent with the same distinction.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §1 (Concept) vs §3, §6, Table 12-1, §8 mini-case",
+  "chapter": "12",
+  "quoted_clause": "§1: \"Any architecture that violates any one of these is eliminated before evaluation — candidates that fail a gate are not finalists: they return to synthesis or are carried forward only as labeled sensitivity cases\"; §3: \"a single host fails the throughput gate too\"; §6: \"Candidates (a) and (b) carry forward as finalists into the evaluation chapters\"",
+  "observed": "Candidates (a) and (b) are defined as single-host and two-host layouts, and both fail the throughput gate as defined (19.8K ≪ 92K). §1 says such candidates 'are not carried forward as-is; it returns to synthesis for a larger layout or is dropped', yet §6 carries them forward as finalists. The reconciliation offered in §3 (replicate the host class to 5–6 hosts) changes the candidate, so the candidate carried forward is not the candidate that was evaluated. The mini-case repeats the same move: 'Candidate (a): a single 8×H100 host ... far short of the ~92K input tokens/s ... so the memory gate passes while the throughput gate already fails' — and then names (a) a finalist.",
+  "evidence": "Direct textual contradiction between §1's elimination rule and §6's finalist list, with §3 and §8 supplying the arithmetic that triggers the rule.",
+  "root_cause": "The unit of the gate is never fixed: the gate is defined per candidate but evaluated per host class, and the candidate set was fixed before the analysis.",
+  "correction": "Fix the gate's unit explicitly (per deployment/fleet, with per-host screens as inputs) and restate the candidates at that unit — e.g. '(a) 8×H100 host class replicated to N hosts with prefix caching' — or restate §1's elimination rule to apply to the fleet. Then make §6's finalist list consistent with the gate results as stated.",
+  "acceptance_test": "§1, §3, §6, Table 12-1 and the mini-case all evaluate the same object; no candidate is described as failing a gate and simultaneously carried forward as a finalist without an explicit statement that the gate is evaluated at fleet level.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (Candidate (a) quality paragraph); §8 mini-case; Table 12-1 open-gate table",
+  "chapter": "12",
+  "quoted_clause": "\"Quality: the 70B is the workload's quality reference, so candidate (a) inherits the reference quality by definition rather than by measurement — the gate is satisfied relative to the reference, and the absolute requirement still needs the Ch 14 capability screen on the true evaluation set\"; mini-case: \"Quality requirements fix the model class: the system must achieve ~70B-model answer quality on enterprise prompts\"; Table 12-1: \"(a) | throughput open\"",
+  "observed": "The quality gate's threshold is expressed as a model class ('~70B-model answer quality'), which makes the gate vacuous for the 70B candidates — they satisfy it by construction — and meaningful only for the 7B candidate. §3 also concedes that (a)'s 'absolute requirement still needs the Ch 14 capability screen', i.e. (a)'s quality gate is open too, but the open-gate summary lists only 'throughput open' for (a) and 'throughput open at a single prefill host' for (b). The summary therefore understates the open gates.",
+  "evidence": "Table 12-1's own SLO column for (a) reads '? TTFT SLO unmeasured', and §3 says the absolute quality requirement is unmeasured — so (a) has at least two open gates, not one.",
+  "root_cause": "The gate threshold was expressed as a model-class proxy rather than an absolute metric, and the open-gate summary was derived from the §3 verdict sentence rather than from the gate definitions.",
+  "correction": "Express the quality requirement as an absolute threshold on the evaluation set (e.g. task accuracy / EM / rubric score ≥ X on the true eval set), so the gate can discriminate among candidates of any model class; and regenerate the open-gate table from the gate definitions so every open gate per candidate is listed.",
+  "acceptance_test": "The quality gate has a metric-based threshold stated in the chapter; the open-gate table lists all open gates for (a), (b) and (c) and is consistent with §3's prose and Table 12-1's SLO column.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §1 (gate definition), §4 item 3, Table 12-2 'Decode pool sizing' row, §3 Candidate (b)",
+  "chapter": "12",
+  "quoted_clause": "\"**throughput at the SLO** — sustained prefill and decode tokens-per-second, delivered within the latency budget (prefill + decode), must meet the workload's demand\"; Table 12-2: \"Decode pool sizing | none — decode shares the host (no separate pool; not sized separately) | decode pool sized to 3K tok/s avg / 12K tok/s peak | not sized in this screen\"",
+  "observed": "The throughput gate has two legs (prefill and decode), but only the prefill leg is screened anywhere in the chapter. The decode demand (3K tok/s average, 12K tok/s peak) is stated in §4 and in Table 12-2 but is never converted into a per-host decode rate or a host count; Table 12-2's decode row gives demand, not a count. Candidate (b)'s decode pool — the single structural difference between (a) and (b) — therefore has no size, and (b)'s cost cannot be compared with (a)'s. The chapter's own §3 also notes the decode pool 'runs bandwidth-saturated', which is precisely the quantity needed to size it.",
+  "evidence": "No decode tokens/s per host appears anywhere in the chapter; the only decode-side numbers are demands (3K/12K tok/s) and the TPOT target (~25 ms/token). A reader cannot size the decode pool from the chapter as written.",
+  "root_cause": "The throughput screen was built around the prefill arithmetic inherited from Ch 8 and never extended to the decode leg, even though the decode leg is the one that distinguishes the candidates.",
+  "correction": "Add the decode screen: per-host decode tokens/s from the weight-read bound (140 GB of FP16 weights read per decode step ÷ per-host HBM bandwidth, times the admitted batch), then convert the 3K/12K tok/s demand into a decode-pool host count. Insert that count into Table 12-2's decode row and into Candidate (b)'s economics so (a) and (b) are costed on the same basis.",
+  "acceptance_test": "Table 12-2's decode row contains a host count for (b) derived from a stated per-host decode rate; Candidate (b)'s cost statement includes the decode pool's hosts; the throughput gate is visibly evaluated on both legs.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-06",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 12 §3 (Candidate (a), prefix-caching paragraph); §7 'What We Still Don't Know'",
+  "chapter": "12",
+  "quoted_clause": "\"reducing effective prefill FLOPs by ~30% at 10 rps average and ~50% at peak 40 rps when many requests share common document roots\"",
+  "observed": "The canonical token profile is 1,200-token prompt + 8K retrieved context per request. If only the prompt is shared, the shareable prefix is 1,200/9,200 ≈ 13% of prefill FLOPs, so the 30–50% hypothesis requires substantial document-level repetition that the canonical profile does not obviously provide. The chapter labels the range [HYPOTHESIS] and flags the untested premise in §7, but never bounds the hypothesis against the canonical token profile, and the derived '~28K tokens/s' prefill figure inherits the unbounded range.",
+  "evidence": "1,200 / 9,200 = 13.0%. For a 30% amortization the shared prefix must be ≥ ~2,760 tokens per request, i.e. more than twice the canonical prompt; for 50%, ≥ ~4,600 tokens, i.e. document-level repetition of more than half the retrieved context.",
+  "root_cause": "The hypothesis is stated without the workload-derived upper bound on the shareable prefix, so a reader cannot judge its plausibility from the canonical scenario.",
+  "correction": "State the bound explicitly in §12.3 (≤ ~13% absent document repetition; up to ~50% only if ≥ ~50% of retrieved context is shared across requests), and present the prefill-throughput effect as a range conditional on the measured prefix-hit rate rather than as a point estimate.",
+  "acceptance_test": "§12.3's prefix-amortization paragraph states the maximum shareable prefix implied by the canonical token profile and conditions the 30–50% range on it; the '~28K tokens/s' figure is presented as conditional on a stated hit rate.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-07",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (Candidate (a) throughput paragraph); Table 12-2; §8 mini-case economics",
+  "chapter": "12",
+  "quoted_clause": "\"the gate closes only when the host class is replicated to ~5 hosts on the average prefill screen (92K ÷ 19.8K ≈ 4.65 → 5), ~6 on the average KV/service-time screen (10 × 8.6 ÷ 17 ≈ 5.06 → 6), and ~21 at peak (40 × 8.6 ÷ 17 ≈ 20.2 → 21)\"",
+  "observed": "Two different capacity screens give different host counts for the same candidate and load — 5 vs 6 at the average, 19 vs 21 at peak — and the chapter never says which governs. Table 12-2's prefill rows use the prefill screen (5 / 19) while its cost row and the mini-case's economics use the KV/service-time screen (21 hosts, $155.8K/mo). A reader cannot tell whether the canonical peak fleet is 19 or 21 hosts, and the cost arithmetic silently switches screens mid-table.",
+  "evidence": "92,000/19,776 = 4.65 → 5 (prefill screen) vs 10 × 8.6/17 = 5.06 → 6 (KV screen); 368,000/19,776 = 18.6 → 19 (prefill) vs 40 × 8.6/17 = 20.2 → 21 (KV). Table 12-2's 'Prefill capacity ... peak' row says '~19 hosts' while its 'Monthly fully loaded cost' row says '~21 hosts'.",
+  "root_cause": "Two capacity models are used in parallel without a stated precedence rule, and each table row silently picks one.",
+  "correction": "State which screen binds and why (or take the max of the screens explicitly, e.g. 'governing count = max(prefill screen, KV/service-time screen)'), and use one number per quantity in Table 12-2 and in the mini-case's economics.",
+  "acceptance_test": "For each load the chapter states a single governing host count with the screen named; Table 12-2's cost row's host count equals the governing count; the mini-case's $155.8K/mo figure is derived from the same count.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-08",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 12 §8 mini-case, economics paragraph",
+  "chapter": "12",
+  "quoted_clause": "\"$155,816.93, ≈$24.97/1K on the 6.24M‑req/mo business-hours basis, Ch 16\"",
+  "observed": "6.24M requests at the canonical 10 rps corresponds to 624,000 s ≈ 173.3 hours of traffic per month, which equals 10 rps × 8,640 s/day × 26 days — a 24×7 basis. A business-hours basis (8 h × 22 days = 176 h) would give 6.34M requests, and the per-1K figure would be ≈$196/1K rather than $24.97/1K. The label therefore changes the reading of every per-1K number in the paragraph by ~8×, and the label as printed does not match the arithmetic of the volume.",
+  "evidence": "6,240,000 / 10 rps = 624,000 s = 173.33 h; 10 × 8,640 × 26 = 6,240,000 exactly. 155,816.93 / 6,240 = $24.97 (consistent with the printed figure, so the denominator is 6.24M as stated — only the 'business-hours' descriptor is in question).",
+  "root_cause": "The request-volume basis is inherited from Ch 16 with a descriptor that may not match its derivation; the derivation is not printed where the figure is used.",
+  "correction": "Print the derivation inline (days × hours/day × rps) next to the volume and use the matching descriptor; if the basis is 24×7, say '24×7 basis' and note the consequence for the per-1K figures.",
+  "acceptance_test": "The mini-case prints the derivation of the monthly request volume and the descriptor matches it; a reader can reproduce $24.97/1K from the printed volume and cost.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §5 Common Mistakes, second bullet",
+  "chapter": "12",
+  "quoted_clause": "\"the KV cache is ≈15% of total residency at the canonical 9.2K context (24.1/164.1; rising past 20% beyond ~13.4K) and is often the binding constraint\"",
+  "observed": "The 15% figure is a per-request ratio (one request's KV over one request's weights + KV). The quantity that actually binds a host is aggregate KV across concurrent requests, which the chapter itself computes in §12.3 as 436 GB of 640 GB ≈ 68% of host memory. The bullet's own conclusion ('often the binding constraint') is not supported by the 15% number it cites, and a reader who internalizes 15% will under-weight KV in every subsequent capacity decision.",
+  "evidence": "24.1/164.1 = 14.7% (per request). 436/640 = 68.1% (per host at the canonical KV budget). The '>20% beyond ~13.4K' threshold is likewise a per-request statement: 35 GB of KV = 13,359 tokens, but the host-level KV share exceeds 50% at roughly 2.4K tokens of context per request once concurrency is included.",
+  "root_cause": "Per-request residency is used where host-level residency is the binding quantity; the chapter elsewhere insists on the distinction ('one request's 24 GB is not the pool's population').",
+  "correction": "Present both quantities and make the 'binding constraint' claim rest on the host-level one: per-request share (≈15% at 9.2K) and host-level share (KV budget 436 GB of 640 GB ≈ 68% at the canonical concurrency), with the context-length threshold recomputed at host level.",
+  "acceptance_test": "The bullet's 'binding constraint' claim cites a host-level KV share; per-request and host-level shares are explicitly distinguished; the context-length threshold is stated for the level it applies to.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-10",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 12 §3 (Candidate (b)); §6 Architecture Consequence; §8 mini-case",
+  "chapter": "12",
+  "quoted_clause": "§3: \"it is the right architecture *at scale*, not a two-host answer to the canonical case\"; §6: \"Candidate (b), the P/D-disaggregated two-pool, is evaluated on the added complexity of inter-group communication and the pipeline overlap efficacy\"; mini-case: \"the finalists are Candidates (a) and (b), and the near-term decision falls between them\"",
+  "observed": "The chapter's own analysis shows (b) has the same per-host prefill ceiling as (a) ('P/D disaggregation does **not** raise the per-host prefill *ceiling*'), doubles weight residency (140 GB in each pool), adds fabric, and has no decode-pool size (see CH12-05). No workload at the canonical scale is identified at which (b) wins. It is nevertheless carried as a finalist, and the mini-case frames the near-term decision as (a) vs (b) without stating the condition under which (b) is preferred.",
+  "evidence": "§3's own conclusion: 'Disaggregation buys the *ability to scale each phase separately*, not the throughput itself.' The mini-case's stated decision criterion is 'whether the doubled hardware cost of Candidate (b) is justified by its operational flexibility (e.g., independent scaling of prefill and decode pools, fault isolation)' — neither of which is quantified or measured anywhere in the chapter.",
+  "root_cause": "The candidate set was fixed before the analysis; the analysis's conclusion that (b) is not yet justified at this scale was not propagated to §6 or the mini-case.",
+  "correction": "Either state a measurable trigger under which (b) becomes preferred (e.g. measured prefill/decode interference at peak, or a skewed traffic shape that makes independent phase scaling valuable) and make that trigger the mini-case's decision criterion, or demote (b) to a labeled sensitivity case as (c) is.",
+  "acceptance_test": "The chapter states a measurable condition under which (b) beats (a), and the mini-case's decision criterion is that condition rather than an unquantified appeal to 'operational flexibility'.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH13-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 13 §3 'Escalating: When 10×Traffic Forces the Cluster Tier' vs Ch 13 §8 mini-case",
+  "chapter": "13",
+  "quoted_clause": "§3: \"⌈100 × 8.6 / 17⌉ = ⌈50.59⌉ = **51 hosts at full utilization**, and Ch17's 70% utilization target plus the N−1 spare gives 73 working + 1 spare = **74 hosts** ... 77 working + 1 spare = **78 hosts** at the Table 17-1 policy\"; mini-case: \"the fleet is ⌈100 × 8.6 / 17⌉ = **51 hosts at full utilization** — 73 working + 1 spare = **74 hosts** ... or 77 working + 1 spare = **78 hosts** at the Table 17-1 policy\"",
+  "observed": "The mini-case reproduces §3's escalation arithmetic verbatim — same screen, same numbers, same intermediate quotients — and adds only the privacy constraint and a TTFT figure. The mini-case therefore does not require the reader to apply the chapter's reasoning to a decision the worked example has already made for them; it is a restatement, not a case.",
+  "evidence": "Both passages print ⌈100 × 8.6 / 17⌉ = 51, 74 hosts, and 78 hosts with the same u × ρ = 0.665 derivation.",
+  "root_cause": "The mini-case was constructed by restating the worked example rather than by posing a decision the worked example leaves open.",
+  "correction": "Give the mini-case a genuine twist that the ladder must resolve — e.g. a workload whose peak/average shape differs from the canonical 4×, a privacy constraint that forbids the cluster tier, or a model that no longer fits one node — and require the reader to compute the resulting tier and fleet from the chapter's triggers.",
+  "acceptance_test": "The mini-case contains at least one quantity or decision not already computed in §3, and its answer either differs from or qualifies §3's conclusion.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH13-04",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 13 §3 'Placing the Canonical Workload' and 'Escalating' subsections",
+  "chapter": "13",
+  "quoted_clause": "\"under the 70% × 95% policy — applied to the unrounded 344/17 ≈ 20.2, not the rounded 21 — that becomes 31 working + 1 spare = 32 total\"; \"on the ρ = 1 u-only screen — 77 working + 1 spare = **78 hosts** at the Table 17-1 policy (u × ρ = 0.665; ⌈860/11.305⌉ = ⌈76.07⌉ = 77)\"",
+  "observed": "The symbols u and ρ are used without definition anywhere in the chapter. From the arithmetic, u = 0.70 (utilization target) and ρ = 0.95 (the second policy factor), with 'ρ = 1 u-only screen' meaning the 0.95 factor is omitted; but 'u × ρ = 0.665' with ρ = 1 would give u = 0.665, so the notation is internally ambiguous as written. 11.305 = 17 × 0.665 is also unexplained.",
+  "evidence": "17 × 0.665 = 11.305 ✓; 860/11.305 = 76.07 ✓; 50.59/0.70 = 72.27 → 73 ✓. The symbols themselves are never introduced.",
+  "root_cause": "Notation carried over from Ch 17 without local introduction or cross-reference.",
+  "correction": "Define u and ρ at first use in Ch 13 (e.g. 'u = 0.70 utilization target, ρ = 0.95 peak headroom factor, per Ch 17's Table 17-1 policy') or cross-reference the definition explicitly.",
+  "acceptance_test": "Every symbol used in Ch 13's host-count arithmetic is defined in Ch 13 or explicitly cross-referenced to its definition.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH13-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 13 §3 'Escalating' subsection",
+  "chapter": "13",
+  "quoted_clause": "\"The naive ~100 ÷ 2.0 ≈ 50 understates the fleet: the ~2.0 rps screen uses the unfloored 17.5-slot quotient and applies no utilization headroom, so 50 hosts could only deliver 50 × 17/8.6 ≈ 98.8 rps — below demand.\"",
+  "observed": "The framing implies the naive screen is materially wrong, but the naive screen (50) and the corrected full-utilization screen (51) differ by one host; the material difference (74 or 78 hosts) comes from the utilization headroom and N−1 rule, not from the slot flooring. As written, the reader is invited to attribute the fleet size to the flooring choice.",
+  "evidence": "⌈100 × 8.6 / 17⌉ = 51 vs the naive 100 ÷ (17.5/8.6) = 100 ÷ 2.03 = 49.2 → 50. The headroom factor 0.70 (and 0.665 with the second factor) is what produces 74/78.",
+  "root_cause": "The parenthetical attributes the fleet-size difference to the wrong cause.",
+  "correction": "Reword so the one-host difference is attributed to slot flooring and the 50 → 74/78 difference is attributed to the utilization headroom and N−1 policy.",
+  "acceptance_test": "The paragraph's attribution of each difference (flooring vs headroom) matches the arithmetic.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-11",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 12 §2 Mental Model",
+  "chapter": "12",
+  "quoted_clause": "\"adjusting the parallelism layout (e.g., parameter vs. data vs. pipeline)\"",
+  "observed": "'Parameter parallelism' is not a standard term and conflicts with the book's own vocabulary (TP/PP/DP/EP, Ch 10). The intended term is tensor parallelism.",
+  "evidence": "Ch 13 §3 uses 'intra-host TP=8'; Ch 12 §3 (b) uses 'parameter vs. data vs. pipeline' only here.",
+  "root_cause": "Terminology drift in a summary list.",
+  "correction": "Replace with 'tensor vs. data vs. pipeline (TP/DP/PP)'.",
+  "acceptance_test": "The parallelism names used in Ch 12 match those used in Ch 10, Ch 12 §3 and Ch 13.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH12-12",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (Candidate (b))",
+  "chapter": "12",
+  "quoted_clause": "\"with the KV hidden-state handed between them (Splitwise / DistServe / Mooncake)\"",
+  "observed": "The artifact transferred between the pools is the KV cache state (K and V tensors), not 'hidden state'. 'Hidden state' is a distinct term in transformer mechanics and would mislead a reader who has just learned it.",
+  "evidence": "The chapter's own §4 defines the KV cache as K/V tensors; Ch 7 and Ch 11 use 'KV cache' throughout.",
+  "root_cause": "Loose terminology in a summary clause.",
+  "correction": "Replace with 'with the KV cache state (K/V tensors) handed between them'.",
+  "acceptance_test": "The term 'hidden state' is used only for its transformer-mechanics meaning throughout Ch 12.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ }
+]

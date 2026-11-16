@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH18-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "§18.3.2 (Basis note / bases box) and §18.3.3 (Mixed-fleet hourly cost)",
+  "chapter": "18",
+  "quoted_clause": "The §18.3.2 per-1M price rows are per-model nominal rates for routing comparison ... priced on three different bases (self-amortized capital+energy, public-cloud list, energy-only): routing-comparison proxies, not procurement-comparable. ... the mixed-fleet *savings* conclusion in §18.3.3 depends only on the relative per-model rates, not on the absolute self-host basis.",
+  "observed": "The headline saving ($23.75/hr vs $12.59/hr; $8,147/mo) is computed by comparing the FP16 tier priced on \"capital + energy\" against the 8-bit and MoE-8-bit tiers whose Basis cell reads only \"[ILLUSTRATIVE] example rate, Q4 2026 — not retrieved\" — i.e. no cost basis is stated for two of the three routed tiers. The claim that the savings \"depends only on the relative per-model rates\" is exactly what the mixed-basis caveat denies: relative rates across different bases are not comparable. The bases box also names a \"public-cloud list\" basis that no row in the table uses.",
+  "evidence": "Table 18-2 Basis column: \"capital + energy\" (FP16), \"[ILLUSTRATIVE] example rate\" (8-bit), \"[ILLUSTRATIVE] example rate\" (MoE 8-bit), \"energy only\" (4-bit). Bases box enumerates three bases including \"public-cloud list\", which appears nowhere in the table. §18.3.3 then multiplies tokens by these rates across bases.",
+  "root_cause": "The evidence-label vocabulary ([ILLUSTRATIVE]) was substituted for the cost-basis field, so the table lost the information that makes the comparison meaningful; the reconciliation prose was added without re-deriving the comparison on a single basis.",
+  "correction": "Give every row an explicit cost basis (e.g. \"self-amortized capital+energy, 8×H100, 3-yr amortization, 70% util\") and either (a) re-price all four rows on one basis so the $23.75 vs $12.59 comparison is basis-homogeneous, or (b) state that the saving is a ratio of illustrative rates and therefore not a cost estimate at all, and remove the \"$8,147/month\" headline or relabel it as an illustrative rate-ratio illustration. Delete the \"public-cloud list\" basis from the box or add the row that uses it.",
+  "acceptance_test": "Every row of the §18.3.2 table carries a named cost basis; the §18.3.3 subtraction uses rows that share a basis, or is explicitly labelled as a rate-ratio illustration with no dollar claim.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-03",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "§18.3.1, Table 18-1 (hardware capacity mapping), last column",
+  "chapter": "18",
+  "quoted_clause": "| # instances on one 8×H100 pool (this model alone) | ... | 70B dense 8-bit | ... | 2 (70 GB weights + 24.9 GB FP16 KV = 94.9 GB > 80 GB per GPU; FP8 KV still 82.5 GB) ... The last column counts instances of that model alone on the pool; the 8-bit rows' **2** is the GPUs one instance needs (94.9 GB > 80 GB per GPU), the one per-GPU reading in the table.",
+  "observed": "The column header declares a unit (instances of that model alone on the 8×H100 pool) that two of the four rows violate: the 8-bit rows report 2 GPUs-per-instance, and the 4-bit row reports ~5 instances computed on a co-resident basis (see CH18-29). The explanatory note is itself incoherent (\"the one per-GPU reading in the table\" states no referent) and contradicts the header it is meant to clarify. A reader sizing a pool from this column would conclude that two 8-bit instances fit on the pool; in fact 8-bit alone on the pool would fit ≈6 instances (576 GB usable ÷ 94.9 GB).",
+  "evidence": "Recomputed 8-bit alone: (640 − 64 reserve) ÷ (70 weights + 24.89 KV) = 576/94.89 = 6.07 → 6 instances, not 2. Recomputed 4-bit alone: 576/35 = 16.4 → 16 instances, not ~5.",
+  "root_cause": "The column was repurposed mid-draft from \"instances on the pool\" to \"GPUs required per instance\" for the 8-bit rows, and the note was patched rather than the table restructured.",
+  "correction": "Split into two columns: \"GPUs per instance (canonical 9.5K request)\" and \"instances on one 8×H100 pool (this model alone, canonical KV)\", with each row's value computed on the stated basis. Delete the garbled note sentence and replace it with a one-line unit statement per column.",
+  "acceptance_test": "Every cell in the table has a unit that matches its column header; a reader can compute the pool's instance count for any row without consulting the prose.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-04",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "§18.3.1, co-residency bullet list vs the paragraph immediately following it",
+  "chapter": "18",
+  "quoted_clause": "Two 70B 4-bit GGUF (≈70 GB total; ... and hold no canonical KV reservation, so the sole-resident 436 GB KV assumption of the table above still governs the active tiers) ... **290 GB < the canonical 436 GB KV budget, so the FP16 tier cannot co-reside at the canonical profile.** KV, not weights, is the binding term: as the FP16 row above notes, that tier's KV alone is the canonical 436 GB; with the §18.3.1 co-resident weights (~350 GB) the pool's KV falls to ~226 GB and C to ~9",
+  "observed": "The bullet states that the 436 GB KV assumption \"still governs the active tiers\"; the very next paragraph states that with the co-resident weights the pool's KV falls to 226 GB and C to 9. Both cannot be true. The 436 GB figure is the FP16-tier-alone budget (640 − 140 − 64) and is void once the 8-bit, MoE-8-bit and 4-bit weights are resident. The bullet's clause is the one that survives into the reader's memory and it is the wrong one.",
+  "evidence": "640 − 350 (co-resident weights) − 64 (reserve) = 226 GB; ⌊226/24.89⌋ = 9. The 436 GB figure is only valid for the FP16 tier alone: 640 − 140 − 64 = 436, ⌊436/24.89⌋ = 17.",
+  "root_cause": "The co-residency list was added after the table's KV budget was derived, and the bullet was written to preserve the earlier figure rather than to reflect the new configuration.",
+  "correction": "Delete the clause \"so the sole-resident 436 GB KV assumption of the table above still governs the active tiers\" and replace it with the co-resident figure: \"the pool's KV budget under this configuration is 640 − 350 − 64 = 226 GB, i.e. C = 9 concurrent canonical requests (§18.3.3)\". Also fix the sentence \"the FP16 tier cannot co-reside at the canonical profile\" — the FP16 tier IS co-resident in this list; what cannot happen is co-residing at the canonical KV profile.",
+  "acceptance_test": "The chapter contains exactly one KV budget for the co-resident configuration (226 GB) and one for the FP16-alone configuration (436 GB), each attached to the configuration it describes.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§18.3.1, paragraph after the co-residency bullet list",
+  "chapter": "18",
+  "quoted_clause": "That is ~350 GB of weights, leaving ~290 GB for KV cache and for smaller specialized models (e.g., 22B, 8B) for classification or routing.",
+  "observed": "640 − 350 = 290 GB, but the chapter's own reserve (64 GB, defined two paragraphs earlier and used in every other budget in the section) is not subtracted. The correct figure is 226 GB, which is the number the next paragraph uses. The 290 GB figure also silently ignores the weights of the \"smaller specialized models (e.g., 22B, 8B)\" it proposes to place in the same pool (22B FP16 ≈ 44 GB, 8B ≈ 16 GB), which would reduce KV further.",
+  "evidence": "640 − 350 − 64 = 226 (matches the next paragraph). 640 − 350 = 290 (printed).",
+  "root_cause": "The reserve was omitted in one subtraction and included in all others; the specialized-model clause was added without re-deriving the residual.",
+  "correction": "Print 226 GB, state that it is net of the 64 GB reserve, and either remove the \"smaller specialized models\" clause or quantify it (e.g. \"a 22B FP16 router at 44 GB would leave 182 GB of KV, C = 7\").",
+  "acceptance_test": "Every KV residual in §18.3.1 is computed as 640 − weights − 64 and matches the figure used downstream.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§18.3.3, dedicated-placement paragraph; §18.5",
+  "chapter": "18",
+  "quoted_clause": "Under the **dedicated** placement the ledger reverses: that same 20/32 group is at or slightly below the single-model fleet's 21/31.",
+  "observed": "The comparison is stated as \"at or slightly below\", but the policy pair is 32 vs 31 — above, not below — and the no-policy pair is 20 vs 21 — below. The sentence collapses two different comparisons into one directional claim, and the direction it asserts for the policy case is wrong.",
+  "evidence": "20 vs 21 (no derate): mixed is 1 host lower. 32 vs 31 (policy): mixed is 1 host higher.",
+  "root_cause": "The sentence was written for the no-policy case and then extended to the policy case without rechecking the sign.",
+  "correction": "Rewrite: \"Under the dedicated placement the ledger roughly balances: 20 hosts vs 21 for the single-model fleet without the utilization derate, and 32 vs 31 with it — the mixed fleet's advantage is at most one host, not a reduction.\"",
+  "acceptance_test": "No directional comparison in §18.3.3 or §18.5 states a sign that the printed numbers do not support.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§18.2 (Mental Model) vs §18.3.4 (Latency check) vs §18.5 (Consolidate criteria)",
+  "chapter": "18",
+  "quoted_clause": "A chat UI tolerates ~200 ms of added service latency per request ... Acceptable for interactive chat (typical threshold: ≤500 ms). ... **Consolidate** when: workload profile overlap ≥70%, latency tolerance ≥300 ms, and cost differential >30%. ... the latency criterion is met against the ≤500 ms interactive threshold of §18.3.4, not the ~200 ms chat tolerance quoted in §18.2 — L̄ ≈ 247 ms clears 500 ms and exceeds 200 ms",
+  "observed": "The chapter carries two different interactive-chat latency budgets (200 ms in §18.2, 500 ms in §18.3.4) and the consolidation verdict depends on which one applies. Worse, the consolidation criterion is written in terms of the workload's *tolerance* (\"latency tolerance ≥300 ms\") but is checked against the *achieved* weighted latency (L̄ ≈ 247 ms). Under the criterion as written, the scenario's tolerance is either 200 ms (fails) or 500 ms (passes); under the check as performed, 247 ms fails a 300 ms criterion. The referent note therefore does not actually establish that the criterion is met.",
+  "evidence": "L̄ = 0.70×250 + 0.20×300 + 0.10×120 = 247 ms (§18.3.4). 247 < 300, so the criterion \"latency tolerance ≥300 ms\" is not satisfied by the achieved latency under any reading; only the deployment's declared tolerance (500 ms) satisfies it.",
+  "root_cause": "The criterion was written as a design rule about the workload, then verified with a measurement of the system, and the two were reconciled by prose rather than by rewriting the criterion.",
+  "correction": "Rewrite the criterion to be about the workload's declared budget, e.g. \"latency budget ≥300 ms per request (the deployment's SLO, not the achieved latency)\", and state the scenario's budget once, in one place, as 500 ms (the §18.3.4 interactive threshold), removing the 200 ms figure from §18.2 or explicitly marking it as a different quantity (e.g. added service latency above a baseline). Then check the criterion against the declared budget and state the achieved L̄ separately.",
+  "acceptance_test": "The chapter contains one interactive latency budget, used consistently in §18.2, §18.3.4 and §18.5; the consolidation criterion is stated in terms of the same quantity it is checked against.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-10",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§18.3 (Scenario) vs §18.3.3 (routing arithmetic and Volume basis)",
+  "chapter": "18",
+  "quoted_clause": "**Scenario:** ~2,000 users, ~5% concurrent (≈100 simultaneous), ~10 rps average / ~40 rps peak. ... For 1,000 requests/hour (≈0.28 rps — a light illustrative load ...)",
+  "observed": "The chapter's own scenario states ~10 rps average, but the routing arithmetic that produces every headline number in the chapter runs at 1,000 requests/hour = 0.28 rps — 36× below the scenario's average load. The \"canonical volume\" used for the second savings figure (6.24M requests/month) is ≈2.37 rps average, a third value, and 4.2× below the scenario's 10 rps average (10 rps × 2.628M s/mo ≈ 26.3M requests/month). The scenario's stated load is therefore never used to produce any savings, host count, or cost figure in the chapter, and the peak-to-average ratio implied by the scenario (40/10 = 4×) is inconsistent with the canonical volume paired with the same 40-rps peak (40/2.37 ≈ 17×).",
+  "evidence": "1,000 req/hr ÷ 3,600 = 0.278 rps. 6.24M ÷ 2.628M s = 2.374 rps. 10 rps × 2.628M s = 26.28M req/mo. 40 rps peak ÷ 2.374 rps avg = 16.9×.",
+  "root_cause": "Three different traffic bases were introduced at different drafting stages (illustrative 1,000/hr; canonical 6.24M/mo; scenario 10 rps avg / 40 rps peak) and the chapter's caveats explain the bases individually without noticing that they are mutually inconsistent as descriptions of one scenario.",
+  "correction": "Choose one traffic basis for the chapter's worked example and derive everything from it. If the scenario is 10 rps average / 40 rps peak, state the implied monthly volume (≈26.3M requests/month) and recompute the savings at that volume; if the canonical 6.24M/month is to be used, restate the scenario's average as ≈2.4 rps and reconcile the peak-to-average ratio with Ch 17. Keep the 1,000 req/hr figure only as an explicitly labelled unit-normalization illustration, not as the chapter's savings basis.",
+  "acceptance_test": "Every rate, volume and savings figure in §18.3 is derived from one stated traffic basis, and the chapter states the peak-to-average ratio it assumes.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-12",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§18.3.3, Monthly savings and Escalation sensitivity",
+  "chapter": "18",
+  "quoted_clause": "with comparable quality because the 8-bit model is assumed [ASSUMPTION] to meet quality thresholds for ≥90% of requests (no evaluation or benchmark is cited for this figure). ... If a share *q* of the 700 routine requests fails the 8-bit quality bar and escalates to FP16",
+  "observed": "The ≥90% quality assumption is stated against \"requests\" without a population, while the escalation analysis applies q to the 700 routine requests only. Read fleet-wide, \"≥90% of requests\" is inconsistent with the routing split (70% to dense 8-bit, 20% to MoE 8-bit, 10% to FP16 — only 70% of requests are routed to the dense 8-bit tier whose quality bar is at issue). Read within the routine subset, it means q ≤ 10%, which is what the escalation paragraph assumes. The two readings differ by a factor of ~3 in the implied failure population.",
+  "evidence": "Routing split: 700/200/100 of 1,000 requests. Escalation base: 700 routine requests. 90% of 1,000 = 900 ≠ 700.",
+  "root_cause": "The assumption was written before the escalation model and never bound to a population.",
+  "correction": "State the population explicitly: \"the 8-bit dense tier is assumed [ASSUMPTION] to meet the quality bar for ≥90% of the requests routed to it (i.e. q ≤ 10% of the 700 routine requests); no evaluation or benchmark is cited.\" Then note that the 20% MoE share is a routing choice, not a quality failure.",
+  "acceptance_test": "Every quality assumption in §18.3.3 names the population it applies to, and the escalation base matches it.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-13",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§18.8 mini-case, Tier 1 memory headroom vs Tier 2",
+  "chapter": "18",
+  "quoted_clause": "*Memory headroom:* 35 GB of 4-bit weights in 64 GB RAM leaves ~29 GB for KV + runtime — 29/24.9 ≈ 1.16, i.e. room for ~1 concurrent canonical 9,500-token request's KV. ... Tier 2 (70B 8-bit dense): ... these ~250-token requests carry ~0.66 GB KV each, so 1×H100's ~10 GB headroom holds ~15 concurrent requests",
+  "observed": "Within one mini-case, Tier 1's KV headroom is computed against the canonical 9,500-token request (24.9 GB) while Tier 2's is computed against the mini-case's own ~250-token request (0.66 GB). The mini-case's workload is explicitly ~250 tokens per request (\"each request averaging ~250 tokens\"), so Tier 1's headroom is 29/0.66 ≈ 44 concurrent requests, not 1. The Tier 1 figure is therefore not a property of the mini-case's deployment and understates its capacity by more than an order of magnitude.",
+  "evidence": "29 GB / 0.655 GB = 44.3 concurrent; 29 GB / 24.89 GB = 1.16 concurrent. The mini-case's own request length is 250 tokens (§18.8 arithmetic).",
+  "root_cause": "The canonical 9,500-token KV figure was imported from §18.3.1 into a mini-case whose request profile is 250 tokens, without re-deriving it.",
+  "correction": "Recompute Tier 1's headroom on the mini-case's request profile (29 GB ÷ 0.66 GB ≈ 44 concurrent 250-token requests, less runtime reserve), and add a sentence noting that the canonical 9,500-token profile would allow only one concurrent request on this node — which is the more interesting architectural fact and should be stated as the caveat.",
+  "acceptance_test": "All three mini-case tiers compute KV headroom on the same request length, and any use of the canonical 9,500-token profile is explicitly flagged as a different scenario.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-14",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§18.8 mini-case, Tier 1 and the SLO check",
+  "chapter": "18",
+  "quoted_clause": "Tier 1 (4-bit GGUF): ... Cost: $0.0002/token, latency ~600 ms. ... **Tier 1 (the cheapest, 4-bit GGUF on CPU, ~600 ms) serves 80% of queries, so the p95 per-request latency is ~600 ms, which violates the 500 ms SLO for the dominant tier.**",
+  "observed": "The mini-case never states whether its latency figures are TTFT or full-generation time. §18.3.4 establishes that for a CPU 4-bit model the full-generation reading is ~117 s for 250 tokens (~146× the 800 ms ledger figure) and that \"only the TTFT reading is defensible\". The mini-case's 600 ms is only defensible under the same TTFT reading, but the mini-case applies it as a per-request SLO without saying so, and the SLO verdict (the chapter's central mini-case lesson) therefore rests on an unstated interpretation.",
+  "evidence": "§18.3.4: 35 GB ÷ 75 GB/s = 0.47 s/token × 250 tokens = 117 s. The mini-case's requests average 250 tokens.",
+  "root_cause": "The mini-case was written without inheriting the §18.3.4 column-definition note, which is the note that makes the latency numbers meaningful.",
+  "correction": "Add to the mini-case's Tier 1 (and Tier 2/Tier 3) entries: \"latency ~600 ms (time-to-first-token; full generation of 250 tokens on this CPU node would be ~117 s — see §18.3.4)\", and state the SLO as a TTFT SLO so the p95 check is unambiguous.",
+  "acceptance_test": "Every latency figure in §18.8 is labelled TTFT or full-generation, and the SLO check names the same quantity.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-15",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§18.5, Common Mistakes #3",
+  "chapter": "18",
+  "quoted_clause": "**Ignoring capital amortization.** FP16 on 8×H100 has high upfront cost; spreading that cost across a mixed fleet improves effective cost/token. Don't forget to annualize GPU capex in the per-token math.",
+  "observed": "The claimed benefit is contradicted by the chapter's own arithmetic: the mixed fleet under the shared placement needs 18–27 more hosts (§18.3.3), so total capital amortization rises, not falls. Spreading a fixed cost over a fleet improves effective cost/token only if the fleet raises utilization of the same capital; the chapter's placement arithmetic shows the opposite. As written, a reader could take away \"mixing models lowers capital cost per token\" as a general rule.",
+  "evidence": "§18.3.3: 39 vs 21 hosts (no derate), 58 vs 31 (policy). §18.3.2 basis note: 21 hosts ≈ $155,817/mo.",
+  "root_cause": "The common-mistakes entry was written as generic advice before the placement arithmetic existed and was never reconciled with it.",
+  "correction": "Rewrite the correction to the actual mechanism: \"amortizing capex over tokens requires utilization, not model diversity. A mixed fleet lowers the token rate only if it raises the utilization of the same installed capital; if it requires additional hosts (as in §18.3.3), total cost per token can rise even as the nominal rate falls.\"",
+  "acceptance_test": "No claim in §18.5 asserts a cost benefit that §18.3.3's host arithmetic contradicts.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-16",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§18.5, Common Mistakes #4 vs §18.3.3",
+  "chapter": "18",
+  "quoted_clause": "N_tail = ⌈λ_tail·W/(C·u·ρ)⌉ = ⌈4 × 8.6/(17 × 0.70 × 0.95)⌉ = ⌈34.4/11.305⌉ ≈ **4 hosts** at the canonical 40-rps peak.",
+  "observed": "Two problems. (a) u and ρ are never defined in the chapter, and the same product 0.665 is decomposed differently in §18.3.3, where it is called \"the 70%×95% policy\" (routing mix × quality pass rate) rather than utilization × ρ. A reader cannot tell whether 0.70 is a utilization factor or the routine-traffic share. (b) The formula uses C = 17, the single-model canonical concurrency, while the chapter's own mixed shared-pool configuration has C = 9 (§18.3.1/§18.3.3); the tail tier (FP16) in the mixed fleet therefore has a different per-host capacity than the formula assumes. The arithmetic itself (34.4/11.305 = 3.04 → 4) is correct.",
+  "evidence": "17 × 0.70 × 0.95 = 11.305; 34.4/11.305 = 3.043 → 4. §18.3.3: C = 9 for the shared pool; C = 17 for the FP16-alone pool.",
+  "root_cause": "The formula was imported from the single-model chapter (Ch 17) with its symbols intact, and the mixed-fleet configuration was never substituted into it.",
+  "correction": "Define u and ρ explicitly (e.g. u = target utilization, ρ = policy/quality derate) and use the same decomposition as §18.3.3; state which C applies (\"C = 17 for a dedicated FP16 tier; C = 9 for the shared pool of §18.3.3\") and give the resulting host count for each.",
+  "acceptance_test": "Every symbol in the N_tail formula is defined in the chapter, and the C used is the C of the configuration the chapter actually adopts.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-17",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§18.3.2, cost table, Basis column",
+  "chapter": "18",
+  "quoted_clause": "| 70B dense FP16 | $2.50 | 120 | capital + energy | ... | 70B 4-bit GGUF | $0.15 | 800 | energy only |",
+  "observed": "The Basis column mixes two different kinds of content: a cost basis (\"capital + energy\", \"energy only\") on two rows and an evidence label (\"[ILLUSTRATIVE] example rate, Q4 2026 — not retrieved\") on the other two. The two rows carrying a cost basis are also the two rows lacking an evidence label, so the reader cannot tell whether the FP16 and 4-bit rates are measured, derived, or illustrative from the table alone — only from the bases box.",
+  "evidence": "Table inspection: Basis cells are \"capital + energy\", \"[ILLUSTRATIVE] example rate, Q4 2026 — not retrieved\", \"[ILLUSTRATIVE] example rate, Q4 2026 — not retrieved\", \"energy only\".",
+  "root_cause": "The column was overloaded to carry both provenance and basis, and the two label systems were applied to different rows rather than to different columns.",
+  "correction": "Split into two columns: \"Cost basis\" (self-amortized capital+energy / public-cloud list / energy-only) and \"Evidence\" ([ILLUSTRATIVE] / [DERIVED] / [1P]) for every row, so each row carries both.",
+  "acceptance_test": "Every row of the §18.3.2 table carries both a cost basis and an evidence label, and the label vocabulary matches the book's taxonomy.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-19",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§18.3.3, shared-placement paragraph",
+  "chapter": "18",
+  "quoted_clause": "(58 vs 31 — 27 extra hosts; 39 vs 21 — 18 extra — on the no-derate pair)",
+  "observed": "The parenthetical \"on the no-derate pair\" is attached to both comparisons, but only 39 vs 21 is the no-derate pair; 58 vs 31 is the with-policy pair. As written the sentence tells the reader that the 58-vs-31 comparison is a no-derate comparison.",
+  "evidence": "§18.3.3: 39 = no derate, 58 = with the 0.665 policy; 21 = no derate, 31 = with policy.",
+  "root_cause": "A qualifier was appended to a two-item list without disambiguating which item it governs.",
+  "correction": "Rewrite as \"(39 vs 21 — 18 extra hosts without the utilization derate; 58 vs 31 — 27 extra with the 0.665 policy derate)\".",
+  "acceptance_test": "Each comparison in the sentence is labelled with its own derate assumption.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-20",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.4, Measurement table, first row",
+  "chapter": "18",
+  "quoted_clause": "target the **fleet-weighted average** under the §18.3.2 per-1M basis (e.g. fleet-weighted average < $2.50/1M — not the FP16 tier's own rate, which is itself $2.50/1M) for competitive SaaS [ASSUMPTION — benchmark claim unsourced]",
+  "observed": "The parenthetical is self-defeating: the stated target (< $2.50/1M) is numerically identical to the FP16 tier's own rate, so \"not the FP16 tier's own rate\" cannot be what distinguishes them. The intended distinction (the fleet blend is a weighted average across tiers, not a tier's rate) is not made. The target is also trivially met by the chapter's own mixed fleet ($1.33/1M), so it carries no diagnostic value as written.",
+  "evidence": "§18.3.3: $12.59/9.5M = $1.325/1M fleet blend; FP16 tier $2.50/1M.",
+  "root_cause": "The parenthetical was written to disambiguate a term that was never ambiguous, and the threshold was chosen equal to a value already in the table.",
+  "correction": "Rewrite as \"target a fleet-weighted average below the all-FP16 rate of $2.50/1M (the chapter's mixed fleet blends to ≈$1.33/1M); the threshold is a business target, not a measured benchmark [ASSUMPTION]\", and cite or drop the \"competitive SaaS\" framing.",
+  "acceptance_test": "The stated target is distinguishable from the tier rate it is compared against, and its provenance is labelled.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-21",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.2 (Mental Model) vs §18.3.3/§18.3.4 ordering vs §18.8",
+  "chapter": "18",
+  "quoted_clause": "the gate is exercised in §18.3.4, where L̄ = Σ p_i·L_i ≈ 247 ms is checked against the ≤500 ms threshold before the cost ranking is accepted. ... The correct order *within the cost/SLO gate* is: check the SLO, then size the cost",
+  "observed": "§18.2 asserts that the SLO check precedes acceptance of the cost ranking, but the chapter's own §18.3.3 performs the cost ranking first and §18.3.4 checks the latency afterwards; the mini-case then corrects the order explicitly. The chapter thus states the correct procedure in three places and follows it in none.",
+  "evidence": "Section order: §18.3.3 routing arithmetic and savings → §18.3.4 latency check → §18.8 \"check the SLO before the cost claim\".",
+  "root_cause": "The narrative order of the worked example was fixed before the mini-case's methodological lesson was written, and the lesson was not propagated back.",
+  "correction": "Either reorder §18.3.3/§18.3.4 so the SLO check precedes the cost ranking, or state in §18.3.3 that the cost ranking is provisional until the §18.3.4 SLO check passes (and note that the 4-bit tier is excluded by the SLO, not by cost).",
+  "acceptance_test": "The order of operations described in §18.2 matches the order in which §18.3.3 and §18.3.4 present the work.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-22",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.5, Consolidate criteria and the \"satisfied by construction\" note",
+  "chapter": "18",
+  "quoted_clause": "**Consolidate** when: workload profile overlap ≥70%, latency tolerance ≥300 ms, and cost differential >30%. ... *Satisfied by construction in this scenario*: our scenario sits exactly at the threshold — it consolidates 70% of traffic to the dense 8-bit tier — 90% to 8-bit variants once the 20% MoE 8-bit share is counted — at the ≥70% dense-8-bit boundary, not above it",
+  "observed": "Two of the three criteria have undefined referents. \"Workload profile overlap ≥70%\" is checked against two different numbers in the same sentence (70% dense-8-bit share, 90% all-8-bit share) and the text concludes the criterion is met \"exactly at the threshold\" on the 70% reading while the 90% reading would put it above. \"Cost differential >30%\" does not say between which tiers (8-bit vs FP16 = 50%; 8-bit vs MoE-8-bit = 25%, which would fail). The referent note then asserts the criteria are \"satisfied by construction\" without resolving either.",
+  "evidence": "8-bit vs FP16: (2.50 − 1.25)/2.50 = 50% > 30%. 8-bit vs MoE-8-bit: (1.25 − 1.00)/1.25 = 20% < 30%.",
+  "root_cause": "The criteria were written as generic heuristics and then applied to the scenario without fixing the comparison pairs.",
+  "correction": "Define each criterion's referent explicitly (\"≥70% of requests routed to a single consolidated tier\", \"cost differential between the consolidated tier and the tier it displaces >30%\") and state which pair and which share the scenario satisfies.",
+  "acceptance_test": "Each consolidation criterion names the quantity it compares, and the scenario's satisfaction of each is checkable from the printed numbers.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-23",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.5, consolidation verdict and FP16 tail tier",
+  "chapter": "18",
+  "quoted_clause": "and the FP16 tier handles the tail without contention. The FP16 tier has no separate reserve in this worked example: per §18.3.1 it shares the 640 GB pool",
+  "observed": "\"Handles the tail without contention\" is asserted and then immediately qualified away: the FP16 tier has no reserve, shares the pool, and under the shared placement the pool's C is 9 for all tiers (§18.3.3), so the tail requests compete for the same KV as the 70% bulk. The phrase survives in the verdict sentence and is not supported by the chapter's own placement.",
+  "evidence": "§18.3.3: shared pool C = 9; §18.3.1: FP16 tier co-resident, no separate reserve.",
+  "root_cause": "The verdict sentence was written for the dedicated placement and retained after the chapter adopted the shared pool.",
+  "correction": "Replace with the placement-accurate statement: \"the FP16 tier serves the 10% tail from the shared pool (C = 9 across all tiers), so the tail is not contention-isolated; a dedicated FP16 group (3 hosts under the dedicated placement) is what isolates it.\"",
+  "acceptance_test": "No claim of isolation or absence of contention survives in §18.5 for a tier that the chapter places in a shared pool.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-24",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.8 mini-case, Tier 3",
+  "chapter": "18",
+  "quoted_clause": "Tier 3 (70B FP16): Handles 5% of queries (complex escalations, multilingual). Runs on 2 GPUs reserved. Cost: $0.003/token, latency ~120 ms.",
+  "observed": "Tier 3's KV fit is not stated, although §18.5 makes a point of it: \"at the canonical 9.5K profile it cannot be a 2-GPU reserve, because a 2-GPU shard holds 160 GB − 140 GB = 20 GB of KV headroom against the 24.9 GB that one 9,500-token request needs\". The mini-case's Tier 3 therefore works only because its requests are short, and the reader is not told so. (2 GPUs = 160 GB − 140 GB weights = 20 GB KV; at the mini-case's 0.66 GB/request that is ≈30 concurrent.)",
+  "evidence": "§18.5: 160 − 140 = 20 GB < 24.9 GB for a canonical request; 20/0.655 ≈ 30 concurrent at 250 tokens.",
+  "root_cause": "The mini-case states memory headroom for Tiers 1 and 2 but not Tier 3, even though §18.5 makes Tier 3's placement the chapter's most delicate fit.",
+  "correction": "Add to Tier 3: \"2 GPUs = 160 GB, of which 140 GB is weights, leaving 20 GB of KV — enough for ≈30 concurrent 250-token requests but zero concurrent canonical 9,500-token requests (§18.5); this tier is therefore short-prompt-only.\"",
+  "acceptance_test": "All three mini-case tiers state their KV headroom and the request length it is computed against.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-25",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Fig 18.1 caption and surrounding text (§18.8 end)",
+  "chapter": "18",
+  "quoted_clause": "Fig 18.1 — Model-routing decision tree: capability filter → cost/SLO gate → fallthrough, with the specialist, frontier/small and general-purpose model families as leaves [ILLUSTRATIVE conceptual][DERIVED] ... This converts the raw cost arithmetic above into the operational routing shape an architect operates daily.",
+  "observed": "The figure's leaves are Embedding/Vision/Math specialists plus frontier/small and general-purpose families — none of which appear in the chapter's worked example, whose tiers are dense FP16, dense 8-bit, MoE 8-bit and 4-bit GGUF. The caption claims the figure converts \"the raw cost arithmetic above\" into an operational shape, but the figure contains no trace of the arithmetic (no tiers, no rates, no SLO threshold). The figure therefore illustrates a generic router rather than the chapter's routing model, and the caption overstates its role.",
+  "evidence": "Chapter model set (§18.3.2 table): 70B dense FP16 / 70B dense 8-bit / 70B MoE 8-bit / 70B 4-bit GGUF. Figure leaves per caption: Embedding/Vision/Math specialists, frontier/small, general-purpose.",
+  "root_cause": "The figure was inherited from a generic routing discussion and captioned as if it illustrated this chapter's worked example.",
+  "correction": "Either relabel the figure's leaves with the chapter's four tiers (and add the ≤500 ms SLO gate and the 70/20/10 split as annotations) so it does convert the arithmetic, or rewrite the caption to say plainly that it shows the general decision shape and that the chapter's tiers map onto its \"general-purpose\" leaf.",
+  "acceptance_test": "A reader can map every leaf of Fig 18.1 to a model family discussed in the chapter, or the caption states that it is a generic shape.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ }
+]

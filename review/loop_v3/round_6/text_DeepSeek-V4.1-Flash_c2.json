@@ -1,0 +1,107 @@
+[
+  {
+    "id": "CH9-FIG92-RING-INDEX",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 9 §2, Fig 9.2 caption",
+    "chapter": "Chapter 9 — Communication",
+    "quoted_clause": "In round r, rank i sends chunk (i−r) mod N in both phases, so rank r ends the reduce-scatter holding reduced chunk r.",
+    "observed": "The caption states that the same chunk-index formula applies in both reduce-scatter and all-gather, and that rank r ends reduce-scatter holding chunk r. In the standard balanced ring all-reduce, reduce-scatter and all-gather use different chunk indices. With 0-indexed rounds, rank r ends reduce-scatter holding chunk (r+1) mod N; all-gather then sends chunk (i−r+1) mod N at round r. With 1-indexed rounds, the reduce-scatter formula can be made to leave rank r holding chunk r, but the all-gather formula is still not the same as the reduce-scatter formula.",
+    "evidence": "Simulate N=4, rank 0. Reduce-scatter step 0 sends chunk 0 and receives chunk 3; step 1 sends chunk 3 and receives chunk 2; step 2 sends chunk 2 and receives chunk 1. Rank 0 ends holding reduced chunk 1, not chunk 0. All-gather step 0 must send chunk 1, not chunk 0. The caption's 'both phases' claim is therefore false under either indexing convention.",
+    "root_cause": "The caption collapses two different ring phases into one chunk-index formula and uses an ambiguous round index.",
+    "correction": "State the two phase-specific formulas explicitly, or re-index rounds and chunks so that the figure's arrows and the caption agree. For 0-indexed rounds: reduce-scatter sends chunk (i−r) mod N; all-gather sends chunk (i−r+1) mod N. For 1-indexed rounds: reduce-scatter sends chunk (i−r) mod N; all-gather sends chunk (i−r+1) mod N. Verify the figure arrows against a four-rank simulation.",
+    "acceptance_test": "A four-rank simulation of the caption's stated algorithm produces the same send/receive chunk indices as the figure and leaves each rank with the correct reduced chunk before all-gather."
+  },
+  {
+    "id": "CH10-RESOURCE-TRIANGLE-DP",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 10 §2, resource-triangle paragraph",
+    "chapter": "Chapter 10 — Parallelism",
+    "quoted_clause": "When a GPU is idle waiting, we reach for DP (more work per GPU)",
+    "observed": "Data parallelism does not give an idle GPU more work. It adds independent replicas, each with its own model copy and its own request stream. If a single GPU is idle because arrivals are insufficient, DP does not raise that GPU's utilization; it adds another underutilized GPU. DP is a response to aggregate demand exceeding one replica's goodput, not to a single GPU being idle.",
+    "evidence": "The chapter's own definition says inference DP means 'independent model replicas each serve a disjoint set of requests; no gradient sync; throughput scales linearly until KV or memory binds.' That mechanism increases aggregate capacity by replication, not per-GPU work.",
+    "root_cause": "The resource-triangle heuristic conflates 'system has idle capacity' with 'a GPU is idle waiting for work.'",
+    "correction": "Replace with: 'When aggregate demand exceeds one replica's goodput, add DP replicas. When a single GPU is idle because the batch or arrival stream is too small, increase batching/admission or reduce over-provisioning; DP does not fill that GPU.'",
+    "acceptance_test": "A reader can explain why DP does not increase utilization of an already-idle GPU and can name the correct levers for low arrival rate versus insufficient aggregate capacity."
+  },
+  {
+    "id": "CH10-THREE-THINGS-FRAMING",
+    "severity": "P2",
+    "confidence": "medium-high",
+    "page_hint": "Ch 10 §1, opening paragraph",
+    "chapter": "Chapter 10 — Parallelism",
+    "quoted_clause": "parallelism is splitting one of the three things a model occupies — its weights, its layers, or its data — across multiple devices.",
+    "observed": "The chapter immediately lists five strategies (TP, PP, DP, EP, CP) plus a sixth serving-only strategy (P/D disaggregation). Expert parallelism splits experts, which are weights; sequence/context parallelism splits the token sequence, which is neither 'weights,' 'layers,' nor 'data batch' in the sense used here. The 'three things' framing does not map cleanly onto the chapter's own taxonomy.",
+    "evidence": "The chapter's Table 10-1 has rows for Tensor, Pipeline, Data, Expert, and Sequence. The opening sentence names only three axes. The later 'resource triangle' names weights, activations, and data, which also does not include sequence/context as a separate axis.",
+    "root_cause": "A simplified three-axis framing was retained after the chapter expanded to five/six strategies.",
+    "correction": "Either (a) explicitly say 'three canonical axes plus specialist axes: expert and sequence/context parallelism,' or (b) replace the three-things sentence with a taxonomy that matches the five strategies in Table 10-1. Do not let the opening claim a three-way partition that the body contradicts.",
+    "acceptance_test": "Every strategy named in §10.1 maps to a named axis in the opening framing, and the opening framing does not imply that EP/CP are subcases of DP or PP without saying so."
+  },
+  {
+    "id": "CH9-ON-NODE-DP-RATIO",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 9 §6, Architecture Consequence",
+    "chapter": "Chapter 9 — Communication",
+    "quoted_clause": "If the budget can accommodate NVLink‑equipped hosts (GPUs connected on‑node), keeping the all-reduce on-node gives an ideal ring time about 1/11th the assumed InfiniBand case and about 1/180th the assumed RoCE case (§9.3)",
+    "observed": "The preceding sentence describes an eight-node data-parallel training job with one rank per node. An eight-node DP all-reduce cannot be 'kept on-node' by buying NVLink-equipped hosts; the collective is cross-host by construction. The later clarification says the ratios compare an eight-rank single-host collective with an eight-rank cross-host collective, but the earlier sentence reads as a deployment option for the same eight-node job.",
+    "evidence": "The paragraph itself later says: 'An eight-node data-parallel job uses NVLink/NVSwitch for intra-node exchanges and InfiniBand/RoCE for inter-node exchanges; compare InfiniBand vs Ethernet only for the inter-node portion. The 1/11 and 1/180 ratios compare an eight-rank single-host collective with an eight-rank cross-host collective ... not two fabrics for the same job.' That clarification contradicts the earlier 'keeping the all-reduce on-node' phrasing.",
+    "root_cause": "The text mixes a topology-change comparison (single host vs cross-host) with a fabric-choice comparison for the same job.",
+    "correction": "Rewrite the paragraph to say explicitly: 'The 1/11 and 1/180 ratios are not a fabric choice for the same eight-node job. They compare an eight-rank single-host collective with an eight-rank cross-host collective. For the eight-node job, NVLink/NVSwitch handles intra-node traffic and the inter-node fabric handles the DP all-reduce; compare InfiniBand vs Ethernet only for that inter-node portion.'",
+    "acceptance_test": "A reader cannot infer that buying NVLink hosts eliminates the cross-host all-reduce in an eight-node DP job; the ratio's scope is stated before the ratio is used."
+  },
+  {
+    "id": "CH12-CANDIDATE-C-STATUS",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 12 §12.3, §12.6, §12.8",
+    "chapter": "Chapter 12 — Designing the AI System",
+    "quoted_clause": "Candidate (c) does not advance as a finalist; it is carried only as a labeled sensitivity case",
+    "observed": "Earlier, §12.3 says candidate (c) is 'flagged for measurement against the quality gate, not dismissed by parameter counting' and 'its fate depends on the measured quality gate.' Section 12.8 says it 'stays in the gate evaluation (Ch 14) rather than being excluded pre-measurement.' Section 12.6 then says it 'does not advance as a finalist.' These are not the same status. A candidate cannot simultaneously be excluded from the finalist set before measurement and have its finalist fate determined by a later measurement.",
+    "evidence": "The contradiction is internal to Chapter 12: §12.3 calls (c) provisional and gate-dependent; §12.6 says it does not advance as a finalist; §12.8 says it remains in gate evaluation. Table 12-1 labels it 'gated, not a finalist.'",
+    "root_cause": "The manuscript uses 'finalist' in two senses: 'carried into Ch 14 evaluation' and 'survives the quality gate.' The text does not distinguish them.",
+    "correction": "Define a single status vocabulary. For example: 'Candidate (c) is a conditional candidate carried into the Ch 14 quality gate. If it passes, it becomes a finalist; if it fails, it is retained only as a labeled sensitivity case. It is not a finalist before that measurement.' Then make §12.6, §12.8, Table 12-1, and Fig 12.1 use that vocabulary consistently.",
+    "acceptance_test": "Every mention of candidate (c)'s status in Ch 12 uses the same term and the same decision rule; a reader can state exactly what measurement promotes or rejects it."
+  },
+  {
+    "id": "CH13-SERVER-TIER-FLEET",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 13 §13.3, first paragraph",
+    "chapter": "Chapter 13 — Reference Architectures",
+    "quoted_clause": "The canonical enterprise-Q&A RAG workload sits on the server tier as a fleet of ~21 server-class hosts at the 40 rps peak",
+    "observed": "Table 13-1 defines 'Server' as one host with 1–8 GPUs and 'Cluster' as multiple hosts (tens to hundreds of GPUs). A fleet of ~21 hosts is a cluster by that definition. The sentence tries to distinguish 'server-class model residency' from 'cluster-tier deployment,' but it uses 'server tier' for the deployment, which contradicts the table.",
+    "evidence": "The same paragraph later says 'the traffic scaling is a cluster of server-class hosts, not weight-splitting' and 'the server tier is the right model-residency archetype ... It does not mean one host serves the whole arrival rate.' The intended distinction is clear, but the first sentence's tier label is wrong.",
+    "root_cause": "The chapter uses 'tier' both for model-residency class and for deployment scale without disambiguating the two.",
+    "correction": "Rewrite the first sentence as: 'The canonical workload's model residency is server-class, but its deployment at the 40 rps peak is a cluster of ~21 server-class hosts.' Then use 'server-class residency' and 'cluster-tier deployment' consistently in §13.3 and §13.6.",
+    "acceptance_test": "The tier label in §13.3 matches Table 13-1's definition: one host = Server; multiple hosts = Cluster. A reader cannot conclude that a 21-host fleet is a single server-tier deployment."
+  },
+  {
+    "id": "CH9-ACTIVATION-SEND-FORMULA",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 9 §8, mini-case",
+    "chapter": "Chapter 9 — Communication",
+    "quoted_clause": "each per-layer all-reduce is ~0.45 MB sent per rank — batch × hidden × bytes, sub-MB to a few MB",
+    "observed": "The parenthetical formula 'batch × hidden × bytes' gives the logical input tensor size, not the bytes sent per rank by a ring all-reduce. For a ring, each rank sends 2(N−1)/N times the logical tensor across reduce-scatter plus all-gather, or 1.75× for N=8. With batch 16, hidden 8,192, and BF16, the logical input is 256 KiB; the ring send per rank is 448 KiB. The quoted '~0.45 MB sent per rank' is consistent with the ring send, but the formula beside it is not.",
+    "evidence": "The chapter's own §10.3 calculation uses M = 16 × 8,192 × 2 = 256 KiB and then 1.75M = 448 KiB sent per rank. The mini-case's parenthetical omits the 1.75 factor.",
+    "root_cause": "The text mixes logical tensor size with physical ring send volume in one parenthetical.",
+    "correction": "Change to: 'each per-layer all-reduce has a logical input of batch × hidden × bytes; the ring send per rank is 1.75× that for an eight-rank ring, about 0.45 MB in this example.'",
+    "acceptance_test": "Recomputing from the quoted formula yields the quoted sent-per-rank number, including the ring normalization."
+  },
+  {
+    "id": "CH12-576-VS-640",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch 12 §12.8, candidate (b) paragraph",
+    "chapter": "Chapter 12 — Designing the AI System",
+    "quoted_clause": "up to ~576 GB (140 + 436) at the canonical per-host KV budget",
+    "observed": "Section 12.3 defines the canonical per-host budget as 140 GB weights + 436 GB KV + ~64 GB runtime = 640 GB. The §12.8 parenthetical gives 140 + 436 = 576 GB and calls it 'up to ~576 GB' without the ~64 GB runtime term. That is a partial sum, not the full host residency. A reader can misread 576 GB as the total residency and conclude there is 64 GB of headroom when the text elsewhere says zero headroom.",
+    "evidence": "Section 12.3: '140 GB weights + 436 GB KV + ~64 GB runtime = 640 GB — exactly the pool, zero headroom.' Section 12.8: 'up to ~576 GB (140 + 436) at the canonical per-host KV budget.' The arithmetic is internally inconsistent in labeling.",
+    "root_cause": "The §12.8 summary drops the runtime term that §12.3 includes.",
+    "correction": "Write 'up to ~576 GB of weights+KV, plus ~64 GB runtime, for ~640 GB total at the canonical per-host KV budget' or simply 'up to ~640 GB total at the canonical per-host KV budget.'",
+    "acceptance_test": "The candidate (b) residency arithmetic in §12.8 sums to the same total and headroom as §12.3."
+  }
+]
+COVERAGE: Read the supplied Ch 9–13 chunk in full; checked all prose, tables, equations, captions, footnotes, and cross-references present in the chunk. Re-derived the ring-all-reduce traffic arithmetic, TP activation example, PP bubble formula, DP gradient arithmetic, EP/FSDP examples, KV residency arithmetic, candidate host counts, and Ch 13 fleet arithmetic. Did not inspect rendered figures (stripped from chunk) or PDF page geometry; figure-content findings are limited to caption/prose semantics.

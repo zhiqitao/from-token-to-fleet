@@ -76,9 +76,9 @@ ax.plot([22], [peak_rps], 'o', ms=5, color='#1f4e9c', zorder=6)
 ax.text(0.8, 41.6, 'canonical peak = 40 rps', ha='left', va='bottom',
         fontsize=8.6, color='#1f4e9c', zorder=7)
 
-ax.text(30, 18, 'actually-served demand region', ha='left', va='bottom',
-        fontsize=8.6, color='#12386e', zorder=7,
-        bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.75))
+# R6 FIG-20.1-02: the floating 'actually-served demand region' label was
+# deleted -- the legend already names the S curve, and an unbounded label
+# misapplied the figure's shaded-band = region grammar.
 
 ax.text(31.5, 42, 'UNUSED capacity (N ≥ 22):\ninsufficient offered demand;\nS capped at 40 rps —\nnot scheduling overhead',
         ha='left', va='bottom', fontsize=8.6, color='#8c2d2d', zorder=7,

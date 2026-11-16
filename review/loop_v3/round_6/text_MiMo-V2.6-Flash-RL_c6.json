@@ -1,0 +1,135 @@
+```json
+[
+  {
+    "id": "CH26-APPAXREF-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Appendix A, 'The Signal in One Paragraph' and 'four families at a glance' list; also 'This is a dated field guide' section",
+    "chapter": "Appendix A",
+    "quoted_clause": "DeepSeek-V4 (A.3); Kimi K3 (A.4); Qwen3.8-Flash-Next (A.5); GLM-5.3-Flash (A.6); capability story lives elsewhere (A.8); First-hand Sources list (A.10)",
+    "observed": "Cross-references use A.3–A.10 while the section headings in the source show '1. DeepSeek-V4', '2. Kimi K3', … '6. Where 2026 Capability…', '8. First-hand Sources'. The cross-reference numbers are consistently +2 from the heading labels, implying that 'The Signal in One Paragraph' and 'How to read this appendix' are counted as sections 1 and 2 in the LaTeX counter. If the rendered PDF headings display the hardcoded labels (1., 2., …), readers will see '1. DeepSeek-V4' in the heading but 'A.3' in the cross-reference — a visible inconsistency. If the headings display the LaTeX counter values (3., 4., …), the hardcoded labels in the source are wrong instead.",
+    "evidence": "Source headings: '## 1. DeepSeek-V4', '## 2. Kimi K3', '## 3. Qwen3.8-Flash-Next', '## 4. GLM-5.3-Flash', '## 5. What This Means…', '## 6. Where 2026 Capability…', '## 7. The Frontier Question', '## 8. First-hand Sources'. Cross-references: '(A.3)' for DeepSeek, '(A.4)' for Kimi, '(A.5)' for Qwen, '(A.6)' for GLM, '(A.8)' for capability, '(A.10)' for sources. Offset is uniformly +2. 'The Signal in One Paragraph' and 'How to read this appendix' lack {.unnumbered} tags while 'Post-snapshot technology notes' and '7A' carry them.",
+    "root_cause": "Two numbering systems coexist: hardcoded heading labels starting at 1 for DeepSeek, and LaTeX section counter that may include the two unnumbered-in-markdown but possibly numbered-in-LaTeX front sections. The cross-references follow the counter; the headings follow the hardcoded labels.",
+    "correction": "Verify against the rendered PDF which number each heading actually displays. Then either (a) add {.unnumbered} to 'The Signal in One Paragraph' and 'How to read this appendix' so the counter matches the heading labels and change all cross-references to A.1–A.8, or (b) remove the hardcoded numbers from the headings so they display the counter values (3., 4., …) matching the cross-references. Whichever is chosen, heading numbers and cross-reference numbers must agree.",
+    "acceptance_test": "Open the rendered PDF, locate the DeepSeek heading, and confirm the displayed section number equals the number used in every '(A.N)' cross-reference that points to it. Repeat for the capability section and First-hand Sources."
+  },
+  {
+    "id": "CH26-MISSPATH-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 26, §8 Step 2 (Pattern Apply)",
+    "chapter": "26",
+    "quoted_clause": "a cache miss is served by the engine at ~250 ms … 250 ≈ 120 + 80 + 50",
+    "observed": "The miss-path component sum (120 + 80 + 50 = 250) does not account for the query-encoding + cache-lookup operation that must execute before the cache can miss and fall through to retrieval. On the hit path the text explicitly assigns ~50 ms to 'query encoding + cache lookup'. On the miss path the same encoding + lookup must still run (the cache cannot miss without being queried), yet the 250 ms breakdown lists only compute (120), I/O (80), and retrieval (50). If encoding + lookup costs ~50 ms on the miss path too, total miss TTFT would be ~300 ms, not 250 ms — which would change the two-point model's p99, mean, and the −44% headline.",
+    "evidence": "Hit path: 'a cache hit returns at a fixed ~50 ms (query encoding + cache lookup, no corpus retrieval and no LLM prefill)'. Miss path: '250 ≈ 120 + 80 + 50' where 50 is retrieval. The encoding + lookup that precedes the miss is not in the sum. The text also says 'a cache miss is served by the engine at ~250 ms' — if 250 ms is engine-only time, then total miss TTFT = cache-lookup + 250 > 250, contradicting p99 = 250 ms in the two-point model.",
+    "root_cause": "The component breakdown was carried over from the no-cache baseline (320 + 80 + 50 = 450) by replacing only the compute term (320 → 120), without adding the cache-encoding + lookup term that the cache-enabled path introduces on every request (hit or miss).",
+    "correction": "Either (a) explicitly state that the ~50 ms retrieval term on the miss path includes the preceding cache-encoding + lookup attempt (and rename it accordingly, e.g., 'cache lookup + retrieval ≈ 50 ms'), or (b) add a separate encoding + lookup term and recompute the miss total, mean, p99, and −44% accordingly. If (a), clarify why the combined cost equals the baseline's plain-retrieval cost.",
+    "acceptance_test": "Recompute the two-point model with an explicit cache-lookup term on the miss path. Confirm that the stated p99 (250 ms), mean (180 ms), and −44% headline either remain correct under the revised breakdown or are updated to match."
+  },
+  {
+    "id": "CH26-FIG26.1-CAPTION-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 26, §2.1, Fig 26.1 caption",
+    "chapter": "26",
+    "quoted_clause": "RAG Q&A is quality- and context-heavy with short outputs; chat is traffic- and latency-sensitive with long outputs",
+    "observed": "The caption describes RAG outputs as 'short' and chat outputs as 'long', but the stated scores are 0.45 (RAG output tokens) and 0.55 (chat output tokens) — a gap of only 0.10 on a 0–1 scale, with both near the midpoint. Neither 0.45 nor 0.55 is an extreme value that would naturally be called 'short' or 'long'. A reader who checks the scores against the caption will find the qualitative descriptions exaggerated relative to the numerical encoding.",
+    "evidence": "Stated scores (axis order: context, traffic, quality, cost, latency, output tokens): RAG = 0.95/0.20/0.70/0.55/0.40/0.45; chat = 0.35/0.95/0.50/0.75/0.90/0.55. Output-token scores: RAG 0.45, chat 0.55, batch 0.90. The caption's 'short' vs 'long' contrast maps to 0.45 vs 0.55.",
+    "root_cause": "The caption uses absolute qualitative labels ('short', 'long') for scores that are only meaningful relative to each other and to the batch family's 0.90. The 0.10 gap between RAG and chat output scores does not support a 'short vs long' dichotomy.",
+    "correction": "Either adjust the caption to use relative language (e.g., 'RAG has the shortest outputs of the three families; chat's are moderate; batch's are longest') or adjust the authored scores so the output-token axis actually encodes the intended contrast (e.g., lower RAG output to ~0.25 and raise chat output to ~0.70 if the qualitative story is to hold).",
+    "acceptance_test": "Read the caption's qualitative output-length claims and confirm each is supported by the corresponding score being clearly separated from the midpoint and from the other families' scores."
+  },
+  {
+    "id": "CH26-FALLBACK-BASIS-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 26, §3 Pattern C and Table 26-2",
+    "chapter": "26",
+    "quoted_clause": "Table 26-2's ~7% fallback rate is the modeled share of requests shed to the intent classifier during such excursions (FACT target < 10%)",
+    "observed": "Pattern C prose scopes the ~7% fallback as 'during such excursions' (i.e., only during overload periods), but Table 26-2 presents '7%' in the 'Modeled example' column and '< 10%' in the 'Verification target' column without any excursion qualifier. A reader consulting the table alone would read 7% as an overall fallback rate across all traffic. If excursions are rare (say 5% of the time), the overall rate would be ~0.35%, not 7%. The two readings imply very different SLO and capacity implications.",
+    "evidence": "Pattern C: 'the ~7% fallback rate is the modeled share of requests shed to the intent classifier during such excursions'. Table 26-2 row: 'Circuit Breaker | trip after 5 timeouts, 2s grace | fallback rate < 10% | 7%'. The table footnote discusses cost provenance but does not restate the excursion scoping for the fallback rate.",
+    "root_cause": "The excursion qualifier appears in the Pattern C prose but is not carried into the table cell or its verification-target column, creating two different readings of the same number.",
+    "correction": "Add the excursion qualifier to Table 26-2 — either in the cell (e.g., '~7% during excursions') or in the table footnote — and clarify whether the '< 10%' verification target is also excursion-scoped or is an overall-rate target.",
+    "acceptance_test": "Read Table 26-2 in isolation (without the Pattern C prose) and confirm the reader can determine whether 7% and <10% are excursion-scoped or overall rates."
+  },
+  {
+    "id": "CH26-BATCHING-ALT-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Chapter 26, §3 'Alternatives considered'",
+    "chapter": "26",
+    "quoted_clause": "Deeper continuous batching on the single host instead of sharding cannot raise throughput here",
+    "observed": "The phrase 'instead of sharding' implies sharding is the alternative being replaced, but the same paragraph (and §3 Pattern A) explicitly states that sharding is baseline configuration (R-04), not an optimization. If sharding is baseline, there is no 'instead of sharding' alternative — the comparison should be 'deeper batching on top of the baseline' vs 'baseline alone'. As written, the reader may infer that sharding is an optional lever being traded against batching, contradicting the R-04 treatment.",
+    "evidence": "Same paragraph: 'sharding is treated as baseline configuration (the weights are already tensor-parallel), not as an incremental gain.' Pattern A: 'Sharding here is baseline configuration, not an incremental optimization (R-04).'",
+    "root_cause": "The alternative's label ('instead of sharding') was written before the R-04 clarification was added and was not updated to reflect that sharding is baseline, not a competing lever.",
+    "correction": "Rewrite the alternative as 'Deeper continuous batching on the single host (beyond the baseline configuration)' or 'Deeper continuous batching as an additional lever on the baseline' and drop 'instead of sharding'. The argument (KV-bound at C ≈ 17.5, so deeper batching lengthens the queue) remains valid.",
+    "acceptance_test": "Confirm that no phrase in the 'Alternatives considered' paragraph implies sharding is a non-baseline lever that could be replaced by batching."
+  },
+  {
+    "id": "CH26-CEILING-PHRASE-01",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Chapter 26, §8 Step 1",
+    "chapter": "26",
+    "quoted_clause": "request rate ~2 rps (within the ~2.0 rps per-host analytical planning ceiling)",
+    "observed": "'Within the ceiling' conventionally means below the ceiling. The offered rate is AT the ceiling (ρ near 1, as the text later states), not within it. Operating at ρ ≈ 1 is qualitatively different from operating below it — queueing delay is unbounded as ρ → 1 in standard queueing models.",
+    "evidence": "Same paragraph later states 'at the offered ~2 rps against the ~2.0 rps analytical ceiling (ρ near 1)'. ρ near 1 means the rate is at, not within, the ceiling.",
+    "root_cause": "Word choice: 'within' was used loosely to mean 'at or below' but carries a 'below' connotation that conflicts with the ρ-near-1 characterization.",
+    "correction": "Change 'within the ~2.0 rps per-host analytical planning ceiling' to 'at the ~2.0 rps per-host analytical planning ceiling' or 'right at the ~2.0 rps per-host analytical planning ceiling (ρ near 1)'.",
+    "acceptance_test": "Confirm the phrase does not use 'within' to describe a rate that is at the ceiling."
+  },
+  {
+    "id": "CH26-MATRIX-OUTPUT-01",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Chapter 26, §2.1, Workload-to-Strategy matrix",
+    "chapter": "26",
+    "quoted_clause": "| Embedding / retrieval | Short-med (text) | Vector |",
+    "observed": "The 'Output' column mixes token-count ranges (e.g., '<500', '>1K', '~1–2K tokens') with 'Vector' for the embedding/retrieval row. 'Vector' is not a token count and does not share the column's implicit unit. Additionally, several rows use vague terms ('Long', 'Med') without token ranges while the first three rows and the last row provide specific ranges, creating inconsistent specificity across the column.",
+    "evidence": "Rows with specific ranges: 'Long (8K+)', 'Short (<2K)', 'Short (<500)', 'Med-Long (>1K)', 'Med (~1–2K tokens)'. Rows without ranges: 'Long', 'Med', 'Vector'. The column header is 'Output' with no unit specification.",
+    "root_cause": "The column was populated with whatever descriptor was convenient for each row rather than enforcing a consistent unit (output token count) and specificity level.",
+    "correction": "Either add a unit note to the column header (e.g., 'Output (tokens or product)') and fill in token ranges for the vague rows, or split 'Vector' into a footnote/annotation so the column remains token-count-only. For rows like 'Batch inference' and 'Reasoning', add approximate ranges (e.g., 'Long (2K+)' and 'Med (500–2K)') to match the specificity of the first three rows.",
+    "acceptance_test": "Every cell in the Output column either carries a token-count range or is explicitly annotated as a non-token output product."
+  },
+  {
+    "id": "CH26-BREAKER-TIMEOUT-01",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Chapter 26, §3 Pattern C",
+    "chapter": "26",
+    "quoted_clause": "a circuit breaker trips after 5 consecutive timeouts",
+    "observed": "The timeout threshold (the per-request time limit that defines a 'timeout') is never stated. The reader knows the SLO is p99 ≤ 800 ms TTFT and the breaker trips after 5 consecutive timeouts, but cannot determine when timeouts would occur without knowing the timeout limit. If the timeout is 800 ms (matching the SLO), ~1% of requests would timeout at p99 = 800 ms; if it is 2 s, far fewer would. The gap makes the breaker's activation condition indeterminate.",
+    "evidence": "Pattern C states the SLO (p99 ≤ 800 ms), the trip condition (5 consecutive timeouts), and the fallback (intent classifier), but never states the per-request timeout value.",
+    "root_cause": "The timeout threshold was assumed to be self-evident from the SLO but was never explicitly written.",
+    "correction": "State the timeout threshold explicitly (e.g., 'trips after 5 consecutive requests exceeding a 1 s per-request timeout' or 'trips after 5 consecutive TTFT measurements exceeding the 800 ms SLO'). Clarify whether the timeout is on TTFT, end-to-end latency, or a connection-level deadline.",
+    "acceptance_test": "A reader can determine, from Pattern C alone, the per-request time value that defines a timeout and therefore when the breaker would activate."
+  },
+  {
+    "id": "CH26-TWO-CONCERNS-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Chapter 26, §1 Concept",
+    "chapter": "26",
+    "quoted_clause": "The Solution Architect's Toolkit answers two concerns — scalability and reliability",
+    "observed": "The stated scope ('scalability and reliability') does not cover all five patterns in the library. The Semantic Response Cache addresses performance/cost, Fine-tuning addresses capability, and RAG model selection addresses model-selection methodology — none of which map cleanly to 'scalability' or 'reliability'. The 'two concerns' framing sets an expectation the chapter does not fully meet.",
+    "evidence": "Table 26-3 patterns: Inference Sharding (scalability), Semantic Response Cache (performance/cost), Circuit Breaker (reliability), Fine-tuning (capability), RAG model selection (selection methodology).",
+    "root_cause": "The 'two concerns' framing was written before the library was expanded to include the Ch 5 model-selection patterns and the Fine-tuning pattern.",
+    "correction": "Either broaden the framing (e.g., 'answers the recurring concerns of scalability, reliability, performance, and model selection') or scope it precisely (e.g., 'the core serving patterns answer scalability and reliability; the library also includes selection and adaptation patterns from Ch 5').",
+    "acceptance_test": "The stated concerns in §1 cover every pattern listed in Table 26-3, or the text explicitly notes that some patterns address concerns beyond the two named."
+  },
+  {
+    "id": "CH26-TOKEN-BASIS-01",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Chapter 26, §3 Pattern A",
+    "chapter": "26",
+    "quoted_clause": "can hold ~17.5 concurrent 9,500-token requests",
+    "observed": "The canonical scenario is described elsewhere as a '~9.2K-token RAG workload' (input tokens: 1,200 + 8,000 = 9,200). The KV calculation uses 9,500 tokens (= 9,200 input + 300 output). The text never states that 9,500 = 9,200 + 300, so a reader comparing this number to the canonical 9.2K figure may think the workload changed. The relationship between the two numbers is correct but unstated.",
+    "evidence": "436 GB / (2.62 MB × 9,500) ≈ 17.5 ✓. 9,200 input + 300 output = 9,500 total. Appendix A: '~9.2K-token RAG workload'. Ch 4 canonical: 1,200 + 8,000 = 9,200 input tokens, 300 output tokens.",
+    "root_cause": "The KV calculation correctly uses total tokens (input + output) because KV accumulates for all generated positions, but the text does not explain the switch from the 9.2K input-token figure to the 9.5K total-token figure.",
+    "correction": "Add a brief parenthetical: '9,500-token requests (= 9,200 input + 300 output; KV accumulates for all positions)'. This preempts the reader's confusion when comparing to the canonical 9.2K figure.",
+    "acceptance_test": "A reader who knows the canonical workload is 9.2K input tokens can determine from the text why the KV calculation uses 9,500."
+  }
+]
+```
+COVERAGE: Read the full text of Chapter 26 (§1–§9, all tables, figure placeholders, footnotes) and Appendix A (intro, three-registers table, four-family sections 1–4, §5 canonical arithmetic, §6 capability, §7 placement, post-snapshot notes including service-status addendum, architecture dimensions, quantization observations, diffusion notes, video snapshot, Intel supplement, §7A alternative inference with Wan2.2 worked example, §8 first-hand sources, all footnotes) from beginning to end. Recomputed: 2N FLOPs, 140 GB weights, 436 GB / (2.62 MB × 9,500) ≈ 17.5, 2.0 × 0.65 = 1.3 rps, mean 0.35×50 + 0.65×250 = 180 ms, p99 = 250 ms, (450−250)/450 ≈ 44%, (400−250)/400 = 37.5%, 45% × 1.3/2.0 ≈ 29%, $0.01164 × 0.65 ≈ $0.0076, 9,200×$1.20/1M + 300×$2.00/1M = $0.01164, 9,200×$2/1M + 300×$8/1M = $0.0208, all four Fig A.1 active fractions, Wan2.2 geometry (T_l, H_l, W_l, N, attention FLOPs per layer/total, memory bytes, GiB, sensitivity ratios, frame timing), block_q4_K 4.5 bits/value, per-user rate reduction ~33%, 3.0 rps at 3,000 users. Checked evidence-label usage against house conventions. Checked cross-reference targets within the chunk (§26.2.1, §26.8, §8 Step 0/3, Ch 4/7/8/15/17/20 pointers — in-chunk targets verified; out-of-chunk targets NOT VERIFIED). Figure content NOT VERIFIED (figures stripped from text chunk; vision stage required). Rendered-page layout NOT VERIFIED. External URLs and [A-S#] ledger entries NOT VERIFIED (no fetch performed). Prior review reports NOT consulted as evidence.

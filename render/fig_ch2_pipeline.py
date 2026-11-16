@@ -254,9 +254,11 @@ ax.text(X_APP + 12, _ay, 'append', color='#333333', fontsize=FSN,
 # Placed in the clear strip right of the "append" label, above the green
 # initialize line (data coords ~x 295-382, y 137-160).  Darkened and moved
 # clear of the append label so it reads as a caption note, not a box label.
-ax.text(298, 136, 'conceptual per-step,\nper-layer cache I/O',
-        color='#404040', fontsize=8.0, style='italic',
-        ha='left', va='center')
+# FIG-2.1-02: the 'conceptual per-step, per-layer cache I/O' note sat far from
+# the read/append shafts, in the smallest lightest face, against the green
+# initialize path.  The caption already carries the same fact ("each step reads
+# the cached K/V, appends the new K/V" + the conceptual-grouping caveat), so the
+# annotation is deleted rather than moved.
 
 # ==================== GREEN initialize ====================
 # first token (right edge) -> down the right margin -> left along the channel

@@ -84,7 +84,7 @@ Workload}\label{the-economics-of-promotion-gating-for-the-canonical-workload}
 We show the factory's value by comparing \emph{ungated} and \emph{gated}
 adoption of a candidate model on the canonical 70B RAG workload
 (\textasciitilde10 rps average, \textsubscript{9.2K-in/}300-out).
-\mbox{{[}CANONICAL{]}} (Ch 4, \hyperref[tab:4.2]{Table 4-2})
+\mbox{{[}canonical scenario{]}} (Ch 4, \hyperref[tab:4.2]{Table 4-2})
 
 \textbf{Setup.} Suppose a new model candidate claims better retrieval-QA
 quality but no one has measured its serving behavior. Two adoption
@@ -105,21 +105,23 @@ paths:
 
 \Needspace{5\baselineskip}
 
-\textbf{Cost of a bad ungated release.} The canonical service does
-\textasciitilde288,000 requests/workday (10 rps × 8 h × 3,600 s; × 260
-workdays ÷ 12 ≈ 6.24M per calendar month --- Ch 4's 8-h × 260-workday
-calendar basis, computed in Ch 16). Suppose a regression raises p95 TTFT
-from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours before discovery
-and rollback. That is 6/8 ×288,000 ≈ \textbf{216,000 requests} served at
-a broken SLO. At the Ch 16 canonical self-hosted rate of
-\textasciitilde\$24.97/1K requests (active business-hours volume, Ch 4),
-the serving cost of the 216,000 requests exposed is 216,000 × \$24.97/1K
-÷ 1,000 ≈ \textbf{\$5,394} (volume × unit rate --- incurred whether or
-not the regression occurred), and it is ≈ \textbf{\$3,032} on the Ch 16
-cloud-scaled \textasciitilde\$14.04/1K basis (216,000 ×
-\textasciitilde\$14.038/1K ÷ 1,000 ≈ 3,032) --- modest relative to the
-\emph{business} cost, but the dominant term is users experiencing a 47\%
-latency regression, trust erosion, and the fire drill.
+\textbf{Baseline serving cost of the exposed requests.} The canonical
+service does \textasciitilde288,000 requests/workday (10 rps × 8 h ×
+3,600 s; × 260 workdays ÷ 12 ≈ 6.24M per calendar month --- Ch 4's 8-h ×
+260-workday calendar basis, computed in Ch 16). Suppose a regression
+raises p95 TTFT from 1.9 s to 2.8 s (breaching the 2 s SLO) for 6 hours
+before discovery and rollback. That is 6/8 ×288,000 ≈ \textbf{216,000
+requests} served at a broken SLO. At the Ch 16 canonical self-hosted
+rate of \textasciitilde\$24.97/1K requests (active business-hours
+volume, Ch 4), the serving cost of the 216,000 requests exposed is
+216,000 × \$24.97/1K ≈ \textbf{\$5,394} (volume × unit rate --- incurred
+whether or not the regression occurred, so this is \emph{baseline}
+serving cost, not the incremental cost of the bad release), and it is ≈
+\textbf{\$3,032} on the Ch 16 cloud-scaled \textasciitilde\$14.04/1K
+basis (216,000 × \textasciitilde\$14.038/1K ≈ \$3,032) --- modest
+relative to the \emph{business} cost, but the dominant term is users
+experiencing a 47\% latency regression, trust erosion, and the fire
+drill --- an incremental cost this chapter does not quantify.
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \emph{(worked example, not reference)}
 
 \textbf{Cost of a good gated release.} A canary at 5\% traffic for 2
@@ -193,9 +195,12 @@ continuously:
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  \textbf{Gate pass rate / false-promotion rate} --- how often a gated
-  change later regresses in production; a rising value means the
-  evaluation suite is losing fidelity.
+  \textbf{Gate pass rate} --- the share of candidates the gate admits. A
+  rising rate can mean better candidates \emph{or} looser thresholds, so
+  it is read only alongside the second number. \textbf{False-promotion
+  rate} --- how often a gated change later regresses in production; only
+  this one directly indicates that the evaluation suite is losing
+  fidelity.
 \item
   \textbf{Canary-to-production time} and \textbf{rollback time} --- the
   speed of promotion and escape; both should be minutes, not days.
@@ -309,14 +314,19 @@ legal-subset failures vs the incumbent's 3 expected at α = 0.05 --- the
 legal subset is \textasciitilde10\% of canary traffic (≈360 requests),
 the incumbent's baseline failure rate on that subset is
 \textasciitilde0.83\% (3 in ≈360), and a one-sided binomial test at α =
-0.05 returns p ≈ 6.4×10⁻⁵, so the gate fires. Given the §3 economics (a
-bad ungated release = 216,000 exposed requests ≈ \$5,394 direct), should
-the architect promote, reject, or extend the canary to N hours --- and
-what blast radius does each choice bound?
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} The candidate is rejected automatically,
-the incumbent stays, and the legal subset keeps working. No fire drill,
-no user-visible regression, no manual heroics --- the factory made the
-wrong vendor claim cost nothing to the business, which is precisely what
+0.05 returns p ≈ 6.4×10⁻⁵, so the gate fires. The candidate also
+breaches the 2 s p95 TTFT SLO on its own (1.9 s + 240 ms = 2.14 s), so
+the gate would have fired on the serving metric even without the
+legal-subset regression. Given the §3 economics (a bad ungated release =
+216,000 exposed requests ≈ \$5,394 direct), should the architect
+promote, reject, or extend the canary to N hours --- and what blast
+radius does each choice bound? \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} The
+candidate is rejected automatically, the incumbent stays, and the legal
+subset keeps working. No fire drill, no manual heroics --- the
+regression was contained to the canary (\textasciitilde12 legal-subset
+requests answered wrongly) and production-wide exposure was avoided: the
+factory bounded the wrong vendor claim to a \textasciitilde3,600-request
+canary instead of 216,000 exposed requests, which is precisely what
 industrializing the delivery loop is for.
 
 \section{Transition to Part VI}\label{transition-to-part-vi}

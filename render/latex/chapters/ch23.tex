@@ -98,20 +98,29 @@ provenance/status label axes are defined in the Sources chapter.)}
 \textbf{Architect:} ``How many people will use it, and how often?''
 \textbf{Lead:} ``\textasciitilde2,000 on the platform; maybe 5\% are in
 it at once at peaks.'' \textbf{Architect:} ``So \textasciitilde100
-concurrent at peak, and realistically a fraction of that firing
-requests. Roughly how many questions per second at the busiest minute?''
-\textbf{Lead:} ``If everyone on the sales floor asked at once, maybe 40
-a second.'' \textbf{Architect:} ``And an average minute, not the busiest
---- roughly how many?'' \textbf{Lead:} ``Maybe 10 a second on a normal
-day, with bursts around launches.'' \textbf{→ Bound 1:
-\textasciitilde2,000 users, \textasciitilde10 rps average,
+concurrent at peak --- that's users with the tool open, not requests in
+flight --- and realistically only a fraction of those are firing
+requests at any moment. Roughly how many questions per second at the
+busiest minute?'' \textbf{Lead:} ``If everyone on the sales floor asked
+at once, maybe 40 a second.'' \textbf{Architect:} ``And an average
+minute, not the busiest --- roughly how many?'' \textbf{Lead:} ``Maybe
+10 a second on a normal day, with bursts around launches.'' \textbf{→
+Bound 1: \textasciitilde2,000 users, \textasciitilde10 rps average,
 \textasciitilde40 rps peak.} \mbox{{[}canonical scenario{]}} (Ch 4, \hyperref[tab:4.2]{Table 4-2})
 
 \textbf{Architect:} ``What does a question look like? Short or with long
 context?'' \textbf{Lead:} ``They paste product specs and contracts, so
-the prompt can be lengthy --- a few pages.'' \textbf{→ Bound 2: long
-\textasciitilde9,200-token inputs with retrieval,
-\textasciitilde300-token outputs.} \mbox{{[}canonical scenario{]}} (Ch 4, \hyperref[tab:4.2]{Table 4-2})
+the prompt can be lengthy --- a few pages.'' \textbf{Architect:} ``How
+many pages in a typical prompt, how many retrieved chunks, and how long
+is the answer you'd send back?'' \textbf{Lead:} ``Specs run two to three
+pages, maybe a handful of retrieved sections; the answer is a paragraph
+or two.'' \textbf{→ Bound 2: long \textasciitilde9,200-token inputs with
+retrieval, \textasciitilde300-token outputs.} (A page of prose is
+roughly 500--700 tokens, so two to three pages plus retrieved sections
+lands in the low thousands; the exact 9,200/300 split is the canonical
+scenario imported from Ch 4, \hyperref[tab:4.2]{Table 4-2} rather than elicited here, and
+the pilot's tokenizer run replaces it.) \mbox{{[}canonical scenario{]}} (Ch 4,
+\hyperref[tab:4.2]{Table 4-2})
 
 \textbf{Architect:} ``What's `fast'? First-word delay, or time to full
 answer?'' \textbf{Lead:} ``Feels slow if we wait more than two seconds
@@ -139,22 +148,26 @@ all possible,'' with cloud as the fallback if that preference yields (Ch
 
 \textbf{Architect (mirror):} ``So to lock it: \textasciitilde2,000 sales
 users, \textasciitilde10 rps average / 40 peak, prompts with
-\textasciitilde9,200-token retrieval context, answers starting under 2
-s, quality judged on 50 of your real questions, fully on-prem because
-it's regulated, and within a self-host budget. Have I captured it?''
-\textbf{Lead:} ``Yes --- that's exactly it.''
+\textasciitilde9,200-token retrieval context, answers starting inside
+p95 TTFT ≤ 2 s, quality judged on 50 of your real questions, on-prem if
+at all possible (cloud as the fallback if that preference yields)
+because the data is regulated, and within a self-host budget. Have I
+captured it?'' \textbf{Lead:} ``Yes --- that's exactly it.''
 
 \textbf{Reading the result.} The vague ask collapsed into the exact
 canonical workload this book has architected end-to-end --- a 70B-class
-model on an 8×H100 on-prem server \emph{becomes a candidate
-architecture} whose memory fit can be derived and whose latency,
-throughput, quality, and peak-load behavior must then be validated (Ch
-2--16 derive the constraints; the deployment has to be benchmarked and
-measured against them, as Ch 24's red-team pass shows). The conversation
-did not sell a model; it \emph{exposed the numbers} that then narrowed
-the candidate set, and left the actual validation to the measurement
-phase. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \emph{(worked example, not
-reference)}
+model (the candidate tier the quality bound points to, pending the
+50-question benchmark --- Ch 5's selection rule is to pick the smallest
+tier that clears the quality bar) served on 8×H100 hosts, a
+\textasciitilde21--32-host fleet at the canonical peak (Ch 17/20/24) ---
+\emph{becomes a candidate architecture} whose memory fit can be derived
+and whose latency, throughput, quality, and peak-load behavior must then
+be validated (Ch 2--16 derive the constraints; the deployment has to be
+benchmarked and measured against them, as Ch 24's red-team pass shows).
+The conversation did not sell a model; it \emph{exposed the numbers}
+that then narrowed the candidate set, and left the actual validation to
+the measurement phase. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \emph{(worked
+example, not reference)}
 
 \textbf{\hyperref[tab:23.1]{Table 23-1}} --- The six questions that turn any vague AI ask
 into architectable bounds
@@ -265,7 +278,7 @@ quantified) → quantified bounds → the decisions those bounds unlock. The
 full worked example (figure plus the §23.3 dialogue and \hyperref[tab:23.1]{Table 23-1})
 surfaces the six architectural numbers: the figure's boxes draw five of
 them (traffic \& concurrency, token profile, SLO, ops/tier, TCO), and
-the worked example in §23.3 supplies the sixth (quality bar --- \hyperref[tab:23.1]{Table 23-1}, the ``What's "good"?'' row). \mbox{{[}ILLUSTRATIVE{]}} conceptual}
+the worked example in §23.3 supplies the sixth (quality bar --- \hyperref[tab:23.1]{Table 23-1}, the ``What's "good"?'' row). \mbox{{[}ILLUSTRATIVE{]}}}
 
 \end{figure}\ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
 
@@ -298,33 +311,47 @@ month.'' Rather than confirm the launch date, the architect books a
 (traffic), tickets are short (\textasciitilde500 tokens, not
 retrieval-heavy), quality means ``resolve the ticket, not just answer''
 (a capability that rules out an answer-only model --- in this scenario
-the architect judges 7B-class to be the smallest tier that clears the
-resolution bar, which the pilot is there to confirm; the short
-\textasciitilde500-token tickets are why 7B rather than 70B is judged
-sufficient), the SLO is 3 s because users are already frustrated
-(latency), and --- critically --- the portal sits on regulated payment
-data so nothing leaves the premises (ops). The mirrored restatement
-turns ``let's ship AI next month'' into ``a 7B-class model on one
-on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst
-buffer, quality-gated on real resolved tickets --- and a two-week pilot
-on 5\% of tickets to confirm the resolution quality before full
-rollout.''
+the architect puts 7B-class forward as the candidate to test first, on
+the Ch 5 rule of the smallest tier that clears the quality bar, with the
+pilot's pass criterion stated as \textasciitilde60\% of baseline tickets
+resolved without escalation (illustrative threshold, set with the
+customer before the pilot); the short \textasciitilde500-token tickets
+keep the KV footprint and per-host memory small, which is a memory
+argument for the smaller tier, not a capability one), the SLO is 3 s
+because users are already frustrated (latency), and --- critically ---
+the portal sits on regulated payment data so nothing leaves the premises
+(ops). The mirrored restatement turns ``let's ship AI next month'' into
+``a 7B-class model on one on-prem GPU, resolving baseline tickets under
+3 s, with a 200-rps burst buffer, quality-gated on real resolved tickets
+--- and a two-week pilot on 5\% of tickets to confirm the resolution
+quality before full rollout.''
 
 \textbf{The burst buffer, spelled out.} The buffer is an arrival-rate
-buffer: bursts of duration D queue and drain at rate r, an idealized
-100\% MFU ceiling (≤141 rps --- 7B FP16, \textasciitilde500 output
-tokens/request, H100), i.e.~\textasciitilde42--57 rps at 30--40\% MFU;
-the measured per-host rate must replace this before the burst budget is
-trusted. Max queue wait ≈ D·(200−r)/r must stay inside the 3 s SLO ---
-so state D, the buffer depth D·(200−r) requests, and either add
-capacity, add admission control, or scope the SLO to non-burst traffic.
+buffer: bursts of duration D queue and drain at rate r, a decode-only
+ceiling of 100\% MFU (≤141 rps --- 7B FP16, \textasciitilde500 output
+tokens/request, H100); with the \textasciitilde500-token prefill
+included the \emph{total} request rate is \textasciitilde71 rps at 100\%
+MFU (\textasciitilde21--28 rps at 30--40\% MFU), so r = 50 in the worked
+example below is an optimistic decode-only illustration and the measured
+per-host rate must replace it before the burst budget is trusted. Max
+queue wait ≈ D·(200−r)/r must stay inside the 3 s SLO --- so state D,
+the buffer depth D·(200−r) requests, and choose: (a) add capacity, (b)
+add admission control, or (c) scope the SLO to non-burst traffic.
 Worked: D = 1 s at 200 rps → 200 requests arrive, 50 served during the
 burst; queue depth at burst end = (200−50) × 1 = 150 requests; drained
 at \textasciitilde50 rps in 150/50 = 3 s; max queue wait = 3 s, so the
 last-arriving request completes at 3 s plus its own service time ---
 past the 3 s SLO; total time from burst start = 4 s (1 s burst + 3 s
 drain) --- burst-window requests miss the 3 s SLO, so the burst runs
-under a separate queue-and-drain degraded-mode SLO (option a).
+under a separate queue-and-drain degraded-mode SLO (option c).
+
+\textbf{Architect (mirror, closing):} ``So what we've locked: 3 s p95
+SLO on non-burst traffic; above \textasciitilde50 rps the burst is
+served under the queue-and-drain degraded mode, with admission control
+capping the queue at the depth the 3 s drain allows, and that
+degraded-mode target is written into the contract as a separate SLO.
+Sign off on that split?'' \textbf{CTO:} ``Yes --- non-burst 3 s, bursts
+best-effort with the queue visible. That's the scope.''
 
 The customer's vague excitement became a defensible, bounded, shippable
 scope --- the 3 s SLO scoped to non-burst traffic, the burst served

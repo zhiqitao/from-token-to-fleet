@@ -62,7 +62,7 @@ for i_orig, i_rev in enumerate(range(len(names))):
 ax.set_yticks(y)
 # P2-10: mark the Qwen row as a backbone ratio (asterisk ties to the footnote).
 ax.set_yticklabels([f'{n}*' if 'Qwen' in n else n for n in names], fontsize=10.5)
-ax.set_xlabel('Active fraction (vendor-defined denominator)', fontsize=11)
+ax.set_xlabel('Active fraction (%, vendor-defined denominator)', fontsize=11)
 ax.tick_params(labelsize=10)
 ax.grid(alpha=0.3, axis='x')
 ax.spines['top'].set_visible(False)

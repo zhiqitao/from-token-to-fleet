@@ -1,0 +1,363 @@
+[
+ {
+  "id": "CH5-18",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5, §8 mini-case bullet 2",
+  "chapter": "5",
+  "quoted_clause": "supports ~436/24.1 ≈ 18 concurrent 9.2K‑token requests per host before KV pressure",
+  "observed": "The concurrency screen divides the KV budget by the initial (prefill-only) KV footprint, but each request continues to grow its KV during decode: 300 output tokens add 300 × 2.62 MB ≈ 0.79 GB, so the steady-state footprint is ≈ 24.9 GB and the true ceiling is ≈ 17.5 requests. The figure is also a KV-only bound presented without the caveat that other limits (compute, scheduler, per-request latency) may bind first.",
+  "evidence": "9,500 tokens × 2.62 MB = 24.9 GB; 436 / 24.9 = 17.5; 436 / 24.1 = 18.1.",
+  "root_cause": "The screen was computed at the prefill boundary rather than at the request's maximum footprint.",
+  "correction": "Compute the screen at the request's maximum footprint (input + output) and state that it is a KV-only upper bound.",
+  "acceptance_test": "The concurrency screen in Ch 5 uses the maximum per-request KV footprint and is labeled as a KV-only bound.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH5-19",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5, §3(a) 'Takeaway for the canonical RAG workload'",
+  "chapter": "5",
+  "quoted_clause": "and it introduces no per‑request latency that threatens the TTFT SLO",
+  "observed": "The reassurance is stated against a budget the chapter elsewhere says is already fully consumed: §3(b) computes prefill 1.08 s + retrieval 0.12 s = 1.20 s against a 1.2 s budget and calls it 'zero true headroom'. The takeaway's phrasing invites the reader to treat the retrieval leg as having slack, which the chapter's own arithmetic denies.",
+  "evidence": "§3(b): 'at ~1.08 s it leaves ~0.12 s against the 1.2 s budget — exactly the ~120 ms retrieval allocation, i.e. zero true headroom'.",
+  "root_cause": "The takeaway was written as a reassurance about the embedding model alone, without carrying the budget state established in §3(b).",
+  "correction": "Rewrite the clause to acknowledge the exhausted budget, e.g. 'adds ~1.1 ms of query-embedding time to a retrieval budget that is already fully consumed by search and reranking — acceptable only because the p95 ≤ 2 s target, not the 1.2 s design budget, provides the margin'.",
+  "acceptance_test": "No statement in Ch 5 implies slack in the 1.2 s TTFT budget that §3(b) has shown to be exhausted.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P1-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §3, Table 7-1 (row 'fits 8×H100 at 128K?') and the italic note immediately below the table",
+  "chapter": "Ch 7",
+  "quoted_clause": "fits 8×H100 at 128K? | passes aggregate bytes + TP=8 shard; per-rank runtime/workspace at 128K not established | 475.5 GB < 640 GB (59.4 GB/rank vs ~62.5 GB/rank after weights) ... the 128K row — also 8×H100, so TP=8 sharding is integral — clears gate 2's shard check but not its per-rank runtime/workspace sub-clause at 128K.",
+  "observed": "The row's own arithmetic supports a PASS, but the verdict (and the note) assert a FAIL of the per-rank runtime/workspace sub-clause. The row compares '59.4 GB/rank' (which already includes the 17.5 GB/rank of weights) against '~62.5 GB/rank after weights' (80 − 17.5). That comparison double-counts weights and is dimensionally incoherent. The correct per-rank check is: weights 17.5 + KV 41.94 (335.5/8) + runtime reserve 8 = 67.4 GB ≤ 80 GB, i.e. it passes with ~12.6 GB/rank of slack. Equivalently, KV-only per rank 41.94 GB ≤ 62.5 GB available after weights, leaving 20.6 GB/rank for the 8 GB/rank reserve.",
+  "evidence": "475.5/8 = 59.4375 GB/rank (weights+KV). 335.54432/8 = 41.943 GB/rank KV. 17.5 + 41.943 + 8 = 67.44 GB ≤ 80 GB. The only reading under which the row fails is '59.4 + 8 = 67.4 ≤ 80' — i.e. it passes. The stated comparison (59.4 vs 62.5) subtracts weights twice.",
+  "root_cause": "The row mixes two different quantities (total per-rank residency vs post-weight capacity) in one comparison, and the verdict was written from an intuition ('128K is tight') rather than from the numbers printed beside it. A second, smaller inconsistency: the note says 'Both therefore carry the label \"passes aggregate bytes only — placement/runtime not established,\"' but the table's 128K row actually carries a different label ('passes aggregate bytes + TP=8 shard'), so the note misdescribes the table.",
+  "correction": "Rewrite the row's derivation as an explicit per-rank budget: '475.5 GB < 640 GB; per rank: weights 17.5 + KV 41.94 + runtime reserve 8 = 67.4 GB ≤ 80 GB (passes gate 2 at the ~8 GB/rank reserve; a context-scaled activation reserve would need measurement)'. If the intended verdict is 'not established', state the missing assumption explicitly (e.g. 'activation/workspace reserve grows with context length; at 128K the assumed 8 GB/rank reserve is unverified') and give the context length at which it would bind. Also fix the note's sentence so it does not claim a single shared label for two rows that carry different labels.",
+  "acceptance_test": "A reader can recompute the 128K per-rank verdict from the printed numbers alone and reach the printed verdict; the table row label and the note's description of it are identical; no quantity in the row is compared against a capacity from which it has already been subtracted.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-P1-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §1 'Unit basis (locked)' paragraph; consequences at §4 point 3, §6 bullet 1, §8 mini-case",
+  "chapter": "Ch 7",
+  "quoted_clause": "the H100's quoted 80 GB is treated as 80×10^9 B throughout (vendor 80 GB = 81,920 MiB ≈ 85.9×10^9 B would give 2×H100 = 171.8 GB and a 687 GB host pool — re-run this fit test on that basis before procurement). The 2×H100 fit verdict, the 640 GB envelope, the 436 GB KV budget and the ~17.5 concurrency all use this decimal basis.",
+  "observed": "The chapter makes its headline architectural verdict ('does not fit on 2×H100') explicitly dependent on a decimal-vs-binary capacity convention, and instructs the reader to re-run the fit test on the vendor-binary basis. But the verdict does not actually depend on the convention: with TP=2, per-rank residency is weights 140/2 = 70 GB + KV 24.1/2 = 12.05 GB (9.2K) or 12.45 GB (9.5K) = 82.05–82.45 GB per 80 GB rank, which fails under either basis. As written, a reader who follows the instruction ('re-run this fit test on that basis before procurement') recomputes 164.1 GB < 171.8 GB and concludes that 2×H100 fits — a wrong conclusion that the chapter's own per-rank arithmetic refutes.",
+  "evidence": "Per-rank, TP=2: 70 + 12.05 = 82.05 GB/rank > 80 GB (decimal basis); 70 + 12.05 = 82.05 GB/rank > 85.9 GB? No — under the binary basis a rank has 85.9 GB, so 82.05 < 85.9 would pass per rank too. So the per-rank argument is basis-independent only if the per-rank capacity is 80 GB; under the vendor-binary basis per-rank capacity is 85.9 GB and 82.45 < 85.9 passes. The verdict therefore IS basis-dependent under both aggregate and per-rank reasoning, and the chapter's own numbers do not settle it.",
+  "root_cause": "The chapter treats the capacity convention as a pure bookkeeping choice, when in fact it flips a published architectural verdict (2 vs 3+ GPUs) that recurs in §4, §6 and the mini-case. It also does not state which convention the vendor's own tooling reports, so the reader cannot resolve the question from the book.",
+  "correction": "Do not leave the verdict convention-dependent. Either (a) state the usable per-device capacity the reader will actually see (nvidia-smi total vs usable) and compute the verdict on that basis, or (b) present the verdict as basis-conditional and give both: 'decimal basis (80 GB = 80×10^9 B): 164.1 GB > 160 GB, does not fit; vendor-binary basis (80 GB = 81,920 MiB = 85.9×10^9 B): 164.1 GB < 171.8 GB aggregate, and per rank 70 + 12.45 = 82.45 GB < 85.9 GB — fits, subject to the runtime/workspace reserve of ~8 GB/rank, which would then have to come out of the remaining 3.45 GB/rank and therefore does NOT fit'. The second form shows that the verdict is stable once the runtime reserve is included, which is the architecturally meaningful conclusion. Add the same one-line basis qualifier at each of the three later occurrences of the 160 GB verdict.",
+  "acceptance_test": "Every occurrence of the 'does not fit on 2×H100' verdict in Ch 7 carries an explicit capacity basis, and a reader who adopts the opposite convention can still reach the same architectural conclusion (how many GPUs are needed) from the printed numbers.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P2-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §7 'Technical note — per-rank fit (moved out of the caption)'",
+  "chapter": "Ch 7",
+  "quoted_clause": "at 17.5 concurrent requests a rank reaches ~99.7% of its 80 GB capacity (17.5 + 8 + 54.25 = 79.75 GB) ... KV budget per rank: 436 ÷ 8 = ~54.5 GB ... Per-rank budget: 17.5 + 54.5 + 8 = 80 GB ≤ 80 GB.",
+  "observed": "Two different per-rank KV figures are used in the same note without distinction: 54.25 GB (in the 99.7% sentence) and 54.5 GB (in the bullet list and the budget sum). 54.25 is 17.5 × 3.1, i.e. it is the KV *consumed at 17.5 requests* computed from the rounded per-request figure, while 54.5 is the *budget* (436/8). The two sums then disagree about how full a rank is: 79.75 GB (99.7%) versus exactly 80 GB (100%). Using the byte-accurate per-request per-rank figure (24.90368/8 = 3.11296 GB), 17.5 requests consume 54.48 GB and the rank reaches 79.98 GB = 99.97% of 80 GB, not 99.7%. The '99.7%' figure is a rounding artifact presented as if it were the byte-accurate fill.",
+  "evidence": "436/8 = 54.5 exactly. 24.90368/8 = 3.11296 GB/request/rank. 17.5 × 3.11296 = 54.477 GB. 17.5 + 8 + 54.477 = 79.977 GB → 99.97% of 80 GB. The note's own closing sentence ('Byte-accurate, 436 ÷ 24.9037 = 17.51') establishes that byte-accuracy is the intended standard for this note, which the 54.25/99.7% figures do not meet.",
+  "root_cause": "A budget quantity and a consumption quantity are conflated in one arithmetic chain, and a rounded intermediate (3.1) is carried into a load-bearing conclusion ('a hard ceiling, not a comfortable operating point') without the byte-accurate value being used.",
+  "correction": "Separate the two quantities explicitly: 'KV budget per rank = 436/8 = 54.5 GB; at 17.5 concurrent requests a rank holds 17.5 × 3.11296 = 54.48 GB of KV, so per-rank occupancy = 17.5 (weights) + 54.48 (KV) + 8 (runtime) = 79.98 GB = 99.97% of 80 GB'. Then state the conclusion once: the aggregate 17.5 is a hard ceiling with essentially zero per-rank headroom, and the conservative integer floor of 17 is the right planning number.",
+  "acceptance_test": "Every number in the technical note is byte-accurate or explicitly marked as rounded, and no two quantities in the note differ only by rounding without being distinguished (budget vs consumed).",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-P2-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §1 'Concept' (first paragraph) and §5 'Common Mistakes' bullet 4",
+  "chapter": "Ch 7",
+  "quoted_clause": "realized savings land between these 2× and 4× reduction factors, once per-block scale/offset metadata and per-token variation are counted — rather than the single 2×–4× that weight-only quantization applies to weights ... Weight-only quantization's 2×–4× applies to weights; do not transfer an expectation across precisions or across tensors without naming the bit width.",
+  "observed": "The chapter asserts that weight-only quantization realizes a clean 2×–4× reduction while KV quantization does not, because of scale/offset metadata. This is contradicted by the chapter's own worked example two sections later: MXFP4 weights cost 0.53125 B/value (17 B per 32 values), i.e. a realized 3.57× reduction, not 4×; NVFP4 costs 0.5625 B/value (3.56×); the INT4-with-FP16-scaled-zero layout costs 8,912,896 B for the same matrix that MXFP4 costs 8,912,896 B for — i.e. the same 3.57×. Weight quantization therefore carries exactly the same per-block scale metadata overhead the text attributes exclusively to KV. The asymmetry is an artifact of the text, not of the formats.",
+  "evidence": "Ch 7 §3: 'MXFP4 adds one local-scale byte, producing 17 bytes per 32 values, or 0.53125 B/value' → 2/0.53125 = 3.765×? No: 2 B/value ÷ 0.53125 B/value = 3.765×. Either way it is not 4×. The chapter's own §3 example states 'a 70B-parameter teaching model that stores 98% of parameters in MXFP4 and 2% in BF16 ... needs 39.24375 GB of compact weight storage rather than 140 GB' → 140/39.24375 = 3.568×, i.e. the chapter itself computes a realized weight reduction of 3.57×, not 4×.",
+  "root_cause": "The 'raw bound vs realized saving' distinction is stated correctly for KV but then mis-generalized into a claim that weights are exempt from metadata overhead. The correct general principle is: every block-scaled format has a raw bit-width bound and a realized ratio that depends on the scale/zero-point layout, for weights and for KV alike.",
+  "correction": "Rewrite both passages to state the general rule once: 'Raw bit-width is an upper bound on the reduction; the realized ratio depends on the scale/zero-point layout and is smaller than the raw bound for both weights and KV. MXFP4 weights realize ~3.57× (0.53125 B/value), not 4×; FP8 KV realizes 2× exactly (1 B/value, no per-element scale) before any block metadata.' Then the Common Mistakes bullet becomes 'Do not transfer a reduction factor across precisions, across tensors, or across formats without naming the bit width AND the scale/zero-point layout.'",
+  "acceptance_test": "No passage in Ch 7 claims a realized 2×–4× reduction for weights that is contradicted by the chapter's own MXFP4/NVFP4/INT4 worked example; the raw-bound vs realized-saving distinction is stated once and applied symmetrically to weights and KV.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-P2-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §3 'Worked Example' opening paragraph; Table 7-1; §7 technical note bullet 'per-request KV per rank'",
+  "chapter": "Ch 7",
+  "quoted_clause": "a canonical 80-layer, hidden-8192, full-MHA 70B reference model (every query head carries its own K,V, so the per-token KV width equals the model's hidden dimension) ... per-request KV per rank: 24.9 ÷ 8 = ~3.1 GB (tensor-parallel attention shards each request's KV across the 8 ranks)",
+  "observed": "The canonical geometry fixes layers (80) and hidden_dim (8192) but never fixes the query-head count or head_dim, yet two load-bearing claims depend on them: (a) Table 7-1's 128K row asserts 'TP=8 shard' passes gate 2, and (b) the technical note asserts that TP=8 shards each request's KV across the 8 ranks. Both require the KV-head count to be divisible by 8 (e.g. 64 heads × 128 dim → 8 KV heads/rank). The chapter's only head-count statement (64 query heads, 8 KV heads, head_dim 128) appears in the GQA sensitivity note and belongs to LLaMA-2 70B, which is explicitly NOT the canonical model. A reader therefore cannot verify the TP=8 shard claim from the canonical geometry as stated.",
+  "evidence": "The canonical geometry as printed contains no head count. The GQA note supplies '64 query heads but only 8 KV-heads' for LLaMA-2 70B (a GQA model), while the canonical is declared full-MHA with hidden 8192 — for which the head count is unstated (64 heads × 128 dim is the natural completion, and it is what makes TP=8 integral).",
+  "root_cause": "The canonical geometry was specified by the two parameters needed for the KV byte formula (layers, hidden width) and the head geometry was left implicit, even though the chapter later makes head-partition claims that depend on it.",
+  "correction": "Add the head geometry to the canonical geometry statement: 'canonical 80-layer, hidden-8192, 64 query heads, head_dim 128, full-MHA (n_KV-heads = 64)'. Then the TP=8 shard claim becomes checkable (64/8 = 8 KV heads per rank) and the GQA note can be presented as the same geometry with n_KV-heads reduced from 64 to 8, which also makes the '8× smaller' comparison a controlled one (same layers, same hidden width, same head_dim) rather than a comparison across two different models.",
+  "acceptance_test": "Every TP=8 / per-rank KV-sharding claim in Ch 7 can be verified from the canonical geometry as printed, and the GQA comparison differs from the canonical in exactly one stated parameter (n_KV-heads).",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-P2-06",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Chapter 7, §3 note below Table 7-1; §7 Fig 7.7 caption; §8 mini-case",
+  "chapter": "Ch 7",
+  "quoted_clause": "We compute that concurrent capacity here — the ~436 GB KV budget and ~17.5 requests/host (byte-accurate 17.51; conservative integer floor 17; arithmetic in this section) — and carry it into Chapter 17's fleet sizing.",
+  "observed": "The chapter derives a memory-derived concurrency ceiling (17.5 requests per 8×H100 host) and explicitly hands it to Chapter 17's fleet sizing, but never reconciles it with the traffic figures the chapter itself quotes in its opening paragraph (~10 rps average / ~40 rps peak) or with the mini-case's concurrency figures (~100 concurrent typical / ~400 at peak). These are different quantities and the chapter never says so. A memory ceiling is not a demand-derived concurrency: at ~300 output tokens and a plausible 20–40 tok/s per request, 10 rps implies ~75–150 concurrent requests, and 40 rps peak implies ~300–600 — i.e. the demand-derived concurrency is roughly 5–30× the memory ceiling of 17.5 per host. If Chapter 17 sizes hosts from 17.5/host without a Little's-law demand check, the fleet will be materially over- or under-provisioned. (Chapter 17's arithmetic was NOT VERIFIED in this pass.)",
+  "evidence": "Chapter 7 opening: '~10 rps average / ~40 rps peak traffic served by a 70B FP16 model on an 8×H100 host'. Chapter 7 §8: '~2,000 registered users (~100 concurrent typical / ~400 at peak), ~10 requests/s'. Chapter 7 §3 note: '~17.5 requests/host ... carry it into Chapter 17's fleet sizing'. Fig 7.7 caption already hedges: 'This is an analytical upper bound, not a validated concurrent-request count'. The hedge lives in a figure caption while the unqualified number is what is handed to the next chapter.",
+  "root_cause": "Two different concurrency concepts (memory ceiling vs demand-derived concurrency) are denoted by the same word and the chapter forwards only one of them downstream, with the caveat demoted to a caption.",
+  "correction": "In §3 (not only in the Fig 7.7 caption), state the distinction and give the demand-side check: '17.5 is the memory ceiling per host — the maximum number of simultaneously-resident 9.5K sequences. The demand-side concurrency is set by Little's law (concurrency = rps × mean service time) and must be computed from the workload's service time; for the canonical ~10 rps average and ~300 output tokens, the demand-side concurrency is far below 17.5 per host, so the memory ceiling binds only at the peak.' Then state explicitly what Chapter 17 should consume: the demand-derived concurrency, with 17.5 as the per-host feasibility check.",
+  "acceptance_test": "The phrase 'concurrency' is never used in Ch 7 for two different quantities without a qualifier; the number handed to Chapter 17 is stated with its definition; a reader can compute the demand-side concurrency from the chapter's own traffic and output-length figures.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P2-07",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §8 'End-of-Chapter Mini-Case'",
+  "chapter": "Ch 7",
+  "quoted_clause": "The next step — turning \"5,000 employees\" into ~2,000 registered users (~100 concurrent typical / ~400 at peak), ~10 requests/s, and a specific model-and-hardware choice — applies Chapter 4's workload-anatomy method, already developed before this chapter.",
+  "observed": "The mini-case poses no decision, supplies no competing interpretations, and resolves nothing: it re-states numbers already printed in Table 7-1 (24.9 GB, 24.1 GB, 140 GB, 165 GB, 224 GB) and then explicitly defers the actual decision to Chapter 4. There is no evidence set to interpret, no ambiguity to resolve, and no architecture consequence that follows from the reader's work. As written it is a summary of the chapter, not a case.",
+  "evidence": "Every number in §8 appears earlier in Table 7-1 or §3 with the same values and the same labels; the closing paragraph names the decision ('a specific model-and-hardware choice') and assigns it to another chapter.",
+  "root_cause": "The mini-case was written as a restatement rather than as an application; the chapter's own most interesting decision — the one the chapter's arithmetic makes decidable — was not used.",
+  "correction": "Convert it into a decision the reader must make with the chapter's tools. Suggested frame: the company offers only 2×80 GB servers and asks whether the 70B FP16 model can be deployed on them; the reader must (i) compute the residency floor at 9.2K and 9.5K, (ii) discover that the aggregate verdict is basis-sensitive while the per-rank verdict is not, (iii) decide between 2×H100 with FP8 KV, 3–4×H100 with FP16 KV, and 8×H100 with headroom for concurrency, and (iv) state the validation each option still requires. Add the competing option (FP8 KV at ~152 GB) so the reader must weigh a capacity lever against a quality/precision lever, and require the answer to name the gate (1/2/3) that remains open.",
+  "acceptance_test": "The mini-case contains at least one decision the reader must make, at least two candidate configurations, and a conclusion that is not already printed verbatim in Table 7-1; a reader who skips the chapter body cannot answer it from the mini-case alone.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P2-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §7, Fig 7.5 caption",
+  "chapter": "Ch 7",
+  "quoted_clause": "the GQA FP16 line reaches that budget only at ~1.32M tokens",
+  "observed": "The GQA FP16 per-token constant is 2 × 80 × (8 × 128) × 2 B = 327,680 B = 0.32768 MB, not 0.33 MB. The 436 GB KV budget is reached at 436×10^9 / 327,680 = 1,330,566 tokens ≈ 1.33M. The printed 1.32M is what one gets by dividing by the rounded 0.33 MB/token figure (436e9/330,000 = 1,321,212). The caption is the one place in the chapter where a reader is asked to read a value off a chart, so a 1% error in the chart's own annotation is a defect in the figure's meaning, not just in prose.",
+  "evidence": "2 × 80 × 1024 × 2 = 327,680 B/token. 436,000 MB / 0.32768 MB = 1,330,566 tokens. 436,000 / 0.33 = 1,321,212 tokens.",
+  "root_cause": "A rounded per-token constant was carried into a derived threshold instead of the byte-accurate constant, in a caption whose purpose is to let the reader locate a value on the plotted axis.",
+  "correction": "Print '~1.33M tokens' and, if the chart's axis annotation carries the same value, update it to match. If the figure itself labels the crossing at 1.32M, the figure must be regenerated so that the plotted line and the caption agree.",
+  "acceptance_test": "The GQA crossing point quoted in the caption equals 436 GB ÷ 327,680 B/token to the printed precision, and the figure's own axis annotation (if any) shows the same value.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P2-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §1 'Unit basis (locked)' paragraph",
+  "chapter": "Ch 7",
+  "quoted_clause": "would give 2×H100 = 171.8 GB and a 687 GB host pool — re-run this fit test on that basis before procurement). The 2×H100 fit verdict, the 640 GB envelope, the 436 GB KV budget and the ~17.5 concurrency all use this decimal basis.",
+  "observed": "The paragraph names four quantities that depend on the basis but instructs the reader to re-run only 'this fit test'. Under the vendor-binary basis the other three also move: host pool 8 × 85.9 = 687.2 GB; KV budget 687.2 − 140 − 64 = 483.2 GB; concurrency 483.2 / 24.90368 = 19.40 (floor 19, not 17). A reader who re-runs only the 2×H100 test and keeps 436 GB / 17.5 will mix bases across the chapter's own ledger.",
+  "evidence": "8 × 85.899 = 687.19 GB. 687.19 − 140 − 64 = 483.19 GB. 483.19 / 24.90368 = 19.40.",
+  "root_cause": "The caveat was scoped to the verdict that was topically visible at the point of writing, rather than to the full set of derived quantities the basis touches.",
+  "correction": "Either state the complete basis-dependent set in one place ('on the vendor-binary basis the pool is 687 GB, the KV budget 483 GB, and the per-host concurrency ceiling 19 (floor 19)'), or state the rule once — 'every capacity figure in this chapter is decimal; the binary-basis equivalents are obtained by multiplying the pool by 1.074 and re-deriving the budget and concurrency from it' — and cross-reference it from the three later figures that depend on it.",
+  "acceptance_test": "A reader who adopts the opposite capacity convention can re-derive every capacity-dependent number in Ch 7 (pool, KV budget, concurrency, per-rank fill) from a single stated rule, without mixing bases.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P3-10",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §4 'Measurement' item 1",
+  "chapter": "Ch 7",
+  "quoted_clause": "When evaluating a model where the hidden dimension or layer count differs from LLaMA-70B, recompute the constant factor",
+  "observed": "The chapter's canonical geometry is explicitly a constructed full-MHA teaching model, and the chapter insists (twice) that it is not a named vendor model. Invoking 'LLaMA-70B' here as the reference point reintroduces exactly the confusion the chapter warns against: LLaMA-2 70B is GQA (8 KV heads), so its real per-token KV is ~0.33 MB, not 2.62 MB. A reader who takes 'LLaMA-70B' as the reference for the 2.62 MB/token constant will mis-derive the KV footprint for the most widely deployed 70B-class model.",
+  "evidence": "Ch 7 §3: 'The 70B reference is a constructed teaching geometry, not a named vendor model'; Ch 7 §3 GQA note: 'LLaMA-2 70B, for instance, has 64 query heads but only 8 KV-heads' → 0.33 MB/token.",
+  "root_cause": "A familiar model name was used as shorthand for the chapter's own reference geometry.",
+  "correction": "Replace 'differs from LLaMA-70B' with 'differs from this chapter's 80-layer / 8192-hidden reference geometry', and add one clause: 'note that LLaMA-2 70B shares the 80-layer/8192 geometry but is GQA, so its per-token KV is ~0.33 MB — see the sensitivity note above.'",
+  "acceptance_test": "No passage in Ch 7 uses a named vendor model as the implicit referent for the canonical 2.62 MB/token constant.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P3-11",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §7, Fig 7.7 caption",
+  "chapter": "Ch 7",
+  "quoted_clause": "at 24.9 GB/request max-FP16 KV (9.5K max context, per Fig 7.6)",
+  "observed": "Fig 7.6 is 'Inference vs fine-tuning memory floor' — it shows the ~165 GB weights+KV floor and the ~1,120 GB training floor, not the per-request KV figure. The 24.9 GB/request value is derived in §3/Table 7-1. The reference resolves to a figure that does not carry the number, which is the kind of cross-reference that sends a reader to the wrong conceptual material.",
+  "evidence": "Fig 7.6 caption: 'The same 70B model has a weights+KV floor of ~165 GB ... but needs ~1,120 GB for full Adam fine-tuning'. Table 7-1: 'total inference KV (9.5K max) | ≈ 24.9 GB'.",
+  "root_cause": "Figure numbers were used as anchors for values that live in the table.",
+  "correction": "Change '(per Fig 7.6)' to '(Table 7-1, §3)'.",
+  "acceptance_test": "Every 'per Fig X' / 'per Table X' in Ch 7 points to the element that actually prints the cited number.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P3-12",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chapter 7, opening paragraph (color disclaimer) vs Fig 7.8 caption",
+  "chapter": "Ch 7",
+  "quoted_clause": "Color is not semantic across this chapter's figures: the same concept (persistent KV/state storage) is rendered in different hues in FIGS 7.1–7.4 ... the FP16 KV cache (orange) is the only block that grows",
+  "observed": "The disclaimer scopes the color warning to FIGS 7.1–7.4, but Fig 7.8's caption relies on a color word ('orange') to identify the KV block, and Fig 7.8 is outside the disclaimed range. Either the disclaimer should cover all figures in the chapter, or Fig 7.8's caption should identify the block by position/label rather than hue (which also serves the grayscale-print requirement).",
+  "evidence": "Fig 7.8 caption: 'the FP16 KV cache (orange) is the only block that grows'.",
+  "root_cause": "The disclaimer was written for the figures that existed when it was added and was not extended when later figures were added.",
+  "correction": "Extend the disclaimer to 'FIGS 7.1–7.8' and, in Fig 7.8's caption, name the block by its label ('the FP16 KV block') with the color as a parenthetical only.",
+  "acceptance_test": "No figure caption in Ch 7 requires the reader to distinguish hues to identify a block, and the color disclaimer covers every figure in the chapter.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH7-P3-13",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §8 mini-case, final paragraph",
+  "chapter": "Ch 7",
+  "quoted_clause": "turning \"5,000 employees\" into ~2,000 registered users (~100 concurrent typical / ~400 at peak), ~10 requests/s, and a specific model-and-hardware choice",
+  "observed": "The adjacent sentence carries an explicit [ASSUMPTION] label for the workload shape, but the three derived figures (2,000 registered users, 100/400 concurrency, 10 rps) carry no evidence label, even though they are the chapter's most consequential scenario inputs and are the numbers Chapter 4 and Chapter 17 depend on. The chapter's own labeling discipline is not applied here.",
+  "evidence": "§8: 'the workload is input-heavy (retrieved context dominates) [ASSUMPTION — validate in Ch 4's workload characterization]' followed by unlabeled '~2,000 registered users (~100 concurrent typical / ~400 at peak), ~10 requests/s'.",
+  "root_cause": "Labeling was applied to the sentence that introduces the workload shape but not to the numeric scenario parameters derived from it.",
+  "correction": "Label the derived figures with the chapter's provenance/status vocabulary, e.g. '~2,000 registered users, ~100 typical / ~400 peak concurrent, ~10 rps [canonical scenario][DERIVED from Ch 4]' or '[ASSUMPTION]' if they are not yet anchored in Ch 4.",
+  "acceptance_test": "Every numeric scenario parameter introduced in Ch 7 carries one of the book's defined evidence labels.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P3-14",
+  "severity": "P3",
+  "confidence": "low",
+  "page_hint": "Chapter 7, §1 'Unit basis (locked)' paragraph",
+  "chapter": "Ch 7",
+  "quoted_clause": "vendor 80 GB = 81,920 MiB ≈ 85.9×10^9 B",
+  "observed": "The 81,920 MiB figure is the value commonly reported for the A100 80 GB; the H100 SXM 80 GB is generally reported by nvidia-smi as a slightly smaller total (approximately 81,559 MiB). The direction and magnitude of the caveat are unaffected (both exceed 80×10^9 B), but the specific figure is presented as a vendor fact and should be checked against the H100 first-party documentation or nvidia-smi output before print. This is flagged as a verification item, not an asserted error.",
+  "evidence": "81,920 MiB = 85.899×10^9 B (arithmetic confirmed). The attribution of 81,920 MiB specifically to H100 was NOT VERIFIED in this pass.",
+  "root_cause": "A capacity figure carried over from a sibling product's documentation.",
+  "correction": "Verify the H100 80 GB reported total and usable capacity from a first-party source (NVIDIA H100 datasheet / nvidia-smi output) and cite it; if the reported total is not 81,920 MiB, print the correct value and keep the arithmetic (2×, 8×, budget, concurrency) consistent with it.",
+  "acceptance_test": "The MiB figure attributed to the H100 80 GB matches a cited first-party source, and the derived 171.8 GB / 687 GB figures are recomputed from that same source.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P3-15",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §6 'Architecture Consequence', opening sentence",
+  "chapter": "Ch 7",
+  "quoted_clause": "because unlike compute or bandwidth it cannot be moved by better kernels — it is fixed by weights + KV + (for training) optimizer state",
+  "observed": "The clause 'it is fixed by weights + KV' is contradicted by the chapter's own §3 (weight quantization changes the weights term; KV quantization changes the KV term) and by §6's next bullet ('KV cache quantization buys back memory'). The intended claim is narrower and stronger: the residency floor is not movable by kernels or scheduling, only by changing precision, architecture, or where the state lives. As written, a reader could conclude that quantization does not relieve the memory constraint — the opposite of the chapter's own conclusion.",
+  "evidence": "§6 bullet 2: 'KV cache quantization buys back memory, not compute ... dropping the 9.5K max residency from ~165 GB toward ~152 GB'; §3: MXFP4 weights reduce the weights term from 140 GB to 39.24 GB.",
+  "root_cause": "An absolute claim ('fixed by') was used where a conditional claim ('not movable by software optimization') was meant.",
+  "correction": "Rewrite as: 'because unlike compute or bandwidth it cannot be moved by better kernels or by scheduling — it is set by the model's weights, its KV state, and (for training) optimizer state, and can only be changed by changing precision, architecture, or where the state lives.'",
+  "acceptance_test": "The §6 opening sentence is consistent with §6's own quantization bullet and with §3's quantization worked example.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P3-16",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 7, §3 prose immediately after Fig 7.1",
+  "chapter": "Ch 7",
+  "quoted_clause": "Because GQA caches only one K/V per group (8 K/V per token) instead of one per query head (64 K/V per token), the per-token KV falls ~8×",
+  "observed": "The counts '8 K/V per token' and '64 K/V per token' are per layer, not per token for the model; the chapter's per-token constant is the per-layer count summed over 80 layers. A reader who takes '8 K/V per token' literally as the model's per-token KV count will misread the 8× ratio as applying to the whole-model figure rather than to the per-layer width.",
+  "evidence": "Per-layer KV width: full-MHA 2 × 8192 = 16,384 elements/token/layer; GQA 2 × 1024 = 2,048 elements/token/layer; ratio 8×; per-token (80 layers) 2,621,440 B vs 327,680 B.",
+  "root_cause": "Per-layer counts were stated with a per-token qualifier.",
+  "correction": "Write '8 K/V heads per layer (2,048 K/V elements per token per layer) instead of 64 (16,384 elements)'.",
+  "acceptance_test": "Every head/element count in Ch 7 carries its per-layer or per-token scope explicitly.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-P3-17",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chapter 7, §3 subsection 'A smaller-model counterexample: fit is a gate, not a prediction'",
+  "chapter": "Ch 7",
+  "quoted_clause": "Device capacities are first-party specifications (Intel Arc Pro B70 datasheet, B65 datasheet, Arc Pro B60 Data Sheet, retrieved 2026-10-28)",
+  "observed": "The subsection's arithmetic is correct and the lesson ('fit is a gate, not a prediction'; 'capacity and bandwidth answer different questions') is genuinely valuable, but it sits inside the canonical Worked Example between the GQA note and the Qwen hybrid-state example, and it introduces a second and third scenario (an 8B model, Intel client GPUs) that the chapter itself admits 'none of its constants feed the canonical tables in this chapter'. The placement interrupts the canonical worked-example flow that the section is supposed to deliver.",
+  "evidence": "The subsection's own text: 'This is a separate GQA example, not the handbook's canonical 70B attention layout, and none of its constants feed the canonical tables in this chapter.'",
+  "root_cause": "A transferable-method sidebar was placed inline in the middle of the chapter's primary worked example.",
+  "correction": "Either move it to the end of §3 as a clearly marked sidebar ('Transfer: the same fit test on a different geometry'), or move it to a later chapter that treats heterogeneous accelerators. Keep the 8B/Intel material out of the canonical worked-example flow so the canonical arithmetic reads as one uninterrupted derivation.",
+  "acceptance_test": "The canonical worked example in §3 can be read as a single continuous derivation from the per-token formula to the fit verdicts without interruption by a non-canonical scenario.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH8-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 8 §6, 'Architecture Consequence', bullet 2 (and §3 'Decode: bandwidth-bound')",
+  "chapter": "8",
+  "quoted_clause": "compute-bound decode needs batch ≈ 295, or quantized weights, which halve bytes and double intensity",
+  "observed": "The chapter states twice that quantized weights can move decode to the compute-bound side of the ridge. Three paragraphs later, in bullet 3 of the same section, it states the opposite: 'precision scaling moves intensity and ridge together (bytes halve → intensity doubles; peak doubles → ridge doubles), so FP8 alone does not change the classification.' The two statements cannot both hold.",
+  "evidence": "H100 dense FP8 peak = 1,979 TFLOPS (house convention, datasheet). FP8 ridge = 1,979 ÷ 3.35 TB/s ≈ 591 FLOP/byte, i.e. exactly 2× the FP16 ridge of ~295. Weight-only decode intensity with FP8 weights = 2b FLOP/byte (bytes halve, FLOPs unchanged). Compute-bound decode therefore still requires b ≈ 591/2 ≈ 295 — unchanged by quantization. The KV-inclusive asymptote also only doubles (164b/(70+24b) → 13.7 FLOP/byte), still ~43× below the FP8 ridge.",
+  "root_cause": "The 'quantization halves bytes' intuition was carried over from a regime where the ridge is held fixed (e.g. a fixed-precision roofline comparison), without re-deriving the ridge when the peak also changes. The chapter elsewhere is careful about this (the §3 KV caveat already shows the reader that the weight-only figure is only a first-order estimate), so the error is localized to the two 'or quantized weights' clauses.",
+  "correction": "Replace both occurrences with: 'compute-bound decode needs batch ≈ 295 at FP16 (weight-only first-order estimate); FP8 weights halve the bytes but also double the peak, so the ridge doubles to ≈591 FLOP/byte and the required batch is unchanged — quantization raises achieved bandwidth utilization at a given batch, it does not move the classification.' If the intent was to claim that quantization helps reach compute-bound decode, that claim must be withdrawn; if the intent was to note that quantization reduces the bytes needed to sustain a given throughput, say that instead.",
+  "acceptance_test": "Grep Ch 8 (and Chs 15/16/17/20/22) for 'quantized weights' near 'ridge' or 'compute-bound'; confirm no surviving sentence asserts that weight quantization alone changes the compute/memory-bound classification of decode, and that any FP8 ridge quoted for H100 is ≈591 FLOP/byte (H200 ≈412).",
+  "not_verified": "Whether Chs 15/16/17/20/22 repeat the same 'or quantized weights' clause; those chapters were not in this chunk.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ }
+]

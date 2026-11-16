@@ -124,8 +124,8 @@ plt.close()
 print('wrote fig-07-0701')
 
 # ---- fig-07-0702: Inference vs fine-tuning memory floor ----
-labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+opt)', 'QLoRA\n(weights+KV+adapters)']
-vals = [165, 1120, 60]
+labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+opt)', 'QLoRA\n(4-bit base+adapters+opt)']
+vals = [165, 1120, 36]
 fig, ax = plt.subplots(figsize=(6.1, 4.9))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
 bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'],
@@ -156,7 +156,7 @@ fig.text(0.5, 0.01,
          'Each bar is a conditional floor (weights + the listed states), not a full deployment config.\n'
          'Full fine-tune: FP16 weights + FP16 grads + Adam m/v/master (~16 B/param).\n'
          'Activation, microbatch/sequence, and offload/checkpointing are NOT included (Table 7-2).\n'
-         'QLoRA: 4-bit (NF4) base 35 GB + KV 24 GB + LoRA adapters/optimizer ~1 GB.\n'
+         'QLoRA: 4-bit (NF4) base 35 GB + LoRA adapters/optimizer ~1 GB (no inference KV in a training step).\n'
          'Specific adapter-rank value, activation memory, and offload/checkpointing are NOT included (Table 7-2).',
          fontsize=8.2, color='#555', ha='center', va='bottom', linespacing=1.5)
 # v9 review: all three host rules shared one dash pattern, so they were
@@ -198,7 +198,7 @@ ax.text(1, 1255, 'full fine-tune exceeds an 8×H100 host:\nneeds multi-node or o
 # came within 0.5 pt of the right spine - it read as clipping.  Inset to x=1.9
 # (still above the QLoRA bar, still 23 pt right of the red bar) for 13.3 pt of
 # halo clearance to the frame.
-ax.annotate('QLoRA fits a single H100', xy=(2, 64), xytext=(1.9, 300),
+ax.annotate('QLoRA fits a single H100', xy=(2, 40), xytext=(1.9, 300),
             fontsize=8.5, color='#3d6e35', ha='center',
             bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none', alpha=0.9),
             arrowprops=dict(arrowstyle='->', color='#3d6e35'))

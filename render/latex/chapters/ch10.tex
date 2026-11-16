@@ -99,30 +99,36 @@ job is deciding which dimension to split first, and in which mode
 so the in-figure color key (blue = weights · orange = GPU · green = data
 · red = comms) is redundant, not load-bearing.}
 
+\textbf{FIGURE 10.1: Three parallelism patterns, one per panel} ---
+tensor parallel shards one layer's weights, pipeline parallel splits the
+layer stack into stages with an idle bubble at fill/drain, and data
+parallel replicates the model while splitting the batch. Each panel
+names what splits and what communicates. \mbox{{[}ILLUSTRATIVE{]}}
+
 The strategies are not either/or. \hyperref[fig:10.1]{Fig 10.1} shows the three canonical
 patterns in three stacked panels. \textbf{Tensor parallel} shards one
 layer's weight matrix across GPUs --- activations are replicated, and
-each GPU's partial sums are all-reduced at layer-level dependencies in
-the illustrated layout. Those frequent exchanges make measured
-collective latency and throughput margin important. \textbf{Pipeline
-parallel} cuts the layer stack into stages on different GPUs --- hidden
-states cross stage boundaries point-to-point, an idle bubble appears as
-the pipeline fills and drains, and the communication can span nodes if
-the stage-boundary transfer meets its budget. \textbf{Data parallel}
-replicates the whole model and splits the batch --- in training every
-replica all-reduces its gradient each step; in inference the replicas
-are independent, each serving a disjoint slice of requests with no sync
-at all. Expert and sequence parallelism (EP/CP) are additional axes that
-reuse the same machinery. \textbf{Communication-specificity note:} the
-TP collective is \emph{algorithm-dependent} --- a plain all-reduce of
-partial sums is one option, but fused kernels often use reduce-scatter +
-all-gather (or a single all-reduce) depending on the framework; the PP
-bubble size depends on \emph{microbatch scheduling} (more microbatches
-shrink the bubble but add memory). The panels show the canonical
-configuration (TP all-reduce per layer; PP with a small fixed microbatch
-count; GPU counts and layer ranges schematic); substitute the actual
-collective and schedule for the target stack. Which dimension binds
-determines which to split first.
+each GPU's partial sums are all-reduced every layer in the illustrated
+layout. Those frequent exchanges make measured collective latency and
+throughput margin important. \textbf{Pipeline parallel} cuts the layer
+stack into stages on different GPUs --- hidden states cross stage
+boundaries point-to-point, an idle bubble appears as the pipeline fills
+and drains, and the communication can span nodes if the stage-boundary
+transfer meets its budget. \textbf{Data parallel} replicates the whole
+model and splits the batch --- in training every replica all-reduces its
+gradient each step; in inference the replicas are independent, each
+serving a disjoint slice of requests with no sync at all. Expert and
+sequence parallelism (EP/CP) are additional axes that reuse the same
+machinery. \textbf{Communication-specificity note:} the TP collective is
+\emph{algorithm-dependent} --- a plain all-reduce of partial sums is one
+option, but fused kernels often use reduce-scatter + all-gather (or a
+single all-reduce) depending on the framework; the PP bubble size
+depends on \emph{micro-batch scheduling} (more micro-batches shrink the
+bubble but add memory). The panels show the canonical configuration (TP
+all-reduce per layer; PP with a small fixed micro-batch count; GPU
+counts and layer ranges schematic); substitute the actual collective and
+schedule for the target stack. Which dimension binds determines which to
+split first.
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -139,11 +145,14 @@ devices must fit its state.
 The useful mental model is a \textbf{resource triangle}: we have weights
 (memory), activations (work), and data (batch). Each strategy moves one
 corner off a single GPU at the cost of communication. When a GPU runs
-out of \emph{memory}, we reach for TP/PP (weight splitting). When a GPU
-is \emph{idle} waiting, we reach for DP (more work per GPU); CP
-addresses long-sequence/KV capacity, not idle-fill. When the model is
-\emph{too big to replicate}, TP wins over DP. The binding constraint
-chooses the strategy.
+out of \emph{memory}, we reach for TP/PP (weight splitting). When
+aggregate throughput, not memory, is the limit --- the data corner is
+what is starved --- we reach for DP (more replicas, each with its own
+batch); CP addresses long-sequence/KV capacity, not idle-fill. DP does
+not create work for an idle GPU, and if the device is idle for lack of
+arrivals, DP makes it idler. When the model is \emph{too big to
+replicate}, TP wins over DP. The binding constraint chooses the
+strategy.
 
 \subsubsection{Table 10-1 --- Parallelism strategies at a
 glance}\label{table-10-1-parallelism-strategies-at-a-glance}
@@ -362,19 +371,22 @@ sends its gradient tensor once per step. The gradient bytes are
 \text{grad bytes} = N_\text{params} \times \text{bytes/param} = 70 \times 10^9 \times 4 \text{ B} \approx 280 \text{ GB}
 \]
 
-per step (FP32 gradient; the all-reduce moves the gradient once, not
-weights+gradients). As in \hyperref[chap:9]{Chapter 9}, a ring all-reduce moves
-\(2\frac{N-1}{N}\) times the per-rank gradient through each rank, so for
-\(N=8\) the per-rank \textbf{send} volume is
-\(\frac{N-1}{N} \times 280 \approx 245\) GB and the send-plus-receive
-total is \(1.75 \times 280 \approx 490\) GB; here and in \hyperref[chap:9]{Chapter 9},
+per step (FP32 gradients are used here as a conservative communication
+model; mixed-precision implementations that sync FP16/BF16 gradients
+with loss scaling or FP32 master weights would halve these bytes; the
+all-reduce moves the gradient once, not weights+gradients). As in
+\hyperref[chap:9]{Chapter 9}, a ring all-reduce moves \(2\frac{N-1}{N}\) times the per-rank
+gradient through each rank, so for \(N=8\) each of the two phases sends
+\(\frac{N-1}{N} \times 280 \approx 245\) GB per rank, and the per-rank
+\textbf{send} volume is 2 × 245 ≈ \textbf{490 GB} (490 GB received as
+well, so 980 GB of send-plus-receive traffic); here and in \hyperref[chap:9]{Chapter 9},
 \emph{per-rank traffic} means send volume unless stated otherwise, and
 the sync time is \(T_\text{ring} = \text{send volume} / B_\text{dir}\)
 with \(B_\text{dir}\) the directional bandwidth. At 25 GB/s (single
-200Gb/s link) that is \texttt{245\ /\ 25\ ≈\ 9.8\ s} per step --- far
+200Gb/s link) that is \texttt{490\ /\ 25\ ≈\ 19.6\ s} per step --- far
 too slow if the step takes \textasciitilde1 s. At the H100 NVLink
 directional peak of 450 GB/s, the same ideal ring estimate is
-\texttt{245/450\ ≈\ 0.54\ s} (equivalently, 490 GB of sent-plus-received
+\texttt{490/450\ ≈\ 1.09\ s} (equivalently, 980 GB of send-plus-receive
 traffic divided by the 900 GB/s bidirectional sum gives the same time).
 The 900 GB/s bidirectional sum divides only that send-plus-receive
 total, never a send-only count; this remains a communication model, not
@@ -622,5 +634,7 @@ the DP gradient-sync (if fine-tuning) stays under \textasciitilde20\%
 EP × TP configuration whose binding constraints (memory across nodes +
 expert routing) are each addressed by the strategy that trades the right
 bandwidth. Moving the cross-node decomposition from TP to PP cuts TPOT
-from 80 ms to 35 ms \mbox{{[}ILLUSTRATIVE{]}}, and the team's ``parallelism is
-slow'' becomes a precise, diagnosed, and fixed split.
+from 80 ms to 38 ms \mbox{{[}ILLUSTRATIVE{]}}, with \textasciitilde3 ms of the
+residual being PP stage-boundary and bubble cost under the chosen \(P\)
+and \(m\), and the team's ``parallelism is slow'' becomes a precise,
+diagnosed, and fixed split.

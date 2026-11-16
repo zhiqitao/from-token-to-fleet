@@ -1,0 +1,361 @@
+[
+ {
+  "id": "CH17-07",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §8 (Mini-Case, 'Decision') vs §6 ('Load-balancer selection and configuration')",
+  "chapter": "17",
+  "quoted_clause": "§8: \"The proposed design uses NGINX with consistent hashing for session affinity and OpenTelemetry tracing on each host.\"  §6: \"(b) if stateless, use least-connections or power-of-two-choices so load follows capacity — do not use consistent hashing.\"",
+  "observed": "The mini-case's design decision selects consistent hashing for session affinity, which the chapter explicitly forbids for stateless routing. The canonical workload is stateless: §3 states 'In the canonical scenario, requests are independent — no user session spans multiple hosts', and §2 states that stateless routing gives even distribution. The decision therefore adopts the option the chapter rules out, without stating a session-affinity requirement that would justify it.",
+  "evidence": "§3: 'Cross-host communication. In the canonical scenario, requests are independent — no user session spans multiple hosts.' §2: 'If sessions are stateless ... any host can serve any request, and load distribution becomes even.' §6: 'do not use consistent hashing' for the stateless case.",
+  "root_cause": "The mini-case's decision line appears to have been written from a generic 'production design' template rather than from the chapter's own routing rule; the session-affinity requirement is never established for the scenario.",
+  "correction": "Either (a) change the decision to least-connections / power-of-two-choices and state that the canonical workload is stateless, or (b) establish in the scenario that sessions must be sticky (e.g. multi-turn conversations with retained KV), and then justify consistent hashing against the §2 density-vs-evenness trade-off and the §5 mistake #2 skew analysis. If (b), the fleet sizing must also account for the reduced effective parallelism that affinity implies.",
+  "acceptance_test": "The mini-case's LB choice is consistent with §6's routing rule given an explicitly stated session model; if affinity is chosen, the chapter states the affinity requirement and its capacity consequence.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §4 (heading and opening paragraph)",
+  "chapter": "17",
+  "quoted_clause": "\"## 4. Measurement\"  ...  \"We derive three planning quantities from the worked example and Chapter 19's illustrative turn-count distribution. These are not measurements from production traffic. A deployment must measure its own traffic distribution before using these quantities for provisioning.\"",
+  "observed": "The section is titled 'Measurement' but contains no measurement: it opens by stating that its contents are not measurements, and the section actually contains (i) four KV-capacity derivations, (ii) a four-rate reconciliation box, (iii) a five-symbol time-budget table, (iv) a network budget, (v) two counter-scenarios, and (vi) a feasibility check. The opening claim of 'three planning quantities' is also inaccurate. A reader scanning headings will expect measured data and instead find derivations, and the section's role in the book's causal chain (derivation → what must be measured) is obscured.",
+  "evidence": "Section 4 subsections: 'Per-host throughput and KV cache budget', 'Load-balancer overhead factor', 'Cross-host interconnect budget', 'Request traffic and model collectives are different populations', 'Counter-scenarios: KV is not always the driver', 'Simultaneous feasibility check (prefill + decode coexistence)'. The only measurement content in the chapter is deferred to Ch 14 ('Before treating 2 req/s/host as deployable, measure the p95 TTFT, p95 TPOT, and SLO-goodput on a representative host (Chapter 14)').",
+  "root_cause": "The section was renamed to 'Measurement' to signal rigour, but its content is analytical; the honest framing (derivation with an explicit measurement agenda) was lost.",
+  "correction": "Rename to 'Derivation and the measurement agenda' (or 'Planning quantities and what must be measured'), and add a short closing subsection listing the specific telemetry the chapter says must be collected (per-host resident-sequence count, measured W_KV-resident distribution, p95/p99 TTFT and TPOT, SLO-goodput, measured ρ, measured φ and D) with the Ch 14 reference for each. Correct 'three planning quantities' to match the actual content.",
+  "acceptance_test": "No section heading in Ch 17 promises measurement where the content is derivation; the section's opening sentence enumerates the quantities it actually produces; a reader can list every measurement the chapter says is required before the counts are trusted.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §3 ('Viability at peak' and 'Scaling forecast (service-time-aware)')",
+  "chapter": "17",
+  "quoted_clause": "'Viability at peak': \"Peak traffic is 40 rps; with the canonical ~8.6 s per-request service time ... Little's Law puts ≈ 40 × 8.6 ≈ **344 requests in flight**, against a KV capacity of ~17.5 per host (conservative integer floor 17). **A single host is not viable at peak even for the non-agentic canonical workload** — the fleet needs roughly ⌈344/17⌉ = **21 hosts** at 40 rps (**31 working hosts** at the 70% × 95% provisioning policy, **32 total with N−1** — Table 17-1)\"  'Scaling forecast (service-time-aware)': \"the in-flight concurrency at the 40 rps peak ... is λ_peak × W ≈ 40 × 8.6 ≈ **344 requests**, not 40. With FP16 KV (baseline C≈17.5, conservative integer floor 17), the fleet needs ⌈344/17⌉ = **21 hosts** at full utilization (**31** at the 70% × 95% provisioning policy, **32 total with N−1** — Table 17-1).\"",
+  "observed": "Two adjacent paragraphs in §3 derive the identical quantity (344 in flight; 21 / 31 / 32 hosts) with the same inputs and the same formula, differing only in wording. The second adds no new computation, no new assumption, and no new consequence; it re-states the first with a 'not 40' emphasis. This is redundant repetition (class C), not reinforcement, and it sits in the chapter's most-read section.",
+  "evidence": "Both paragraphs use λ_peak = 40 rps, W = 8.6 s, C = 17 (floor), u = 0.70, ρ = 0.95, N_spare = 1, and cite Table 17-1. The only content unique to the second paragraph is the qualitative statement that agentic turns make it worse, which the preceding 'Threshold for fleet expansion' subsection has already established.",
+  "root_cause": "The 'Scaling forecast' paragraph was added when the service-time-aware framing was introduced, without deleting the earlier 'Viability at peak' paragraph that already carried the same arithmetic.",
+  "correction": "Merge the two into one paragraph that (i) states the 344 in-flight figure, (ii) states the 21/31/32 counts, and (iii) states the agentic direction of travel once, with a forward pointer to §8 for the agentic numbers. Keep the 'not 40' emphasis as a single clause.",
+  "acceptance_test": "No two paragraphs in Ch 17 §3 derive the same host count from the same inputs; a reader encountering 344/21/31/32 in §3 encounters it once.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-10",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 17 §8 (Mini-Case, 'Initial sizing analysis')",
+  "chapter": "17",
+  "quoted_clause": "\"These are the honest arithmetic bounds the full service-time model produces — the naive '1–5 hosts' rps estimate — never tied to a traffic level — is off by ~16–205× (82 hosts ÷ 5 ≈ 16.4 at the 40-rps peak; 205 ÷ 1 = 205 at the 100-rps peak; each ratio is per its own traffic point)\"",
+  "observed": "The '1–5 hosts' baseline is never derived anywhere in the chapter, and the two ratios use two different denominators (5 at 40 rps, 1 at 100 rps) with no stated basis for either. The parenthetical's 'each ratio is per its own traffic point' does not repair this: the denominator is the thing that changes, not the traffic point. As written, the comparison is not reproducible and reads as a rhetorical amplification of the chapter's own result.",
+  "evidence": "No occurrence of a '1–5 host' estimate appears in §1–§7 of the chunk. The two ratios are 82/5 = 16.4 and 205/1 = 205; a single consistent baseline (e.g. the same naive estimate at both traffic points) would give 82/x and 205/x, whose ratio is 2.5, matching the traffic ratio 100/40 = 2.5.",
+  "root_cause": "The comparison was constructed rhetorically after the fact rather than from a stated baseline model, and the two denominators were chosen to widen the range.",
+  "correction": "Either derive the naive baseline explicitly (e.g. 'a naive sizing that equates peak rps with per-host capacity gives ⌈40/2.0⌉ = 20 hosts at 40 rps and ⌈100/2.0⌉ = 50 hosts at 100 rps — under-sizing by 4× and 4× respectively') or delete the ratio and keep only the qualitative statement that an rps-only estimate under-sizes by roughly the service-time factor. If a range is retained, use one denominator per traffic point derived from the same naive rule.",
+  "acceptance_test": "Every ratio quoted in Ch 17 §8 has both operands derivable from text in the chapter; the naive baseline, if used, is stated once as a rule and applied identically at each traffic point.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-11",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §8 (Mini-Case, 'Initial sizing analysis') vs Ch 19 references",
+  "chapter": "17",
+  "quoted_clause": "\"The tool leg here uses the ~133 ms/turn tool/retrieval rate; Chapter 19's `T·L_agent` (~660 ms at T=3) is the *orchestration-only* incremental overhead at a different per-turn rate, and a single model should use one rate consistently.\"",
+  "observed": "The chapter acknowledges that two different per-turn tool/orchestration rates are in play (0.133 s/turn here vs 0.22 s/turn implied by Ch 19's T·L_agent ≈ 660 ms at T=3) and states that 'a single model should use one rate consistently' — i.e. it identifies a defect in the book's own model and leaves it in place. The two rates differ by ~65%, and the tool term is ~2% of W(3) = 17.70 s, so the numerical impact on the fleet counts is small; the impact on the book's coherence is not: the same agentic scenario is costed with two different orchestration rates in two chapters.",
+  "evidence": "Ch 19's T·L_agent ≈ 660 ms at T=3 → 220 ms/turn. Ch 17's evaluator uses 3 × 0.133 = 0.399 s → 133 ms/turn. Ratio 1.65. The chapter's own W(3) = 17.70 s is built on the 133 ms rate; substituting 220 ms/turn gives W(3) ≈ 18.03 s, in-flight 1,803 at 100 rps, N = ⌈1,803/8.645⌉ = 209 (vs 205) — a ~2% change, confirming the numerical stakes are low but the modelling inconsistency is real.",
+  "root_cause": "Ch 17's evaluator script and Ch 19's β(T) model were parameterised independently; the discrepancy was documented rather than reconciled.",
+  "correction": "Reconcile in one place: state the canonical per-turn tool/retrieval rate (and whether it includes orchestration), and have both Ch 17's evaluator and Ch 19's β(T) reference it. If the two quantities are genuinely different (retrieval service time vs orchestration overhead), say so explicitly and state which one enters W_KV-resident and which enters W_e2e, then show the effect on W(3) (≈ +0.33 s, ≈ +2% on the host count).",
+  "acceptance_test": "A single per-turn tool/retrieval rate is used wherever an agentic service time is computed in Ch 17 and Ch 19, or the two rates are explicitly distinguished with their separate roles and their numeric effect on W stated.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-12",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §2 (Mental Model) vs §4 ('Request traffic and model collectives are different populations')",
+  "chapter": "17",
+  "quoted_clause": "§2: \"Each backend host runs an identical copy of the model and serves requests independently.\"  §4: \"A distributed model introduces different events. Tensor-parallel participants exchange partial results at layer boundaries; expert-parallel participants dispatch and combine routed tokens.\"",
+  "observed": "The chapter's mental model — the frame through which the reader is meant to understand everything that follows — assumes a fleet of independent, identical model replicas. The chapter then introduces collectives (TP/EP) that only exist when a single model spans multiple hosts, without reconciling that topology with the mental model. The reader is never told which fleet topology the canonical 21/31/32 counts assume (replica-per-host) or how a TP-spanning-host fleet would change the sizing arithmetic (the KV screen, the per-host C, and the load-balancer model all change).",
+  "evidence": "§2's two invariants (throughput ≈ N × per-host; memory = N × per-host) hold only for the replica-per-host topology. §4's collective paragraph explicitly notes that collectives 'follow the actual TP or EP communication group and execution schedule, not the total number of serving hosts', which is incompatible with the §2 frame unless the topology is fixed. The canonical host is 8×H100, so TP=8 is already inside the host; the chapter never states whether the fleet's TP group is confined to a host.",
+  "root_cause": "The mental model was written for the simple replica fleet and the collectives paragraph was added later as a caveat, without extending the model.",
+  "correction": "State the topology assumption explicitly in §2 ('the canonical fleet is replica-per-host: each 8×H100 host holds one complete TP=8 model; no TP group crosses a host boundary') and add one sentence in §4 explaining what changes if a TP group does cross hosts (the per-host C and the load-balancer's role change; the KV screen becomes a per-group screen; collectives enter the critical path). This also gives the reader the transfer rule for a future disaggregated-serving topology.",
+  "acceptance_test": "The fleet topology (replica-per-host vs model-spanning) is stated once in §2 and referenced wherever host counts are derived; §4's collective paragraph opens by naming the topology it applies to.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-13",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §8 (Mini-Case, 'KV compression changes the answer' and 'Decision') vs §7 (last bullet)",
+  "chapter": "17",
+  "quoted_clause": "§8: \"under the 100%-reuse point it is **79 + 1 = 80**\" ... \"the reuse columns are the 100%-reuse point and no intermediate saving is assumed.\"  §7: \"can a fleet-wide prefix cache (same-model, same-prefix hits only) or retrieval cache reduce the effective δ per request? The savings could be substantial but require cross-host cache-invalidation protocols for that prefix/retrieval cache, which are not yet well understood.\"",
+  "observed": "The reuse column of Table 17-2 (66 / 164 / 328 hosts FP16; 32 / 79 / 158 hosts FP8) is presented as a usable sizing alternative, but the mechanism it depends on — a fleet-wide prefix cache with cross-host invalidation — is listed in the same chapter as not yet well understood. The chapter therefore offers a 100%-reuse operating point whose enabling mechanism is unresolved, without marking the reuse rows as conditional on an unproven capability.",
+  "evidence": "§7: 'cross-host cache-invalidation protocols ... are not yet well understood'. §8: 'Prefix caching can reduce repeated prefill work and share identical cached prefixes when the engine supports that representation.' The reuse rows also assume 100% hit rate, which the chapter elsewhere refuses to assume for any other parameter (e.g. it refuses to assume an intermediate prefix hit ratio but does assume the extreme one).",
+  "root_cause": "The reuse scenario was computed from the evaluator's declared 100%-reuse case without carrying the §7 caveat into the table's scope note.",
+  "correction": "Mark the reuse rows in Table 17-2 as conditional: 'requires a fleet-wide shared prefix cache with cross-host invalidation semantics that the book treats as unresolved (§7); the 100% hit rate is the evaluator's declared extreme case, not an expected operating point'. Consider adding one intermediate hit-rate row (e.g. 50%) to show the sensitivity, or state that the reuse column is a bound rather than a plan.",
+  "acceptance_test": "Table 17-2's reuse rows carry a scope note naming the unresolved mechanism and the extreme hit-rate assumption; the mini-case's 'Decision' paragraph does not present the reuse count as an available alternative without that qualification.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-14",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 17 §4 (five-time-symbol table, row W_e2e)",
+  "chapter": "17",
+  "quoted_clause": "| $W_{\\mathrm{e2e}}$ (end-to-end) | the **full service time** as the user experiences it: queue + GPU execution + tool/orchestration + inter-turn gaps | ≈ 10 s planning round for the canonical non-agentic round; grows with turns | λ·W_e2e — requests in flight (user view) |",
+  "observed": "The canonical non-agentic request has no tool or orchestration leg (the chapter's own §3 says the canonical request is 'the non-agentic canonical request'), so the 10 s figure is unexplained by the definition given in the same row. The 1.4 s difference from W_GPU-exec = 8.6 s is never attributed to a component, and the table's W_queue row says queue time is 'unmeasured here'. The reader cannot tell whether the 10 s includes an assumed 1.4 s of queueing, an orchestration allowance, or a rounding of a Ch 4 planning round.",
+  "evidence": "Table row W_GPU-exec: '≈ 8.6 s (1.08 s prefill + 7.5 s decode, canonical 9.2K/300)'. Table row W_queue: 'unmeasured here'. §4 prose: 'The end-to-end time ($W_{\\mathrm{e2e}}$ ≈ 10 s planning round, the quantity earlier drafts labeled W_plan) is the workload-level Little's-law basis used to derive the arrival rate from the population (Chapter 4)'. The 10 s figure is used in the chapter only to distinguish populations, but it is the one number in the table with no derivation.",
+  "root_cause": "The 10 s value was inherited from Ch 4's planning round without decomposing it against the chapter's own five-symbol taxonomy, and the taxonomy was introduced later.",
+  "correction": "Decompose the 10 s explicitly (e.g. '8.6 s GPU execution + ~1.4 s of queueing and orchestration allowance carried from the Ch 4 planning round') or replace the cell with '≈ 8.6 s + queue/orchestration allowance (Ch 4 planning round: 10 s)'. Also remove the meta-reference to 'earlier drafts', which does not belong in a published book.",
+  "acceptance_test": "Every value in the five-symbol table is either derived in Ch 17 or attributed to a named chapter with its composition stated; no cell contains a number whose components cannot be enumerated.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH17-15",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §4 ('Load-balancer overhead factor')",
+  "chapter": "17",
+  "quoted_clause": "\"In the worked example, the fleet is currently sized by KV capacity (§17.3), not by a fabricated tokens/s number: at T = 3 (the 95th-percentile sizing point, per the chapter's own rule), FP16-KV C ≈ 13.8/host (436 GB ÷ (12,095 × 2.62 MB ≈ 31.7 GB) ≈ 13.8; conservative integer floor 13) sets the continuous ceiling.\"",
+  "observed": "The §4 LB subsection silently switches the sizing point from T=0 (the canonical non-agentic case used for the 21/31/32 headline counts in §3) to T=3, and calls T=3 'the chapter's own rule'. The chapter's own rule (F-01) is the opposite: Little's Law needs the distribution-weighted mean, and the T=3 cohort is explicitly labelled a stress bound. The subsection also says the fleet 'is currently sized by KV capacity (§17.3)', but §3's sizing is at T=0, not T=3.",
+  "evidence": "§3: 'the fleet needs roughly ⌈344/17⌉ = **21 hosts** ... **31 working hosts** ... **32 total with N−1**' (T=0, C=17). §4 LB subsection: 'at T = 3 ... C ≈ 13.8/host ... floor 13' and 'C × u × ρ = 13 × 0.70 × 0.95 = 8.645'. F-01: 'Little's Law needs the **mean** E[W_KV-resident]; a percentile substituted into a mean equality yields a stress bound, not a measured/typical population.'",
+  "root_cause": "The LB subsection was written against the agentic sizing point (from §8) and pasted into §4 without reconciling with §3's canonical T=0 sizing or with F-01.",
+  "correction": "State which sizing point the LB subsection is illustrating and why (e.g. 'the agentic T=3 stress point of §8, where the effective slot count is 8.645'), and remove 'per the chapter's own rule'. If the intent is to illustrate the canonical case, use C = 17 and 11.305 and cross-reference §3.",
+  "acceptance_test": "Every C value used in Ch 17 §4 is labelled with its turn-count point (T=0 or T=3) and its source; no sentence calls the 95th-percentile point 'the chapter's own rule'.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-16",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 17 §4 ('Per-host throughput and KV cache budget', bullet list)",
+  "chapter": "17",
+  "quoted_clause": "\"For T = 0 (baseline, I = 9,500): C = 436 GB / (9,500 ×2.62 MB) ≈ 436/24.9037 ≈ **17.5 concurrent requests per host** (byte-accurate; floor 17 — rounding rule in §17.3).\"",
+  "observed": "The printed substitution does not produce the printed divisor: 9,500 × 2.62 MB = 24,890 MB = 24.89 GB, not 24.9037 GB. The divisor 24.9037 comes from the byte-accurate κ = 2,621,440 B. The same pattern recurs for the other three rows (10,365 × 2.62 = 27.156 vs printed 27.17; 12,095 × 2.62 = 31.689 vs printed 31.71; 12,960 × 2.62 = 33.955 vs printed 33.97). The results are unaffected, but a reader who checks the substitution will find the printed arithmetic does not close.",
+  "evidence": "κ byte-accurate = 2 × 80 × 8,192 × 2 = 2,621,440 B = 2.62144 MB. 9,500 × 2.62144 MB = 24,903.68 MB = 24.9037 GB ✓. 9,500 × 2.62 MB = 24,890 MB = 24.89 GB ✗. Same for the other rows (27.171 / 29.438 / 31.705 / 33.974 byte-accurate).",
+  "root_cause": "The bullets were written with the rounded κ in the formula slot and the byte-accurate product in the numeric slot.",
+  "correction": "Use one κ consistently in the substitution: write '9,500 × 2.62144 MB ≈ 24.9037 GB' (and 27.171 / 31.705 / 33.974 for the other rows), or state 'κ ≈ 2.62 MB/token (2.62144 MB byte-accurate)' and show the byte-accurate products.",
+  "acceptance_test": "Every printed divisor in Ch 17 §4's bullet list is reproducible from the printed multiplicand and the stated κ to the printed precision.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-17",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 17 §8 (Mini-Case, 'Initial sizing analysis')",
+  "chapter": "17",
+  "quoted_clause": "\"under **100% prefix reuse** only the incremental 11,795-token prefix is pre-filled, giving W(3) ≈ **14.16 s**\"",
+  "observed": "11,795 tokens is the *final* context length (I(3) = 9,200 + 3×865 + 300), not an incremental quantity. The incremental amount beyond the cached 9,200-token prefix is 2,595 tokens. The arithmetic is correct (11,795/9,200 × 1.08 = 1.385 s of prefill), but the label 'incremental' inverts the meaning and would mislead a reader who tries to reuse the sentence as a method.",
+  "evidence": "§8: 'the T=3 trace has four model calls (inputs 9,200 + 10,065 + 10,930 + 11,795 = 41,990)'. Under 100% prefix reuse the first three calls' prefills are skipped and only the final call's 11,795-token input is prefilled: 11,795/9,200 × 1.08 = 1.3846 s; W = 1.3846 + 0.025×495 + 3×0.133 = 14.16 s ✓.",
+  "root_cause": "Terminology slip: 'incremental' was used to mean 'the last call's input' rather than 'the newly appended tokens'.",
+  "correction": "Rewrite as 'under 100% prefix reuse only the final call's 11,795-token context is prefilled (the 9,200-token prefix is served from cache), giving W(3) ≈ 14.16 s', and add the incremental figure (2,595 tokens) where the delta is meant.",
+  "acceptance_test": "The word 'incremental' is not applied to a full context length anywhere in Ch 17; the reuse computation states which call's input is prefilled and which is cached.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-18",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 17 §8 (Mini-Case, 'Decision')",
+  "chapter": "17",
+  "quoted_clause": "\"With the illustrative φ = 0.05 — halved from §17.6's φ = 0.1 to model a lower cross-host fraction at the grown 100-rps traffic\"",
+  "observed": "φ = 0.1 is introduced in §4 ('Cross-host interconnect budget'), not §6; §6 restates it in the 'Cross-host data infrastructure' paragraph. The cross-reference points at the wrong section for the definition.",
+  "evidence": "§4: 'If a fraction φ of requests require cross-host data ... B_agg = φ · λ · D = 0.1 × 40 × 5 MB = 20 MB/s'. §6: 'The minimum bandwidth is B_min = φ · λ · D (the fleet aggregate derived in §17.4.4 ...)'. §8 refers to '§17.6's φ = 0.1'.",
+  "root_cause": "Section renumbering between drafts; the §17.4.4-style sub-section references elsewhere in the chapter (§6, §8) suggest the chapter once had numbered subsections that no longer exist.",
+  "correction": "Point to §4 ('Cross-host interconnect budget') for the definition of φ, and audit the chapter's other sub-section references ('§17.4.4', '§17.3', '§17.4', '§17.6', '§17.8') against the current section structure — several refer to subsections that no longer exist as headings.",
+  "acceptance_test": "Every §-reference in Ch 17 resolves to a heading that exists in the current chapter; the definition of φ is cited from the section that defines it.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-19",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 17 §4 (sensitivity band in the 'At the canonical peak' bullet)",
+  "chapter": "17",
+  "quoted_clause": "\"at the weights-only floor 5.2 ms/step (B → 0, no KV reads) W ≈ 2.6 s (in-flight ≈ 106, ~7 hosts at full util)\"",
+  "observed": "B → 0 is not a physically realizable operating point: a decode step always reads the KV of at least the sequence being decoded. The label 'weights-only floor' is correct, but the parenthetical '(B → 0, no KV reads)' presents a non-physical limit as if it were a scenario, and the derived W ≈ 2.6 s / ~7 hosts inherits that status. A reader could quote '~7 hosts' as a legitimate sizing option.",
+  "evidence": "The floor is correctly derived as 140 GB ÷ 26.8 TB/s = 5.22 ms, and the sensitivity band is otherwise sound (21 ms → W 7.4 s → 295 → 18 hosts; 25 ms → 8.6 s → 344 → 21; 40 ms → 13.1 s → 523 → 31). Only the B → 0 endpoint is unreachable.",
+  "root_cause": "The band was constructed as a bracket of the step time and the lower endpoint was not checked for physical realizability.",
+  "correction": "Mark the 5.2 ms endpoint explicitly as a non-physical lower bound ('B = 1, i.e. the KV of a single sequence is still read; the true floor is 5.2 ms + one sequence's KV read'), and state that the realizable minimum step time is bounded below by the weights read plus at least one sequence's KV.",
+  "acceptance_test": "Every point in the sensitivity band is labeled either as a realizable operating point or as a mathematical bound, and the realizable lower bound is stated.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-20",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 17 §4 (sensitivity band) vs §3/§6 headline counts",
+  "chapter": "17",
+  "quoted_clause": "\"at the 40 ms TPOT SLO pole W ≈ 13.1 s (in-flight ≈ 523, ~31 hosts on the KV screen). Sizing at the 25 ms budget is a tighter internal target than the 40 ms SLO pole, so name the sizing pole once and state it once: sizing at the SLO pole gives ~31 hosts\"",
+  "observed": "The number 31 is used in the chapter for two unrelated quantities: 31 hosts at full utilization on the 40 ms SLO pole, and 31 *working* hosts at the 70% × 95% policy on the 25 ms budget pole. The chapter's own instruction ('name the sizing pole once and state it once') is not followed, and the coincidence makes the two easy to conflate — a reader could conclude that the policy-sized fleet is the same as the SLO-pole-sized fleet.",
+  "evidence": "§4 bullet: '⌈344/17⌉ = **21 hosts** (**31 working** at the 70% × 95% policy, **32 total with N−1**)'. Sensitivity band: '~31 hosts on the KV screen' at the 40 ms pole (523/17 = 30.8 → 31, full utilization, no u/ρ, no spare).",
+  "root_cause": "Two independent derivations coincidentally produce 31, and the chapter does not flag the collision even though it flags two other coincidences (29 and 32) elsewhere.",
+  "correction": "Either state the collision explicitly ('note that the SLO-pole full-utilization count (31) coincidentally equals the policy working count at the 25 ms pole — different quantities') or change the sensitivity band's presentation to give the policy-level count at the 40 ms pole (⌈523/11.305⌉ = 47 working) so the two are not confusable.",
+  "acceptance_test": "Every host count in Ch 17 is accompanied by its pole (25 ms budget vs 40 ms SLO), its utilization treatment (full vs u×ρ), and its spare treatment; coincidentally equal counts are flagged where they occur.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH17-21",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Fig 17.1 caption",
+  "chapter": "17",
+  "quoted_clause": "\"**Scope:** every capacity line is an **ideal ρ = 1 analytical service ceiling — no SLO claim**; the same formula gives N_min = ceil(40 × 8.6 / 17) = 21 for the canonical peak, 21 + 1 N−1 reserve = 22 (coincidentally equal to the case (ii) prefill screen ⌈21.81⌉ = 22 at zero spare — same number, different derivation)\"",
+  "observed": "Two problems in the caption's scope statement. (a) The scope names only ρ = 1; the 21 = ⌈40 × 8.6 / 17⌉ also requires u = 1 (no utilization derate), which is not stated, so a reader could read the caption as claiming the 21/22 figures are the policy numbers (which are 31/32). (b) The flagged 'coincidence' compares a *total* (21 working + 1 spare = 22) with a *working* count (case-(ii) prefill screen at zero spare = 22 working, 23 total), so the two 22s are not the same quantity; the caption says 'same number, different derivation' without noting the different semantics.",
+  "evidence": "Table 17-1 policy: u = 0.70, ρ = 0.95 → 31 working, 32 total. Fig 17.1's 21/22 correspond to u = ρ = 1. Case-(ii) prefill screen at zero spare = ⌈21.81⌉ = 22 working hosts; with the spare it is 23.",
+  "root_cause": "The caption was written to describe the figure's own ideal-ceiling lines and does not distinguish the figure's operating point from the chapter's policy operating point, nor working from total counts.",
+  "correction": "Extend the scope line to 'ideal ρ = 1, u = 1 analytical service ceiling — no SLO claim; the policy operating point (u = 0.70, ρ = 0.95) gives 31 working / 32 total (Table 17-1)'. Reword the coincidence as 'the KV screen with one spare (22 total) coincides numerically with the case-(ii) prefill screen at zero spare (22 working) — different quantities, different derivations'.",
+  "acceptance_test": "Fig 17.1's caption states both derate factors it assumes; every host count in the caption is labeled working or total.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-22",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 17 §2 (Mental Model) and §4 (Reconciliation box)",
+  "chapter": "17",
+  "quoted_clause": "§2: \"the **throughput invariant**: total system throughput ≈ N × throughput_per_host, reduced by a factor ρ that captures load‑balancer overhead, health‑check traffic, and imperfect distribution (typically ρ ∈ [0.95, 0.98] depending on LB sophistication).\"  §4: \"**These LB-efficiency values are [ILLUSTRATIVE][ASSUMPTION] engineering thresholds, not universal vendor-independent constants**\"",
+  "observed": "The ρ range is stated in §2 as a typical property of load balancers, without the [ILLUSTRATIVE][ASSUMPTION] label that §4 attaches to the same values. A reader who stops at the mental model will take 0.95–0.98 as a property of the technology rather than a scenario assumption. Separately, the §2 invariant omits u: the chapter's actual per-host usable capacity is throughput_per_host × u × ρ, so the mental model understates the derate by one factor.",
+  "evidence": "Table 17-1: u = 0.70 and ρ = 0.95 are both 'independent' multipliers in the denominator. §4: 'a well-configured software LB (NGINX) typically achieves ρ ≈ 0.95, and a hardware L7 switch may achieve ρ ≈ 0.98, *but both must be measured on the target topology, workload, and sample duration before being trusted*'.",
+  "root_cause": "The mental model was written before the evidence-label discipline and the u factor were formalized in Table 17-1.",
+  "correction": "Add the [ILLUSTRATIVE][ASSUMPTION] label to the ρ range in §2 and state the invariant as 'total system throughput ≈ N × throughput_per_host × u × ρ', with u and ρ defined by pointer to Table 17-1.",
+  "acceptance_test": "Every numeric range presented as a property of a technology in Ch 17 carries the same evidence label as in §4; the §2 invariant matches the denominator of the chapter's authoritative formula.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-23",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 17 §7 ('What We Still Don't Know', third bullet)",
+  "chapter": "17",
+  "quoted_clause": "\"**Optimal fleet size for cost vs. latency.** The cost of adding a host is roughly the cost of 8×H100 (multi‑hundred‑thousand dollars). The marginal latency improvement from the Nth host diminishes (diminishing returns). A cost‑per‑latency‑improved curve would help the architect justify fleet size to stakeholders.\"",
+  "observed": "In the chapter's own model, adding hosts does not improve latency at all: the service time W is a property of the request (prefill + decode + tool), and N is chosen so that per-host concurrency stays at the u target. Latency improves with N only through reduced queueing delay, which the chapter explicitly excludes from W_KV-resident and never models. The bullet therefore asks for a 'cost-per-latency-improved curve' on an axis the chapter has not established, and the 'diminishing returns' claim is asserted rather than derived.",
+  "evidence": "§4: 'the ~8.6 s used below is a **conditional scenario proxy** for E[W_KV-resident]' and 'The end-to-end W_e2e ... is the user-view in-flight count and is **not** the W in this KV formula'. The chapter's own sensitivity band shows latency (W) varying with the step-time pole, not with N.",
+  "root_cause": "The open-questions list was written from general fleet-planning intuition rather than from the chapter's model, which contains no queueing component.",
+  "correction": "Reframe the bullet around what the chapter's model actually leaves open: the queueing delay that appears when offered load exceeds per-host capacity (the N_SLO requirement, deferred to Ch 14), and the cost-per-unit-of-goodput curve rather than a cost-per-latency curve. State that, under the chapter's model, N affects latency only through queueing, which is unmeasured.",
+  "acceptance_test": "Every open question in Ch 17 §7 names a quantity the chapter's model actually contains or explicitly names the missing component (e.g. queueing) that would be needed to answer it.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-24",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 17 §8 (Mini-Case, 'Initial sizing analysis') vs F-01",
+  "chapter": "17",
+  "quoted_clause": "§8: \"At T = 3 (the 95th-percentile, and the honest stress-cohort sizing point — 'worst case' applies only to the 2% fallback route, F-01)\"  F-01: \"The columns above are honestly labeled as the stress cohort; they are *not* claimed to be the distribution *mean*, nor a strict worst case if the 2% fallback jobs do multiple failed invocations plus the final answer beyond the cap.\"",
+  "observed": "The mini-case asserts that 'worst case' applies only to the 2% fallback route; F-01 then says the T=3 columns are not a strict worst case precisely because the 2% fallback jobs may do multiple failed invocations plus the final answer beyond the cap. The two statements are in tension: if the fallback route can exceed the T=3 cohort's resource footprint, then the T=3 columns are not an upper bound on the fleet's requirement, and the chapter's 'stress cohort' framing understates the tail.",
+  "evidence": "F-01: 'nor a strict worst case if the 2% fallback jobs do multiple failed invocations plus the final answer beyond the cap'. The fallback route's W is given as 17.40 s in the F-01 ledger (0.02 × 17.40), which is below the T=3 value of 17.70 s — so the fallback's *mean* W is lower, but its *tail* (multiple failed invocations) is not quantified anywhere.",
+  "root_cause": "The mini-case's parenthetical was written to reassure the reader that the T=3 point is conservative; F-01 was written later and states the opposite caveat.",
+  "correction": "Align the two: either quantify the fallback route's worst-case footprint (failed invocations plus the final answer) and show that it is bounded by the T=3 cohort, or remove the 'worst case applies only to the 2% fallback route' claim and state that the T=3 cohort is a stress point that is not a proven upper bound on the tail.",
+  "acceptance_test": "The mini-case's characterization of the T=3 cohort and F-01's characterization of the same cohort are consistent; if the fallback tail is not quantified, no sentence claims the T=3 cohort bounds it.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH17-25",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 17 §2 (Mental Model) and §3 ('Threshold for fleet expansion')",
+  "chapter": "17",
+  "quoted_clause": "§2: \"If sessions are stateless (the model is reloaded or KV cache is discarded between requests), any host can serve any request\"  §3 heading: \"**Threshold for fleet expansion.**\"",
+  "observed": "Two localized wording/structural defects. (a) 'the model is reloaded' as a synonym for statelessness is wrong in this context — reloading a 140 GB model per request is not a stateless-routing option; the intended meaning is that no per-session state (KV, tool outputs, retrieval context) is retained. (b) The §3 subsection titled 'Threshold for fleet expansion' never states a threshold: it introduces the agentic turn distribution and the resulting C values, but the actual expansion threshold (the λ at which one host ceases to suffice, ≈ C/W ≈ 2.0 req/s) is never given in that subsection.",
+  "evidence": "§4 gives the threshold implicitly ('C/W ≈ 2.0 req/s' in the queueing counterexample) and Fig 17.1's caption uses 'one host's ~2.0 req/s analytical bound', but §3's 'Threshold' subsection does not. The chapter's opening question is 'when does one host cease to suffice', so the threshold belongs where the heading promises it.",
+  "correction": "(a) Rewrite as 'If sessions are stateless (no KV, tool output, or retrieval context is retained between requests)'. (b) Either rename the §3 subsection to 'Agentic turns: the KV-per-request driver' or add the threshold explicitly: 'one host ceases to suffice above λ ≈ C/W ≈ 17/8.6 ≈ 2.0 req/s of admitted traffic (KV screen); the canonical peak of 40 rps is 20× that'.",
+  "acceptance_test": "The §3 subsection heading matches its content, and the chapter states the single-host sufficiency threshold in the same place as the question it answers.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH18-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "§18.3.3 (Placement assumption) vs §18.5 (Consolidation vs. separation decision)",
+  "chapter": "18",
+  "quoted_clause": "**The mixed fleet needs more hosts than the single-model fleet under the shared placement (58 vs 31 — 27 extra hosts; 39 vs 21 — 18 extra — on the no-derate pair).** ... In our example, consolidation wins because the MoE and 8-bit models capture the same request classes at lower cost, and the FP16 tier handles the tail without contention.",
+  "observed": "§18.3.3 establishes that the shared-pool mixed fleet requires 18–27 MORE hosts than the single-model fleet, and explicitly says the token-rate saving \"must be weighed against *that* placement's extra hosts' amortization and energy: total cost = host amortization + energy + token cost, not token cost alone.\" §18.5 then asserts, without performing that weighing, that \"consolidation wins.\" Using the book's own only per-host cost figure ($155,817/mo ÷ 21 hosts ≈ $7,420/host/mo average; §18.3.2 basis note), 18 extra hosts ≈ $133,560/mo against a canonical-volume token saving of ≈$69,654/mo (§18.3.3 Volume basis) — i.e. the chapter's own numbers point the other way, and even the marginal (non-staff) host cost plausibly exceeds the saving.",
+  "evidence": "Recomputed: 155,817/21 = $7,420/host/mo; 18 × 7,420 = $133,560; 27 × 7,420 = $200,340; canonical-volume token saving $69,654/mo (§18.3.3). The chapter never states a marginal per-host cost, so the required comparison cannot be closed from the text as written.",
+  "root_cause": "The chapter computes a token-rate delta and a host-count delta on different bases, then lets §18.5 assert a verdict that the §18.3.3 arithmetic does not support. The verdict was written before the placement arithmetic existed and was never revised.",
+  "correction": "In §18.5, replace the unconditional \"consolidation wins\" with the conditional result the chapter's own numbers support: the mixed fleet wins on token rate but loses on total cost under the shared placement unless the extra hosts' amortization is offset by higher utilization or a cheaper hardware basis; state the sign explicitly as undetermined until a per-host marginal cost is supplied, and show the break-even (e.g. required marginal host cost ≤ $69,654/18 ≈ $3,870/host/mo). Alternatively, adopt the dedicated placement (20/32 hosts) as the worked example's placement, which is the only one whose host count is at or below the single-model fleet, and say so.",
+  "acceptance_test": "A reader can state, from §18.5 alone, which placement the chapter adopts, what the total-cost comparison is, and what the verdict is — and the verdict is consistent with §18.3.3's host counts and §18.3.2's per-host cost.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ }
+]

@@ -1,0 +1,109 @@
+[
+ {
+  "id": "CH10-04",
+  "severity": "P3",
+  "chapter_hint": "10",
+  "page_hint": "Section 3, Data Parallelism subsection",
+  "quoted_clause": "grad bytes = N_params × bytes/param = 70 × 10⁹ × 4 B ≈ 280 GB",
+  "observed": "Uses FP32 gradients (4 bytes) without explaining why FP32 rather than FP16/BF16. The text notes the Ch 9 precision difference ('Chapter 9's separate 140 GB example assumes FP16 gradients, so the two examples must retain their different precision bases') but provides no rationale for the FP32 choice here.",
+  "correction": "Add a brief clause: 'FP32 gradients are used here as a conservative communication model; some implementations sync FP16/BF16 gradients (halving the bytes) with loss scaling or FP32 master weights.'",
+  "acceptance_test": "The DP gradient example includes a one-clause justification for the FP32 precision choice, and the reader can explain why Ch 9 and Ch 10 use different gradient precisions.",
+  "verdict_evidence": "chapter-10.md §3: 'grad bytes = N_params × bytes/param = 70 × 10⁹ × 4 B ≈ 280 GB ... per step (FP32 gradient; ...)' and later 'Chapter 9's separate 140 GB example assumes FP16 gradients, so the two examples must retain their different precision bases' — the FP32 basis is flagged as different from Ch 9 but no reason for choosing FP32 over FP16/BF16 gradients is given, and the 280 GB figure drives every downstream send-volume number (245 GB per rank, 9.8 s at 25 GB/s).",
+  "fix_instruction": "Add a one-clause rationale at the 280 GB equation, e.g. 'FP32 gradients are used here as a conservative communication model; mixed-precision implementations that sync FP16/BF16 gradients with loss scaling or FP32 master weights would halve these bytes.'",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-06",
+  "severity": "P3",
+  "chapter_hint": "10",
+  "page_hint": "Section 8, Mini-Case",
+  "quoted_clause": "Moving the cross-node decomposition from TP to PP cuts TPOT from 80 ms to 35 ms [ILLUSTRATIVE]",
+  "observed": "80 − 45 = 35 exactly, implying PP introduces zero additional cost. PP does introduce stage-boundary communication and pipeline bubbles, neither of which is mentioned in the mini-case's cost accounting.",
+  "correction": "Either (a) adjust the numbers so 35 ms includes a small PP overhead (e.g., 'cuts TPOT from 80 ms to 38 ms, with 3 ms of PP stage-boundary cost and bubble'), or (b) add a clause acknowledging PP's residual cost: 'cuts TPOT from 80 ms to 35 ms [ILLUSTRATIVE] — the residual includes PP stage-boundary transfers and a small bubble, both far cheaper than per-layer cross-node all-reduce.'",
+  "acceptance_test": "The mini-case's TP→PP transition either includes PP's communication/bubble cost in the new TPOT or explicitly acknowledges that the illustrative numbers abstract it away.",
+  "verdict_evidence": "chapter-10.md §8 mini-case: 'profiling the inherited configuration attributes 45 ms of the 80 ms TPOT to its cross-node per-layer all-reduce ... Moving the cross-node decomposition from TP to PP cuts TPOT from 80 ms to 35 ms [ILLUSTRATIVE]' — 80 − 45 = 35 exactly, so the arithmetic leaves zero room for the PP stage-boundary transfer and pipeline bubble that the same paragraph invokes ('the cross-node PP boundary runs over the cluster fabric ... utilization u = m/(m+P−1)').",
+  "fix_instruction": "Either adjust the mini-case so the 35 ms residual explicitly includes PP cost (e.g. 'cuts TPOT from 80 ms to 38 ms, with ~3 ms of PP stage-boundary and bubble cost'), or state in the sentence that the 35 ms residual already includes the cross-node PP boundary and bubble under the chosen P and m.",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-07",
+  "severity": "P3",
+  "chapter_hint": "10",
+  "page_hint": "Section 1 (Communication-specificity note) vs Section 3 (PP subsection) vs Section 8 (mini-case)",
+  "quoted_clause": "more microbatches shrink the bubble but add memory (Section 1) vs With P stages and m micro-batches (Section 3) vs micro-batch count m (Section 8)",
+  "observed": "Both 'microbatch' (no hyphen) and 'micro-batch' (hyphenated) are used for the same concept within the chapter.",
+  "correction": "Standardize on one form throughout the chapter (and ideally the book). 'micro-batch' appears more frequently in this chapter (2 occurrences vs 1 for 'microbatch').",
+  "acceptance_test": "A grep for 'microbatch' and 'micro-batch' in the chapter source returns only one spelling.",
+  "verdict_evidence": "chapter-10.md uses both spellings for the same concept: §1 'the PP bubble size depends on *microbatch scheduling* (more microbatches shrink the bubble but add memory)' vs §3 'the first micro-batch fills the pipeline and the last one drains ... With P stages and m micro-batches' vs §8 'they choose the stage count P and micro-batch count m jointly'; chapter-wide count in Ch 10 is 3 × 'microbatch' vs 5 × 'micro-batch', and no other chapter uses either form.",
+  "fix_instruction": "Standardize on one form throughout Chapter 10 (the more frequent 'micro-batch', 5 occurrences vs 3) and use it consistently in §1, §3 and §8.",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-RESOURCE-TRIANGLE-DP",
+  "severity": "P2",
+  "chapter_hint": "Chapter 10 — Parallelism",
+  "page_hint": "Ch 10 §2, resource-triangle paragraph",
+  "quoted_clause": "When a GPU is idle waiting, we reach for DP (more work per GPU)",
+  "observed": "Data parallelism does not give an idle GPU more work. It adds independent replicas, each with its own model copy and its own request stream. If a single GPU is idle because arrivals are insufficient, DP does not raise that GPU's utilization; it adds another underutilized GPU. DP is a response to aggregate demand exceeding one replica's goodput, not to a single GPU being idle.",
+  "correction": "Replace with: 'When aggregate demand exceeds one replica's goodput, add DP replicas. When a single GPU is idle because the batch or arrival stream is too small, increase batching/admission or reduce over-provisioning; DP does not fill that GPU.'",
+  "acceptance_test": "A reader can explain why DP does not increase utilization of an already-idle GPU and can name the correct levers for low arrival rate versus insufficient aggregate capacity.",
+  "verdict_evidence": "ch10 L36 'When a GPU is idle waiting, we reach for DP (more work per GPU)' conflicts with L17 ('Inference: independent replicas each serve a disjoint set of requests') and L30 ('Data parallel replicates the whole model and splits the batch') — replication adds capacity, and splitting the batch gives each GPU less work, not more.",
+  "fix_instruction": "Replace with 'When aggregate demand exceeds one replica's goodput, add DP replicas; when a single GPU is idle for lack of arrivals or batch, the fix is batching/admission or less over-provisioning — DP does not fill that GPU.'",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-DP-001",
+  "severity": "P0",
+  "chapter_hint": null,
+  "page_hint": "Chapter 10, §3 Worked Example, Data Parallelism: Replicating, Then Syncing Gradients",
+  "quoted_clause": "for N=8 the per-rank send volume is (N-1)/N × 280 ≈ 245 GB and the send-plus-receive total is 1.75 × 280 ≈ 490 GB ... At 25 GB/s (single 200Gb/s link) that is 245 / 25 ≈ 9.8 s per step ... At the H100 NVLink directional peak of 450 GB/s, the same ideal ring estimate is 245/450 ≈ 0.54 s",
+  "observed": "The 280 GB FP32 gradient case reuses the 140 GB FP16 gradient traffic numbers from Chapter 9. For a ring all-reduce with M=280 GB and N=8, the total per-rank send volume is 2*(N-1)/N*M = 490 GB, not 245 GB; the per-rank receive volume is also 490 GB, and send-plus-receive is 980 GB, not 490 GB.",
+  "correction": "Either state that 245 GB is the one-phase send volume and give the full two-phase send volume as 490 GB with times 19.6 s at 25 GB/s and ≈1.09 s at 450 GB/s, or explicitly keep the 140 GB FP16 example for the 9.8 s / 0.54 s numbers. Do not mix 280 GB logical size with 140 GB traffic arithmetic.",
+  "acceptance_test": "Recompute from M=280 GB, N=8: printed per-rank total send, total receive, send-plus-receive, and both bandwidth times must match 490 GB, 490 GB, 980 GB, 19.6 s, and ≈1.09 s respectively, or the text must clearly label 245 GB as one-phase only and use 490 GB for total send time.",
+  "verdict_evidence": "ch10: 'a ring all-reduce moves 2(N-1)/N times the per-rank gradient through each rank, so for N=8 the per-rank send volume is (N-1)/N × 280 ≈ 245 GB ... At 25 GB/s that is 245 / 25 ≈ 9.8 s ... 245/450 ≈ 0.54 s'. 2×7/8×280 = 490 GB per rank (send+receive 980), so the times are 19.6 s and 1.09 s; 245 GB and 9.8 s/0.54 s are exactly ch9's M=140 GB figures (ch9: 'each phase sends (N-1)M/N=122.5 GB per rank ... therefore sends 245 GB and receives another 245 GB per rank').",
+  "fix_instruction": "Restate at M=280: two phases × 245 GB = 490 GB sent per rank (490 GB received), so T ≈ 490/25 ≈ 19.6 s on a 200 Gb/s link and 490/450 ≈ 1.09 s at the NVLink directional peak; label 490 GB as the send volume (send+receive = 980 GB), not 'the send-plus-receive total'.",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-TRIANGLE-001",
+  "severity": "P2",
+  "chapter_hint": null,
+  "page_hint": "Chapter 10, §2 Mental Model, resource triangle",
+  "quoted_clause": "When a GPU is idle waiting, we reach for DP (more work per GPU); CP addresses long-sequence/KV capacity, not idle-fill.",
+  "observed": "DP does not make an idle single GPU do more work; it adds independent replicas or increases total batch across devices. If a GPU is idle because arrivals are low, DP does not fill that GPU. If it is idle because the batch is small, the direct levers are batch size, microbatching, or continuous batching, not necessarily DP.",
+  "correction": "Reword to: \"When aggregate throughput is limited by batch size and the model fits, DP adds replicas/total batch; it is not a per-GPU idle-fill mechanism.\"",
+  "acceptance_test": "A reader should not infer that DP fills an underloaded single GPU.",
+  "verdict_evidence": "Mental model: 'When a GPU is *idle* waiting, we reach for DP (more work per GPU)' — DP replicates the model and splits the batch (ch10: 'training: replicates all weights on every GPU, feeds each a different batch'; inference: 'independent replicas each serve a disjoint set of requests'), so it adds devices/work in parallel; it does not put more work on an idle device, and if arrivals are low it cannot fill one.",
+  "fix_instruction": "Reword: 'When aggregate throughput, not memory, is the limit — the data corner is what is starved — we reach for DP (more replicas, each with its own batch). DP does not create work for an idle GPU; if the device is idle for lack of arrivals, DP makes it idler.'",
+  "is_vision": false
+ },
+ {
+  "id": "FIG-10.1-01",
+  "severity": "P3",
+  "chapter_hint": null,
+  "page_hint": "PDF 193 / printed 173",
+  "quoted_clause": "Figure 10.1, panel B (Pipeline parallel)",
+  "observed": "Terminology drift between figure and its adjacent prose for the same object: the panel labels the stage-boundary payload 'activations → P2P at stage boundaries', while the prose two paragraphs below says 'hidden states cross stage boundaries point-to-point'. Two names for one concept on the same page invite the reader to wonder whether they differ.",
+  "correction": null,
+  "acceptance_test": "Figure annotation and prose use one term for the stage-boundary payload (either 'activations' or 'hidden states') throughout panel B and the accompanying paragraph; re-render and confirm a single term.",
+  "verdict_evidence": "Page 173 shows the figure with panel titles A/B/C, the legend row and an italic 'Figure note (grayscale)' line but no numbered caption above or below the frame; pdftotext of the whole built PDF returns zero hits for 'FIGURE 10' while Fig 9.1-9.3 all carry 'FIGURE n.m:' captions, and Fig 10.1 is cited in prose on p173 and p181.",
+  "fix_instruction": "Add a numbered caption paragraph immediately under the figure: 'FIGURE 10.1: Three parallelism patterns, one per panel — tensor parallel shards one layer's weights, pipeline parallel splits the layer stack into stages with an idle bubble at fill/drain, and data parallel replicates the model while splitting the batch. Each panel names what splits and what communicates. [ILLUSTRATIVE]' (this text exists only in the image alt text today, so the build drops it).",
+  "is_vision": true
+ },
+ {
+  "id": "FIG-10.1-12",
+  "severity": "P2",
+  "chapter_hint": null,
+  "page_hint": {
+   "pdf": 193,
+   "printed": 173
+  },
+  "quoted_clause": "Fig. 10.1, panel A (caption/prose consistency)",
+  "observed": "The prose describing panel A is garbled and does not match the figure's own label. The page reads 'each GPU's partial sums are all-reduced at layer-level dependencies in the illustrated layout', which is not a coherent statement, and 'at layer-level dependencies' conflicts with the figure's annotation 'communication: all-reduce every layer'. The reader is left unsure whether the all-reduce happens once per layer, once per stage, or at some other granularity - which is exactly the distinction that determines TP's communication volume.",
+  "correction": null,
+  "acceptance_test": "Rewrite as a single unambiguous sentence, e.g. 'each GPU's partial sums are all-reduced at every layer boundary, so the collective runs once per layer'. Acceptance: the prose and the figure annotation state the same granularity, and the phrase 'layer-level dependencies' no longer appears.",
+  "verdict_evidence": "Prose under the figure reads 'each GPU's partial sums are all-reduced at layer-level dependencies in the illustrated layout' (identical in source and PDF p193 text layer) — a garbled clause that names no coherent granularity while panel A says 'all-reduce every layer'.",
+  "fix_instruction": "Replace the clause with '...and each GPU's partial sums are all-reduced every layer in the illustrated layout', matching panel A's 'communication: all-reduce every layer'.",
+  "is_vision": true
+ }
+]

@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH18-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "§18.3.1, hardware capacity mapping table, last column",
+  "chapter": "18",
+  "quoted_clause": "# instances on one 8×H100 pool (this model alone) | ... | 2 (70 GB weights + 24.9 GB FP16 KV = 94.9 GB > 80 GB per GPU; FP8 KV still 82.5 GB)",
+  "observed": "The last column header says '# instances on one 8×H100 pool' but the value '2' for the 8-bit rows means 'GPUs needed per instance,' not 'instances on the pool.' On 8 GPUs, ⌊8/2⌋ = 4 instances of the 8-bit model would fit (ignoring KV), but the table prints 2. The explanatory note below the table tries to clarify ('the 8-bit rows' 2 is the GPUs one instance needs') but the column header and the value are semantically inconsistent — the column mixes instance counts for rows that fit on one GPU with GPU counts per instance for rows that don't.",
+  "evidence": "Column header: '# instances on one 8×H100 pool (this model alone)'. For 70B dense 8-bit: 70 GB weights + 24.9 GB KV = 94.9 GB > 80 GB per GPU, so one instance needs 2 GPUs. On 8 GPUs, 4 instances would fit (8/2 = 4). The printed value is 2, which the note says is the GPU count per instance, not the instance count. For the FP16 row, the value 1 correctly means 1 instance. For the 4-bit row, the value ~5 correctly means ~5 instances.",
+  "root_cause": "The column mixes two different quantities: instance counts for rows that fit on one GPU (FP16, 4-bit) and GPU counts per instance for rows that don't fit on one GPU (8-bit).",
+  "correction": "Either (a) split the column into two: '# instances on pool' and '# GPUs per instance', or (b) change the 8-bit rows' value to the actual instance count (4 for 8-bit on 8 GPUs, noting KV constraints reduce this) and move the GPU-per-instance information to the note, or (c) rename the column to something that covers both readings (e.g., 'Placement on one 8×H100 pool').",
+  "acceptance_test": "Every value in the last column is interpretable as the column header states, without requiring the reader to consult the footnote note to discover that the value means something different for some rows.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§18.3.1, co-residency paragraph (after the weight list)",
+  "chapter": "18",
+  "quoted_clause": "290 GB < the canonical 436 GB KV budget, so the FP16 tier cannot co-reside at the canonical profile",
+  "observed": "The phrase 'cannot co-reside' is ambiguous. The FP16 tier's weights (140 GB) ARE in the co-residency list immediately above (total ~350 GB including FP16). What the text means is that the FP16 tier cannot receive its canonical 436 GB KV budget while co-resident with the other tiers. But 'cannot co-reside' reads as 'cannot be present in the pool at all,' which appears to contradict the co-residency list that includes it.",
+  "evidence": "The co-residency list explicitly includes 'One 70B dense FP16 (140 GB)' as one of four co-resident tiers totaling ~350 GB. The subsequent sentence says 'the FP16 tier cannot co-reside at the canonical profile.' The FP16 tier IS co-resident; what it cannot have is its canonical KV budget.",
+  "root_cause": "Ambiguous use of 'co-reside' — the text uses it to mean 'receive its canonical KV budget' in this sentence and 'be present in the pool' in the list above.",
+  "correction": "Rewrite to: '290 GB < the canonical 436 GB KV budget, so the FP16 tier cannot receive its canonical KV allocation while co-resident with the other tiers' or similar.",
+  "acceptance_test": "A reader who has just read the co-residency list (which includes the FP16 tier) does not encounter a sentence that appears to contradict it.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§18.3.2, per-token cost table, column header",
+  "chapter": "18",
+  "quoted_clause": "Token cost (USD / 1M)",
+  "observed": "The cost table uses a single per-1M rate for all tokens, without distinguishing input tokens from output tokens. Real LLM pricing (and most cloud inference pricing) charges different rates for input vs output tokens, with output typically 2–4× more expensive. The routing arithmetic in §18.3.3 computes cost on the full 9,500-token profile (9,200 input + 300 output) at a single rate, which does not reflect this standard pricing structure. The simplification is not explicitly flagged as a departure from standard pricing.",
+  "evidence": "The table header is 'Token cost (USD / 1M)' with no input/output distinction. §18.3.3 computes: 6.65M tokens × $1.25 = $8.31/hr, treating all 9,500 tokens per request at the same rate. In practice, 9,200 input tokens and 300 output tokens would be priced differently (output is usually more expensive).",
+  "root_cause": "The worked example simplifies to a single blended rate for pedagogical clarity, but this simplification is not explicitly acknowledged as a departure from standard pricing structure.",
+  "correction": "Add a note to the table or the bases box: 'These are blended per-1M rates for routing comparison. Real inference pricing typically distinguishes input and output token rates (output is usually more expensive); the routing arithmetic here uses a single blended rate for simplicity.'",
+  "acceptance_test": "A reader familiar with real LLM pricing does not conclude that the book's cost model is the standard pricing structure, and the simplification is explicitly acknowledged.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-05",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§18.5, Common Mistakes, item 1",
+  "chapter": "18",
+  "quoted_clause": "4-bit/8-bit models reduce VRAM but increase CPU cycles and may lower quality on long-context tasks",
+  "observed": "The claim that quantization 'increases CPU cycles' is imprecise. For GPU inference, quantization can reduce compute (if using FP8/INT8 tensor cores) while adding dequantization overhead. For CPU inference, the dequantization overhead does increase compute, but the primary benefit is reduced memory bandwidth (fewer bytes to stream). The phrase 'increase CPU cycles' captures only the dequantization overhead and only for CPU inference, but is stated as a general property of quantization.",
+  "evidence": "Quantization reduces weight precision, which (a) reduces memory bandwidth requirements (fewer bytes to stream — the dominant factor for bandwidth-bound decode), (b) reduces memory capacity, (c) may reduce compute if the hardware supports low-precision tensor cores, (d) adds dequantization overhead. The net compute effect depends on hardware and implementation. 'Increase CPU cycles' captures only (d) and only for CPU inference.",
+  "root_cause": "Overgeneralization of a CPU-specific effect to all quantization.",
+  "correction": "Rewrite to: '4-bit/8-bit models reduce VRAM and memory bandwidth but add dequantization overhead, and may lower quality on long-context tasks' or 'may not reduce compute proportionally to the precision reduction.'",
+  "acceptance_test": "The claim is accurate for both CPU and GPU inference, or is explicitly scoped to CPU inference.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-06",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§18.5, Common Mistakes, item 3",
+  "chapter": "18",
+  "quoted_clause": "spreading that cost across a mixed fleet improves effective cost/token",
+  "observed": "The phrasing 'spreading that cost across a mixed fleet' is misleading. The FP16 model's cost is not spread across the mixed fleet — it is borne by the FP16 tier and the requests routed to it. The mixed fleet improves overall cost/token by routing most traffic to cheaper models, not by distributing the FP16 cost across all tiers.",
+  "evidence": "In the routing arithmetic (§18.3.3), the FP16 tier handles 10% of requests at $2.50/1M. Its cost is not shared with the 8-bit or MoE tiers. The fleet-level improvement comes from the traffic split (70/20/10), not from cost-sharing. The FP16 host cost is amortized over the requests that actually need FP16, not over all requests.",
+  "root_cause": "Ambiguous phrasing that could be read as cost-sharing across tiers.",
+  "correction": "Rewrite to: 'routing most traffic to cheaper models while reserving FP16 for the tail improves effective cost/token' or 'amortizing the FP16 host cost over the requests that actually need FP16, rather than running every request on FP16, improves effective cost/token.'",
+  "acceptance_test": "A reader does not infer that the FP16 cost is distributed across all tiers of the mixed fleet.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-07",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§18.6, 'Qualification precedes placement and promotion' subsection",
+  "chapter": "18",
+  "quoted_clause": "A small local model can be a candidate for an Intel GPU or an OpenVINO client path when its operators, memory budget and service behavior pass the same gates as the central service.",
+  "observed": "The subsection discusses Intel-specific deployment qualification (OpenVINO, Intel Core Ultra X9 388H, vLLM XPU) in a chapter about mixed-model fleet routing. The general principle (qualify before promoting) is relevant, but the Intel-specific details (three footnotes about Intel hardware and OpenVINO documentation) dominate the subsection and feel like they belong in a deployment/qualification chapter. The text acknowledges 'This is a general qualification procedure illustrated with an Intel example, not a claim about the mini-case's AMD Ryzen node,' but the Intel details still dominate.",
+  "evidence": "The subsection's three footnotes are all about Intel-specific documentation (OpenVINO, Intel Core Ultra X9 388H specs, vLLM XPU requirements). The subsection is ~150 words of prose plus three footnotes, with the Intel details comprising most of the footnote content.",
+  "root_cause": "Material that is tangentially related to the chapter's topic has been included, possibly because it was developed during a review round about deployment qualification.",
+  "correction": "Either (a) move the Intel-specific details to a deployment/qualification chapter and keep only the general principle here, or (b) restructure the subsection to lead with the general qualification principle and use the Intel example more briefly, or (c) if the Intel material is essential, add a clearer bridge explaining why deployment qualification belongs in a mixed-model fleet chapter.",
+  "acceptance_test": "The subsection's connection to mixed-model fleet routing is immediately apparent to a reader, and the Intel-specific details do not dominate the subsection.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-08",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§18.3 bases box; §18.3.4 scope note; §18.8 scope note",
+  "chapter": "18",
+  "quoted_clause": "Bases, conventions, and what these numbers are not. The §18.3.2 per-1M price rows are per-model nominal rates for routing comparison — the cost per 1M tokens if that model instance were serving at its own nominal throughput on its own host — priced on three different bases (self-amortized capital+energy, public-cloud list, energy-only): routing-comparison proxies, not procurement-comparable.",
+  "observed": "Three long, dense scope notes (the bases box at the head of §3, the scope note in §18.3.4, and the scope note in §18.8) each contain multiple qualifications about cost bases, latency definitions, and evidence labels. Each is a single paragraph containing 4–6 distinct qualifications packed into running prose. While the content is important, the presentation is hard to parse — the reader must unpack multiple nested qualifications in a single block.",
+  "evidence": "The bases box is ~150 words containing qualifications about: three cost bases, the fleet-amortized rate, the latency column definition, evidence labels, and the savings conclusion's dependency. The §18.3.4 scope note is ~200 words. The §18.8 scope note is ~100 words. Each is a single unbroken paragraph.",
+  "root_cause": "Accumulation of qualifications during review rounds, each added as a sentence to an existing block, resulting in dense paragraphs that are hard to parse.",
+  "correction": "Restructure each scope note as a short bulleted list or a small table of 'What this number is / What this number is not,' rather than a single dense paragraph. Alternatively, consolidate the three scope notes into one shared 'Bases and conventions' callout at the head of §3, with cross-references from §18.3.4 and §18.8.",
+  "acceptance_test": "A reader can extract the key qualifications from each scope note in under 30 seconds, without re-reading the paragraph multiple times.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-09",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§18.3.5, Consolidation vs. separation, conclusion paragraph",
+  "chapter": "18",
+  "quoted_clause": "consolidation wins because the MoE and 8-bit models capture the same request classes at lower cost",
+  "observed": "The phrase 'the MoE and 8-bit models capture the same request classes' is misleading. The routing sends 70% of requests to dense 8-bit (routine) and 20% to MoE 8-bit (high-quality reasoning) — these are different request classes, not the same. The two models capture different, complementary classes at lower cost than FP16.",
+  "evidence": "§18.3.3 routing: 70% routine → 8-bit; 20% high-quality reasoning → MoE 8-bit; 10% complex/multilingual → FP16. The 8-bit and MoE tiers handle different request classes by design.",
+  "root_cause": "Imprecise phrasing — 'same request classes' likely means 'the same classes that would otherwise require FP16' or 'complementary classes that together cover 90% of traffic,' but the literal reading is that both models handle identical classes.",
+  "correction": "Rewrite to: 'consolidation wins because the MoE and 8-bit models together capture 90% of request classes at lower cost than FP16' or 'because the 8-bit and MoE tiers handle complementary request classes at lower cost than FP16.'",
+  "acceptance_test": "A reader who has just read the 70/20/10 routing split does not encounter a sentence that appears to say the 8-bit and MoE tiers handle identical request classes.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-11",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§18.5, Common Mistakes, item 4",
+  "chapter": "18",
+  "quoted_clause": "⌈34.4/11.305⌉ ≈ **4 hosts**",
+  "observed": "The ⌈⌉ (ceiling) operator returns an integer. 34.4/11.305 = 3.043, and ⌈3.043⌉ = 4 exactly. The ≈ before '4 hosts' is misleading — the result is exactly 4, not approximately 4.",
+  "evidence": "34.4/11.305 = 3.0430...; ⌈3.0430⌉ = 4. The ceiling operator guarantees an integer result.",
+  "root_cause": "Habitual use of ≈ for derived quantities, even when the ceiling operator makes the result exact.",
+  "correction": "Change ≈ to = : '⌈34.4/11.305⌉ = **4 hosts**'.",
+  "acceptance_test": "The operator before the result is = (not ≈) when the ceiling function produces an exact integer.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-12",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.3.2, per-token cost table, column header",
+  "chapter": "18",
+  "quoted_clause": "Per-request service latency (ms)",
+  "observed": "The table column header says 'Per-request service latency (ms)' but the scope note in §18.3.4 defines this as 'time-to-first-token for the short-prompt routing scenario.' The table itself does not indicate TTFT, so a reader who consults only the table (without reading the scope note) may interpret the latency as full end-to-end generation time.",
+  "evidence": "Table header: 'Per-request service latency (ms)'. §18.3.4 scope note: 'Per-request service latency = time-to-first-token for the short-prompt routing scenario (not full generation...).'",
+  "root_cause": "The table uses a generic term that is defined differently in the surrounding prose.",
+  "correction": "Either (a) change the column header to 'TTFT (ms)' or 'Time-to-first-token (ms)' or 'Per-request TTFT (ms)', or (b) add a footnote to the table: 'TTFT for short-prompt routing scenario; see §18.3.4.'",
+  "acceptance_test": "A reader who consults only the table (without reading §18.3.4) correctly interprets the latency values as TTFT, not full generation time.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-13",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.3.5, Consolidation vs. separation, first bullet",
+  "chapter": "18",
+  "quoted_clause": "workload profile overlap ≥70%",
+  "observed": "The term 'workload profile overlap' is used as a threshold criterion but is not explicitly defined. The text then equates it with '70% of traffic to the dense 8-bit tier,' but 'overlap' could mean something different — e.g., the fraction of requests that could be served by multiple models, or the similarity between workload distributions.",
+  "evidence": "The threshold says 'workload profile overlap ≥70%.' The text then says 'it consolidates 70% of traffic to the dense 8-bit tier... at the ≥70% dense-8-bit boundary.' The equating of 'overlap' with 'traffic share to the cheapest tier' is implicit, not stated.",
+  "root_cause": "The term is used without definition, and the reader must infer its meaning from the example.",
+  "correction": "Add a brief definition: 'workload profile overlap = the fraction of requests that can be served by the cheapest suitable tier' or similar, before or at the point where the threshold is stated.",
+  "acceptance_test": "A reader can determine what 'workload profile overlap' measures without inferring it from the example.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-14",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.3.5, Consolidation vs. separation, first bullet",
+  "chapter": "18",
+  "quoted_clause": "Satisfied by construction in this scenario: our scenario sits exactly at the threshold",
+  "observed": "The text states three consolidation thresholds (overlap ≥70%, latency tolerance ≥300 ms, cost differential >30%) but only explicitly checks the overlap threshold. The latency and cost differential thresholds are satisfied (247 ms < 300 ms; 50% > 30%) but not shown.",
+  "evidence": "Thresholds: (1) overlap ≥70% — checked explicitly (70% traffic to dense 8-bit); (2) latency tolerance ≥300 ms — weighted average is 247 ms, satisfied but not mentioned; (3) cost differential >30% — (2.50−1.25)/2.50 = 50%, satisfied but not mentioned.",
+  "root_cause": "The text focuses on the threshold that is 'exactly at the boundary' and omits the two that are comfortably satisfied.",
+  "correction": "Add a brief parenthetical or sentence confirming the other two thresholds: 'The latency tolerance (247 ms < 300 ms) and cost differential (50% > 30%) thresholds are also satisfied.'",
+  "acceptance_test": "All three stated thresholds are explicitly checked against the scenario's values.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-15",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§18.3 bases box, final sentence",
+  "chapter": "18",
+  "quoted_clause": "the mixed-fleet *savings* conclusion in §18.3.3 depends only on the relative per-model rates, not on the absolute self-host basis",
+  "observed": "The phrase 'savings conclusion' is ambiguous. If it means the percentage savings (≈47%), the claim is correct — the percentage depends only on relative rates and traffic split. If it means the absolute savings ($8,147/month), the claim is incorrect — the absolute savings scale with the absolute rates.",
+  "evidence": "Percentage savings: (23.75k − 12.59k)/23.75k = 47% regardless of k (the common scale factor). Absolute savings: $11.16k × 730 hr, which scales with k. The bases box is discussing different cost bases (self-amortized vs cloud list vs energy-only), so the reader needs to know whether the absolute or percentage savings is basis-independent.",
+  "root_cause": "Ambiguous referent for 'savings conclusion.'",
+  "correction": "Clarify: 'the mixed-fleet percentage savings (≈47%) in §18.3.3 depends only on the relative per-model rates' or 'the mixed-fleet savings *percentage* is basis-independent; the absolute dollar savings scale with the chosen basis.'",
+  "acceptance_test": "A reader can determine whether the basis-independence claim applies to the absolute savings, the percentage savings, or both.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "§6 Architecture Consequence, Inference scaling paragraph",
+  "chapter": "19",
+  "quoted_clause": "Agentic traffic is structurally more prefill-heavy — the prefill-time/decode-time ratio rises from ≈0.14 (1.08 s / 7.5 s) single-shot to ≈0.40 (4.93 s / 12.375 s) at T=3 ... the prefill/decode *token* ratio likewise rises from 30.7 (9,200 / 300) single-shot to 84.8 (41,990 / 495) at T=3",
+  "observed": "The claim and both supporting ratios use no-reuse numbers (4.93 s prefill, 41,990 tokens) but are presented without policy qualification. Under 100% prefix reuse at T=3 the prefill/decode time ratio is 1.36/12.375 ≈ 0.11 (LOWER than single-shot's 0.14) and the token ratio is 11,600/495 ≈ 23.4 (LOWER than single-shot's 30.7). The claim 'structurally more prefill-heavy' is therefore a property of the append-only no-reuse policy, not an inherent property of agentic workloads.",
+  "evidence": "Under 100% prefix reuse at T=3: prefill = (11,600/9,200)×1.08 ≈ 1.36 s; decode = 12.375 s; ratio = 0.11 < 0.14. Token ratio = 11,600/495 = 23.4 < 30.7. §4 establishes that 4.93 s and 41,990 are no-reuse values ('Under the no-reuse policy the T = 3 trace ... yields a prefill sum of ... 4.93 s').",
+  "root_cause": "The prefill-heavy framing is a consequence of the no-reuse policy that prefix caching would mitigate; the text presents it as a general workload property.",
+  "correction": "Qualify the claim: 'Under the append-only no-reuse policy, agentic traffic is more prefill-heavy...' and add that prefix caching reduces the prefill burden below single-shot levels, which is precisely why it becomes first-order. The conclusion about chunked prefill/prefix caching remains valid but the motivation should be scoped.",
+  "acceptance_test": "The claim explicitly states the policy scope, and a reader applying 100% prefix reuse would not conclude that agentic prefill/decode ratios exceed single-shot ratios.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH19-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "§8 Architectural actions and Lesson (c)",
+  "chapter": "19",
+  "quoted_clause": "at T = 3, billed 4.47× → ≈1.27× and W 17.70 s → 14.14 s at 100% reuse",
+  "observed": "§8 uses 'billed' where §4 correctly states 'billed tokens follow the provider's cache rate schedule and lie between the two processed totals.' The statement 'billed 4.47× → ≈1.27×' assumes cached tokens are completely free, which is a specific billing assumption not universally true. The Lesson (c) repeats this: 'under 100% prefix reuse only the incremental prefix is billed.'",
+  "evidence": "§4: 'billed tokens follow the provider's cache rate schedule and lie between the two processed totals' (12,095 and 42,485). §8's 'billed → 1.27×' implies billed = 12,095 under 100% reuse, true only if cached tokens are free. Providers such as OpenAI charge cached input at a discount (e.g., 50%), not zero, so billed under 100% reuse would exceed 12,095.",
+  "root_cause": "§8 conflates 'processed under 100% prefix reuse' with 'billed under 100% prefix reuse' without stating the free-cached-tokens assumption, contradicting §4's own statement that billed lies between the two processed totals.",
+  "correction": "Change 'billed 4.47× → ≈1.27×' to 'processed 4.47× → ≈1.27×' or add 'assuming cached tokens are free.' Update Lesson (c) similarly: 'under 100% prefix reuse only the incremental prefix is *processed*; billed depends on the provider's cache rate schedule.'",
+  "acceptance_test": "§8's billed/processed claims are consistent with §4's statement that billed lies between the two processed totals, or the free-cached-tokens assumption is explicitly stated.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-03",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§8 Unconditional fallback-inclusive ledger, parenthetical about W(3)",
+  "chapter": "19",
+  "quoted_clause": "W(3) = 17.70 s is on the same model-side basis, excluding its 660 ms orchestration",
+  "observed": "W(3) includes 399 ms of tool time (3 × 133 ms at Ch 17's rate), while the '660 ms orchestration' includes 300 ms of tool time (3 × 100 ms at this chapter's rate). Saying W 'excludes its 660 ms orchestration' could mislead readers into thinking W excludes all tool time, when W's formula explicitly includes T·λ_tool/retr.",
+  "evidence": "W(3) = prefill (4.93) + decode (12.375) + tool leg (0.399) = 17.70 s. The 660 ms = 3 × (λ_step 120 + λ_tool 100) = 660 ms. W includes a tool leg at 133 ms/turn (399 ms total) but not λ_step (360 ms). The text itself notes 'They are also not additive' and explains the two rates, but this specific sentence's phrasing is imprecise.",
+  "root_cause": "The phrasing 'excluding its 660 ms orchestration' suggests 660 ms is a component left out of W, when W has its own tool leg at a different rate.",
+  "correction": "Rephrase: 'W(3) = 17.70 s is a complete service time that already includes its own tool leg (3 × 133 ms at Ch 17's rate) and does not need the chapter's 660 ms orchestration budget added to it.'",
+  "acceptance_test": "The reader understands that W includes a tool leg and that the 660 ms is a separate quantity at different rates, not a component subtracted from W.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§6 State-management policy, billable vs KV-resident distinction",
+  "chapter": "19",
+  "quoted_clause": "the **billable tokens** (what the API charges, = Σ over turns of the full accumulated context each turn sends — 41,990 input tokens for the T = 3 no-reuse trace of §4, not the single final context of 12,095) and the **KV-resident tokens** (what occupies the cache, = the same accumulated context under this no-reuse policy); the two differ by the Σ-per-call vs peak-resident distinction even without caching",
+  "observed": "'Billable tokens' is defined as 'what the API charges' but the example is input-only (41,990), excluding the 495 output tokens. 'KV-resident tokens' includes output (12,095 = 11,795 + 300). The text says they 'differ by the Σ-per-call vs peak-resident distinction' but does not acknowledge the input/output basis difference.",
+  "evidence": "Billable example: 41,990 (input-only). KV-resident: 12,095 (incl. 300 output). If billable included output: 42,485. The Σ vs peak distinction would still hold, but the current comparison mixes input-only with incl.-output. §4's 'billed' (which 'lie[s] between the two processed totals' of 12,095 and 42,485) includes output, creating an inconsistency with §6's input-only 'billable.'",
+  "root_cause": "The definition says 'what the API charges' (which includes output) but the example is input-only; the comparison with KV-resident (incl. output) has an unacknowledged basis difference.",
+  "correction": "Either (a) rename to 'billable input tokens' and note that output billing is constant regardless of policy, or (b) include output in the billable example (42,485) for a clean Σ vs peak comparison. Ensure §4's 'billed' and §6's 'billable' use the same basis.",
+  "acceptance_test": "The billable and KV-resident quantities use the same input/output basis, or the basis difference is explicitly acknowledged in the comparison sentence.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-05",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "§4 scope note (dual tool-rate explanation) and §6 Inference scaling",
+  "chapter": "19",
+  "quoted_clause": "Chapter 17 §8 itself notes that a single model should use one rate consistently",
+  "observed": "The manuscript uses two tool-latency rates: λ_tool ≈ 100 ms (this chapter, tool backend only) and W's 133 ms (Ch 17, tool + retrieval including re-ranking). The text acknowledges they measure different quantities but also quotes Ch 17's advice to 'use one rate consistently,' creating tension about whether the dual-rate practice is intentional or an inconsistency.",
+  "evidence": "§4 defines λ_tool ≈ 100 ms (50–150 ms range). W's formula uses 133 ms/turn. The text explains: 'λ_tool ≈ 100 ms is this chapter's typical tool-backend round-trip, 50–150 ms; W's 133 ms is Ch 17 §8's mean tool+retrieval rate including re-ranking.' The rates measure different scopes (tool-only vs tool+retrieval), but a reader encountering both without the full explanation may be confused about which to use.",
+  "root_cause": "Two different quantities (tool-only vs tool+retrieval) use different rates, but the text's own quoted advice ('use one rate consistently') creates confusion about whether this is a deliberate distinction or an inconsistency.",
+  "correction": "Either (a) unify on one rate with a clear scope statement, or (b) explicitly state that 'use one rate consistently' applies within each quantity (use 100 ms for all tool-only calculations, 133 ms for all tool+retrieval calculations) and that the two quantities are never mixed in the same formula.",
+  "acceptance_test": "The reader can determine which rate applies to which calculation without re-reading the full explanation, and the quoted Ch 17 advice is reconciled with the manuscript's practice.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-06",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "§6 Tool backend provisioning",
+  "chapter": "19",
+  "quoted_clause": "which directly inflates the per-turn latency *L* and therefore the overall request latency",
+  "observed": "The symbol 'L' is not defined as a per-turn latency anywhere in the chapter. The correct symbol is L_agent (defined in §4 as λ_step + λ_tool).",
+  "evidence": "§4 defines L_base (base inference latency) and L_agent (orchestration overhead). No bare 'L' is defined for per-turn latency.",
+  "root_cause": "Typo or shorthand for L_agent.",
+  "correction": "Change '*L*' to '*L*agent' or 'L_agent'.",
+  "acceptance_test": "The symbol used in this sentence is defined earlier in the chapter.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-07",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "§4 Multi-step reasoning cost",
+  "chapter": "19",
+  "quoted_clause": "the agentic layer does *not* replace the ~8.6 s generation with ~440 ms",
+  "observed": "The '~440 ms' corresponds to T = 2 (90th percentile), but the median is T = 1 (220 ms) and p95 is T = 3 (660 ms). The text does not identify which T or percentile 440 ms represents.",
+  "evidence": "Table 19-1: added orchestration = 220 ms (T=1), 440 ms (T=2), 660 ms (T=3). The median T = 1 gives 220 ms. The surrounding paragraph discusses L_orch(T) generically without pinning T.",
+  "root_cause": "The number 440 ms does not correspond to a clearly identified operating point in the text.",
+  "correction": "Either specify the T value ('with ~440 ms at T = 2') or use the median ('with ~220 ms at the median T = 1').",
+  "acceptance_test": "The orchestration overhead figure is tied to a specific T or percentile.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ }
+]

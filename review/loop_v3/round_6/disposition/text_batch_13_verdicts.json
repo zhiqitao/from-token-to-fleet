@@ -1,0 +1,122 @@
+[
+ {
+  "id": "CH7-01",
+  "verdict": "CONFIRMED",
+  "evidence": "ch7 Table 7-2 QLoRA row reads 'quantized base + LoRA adapters + KV', and its note builds the total from 'the 4-bit base (~35 GB) + adapters + a small optimizer + the ~24 GB KV that Fig 7.6 lists (bar \u2248 60 GB)'; 35+24\u224859 is where the 50\u201370 GB comes from, yet ch7 L13 defines the fine-tuning floor as 'weights + gradients + optimizer states' and a training step holds no inference KV cache.",
+  "fix_instruction": "Remove KV from the QLoRA row, the table note and the Fig 7.6 bar; replace it with an activation/workspace term (or state activations are excluded and must be measured) and restate the QLoRA floor as ~35 GB 4-bit base + adapters + small optimizer without any inference-KV term."
+ },
+ {
+  "id": "CH7-02",
+  "verdict": "CONFIRMED",
+  "evidence": "ch7 L213 (\u00a74 point 1) 'When evaluating a model where the hidden dimension or layer count differs from LLaMA-70B, recompute the constant factor', while ch7 L88-L91 states LLaMA-2 70B has '64 query heads but only 8 KV-heads' giving '~0.33 MB/token ... about 8\u00d7 smaller' \u2014 the full-MHA formula with only layers/hidden changed cannot reproduce a real LLaMA-70B.",
+  "fix_instruction": "Replace 'LLaMA-70B' with 'the canonical full-MHA 70B teaching geometry' and add that the general form is 2 \u00d7 layers \u00d7 n_KV-heads \u00d7 head_dim \u00d7 bytes, so a real LLaMA-2 70B (8 KV heads) is ~0.33 MB/token, not 2.62."
+ },
+ {
+  "id": "CH7-03",
+  "verdict": "CONFIRMED",
+  "evidence": "ch7 L9 'The residency floor is therefore set by weights + KV (+ activations, in fine-tuning)' conflicts with L13 'In fine-tuning, the floor rises further to weights + gradients + optimizer states, because every parameter update requires its own momentum and velocity vectors' \u2014 the parenthetical names the wrong training terms.",
+  "fix_instruction": "Rewrite as 'The residency floor is weights + KV for inference; for fine-tuning it is weights + gradients + optimizer states (+ activations/workspace)', matching the next paragraph."
+ },
+ {
+  "id": "CH7-04",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch7 \u00a77 note labels both quantities in the adjacent bullets ('KV budget per rank: 436 \u00f7 8 = ~54.5 GB'; 'per-request KV per rank: 24.9 \u00f7 8 = ~3.1 GB'), and each line uses the right one: 17.5\u00d73.1 = 54.25 \u2192 17.5+8+54.25 = 79.75 (99.7% of 80 GB) and 17.5+54.5+8 = 80.0; the exact-value 99.97% differs by 0.27 pp and does not change the 'hard ceiling' conclusion.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH7-05",
+  "verdict": "CONFIRMED",
+  "evidence": "ch7 L9 'its size depends on the model's layer count, hidden dimension, and the precision chosen for key and value storage' omits KV-head count and head dimension, while L48 and the Fig 7.5 caption make attention shape the chapter's central correction ('2 (K and V) \u00d7 layers \u00d7 KV-heads \u00d7 head-dim \u00d7 bytes').",
+  "fix_instruction": "Change to 'its size depends on the model's layer count, KV-head count, head dimension (equivalently the KV width per layer) and the precision chosen for key and value storage', matching the general formula in \u00a73."
+ },
+ {
+  "id": "CH7-06",
+  "verdict": "CONFIRMED",
+  "evidence": "ch7 L9 'realized savings land between these 2\u00d7 and 4\u00d7 reduction factors' gives no explicit endpoints, and \u00a75 L229 repeats it brokenly: '4-bit KV's raw bound is a full 4\u00d7 ... \u2014 realized savings land between, once block/scale metadata is counted' (dangling clause, no referent).",
+  "fix_instruction": "Replace the range claim with a bound: '4-bit KV's raw payload bound is 4\u00d7; per-block scale/offset metadata and per-token variation reduce the realized reduction below 4\u00d7, so no specific multiplier may be assumed without the actual layout' \u2014 and repair the dangling 'land between,' in the \u00a75 bullet."
+ },
+ {
+  "id": "CH7-07",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch7 Table 7-1 FP8 row reads 'raw tensor byte-halving, exactly 50% of the 16-bit (FP16/BF16) baseline; any block-layout/scale-offset metadata overhead is NOT vendor-measured (see \u00a77.4)', and \u00a74 point 4 states the intended meaning exactly ('NOT a vendor-measured serving footprint, and any block-layout or per-token scale/offset metadata overhead is not included').",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH7-08",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch7 \u00a73 note contrasts 'the ~500 GB headroom (Ch. 4/7, single-request)' with 'the ~436 GB KV budget (Ch. 17, concurrency)'; the value is 640\u2212140 = 500 (after weights, before any KV or the ~64 GB reserve), and 'single-request' names which fit question it belongs to, matching ch5 L94 '640 GB \u2212 140 GB = 500 GB headroom'.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH8-01",
+  "verdict": "CONFIRMED",
+  "evidence": "ch8 L181 opens 'The canonical prefill takes about 1.08 s for 9.2K input tokens (Ch 4)' and three sentences later calls 1.08 s 'the end-to-end prefill budget'; 1.288 PFLOP \u00f7 2.7692 PFLOPS (8 \u00d7 346 TFLOPS) = 0.465 s at the chapter's own 35% MFU, so 'takes' asserts a duration that rate contradicts.",
+  "fix_instruction": "Replace 'The canonical prefill takes about 1.08 s' with 'The canonical prefill budget is 1.08 s (Ch 4)', keeping the following MFU derivation and the budget-vs-planning-rate distinction intact."
+ },
+ {
+  "id": "CH8-02",
+  "verdict": "CONFIRMED",
+  "evidence": "ch8 L283 labels the candidate 'Attention / memory constrained (within prefill)' but supports it entirely with a FLOP count ('the 4\u00b7n_layers\u00b7L\u00b2\u00b7d term ... at 32K it is already ~+60%'), while \u00a71 (L36) defines memory-bandwidth-bound and memory-capacity-constrained as distinct from compute-bound.",
+  "fix_instruction": "Rename the candidate 'Attention-term (compute) constrained within prefill' and, if score-matrix/KV HBM traffic is also intended, state that memory argument as an explicitly separate sub-case."
+ },
+ {
+  "id": "CH8-03",
+  "verdict": "CONFIRMED",
+  "evidence": "ch8 L283 lists 'flash-attention' among fixes that 'reduce the attention term', but the same chapter (Fig 8.1 caption, L55) defines FlashAttention as restructuring attention 'to tile through on-chip memory and cut HBM traffic' \u2014 it does not change the 4\u00b7n_layers\u00b7L\u00b2\u00b7d FLOP count that the bullet's argument rests on.",
+  "fix_instruction": "Split the mechanisms: 'reduce the attention FLOP term (sparse/linear attention) or, where the attention kernel is memory-bound, cut its HBM traffic (FlashAttention)'."
+ },
+ {
+  "id": "CH8-05",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch8 L244's clause is 'served by wide-memory GPUs or even CPU offload' \u2014 'even' marks an extreme fallback inside a sentence about which pool can serve each phase's demand under P/D disaggregation, not a recommendation for the canonical 10\u201340 rps workload.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH8-06",
+  "verdict": "CONFIRMED",
+  "evidence": "ch8 L177 is a single ~90-word sentence packing case (i)/(iii)/(ii) screens 19/21/22 \u2192 policy totals 29/32/34, KV-only 21 \u2192 32 and the \u03c1=1 '30 / 32' sub-screen plus two formulas; it is then repeated almost verbatim in L179's 'Honest boundary' paragraph.",
+  "fix_instruction": "Move the screen\u2192policy pairs into a 4-row table (case | full-utilization screen | 70% \u00d7 95% + N\u22121 total), keep one summary sentence plus the 'illustrative planning screen, not measured goodput' caveat in prose, and delete the verbatim repeat in L179."
+ },
+ {
+  "id": "CH8-07",
+  "verdict": "CONFIRMED",
+  "evidence": "ch8 Table 8-1 'prefill throughput per GPU | ~2,471 tokens/s | 346 TFLOPS \u00f7 140 GFLOP/token' names no FLOP case, while the table's FLOP rows are labelled '(linear only)/(full-square)/(causal-triangle)' and L99 states the book rule that every prefill FLOP figure and host count 'states which case it uses'; the 9.2K full per-token cost is ~164 GFLOP (L194), which would give ~2,110 tokens/s.",
+  "fix_instruction": "Add 'case (i) linear-only, 140 GFLOP/token' to the throughput row's derivation cell (and the per-host row), with a footnote that including attention at 9.2K gives ~2,110 tokens/s per GPU."
+ },
+ {
+  "id": "CH8-08",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch8 L49's roadmap sentence covers the \u00a71\u2013\u00a73 arc including \u00a72's roofline mental model, and 'build the core arithmetic (...)' names the chapter's first-half deliverables rather than asserting that every section contains arithmetic.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH9-FIG92-RING-INDEX",
+  "verdict": "CONFIRMED",
+  "evidence": "ch9 L67 caption 'In round r, rank i sends chunk (i\u2212r) mod N in both phases, so rank r ends the reduce-scatter holding reduced chunk r'; simulating N=4, rank 0 (steps 0-2: send 0/receive 3; send 3/receive 2; send 2/receive 1) ends holding chunk 1 = (r+1) mod N, and the all-gather must then send (i\u2212r+1) mod N, not (i\u2212r) mod N.",
+  "fix_instruction": "Give the two phase-specific formulas: reduce-scatter sends chunk (i\u2212r) mod N and leaves rank i holding reduced chunk (i+1) mod N (0-indexed rounds); all-gather sends chunk (i\u2212r+1) mod N. Verify the Fig 9.2 arrows against an N=4 simulation."
+ },
+ {
+  "id": "CH10-RESOURCE-TRIANGLE-DP",
+  "verdict": "CONFIRMED",
+  "evidence": "ch10 L36 'When a GPU is idle waiting, we reach for DP (more work per GPU)' conflicts with L17 ('Inference: independent replicas each serve a disjoint set of requests') and L30 ('Data parallel replicates the whole model and splits the batch') \u2014 replication adds capacity, and splitting the batch gives each GPU less work, not more.",
+  "fix_instruction": "Replace with 'When aggregate demand exceeds one replica's goodput, add DP replicas; when a single GPU is idle for lack of arrivals or batch, the fix is batching/admission or less over-provisioning \u2014 DP does not fill that GPU.'"
+ },
+ {
+  "id": "CH10-THREE-THINGS-FRAMING",
+  "verdict": "DEFENSIBLE",
+  "evidence": "ch10 L9's weights/layers/data tri-partition is the section's teaching frame, and the chapter supplies the mapping the finding asks for two paragraphs later (L30 'Expert and sequence parallelism (EP/CP) are additional axes that reuse the same machinery'), with the opening (L5) and Table 10-1 enumerating all five strategies plus P/D.",
+  "fix_instruction": ""
+ },
+ {
+  "id": "CH9-ON-NODE-DP-RATIO",
+  "verdict": "CONFIRMED",
+  "evidence": "ch9 L148, after 'data-parallel training of a 70B FP16 model across 8 nodes (an eight-rank DP group, e.g. one rank per node)', says 'keeping the all-reduce on-node gives an ideal ring time about 1/11th the assumed InfiniBand case', then retracts it in the same paragraph: 'An eight-node data-parallel job uses NVLink/NVSwitch for intra-node ... The 1/11 and 1/180 ratios compare an eight-rank single-host collective with an eight-rank cross-host collective ... not two fabrics for the same job.'",
+  "fix_instruction": "Delete the 'keeping the all-reduce on-node' clause and open the paragraph with what the ratios are: a single-host eight-rank collective vs a cross-host one; for the eight-node DP job the all-reduce is necessarily inter-node, so compare InfiniBand vs Ethernet only for that portion."
+ },
+ {
+  "id": "CH12-CANDIDATE-C-STATUS",
+  "verdict": "CONFIRMED",
+  "evidence": "ch12 L57 'Candidate (c) does not advance as a finalist; it is carried only as a labeled sensitivity case' \u2014 then the same paragraph says 'Candidate (c), the KV-quantized 7B model, is evaluated on the quality-degradation trade-off', L81 says it 'stays in the gate evaluation (Ch 14) rather than being excluded pre-measurement', and Table 12-1 says 'gated, not a finalist'.",
+  "fix_instruction": "Adopt one status phrase everywhere \u2014 'gated, not a finalist: carried into the Ch 14 quality gate; if it passes it becomes a finalist, otherwise it is retained only as a labeled sensitivity case' \u2014 and replace \u00a712.6's 'carried only as a labeled sensitivity case' with it."
+ }
+]

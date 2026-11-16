@@ -29,7 +29,7 @@ per token), while attention adds a term quadratic in context length
 (\textasciitilde4·n\_layers·L²·d, where d is the model hidden dimension,
 d = n\_heads × d\_head = 8192 here; the term counts both the QK\^{}T and
 AV matmuls for full dense attention and excludes projections and
-softmax; derived in §3 (\hyperref[tab:8.1]{Table 8-1}) and Ch 22) --- the hardware ridge
+softmax; derived in §8.3 (\hyperref[tab:8.1]{Table 8-1}) and Ch 22) --- the hardware ridge
 point and the kernel's arithmetic intensity decide the efficiency of
 both.
 
@@ -201,13 +201,14 @@ Source-level portability therefore reduces one part of migration work.
 It does not establish feature parity, numerical equivalence or sustained
 performance. \mbox{{[}DERIVED{]}}
 
-The chapter unfolds by section: §1--§3 build the core arithmetic (FLOPs
-per token, prefill PFLOP counts, H100 sustained utilization) and the
-roofline that explains why prefill is compute-bound while decode is
+The chapter unfolds by section: §8.1--§8.3 build the core arithmetic
+(FLOPs per token, prefill PFLOP counts, H100 sustained utilization) and
+the roofline that explains why prefill is compute-bound while decode is
 memory-bound, worked through the canonical scenario (70B on 8×H100, TTFT
-1.2 s, TPOT \textasciitilde25 ms); §4 turns to measurement, §5 to common
-mistakes, §6 to architecture consequences, §7 to open questions, and §8
-closes with a mini-case that threads the prefill/decode divide.
+1.2 s, TPOT \textasciitilde25 ms); §8.4 turns to measurement, §8.5 to
+common mistakes, §8.6 to architecture consequences, §8.7 to open
+questions, and §8.8 closes with a mini-case that threads the
+prefill/decode divide.
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -387,10 +388,11 @@ uses:
 \end{itemize}
 
 But the omission grows with context: at 32K the attention term is
-\textasciitilde{}\textbf{+60\%} of the linear term and at 128K it
-\emph{dominates} (\textasciitilde2.4× the linear term, ≈+240\%). An
-architect sizing long-context prefill must add the quadratic term or
-measure it; the Unknowns section returns to this.
+\textasciitilde{}\textbf{+60\%} of the linear term (case (ii);
+\textasciitilde+30\% under case (iii)) and at 128K it \emph{dominates}
+(\textasciitilde2.4× the linear term, ≈+240\%; \textasciitilde1.2× under
+case (iii)). An architect sizing long-context prefill must add the
+quadratic term or measure it; the Unknowns section returns to this.
 
 At 10 requests/s, the sustained prefill throughput demand is:
 
@@ -406,7 +408,8 @@ derived prefill and roofline rates for the canonical 70B workload.
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} from 2 × params × tokens; hardware peaks
 {[}1P: vendor datasheet{]} or \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}; the 30--40\% MFU range
 is {[}2°: industry benchmarks{]}; the \textasciitilde295 FLOP/byte ridge
-is \mbox{{[}2°{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} = 989 TFLOPS ÷~3.35 TB/s.)}
+is \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} = 989 TFLOPS ÷ 3.35 TB/s (both inputs
+first-party).)}
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -447,10 +450,13 @@ datasheet{]} & NVIDIA H100 SXM5 datasheet, without sparsity \\
 H100 sustained MFU (typical) & 30--40\% {[}2°: industry benchmarks{]} &
 \textasciitilde346 TFLOPS sustained at 35\% MFU \\
 prefill throughput per GPU & \textasciitilde2,471 tokens/s & 346 TFLOPS
-÷ 140 GFLOP/token {[}DERIVED; \textbf{per-GPU scope}{]} \\
+÷ 140 GFLOP/token {[}DERIVED; \textbf{per-GPU scope; case (i)
+linear-only, 140 GFLOP/token} --- including attention at 9.2K gives
+\textasciitilde2,110 tokens/s{]} \\
 prefill throughput per host (8×H100) & \textasciitilde19,800 tokens/s &
 8 × 2,471 {[}DERIVED; \textbf{idealized aggregate, before TP/system
-loss}{]} \\
+loss; case (i) linear-only} --- including attention at 9.2K
+\textasciitilde16,900 tokens/s{]} \\
 H100 ridge point (dense FP16) & \textasciitilde295 FLOP/byte & 989 ÷
 3.35 {[}DERIVED: peak TFLOPS ÷ HBM bandwidth{]} \\
 
@@ -471,8 +477,8 @@ FLOPs utilization (MFU) for a well-tuned transformer workload typically
 runs at 30--40\% of peak on H100 {[}2°: industry benchmark reports,
 derived from real kernel profiles{]}. The 35\% point used throughout
 this section is an explicit \textbf{\mbox{{[}ASSUMPTION{]}}}, not a measured
-value --- §7 notes that no systematic MFU atlas exists --- so every host
-count below is traceable to it. Sensitivity: 25\% MFU →
+value --- §8.7 notes that no systematic MFU atlas exists --- so every
+host count below is traceable to it. Sensitivity: 25\% MFU →
 \textasciitilde247 TFLOPS → \textasciitilde1,766 tokens/s per GPU,
 \textasciitilde14,100 per host, ⌈368,000 ÷ 14,100⌉ = 27 hosts at peak
 case (i); 35\% → \textasciitilde346 TFLOPS, \textasciitilde19,800 per
@@ -573,14 +579,14 @@ staff allocation is fixed, Ch 16). That two fundamentally different
 constraints (prefill FLOP throughput vs.~KV residency/service time) land
 within one host of each other for cases (ii) and (iii) --- and two hosts
 apart for case (i) --- is the useful cross-check that they point at the
-same order of fleet. \textbf{19 / 21 / 22 --- the full-utilization
-compute screens for cases (i) / (iii) / (ii) --- and their labeled 70\%
-× 95\% + N−1 policy totals, Ch 16/17: case (i) compute screen 19 → 29
-and fleet 21 → 32, case (iii) 21 → 32, case (ii) 22 → 34, KV-only 21 →
-32 (the ρ = 1 u-only screen reads 30 / 32 --- ceil(N ÷ 0.7) for KV-only
-21 and case (ii) 22) --- are illustrative planning screens under the
-stated FLOP-counting case and the 35\% MFU assumption, NOT measured
-SLO-goodput.}
+same order of fleet. \textbf{Host counts, scannable (Ch 16/17).}
+Full-utilization compute screens, cases (i) / (iii) / (ii): \textbf{19 /
+21 / 22}. Their labeled 70\% × 95\% + N−1 policy totals: case (i) 19 →
+29 compute, fleet 21 → 32; case (iii) 21 → 32; case (ii) 22 → 34;
+KV-only 21 → 32. The ρ = 1 u-only screen reads 30 / 32 (ceil(N ÷ 0.7)
+for KV-only 21 and case (ii) 22). All of these are illustrative planning
+screens under the stated FLOP-counting case and the 35\% MFU assumption
+--- NOT measured SLO-goodput.
 
 \textbf{Honest boundary on both numbers.} The per-GPU
 \texttt{2,471\ tokens/s} is itself an \emph{analytical} figure at an
@@ -594,13 +600,9 @@ analysis value, not a servable goodput. Actual reachable prefill
 throughput must come from benchmark goodput under the target workload
 (\hyperref[chap:14]{Chapter 14}). Treat both numbers as scope-disciplined \emph{models},
 never as measured capacity --- and treat every host count they produce
-(19 / 21 / 22 full-utilization compute screens for cases (i) / (iii) /
-(ii), and the labeled 70\% × 95\% + N−1 policy totals --- case (i) 19 →
-29 compute and 21 → 32 fleet, case (iii) 21 → 32, case (ii) 22 → 34,
-KV-only 21 → 32 --- 30 / 32 on the ρ = 1 u-only screen, ceil(N ÷ 0.7))
-as an \textbf{illustrative planning screen under its stated
-FLOP-counting case and the 35\% MFU assumption, not measured
-SLO-goodput}.
+(listed in the preceding paragraph) as an \textbf{illustrative planning
+screen under its stated FLOP-counting case and the 35\% MFU assumption,
+not measured SLO-goodput}.
 
 \textbf{The 1.08 s budget versus the 35\% planning rate.} The canonical
 prefill takes about 1.08 s for 9.2K input tokens (Ch 4) --- a rate of
@@ -613,9 +615,9 @@ overhead), while \textasciitilde19,800 tokens/s/host is the
 \emph{sustained planning rate} for capacity arithmetic. Size the host
 screens against the planning rate; if a deployment sustained only the
 1.08 s-implied rate, the peak prefill demand of \textasciitilde51.6
-PFLOP/s (1.288 PFLOP × 40 rps) would need 51.6 ÷ 1.19 ≈ \textbf{43
-hosts}, not 19 --- the gap a benchmark (Ch 14) has to close before
-either number is quoted as capacity. \mbox{{[}DERIVED{]}}
+PFLOP/s (1.288 PFLOP × 40 rps) would need 51.6 ÷ 1.19 = 43.4 → ⌈43.4⌉ =
+\textbf{44 hosts}, not 19 --- the gap a benchmark (Ch 14) has to close
+before either number is quoted as capacity. \mbox{{[}DERIVED{]}}
 
 This rough sizing illustrates that prefill is FLOP-bound at this scale
 --- its arithmetic intensity sits far above the ridge, so memory
@@ -682,8 +684,11 @@ memory-bandwidth-bound. Throughput improves with batching because the
 weight-reread amortizes across tokens --- decode intensity ≈ batch size
 (weight-only), so at batch=32 the effective intensity is
 \textasciitilde32 FLOP/byte, still \textasciitilde9× below the 295 ridge
-(compute-bound decode needs batch ≈ 295, or quantized weights, which
-halve bytes and double intensity), and TFLOP/s utilization increases
+(compute-bound decode needs batch ≈ 295 at FP16 --- weight-only
+first-order estimate; FP8 weights halve the bytes but also double the
+peak, so the ridge doubles to ≈591 FLOP/byte and the required batch is
+unchanged --- quantization raises achieved bandwidth utilization, it
+does not move the classification), and TFLOP/s utilization increases
 accordingly. \textbf{KV-read caveat:} the weight-only intensity above
 omits the per-sequence KV re-read (\textasciitilde24 GB at the canonical
 9.2K context, FP16 full-MHA). Including it, the decode intensity is
@@ -774,7 +779,8 @@ Three measurable quantities anchor compute sizing:
   \textasciitilde295 FLOP/byte; H200: \textasciitilde989 TFLOPS ÷ 4.8
   TB/s ≈ 206 FLOP/byte --- H200 keeps H100's GH100 die and its dense
   FP16 peak, trading a bigger/faster HBM3e for bandwidth --- more
-  bandwidth at a similar BF16 peak, so its ridge is \emph{lower}; GB200
+  bandwidth at the same dense peak (FP16 and BF16 dense peaks are
+  identical on GH100: 989 TFLOPS), so its ridge is \emph{lower}; GB200
   superchip (2 GPUs): higher on both terms (dense BF16 peak 4,500 TFLOPS
   = 2× B200's 2,250 per GPU, over 16 TB/s HBM3e = 2× 8 TB/s per GPU →
   4,500 ÷ 16 ≈ 281 FLOP/byte, granularity-invariant, just below H100's
@@ -854,13 +860,17 @@ design:
   batch size, so even modest batch sizes (8--16) raise it to
   \textasciitilde8--16 FLOP/byte (batch 16 → \textasciitilde16, still
   \textasciitilde18× below the 295 ridge), improving TFLOP/s utilization
-  without reaching compute-bound; compute-bound decode needs batch ≈
-  295, or quantized weights, which halve bytes and double intensity. KV
-  cache quantization (FP8, int8) also reduces bytes per token, raising
+  without reaching compute-bound; compute-bound decode needs batch ≈ 295
+  at FP16 (weight-only first-order estimate) --- FP8 weights halve the
+  bytes but also double the peak, so the ridge doubles to ≈591 FLOP/byte
+  and the required batch is unchanged, i.e.~quantization raises achieved
+  bandwidth utilization, it does not move the classification. KV cache
+  quantization (FP8, int8) also reduces bytes per token, raising
   effective intensity. P/D disaggregation (prefill on GPUs, decode on a
   separate pool) can rebalance: prefill's FLOP demand is served by
   compute-optimized GPUs, while decode's bandwidth demand is served by
-  wide-memory GPUs or even CPU offload.
+  wide-memory GPUs, or by CPU offload only for latency-tolerant,
+  low-throughput paths.
 \item
   \textbf{If the workload's intensity crosses the hardware ridge}
   (e.g.~a workload at \textasciitilde250 FLOP/byte is memory-bound on
@@ -875,9 +885,10 @@ design:
   \textasciitilde4 PFLOPS (§8.5) --- would do the opposite), and
   precision scaling moves intensity and ridge together (bytes halve →
   intensity doubles; peak doubles → ridge doubles), so FP8 alone does
-  not change the classification. This is why the H200 represents an
-  inflection point where inference and training hardware lines begin to
-  converge {[}1P: NVIDIA H200 SXM datasheet{]}.
+  not change the classification. H200's lower ridge means workloads that
+  are memory-bound on H100 can land on H200's compute plateau --- the
+  ridge is a hardware property, not a workload property {[}1P: NVIDIA
+  H200 SXM datasheet{]}.
 \end{itemize}
 
 In practice, the architect measures arithmetic intensity for the target
@@ -891,16 +902,18 @@ work}\label{from-video-dimensions-to-repeated-attention-work}
 The same derive-then-decide move applies to a workload that evaluates
 all of its token positions together rather than one per step: the budget
 is derived from counted dimensions, not from a duration label, and it
-applies the §1 principle (fewer sequential evaluations ≠ less total
+applies the §8.1 principle (fewer sequential evaluations ≠ less total
 work) to a whole-clip denoiser.
 
 Take Wan2.2 TI2V-5B's text-to-video path --- a dense transformer, hidden
 width 3,072, 30 layers, 24 attention heads. Its ``720P'' example yields
 a 31×44×80×48 latent tensor (121 frames at the stated strides),
-patchified into \textbf{27,280 video tokens} per evaluation; full
-noncausal attention (\texttt{causal=False}, no window) then costs about
-\(4N^2d\) ≈ 9.145 TFLOP per layer, ≈ 274 TFLOP per branch evaluation,
-and ≈ 27.4 PFLOP over the inspected 50 scheduler steps × 2 CFG branches.
+patchified into \textbf{27,280 video tokens} per evaluation (= 31 × 22 ×
+40, i.e.~a 2×2 spatial patch over the 31×44×80 latent with the 48 input
+channels folded into the patch embedding); full noncausal attention
+(\texttt{causal=False}, no window) then costs about \(4N^2d\) ≈ 9.145
+TFLOP per layer, ≈ 274 TFLOP per branch evaluation, and ≈ 27.4 PFLOP
+over the inspected 50 scheduler steps × 2 CFG branches.
 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \begin{figure}
@@ -937,9 +950,10 @@ derivation, with its citations, is in Appendix A's video-attention note.
   reference.
 \item
   \textbf{Arithmetic intensity of emerging attention mechanisms.} Linear
-  attention (DeltaNet, MLA), compressed attention (CSA, HCA), and hybrid
-  sparse patterns have different FLOP profiles and data movement. Their
-  roofline position is not yet established in primary sources.
+  attention (DeltaNet), low-rank/compressed attention (MLA, CSA, HCA),
+  and hybrid sparse patterns have different FLOP profiles and data
+  movement. Their roofline position is not yet established in primary
+  sources.
 \item
   \textbf{Frontier 2026 has begun to answer this.} DeepSeek-V4's hybrid
   CSA+HCA attention reports that, at 1M-token context, single-token
@@ -960,7 +974,13 @@ derivation, with its citations, is in Appendix A's video-attention note.
   FP8/int8 changes peak TFLOP/s and bytes-per-operand, shifting the
   ridge point. The net effect depends on the quantization scheme
   (element-wise vs.~per-tensor, dynamic vs.~static) and whether the
-  kernel is re-tuned for the lower precision.
+  kernel is re-tuned for the lower precision. At first order the two
+  shifts cancel: FP8 halves bytes-per-operand (doubling intensity) and
+  roughly doubles dense peak (doubling the ridge), so the classification
+  does not move (§8.6, third bullet). What does move the effective ridge
+  is a scheme whose metadata or kernel path changes the bytes actually
+  moved per useful FLOP --- e.g.~block-scaled formats carrying per-block
+  scales, or an untuned dequantize-then-GEMM path.
 \end{itemize}
 
 \section{End-of-Chapter Mini-Case: Continuous Deployment
@@ -985,12 +1005,13 @@ decode, each new token re-reads the weight matrix from HBM, so the
 arithmetic intensity is \textasciitilde1 FLOP/byte --- genuinely
 memory-bound. In prefill, the weight matrix is read \emph{once} and
 reused across the whole sequence; the sequence dimension supplies the
-matrix-matrix reuse. Prefill's effective intensity is
-\texttt{(2\ ×\ N\ ×\ L)\ /\ (N\ ×\ 2\ bytes/param)} = \texttt{L} =
-\textbf{9,200 FLOP/byte} at the canonical 9.2K context ---
-\textasciitilde1.5 orders of magnitude above the \textasciitilde295
-FLOP/byte dense-FP16 ridge. At that operating point prefill is
-compute-bound, exactly as the rest of this chapter teaches.
+matrix-matrix reuse. Prefill's \textbf{weight-only} effective intensity
+is \texttt{(2\ ×\ N\ ×\ L)\ /\ (N\ ×\ 2\ bytes/param)} = \texttt{L} =
+\textbf{9,200 FLOP/byte} at the canonical 9.2K context; including the
+\textasciitilde24 GB KV write it is \textasciitilde{}\textbf{7,850}
+FLOP/byte --- both far above the \textasciitilde295 FLOP/byte dense-FP16
+ridge, \textasciitilde1.5 orders of magnitude. At that operating point
+prefill is compute-bound, exactly as the rest of this chapter teaches.
 
 So a high TTFT is \emph{not} evidence of a bandwidth problem. The
 architect does the correct thing: profile the prefill kernel and
@@ -1012,12 +1033,16 @@ rather than assuming memory. The profile separates four candidates:
   grid under-fills the SMs; increasing batch or improving occupancy
   raises utilization without adding hardware.
 \item
-  \textbf{Attention / memory constrained (within prefill)} --- the
+  \textbf{Attention-term (compute) constrained within prefill} --- the
   quadratic attention term, not the linear weights, grows with context;
-  at 128K+ contexts this term dominates prefill cost (at 32K it is
-  already \textasciitilde+60\% --- the 4·n\_layers·L²·d term, \hyperref[fig:22.1]{Fig 22.1}),
-  so the fix is to reduce the attention term (flash-attention,
-  sparse/linear attention), not to batch harder.
+  at 128K+ contexts this FLOP term dominates prefill cost (at 32K it is
+  already \textasciitilde+60\% --- the 4·n\_layers·L²·d term, \hyperref[fig:22.1]{Fig 22.1};
+  case (ii) convention), so the fix is to reduce the attention FLOP term
+  (sparse/linear attention) or, where the attention kernel is
+  memory-bound, cut its HBM traffic (FlashAttention) --- not to batch
+  harder. A distinct sub-case exists where score-matrix and KV HBM
+  traffic, rather than attention FLOPs, is the binding term; that one is
+  a bandwidth constraint and should be diagnosed separately.
 \end{itemize}
 
 The architect measures MFU to choose among these. If the prefill kernel

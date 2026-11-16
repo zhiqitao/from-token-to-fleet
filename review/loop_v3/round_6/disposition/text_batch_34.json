@@ -1,0 +1,352 @@
+[
+ {
+  "id": "CH21-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 21 §3, 'Cost of a bad ungated release'",
+  "chapter": "Ch 21",
+  "quoted_clause": "That is 6/8 x 288,000 ~ 216,000 requests served at a broken SLO.",
+  "observed": "The canonical SLO is a p95 SLO (p95 TTFT <= 2 s). A p95 of 2.8 s means the aggregate SLO was violated during the window, but only the top ~5% of individual requests exceeded 2 s. The sentence conflates 'requests served during an SLO-violating window' (216,000) with 'requests that individually breached the SLO' (~10,800).",
+  "evidence": "p95 TTFT 2.8 s > 2 s SLO implies ~5% of requests exceeded 2 s: 216,000 x 0.05 ~ 10,800 requests individually breached. The 216,000 figure is the count of requests served while the service was non-compliant. The blast-radius ratio used later in the section (216,000 / 3,600 = 60x) is unaffected, because the same 5% applies to both paths (10,800 vs 180).",
+  "root_cause": "Percentile semantics collapsed into a request count. The chapter elsewhere is careful about mean-vs-percentile; here the p95 SLO is treated as a per-request predicate.",
+  "correction": "Rewrite as: 'That is 6/8 x 288,000 ~ 216,000 requests served while the service was non-compliant; because the SLO is a p95, roughly 5% of them - ~10,800 requests - individually exceeded the 2 s TTFT budget.' Keep 216,000 as the exposure window count and add the ~10,800 as the individually-breaching count, and note that the 60x blast-radius ratio holds on either denominator.",
+  "acceptance_test": "Every request count derived from a p95 SLO in Ch 21 is labelled either 'served during a non-compliant window' or 'individually exceeded the SLO', and the two are not used interchangeably.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH21-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 21 §3, 'Cost of a good gated release' and 'Reading the result'",
+  "chapter": "Ch 21",
+  "quoted_clause": "**Cost of a good gated release.** A canary at 5% traffic for 2 hours serves 5% x 288,000 x2/8 ~ 3,600 requests through the candidate while it is measured against a full evaluation suite. ... Gating turns a risky 216K-request exposure (ungated) into a controlled ~3.6K-request canary - a ~60x reduction in blast radius for the cost of a 2-hour evaluation.",
+  "observed": "The section heading promises a cost and the body delivers none, while the ungated side of the comparison carries a dollar figure. The gated path's real costs are omitted: (a) duplicated model residency - a canary requires a second copy of the 70B model (140 GB of weights plus its own KV budget) on the canonical 8xH100 host; (b) the evaluation suite's own inference cost; (c) the serving cost of the 3,600 canary requests. For a self-hosted canonical fleet, duplicated residency is the dominant gated-path cost, and it is exactly the cost the chapter's own §6 later lists as a P/D-disaggregation trade-off.",
+  "evidence": "Canonical host: 8xH100 = 640 GB HBM, 140 GB weights. A canary replica consumes a full host's weight budget (or a partial replica plus KV). The chapter's §6 elsewhere states that duplicated model residency is a first-order cost of any two-pool design; omitting it from the gating economics is an internal inconsistency in cost reasoning. The ungated path's $5,394 is explicitly labelled 'incurred whether or not the regression occurred', so the comparison is not cost-vs-cost but cost-vs-nothing.",
+  "root_cause": "The economics section was written to make the gating argument (blast-radius reduction) rather than to compare the two paths' total cost, and the heading was left as a promise the body does not keep.",
+  "correction": "Either (a) rename the subsection to 'Exposure of a gated release' and drop the cost framing, or (b) complete the economics: state the canary's incremental cost as (duplicate model residency: one additional 8xH100 host or a partial replica, amortized over the promotion window) + (evaluation-suite inference) + (3,600 canary requests at the canonical rate ~ $90), and compare against the ungated path's $5,394 direct serving cost plus the unpriced business cost. Add a sentence noting that the gated path's cost is dominated by duplicated residency, not by the canary's serving cost.",
+  "acceptance_test": "The gated path carries at least an order-of-magnitude cost estimate with its components named, or the heading no longer claims to be a cost analysis. Duplicated model residency appears in the gating economics, consistent with its treatment in §6.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH21-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 21 §8 mini-case, statistical paragraph",
+  "chapter": "Ch 21",
+  "quoted_clause": "the incumbent's baseline failure rate on that subset is ~0.83% (3 in ~360), and a one-sided binomial test at alpha = 0.05 returns p ~ 6.4x10^-5, so the gate fires",
+  "observed": "The p-value is correct, but the null rate p0 is estimated from only 3 observed events, and the mini-case presents the resulting p-value as decisive without stating the baseline's sample size or its uncertainty. The gate's firing is materially sensitive to that estimate: at the upper end of the baseline's own 95% confidence interval the same observation would not be significant.",
+  "evidence": "I reproduced the exact binomial tail: n = 360, p0 = 3/360 = 0.008333, P(X >= 12) = 6.43e-5, matching the printed 6.4e-5. Wilson 95% CI for 3/360 is approximately [0.02%, 2.16%]. At p0 = 2.16% (n = 360, lambda = 7.78), P(X >= 12) ~ 0.09-0.10, i.e. NOT significant at alpha = 0.05. So the gate's decision flips inside the baseline's own uncertainty band. The mini-case also does not say where the incumbent's ~360-request baseline came from (the incumbent's share of the same window would be ~342 legal requests, not 360).",
+  "root_cause": "A point estimate of the null rate was used as if it were known, and the sample size behind it was not surfaced. The mini-case teaches a decision rule without teaching the precision of the rule's inputs.",
+  "correction": "State the baseline's provenance and sample size explicitly ('the incumbent's baseline over the same window: 3 failures in ~342 legal-subset requests'), and add one sentence: 'the gate fires decisively at the point estimate, but the incumbent baseline rests on 3 events; at the upper 95% bound of that baseline (~2.2%) the same observation would not be significant, so a production gate should either use a conservative baseline bound or a larger baseline sample.' This also strengthens the chapter's own point that gates must be calibrated.",
+  "acceptance_test": "The mini-case names the baseline's sample size, and the text acknowledges the sensitivity of the decision to the baseline estimate rather than presenting p = 6.4e-5 as unconditional.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH22-03",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 22 §3, Note 22.1-1 (TTFT budget paragraph); cross-reference to Ch 21 §3",
+  "chapter": "Ch 22",
+  "quoted_clause": "~1.19 PFLOPS required at the ~1.08 s prefill budget (Ch 4, Table 4-2: the 1.2 s TTFT budget minus the ~120 ms retrieval term - an upper reach, not a deployed target)",
+  "observed": "The canonical scenario carries two different TTFT numbers that are never reconciled: a 1.2 s TTFT budget (Ch 4, Table 4-2, used here) and a 1.9 s canonical p95 TTFT (Ch 21 §3, 'raises p95 TTFT from 1.9 s to 2.8 s'). If 1.2 s is the whole-request TTFT budget, the canonical p95 of 1.9 s already exceeds it; if 1.2 s is a non-queueing design target, the book never says so. The reader cannot tell which, and the prefill deadline arithmetic (1.08 s) depends on the answer.",
+  "evidence": "Ch 21 §3 uses 1.9 s as the canonical p95 TTFT and 2 s as the SLO; Ch 22 Note 22.1-1 uses 1.2 s as the TTFT budget and 1.08 s as the prefill deadline. If the canonical p95 TTFT is 1.9 s and retrieval is ~120 ms, the prefill phase in the observed operating point occupies ~1.78 s, not 1.08 s - which would make the 1.19 PFLOPS figure a ~1.6x under-estimate of the actual sustained prefill rate rather than an 'upper reach'.",
+  "root_cause": "Two chapters use the same canonical scenario with different TTFT anchors and neither states the relationship between them (budget vs target vs achieved p95).",
+  "correction": "State the relationship once, in Ch 4 Table 4-2 or in Ch 22 Note 22.1-1: e.g. 'the 1.2 s figure is the design budget for TTFT excluding queueing; the canonical measured p95 TTFT of 1.9 s (Ch 21) includes queueing and decode-side overhead at the canonical offered load.' Then make the prefill-deadline statement consistent: if the 1.08 s deadline is a design target, say so and note that the achieved p95 implies a longer prefill phase, which raises the sustained prefill FLOP rate and therefore the host count.",
+  "acceptance_test": "A reader can state, from the text alone, whether 1.2 s and 1.9 s are the same quantity measured differently, and the prefill-deadline arithmetic in Ch 22 is consistent with the canonical p95 TTFT used in Ch 21.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH22-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 22 §7, 'What We Still Don't Know', second bullet of the first group",
+  "chapter": "Ch 22",
+  "quoted_clause": "**Prefill FLOP cost under continuous batching** - Chapter 2 §7; the 2 x params x tokens approximation may ignore activation reuse across batched requests (the size of the correction is workload-dependent). [HYPOTHESIS]",
+  "observed": "The stated uncertainty is misdescribed. The 2 x params x tokens term is a per-token FLOP count and does not change with batching: every token, batched or not, still requires ~2N FLOPs of projection and MLP work. Batching does not 'reuse activations across batched requests' (that is prefix caching, a different mechanism with a different scope). What batching changes is achieved efficiency - MFU, kernel occupancy, and the amortization of weight reads - not the FLOP count.",
+  "evidence": "2 x 70e9 x 9,200 = 1.288e15 FLOPs per request regardless of how the 9,200 tokens are distributed across batch entries; the sum over the batch is identical. The book's own §3 note already treats 2NL as exact for the linear term. The genuine workload-dependent uncertainty is the achieved MFU (the chapter elsewhere uses 40% MFU as a planning assumption), which is exactly what the host-count arithmetic in §3 and §8 depends on.",
+  "root_cause": "A mechanism (activation reuse) was substituted for the actual uncertainty (achieved utilization under batching), and the chapter's own host-count arithmetic (1.6 hosts at peak vs ~4.1 at 40% MFU) shows the real uncertainty is a 2.5x swing in fleet size.",
+  "correction": "Rewrite the bullet: '**Achieved prefill efficiency under continuous batching** - Chapter 2 §7; the 2 x params x tokens term is exact per token and does not change with batching, but the achieved MFU does, and it swings the canonical prefill host count by ~2.5x (1.6 hosts at 100% of peak vs ~4.1 at 40% MFU). The size of that correction is workload- and kernel-dependent. [HYPOTHESIS]'",
+  "acceptance_test": "No bullet in Ch 22 §7 attributes a change in FLOP count to batching; the batching uncertainty is stated in terms of achieved efficiency, and it is linked to the host-count arithmetic the chapter itself performs.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH22-05",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 22 §7, third bullet of the second group",
+  "chapter": "Ch 22",
+  "quoted_clause": "Swapping the 70B for a smaller dense model moves the 2NL prefill term and the ~140 GB weight read in the same direction but not the KV-cache term, which depends on context length and layer count rather than parameter count - so the loop's ranking of the two bottlenecks can flip without any change in traffic.",
+  "observed": "The claim that the KV-cache term does not move is only true if the smaller model keeps the same layer count and KV-head count, which is not the usual case. KV per token = 2 x n_layers x n_kv_heads x head_dim x bytes; a smaller dense model typically has fewer layers and/or fewer KV heads, so KV per token shrinks too. The sentence's own parenthetical ('depends on context length and layer count') contradicts its conclusion, since layer count is exactly what usually changes with model size.",
+  "evidence": "Canonical: 2.62 MB/token at 80 layers. A 7B-class model with 32 layers and the same head geometry would be ~1.05 MB/token, a 2.5x reduction - the same order as the parameter reduction. The conclusion ('the ranking can flip') survives, but the stated mechanism for why KV does not move is wrong.",
+  "root_cause": "Parameter count and layer count were treated as independent when the KV term is a function of the latter; the sentence conflates 'not a function of parameter count' with 'does not change'.",
+  "correction": "Rewrite: 'Swapping the 70B for a smaller dense model moves the 2NL prefill term and the ~140 GB weight read down together, and moves the KV term down as well - but by a different factor, because KV per token scales with layer count and KV-head count rather than parameter count. The two terms therefore shrink by different factors, and the loop's ranking of the two bottlenecks can flip without any change in traffic.'",
+  "acceptance_test": "The bullet states which architectural parameters the KV term depends on and does not claim the KV term is invariant to a model swap.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH21-05",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 21 §3, 'Reading the result'",
+  "chapter": "Ch 21",
+  "quoted_clause": "a ~60x reduction in blast radius for the cost of a 2-hour evaluation",
+  "observed": "The 60x factor silently combines two independent levers - traffic share (5% vs 100% = 20x) and exposure duration (2 h vs 6 h = 3x). A reader who wants to reason about a different canary size or a different detection latency cannot decompose the number, which is exactly the reasoning the chapter is trying to teach.",
+  "evidence": "216,000 / 3,600 = 60 = 20 (traffic share) x 3 (duration). At a 6-hour canary the exposure would be 10,800 and the reduction 20x; at a 5% canary with 1-hour detection the reduction would be 120x. The 60x is therefore a property of two chosen assumptions, not of gating as such.",
+  "correction": "State the factorization: 'a ~60x reduction, which factorizes into ~20x from confining traffic to 5% and ~3x from the shorter exposure window; the traffic-share lever is the one that scales with risk posture.'",
+  "acceptance_test": "The 60x figure is accompanied by its factorization, or the text notes that it depends jointly on the 5% and 2-hour assumptions.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH22-06",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 22 §2, first paragraph",
+  "chapter": "Ch 22",
+  "quoted_clause": "The prefill/decode split is the distinction the rest of the book builds on, and it was established in Ch 2 §2",
+  "observed": "At Chapter 22 of a 26-chapter book, 'the rest of the book' is wrong - the distinction was built on by the preceding twenty chapters. The phrase misdirects the reader about the book's remaining structure.",
+  "evidence": "The chapter is in Part VI and is followed by Ch 23-26 (decision worksheets, ADR templates). The prefill/decode split is used by Ch 6, 8, 11, 12, 16, 22 - all earlier.",
+  "correction": "Rewrite: 'The prefill/decode split is the distinction the book builds on, and it was established in Ch 2 §2 and deepened in Ch 6 (bandwidth), Ch 8 (compute) and Ch 11-12 (scheduling).'",
+  "acceptance_test": "No forward-looking structural claim in Ch 22 misstates the position of the chapter within the book.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH22-07",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 22 §3, Step 4 vs §6 and §8 mini-case",
+  "chapter": "Ch 22",
+  "quoted_clause": "under the canonical assumptions the prefill-compute and KV-capacity terms are where the pressure lands, not decode bandwidth",
+  "observed": "The chapter states in two places that decode is bandwidth-bound and requires a 5.6 TB/s weight-read rate, while Step 4 says decode bandwidth is not where the pressure lands. Both statements are defensible only if the reader distinguishes the bottleneck regime (decode is bandwidth-bound) from the sizing pressure (decode's total demand is small relative to prefill's). The text does not make that distinction, so a reader can reasonably conclude either that decode is not bandwidth-bound or that it is the dominant constraint.",
+  "evidence": "Decode total demand at the canonical average: 3,000 output tokens/s x 140 GB/token (batch-1) = 420 TB/s of weight traffic, versus prefill's 12.88 PFLOP/s - different units, so 'pressure' is not directly comparable without the SLO. The chapter's own §6 and §8 both say 'decode will be bandwidth-bound'.",
+  "correction": "Rewrite Step 4's clause as: '...the prefill-compute and KV-capacity terms are where the sizing pressure lands; decode remains in the bandwidth-bound regime (Ch 6) but its total demand is small at this input/output ratio, so it constrains the per-token latency budget rather than the fleet size.'",
+  "acceptance_test": "The regime claim (bandwidth-bound) and the sizing-pressure claim are stated separately wherever both appear, and a reader cannot derive 'decode is not bandwidth-bound' from any sentence in Ch 22.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH22-08",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 22 §3, 'The loop on a second workload'",
+  "chapter": "Ch 22",
+  "quoted_clause": "Step 4 flips the verdict: prefill compute collapses (2N.L at 400 tokens is ~0.056 PFLOP per request) while the decode leg carries the weight-read rate (~140 GB per token over the ~25 ms interval, unchanged)",
+  "observed": "The transferability demonstration asserts 'opposite conclusion' but never quantifies the decode side of the second workload. The reader is shown that prefill shrinks 23x (1.288 -> 0.056 PFLOP) but not that decode grows 3x (300 -> 900 output tokens), which is the actual reason the verdict flips. As written, the second workload's decode leg looks unchanged ('unchanged' refers only to the per-token rate), which undercuts the point being made.",
+  "evidence": "Second workload decode FLOPs: 900 tokens x 140 GFLOP/token = 126 TFLOP per request, versus prefill 56 TFLOP - decode is 2.25x prefill, the reverse of the canonical workload (prefill 1,288 TFLOP vs decode 42 TFLOP, a 31x prefill dominance). The per-token weight-read rate is indeed unchanged; the per-request decode work is 3x larger.",
+  "correction": "Add the per-request decode FLOP comparison: '...while the decode leg now carries 900 x 140 GFLOP = ~126 TFLOP per request against ~56 TFLOP of prefill - decode is now 2.3x prefill, the reverse of the canonical workload's ~31x prefill dominance. The per-token weight-read rate is unchanged; the amount of decode work per request is not.'",
+  "acceptance_test": "The second-workload paragraph quantifies both legs per request, and the 'opposite conclusion' claim is supported by shown arithmetic rather than by the input/output ratio alone.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH22-09",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 22 §3, Fig 22.1 caption vs Note 22.1-1",
+  "chapter": "Ch 22",
+  "quoted_clause": "Derivation: Note 22.1-1 (previous page). ... The ratios at 9.2K / 128K and the per-series unit note are in the figure note below.",
+  "observed": "The figure caption locates Note 22.1-1 on the 'previous page', while the note itself refers to 'the figure note below'. In the source order the note immediately follows the figure, so at least one of the two locators is wrong. Cross-references are part of the book's navigation system and a wrong page pointer sends the reader hunting.",
+  "evidence": "Source order in the chunk: Fig 22.1 image -> Note 22.1-1. The caption's 'previous page' and the note's 'below' cannot both be correct for a figure and its note that are adjacent.",
+  "correction": "Make the caption say 'Derivation: Note 22.1-1 (below)' or move the note to the following page and keep 'previous page'; verify against the rendered page and correct whichever is wrong.",
+  "acceptance_test": "The rendered page shows the caption's locator and the note's locator pointing at each other consistently.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH21-06",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 21 §1 (pillars 1 and 3) and §6 (component list)",
+  "chapter": "Ch 21",
+  "quoted_clause": "1. **Data pipeline** - ... [ILLUSTRATIVE][DERIVED] ... 3. **Serve + observe + rollback** - ... [ILLUSTRATIVE][DERIVED] ... Three components implement the factory: an evaluation runner that executes the gate, a canary router that splits traffic between incumbent and candidate, and a rollback mechanism that restores the last-known-good model.",
+  "observed": "Two issues. (a) The pillars are definitional statements of what the factory is, yet carry a [DERIVED] status label; DERIVED should attach to computed quantities, not to a definition of a concept. (b) The chapter presents two different 'three' lists - the three pillars (data pipeline, evaluation & promotion gate, serve+observe+rollback) and the three implementation components (evaluation runner, canary router, rollback mechanism) - with the data pipeline absent from the second. A reader may take the second list as the complete implementation set.",
+  "evidence": "The book's status taxonomy (Ch 4 / Appendix A) separates [FACT]/[DERIVED]/[ASSUMPTION]/[HYPOTHESIS]/[UNRESOLVED] as statuses of claims; a definition of a pillar is a claim of the book's own framing, not a derivation from inputs. The §6 list omits the data pipeline, which §1 calls pillar 1 and which the mini-case relies on ('the data pipeline versions it').",
+  "correction": "(a) Drop [DERIVED] from the pillar definitions, or replace with the appropriate status for a definitional claim. (b) Either add the data pipeline to the §6 component list (making it four components) or state explicitly that §6 lists only the promotion-path components and that the data pipeline is described in §1.",
+  "acceptance_test": "No definitional statement in Ch 21 carries a [DERIVED] label, and the chapter presents one unambiguous list of factory components (or explicitly scopes each list).",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH21-07",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 21 §3 (workload label) vs Ch 22 §3 Step 1 and Table 22-1",
+  "chapter": "Ch 21 / Ch 22",
+  "quoted_clause": "the canonical 70B RAG workload (~10 rps average, ~9.2K-in/~300-out). [CANONICAL] (Ch 4, Table 4-2) ... These are the book's `[canonical scenario]` inputs (Ch 4, Table 4-2) ... | input / output ratio | ~30x | 9,200 / 300 [canonical scenario][DERIVED] |",
+  "observed": "The same canonical workload carries two different provenance labels across two consecutive chapters ([CANONICAL] in Ch 21, [canonical scenario] in Ch 22), with different capitalization. Separately, Table 22-1 mixes provenance tags within one derivation class: the ratio row is [canonical scenario][DERIVED] while the token-throughput rows derived from the same canonical inputs are [ILLUSTRATIVE][DERIVED].",
+  "evidence": "Both labels appear to be book-defined (Ch 22 explicitly says 'the book's [canonical scenario] inputs'), so this is not an undefined-label issue - it is two labels for one concept, and inconsistent provenance tagging inside a single table.",
+  "correction": "Pick one label for the canonical workload and use it everywhere (verify against the Ch 4 / Appendix A taxonomy which is canonical), and make Table 22-1's provenance tags consistent: rows derived from canonical inputs should carry the same provenance tag whether or not the row is also a ratio.",
+  "acceptance_test": "A global search for 'CANONICAL' and 'canonical scenario' returns one surviving spelling, and Table 22-1's provenance column is internally consistent.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "ABSENT"
+ },
+ {
+  "id": "CH21-08",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 21 §8 mini-case, sentence introducing the 240 ms figure",
+  "chapter": "Ch 21",
+  "quoted_clause": "The candidate improves quality on the main subset but adds 240 ms to p95 TTFT; the canary has served 3,600 requests with 12 legal-subset failures",
+  "observed": "The 240 ms TTFT regression is introduced and then never used. On the canonical numbers it independently breaches the SLO: 1.9 s + 0.24 s = 2.14 s > the 2 s p95 TTFT SLO. The mini-case attributes the gate firing solely to the quality regression, leaving a second, independent firing condition unexamined - which weakens the lesson that the gate must include deployment metrics (a point the chapter's own Common Mistakes section makes).",
+  "evidence": "Canonical p95 TTFT 1.9 s (Ch 21 §3), SLO 2 s (Ch 21 §3). 1.9 + 0.240 = 2.14 s > 2 s. The candidate would therefore have failed the gate on the serving metric alone, without any reference to the legal subset.",
+  "correction": "Add one sentence: 'The candidate also breaches the 2 s p95 TTFT SLO on its own (1.9 s + 240 ms = 2.14 s), so the gate would have fired on the deployment metric even without the legal-subset quality regression - which is exactly why the gate must score quality and serving together.'",
+  "acceptance_test": "Every numeric regression introduced in the mini-case is either used in the reasoning or explicitly set aside; the 240 ms figure is either analyzed or removed.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH22-10",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 22 §3 Step 4 parenthetical",
+  "chapter": "Ch 22",
+  "quoted_clause": "the ~5.6 TB/s weight-read rate is a whole-model, host-level requirement that tensor parallelism shards to ~0.70 TB/s per GPU on the canonical host, Ch 6 - a per-host constraint, not a fleet-wide one",
+  "observed": "Calling 5.6 TB/s 'a per-host constraint' is true only for the canonical configuration in which the whole model is TP-sharded across the 8 GPUs of one host. If the model were sharded across two hosts, each host would need ~2.8 TB/s; if replicated, each replica still needs 5.6 TB/s aggregate. The parenthetical therefore states a configuration-specific fact as a general one, in a sentence whose purpose is to prevent exactly that kind of over-generalization.",
+  "evidence": "140 GB per decode step must be delivered by whatever devices hold the model. Per-host requirement = 140 GB / (number of hosts holding the model) / TPOT. Canonical (1 host, TP=8): 5.6 TB/s aggregate, 0.70 TB/s per GPU. Two hosts, TP=8 each: 2.8 TB/s per host, 0.70 TB/s per GPU.",
+  "correction": "Rewrite: '...the ~5.6 TB/s weight-read rate is a whole-model requirement; on the canonical host (one 8xH100 node, TP=8) it is met as 0.70 TB/s per GPU, i.e. a per-host constraint on that configuration rather than a fleet-wide one - a model sharded across two hosts would need ~2.8 TB/s per host.'",
+  "acceptance_test": "The per-host framing is tied explicitly to the canonical single-host TP=8 configuration, and the text does not present it as configuration-independent.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH22-11",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 22 §7, first group of four bullets",
+  "chapter": "Ch 22",
+  "quoted_clause": "**Sustained HBM bandwidth for weight-read kernels** - discussed in Chapter 2 §7 ... **Prefill FLOP cost under continuous batching** - Chapter 2 §7 ... **Effect of quantization on decode vs prefill** - Chapter 2 §7 ... **Cross-technology bandwidth numbers** - Chapter 2 §7",
+  "observed": "Four of the seven bullets in 'What We Still Don't Know' are pointers to a single section of another chapter (Ch 2 §7), with no content of their own. The section's stated purpose - 'Rather than restating them, we point to the fuller treatment' - is defensible as anti-repetition, but four separate bullets to the same target is a pointer list, not an uncertainty list, and it makes Ch 22 §7 look like an index rather than a chapter-level statement of what remains unknown.",
+  "evidence": "The four bullets cover mechanism-layer uncertainties (HBM sustained bandwidth, batching efficiency, quantization trade-off, cross-technology bandwidth) that are not specific to the canonical loop; the last three bullets are the loop-specific ones.",
+  "correction": "Compress the four pointers into a single lead-in sentence ('The mechanism-layer uncertainties of Ch 2 §7 - sustained HBM bandwidth, batching efficiency, quantization trade-off points, and cross-technology bandwidth - all propagate into this loop's numbers and are not restated here'), then give the three loop-specific bullets the full section. Alternatively, move the four items into Ch 2 §7 permanently and cross-reference once.",
+  "acceptance_test": "Ch 22 §7 contains at most one pointer to Ch 2 §7, and the section's remaining bullets each state a loop-specific uncertainty with its own reasoning.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH23-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 23, §8 mini-case, 'The burst buffer, spelled out'",
+  "chapter": "23",
+  "quoted_clause": "Max queue wait ≈ D·(200−r)/r must stay inside the 3 s SLO ... max queue wait = 3 s, so the last-arriving request completes at 3 s plus its own service time",
+  "observed": "The formula labeled 'Max queue wait' is not the maximum. With D = 1 s, λ = 200 rps, r = 50 rps: the first-arriving request waits 200/50 = 4 s; D·(200−r)/r = 3 s is the wait of the *last* arrival (150 queued ahead of it). The maximum queue wait is λ·D/r = 4 s. The worked example therefore understates the worst-case wait by 1 s, and 'total time from burst start = 4 s' is the queue-drain time, not the completion time of the last request (which is 4 s + service time).",
+  "evidence": "Event-trace reconstruction: arrivals at t=0..1 s (200 requests); service rate 50/s. Request #1 (t=0) waits 200/50 = 4 s; request #200 (t=1 s) waits 150/50 = 3 s. Max wait = 4 s. Queue depth at t=1 s = 200 − 50 = 150 ✓ (this part is right). Drain completes at t = 4 s; last request completes at 4 s + service.",
+  "root_cause": "The author computed the residual-queue wait and labeled it as the maximum; the FIFO ordering (earliest arrival ⇒ longest wait) was not applied.",
+  "correction": "Rename the quantity to 'last-arrival wait' and add the maximum wait λ·D/r; state that the first arrival is the worst case and that completion of the last request is D + drain + service time. The SLO conclusion (burst misses the 3 s SLO) survives and should be stated as such.",
+  "acceptance_test": "The worked burst arithmetic reports max queue wait = 4 s (not 3 s), identifies the first arrival as the worst case, and the conclusion is unchanged.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH24-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 24, §3.1 (PIES definition) vs §4.2 item 1 and Table 24-1",
+  "chapter": "24",
+  "quoted_clause": "In Cycle 1 every one of the 217 candidate classes produced at least one guardrail bypass, so PIES = CPS = 217 there ... Probe generator — runs 1,000 Red Team probes per cycle ... Red-team win rate | 8%",
+  "observed": "If all 217 candidate classes produced at least one bypass in Cycle 1, and the cycle runs 1,000 probes drawn from the same pattern space, then at least 217 of 1,000 probes achieved a bypass — a win rate of ≥21.7%, not the 8% reported in Table 24-1. The two statements cannot both hold under the stated probe accounting.",
+  "evidence": "§3.1: generator space = 4 entry points × 8 delimiters × 6 templates × 4 segments = 768 patterns → 217 classes after dedup; 'every one of the 217 candidate classes produced at least one guardrail bypass'. §4.2: 1,000 probes per cycle. §4.1 defines red-team win rate as 'Fraction of Red Team probes in a cycle that achieve an unintended outcome (denominator = probes, not cycles)'. 217/1,000 = 21.7% > 8%.",
+  "root_cause": "Two different denominators are in play (candidate classes vs. probes) and the chapter never states the relationship between the 1,000 probes/cycle and the 768-pattern generator space; the win rate was authored independently of the PIES construction.",
+  "correction": "State explicitly whether the 1,000 probes/cycle are drawn from the 768-pattern generator space or from a broader probe pool, and reconcile the Cycle-1 win rate with PIES = CPS = 217 (e.g., win rate counted over a probe pool that includes many non-generator probes, or PIES restated). Add a probe-level accounting line so the two numbers are visibly derived from one table.",
+  "acceptance_test": "A probe-level table for Cycle 1 shows bypassed probes ≥ 217 and the win rate equals bypassed probes / probes; PIES and win rate are consistent under one stated denominator.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH23-03",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 23, §3 (Bound 1) vs Ch 24, §1 and §3.3 check 4",
+  "chapter": "23/24",
+  "quoted_clause": "So ~100 concurrent at peak ... ~2,000 registered users (an illustrative ~100 active users, not a simultaneous-request count; arrival rate and execution occupancy are separate quantities in Chapter 4) ... 40 rps × 8.6 s = 344 in-flight",
+  "observed": "The canonical peak concurrency is stated as ~100 in Ch 23 but computed as 344 in Ch 24. With the canonical 8.6 s service time (which Ch 23 itself implies: ~25 ms/token × 300 output tokens ≈ 7.5 s decode plus prefill), a 40 rps peak requires 344 concurrent requests; 100 concurrent requests would sustain only 100/8.6 ≈ 11.6 rps. Ch 24 §1 additionally reinterprets the ~100 as 'active users, not a simultaneous-request count', contradicting Ch 23's derivation of it as concurrency.",
+  "evidence": "Ch 23 Bound 1: '~2,000 users, ~10 rps average, ~40 rps peak' with '~100 concurrent at peak'. Ch 24 §3.3 check 4: '40 rps × 8.6 s = 344 in-flight'. Average-load check is consistent (10 rps × 8.6 s = 86 in-flight, matching Ch 24's KV screen arithmetic 10 × 8.6 × 24.9 GB ÷ 436 GB ≈ 4.9); only the peak figure conflicts.",
+  "root_cause": "The peak concurrency figure was carried from an early '5% of users active' heuristic without being reconciled with the canonical service time, and the two chapters then attach different meanings to the same '~100'.",
+  "correction": "Fix the peak concurrency to 344 (or state the peak service time that makes 100 correct) and use one term for it across the book; if 'active users' and 'concurrent requests' are different quantities, name them differently in both chapters and state the mapping.",
+  "acceptance_test": "Peak concurrency = peak rps × service time in every chapter; the '~100' figure appears with one consistent meaning, or is replaced.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH23-04",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 23, §3 'Reading the result'",
+  "chapter": "23",
+  "quoted_clause": "The vague ask collapsed into the exact canonical workload this book has architected end-to-end — a 70B-class model on an 8×H100 on-prem server becomes a candidate architecture whose memory fit can be derived",
+  "observed": "The canonical architecture is described here as a single 8×H100 server, but the book's own canonical peak screens (Ch 24 §3.3 scope note) are 21 hosts (KV), 19–22 hosts (prefill), and a 32-host policy screen. One host cannot serve the canonical peak: 344 in-flight × 24.9 GB ≈ 8.6 TB of KV versus 640 GB of HBM.",
+  "evidence": "Ch 24 §3.3 scope note: 'the canonical peak screens (21 hosts KV / 19–22 prefill / 32 policy)'. Ch 24 check 4: '344 × 24.9 GB ÷ 436 GB = 19.7 ... ⌈344/17⌉ = 21 hosts'. Ch 23's own §6 says 'traffic feeds capacity (Ch 17)'.",
+  "root_cause": "The host (8×H100) and the fleet (21–32 hosts) are conflated; the chapter's summary sentence was written from the deployment-unit view without the fleet view.",
+  "correction": "Rewrite as: the bounds select a 70B-class model served on 8×H100 hosts; the canonical fleet for this workload is ~21–32 such hosts (Ch 17/20), and the host is the unit of deployment, not the architecture.",
+  "acceptance_test": "No chapter describes the canonical architecture as a single host; the host/fleet distinction is stated once and used consistently.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ }
+]

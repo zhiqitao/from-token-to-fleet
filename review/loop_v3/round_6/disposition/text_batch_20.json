@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH16-003",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch16 §3, parametric multi-region worksheet, row 3",
+  "chapter": "16",
+  "quoted_clause": "N_region = ⌈λ_region·W_KV/(C·u·ρ)⌉ + N_spare (Table 17-1 formula, applied per region; each region is sized for λ_peak = 40 rps — the failover load — not its share λ_region",
+  "observed": "The displayed formula uses λ_region, but the prose says each region is sized for λ_peak = 40 rps, not its traffic share λ_region. This is a variable mismatch: if the region must survive total failover, the formula should use the failover load, not the regional traffic share.",
+  "evidence": "Row 1 defines λ_region as the regional traffic share of λ_peak. Row 2 says the surviving region must carry 100% of λ_peak. Row 3 then writes N_region using λ_region while saying it is sized for λ_peak. Those are different quantities unless λ_region is redefined as failover load.",
+  "root_cause": "Ambiguous use of λ_region: traffic-share variable in the formula versus failover-load intent in the prose.",
+  "correction": "Use a distinct symbol for failover load, e.g. λ_failover, and write N_region = ⌈λ_failover·W_KV/(C·u·ρ)⌉ + N_spare. Alternatively, define λ_region in row 3 explicitly as the failover load assigned to that region, not the normal traffic share.",
+  "acceptance_test": "The multi-region worksheet formula and prose use the same load variable, and that variable is unambiguously the load each region must serve during failover.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH14-002",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch14 §3 Worked Example, Step 3 candidate A",
+  "chapter": "14",
+  "quoted_clause": "Chapter 8's approximately 19,800 input tok/s idealized prefill ceiling",
+  "observed": "The 19,800 input tok/s figure is not the 100%-MFU idealized ceiling; it is the 35%-MFU planning screen. Ch15/Ch16 use 56,500 tok/s for 100% MFU and 19,780 tok/s for the 35% planning assumption. Calling 19,800 'idealized' without the 35% MFU qualifier can mislead readers into treating it as a peak-derived bound.",
+  "evidence": "8×H100 FP16 dense peak = 8 × 989 TFLOPS = 7.91×10^15 FLOP/s. Linear-only 2N FLOP/token = 2×70×10^9 = 1.4×10^11 FLOP/token. 100% MFU ceiling = 7.91×10^15 / 1.4×10^11 ≈ 56,500 tok/s. 35% of that is ≈ 19,775 tok/s, rounded in the book to 19,780/19,800.",
+  "root_cause": "Missing efficiency assumption in the label 'idealized prefill ceiling'.",
+  "correction": "Change to 'Chapter 8's approximately 19,800 input tok/s 35%-MFU planning prefill screen' or '35%-MFU analytical prefill ceiling'. If 'idealized' is intended to mean non-measured, add the MFU assumption explicitly.",
+  "acceptance_test": "Every occurrence of ~19,800 input tok/s is explicitly tied to the 35% MFU planning assumption, not to 100% peak.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH15-003",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch15 §4 Measurement, minimal benchmark sentence",
+  "chapter": "15",
+  "quoted_clause": "A minimal benchmark runs 40 rps — a saturation run on one host (6.5× the ~56,500 tok/s prefill ceiling at 100% MFU — theoretical peak), whose queue is expected to grow — with warm‑up, recording offered load alongside p95 TTFT and p95 TPOT/ITL separately (report p95 only at offered loads ≤ the host's admission capacity, ~2 rps per host: 17 slots ÷ 8.6 s)",
+  "observed": "The sentence can be read as contradictory: it says the minimal benchmark runs 40 rps on one host, then says report p95 only at offered loads ≤ ~2 rps per host. The intended meaning is likely that 40 rps is a saturation diagnostic while SLO p95 reporting is limited to feasible/admitted loads, but the current wording does not make that separation explicit.",
+  "evidence": "40 rps on one host is far above the ~2 rps KV-slot admission ceiling (17/8.6 ≈ 1.98). Reporting p95 at 40 rps would measure a saturated queue, not an SLO-compliant operating point. The parenthetical 'report p95 only at offered loads ≤ ...' modifies the benchmark but is syntactically attached to the 40 rps run.",
+  "root_cause": "Ambiguous scope: saturation run versus SLO-reporting load range.",
+  "correction": "Rewrite to separate the two purposes, e.g.: 'A minimal benchmark includes a 40 rps single-host saturation run to observe queue growth, but SLO p95 values are reported only at offered loads ≤ the host's admission capacity (~2 rps per host: 17 slots ÷ 8.6 s).'",
+  "acceptance_test": "The reader can distinguish the 40 rps saturation diagnostic from the load range at which p95 SLO values are reported, with no apparent contradiction.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH15-004",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch15 §4 Measurement, batch-size illustrative sentence",
+  "chapter": "15",
+  "quoted_clause": "beyond batch‑4 the p95 latency typically rises (implying a knee near batch 4)",
+  "observed": "'Typically rises' generalizes an illustrative scenario value into a common behavior. The surrounding text says the numbers are scenario values to be measured on the target stack, but 'typically' suggests a portable rule. A knee near batch 4 is workload-, model-, kernel-, and hardware-dependent.",
+  "evidence": "The sentence is introduced by 'The illustrative numbers below are scenario values to be measured on the target stack, not vendor or published figures'. The claim 'beyond batch-4 ... typically rises' is not supported by a measurement in this chunk and is not universally true across serving stacks.",
+  "root_cause": "Overgeneralization from an illustrative canonical scenario.",
+  "correction": "Change to 'in this illustrative scenario, p95 latency rises beyond batch 4 (suggesting a knee near batch 4 for this workload/stack)' or 'can rise beyond batch 4 when ...'. Keep the measurement requirement explicit.",
+  "acceptance_test": "The batch-4 knee is presented as scenario-specific or conditional, not as a typical portable fact.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH16-004",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch16 §3 Worked Example, after sizing table",
+  "chapter": "16",
+  "quoted_clause": "Every host count in this table is an illustrative planning screen under its stated FLOP-counting case and the 35% MFU assumption — NOT measured SLO-goodput.",
+  "observed": "This sentence applies 'the 35% MFU assumption' to every host count in the table, including the KV-residency / service-time screen. The KV screen is derived from KV slots and assumed residency time, not from FLOP counting or MFU. Only the independent prefill compute screens depend on the 35% MFU assumption.",
+  "evidence": "The table's KV row uses ⌈λ·W/C⌉ with C=17 slots, no FLOP peak or MFU. The prefill rows use 19,780 tok/s/host, which is the 35%-MFU linear-only screen. Therefore 'every host count ... under ... the 35% MFU assumption' is too broad.",
+  "root_cause": "Imprecise scope of the MFU qualifier in a summary sentence.",
+  "correction": "Rewrite as: 'Every host count in this table is an illustrative planning screen, not measured SLO-goodput. The prefill compute screens are stated under their FLOP-counting case and the 35% MFU assumption; the KV-residency screen is stated under the assumed KV residency time and whole-slot floor.'",
+  "acceptance_test": "The 35% MFU assumption is not implied for the KV-residency host count, and the sentence accurately scopes which rows depend on MFU.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH16-005",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch16 §3 Worked Example, Step 2 heading",
+  "chapter": "16",
+  "quoted_clause": "Step 2 — price each mode on N_hosts = 21 (FP16 KV screen / case (i) compute screen, provisioned for the 40 rps peak)",
+  "observed": "The 21-host count is the maximum of the FP16 KV screen (21) and the case (i) compute screen (19). The slash notation 'FP16 KV screen / case (i) compute screen' can be read as saying the 21-host figure is the case (i) compute screen, which is false. Earlier in the same chapter, case (i) peak prefill is explicitly 19 hosts.",
+  "evidence": "Sizing table: KV screen peak = ⌈40×8.6/17⌉ = 21; independent prefill case (i) peak = ⌈368,000/19,780⌉ = 19; N_hosts = max = 21. Thus 21 is not the case (i) compute screen alone.",
+  "root_cause": "Ambiguous shorthand for 'max of named screens'.",
+  "correction": "Rewrite as: 'Step 2 — price each mode on N_hosts = 21 (the peak maximum of the FP16 KV screen and the case (i) compute screen; the case (i) compute screen alone is 19), provisioned for the 40 rps peak.'",
+  "acceptance_test": "The text does not imply that the case (i) compute screen equals 21 hosts; it clearly identifies 21 as the max of the named screens.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH16-006",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch16 §8 End-of-Chapter Mini-Case, startup two-server memory geometry",
+  "chapter": "16",
+  "quoted_clause": "2 GPUs per replica → 8 replicas across the two hosts; ... 4 replicas × 140 GB weights = 560 GB of the 640 GB pool.",
+  "observed": "The text first says there are 8 replicas across the two hosts, then says 4 replicas × 140 GB = 560 GB of the 640 GB pool. Without 'per host', a reader may interpret 4 replicas as the total across both hosts, which would be inconsistent with 8 replicas total and with 560 GB of a 640 GB pool (the pool is per host).",
+  "evidence": "Two 8×H100 hosts have 16 GPUs. 2 GPUs per replica gives 8 replicas total, i.e. 4 replicas per host. Each host has 640 GB. 4 replicas per host × 140 GB = 560 GB per host. The arithmetic is correct only if '4 replicas' and '640 GB pool' are per-host quantities.",
+  "root_cause": "Missing per-host scope in the memory geometry sentence.",
+  "correction": "Rewrite as: 'Per host, 4 replicas × 140 GB weights = 560 GB of that host's 640 GB pool.' Or: 'Across the two hosts there are 8 replicas; on each host, 4 replicas consume 560 GB of the 640 GB pool.'",
+  "acceptance_test": "The reader can unambiguously see that 8 replicas is the two-host total and 4 replicas/560 GB/640 GB is the per-host calculation.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH16-007",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch16 §3 Worked Example, 32-host provisioning sensitivity bullet",
+  "chapter": "16",
+  "quoted_clause": "+ $10,000 staff ≈ ≈ $232.2K/month ($232,197.23 computed exactly, rounded only for display) → ≈ ≈ $37.21 per 1,000 requests",
+  "observed": "The text contains duplicated approximation symbols '≈ ≈' in two places in the same bullet.",
+  "evidence": "The quoted clause shows '≈ ≈' before $232.2K/month and before $37.21 per 1,000 requests.",
+  "root_cause": "Typographical duplication.",
+  "correction": "Remove one approximation symbol in each instance: '+ $10,000 staff ≈ $232.2K/month ... → ≈ $37.21 per 1,000 requests'.",
+  "acceptance_test": "No occurrence of '≈ ≈' remains in the 32-host bullet.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH16-008",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch16 Fig 16.1 caption, caveat sentence",
+  "chapter": "16",
+  "quoted_clause": "break-even is a price sensitivity across $15–25 per 1,000 requests (≈$0.015–0.025 per request) — per-price crossovers (~6.2–10.4M), not an interval",
+  "observed": "The phrase 'per-price crossovers (~6.2–10.4M), not an interval' is confusing because ~6.2–10.4M is itself an interval/range. The intended meaning is likely that the break-even is not a single point but a range of per-price crossovers.",
+  "evidence": "The same paragraph earlier says 'the break-even is a region, not a point' and reports a range ~6.2–10.4M req/mo. Calling that set of crossovers 'not an interval' contradicts the range notation.",
+  "root_cause": "Imprecise wording of the sensitivity result.",
+  "correction": "Rewrite as: 'break-even is a price sensitivity across $15–25 per 1,000 requests (≈$0.015–0.025 per request), producing a range of per-price crossovers (~6.2–10.4M req/mo), not a single point.'",
+  "acceptance_test": "The caption does not describe the ~6.2–10.4M crossover range as 'not an interval'; it clearly says it is a range, not a single point.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH15-005",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch15 'The Optimization Decision Map' opening paragraph",
+  "chapter": "15",
+  "quoted_clause": "rather than applying a known technique by fashion",
+  "observed": "'By fashion' is awkward and ambiguous. It likely means 'by trend' or 'because it is fashionable', but the current phrasing is not clear technical prose.",
+  "evidence": "The sentence intends to contrast diagnosis-driven optimization with adopting a technique because it is popular. 'By fashion' does not cleanly express that.",
+  "root_cause": "Word choice / phrasing issue.",
+  "correction": "Replace with 'rather than applying a known technique because it is fashionable' or 'rather than adopting a technique by trend'.",
+  "acceptance_test": "The sentence clearly contrasts evidence-driven diagnosis with trend-driven adoption, without awkward phrasing.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH17-19-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 17 §8 mini-case and Table 17-2; Ch 19 §4",
+  "chapter": "17/19",
+  "quoted_clause": "under 100% prefix reuse only the incremental 11,795-token prefix is pre-filled, giving W(3) ≈ 14.16 s",
+  "observed": "Chapter 17 uses 11,795 tokens and 14.16 s for the 100% prefix-reuse T=3 service time, while Chapter 19 uses 11,600 tokens and 14.14 s. The 11,795 value is the final call's input length, not the incremental prefix that must be prefilled under 100% reuse.",
+  "evidence": "Ch 19 §4 states: 'only the incremental prefix (9,200 + 3×800 = 11,600 — the γ reasoning tokens were generated in the prior call, so their KV already exists) is pre-filled, giving W_reuse(3) ≈ 14.14 s.' Recomputation: 11,600/9,200×1.08 + 0.025×495 + 3×0.133 ≈ 14.13 s, rounded to 14.14 s. Using 11,795 gives ≈14.16 s.",
+  "root_cause": "The final call's input length was mistaken for the incremental prefill length; the rounding difference then propagated into Ch 17's Table 17-2 and mini-case.",
+  "correction": "Align Ch 17 with Ch 19 by using 11,600 incremental prefilled tokens and W_reuse(3) ≈ 14.14 s, or explicitly justify 11,795/14.16 s and update Ch 19 and Table 17-2. Recompute any affected host counts if the value changes.",
+  "acceptance_test": "Ch 17 and Ch 19 state the same incremental prefill token count and the same W_reuse(3); Table 17-2 matches the Ch 19 evaluator values.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH19-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 19 §4 Multi-step reasoning cost; Ch 17 §8",
+  "chapter": "19/17",
+  "quoted_clause": "the full end-to-end service time of a no-reuse agentic request is ~17.70 s at T = 3 (~14.14 s with prefix reuse) — the two are different quantities, and the latter is what sets concurrency and fleet size",
+  "observed": "W(T) is called the full end-to-end service time, but its formula includes prefill, decode, and a 133 ms/turn tool/retrieval leg; it excludes the 120 ms/turn per-invocation orchestration overhead (λ_step) that is part of L_agent. If that overhead occurs while the request/KV is resident, it should be included in the service time used for fleet sizing; if not, W should not be labeled full end-to-end.",
+  "evidence": "W(T) = Σ prefill + 25 ms/token×(O_final + Tγ) + T×λ_tool/retr, with λ_tool/retr ≈ 133 ms/turn. L_agent = λ_step + λ_tool, with λ_step ≈ 120 ms/turn. For T=3, the missing λ_step term is 3×120 ms = 360 ms; including it would make the no-reuse value ≈18.06 s, not 17.70 s. Ch 17 uses 17.70 s for fleet sizing.",
+  "root_cause": "Two latency models are used: an orchestration-overhead model (L_base + T·L_agent) and a model+tool service-time model (W). The text labels the latter 'full end-to-end' without including all end-to-end terms or explicitly excluding orchestration from the KV-residency population.",
+  "correction": "Either add T×λ_step to W and update Ch 17's agentic host counts, or rename W to 'model+tool service time' and define a separate W_e2e = W + T×λ_step (using one consistent tool/orchestration rate) for user-facing latency. State exactly which quantity is used as E[W_KV-resident] in the provisioning formula.",
+  "acceptance_test": "Every 'full' or 'complete' service time includes all terms that hold the request/KV, or is explicitly labeled as excluding orchestration; the fleet formula uses the explicitly labeled quantity.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 18 §2 Mental Model, Table 18-1 units note",
+  "chapter": "18",
+  "quoted_clause": "cost = α·rate_tok·n_tok + β·rate_ms·n_ms (n_tok the request's token count, n_ms its per-request service latency; both terms USD per request)",
+  "observed": "rate_tok is defined as USD per 1M tokens, but the formula multiplies it by raw token count. This is dimensionally off by a factor of 1,000,000 unless rate_tok is actually USD/token or n_tok is in millions of tokens.",
+  "evidence": "For the FP16 row, $2.50/1M × 9,500 tokens should be $23.75 per request. The printed formula gives 2.50 × 9,500 = 23,750, which is 1,000,000× too large.",
+  "root_cause": "The per-1M unit was not converted in the additive cost expression.",
+  "correction": "Use cost = α·(rate_tok / 1,000,000)·n_tok + β·rate_ms·n_ms, or define rate_tok as USD/token and update the table's unit label.",
+  "acceptance_test": "The formula yields USD per request for the table's per-1M rates and token counts.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 18 §3.1 Hardware capacity mapping table and note",
+  "chapter": "18",
+  "quoted_clause": "# instances on one 8×H100 pool (this model alone) ... 70B dense 8-bit ... 2 (70 GB weights + 24.9 GB FP16 KV = 94.9 GB > 80 GB per GPU; FP8 KV still 82.5 GB) ... The last column counts instances of that model alone on the pool; the 8-bit rows' 2 is the GPUs one instance needs (94.9 GB > 80 GB per GPU), the one per-GPU reading in the table.",
+  "observed": "The column header says the value is the number of instances of that model alone on the pool, but the 8-bit and MoE 8-bit rows use 2 to mean the minimum number of GPUs required per instance. These are different quantities.",
+  "evidence": "A 70B 8-bit instance needs 2 GPUs because 70 GB weights + 24.9 GB canonical KV = 94.9 GB > 80 GB on one GPU. On an 8-GPU pool, up to 4 such 2-GPU instances can run (4×94.9 GB = 379.6 GB, within the 640 GB pool), so '2 instances' is not the maximum-alone instance count.",
+  "root_cause": "The table conflates placement minimum (GPUs per instance) with capacity count (instances per pool).",
+  "correction": "Split the column into 'minimum GPUs per instance' and 'max instances alone on 8×H100', or relabel the column and adjust the values. For the 8-bit row, show 2 GPUs/instance and 4 max instances (canonical KV, 2-GPU placement).",
+  "acceptance_test": "A reader can tell both how many GPUs one instance needs and how many instances of that model alone fit on the 8×H100 pool.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH17-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 Fig 17.1 caption",
+  "chapter": "17",
+  "quoted_clause": "the same formula gives N_min = ceil(40 × 8.6 / 17) = 21 for the canonical peak, 21 + 1 N−1 reserve = 22",
+  "observed": "The caption calls this the 'same formula' and gives 22 as the N−1 total, but the chapter's authoritative Table 17-1 formula includes u=0.70 and ρ=0.95, giving 31 working hosts and 32 total. The caption's 22 is a zero-derate screen, but it only says 'ideal ρ = 1' and does not state u=1.",
+  "evidence": "Table 17-1: ceil(344/(17×0.70×0.95)) + 1 = ceil(30.43)+1 = 31+1 = 32. Caption: ceil(344/17)+1 = 21+1 = 22.",
+  "root_cause": "The zero-derate variant is not fully labeled; 'ideal ρ=1' omits the utilization target u.",
+  "correction": "Label the 22-host number as a 'zero-derate (u=1, ρ=1) N−1 total' or 'full-utilization screen', distinct from the Table 17-1 policy count of 32.",
+  "acceptance_test": "A reader does not infer that the canonical provisioned fleet is 22 hosts under the chapter's authoritative policy.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH17-02",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 17 §7 What We Still Don't Know",
+  "chapter": "17",
+  "quoted_clause": "N = 4 appears only in the failover example in §6",
+  "observed": "N=4 also appears in Fig 17.1, which sizes a 4-host fleet (3 active + 1 spare) for a ~5.5 req/s burst.",
+  "evidence": "Fig 17.1 caption: 'a 4-host fleet (~8.0 req/s) is sized above it: 3 hosts clear the 5.5 req/s burst at ρ = 1; a 4th is the N−1 reserve'.",
+  "root_cause": "Stale exclusivity statement after the figure was added or revised.",
+  "correction": "Say 'N=4 appears in the Fig 17.1 burst example and the §6 failover example', or remove 'only'.",
+  "acceptance_test": "The text does not falsely claim that N=4 appears in only one place.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH18-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 18 §3.5 Consolidation vs. separation decision",
+  "chapter": "18",
+  "quoted_clause": "Consolidate when: workload profile overlap ≥70%, latency tolerance ≥300 ms, and cost differential >30% ... the latency criterion is met against the ≤500 ms interactive threshold of §18.3.4, not the ~200 ms chat tolerance quoted in §18.2 — L̄ ≈ 247 ms clears 500 ms and exceeds 200 ms",
+  "observed": "The stated latency criterion is 300 ms, but the referent checks 500 ms and 200 ms, not 300 ms. The reader cannot see how the 300 ms criterion is satisfied.",
+  "evidence": "L̄ = 247 ms, which also clears a 300 ms threshold. The text should connect the result to the actual criterion.",
+  "root_cause": "Threshold drift between the design criterion and the worked-example referent.",
+  "correction": "Either change the criterion to 500 ms, or state that L̄ ≈ 247 ms clears both the 300 ms criterion and the 500 ms interactive threshold, while failing a 200 ms chat budget.",
+  "acceptance_test": "The consolidation criterion and the referent use the same latency threshold set.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-06",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 18 §1 Concept and §2/§3.4",
+  "chapter": "18",
+  "quoted_clause": "Latency-per-token determines interactive vs. batch placement.",
+  "observed": "The routing gate and latency checks use per-request service latency (TTFT for the short-prompt routing scenario), not per-token latency. The canonical TPOT is per-token, but it is not the metric used in this chapter's routing arithmetic.",
+  "evidence": "Table 18-1 uses n_ms as per-request service latency. §18.3.4 defines the latency column as 'time-to-first-token for the short-prompt routing scenario', not per-token latency.",
+  "root_cause": "The design principle names a different latency metric than the one operationalized in the routing example.",
+  "correction": "Say 'latency (per-request for short-prompt routing; per-token/TPOT for long-generation SLOs) determines interactive vs. batch placement', or change the gate to use per-token latency where appropriate.",
+  "acceptance_test": "The metric named in the principle matches the metric used in the routing gate and latency check.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH18-07",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 18 §8 mini-case Tier 1",
+  "chapter": "18",
+  "quoted_clause": "35 GB of 4-bit weights in 64 GB RAM leaves ~29 GB for KV + runtime — 29/24.9 ≈ 1.16, i.e. room for ~1 concurrent canonical 9,500-token request's KV.",
+  "observed": "The budget says the remaining 29 GB is for KV + runtime, but the division uses all 29 GB as KV. This omits the runtime/OS memory reserve.",
+  "evidence": "If runtime requires, for example, 4–8 GB, the KV headroom is 21–25 GB, not 29 GB. The conclusion of ~1 concurrent canonical request may still hold, but the arithmetic should close the memory budget.",
+  "root_cause": "The runtime reserve was named but not subtracted before the KV division.",
+  "correction": "Subtract an explicit runtime reserve before dividing by 24.9 GB, or state 'at most ~1 concurrent canonical request if runtime is negligible'.",
+  "acceptance_test": "64 GB is decomposed into weights + KV + runtime with explicit terms before the concurrency calculation.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH19-03",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 19 §6 State-management policy",
+  "chapter": "19",
+  "quoted_clause": "the billable tokens (what the API charges, = Σ over turns of the full accumulated context each turn sends — 41,990 input tokens for the T = 3 no-reuse trace of §4, not the single final context of 12,095) and the KV-resident tokens (what occupies the cache, = the same accumulated context under this no-reuse policy); the two differ by the Σ-per-call vs peak-resident distinction even without caching",
+  "observed": "The phrase 'the same accumulated context' can be read as saying billable and KV-resident tokens are the same quantity, but the next clause says they differ. KV-resident tokens should be the peak accumulated context (12,095 for T=3 no-reuse), not the Σ-per-call billable total (41,990).",
+  "evidence": "§4 ledger: task_input = 41,990; peak residency = 12,095. These are different populations.",
+  "root_cause": "Imprecise noun phrase in a distinction that is central to the chapter.",
+  "correction": "Rewrite as: 'KV-resident tokens = peak accumulated context (12,095 for T=3 no-reuse), not the Σ-per-call billable total (41,990).'",
+  "acceptance_test": "A reader can distinguish 41,990 from 12,095 without encountering a contradictory 'same' phrase.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ }
+]

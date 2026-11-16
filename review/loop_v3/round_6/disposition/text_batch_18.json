@@ -1,0 +1,362 @@
+[
+ {
+  "id": "CH3-CEILING-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 3, §2, Mental Model",
+  "chapter": "3",
+  "quoted_clause": "The durable mental model: total parameters set the ceiling; active parameters per token set the floor.",
+  "observed": "This compression is ambiguous and can mislead on memory: total parameters set a lower bound on weight residency (all weights must be resident unless offloaded), not a ceiling for memory; active parameters set a lower bound on per-token compute and active weight-read traffic, not a floor for residency.",
+  "evidence": "Later in the same chapter: 'total parameters → weight residency' and 'active parameters/token → approximate compute per token'.",
+  "root_cause": "Over-compressed metaphor that collapses two different budgets (residency vs compute).",
+  "correction": "Reword as: 'total parameters bound the maximum active work and set the residency floor; active parameters per token set the compute floor (and active weight-read traffic).'",
+  "acceptance_test": "A reader can state that total parameters drive weight residency and active parameters drive per-token compute without inferring that total is a memory ceiling.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH3-DENSE-HYBRID-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 3, §6, 'The 2026 baseline shift' and 'One verified 2026 transfer'",
+  "chapter": "3",
+  "quoted_clause": "Qwen3.8-27B ([1P][FACT], source: HF Qwen/Qwen3.8-27B) is a dense 27.8B model",
+  "observed": "The book's canonical 'dense' is also 'full-MHA'. Calling a model with 48 Gated DeltaNet layers 'dense' without qualification can make readers conflate dense parameter activation with full attention, especially in a chapter that contrasts full-MHA KV with hybrid/constant-state KV.",
+  "evidence": "The same section says Qwen3.8-27B has 16 full-attention layers and 48 Gated DeltaNet layers, i.e. hybrid attention, not full-MHA.",
+  "root_cause": "Using 'dense' for non-MoE parameter regime while the reader may expect 'dense' to mean full attention.",
+  "correction": "Say 'dense in the total-vs-active sense (non-MoE), but hybrid attention' or 'non-MoE 27.8B model with hybrid attention'.",
+  "acceptance_test": "The text distinguishes parameter-density from attention architecture and does not imply Qwen3.8-27B is full-MHA.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH4-CONTBATCH-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 4, §6, Architecture Consequence, Serving configuration",
+  "chapter": "4",
+  "quoted_clause": "without admission scheduling, prefills queue behind one another and TTFT under load pushes well above 2 s",
+  "observed": "'pushes well above 2 s' is a strong performance prediction without stated load, queue length, chunking, or measurement. It can be true in some configurations but is not established by the canonical arithmetic in this chapter.",
+  "evidence": "The chapter provides offered load and per-host planning rates, but no queueing model or measured TTFT under unscheduled prefills.",
+  "root_cause": "Claim strength exceeds evidence.",
+  "correction": "Soften to 'can push TTFT above the 2 s p95 ceiling under sustained load' or add 'in a discrete-batching, non-chunked configuration'.",
+  "acceptance_test": "The sentence is scoped as a possible outcome, not a universal measured result.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH2-CH4-KV-BASIS-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 2, §3, Canonical host verdict; Ch 4, §6, Memory planning",
+  "chapter": "2/4",
+  "quoted_clause": "KV 24.1 GB per request against the 640 GB pool (~228 GB total resident: 140 GB weights + ~64 GB runtime/workspace reserve + 24.1 GB KV",
+  "observed": "24.1 GB is the input-only 9.2K KV figure. Ch 4 uses 24.9 GB per 9.5K-token resident request for slot counting. In Ch 4, 'At 10 concurrent full-context requests the MHA figure is ~241 GB' also uses the input-only basis while the same section later uses the resident basis. Calling 24.1 GB 'per request' in resident totals can understate resident KV.",
+  "evidence": "Ch 4 canonical box: '2.62 MB/token → ~24.1 GB @ 9.2K input-only; ~24.9 GB @ 9.5K input+output — the resident slot-counting basis.' 10 × 24.9 = 249 GB, not 241 GB.",
+  "root_cause": "Mixing input-only and resident KV bases without labeling.",
+  "correction": "Label 24.1 GB as input-only wherever used. For resident request totals, use 24.9 GB (or explicitly say the total is at prefill completion before output tokens are cached). Adjust the 10-request example to 249 GB if resident.",
+  "acceptance_test": "Every KV total states whether it is input-only or resident, and 10-request totals match the stated basis.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-SIDEBAR-HEADER-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 4, §3, Sidebar table 'Delivery mode (canonical workload)'",
+  "chapter": "4",
+  "quoted_clause": "Per 1K req (wall-clock paid-occupancy cost ÷ active-hours volume)",
+  "observed": "The table includes an 'active-hours basis' row whose monthly cost is 6 × 173.3 h × $20, not wall-clock paid-occupancy cost. The column header therefore mislabels that row's numerator.",
+  "evidence": "Row: 'Cloud, 6 hosts — active-hours basis (6 × 173.3 h × $20) | $20,800 | ≈ $3.33'. $20,800 is active-hours cost, while wall-clock paid-occupancy for 6 hosts is $87,600.",
+  "root_cause": "One column header applied to rows with different cost bases.",
+  "correction": "Change header to 'Per 1K active-hours requests (Monthly cost ÷ 6.24M active-hours requests)' or add a separate 'cost basis' column.",
+  "acceptance_test": "Each row's per-1K value is computed from the row's own monthly cost basis, and the header does not assert wall-clock paid-occupancy for active-hours rows.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-QUERY-EXPANSION-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 4, §6, Architecture Consequence, Economic feasibility",
+  "chapter": "4",
+  "quoted_clause": "if the input token count could be reduced to 2 K (e.g. via better retrieval or query expansion), cost per request drops to ~$0.003",
+  "observed": "Query expansion normally increases prompt length by adding reformulations or context; it is not a standard method for reducing input tokens. The example may mislead.",
+  "evidence": "The sentence's goal is reducing input token count from 9.2K to 2K; 'better retrieval' can do that, but 'query expansion' usually does the opposite.",
+  "root_cause": "Imprecise example of an input-reduction lever.",
+  "correction": "Replace 'query expansion' with 'query compression', 'retrieval pruning', or 'context selection'.",
+  "acceptance_test": "The listed levers plausibly reduce input tokens.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-PLANNING-10S-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 4, §3, Canonical Workload box, 'Mean request service time (planning)'",
+  "chapter": "4",
+  "quoted_clause": "retrieval ~120ms + prefill ~1.08s + decode ~7.5s rounded to a comfortable planning figure",
+  "observed": "The named components sum to ~8.7 s, not ~10 s. Calling ~10 s a 'rounding' of 8.7 s is a 15% upward round and may look inconsistent with the derived 8.6 s execution time.",
+  "evidence": "0.12 + 1.08 + 7.5 = 8.7 s; W_exec = 1.08 + 7.5 = 8.58 ≈ 8.6 s.",
+  "root_cause": "Using a coarse planning round without showing the gap.",
+  "correction": "Either use '~9 s' as the planning round, or explicitly say '~10 s is a coarse planning ceiling, not the arithmetic sum of the named terms'.",
+  "acceptance_test": "The planning round is either arithmetically close to the component sum or explicitly labeled as a conservative ceiling.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH2-TPOT-ITL-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 2, §1, Fig 2.1 caption",
+  "chapter": "2",
+  "quoted_clause": "DECODE (bottom) is the single-token autoregressive loop, measured by TPOT (time per output token; equivalently the mean ITL, inter-token latency)",
+  "observed": "TPOT and mean ITL are not strictly equivalent for finite sequences if TPOT is defined over all output tokens while ITL is defined over intervals between tokens, especially under the book's convention that the first token is produced by prefill.",
+  "evidence": "With 300 output tokens and first token from prefill, there are 299 inter-token intervals after the first token; mean ITL over those intervals is not identical to total output-token time divided by 300 unless defined carefully.",
+  "root_cause": "Using 'equivalently' without defining the denominator.",
+  "correction": "Say 'measured by TPOT (time per output token; in steady state this is the mean ITL between generated tokens)' or define TPOT as decode time divided by number of decode steps.",
+  "acceptance_test": "The text states the denominator for TPOT and does not claim strict equivalence for finite sequences.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-CONTBATCH-MANDATORY-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 4, §6, Serving configuration",
+  "chapter": "4",
+  "quoted_clause": "continuous batching (e.g. vLLM) is nearly mandatory under this load to hold the 1.2 s TTFT budget",
+  "observed": "'nearly mandatory' is a strong design claim. Continuous batching is a common and often necessary mechanism under concurrency, but whether it is mandatory to hold a specific TTFT budget depends on queueing, chunked prefill, priorities, and engine behavior.",
+  "evidence": "The chapter does not provide a queueing model showing that non-continuous batching cannot meet 1.2 s.",
+  "root_cause": "Claim strength slightly exceeds the analytical basis.",
+  "correction": "Soften to 'continuous batching is a primary mechanism for holding TTFT under this concurrency' or 'is typically required in production engines under this load'.",
+  "acceptance_test": "The sentence is a scoped design expectation, not an absolute requirement.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-XREF-CHAPTERS-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 4, §8, Mini-case",
+  "chapter": "4",
+  "quoted_clause": "Using the canonical per-host bound from Chapters 15–20",
+  "observed": "The sentence first attributes the per-host bound to Chapters 15–20, then cites Chapters 14/16/17 for the whole-slot convention. The range is inconsistent and may misdirect the reader.",
+  "evidence": "Both citations appear in the same parenthetical; the chunk does not show which chapters actually contain the 17-slot convention.",
+  "root_cause": "Stale or imprecise cross-reference range.",
+  "correction": "Use a single accurate range, e.g. 'Chapters 14, 16, and 17' if that is where the convention is defined, or 'Chapters 14–20' if the bound is developed across that range.",
+  "acceptance_test": "The cross-reference range matches the locations where the 17-slot convention and per-host bound are defined.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH4-QUALITY-PHRASING-01",
+  "severity": "P3",
+  "confidence": "low",
+  "page_hint": "Ch 4, Table 4-1, Quality row",
+  "chapter": "4",
+  "quoted_clause": "Factual accuracy >85% on enterprise Q&A; reasoning via retrieval; no tool use beyond search API",
+  "observed": "'reasoning via retrieval' is not a standard quality attribute and may be read as a claim that retrieval performs reasoning. The intended meaning is probably that the task requires retrieval-grounded answers, not deep multi-step reasoning.",
+  "evidence": "The quality dimension is about fidelity/accuracy/capability; 'reasoning via retrieval' mixes capability and mechanism.",
+  "root_cause": "Compressed table cell with ambiguous phrasing.",
+  "correction": "Reword as 'retrieval-grounded factual answers; no multi-step reasoning or tool use beyond search API'.",
+  "acceptance_test": "The quality row states a measurable capability without implying retrieval is a reasoning engine.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH1-VLLM-54-01",
+  "severity": "P2",
+  "confidence": "low",
+  "page_hint": "Ch 1, §1, KV cache as a concept",
+  "chapter": "1",
+  "quoted_clause": "the vLLM FP8-KV blog post's often-quoted '54%' — from its Llama-3.1-8B Table 3 (vLLM blog, post dated 2026-04-22; retrieved 2026-11-15) [S6] — is, on this book's reading, a decode inter-token-latency (ITL) slope, not a memory ratio or footprint coefficient.",
+  "observed": "This is a strong interpretive claim about an external source. The chunk does not show the table or the calculation that makes the 54% an ITL slope. If the source actually reports a memory reduction or throughput improvement, the book's reinterpretation would be misleading.",
+  "evidence": "No primary table excerpt or derivation is included; the claim is labeled as 'on this book's reading'.",
+  "root_cause": "External-source interpretation without visible evidence at first use.",
+  "correction": "Either include the relevant table values and the slope calculation, or soften to 'the 54% figure is commonly cited, but its basis in the source is an ITL slope rather than a raw memory ratio; see source [S6]' with a footnote.",
+  "acceptance_test": "A reader can verify from the cited source that 54% is an ITL slope, not a memory footprint coefficient.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH2-TABLE2-1-PREFILL-FLOPS-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 2, Table 2-1, row 'Prefill: FLOPs (2 × params × tokens)'",
+  "chapter": "2",
+  "quoted_clause": "Prefill: FLOPs (2 × params × tokens) | 1.29 PFLOP",
+  "observed": "The table row can be read as the total prefill FLOPs, but the surrounding text explicitly says 2NL is a parameterized-linear FLOP floor excluding attention-score/value aggregation and other non-matmul overhead.",
+  "evidence": "Ch 2: 'Call this what it is: the parameterized-linear FLOP floor, 2NL, excluding explicit attention-score/value aggregation and other non-matmul overhead. The full-attention component is not captured by 2NL.'",
+  "root_cause": "Table label omits the 'floor/lower bound' qualifier present in prose.",
+  "correction": "Change row to 'Prefill: parameterized-linear FLOP floor (2 × params × tokens)' or add 'excluding attention overhead'.",
+  "acceptance_test": "The table does not imply 1.29 PFLOP is the complete prefill FLOP count.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH3-MEMORY-CEILING-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 3, §6, Qwen3.8-Flash-Next weight residency bullet",
+  "chapter": "3",
+  "quoted_clause": "the total weights dominate the memory ceiling, ~125 × 10^9 params × 2 bytes/param ≈ 250 GB",
+  "observed": "Total weights set a lower bound on resident memory (what must be held), not a ceiling. The same sentence later says the ~250 GB total 'is what must be resident'.",
+  "evidence": "250 GB is the minimum FP16 weight residency if all total weights are resident; it is not an upper limit on memory.",
+  "root_cause": "Misuse of 'ceiling' for a residency floor.",
+  "correction": "Change to 'the total weights dominate the residency floor' or 'set the minimum resident weight footprint'.",
+  "acceptance_test": "The text uses ceiling/floor consistently: total parameters set a residency lower bound, not an upper bound.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT_FLEX"
+ },
+ {
+  "id": "CH6-003",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 6 §3, Detecting the Regime, decode paragraph, final parenthetical",
+  "chapter": "6",
+  "quoted_clause": "(This is an operating-point property, not an identity: at high batch decode climbs the intensity slope and can become compute-bound.)",
+  "observed": "Ch 8 later shows that including the canonical 9.2K KV re-read, decode intensity saturates at ~6.8 FLOP/byte and remains bandwidth-bound at every batch size; the weight-only 'can become compute-bound' is only valid when KV traffic is small or quantized.",
+  "evidence": "Ch 8 §3: 'Including it, the decode intensity is (164·b)/(140 + 24·b) ... saturates at ~6.8 FLOP/byte ... So with the KV term, decode stays bandwidth-bound at every batch size; the batch ≈ 295 figure is the weight-only first-order estimate (valid when the KV re-read is small relative to the weight stream, e.g. short contexts or KV quantization).'",
+  "root_cause": "Missing KV-term caveat in Ch 6, creating a cross-chapter inconsistency for the canonical long-context workload.",
+  "correction": "Add 'in the weight-only model, or when KV traffic is small/quantized; with the canonical 9.2K KV term, decode remains bandwidth-bound at all batch sizes (Ch 8)'.",
+  "acceptance_test": "Ch 6 statement no longer implies canonical long-context decode can become compute-bound at high batch without the KV caveat.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-001",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 7 §3, Fig 7.7 technical note, first sentence",
+  "chapter": "7",
+  "quoted_clause": "at 17.5 concurrent requests a rank reaches ~99.7% of its 80 GB capacity (17.5 + 8 + 54.25 = 79.75 GB)",
+  "observed": "The same note lists KV budget per rank as 436 ÷ 8 = ~54.5 GB and per-rank budget 17.5 + 54.5 + 8 = 80 GB; 54.25 is inconsistent with the stated 436 GB aggregate KV budget.",
+  "evidence": "436/8 = 54.5; 17.5+8+54.5=80.0. If using 17.5 requests and per-request KV 24.9/8=3.1125, KV per rank = 54.47, not 54.25.",
+  "root_cause": "Arithmetic typo or stale value from a different reserve/weight split.",
+  "correction": "Change 54.25 to 54.5 and 79.75 to 80.0, or recompute with byte-accurate values and state the exact percentage.",
+  "acceptance_test": "The per-rank sum uses the same 436/8 value as the bullet list and equals 80 GB at the 17.5 ceiling.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH5-002",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3, Table 5-2",
+  "chapter": "5",
+  "quoted_clause": "Tokens per dollar (generation, runtime) | 9,000 tokens per dollar",
+  "observed": "The 50 tok/s input is an output-token rate; later text explicitly calls 9,000 an output-token metric. The table label can be read as total generation tokens per dollar.",
+  "evidence": "Ch 5 §3(b): 'The 9,000 tokens-per-dollar figure is an output-token metric (50 output tok/s × 3600 ÷ $20)'.",
+  "root_cause": "Missing output qualifier in table.",
+  "correction": "Change to 'Output tokens per dollar (generation, runtime)' or 'Output tokens per dollar at the 50 output tok/s low-batch point'.",
+  "acceptance_test": "Table row matches the later output-token scope and cannot be read as total input+output tokens per dollar.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-002",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 7 §1, Practical host requirement paragraph",
+  "chapter": "7",
+  "quoted_clause": "and (on a multi-GPU host) tensor- or pipeline-parallel copies.",
+  "observed": "Tensor parallelism generally shards tensors and pipeline parallelism partitions layers; neither inherently requires 'copies' of the model. Some components may be replicated, but the term is too broad and can mislead the memory ledger.",
+  "evidence": "Ch 7 later treats TP=8 as sharding weights 140/8 and KV 24.9/8, not replication; Ch 8/9 parallelism discussions distinguish sharding from replication.",
+  "root_cause": "Imprecise wording in the runtime/workspace list.",
+  "correction": "Replace with 'tensor- or pipeline-parallel communication buffers and any replicated components (e.g., embeddings/LM head where applicable)' or remove 'copies'.",
+  "acceptance_test": "The practical host requirement list does not imply whole-model replication for TP/PP.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH7-003",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 7 §3, GQA paragraph after Fig 7.1",
+  "chapter": "7",
+  "quoted_clause": "Because GQA caches only one K/V per group (8 K/V per token) instead of one per query head (64 K/V per token), the per-token KV falls ~8×",
+  "observed": "The counts 8 and 64 are per layer (KV heads vs query heads), not total K/V tensors per token across all 80 layers. As written, '8 K/V per token' can be misread as 8 total K/V entries for the whole model.",
+  "evidence": "The formula uses 2 × 80 × (8 × 128) × 2 B; the 8 is n_KV-heads per layer, and 64 is n_query-heads per layer.",
+  "root_cause": "Missing 'per layer' qualifier.",
+  "correction": "Say '8 KV heads per layer (64 query heads per layer)' or '8 K/V head pairs per token per layer'.",
+  "acceptance_test": "The sentence cannot be read as 8 total K/V tensors per token for the full model.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT"
+ },
+ {
+  "id": "CH8-001",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §8 mini-case, paragraph after 'So a high TTFT is not evidence...'",
+  "chapter": "8",
+  "quoted_clause": "Prefill's effective intensity is (2 × N × L) / (N × 2 bytes/param) = L = 9,200 FLOP/byte at the canonical 9.2K context",
+  "observed": "This is the weight-only upper bound; Ch 8 §5 says including the ~24 GB KV write gives ~7,850 FLOP/byte. Calling it 'effective intensity' without 'weight-only' may overstate the actual prefill intensity.",
+  "evidence": "Ch 8 §5: 'weight-only intensity ~9,200 FLOP/byte — an upper bound that omits the ~24 GB KV write; including it, ~7,850 FLOP/byte'.",
+  "root_cause": "Omitted scope qualifier in mini-case.",
+  "correction": "Say 'weight-only prefill intensity' or add 'including KV write, ~7,850 FLOP/byte; both are far above the ridge'.",
+  "acceptance_test": "Mini-case intensity statement matches the qualified value in Common Mistakes.",
+  "_models": [
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P3",
+  "_tri": "PRESENT_FLEX"
+ }
+]

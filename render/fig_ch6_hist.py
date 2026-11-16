@@ -26,6 +26,9 @@ mean = lat.mean()
 # neither line identity nor the prose-quoted values (0.80/0.94/0.99) could be read off
 # the plot. Now each line has its OWN dash style (distinguishable in grayscale) and each
 # label carries its numeric value.
+# FIG-6.2-01: fixed y-limit with headroom above the tallest bar (~3000) so the wide
+# 'sample p99' label can sit on its own row above the green p50 label without touching it.
+ax.set_ylim(0, 3600)
 ytop = ax.get_ylim()[1]
 # Stagger the three green percentile labels onto three clearly-separated rows
 # (0.99 / 0.88 / 0.77 of ytop) so the boxes have comfortable vertical gaps; the
@@ -33,7 +36,7 @@ ytop = ax.get_ylim()[1]
 leaders = [
     # (percentile, value, y-fraction, label side). p50's label goes LEFT of its line:
     # to the right it runs under the p99 label box at x=1.36, which hid the value.
-    (50, np.percentile(lat, 50), 0.94, 'right'),
+    (50, np.percentile(lat, 50), 0.93, 'right'),
     (90, np.percentile(lat, 90), 0.85, 'left'),
     (95, np.percentile(lat, 95), 0.75, 'left'),
 ]
@@ -60,15 +63,18 @@ ax.axvline(2.0, color='#27408b', ls='-.', lw=2.2)
 # "SLO 2 s (TTFT budget)" (metric named, per review fix), which is wide enough
 # that on the top row its box would run under the legend box — so it sits at
 # mid-height on its own line instead, in clear space right of x=2.
-ax.text(v99 + 0.03, ytop * 0.94, 'sample p99', fontsize=8.5, color='#c0392b',
-        fontweight='bold', va='center', ha='left',
+ax.text(v99 - 0.03, ytop * 0.98, 'sample p99', fontsize=8.5, color='#c0392b',
+        fontweight='bold', va='center', ha='right',
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#c0392b', lw=0.5))
 ax.text(2.03, ytop * 0.45, 'SLO 2 s (TTFT budget)', fontsize=8.5, color='#27408b',
         fontweight='bold', va='center', ha='left',
         bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='#27408b', lw=0.5))
 # Compact legend in the clear upper-right whitespace (the annotated lines all cluster
 # near x=0.8-2.0 on a 6.2s axis, so label them as a legend, not along the crowded lines).
-ax.text(3.45, ax.get_ylim()[1]*0.86, 'mean = %.2fs\nsample p99 (interpolation) = %.2fs\npopulation p99 = 5.0 s\nSLO 2 s (TTFT budget)' % (mean, v99),
+# FIG-6.2-01: the box is placed far enough right (x=3.85) that its left edge clears the
+# 'sample p99' label box (which spans x 1.36-2.35); the SLO line carries its own label,
+# so the legend no longer repeats it (that line made the box both wider and taller).
+ax.text(3.85, ax.get_ylim()[1]*0.86, 'mean = %.2fs\nsample p99 (interpolation) = %.2fs\npopulation p99 = 5.0 s' % (mean, v99),
         fontsize=8.5, color='#333', ha='center', va='center',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f7f7f7', ec='#cccccc', lw=0.8))
 # P2-07: shade the ENTIRE SLO-violating region (> 2 s, everything right of the
@@ -97,7 +103,7 @@ ax.text(0.5, 1.055, '[ILLUSTRATIVE synthetic profile]', transform=ax.transAxes, 
         fontweight='bold', color='#8a3a12', ha='center', va='bottom')
 ax.set_xlim(0, 6.2)
 # y-axis headroom so the peak bar (≈3023) is not clipped at a round 3000 limit
-ax.set_ylim(0, 3300)
+ax.set_ylim(0, 3600)
 ax.grid(alpha=0.2, axis='y')
 ax.tick_params(labelsize=9)
 plt.tight_layout()

@@ -101,9 +101,10 @@ def draw_panel(x0, x1, title, subtitle, flash):
     else:
         label(cb_cx, hb_cy, 'HBM', '#fff', FS-0.4, weight='bold')
 
-    # explicit MANY (before) vs FEW (after) HBM round-trips between on-chip and HBM.
-    # Double-headed arrows: a round-trip is a read AND a write, so traffic is
-    # bidirectional (the caption says "round-trips", not one-way loads).
+    # explicit MANY (before) vs FEW (after) HBM transfers between on-chip and HBM.
+    # BEFORE: double-headed arrows (a round-trip is a read AND a write).
+    # AFTER:  single-headed UP arrows only (K/V tile reads; the per-tile result is
+    #         accumulated on-chip, so there is no downward intermediate write).
     n_arrows = 7 if not flash else 2
     lw = 1.4 if not flash else 1.1
     # arrows span only the RIGHT portion of the blocks, leaving a clear LEFT gutter
@@ -117,9 +118,17 @@ def draw_panel(x0, x1, title, subtitle, flash):
     color = C_TRAFFIC if not flash else C_OK
     for i in range(n_arrows):
         axx = span_left + i*(span_right-span_left)/max(n_arrows-1, 1)
-        ax.annotate('', xy=(axx, hb_cy+hbh/2), xytext=(axx, cb_cy-cbh/2),
-                    arrowprops=dict(arrowstyle='<|-|>', lw=lw, color=color,
-                                    shrinkA=0, shrinkB=0), annotation_clip=False)
+        if flash:
+            # FIG-15.1-01: AFTER-panel arrows are SINGLE-HEADED, pointing up
+            # (HBM -> on-chip) — they denote K/V tile reads only. No downward
+            # head, because no L×L intermediate is written back to HBM.
+            ax.annotate('', xy=(axx, cb_cy-cbh/2), xytext=(axx, hb_cy+hbh/2),
+                        arrowprops=dict(arrowstyle='-|>', lw=lw, color=color,
+                                        shrinkA=0, shrinkB=0), annotation_clip=False)
+        else:
+            ax.annotate('', xy=(axx, hb_cy+hbh/2), xytext=(axx, cb_cy-cbh/2),
+                        arrowprops=dict(arrowstyle='<|-|>', lw=lw, color=color,
+                                        shrinkA=0, shrinkB=0), annotation_clip=False)
     # 'round-trips' label in the clear LEFT gutter (never crossed by arrows).
     # Anchor LEFT at x0+8 so the multi-line label stays fully inside the panel
     # and never crosses the panel's left border / the inter-panel gutter.
