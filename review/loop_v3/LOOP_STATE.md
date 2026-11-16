@@ -47,6 +47,21 @@ MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
 8. **CONVERGENCE CHECK** — if disposition found **0 CONFIRMED actionable
    fixes** in the round → STOP (converged). Else R+1, hard cap R=14.
 
+## Speed rules (user-approved 2026-11-16, after "why so slow")
+
+1. ONE disposition track only — this session owns R6+ disposition and fix;
+   do not re-verify the same findings in a second parallel track (R5 waste:
+   847 + 823 double verification).
+2. Verification/fix subagents: bigger batches (up to 40 items), evidence
+   <=150 chars for P3 rows (P0-P2 keep the full evidence iron rule);
+   collection effort stays max (user directive 2026-11-14) — the downshift
+   applies to verification depth, not to panel collection.
+3. Delegate backends: DeepSeek-V4.1-Flash on the critical path;
+   MiniMax-M3.1-Flash only as review-panel model / non-critical delegates
+   (its 2026-11-15 outage cost 6 subagents x hours).
+4. Probe before dispatch; purge [[ERR/NO-CONTENT]] stubs before any idempotent
+   re-run (stubs are silently skipped otherwise).
+
 ## Anti-patterns (from skill)
 
 - Never trust a reviewer verdict: text-layer check disproves vision claims;
