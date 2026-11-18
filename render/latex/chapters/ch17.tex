@@ -111,10 +111,10 @@ host (conservative integer floor 17). \textbf{A single host is not
 viable at peak even for the non-agentic canonical workload} --- the
 fleet needs roughly ⌈344/17⌉ = \textbf{21 hosts} at 40 rps (\textbf{31
 working hosts} at the 70\% × 95\% provisioning policy, \textbf{32 total
-with N−1} --- \hyperref[tab:17.1]{Table 17-1}), and more for growth to 100 rps. This flips
-the original conclusion: the fleet is not a distant luxury but a
-necessity at the canonical peak, driven by the product of service time
-(8.6 s) and arrival rate.
+with N−1} --- \hyperref[tab:17.1]{Table 17-1}), and more for growth to 100 rps. This reverses
+the intuition that one 8×H100 host can serve the canonical peak: the
+fleet is a necessity there, driven by the product of service time (8.6
+s) and arrival rate.
 
 \textbf{KV compression is the first lever.} Switching KV to FP8 (κ ≈
 1.31 MB/token, raw byte-halving --- exactly 50\% of FP16
@@ -529,17 +529,17 @@ SLO-goodput): ideal-active, zero derate, zero spare = \textbf{21} (KV
 screen); \(\rho\)-only, zero spare = \textbf{22} (KV screen);
 \(u\)-only, zero spare (the \(\rho = 1\) variant) = \textbf{29} (u-only
 KV screen: 344/(17 × 0.70) = 28.9 → 29); \textbf{policy
-\(u \times \rho\) working = 31, + \(N_\text{spare}\) = 32 (KV-only, case
-(i))}; the independent full-square case (ii) prefill screen at the same
-policy = \textbf{⌈21.81/0.665⌉ + 1 = 34} (33 working + 1); case (i) =
-\textbf{29} (case-(i) prefill screen at \(u \times \rho\) + spare:
-⌈18.606/0.665⌉ + 1 = 28 + 1 = 29) and case (iii) = \textbf{32}
-(case-(iii) prefill screen at \(u \times \rho\) + spare) at the same
-policy. \textbf{Two coincidences to keep straight: the u-only KV screen
-and the case-(i) prefill screen both give 29, and the KV-only policy
-total and the case-(iii) prefill screen both give 32 --- same numbers,
-different screens.} FP8 KV is unchanged by the policy debate at the
-working level ---
+\(u \times \rho\) working = 31, + \(N_\text{spare}\) = 32 (KV-only,
+case-independent))}; the independent full-square case (ii) prefill
+screen at the same policy = \textbf{⌈21.81/0.665⌉ + 1 = 34} (33 working
++ 1); case (i) = \textbf{29} (case-(i) prefill screen at
+\(u \times \rho\) + spare: ⌈18.606/0.665⌉ + 1 = 28 + 1 = 29) and case
+(iii) = \textbf{32} (case-(iii) prefill screen at \(u \times \rho\) +
+spare) at the same policy. \textbf{Two coincidences to keep straight:
+the u-only KV screen and the case-(i) prefill screen both give 29, and
+the KV-only policy total and the case-(iii) prefill screen both give 32
+--- same numbers, different screens.} FP8 KV is unchanged by the policy
+debate at the working level ---
 \(\lceil 344/(35 \times 0.70 \times 0.95) \rceil = \lceil 14.78 \rceil = 15\)
 working, 16 with the spare.
 
@@ -584,18 +584,21 @@ At the canonical peak:
   ≈ 21 ms/step --- about 4× the weights-only floor. At \textasciitilde21
   ms/step an ideal, well-tuned decode sits at \textasciitilde84\% of the
   25 ms budget, not well under it; any inefficiency pushes the step past
-  the budget. Decode-leg feasibility at the canonical peak load: serving
-  all 12,000 output tok/s on one host needs 12,000 × (140/17 + 24.1)
-  GB/token ≈ 388 TB/s --- weights per token at B = 17 plus the ≈24.1 GB
-  KV re-read each output token costs --- which is ≈14× the host's 26.8
-  TB/s of HBM, so the peak decode demand cannot land on one host; it
-  spreads across the fleet's KV-resident slots. The fleet number above
-  therefore uses the 25 ms budget pole of the service time --- a tighter
-  internal sizing target, not the least-favourable pole: the canonical
-  SLO pole is 40 ms/token (Ch 15 §1), and it is in the band below. The
-  sensitivity band, holding prefill at 1.08 s and 300 output tokens: at
-  the weights-only floor 5.2 ms/step (B → 0, no KV reads) W ≈ 2.6 s
-  (in-flight ≈ 106, \textasciitilde7 hosts at full util); at the
+  the budget. Decode-leg feasibility at the canonical peak load, stated
+  at the one B = 17 operating point: a step takes ≈21 ms and emits 17
+  tokens, so one host tops out at ≈17 ÷ 0.021 ≈ \textbf{810 output
+  tok/s} --- far short of the 12,000 tok/s the peak demands, i.e.~≈15
+  hosts' worth. Per output token at B = 17 that traffic is 140/17 ≈ 8.2
+  GB of weights plus the ≈24.9 GB KV re-read ≈ 33.1 GB, so 12,000 tok/s
+  costs ≈ \textbf{398 TB/s} of aggregate HBM traffic --- ≈15× the 26.8
+  TB/s one host can feed; the peak decode demand cannot land on one host
+  and spreads across the fleet's KV-resident slots. The fleet number
+  above therefore uses the 25 ms budget pole of the service time --- a
+  tighter internal sizing target, not the least-favourable pole: the
+  canonical SLO pole is 40 ms/token (Ch 15 §1), and it is in the band
+  below. The sensitivity band, holding prefill at 1.08 s and 300 output
+  tokens: at the weights-only floor 5.2 ms/step (B → 0, no KV reads) W ≈
+  2.6 s (in-flight ≈ 106, \textasciitilde7 hosts at full util); at the
   KV-inclusive floor \textasciitilde21 ms/step (B = 17) W ≈ 7.4 s
   (in-flight ≈ 295, \textasciitilde18 hosts); at the 25 ms budget W ≈
   8.6 s (in-flight ≈ 344, \textasciitilde21 hosts); at the 40 ms TPOT
@@ -756,9 +759,9 @@ ceiling under case (i) and more than 100\% (≈109\% / ≈101\%) under cases
 decode. The 21/31/32 host counts derived from that rate are the KV
 screen's counts, unchanged. Under case (i) the prefill leg leaves
 \textasciitilde7\% headroom and does not bind against the 21-host KV
-screen --- only cases (ii)/(iii) bind, and there the policy screens
-already reported in \hyperref[tab:17.1]{Table 17-1} carry the extra hosts (29 under case (i),
-32 under case (iii), 34 under case (ii)).
+screen --- at the 70\% × 95\% policy the screens resolve as: case (i)
+does not bind (29 vs the 31-host KV policy screen), case (iii) ties it
+(32), case (ii) binds (34); all three are already tabulated in \hyperref[tab:17.1]{Table 17-1}.
 
 \subsection{Load‑balancer overhead
 factor}\label{loadbalancer-overhead-factor}
@@ -1228,16 +1231,16 @@ calls (inputs 9,200 + 10,065 + 10,930 + 11,795 = 41,990), so under
 \textbf{no prefix reuse} W(3) = (41,990/9,200)×1.08 + 0.025×495 +
 3×0.133 ≈ \textbf{17.70 s} (≈ 4.93 s of prefill across four calls +
 \textasciitilde12.4 s decode + \textasciitilde0.4 s tool); under
-\textbf{100\% prefix reuse} only the final call's new context is
-prefilled --- 11,600 tokens, i.e.~2,400 new tokens (3 × 800 of retrieved
-context) once the 9,200-token prefix is served from cache; the 195
-generated γ tokens are not prefilled --- giving W(3) ≈ \textbf{14.14 s}.
-The tool leg here uses the \textasciitilde133 ms/turn tool/retrieval
-rate; \hyperref[chap:19]{Chapter 19}'s \texttt{T·L\_agent} (\textasciitilde660 ms at T=3) is
-the \emph{orchestration-only} incremental overhead at a different
-per-turn rate, and a single model should use one rate consistently.
-(Scope of this W in the KV screen: it is used as the conditional proxy
-for \(\mathrm{E}[W_{KV\text{-}resident}]\) under the explicit assumption
+\textbf{100\% prefix reuse} only non-cached context is prefilled ---
+9,200 tokens on call 1 (no cache yet) plus 3 × 800 = 2,400 across calls
+2--4, \textbf{11,600 tokens in total}; the 195 generated γ tokens are
+not prefilled --- giving W(3) ≈ \textbf{14.14 s}. The tool leg here uses
+the \textasciitilde133 ms/turn tool/retrieval rate; \hyperref[chap:19]{Chapter 19}'s
+\texttt{T·L\_agent} (\textasciitilde660 ms at T=3) is the
+\emph{orchestration-only} incremental overhead at a different per-turn
+rate, and a single model should use one rate consistently. (Scope of
+this W in the KV screen: it is used as the conditional proxy for
+\(\mathrm{E}[W_{KV\text{-}resident}]\) under the explicit assumption
 that the scheduler keeps the KV block through the tool leg; if the
 engine releases KV at the step boundary, the \textasciitilde0.4 s tool
 term belongs to \(W_{\mathrm{e2e}}\) only, and the in-flight counts
@@ -1420,16 +1423,19 @@ quotients are 17.5 sequences on FP16 at T=0, 13.8 on FP16 at T=3, and
 27.5 on FP8 at T=3. Each quotient is floored to whole-context slots (17,
 13, 27) before the policy factors u × ρ = 0.70 × 0.95 = 0.665 are
 applied (\hyperref[tab:17.1]{Table 17-1} --- u and ρ independent, not nested). The N−1 row
-adds one spare host. \textbf{The agentic columns are given for BOTH
-reuse policies because the service time --- and therefore every
-in-flight and host count --- depends on whether the engine serves the
-grown prefix from cache or re-prefills it; the manuscript never averages
-between them.} The no-reuse column is the conservative bounding case
-that matches the trace's declared no-prefix-cache policy; the reuse
-column is the prefix-cache operating point. Arrival rates, service
-times, and the utilization target are illustrative scenario inputs, not
-production measurements. \textbf{Planning-bound caveat:} these host
-counts are \textbf{lower bounds on the host count that derive from the
+adds one spare host. \textbf{In-flight cells use the unrounded service
+time}: the agentic no-reuse W is 17.7033 s, so 200 × 17.7033 = 3,540.7 →
+\textbf{3,541}, whereas the printed W = 17.70 s reproduces 3,540.
+\textbf{The agentic columns are given for BOTH reuse policies because
+the service time --- and therefore every in-flight and host count ---
+depends on whether the engine serves the grown prefix from cache or
+re-prefills it; the manuscript never averages between them.} The
+no-reuse column is the conservative bounding case that matches the
+trace's declared no-prefix-cache policy; the reuse column is the
+prefix-cache operating point. Arrival rates, service times, and the
+utilization target are illustrative scenario inputs, not production
+measurements. \textbf{Planning-bound caveat:} these host counts are
+\textbf{lower bounds on the host count that derive from the
 KV-slot-based analytical UPPER bound on the per-host completion rate}
 (the KV screen is satisfied once N ≥ λ·W/(C·u·ρ); below that the fleet
 is over the KV ceiling); the deployable fleet is the \textbf{maximum} of

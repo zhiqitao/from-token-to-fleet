@@ -1,0 +1,96 @@
+```json
+[
+  {
+    "id": "CH12-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 12, §12.3, Candidate (c) discussion",
+    "chapter": "12",
+    "quoted_clause": "~1.25× per GPU, ~10× per host-equivalent",
+    "observed": "The '~10× per host-equivalent' comparison is ambiguous. If it means one 7B card (24,725 tok/s) vs one 70B card running the full model unsharded (2,472 tok/s), the ratio is 10×, but calling a single GPU a 'host-equivalent' is incorrect — a host has 8 GPUs. If it means a full host of 7B cards (8 × 24,725 = 197,800) vs one 70B host under TP=8 (19,800), the ratio is also 10×, but this compares 8 independent 7B instances to 1 sharded 70B instance — a different architecture. The text does not explain which comparison is intended.",
+    "evidence": "24,725 / 2,472 = 10.0 (single-card full-model); 197,800 / 19,800 = 10.0 (full-host). Both give 10× but mean different things.",
+    "root_cause": "Ambiguous use of 'host-equivalent' without defining the comparison.",
+    "correction": "Replace with an explicit comparison, e.g. '~10× if a full host runs 8 independent 7B instances (197,800 tok/s) vs one 70B host under TP=8 (19,800 tok/s)' or '~10× vs the 70B's full-model-equivalent single-card rate (2,472 tok/s)'.",
+    "acceptance_test": "A reader can identify exactly which two quantities are being divided and why the comparison is meaningful for the candidate's sizing."
+  },
+  {
+    "id": "CH11-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Chapter 11, §11.3, 'When to Disaggregate' paragraph",
+    "chapter": "11",
+    "quoted_clause": "Decode's arithmetic intensity is B FLOP/byte for FP16 weights: ~1.0 at batch 1 and ~17.5 at the canonical ~17.5-concurrent operating point ... Both are far below the H100 ridge of ~295 FLOP/byte, so bandwidth binds",
+    "observed": "The arithmetic intensity is explicitly weight-only ('for FP16 weights'), but the text does not note that KV cache reads further reduce the effective arithmetic intensity. At batch 17.5 with 9.5K context, total bytes per step ≈ 140 GB (weights) + 436 GB (KV) = 576 GB, giving an effective arithmetic intensity of ~4.25 FLOP/byte — far below the stated 17.5. A reader may take 17.5 as the total arithmetic intensity and underestimate the bandwidth pressure by ~4×.",
+    "evidence": "FLOPs per step at batch 17.5: 17.5 × 140 GFLOP = 2,450 GFLOP. Total bytes: 140 + 436 = 576 GB. Effective arithmetic intensity: 2,450 / 576 ≈ 4.25 FLOP/byte. Weight-only: 2,450 / 140 = 17.5 FLOP/byte.",
+    "root_cause": "Weight-only arithmetic intensity presented without distinguishing it from total arithmetic intensity (weights + KV + activations).",
+    "correction": "Add a sentence noting that KV reads further reduce the effective arithmetic intensity (e.g., '~4.3 FLOP/byte including KV at the canonical operating point'), which strengthens the bandwidth-bound conclusion.",
+    "acceptance_test": "A reader can compute the total arithmetic intensity (including KV) from the stated inputs and see it is lower than the weight-only figure, reinforcing the bandwidth-bound conclusion."
+  },
+  {
+    "id": "CH11-02",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Chapter 11, Fig 11.3 caption",
+    "chapter": "11",
+    "quoted_clause": "batching divides the rate proportionally",
+    "observed": "Ambiguous about whether 'the rate' means the per-token weight-read rate or the total weight-read rate. At batch B with the same TPOT, the total weight-read rate is unchanged (same step rate × same weight size); only the per-token rate is divided by B. A reader could interpret this as claiming total bandwidth demand decreases with batch size, which is incorrect.",
+    "evidence": "At batch 1, 40 steps/s: total weight-read rate = 40 × 140 GB = 5.6 TB/s. At batch 17.5, same TPOT: total = 40 × 140 GB = 5.6 TB/s (unchanged). Per-token: 140 GB at batch 1, 8 GB at batch 17.5 (divided by 17.5).",
+    "root_cause": "The phrase does not specify which rate is being divided.",
+    "correction": "Replace with 'batching divides the per-token weight-read rate proportionally (the total weight-read rate per step is unchanged)'.",
+    "acceptance_test": "A reader can determine whether the total or per-token rate is being divided and verify against the stated inputs."
+  },
+  {
+    "id": "CH11-03",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Chapter 11, §11.3, 'When to Disaggregate' paragraph",
+    "chapter": "11",
+    "quoted_clause": "prefill needs ~1.29 PFLOP, or ~1.19 PFLOPS over the ~1.08 s prefill budget",
+    "observed": "The '1.08 s prefill budget' is used without explaining where it comes from. The TTFT budget is 1.2 s; 1.08 s presumably represents the prefill allocation within that budget, but this is not stated.",
+    "evidence": "1.29 PFLOP / 1.08 s = 1.194 PFLOPS ≈ 1.19 PFLOPS (arithmetic correct). Origin of 1.08 s not given.",
+    "root_cause": "Figure introduced without derivation or cross-reference.",
+    "correction": "Add a brief explanation, e.g. 'the ~1.08 s prefill budget (within the 1.2 s TTFT budget, leaving ~0.12 s for queueing and first decode step)' or cross-reference where the split is established.",
+    "acceptance_test": "A reader can identify where 1.08 s comes from and verify it against the stated TTFT budget."
+  },
+  {
+    "id": "CH10-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Chapter 10, §10.3, Tensor Parallelism subsection",
+    "chapter": "10",
+    "quoted_clause": "T_tp ≈ n_layers × 2(N-1)/N × M_act/B_dir",
+    "observed": "The formula counts one collective per layer, but the worked example immediately below uses two all-reduces per transformer block (160 calls vs 80). The text explains this discrepancy in prose, but the formula itself does not include a factor for the number of collectives per layer. A reader applying the formula directly with n_layers = 80 would get half the worked example's time.",
+    "evidence": "Formula with n_layers = 80: 80 × 2(7)/8 × M/B = 140 × M/B. Example with 160 calls: 160 × 2(7)/8 × M/B = 280 × M/B. Factor of 2.",
+    "root_cause": "Formula uses n_layers as proxy for collective count without explicit factor.",
+    "correction": "Add a factor c (collectives per layer) to the formula: T_tp ≈ c × n_layers × 2(N-1)/N × M_act/B_dir, or add an inline note to the formula itself (not just the surrounding prose) that it assumes one collective per layer.",
+    "acceptance_test": "A reader applying the formula to the example's inputs gets the same call count (160), or the formula explicitly states its one-collective-per-layer assumption."
+  },
+  {
+    "id": "CH13-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Chapter 13, §13.8, mini-case",
+    "chapter": "13",
+    "quoted_clause": "[ILLUSTRATIVE SCENARIO INPUT] and [ILLUSTRATIVE SCENARIO RESULT]",
+    "observed": "These labels are elaborations of [ILLUSTRATIVE] but are not from the strictly defined evidence-label set ([CANONICAL] [DERIVED] [ILLUSTRATIVE] [ASSUMPTION] [1P] [HYPOTHESIS] plus the three-axis taxonomy: provenance [1P] [2 degree] [LAB] [ILLUSTRATIVE], status [FACT] [DERIVED] [ASSUMPTION] [HYPOTHESIS] [UNRESOLVED], and [ANALYTICAL]).",
+    "evidence": "Defined provenance labels: [1P] [2 degree] [LAB] [ILLUSTRATIVE]. These labels add qualifiers ('SCENARIO INPUT', 'SCENARIO RESULT') not present in the defined set.",
+    "root_cause": "Labels elaborated beyond the defined vocabulary.",
+    "correction": "Use [ILLUSTRATIVE] alone (the scenario context is already clear from the surrounding text) or add these elaborated forms to the defined label set in Chapter 4 / Appendix A.",
+    "acceptance_test": "All evidence labels in the chapter are from the defined set, or the defined set has been updated to include the elaborated forms."
+  },
+  {
+    "id": "CH13-02",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Chapter 13, §13.3, escalation example",
+    "chapter": "13",
+    "quoted_clause": "50 × (17.5 ÷ 8.6 ≈ 2.03) ≈ 101.7 rps, exactly at the 100 rps demand with zero utilization headroom",
+    "observed": "101.7 rps capacity vs 100 rps demand is 1.7% headroom, not zero. 'Exactly at' is also a slight overstatement (101.7 ≠ 100).",
+    "evidence": "50 × 17.5 / 8.6 = 101.74 rps. 101.74 / 100 = 1.0174 → 1.74% headroom.",
+    "root_cause": "Rounding and rhetorical emphasis ('exactly', 'zero') overstate the precision of the comparison.",
+    "correction": "Replace with '≈101.7 rps, within ~2% of the 100 rps demand — effectively no utilization headroom for a production system' or equivalent.",
+    "acceptance_test": "The stated capacity and headroom are consistent with the arithmetic (101.7 vs 100 → ~1.7% headroom)."
+  }
+]
+```
+COVERAGE: Text read (T) for Chapters 9, 10, 11, 12, 13, and the appendix in full. Quantities recomputed (Q) for all numerical claims in the chunk: ring all-reduce times (0.54/6.1/98 s), gradient sizes (140/280 GB), TP activation budgets (256 KiB, 70 MiB, 0.163/2.936 ms), PP speedups (2.9×/3.66×), EP/FSDP volumes (8/7/14/56 MiB), prefill throughput (19,800/24,725 tok/s), KV sizes (24.1/24.9 GB), host counts (5/6/21/51/74/78/203), card counts (4/15), economics ($155.8K/$232.2K/$467.2K, ratios 10.4×/15.5×/31×, per-1K $24.97/$14.04/$49.13), arithmetic intensity (1.0/17.5/4.25 FLOP/byte), H100 ridge (295 FLOP/byte), weight-read rates (5.6/0.70 TB/s), protocol overhead (~380/~180 Gb/s), Gaudi 3 (600/1200 GB/s), NVLink 5 (1.8 TB/s), KV transfer times (0.08/0.02/0.9/0.054 s), aggregate bandwidth (1.4/1.8 TB/s), interconnect hierarchy (3.35 TB/s→25 GB/s = 67–134×), PCIe (64 GB/s/dir), collective step counts (2,240), 100-collective totals (54/610/9,800 s), 1,000-iteration totals (15.6/27.2 h), naive-vs-floored screen (50 vs 51 hosts, 101.7 vs 98.8 rps), 70%×95% policy (31+1=32, 77+1=78 hosts), escalation (⌈50.59⌉=51, ⌈76.07⌉=77+1=78, ⌈202.35⌉=203), Little's Law (40×8.6=344), KV quotient (436/24.9=17.5→17), 7B KV (0.52/0.13 MB/token, 1.2 GB, vs 6 GB naive), 400B (800 GB, 10×/11×H100), prefix-cache lift (19,800/0.70≈28K), MoE activation (16/896≈1.8%, 11/512≈2.15%), Mooncake (525%→6.25×), DFlash (>6×, 2.5×), 920K/950K tok/s, 92K/368K/3K/12K tok/s. Rendered pages NOT VERIFIED (V). References NOT VERIFIED (R) — no URLs fetched. Figure content NOT VERIFIED (figures stripped from chunk; captions reviewed only). Glossary NOT VERIFIED (not in chunk).

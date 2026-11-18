@@ -1,0 +1,148 @@
+```json
+[
+  {
+    "id": "CH20-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 20 §3, Autoscaling economics paragraph",
+    "chapter": "20",
+    "quoted_clause": "The break-even against a statically provisioned 21-host fleet ($420/hr) sits at 19 hosts",
+    "observed": "The break-even calculation compares autoscaling cost (N×$20 + $40 fixed overhead) against static fleet cost (21×$20 = $420, no $40). The $40 is described as 'fixed overhead of ~$40/hr (infrastructure and staff)' which should apply to both fleets. If both incur $40, break-even is trivially at 21 hosts (N×20+40 = 21×20+40 → N=21). The stated break-even at 19 hosts only holds if the static fleet excludes the $40.",
+    "evidence": "Autoscaling at 19: 19×20+40 = $420. Static: 21×20 = $420. Equal only if static has no $40. If static also has $40: static = $460, break-even at N=21 (trivially).",
+    "root_cause": "Inconsistent overhead assumptions between the two cost bases being compared.",
+    "correction": "Either (a) state explicitly that the $40 is autoscaling-specific overhead (scaling controller, scaling-decision monitoring) and not general infrastructure, or (b) apply the $40 to both fleets and recompute the break-even (which becomes trivially 21 hosts), or (c) reframe the comparison as autoscaling-with-overhead vs static-without-overhead and explain why the overhead differs.",
+    "acceptance_test": "The break-even paragraph explicitly states which fleet(s) incur the $40 fixed overhead and the arithmetic is consistent with that statement."
+  },
+  {
+    "id": "CH22-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 22 §8 mini-case, 'The peak, not the average, sizes the fleet' paragraph",
+    "chapter": "22",
+    "quoted_clause": "Ch 17's 436 GB of KV per host (640 − 140 − 64) ÷ 24.1 GB/request ≈ 18 in-flight requests per host, and 40 rps × 8.58 s ≈ 343 in flight needs ~19 hosts",
+    "observed": "Uses 24.1 GB (9.2K context) giving 18 slots and ~19 hosts, while Ch 20 (§3), Ch 24 (§3.3 check 4), and Ch 25 (ADR 0015 R1) all use 24.9 GB (9.5K max context) giving 17 slots and 21 hosts for the same KV-residency screen. The same screen yields 19 vs 21 hosts depending on chapter.",
+    "evidence": "436/24.1 = 18.09 → 18 slots → ⌈343/18⌉ = 19. 436/24.9 = 17.51 → 17 slots → ⌈344/17⌉ = 21. Ch 20 explicitly: '⌈40 × 8.6 / 17⌉ = ⌈344/17⌉ = ⌈20.24⌉ = 21'. Ch 24: 'floor 436 ÷ 24.9 = 17 slots/host'.",
+    "root_cause": "The mini-case uses the 9.2K canonical context for KV sizing while the rest of the book uses the 9.5K max context (the Ch 17 convention). Also uses 8.58 s instead of 8.6 s.",
+    "correction": "Use 24.9 GB (9.5K max) and 8.6 s consistently: 436/24.9 = 17 slots, 40×8.6 = 344, ⌈344/17⌉ = 21 hosts. Update the '~17–19 hosts' range and the '21-host build carrying the margin' framing accordingly (21 is the screen result, not margin).",
+    "acceptance_test": "The mini-case KV screen gives 21 hosts, matching Ch 20/24/25, using 24.9 GB and 8.6 s."
+  },
+  {
+    "id": "CH25-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 25 §8 mini-case, ADR 0017 Consequences, 'Fleet-level effect' bullet",
+    "chapter": "25",
+    "quoted_clause": "the peak KV-residency screen moves from 21 hosts to ~11 (344 in-flight ÷ 35.0 concurrent per host = 9.8, +N−1)",
+    "observed": "Compares raw FP16 screen (21, no +N−1) against FP8 screen including +N−1 (10+1=11). The 21 from Ch 20 is the raw screen: ⌈344/17⌉ = 21. Applying +N−1 to FP16 gives 22. The correct like-for-like comparison is either raw 21→10 or +N−1 22→11.",
+    "evidence": "Ch 20: '⌈344/17⌉ = 21' (raw, no policy). +N−1 to FP16: 21+1=22. FP8 raw: ⌈344/35⌉ = 10. FP8 +N−1: 10+1=11. The text says 'from 21 to ~11' mixing raw FP16 with FP8+N−1.",
+    "root_cause": "Inconsistent application of the +N−1 policy factor across the two sides of the comparison.",
+    "correction": "State either 'from 21 to 10 (raw screens)' or 'from 22 to 11 (+N−1 screens)' — apply the same policy basis to both sides.",
+    "acceptance_test": "Both sides of the 'from X to Y' comparison use the same policy basis (both raw, or both with +N−1)."
+  },
+  {
+    "id": "CH24-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 24 §3.3, scope note for the candidate pair",
+    "chapter": "24",
+    "quoted_clause": "KV ≈ 5 hosts FP16 / ~2.5 hosts 8-bit, Ch 16/17",
+    "observed": "States ≈5 hosts for the average-load KV screen, while Ch 20 §3 explicitly computes ⌈86/17⌉ = 6 for the same screen. The ≈5 comes from the aggregate approach (86 × 24.9 / 436 = 4.91 ≈ 5); the 6 comes from the per-host whole-slot approach (⌈86/17⌉ = 6). The book's stated convention (Ch 17/20) is the whole-slot approach.",
+    "evidence": "Ch 20: \"The 'far fewer hosts (~6)' figure applies only to the 10-rps average (⌈86/17⌉ = 6)\". Ch 24: \"KV ≈ 5 hosts FP16\". Aggregate: 86×24.9/436 = 4.91 ≈ 5. Per-host slot: ⌈86/17⌉ = 6.",
+    "root_cause": "Two different host-counting methods (aggregate GB vs per-host whole-slot) applied to the same screen in different chapters.",
+    "correction": "Use the per-host whole-slot convention consistently: state 6 hosts (⌈86/17⌉) in Ch 24, matching Ch 20. If the ≈5 aggregate figure is retained for a rough estimate, label it as such and note the whole-slot convention gives 6.",
+    "acceptance_test": "Ch 24's average-load KV screen number matches Ch 20's ⌈86/17⌉ = 6, or the text explicitly labels the ≈5 as an aggregate (non-ceiling) estimate distinct from the whole-slot screen."
+  },
+  {
+    "id": "CH23-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 23 §8 mini-case, 'The burst buffer, spelled out' paragraph",
+    "chapter": "23",
+    "quoted_clause": "a decode-only ceiling of 100% MFU (≤141 rps — 7B FP16, ~500 output tokens/request, H100)",
+    "observed": "The 141 rps figure is the compute-bound decode ceiling at 100% MFU, which requires batch sizes large enough (~295+) for compute to dominate over bandwidth. At small batch, decode is bandwidth-bound and the rate is far lower (~0.48 rps at batch 1 on one H100 for a 7B model). The text qualifies r=50 as 'optimistic' but does not explain the batch-size dependency that makes 141 unrealistic at low concurrency.",
+    "evidence": "989e12/(2×7e9×500) = 141.3 rps (compute-bound). Bandwidth-bound at batch 1: 3.35e12/14e9 = 239 tokens/s → 0.48 rps. Transition at batch ≈295 where compute time equals bandwidth time.",
+    "root_cause": "The ceiling is presented without noting that approaching it requires the compute-bound regime (large batch), which is a different operating point from the bandwidth-bound regime at small batch.",
+    "correction": "Add a brief clause noting that 141 rps requires batch sizes large enough for compute to dominate (the bandwidth-bound rate at small batch is much lower), or note that the figure assumes the GPU is saturated with concurrent requests.",
+    "acceptance_test": "The text explains why 141 rps is not achievable at low batch, or explicitly states the batch-size assumption."
+  },
+  {
+    "id": "CH22-02",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 22 §8 mini-case, 'The peak, not the average' paragraph",
+    "chapter": "22",
+    "quoted_clause": "10 × 1.288 = 12.88 PFLOP/s, ~1.6 hosts at peak",
+    "observed": "The phrase '~1.6 hosts at peak' is ambiguous — it could be read as '1.6 hosts at peak demand' (wrong; peak demand needs 6.5 hosts) versus '1.6 hosts at 100% of peak compute efficiency' (correct). Ch 24 §3.3, the cited source, says '1.6 hosts at 100% of peak' which is clear.",
+    "evidence": "12.88/7.91 = 1.63 ≈ 1.6 at 100% of peak compute. Peak demand (40 rps): 51.5/7.91 = 6.5 hosts. Ch 24: '1.6 hosts at 100% of peak and ~4.1 at 40% MFU'.",
+    "root_cause": "Dropped the '100% of' qualifier when compressing the Ch 24 reference.",
+    "correction": "Change to '~1.6 hosts at 100% of peak compute' or '~1.6 hosts at idealized peak efficiency' to match Ch 24's wording.",
+    "acceptance_test": "The phrase unambiguously indicates 100% compute efficiency, not peak demand."
+  },
+  {
+    "id": "CH24-02",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 24 §8 mini-case, Decision point paragraph",
+    "chapter": "24",
+    "quoted_clause": "aiming to bring PIES below 150 while keeping the false-positive rate under 1.5%",
+    "observed": "PIES is already at 143 (< 150) at Cycle 2, so 'bring PIES below 150' implies it is currently above 150, which it is not. The actual goal is to maintain PIES below 150 while reducing false positives.",
+    "evidence": "Table 24-1: Cycle 2 PIES = 143, target < 150. 143 < 150, so the target is already met.",
+    "root_cause": "Wording implies PIES needs to be reduced below 150 when it is already there.",
+    "correction": "Change to 'aiming to keep PIES below 150 while bringing the false-positive rate under 1.5%' or 'maintaining PIES below 150 while reducing false positives to under 1.5%'.",
+    "acceptance_test": "The wording does not imply PIES is currently above 150."
+  },
+  {
+    "id": "CH24-03",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 24 §6, Architecture Consequence item 2 (RAG corpus policy)",
+    "chapter": "24",
+    "quoted_clause": "a 64 B tag over ~48,000 chunks is ~3 MB, well under 1% of the corpus",
+    "observed": "Whether 3 MB is 'well under 1%' of the corpus depends on the average chunk size, which is not stated. At 500-token chunks (~2 KB text), corpus ≈ 96 MB and 3/96 = 3.1% (not under 1%). At 2,000-token chunks (~8 KB), corpus ≈ 384 MB and 3/384 = 0.78% (< 1%).",
+    "evidence": "64 × 48,000 = 3,072,000 B ≈ 3 MB. Corpus size = 48,000 × avg_chunk_bytes. The text does not specify avg_chunk_bytes.",
+    "root_cause": "The percentage claim depends on an unstated assumption about chunk size.",
+    "correction": "Either state the assumed average chunk size (e.g., 'at ~2,000 tokens/chunk the corpus is ~384 MB, so 3 MB is <1%') or soften to 'a small fraction of the corpus' without the specific percentage.",
+    "acceptance_test": "The percentage claim either states its chunk-size assumption or is replaced with a size-independent statement."
+  },
+  {
+    "id": "CH22-03",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 22 §8 mini-case, 'The peak, not the average' paragraph",
+    "chapter": "22",
+    "quoted_clause": "~16.3 hosts at 40% MFU (7.91 × 0.4 = 3.16 PFLOPS/host) — 16.3 rounded up is 17, since 16 × 3.164 PFLOPS/host = 50.6 PFLOP/s",
+    "observed": "Uses both '3.16 PFLOPS/host' and '3.164 PFLOPS/host' for the same quantity within the same sentence. 7.91 × 0.4 = 3.164, so 3.16 is a rounded version used in one clause and 3.164 in the verification clause.",
+    "evidence": "7.91 × 0.4 = 3.164. Text says '3.16' then '3.164'.",
+    "root_cause": "Inconsistent precision within a single sentence.",
+    "correction": "Use 3.164 consistently (or 3.16 consistently) throughout the sentence.",
+    "acceptance_test": "The same quantity appears with the same precision within the sentence."
+  },
+  {
+    "id": "CH24-04",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 24 §8 mini-case, Scenario paragraph vs Table 24-1",
+    "chapter": "24",
+    "quoted_clause": "The poisoned-hit rate remains at ≈0.003 per query",
+    "observed": "Mini-case says '≈0.003' while Table 24-1 lists Cycle 2 as exactly '0.003'. The ≈ suggests approximation but the table gives an exact value. Since the target is '< 0.003' (strictly less than), whether the value is exactly 0.003 or approximately 0.003 affects whether the target is met. The text then says 'at, not below, the <0.003 target' implying exact equality.",
+    "evidence": "Table 24-1: Cycle 2 = 0.003 (no ≈). Mini-case: '≈0.003'. Target: '< 0.003'. If exactly 0.003: 0.003 is not < 0.003, target not met. If ≈0.003 (e.g., 0.0029): might be < 0.003.",
+    "root_cause": "Precision inconsistency between table (exact) and prose (approximate) for a value that sits exactly on a strict inequality boundary.",
+    "correction": "Use the same precision in both places. If the value is exactly 0.003, drop the ≈ in the prose. If it is approximate, add ≈ to the table or state the actual value.",
+    "acceptance_test": "Table and prose use the same precision for the Cycle 2 poisoned-hit rate, and the text's 'at, not below' characterization is consistent with that precision."
+  },
+  {
+    "id": "CH22-04",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 22 §8 mini-case, service time in KV calculation",
+    "chapter": "22",
+    "quoted_clause": "40 rps × 8.58 s ≈ 343 in flight",
+    "observed": "Uses 8.58 s while the rest of the book (Ch 20, 24, 25) uses 8.6 s. 8.58 = 1.08 + 7.50 (exact sum); 8.6 is the rounded canonical value. The difference changes in-flight from 343 to 344.",
+    "evidence": "40 × 8.58 = 343.2 ≈ 343. 40 × 8.6 = 344. Ch 20: 'λ·W = 40 × 8.6 ≈ 344'. Ch 24: '40 rps × 8.6 s = 344 in-flight'.",
+    "root_cause": "Using the exact component sum (8.58) instead of the canonical rounded value (8.6) in one passage.",
+    "correction": "Use 8.6 s and 344 consistently, matching the rest of the book.",
+    "acceptance_test": "The mini-case uses 8.6 s and 344 in-flight, matching Ch 20/24/25."
+  }
+]
+```
+COVERAGE: Read all text of Ch 20–25 (six chapters, complete). Recomputed all consequential arithmetic: Ch 20 host screens (21/22/23/32/34), autoscaling economics ($3.19/$4.44/28%/break-even), scheduling overhead percentages, cold-start bandwidth, stress/soak host counts, analytical capacity ratios; Ch 21 canary/exposure arithmetic (216K/3.6K/$5,394/$3,032/60×), binomial p-value (Poisson approx ≈7.1e-5 vs stated 6.4e-5, accepted as within exact-binomial range), TTFT regression; Ch 22 all Table 22-1 derivations (prefill FLOPs cases i/ii/iii, KV cache, decode weight-read, crossover L*, ratios at 9.2K/32K/128K, second-workload transfer, peak sizing 6.5/16.3/17 hosts, KV budget 18 slots/19 hosts vs Ch 20's 17/21); Ch 23 burst-buffer formula and worked example (141/71/50 rps, queue drain arithmetic); Ch 24 PIES/CPS arithmetic (768→217), RAG poisoning null model (p, E[total], probability basis, accumulation note), retrieval-auditor confidence bounds, architecture candidate pair screens (average and peak, prefill and KV), all Table 24-1 metric targets vs values, mini-case metric arithmetic; Ch 25 ADR 0016/0015/0017 all derived quantities (footprints, cost rows, $/1K, monthly rps, KV concurrency, arithmetic intensity at batch 1 and C=17.5, fleet effect 21→11, requirement coverage matrix). Cross-checked host counts, service time, context length, slot counts, and cost figures across all six chapters. Verified evidence-label usage against house conventions. Checked cross-references for resolvability. NOT VERIFIED: figure visual quality (figures stripped from text chunks — vision stage required), rendered page layout/typography, source references [S6] and Ch 4/8/16/17 content not included in this chunk, exact binomial p-value (Poisson approximation used), Ch 16/17 cited values.

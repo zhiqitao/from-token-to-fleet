@@ -179,15 +179,15 @@ Instances on one 8×H100 pool (this model alone)
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-70B dense FP16 & 140\,GB & --- & --- & 1 GPU & 1 (140 GB weights across
-the 8-GPU pool, \textasciitilde17.5 GB/GPU under TP; with KV, the
+70B dense FP16 & 140\,GB & --- & --- & 8 GPU (TP=8) & 1 (140 GB weights
+across the 8-GPU pool, \textasciitilde17.5 GB/GPU under TP; with KV, the
 canonical 436 GB KV budget is used (640 − 140 − 64\,GB host
 runtime/workspace reserve, defined in the note below)) \\
 70B dense 8-bit & --- & \textasciitilde70\,GB & --- & 2 GPU & 4 (70 GB
 weights + 24.9 GB FP16 KV = 94.9 GB \textgreater{} 80 GB per GPU; FP8 KV
 still 82.5 GB) \\
-70B MoE FP16 (2/16 experts) & 140\,GB & --- & --- & 1 GPU & 1 (same as
-dense FP16; weights + KV fit in the 640 GB pool) \\
+70B MoE FP16 (2/16 experts) & 140\,GB & --- & --- & 8 GPU (TP=8) & 1
+(same as dense FP16; weights + KV fit in the 640 GB pool) \\
 70B MoE 8-bit (2 active) & --- & \textasciitilde70\,GB & --- & 2 GPU & 4
 (70 GB weights + 24.9 GB FP16 KV = 94.9 GB \textgreater{} 80 GB per GPU;
 FP8 KV still 82.5 GB) \\
@@ -202,16 +202,19 @@ deployment reserves 2 \\
 precision --- put the number in that precision's column. A dash means
 that precision does not apply to the row's naming.)} The last column
 counts instances of that model alone on the pool; the 8-bit rows need
-\textbf{2 GPUs per instance} (94.9 GB \textgreater{} 80 GB per GPU).
-Under the co-resident deployment below, two 4-bit copies are held and
-reserve no KV. The 64 GB subtracted above is the host's
-runtime/workspace reserve (Ch 7): CUDA kernels, activation buffers, NCCL
-communication and the warmup/KV safety pool --- 140 GB weights + 436 GB
-KV + 64 GB reserve = the 640 GB envelope. The co-residency list below is
-the actual deployment, not this column. The \textasciitilde5-copies
-figure counts only GPU-resident GGUF copies inside the 8×H100 pool; the
-CPU/edge GGUF tier (§18.3.2 ``local, no GPU''; §18.8 Tier 1 on AMD
-Ryzen) runs outside that pool and is not part of this GPU weight sum.
+\textbf{2 GPUs per instance} (94.9 GB \textgreater{} 80 GB per GPU), and
+the two FP16 rows need the full \textbf{8-GPU pool under TP} (140 GB
+\textgreater{} 80 GB of HBM on one card), which is the placement the 436
+GB KV budget assumes. Under the co-resident deployment below, two 4-bit
+copies are held and reserve no KV. The 64 GB subtracted above is the
+host's runtime/workspace reserve (Ch 7): CUDA kernels, activation
+buffers, NCCL communication and the warmup/KV safety pool --- 140 GB
+weights + 436 GB KV + 64 GB reserve = the 640 GB envelope. The
+co-residency list below is the actual deployment, not this column. The
+\textasciitilde5-copies figure counts only GPU-resident GGUF copies
+inside the 8×H100 pool; the CPU/edge GGUF tier (§18.3.2 ``local, no
+GPU''; §18.8 Tier 1 on AMD Ryzen) runs outside that pool and is not part
+of this GPU weight sum.
 
 \textbf{8-bit KV headroom (the row's own fit test).} 70B dense 8-bit on
 1×H100 holds \textasciitilde10 GB of KV headroom (80 − 70) against the
@@ -246,16 +249,19 @@ With 8×H100 (640\,GB), we can simultaneously run the weights of:
 That is \textasciitilde350\,GB of weights, leaving
 \textasciitilde290\,GB of VRAM after weights --- 226\,GB of KV once the
 \textasciitilde64\,GB runtime/workspace reserve is subtracted (640 − 350
-− 64; the figure used below, C = ⌊226/24.89⌋ = 9) --- for KV cache and
-for smaller specialized models (e.g., 22B, 8B) for classification or
-routing. \textbf{290 GB \textless{} the canonical 436 GB KV budget, so
-the FP16 tier cannot co-reside at the canonical profile.} KV, not
-weights, is the binding term: as the FP16 row above notes, that tier's
-KV alone is the canonical 436 GB; with the §18.3.1 co-resident weights
-(\textasciitilde350\,GB) the pool's KV falls to \textasciitilde226 GB
-and C to \textasciitilde9, which changes the fleet arithmetic in Ch
-17/18. This co-residency holds only while the resident tiers' combined
-KV fits.
+− 64; the figure used below, C = ⌊226/24.89⌋ = 9 on a \textbf{KV-only}
+basis) --- for KV cache and for the smaller specialized models (e.g.,
+22B, 8B) used for classification or routing. The two budgets are
+separate: C = 9 spends the whole 226 GB on KV, so a co-resident 22B
+specialist (\textasciitilde22 GB of weights) cuts the KV budget to
+\textasciitilde204 GB and C to ⌊204/24.89⌋ = \textbf{8}. \textbf{290 GB
+\textless{} the canonical 436 GB KV budget, so the FP16 tier cannot
+co-reside at the canonical profile.} KV, not weights, is the binding
+term: as the FP16 row above notes, that tier's KV alone is the canonical
+436 GB; with the §18.3.1 co-resident weights (\textasciitilde350\,GB)
+the pool's KV falls to \textasciitilde226 GB and C to \textasciitilde9,
+which changes the fleet arithmetic in Ch 17/18. This co-residency holds
+only while the resident tiers' combined KV fits.
 
 \subsection{Per-token cost (example numbers, Q4 2026
 pricing)}\label{per-token-cost-example-numbers-q4-2026-pricing}
@@ -280,7 +286,7 @@ Basis
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-70B dense FP16 & \$2.50 & 120 & capital + energy \\
+70B dense FP16 & \$2.50 & 120 & self-amortized capital + energy \\
 70B dense 8-bit & \$1.25 & 250 & self-amortized capital + energy
 (\mbox{{[}ILLUSTRATIVE{]}} example rate, Q4 2026 --- not retrieved) \\
 70B MoE 8-bit & \$1.00 & 300 & self-amortized capital + energy
@@ -290,10 +296,11 @@ Basis
 \noalign{\label{tab:18.3}}\end{longtable}
 
 \emph{Row hardware (Model-column parentheticals, moved here): 70B dense
-FP16 on 8×H100, capital amortized; 70B dense 8-bit on 2×H100 (or 1×H100
-with FP8 KV + offload, shown feasible) --- the \$1.25/1M rate must be
-recomputed for that 2×H100 basis before use; 70B MoE 8-bit with 2 active
-experts; 70B 4-bit GGUF local, no GPU.}
+FP16 on 8×H100, capital amortized; 70B dense 8-bit on 2×H100 (a 1×H100
+FP8-KV + offload form is }not* shown feasible: §18.3.1 puts it at zero
+concurrent canonical requests) --- the \$1.25/1M rate must be recomputed
+for that 2×H100 basis before use; 70B MoE 8-bit with 2 active experts;
+70B 4-bit GGUF local, no GPU.*
 
 \emph{Basis note (reconciled with Ch16's TCO; bases box at the head of
 §3):} the fleet-amortized per-token cost derived in Ch16 §16.3 divides
@@ -386,22 +393,25 @@ tier. Under the shared pool the co-resident weights (\textasciitilde350
 GB, §18.3.1) cut pool KV to 640 − 350 − 64 = 226 GB, so C = ⌊226/24.89⌋
 = 9 and N = ⌈344/9⌉ = \textbf{39 hosts} mixed (shared pool, no
 utilization derate) / ⌈344/(9 × 0.665)⌉ = \textbf{58 hosts} mixed (with
-the 70\%×95\% policy), against 21/31 single-model under the canonical C
-= 17 --- 31 (no spare) / 32 (with the N−1 spare, the Ch 17 provisioned
-fleet). Under dedicated placement each tier gets its own group: 8-bit C
-= ⌊506/24.89⌋ = 20 → 13 + 4 + 3 = \textbf{20 hosts / 32} with policy.
-\textbf{The mixed fleet needs more hosts than the single-model fleet
-under the shared placement (58 vs 31 --- 27 extra hosts; 39 vs 21 --- 18
-extra --- on the no-derate pair).} Under the \textbf{dedicated}
-placement the no-policy pair falls below the single-model fleet (20 vs
-21) while the policy pair is marginally above it (32 vs 31) --- the
-ledger narrows rather than reverses. This worked example adopts the
-\textbf{shared pool} (the placement §18.3.1 describes), so the
-\textasciitilde\$8,147/month (≈ \$98K/yr) token saving must be weighed
-against \emph{that} placement's extra hosts' amortization and energy:
-total cost = host amortization + energy + token cost, not token cost
-alone. The sign of the host delta is a placement decision, not a
-property of consolidation.
+the 70\%×95\% policy) --- both on the KV-only C = 9; a co-resident 22B
+specialist (\textasciitilde22 GB) gives C = 8 and N = \textbf{43 / 65},
+against 21/31 single-model under the canonical C = 17 --- 31 (no spare)
+/ 32 (with the N−1 spare, the Ch 17 provisioned fleet). Under dedicated
+placement each tier gets its own group, and each host holds \textbf{one}
+8-bit replica (2 GPUs, \textasciitilde70 GB) with the canonical TP=8
+pool: 8-bit C = ⌊506/24.89⌋ = 20 (640 − 70 − 64 = 506 GB) → 13 + 4 + 3 =
+\textbf{20 hosts / 32} with policy. \textbf{The mixed fleet needs more
+hosts than the single-model fleet under the shared placement (58 vs 31
+--- 27 extra hosts; 39 vs 21 --- 18 extra --- on the no-derate pair).}
+Under the \textbf{dedicated} placement the no-policy pair falls below
+the single-model fleet (20 vs 21) while the policy pair is marginally
+above it (32 vs 31) --- the ledger narrows rather than reverses. This
+worked example adopts the \textbf{shared pool} (the placement §18.3.1
+describes), so the \textasciitilde\$8,147/month (≈ \$98K/yr) token
+saving must be weighed against \emph{that} placement's extra hosts'
+amortization and energy: total cost = host amortization + energy + token
+cost, not token cost alone. The sign of the host delta is a placement
+decision, not a property of consolidation.
 
 \subsection{Latency check}\label{latency-check}
 
@@ -588,7 +598,8 @@ above, then update daily as actual token counts and cloud prices shift.
   = ⌈34.4/11.305⌉ ≈ \textbf{4 hosts} at the canonical 40-rps peak (u =
   utilization target 0.70, ρ = policy yield 0.95, C = 17 is the
   single-model FP16 pool; the shared mixed pool's C = 9 of §18.3.3 would
-  roughly double this tail count).
+  raise this tail count to \textasciitilde6 under the same 0.70×0.95
+  policy).
 \item
   \textbf{No fallthrough plan.} If the preferred model is at capacity,
   the router must have a next‑best alternative ready; otherwise requests

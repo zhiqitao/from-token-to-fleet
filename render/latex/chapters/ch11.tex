@@ -82,8 +82,9 @@ derived numbers cite the key plus a \mbox{{[}DERIVED{]}} tag.
   Memory Management for Large Language Model Serving with
   PagedAttention,'' SOSP 2023. Block-based KV cache.
 \item
-  \textbf{\mbox{{[}S3{]}} Prefix caching} --- ``Fast Inference from
-  Transformers via Radix Attention'' (SGLang, 2023) and vLLM Automatic
+  \textbf{\mbox{{[}S3{]}} Prefix caching} --- Zheng et al., ``SGLang: Efficient
+  Execution of Structured Language Model Programs'' (NeurIPS 2024;
+  arXiv:2312.07104), which introduces RadixAttention, and vLLM Automatic
   Prefix Caching (APC). Caching shared-prefix KV.
 \item
   \textbf{\mbox{{[}S4{]}} P/D disaggregation} --- ``Splitwise: Efficient
@@ -218,18 +219,18 @@ after Orca, OSDI 2022.)}
 \end{figure}\subsection{PagedAttention: Killing the Fragmentation
 Tax}\label{pagedattention-killing-the-fragmentation-tax}
 
-In re-packaged (naive) serving, each request's KV cache for 9.2K input
-is \textasciitilde24.1 GB (FP16, \textasciitilde2.62 MB/token × 9,200,
-initial KV) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. If served contiguously,
-variable-length completions leave fragmented, unusable holes --- exactly
-like a fragmented heap. \textbf{PagedAttention/vLLM \mbox{{[}S2{]}}\hspace{0pt}\mbox{{[}1P{]}}}
-allocates KV in fixed-size blocks mapped through a per-request block
-table and evicted like page frames; blocks are shared across requests
-only when the engine implements copy-on-write or prefix reuse, so the
-\textasciitilde24.1 GB per request is packed densely and more concurrent
-requests fit in the same 640 GB node \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}.
-The win is \emph{more concurrency under the same SLO}, not faster
-single-request math.
+With contiguous (naive) KV allocation, each request's KV cache for 9.2K
+input is \textasciitilde24.1 GB (FP16, \textasciitilde2.62 MB/token ×
+9,200, initial KV) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. If served
+contiguously, variable-length completions leave fragmented, unusable
+holes --- exactly like a fragmented heap. \textbf{PagedAttention/vLLM
+\mbox{{[}S2{]}}\hspace{0pt}\mbox{{[}1P{]}}} allocates KV in fixed-size blocks mapped through a
+per-request block table and evicted like page frames; blocks are shared
+across requests only when the engine implements copy-on-write or prefix
+reuse, so the \textasciitilde24.1 GB per request is packed densely and
+more concurrent requests fit in the same 640 GB node
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. The win is \emph{more concurrency under
+the same SLO}, not faster single-request math.
 
 \subsection{Prefix Caching: Don't Re-Prefill the Same
 Documents}\label{prefix-caching-dont-re-prefill-the-same-documents}
@@ -247,9 +248,10 @@ traffic \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. \emph{Layout 
 reuse requires the shared documents to sit at a \textbf{fixed prefix
 position} in the prompt (e.g.~system prompt → retrieved documents →
 unique query tail). If the unique query precedes the documents, the
-causal K/V of the document span differs per query and no prefix is
-reusable --- the savings above assume the documents-then-query layout,
-which the architect must verify in the actual prompt template.
+causal K/V of the document span differs per query and no document-span
+prefix is reusable (any earlier fixed system prefix may still be) ---
+the savings above assume the documents-then-query layout, which the
+architect must verify in the actual prompt template.
 
 Prefix reuse is also only one of the state-preservation requirements a
 serving system must meet: preemption, speculative rollback, and
@@ -259,7 +261,7 @@ adaptive-depth execution all constrain what a cache may evict or reuse
 \subsection{When to Disaggregate: Prefill and Decode Want Different
 Pools}\label{when-to-disaggregate-prefill-and-decode-want-different-pools}
 
-Recall from Ch2/Ch6, at the canonical operating point (9.2K/300, FP16,
+Recall from Ch 2/Ch 6, at the canonical operating point (9.2K/300, FP16,
 the stated batch on 8×H100), the two phases sit in different regimes:
 prefill is \textbf{compute-bound} and decode is \textbf{bandwidth-bound}
 --- regime statements, not laws (Ch 2). Prefill needs
@@ -273,8 +275,9 @@ FLOP/byte for FP16 weights: \textasciitilde1.0 at batch 1 and
 \textasciitilde17.5 at the canonical \textasciitilde17.5-concurrent
 operating point (Ch 4 §6 / Ch 7 / Ch 17; 436 GB ÷ 24.9 GB = KV budget ÷
 per-request KV). Both are far below the H100 ridge of \textasciitilde295
-FLOP/byte, so bandwidth binds: the whole-model weight-read rate is
-\textasciitilde5.6 TB/s if served by one device, 3.35 TB/s per GPU, and
+FLOP/byte, so bandwidth binds: the required whole-model weight-read rate
+is \textasciitilde5.6 TB/s if served by one device, against
+\textasciitilde3.35 TB/s of \emph{available} HBM bandwidth per H100, and
 \textasciitilde0.70 TB/s per GPU when sharded across the canonical
 8×H100 host (Ch 6). \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Serving both from one pool
 forces a compromise: batch for prefill and it slows decode; optimize for
@@ -355,7 +358,7 @@ the GPU busy?'':
 \def\labelenumi{\arabic{enumi}.}
 \item
   \textbf{Measure goodput, not raw throughput} --- tokens/s that arrive
-  before their SLO deadline (Ch6). Continuous batching is only a win if
+  before their SLO deadline (Ch 6). Continuous batching is only a win if
   it raises goodput.
 \item
   \textbf{Measure KV utilization} --- live/allocated KV blocks ÷ total
@@ -365,8 +368,8 @@ the GPU busy?'':
   (prefix-hit rate) --- track the two separately.
 \item
   \textbf{Measure prefill-vs-decode utilization separately} --- a
-  FLOP-bound prefill core and a bandwidth-bound decode core running on
-  one pool tells us when to disaggregate.
+  compute-bound prefill core and a bandwidth-bound decode core running
+  on one pool tell us when to disaggregate.
 \item
   \textbf{Measure the scheduler's real occupancy} --- idle decode slots,
   queue wait, and the tail of TTFT under load, not the average.
@@ -381,10 +384,10 @@ the GPU busy?'':
 \begin{itemize}
 \item
   \textbf{Assuming bigger batches always help.} Bigger discrete batches
-  raise raw tokens/s but push TTFT past the SLO, zeroing goodput (Ch6).
+  raise raw tokens/s but push TTFT past the SLO, zeroing goodput (Ch 6).
   Continuous batching exists precisely to uncouple batch size from wait.
 \item
-  \textbf{Serving KV contiguous and watching fragmentation.}
+  \textbf{Serving KV contiguously and watching fragmentation.}
   PagedAttention removes the fragmentation tax; skipping it wastes
   memory under concurrency.
 \item
@@ -420,7 +423,7 @@ The serving mechanisms dictate the deployment choices:
   minimal fragmentation) so more concurrent requests fit in the 640 GB
   node; prefix caching is the highest-leverage optimization because the
   workload is repeated-context RAG. This matches the memory and compute
-  conclusions of Ch4/Ch7 for the \textasciitilde10 rps \emph{average}
+  conclusions of Ch 4/Ch 7 for the \textasciitilde10 rps \emph{average}
   baseline; at the \textasciitilde40 rps peak the KV budget forces
   replication, which \hyperref[chap:17]{Chapter 17} sizes. \mbox{{[}S1{]}}\hspace{0pt}\mbox{{[}S2{]}}\hspace{0pt}\mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}
 \item
@@ -458,10 +461,12 @@ resources under load --- prefill needs compute capacity (per-request
 vs 0.989 peak single-H100; on the canonical 8×H100 host the same prefill
 takes \textasciitilde0.47 s at 35\% MFU, Ch 12), while decode needs HBM
 bandwidth (at batch size 1 and 25 ms TPOT --- 40 tokens/s --- the
-whole-model weight-read rate of \textasciitilde5.6 TB/s if served by one
-device vs 3.35 TB/s per GPU, sharded to \textasciitilde0.70 TB/s per GPU
-under the canonical 8×H100 host, Ch 6; batching divides the rate
-proportionally) \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}.}
+required whole-model weight-read rate is \textasciitilde5.6 TB/s if
+served by one device, against \textasciitilde3.35 TB/s of available HBM
+bandwidth per H100, or \textasciitilde0.70 TB/s per GPU when sharded
+across the canonical 8×H100 host, Ch 6; batching divides the per-token
+weight-read rate by B, while the total per-step weight-read rate at
+fixed TPOT is unchanged) \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}.}
 
 \end{figure}\textbf{Note 11.3-1 (\hyperref[fig:11.3]{Fig 11.3}) --- transfer-time derivation, both
 links.} The \textasciitilde35 GB is ≈13.3K tokens × 2.62 MB/token (§9.8;
@@ -532,7 +537,7 @@ scheduler model & continuous batching & continuous batching & batch
 orchestration (TRT engine) & single/multi-stream & which batching
 algorithm, not which vendor \\
 KV-memory management & PagedAttention & RadixAttention (page + prefix
-tree) & KV re-compute/off-load on engine & custom KV store & how KV is
+tree) & paged KV cache (block manager) & custom KV store & how KV is
 allocated/fragmented \\
 prefix caching & auto prefix & Radix prefix tree & some cache & limited
 & how much re-prefill is avoided \\
@@ -561,7 +566,7 @@ scheduler and structured-generation rows. \textbf{Never conclude ``X is
 the go-to engine''} --- that is workload-independent and will be wrong.
 The only defensible statement is workload-specific: \emph{for this
 request shape, this precision, and this hardware, engine Y implements
-the mechanism Z we need; benchmark it against the alternative (Ch. 14).}
+the mechanism Z we need; benchmark it against the alternative (Ch 14).}
 
 \subsection{What the capability table does not
 promise}\label{what-the-capability-table-does-not-promise}
@@ -734,7 +739,7 @@ training-time self-improvement loop and an inference-time depth loop are
 different mechanisms; sharing the word ``iteration'' assigns no
 inference-time saving to either. \mbox{{[}DERIVED{]}}
 
-A compact qualification record can contain seven gates:
+A compact qualification record can contain seven qualification checks:
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -772,8 +777,8 @@ The four serving concerns --- request scheduling, state management,
 reuse, and resource specialization --- hold for any workload, not only
 autoregressive text. The mechanisms that implement them do not transfer
 automatically: a video or diffusion service raises the same four
-concerns with different mechanisms. The serving side is treated in the
-appendix, ``Beyond autoregressive text: video and diffusion serving'';
+concerns with different mechanisms. The serving side is treated in
+Appendix B, ``Beyond autoregressive text: video and diffusion serving'';
 Ch 14 keeps the video measurement protocol.
 
 \ntsection{What We Still Don't Know}\label{what-we-still-dont-know}
@@ -834,8 +839,8 @@ joint residency and throughput constraints, headroom, and failure
 reserve. The replica's latency result and the service's capacity
 decision remain distinct.
 
-\section{Appendix --- Beyond autoregressive text: video and diffusion
-serving}\label{appendix-beyond-autoregressive-text-video-and-diffusion-serving}
+\section{Appendix B --- Beyond autoregressive text: video and diffusion
+serving}\label{appendix-b-beyond-autoregressive-text-video-and-diffusion-serving}
 
 \subsection{The serving concerns transfer; the text mechanisms do not
 transfer
@@ -884,9 +889,10 @@ parallelism partitions video positions and exchanges attention data.
 Tensor parallelism partitions model operations and introduces its own
 collectives. Weight sharding is a residency technique, not a synonym for
 either. Wan2.2's official multi-GPU path combines FSDP and Ulysses; the
-Ulysses strategy's attention-head divisibility requirement is part of
-the deployable configuration.\footnote{Wan2.2 official README,
-  ``Multi-GPU inference using FSDP + DeepSpeed Ulysses''
+Ulysses strategy's attention-head divisibility requirement ---
+documented in Wan's README for the Wan2.1 release at the commit cited
+--- is part of the deployable configuration.\footnote{Wan2.2 official
+  README, ``Multi-GPU inference using FSDP + DeepSpeed Ulysses''
   (\texttt{-\/-ulysses\_size\ 8}), pinned commit
   \texttt{1ea34ff48f87168174e12956e200b1d908b1c5ff}:
   \url{https://github.com/Wan-Video/Wan2.2/tree/1ea34ff48f87168174e12956e200b1d908b1c5ff}

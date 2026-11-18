@@ -1,0 +1,93 @@
+[
+ {
+  "id": "CH17-03",
+  "severity": "P2",
+  "chapter_hint": "17",
+  "page_hint": "Ch 17 §17.3, decode-leg feasibility bullet",
+  "quoted_clause": "12,000 × (140/17 + 24.1) GB/token ≈ 388 TB/s — weights per token at B = 17 plus the ≈24.1 GB KV re-read each output token costs",
+  "observed": "The formula uses 24.1 GB as the KV re-read per output token, but the canonical per-request KV at 9,500 tokens is 24.9 GB (9,500 × 2.62 MB = 24.90 GB). 24.1 GB corresponds to 9,200 tokens (the initial prompt only), not the full 9,500-token context used everywhere else in the chapter.",
+  "correction": "Replace 24.1 with 24.9 in the formula, update 388 TB/s to ≈398 TB/s, and update '≈14×' to '≈15×'. Alternatively, if 24.1 is intentional (initial-context lower bound), state that explicitly.",
+  "acceptance_test": "The KV value in the decode-bandwidth formula matches the per-request KV used in the C = 436/24.9037 calculation (24.9 GB), or the text explicitly justifies using a different context length.",
+  "verdict_evidence": "ch17:125 uses 24.1 in 12,000x(140/17+24.1)=388 TB/s while same bullet uses 24.9 earlier; with 24.9: 397.6 TB/s, 14.8x not 14x.",
+  "fix_instruction": "Use 24.9 GB: ~398 TB/s and ~15x; or label 24.1 as the 9.2K prompt-only basis.",
+  "is_vision": false
+ },
+ {
+  "id": "CH17-05",
+  "severity": "P2",
+  "chapter_hint": "17",
+  "page_hint": "Ch 17 §17.8, prefix-reuse W(3) derivation",
+  "quoted_clause": "under 100% prefix reuse only the final call's new context is prefilled — 11,600 tokens, i.e., 2,400 new tokens (3 × 800 of retrieved context) once the 9,200-token prefix is served from cache",
+  "observed": "The phrase 'only the final call's new context is prefilled' implies only the fourth model call performs prefill. In fact all four calls contribute: call 1 prefills 9,200 tokens (no cache yet), calls 2–4 each prefill 800 tokens (prefix cached). Total prefill = 9,200 + 3×800 = 11,600 tokens. Additionally, 11,600 includes the 9,200-token cached prefix, so calling it 'new context' is inaccurate — only 2,400 of the 11,600 are new.",
+  "correction": "Rewrite as: 'under 100% prefix reuse, only the non-cached portion of each call's context is prefilled — 9,200 tokens on the first call (no cache) plus 2,400 tokens of retrieved context across calls 2–4, totaling 11,600 tokens of prefill; the 9,200-token prefix is served from cache after call 1, and the 195 generated γ tokens are already in KV.'",
+  "acceptance_test": "A reader can reconstruct the per-call prefill breakdown (9,200 / 800 / 800 / 800) from the sentence alone.",
+  "verdict_evidence": "ch17:257 'only the final call's new context is prefilled - 11,600 tokens'; 11,600 = 9,200+3x800, not final call's context (input 11,795).",
+  "fix_instruction": "Reword: only non-cached context is prefilled - 9,200 on call 1 plus 3x800 across calls 2-4 (11,600 total).",
+  "is_vision": false
+ },
+ {
+  "id": "CH17-06",
+  "severity": "P2",
+  "chapter_hint": "17",
+  "page_hint": "Ch 17 §4 (25 ms/token paragraph)",
+  "quoted_clause": "serving all 12,000 output tok/s on one host needs 12,000 × (140/17 + 24.1) GB/token ≈ 388 TB/s",
+  "observed": "The calculation fixes B=17 (KV capacity) while assuming 12,000 output tok/s. At B=17 and ~21 ms/step, the maximum output rate is 17/0.021≈810 tok/s, not 12,000. To serve 12,000 tok/s, the batch would be ~252 at 21 ms/step (or 344 at 8.6 s service), and the weight amortization would be 140/252 or 140/344, not 140/17. The 388 TB/s figure mixes incompatible operating points.",
+  "correction": "Replace with a consistent calculation: at B=17, max output rate≈810 tok/s, so 12,000 tok/s needs≈15 hosts; or compute bandwidth at the actual batch implied by 12,000 tok/s and the step time. Remove or relabel 388 TB/s as a hypothetical.",
+  "acceptance_test": "The calculation uses one consistent B, step time, and throughput; max output rate and host count reconcile.",
+  "verdict_evidence": "ch17:125 12,000 x (140/17+24.1) ~388 TB/s: B=17 caps output at ~810 tok/s; 12,000 implies B~252 -> ~296 TB/s; mixes 24.1 with 24.9.",
+  "fix_instruction": "Recast at one operating point: B=17 ceiling ~810 tok/s => ~15 hosts, or recompute at B~252 (~296 TB/s); use 24.9 consistently.",
+  "is_vision": false
+ },
+ {
+  "id": "CH17-005",
+  "severity": "P2",
+  "chapter_hint": 17,
+  "page_hint": "Ch 17, Table 17-1 paragraph, recomputed canonical peak screens",
+  "quoted_clause": "policy u × ρ working = 31, + N_spare = 32 (KV-only, case (i))",
+  "observed": "The KV-only screen is case-independent, but the parenthetical labels it 'case (i)'. Later in the chapter, case (i) is explicitly reserved for the prefill linear-only screen.",
+  "correction": "Remove 'case (i)' or replace it with 'case-independent'.",
+  "acceptance_test": "No sentence implies that the KV-residency screen is a FLOP-counting case.",
+  "verdict_evidence": "ch17:119 labels KV screen '(KV-only, case (i))' while :124 says 'KV screen alone — case-independent (case (i) labels only the prefill screen)'. Direct contradiction.",
+  "fix_instruction": "In chapter-17.md:119 change '(KV-only, case (i))' to '(KV-only, case-independent)' and keep case (i) reserved for the 29-host prefill screen.",
+  "is_vision": false
+ },
+ {
+  "id": "CH17-10",
+  "severity": "P2",
+  "chapter_hint": "17",
+  "page_hint": "Ch 17, §17.4, 'Effect on the headline counts'",
+  "quoted_clause": "Under case (i) the prefill leg leaves ~7% headroom and does not bind against the 21-host KV screen — only cases (ii)/(iii) bind, and there the policy screens already reported in Table 17-1 carry the extra hosts (29 under case (i), 32 under case (iii), 34 under case (ii)).",
+  "observed": "The parenthetical lists the case-(i) policy screen (29) among the screens that 'carry the extra hosts', immediately after stating that case (i) does not bind. 29 is below the KV policy screen of 31, so it carries no extra hosts. The reader is given a list of three numbers in which one is explicitly excluded by the sentence that introduces it.",
+  "correction": "Restate as: 'case (i) does not bind (28 working vs the KV screen's 31); case (iii) ties it (31 working); case (ii) binds (33 working, 34 with the spare).'",
+  "acceptance_test": "Every screen listed in the sentence is one the sentence says binds.",
+  "verdict_evidence": "Ch17:154 lists all three policy screens as those that 'carry the extra hosts' after 'only cases (ii)/(iii) bind'; case (i) = ceil(18.606/0.665)+1 = 29 < 31 carries none.",
+  "fix_instruction": "List only binding screens: 'case (i) does not bind (29 vs 31); case (iii) ties it (32); case (ii) binds (34)'.",
+  "is_vision": false
+ },
+ {
+  "id": "CH17-14",
+  "severity": "P3",
+  "chapter_hint": "17",
+  "page_hint": "Ch 17, §17.3 'Viability at peak'",
+  "quoted_clause": "This flips the original conclusion: the fleet is not a distant luxury but a necessity at the canonical peak, driven by the product of service time (8.6 s) and arrival rate.",
+  "observed": "'the original conclusion' has no referent in the chapter or in the surrounding text the reader has seen. It reads as an artefact of an earlier draft, and it invites the reader to hunt for a conclusion they have not been given.",
+  "correction": "Replace with a self-contained statement: 'This reverses the intuition that a single 8xH100 host can serve the canonical peak: the fleet is a necessity at the canonical peak, driven by the product of service time (8.6 s) and arrival rate.'",
+  "acceptance_test": "No sentence in Ch 17 refers to an 'original' or 'previous' conclusion without naming it.",
+  "verdict_evidence": "Ch17:27 'This flips the original conclusion' no antecedent: no earlier conclusion on single-host viability in Ch17 (grep hits only this line); Ch16:53 already concluded 'a fleet, not one box'.",
+  "fix_instruction": "Replace with a self-contained claim: 'This reverses the intuition that one 8xH100 host can serve the canonical peak.'",
+  "is_vision": false
+ },
+ {
+  "id": "CH17-15",
+  "severity": "P3",
+  "chapter_hint": "17",
+  "page_hint": "Ch 17, Table 17-2, row 'in-flight @ agentic no-reuse W=17.70s'",
+  "quoted_clause": "| in-flight @ agentic no-reuse W=17.70s | 708 | 1,770 | 3,541 |",
+  "observed": "The 200-rps cell is not reproducible from the printed W: 200 x 17.70 = 3,540, not 3,541. The value is reproducible only from the unrounded evaluator output (17.7033 s -> 3,540.7 -> 3,541). The chapter's closing note says 'in-flight counts are rounded to the nearest integer (708 / 1,770 / 3,541)', which invites the reader to reproduce it from the printed W and fail.",
+  "correction": "State in the table note that in-flight counts use the unrounded evaluator W (17.7033 s), or print 3,540. The same applies to the reuse row (200 x 14.14 = 2,828, which does reproduce).",
+  "acceptance_test": "Every in-flight cell in Table 17-2 reproduces from the W printed in the same table, or the note states the unrounded basis.",
+  "verdict_evidence": "Ch17:276 prints 3,541 at 200 rps with W=17.70 s but 200x17.70 = 3,540.0 (3,541 requires 17.7033); :269 note says rounded to nearest integer; 708 and 1,770 reproduce.",
+  "fix_instruction": "State the unrounded basis (W = 17.7033 s) in the Table 17-2 note, or print 3,540.",
+  "is_vision": false
+ }
+]

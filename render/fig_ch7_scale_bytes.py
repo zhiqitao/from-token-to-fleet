@@ -53,7 +53,7 @@ ctext(X0, 3.52, 'MXFP4: one E8M0 scale per 32 values', size=9.5,
 end1 = bar(2.98, [(16, PAYLOAD, '32 E2M1 values = 16 B'), (1, SCALE, None)])
 ax.plot([end1 - S / 2, end1 - S / 2], [2.98, 2.86], color=STROKE, lw=1.1)
 ctext(end1 - S / 2, 2.74, '1 B scale')
-ctext(X0, 2.48, 'Local: 17 B / 32 = 0.53125 B/value = 4.25 bit/value',
+ctext(X0, 2.48, 'Local: 17 B / 32 = 0.53125 B/value = 4.25 bits/value',
       size=9.5, weight='bold', ha='left')
 
 # NVFP4 row
@@ -71,7 +71,7 @@ ax.plot([_gx - S, _gx - S], [1.58, 1.48], color=STROKE, lw=1.0)
 ax.plot([_gx - S, _gx + S], [1.48, 1.48], color=STROKE, lw=1.0)
 ax.plot([_gx + S, _gx + S], [1.48, 1.58], color=STROKE, lw=1.0)
 ax.text(_gx, 1.34, '2 B scales', ha='center', va='center')
-ctext(X0, 1.02, 'Local: 18 B / 32 = 0.5625 B/value = 4.5 bit/value',
+ctext(X0, 1.02, 'Local: 18 B / 32 = 0.5625 B/value = 4.5 bits/value',
       size=9.5, weight='bold', ha='left')
 
 ctext(W / 2, 0.70, 'NVFP4 global FP32 scale: 4 B per tensor, not per block.',
@@ -80,6 +80,7 @@ ctext(W / 2, 0.44, 'Byte accounting only; not a physical packing order.')
 ctext(W / 2, 0.20, 'No padding, extra copies, headers or high-precision exceptions.')
 
 out = 'design/manuscript/chapter-07/figures/fig-07-0708-block-scale-bytes.pdf'
+plt.savefig(out.replace('.pdf', '.png'), dpi=350)   # preview raster alongside the typeset PDF
 with matplotlib.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig(out, format='pdf')
 print('wrote', out)

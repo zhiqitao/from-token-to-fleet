@@ -1,0 +1,204 @@
+```json
+[
+  {
+    "id": "FIG-7.5-01",
+    "page": "PDF 152 / printed 132",
+    "figure": "FIGURE 7.5 — 'KV cache size vs context, by attention geometry (full-MHA vs GQA)'",
+    "severity": "P0",
+    "issue": "The plotted GQA FP16 curve is computed with a 16x KV reduction (~0.16 MB/token) while the caption and the figure's own parenthetical state an 8x reduction (64:8 query-to-KV head ratio, 2.62 -> 0.33 MB/token). The legend, the plotted curve, and the in-plot value 'GQA FP16 at 128K = 21 GB' are mutually inconsistent with the caption and with the figure's own '(2.62 -> 0.33 MB/tok)' annotation.",
+    "evidence": "Recomputation from the book's own canonical geometry (80 layers, 64 query heads, 8 KV heads, head_dim 128, FP16 = 2 B): full-MHA KV/token = 2 (K,V) x 64 x 128 x 2 B x 80 = 2,621,440 B = 2.62 MB (matches legend and caption). GQA at 64:8 = 2 x 8 x 128 x 2 B x 80 = 327,680 B = 0.32768 MB/token = 0.33 MB (matches caption '8x smaller' and the in-plot '(2.62 -> 0.33 MB/tok)'). The figure's legend reads 'GQA FP16 (~0.16 MB/tok)' and the plotted green curve passes ~16 GB at 100K and ~21 GB at 128K, which corresponds to 0.16 MB/token = 163,840 B/token, i.e. 4 KV heads (64:16, a 16x reduction). At 128K the caption-consistent value is 0.32768 x 128,000 = 41.9 GB, not 21 GB. Corroboration that 0.33 is the intended value: the caption's 'the GQA FP16 line reaches that budget only at ~1.32M tokens' is 436,000 MB / 0.33 MB = 1.32M (and 436,000 / 0.32768 = 1.33M); the plotted 0.16 curve would reach 436 GB only at 2.73M tokens. So the caption's headline conclusion is derived from 0.33 while the drawn curve encodes 0.16.",
+    "acceptance_test": "Regenerate the figure from the canonical geometry and assert: (a) the GQA FP16 series equals 0.32768 MB/token and passes through (128K, 41.9 GB) and (1.33M, 436 GB); (b) the legend reads 'GQA FP16 (~0.33 MB/tok)'; (c) the in-plot annotation reads 'GQA FP16 at 128K = 42 GB (2.62 -> 0.33 MB/tok)'; (d) the caption's '8x smaller' and '~1.32M tokens' are unchanged. If the 16x figure is intentional, the caption's '64:8' and '8x smaller' must be corrected instead and the head ratio stated in the legend."
+  },
+  {
+    "id": "FIG-7.6-01",
+    "page": "PDF 153 / printed 133",
+    "figure": "FIGURE 7.6 — 'Memory floor: inference vs fine-tuning (canonical 70B, FP16 unless noted)'",
+    "severity": "P1",
+    "issue": "The note enumerating the full-fine-tune components does not sum to the plotted bar. The note says 'Full fine-tune: FP16 weights + FP16 grads + Adam m/v (~ 16 B/param)' but those components total 12 B/param, not 16. The bar (~1120 GB) and the caption (~1,120 GB) both correspond to 16 B/param, which is the mixed-precision AdamW figure (FP32 master weights + FP32 grads + m + v), not the FP16 breakdown the note gives.",
+    "evidence": "2 B (FP16 weights) + 2 B (FP16 grads) + 4 B (FP32 Adam m) + 4 B (FP32 Adam v) = 12 B/param -> 70e9 x 12 = 840 GB, which is 280 GB below the drawn bar. 16 B/param -> 70e9 x 16 = 1,120 GB, matching the bar and the caption. The note's parenthetical '(~ 16 B/param)' is therefore inconsistent with its own enumerated components; the reader cannot tell whether the missing 4 B/param is an FP32 master-weight copy (the standard explanation) or an arithmetic error.",
+    "acceptance_test": "Make the note's enumerated components sum to the plotted total and state the precision of each: either 'FP32 master weights + FP32 grads + Adam m/v (16 B/param)' or 'FP16 weights + FP16 grads + Adam m/v (12 B/param)' with the bar relabelled ~840 GB. Add a build-time assertion that (bytes/param) x 70e9 equals the plotted bar height for every bar."
+  },
+  {
+    "id": "FIG-6.2-01",
+    "page": "PDF 119 / printed 99 (prose on PDF 118 / printed 98)",
+    "figure": "FIGURE 6.2 — 'Latency distribution: the mean hides the tail'",
+    "severity": "P1",
+    "issue": "The red dashed vertical line labelled 'sample p99' is drawn at ~5.0 s (coincident with the straggler cluster), but the figure's own annotation box states 'sample p99 (interpolation) = 1.33s' and the prose on printed p. 98 states 'this sample's p99 (= 3.33 s)'. Three mutually inconsistent values are given for one quantity, and the drawn line position contradicts both the box and the prose. The box separately lists 'population p99 = 5.0 s', which is what the drawn line at 5.0 s actually represents.",
+    "evidence": "Within the figure alone: the red dashed line sits at x = 5.0 s (the straggler cluster) while the annotation box gives the sample p99 as 1.33 s. Cross-page: printed p. 98 reads 'The population p99 is 5.0 s, even this sample's p99 (= 3.33 s) still looks healthy'. The figure's box reads 'sample p99 (interpolation) = 1.33s'. A reader who trusts the drawn line concludes the sample p99 is 5.0 s; a reader who trusts the box concludes 1.33 s; a reader who trusts the prose concludes 3.33 s. The figure's own construction (N = 10,000; 9,900 log-normal draws with median 0.8 s; 100 stragglers at 5.0 s; linear interpolation on the sorted sample) implies the interpolated p99 sits between the largest log-normal draw (~1.3 s) and the first straggler (5.0 s), i.e. ~1.3-1.4 s, which matches the box and not the prose or the line.",
+    "acceptance_test": "Relabel the red dashed line 'population p99 = 5.0 s' (the value the box already assigns to it), and reconcile the sample p99 to a single number across the figure box and printed p. 98. Add a build-time check that every percentile printed in the figure equals the value computed from the same sorted sample used to draw the histogram, and that the drawn line's x position equals the printed value within one pixel."
+  },
+  {
+    "id": "FIG-6.2-02",
+    "page": "PDF 119 / printed 99",
+    "figure": "FIGURE 6.2 — 'Latency distribution: the mean hides the tail'",
+    "severity": "P2",
+    "issue": "The red hatched region is labelled '1% stragglers (> 5 s cross the SLO)'. The straggler cluster is AT 5.0 s, not above 5 s, per the prose ('a 1% straggler cluster at 5.0 s') and the figure's own box ('population p99 = 5.0 s'). The parenthetical reads as a claim that the stragglers exceed 5 s, which is false and also inconsistent with the drawn region, which is centred on 5.0 s and straddles it.",
+    "evidence": "Prose, printed p. 98: 'the body of requests follows a log-normal distribution centered near 0.8 s (99% of observations), with a 1% straggler cluster at 5.0 s'. The hatched band in the figure spans roughly 4.5-5.5 s, i.e. centred on 5.0 s. The label's '> 5 s' is therefore both wrong and inconsistent with the geometry it labels.",
+    "acceptance_test": "Change the label to '1% stragglers (cluster at 5.0 s, past the 2 s SLO)' or equivalent; assert that no annotation in the figure states a strict inequality that the drawn geometry contradicts."
+  },
+  {
+    "id": "FIG-6.2-03",
+    "page": "PDF 119 / printed 99",
+    "figure": "FIGURE 6.2 — 'Latency distribution: the mean hides the tail'",
+    "severity": "P2",
+    "issue": "The 2 s line is labelled in the figure as 'SLO 2 s (TTFT budget)' but the caption calls the same line the '2 s request-latency line' and explains that request-latency violations are a superset of TTFT violations. Labelling the line '(TTFT budget)' invites exactly the conflation the caption is written to prevent, and the caption's phrase 'the p95 SLO is met' adds a third characterisation of the same line.",
+    "evidence": "Figure label: 'SLO 2 s (TTFT budget)'. Caption: 'while 1% of requests exceed the 2 s request-latency line - a superset of TTFT violations, and a tail a p99 SLO does not surface' and 'the light band shades the full SLO-violating region (> 2 s)'. The caption's own logic (request latency >= TTFT, so request-latency violations are a superset) is incompatible with the figure's parenthetical, which names the line a TTFT budget.",
+    "acceptance_test": "Relabel the line 'SLO 2 s (request latency)' and add a one-line note in the figure or caption stating 'TTFT <= request latency, so TTFT violations are a subset of this region'. Assert that the string 'TTFT budget' does not appear attached to the 2 s line."
+  },
+  {
+    "id": "FIG-6.2-04",
+    "page": "PDF 119 / printed 99",
+    "figure": "FIGURE 6.2 — 'Latency distribution: the mean hides the tail'",
+    "severity": "P2",
+    "issue": "The p90 (0.94 s) and p95 (0.99 s) reference lines are 0.05 s apart on an axis spanning 0-6 s. At print size this is roughly 2-3 pt of separation, so the two dashed lines are effectively coincident and only the offset text labels distinguish them. The figure's whole argument is about reading percentiles off the distribution, so the percentile markers must be individually resolvable.",
+    "evidence": "Axis range 0-6 s across a plot roughly 4.5 in wide at print size; 0.05 s therefore occupies about 0.037 in (2.7 pt). The p50 (0.80), p90 (0.94) and p95 (0.99) markers are all crowded into the left 17% of the axis, while the histogram body itself occupies only ~0.4-1.6 s.",
+    "acceptance_test": "Either add a zoomed inset over 0.7-1.1 s showing the p50/p90/p95 markers, or replace the three separate lines with a single annotated percentile ladder (e.g. a small table or a bracket with 'p50 0.80 | p90 0.94 | p95 0.99') so that no two markers are closer than 6 pt at print size."
+  },
+  {
+    "id": "FIG-7.5-02",
+    "page": "PDF 152 / printed 132",
+    "figure": "FIGURE 7.5 — 'KV cache size vs context, by attention geometry (full-MHA vs GQA)'",
+    "severity": "P2",
+    "issue": "Three bare ratio annotations ('8x' near 10K, '3.5x' near 100K, '16x' near 1000K) are placed inside the plot with no stated referent. The reader cannot tell what is being divided by what, and the three different values at three different context lengths cannot be reconciled with the caption's single stated 8x GQA reduction (which would be a constant, not three values).",
+    "evidence": "Caption: 'GQA with a 64:8 query-to-KV head ratio = 8x smaller'. The in-plot labels '8x', '3.5x', '16x' appear at three x positions with no accompanying text naming the two quantities compared. No other text on the page or in the caption supplies a ratio that varies with context length.",
+    "acceptance_test": "Each ratio label must name both operands (e.g. 'full-MHA FP16 / GQA FP16 = 8x') or be removed. If the three labels are intended to mark something else (e.g. curve-to-curve separations at three reference points), state that explicitly in the caption."
+  },
+  {
+    "id": "FIG-7.5-03",
+    "page": "PDF 152 / printed 132",
+    "figure": "FIGURE 7.5 — 'KV cache size vs context, by attention geometry (full-MHA vs GQA)'",
+    "severity": "P2",
+    "issue": "The annotation '9.5K max context (32K in ~500 GB)' contains a quantity (~500 GB) that is not derivable from any curve, reference line, or legend entry in the figure, and the parenthetical's referent is never stated. The reader is left to guess whether 500 GB is a KV pool, a total residency, or a hardware capacity.",
+    "evidence": "Curves and lines in the figure: full-MHA FP16 at 32K = 2.62 x 32,000 = 84 GB; full-MHA FP8 at 32K = 42 GB; GQA FP16 at 32K = 10.5 GB (or 5.1 GB on the plotted 0.16 curve); '8xH100 raw (640 GB)'; 'KV budget ~436 GB'. None yields ~500 GB. The caption explains the 9.5K figure ('~24.9 GB at 9.5K (total weights+KV residency then ~165 GB, 7.1)') but says nothing about 500 GB. The vertical 9.5K guide also appears to run the full plot height rather than terminating at the constraint it marks, so it reads as a generic x-position rather than a limit.",
+    "acceptance_test": "State the referent of '~500 GB' in the annotation (e.g. '8xH100 raw 640 GB minus 140 GB weights') and make it arithmetically derivable from the figure's own numbers, or delete it. Terminate the 9.5K vertical guide at the curve/constraint it marks and label that constraint."
+  },
+  {
+    "id": "FIG-7.5-04",
+    "page": "PDF 152 / printed 132",
+    "figure": "FIGURE 7.5 — 'KV cache size vs context, by attention geometry (full-MHA vs GQA)'",
+    "severity": "P2",
+    "issue": "The right-hand annotation block ('FP16 full-MHA at 128K = 335 GB / FP8 full-MHA at 128K = 168 GB / GQA FP16 at 128K = 21 GB ...') is set in small type directly over the plotted region, where it sits on top of gridlines and the flat '8xH100 raw (640 GB)' line, and it is the only place the reader can find the 128K values. The block is also the location of the FIG-7.5-01 error, which is easy to miss at this size.",
+    "evidence": "The three-line annotation block occupies the upper-right of the axes, overlapping the 640 GB reference line and the log grid; its type is visibly smaller than the axis tick labels. The 335 GB and 168 GB values are correct (2.62 x 128,000 = 335 GB; 1.31 x 128,000 = 168 GB), so the block is worth keeping but must be legible and correct.",
+    "acceptance_test": "Move the 128K value block outside the axes (e.g. as a small table beneath the legend, or in the caption), set it at no less than the axis-label size, and assert that no annotation text overlaps a plotted line or gridline."
+  },
+  {
+    "id": "FIG-7.2-01",
+    "page": "PDF 138 / printed 118",
+    "figure": "FIGURE 7.2 — 'History recurrence and attention history have different lifetimes'",
+    "severity": "P2",
+    "issue": "The caption states 'the KV row is cumulative (snapshot 3 retains KV1+KV3)', but the figure's third snapshot shows KV1, KV2 and KV3. The caption's parenthetical contradicts the drawn content and would, if read literally, assert that KV2 is discarded.",
+    "evidence": "Figure, bottom row: the third group contains three boxes labelled KV1, KV2, KV3, captioned '3 cached tokens'. Caption: 'the KV row is cumulative (snapshot 3 retains KV1+KV3)'. The figure's own sub-label '3 cached tokens' and the caption's word 'cumulative' both indicate KV1+KV2+KV3.",
+    "acceptance_test": "Change the caption to '(snapshot 3 retains KV1+KV2+KV3)'. Add a caption/figure cross-check that every token identifier named in a caption appears in the corresponding drawn group."
+  },
+  {
+    "id": "FIG-7.2-02",
+    "page": "PDF 138 / printed 118",
+    "figure": "FIGURE 7.2 — 'History recurrence and attention history have different lifetimes'",
+    "severity": "P2",
+    "issue": "The figure draws three equal-weight state boxes ('state after t1', 'state after t2', 'state after t3') side by side, which visually implies that three recurrent states are held simultaneously. The caption and the figure's own note both assert the opposite ('recurrent snapshots are successive, not jointly retained'). The drawn geometry therefore permits exactly the wrong inference, and the correction is carried only by a small note.",
+    "evidence": "Top row: three identically styled pink boxes labelled 'state after t1 / fixed-size state', 'state after t2 / ...', 'state after t3 / ...'. Bottom row: the KV boxes are cumulative and grow (1, 2, 3 boxes), so the two rows are visually parallel in weight even though their lifetimes differ. The figure's note 'Arrows = token input / state flow; snapshots are schematic' and the caption's 'successive, not jointly retained' are the only signals that the earlier states are overwritten.",
+    "acceptance_test": "Make the visual encoding carry the claim: fade or outline the superseded state boxes (t1, t2) and keep only the latest filled, or stack the snapshots with an explicit 'overwritten' marker on the earlier ones. Assert that the number of visually solid state boxes equals the number of retained states (one)."
+  },
+  {
+    "id": "FIG-7.3-01",
+    "page": "PDF 143 / printed 123",
+    "figure": "FIGURE 7.3 — 'Quantization choices are not execution guarantees'",
+    "severity": "P2",
+    "issue": "Two of the three dispatch branches are visually and verbally near-identical and the figure never states what distinguishes them. 'Fused dequant / Weight dequantization e.g., W4A16 GEMM' and 'Reconstruct / Higher-precision weights + GEMM' both end in a GEMM against higher-precision weights; the reader cannot tell whether the distinction is kernel fusion versus materialisation, memory residency, or simply which kernel the vendor ships.",
+    "evidence": "Bottom row of the figure: 'Native FP4 math / Compact low-bit operand arithmetic'; 'Fused dequant / Weight dequantization e.g., W4A16 GEMM'; 'Reconstruct / Higher-precision weights + GEMM'. The caption likewise does not disambiguate them ('loading still requires a kernel-required runtime layout with compatible dispatch').",
+    "acceptance_test": "Give each branch a one-line discriminator that names the resource it changes (e.g. 'dequantise inside the GEMM prologue - no FP16 weight copy in HBM' versus 'materialise FP16 weights once - costs 2 B/param of extra HBM but uses ordinary GEMM kernels'), and state the memory consequence of each in the caption."
+  },
+  {
+    "id": "FIG-7.3-02",
+    "page": "PDF 143 / printed 123",
+    "figure": "FIGURE 7.3 — 'Quantization choices are not execution guarantees'",
+    "severity": "P2",
+    "issue": "The note 'Repacking does not imply numerical conversion' is attached to the load/repack step but reads as a general statement about the whole path, which the 'Reconstruct' branch contradicts (reconstructing higher-precision weights is a numerical up-conversion). Symmetrically, the bottom note 'No compatible kernel: reject; fallback is not guaranteed' sits directly beneath a branch ('Reconstruct') that a reader will naturally read as the fallback.",
+    "evidence": "Figure: 'Runtime tensors in the kernel-required layout / Repacking does not imply numerical conversion' -> 'compatible dispatch' -> 'Reconstruct / Higher-precision weights + GEMM'; bottom notes 'Only supported combinations can load and execute.' and 'No compatible kernel: reject; fallback is not guaranteed.' Caption: 'Unsupported combinations may be rejected; fallback is not guaranteed.' The figure therefore simultaneously shows a fallback-looking branch and states that fallback is not guaranteed, without distinguishing a deliberate load-time choice from an automatic runtime fallback.",
+    "acceptance_test": "Scope the repacking note explicitly to the arrow ('repacking changes layout only; values are unchanged') and label the 'Reconstruct' branch as a deliberate load-time decision ('explicit up-conversion at load time - a choice, not an automatic fallback'), so that the two statements no longer appear to conflict."
+  },
+  {
+    "id": "FIG-7.4-01",
+    "page": "PDF 144 / printed 124",
+    "figure": "FIGURE 7.4 — 'Four-bit values, different scale bills'",
+    "severity": "P2",
+    "issue": "The caption and the figure subtitle both assert that bar widths are proportional to bytes ('Payload and local-scale bar widths are proportional to bytes'; 'Bar widths are proportional to bytes and local-scale bytes only'), but the scale segments - the entire point of the figure - appear to be drawn wider than their byte share, and the two bars appear to be drawn to equal total width despite representing 17 B and 18 B. If a minimum-width rule was used to keep the scale segments visible, the proportionality claim is false exactly where it matters.",
+    "evidence": "MXFP4 bar: light payload segment (16 B) spans roughly 335 px and the dark scale segment (1 B) roughly 25 px, i.e. about 21 px/B. NVFP4 bar: two light segments (8 B each) span roughly 145 px each (about 18 px/B) and the dark '2 B scales' segment spans roughly 70 px, i.e. about 35 px/B - roughly twice the byte-proportional width. Both bars appear to span the same total x-range although they represent 17 B and 18 B (a 5.9% difference that should be visible on a common scale).",
+    "acceptance_test": "Measure the rendered segment widths and assert the ratios 16:1 (MXFP4) and 8:8:2 (NVFP4) within 5%, and that the NVFP4 bar is 5.9% longer than the MXFP4 bar. If a minimum-width rule is required for legibility, replace the proportionality claim with an explicit scale break or a note that the scale segments are drawn at minimum width, and move the byte counts into the labels (which already carry them)."
+  },
+  {
+    "id": "FIG-7.6-03",
+    "page": "PDF 153 / printed 133",
+    "figure": "FIGURE 7.6 — 'Memory floor: inference vs fine-tuning (canonical 70B, FP16 unless noted)'",
+    "severity": "P2",
+    "issue": "The figure asserts '~5 GB over 2xH100' for the inference bar, but the y-axis spans 0-1400 GB, so a 5 GB difference between the bar top (165 GB) and the 160 GB reference line is about 0.36% of the axis height - roughly one pixel at print size. The claim is therefore not verifiable from the chart, and the bar top and the 2xH100 line are visually indistinguishable.",
+    "evidence": "Y-axis ticks run 0, 200, 400 ... 1400 GB. Inference bar labelled '~165 GB'; legend line '2xH100 (160 GB)'. 165 - 160 = 5 GB = 0.36% of the 1400 GB axis. The annotation '~5 GB over 2xH100' is the only carrier of this fact.",
+    "acceptance_test": "Add a zoomed inset or a broken axis for the inference bar region so that the 160 GB and 165 GB levels are visually separable, or replace the annotation with an explicit statement that the overshoot is below the chart's resolution and give the numbers in the caption."
+  },
+  {
+    "id": "FIG-7.1-01",
+    "page": "PDF 136 / printed 116",
+    "figure": "FIGURE 7.1 — 'Grouped-Query Attention (GQA)'",
+    "severity": "P2",
+    "issue": "The boxed note '8 query heads : 1 KV head (x 8 groups)' is inconsistent with the drawing, which shows three groups (three K/V boxes) with an ellipsis. The parenthetical '(x 8 groups)' is ambiguous: it reads either as 'the canonical model has 8 KV-head groups' (64 query heads total) or as 'the ratio is multiplied by 8', and neither reading is what the picture shows.",
+    "evidence": "Figure: three groups of eight blue query-head glyphs, each fanning into one orange 'K/V' box, followed by an ellipsis on both rows. Boxed note: '8 query heads : 1 KV head (x 8 groups)'. Caption: 'the load-bearing number is the n_q : n_kv ratio (8 : 1 here) - 8 query heads share one KV head, so the per-token KV falls x8'.",
+    "acceptance_test": "Make the count explicit and consistent with the drawing, e.g. '8 query heads : 1 KV head (3 of 8 groups shown)' or '64 query heads : 8 KV heads (8 groups of 8)'. Assert that the group count named in the note matches the number of groups drawn or is explicitly marked as elided."
+  },
+  {
+    "id": "FIG-6.2-05",
+    "page": "PDF 119 / printed 99",
+    "figure": "FIGURE 6.2 — 'Latency distribution: the mean hides the tail'",
+    "severity": "P3",
+    "issue": "Grayscale distinguishability of the percentile markers is weak: p50 is a green dashed line and p90/p95 are blue dashed lines, which in grayscale differ mainly in a small luminance step, and the p90/p95 pair is already nearly coincident (see FIG-6.2-04). The SLO line is blue dash-dot, so the only reliably distinguishable pair in grayscale is p50 versus the rest.",
+    "evidence": "Marker styles in the figure: p50 green dashed; p90 and p95 blue dashed; SLO 2 s blue dash-dot; sample p99 red dashed. The histogram bars are blue-filled. In grayscale, green and blue dashed lines of the same weight are hard to separate, and the blue histogram fill competes with the blue reference lines.",
+    "acceptance_test": "Assign distinct dash patterns (e.g. solid / dashed / dash-dot / dotted) to p50, p90, p95 and the SLO so that all four are separable in grayscale, and confirm by rendering the page to grayscale and checking that each marker is uniquely identifiable."
+  },
+  {
+    "id": "FIG-7.4-02",
+    "page": "PDF 144 / printed 124",
+    "figure": "FIGURE 7.4 — 'Four-bit values, different scale bills'",
+    "severity": "P3",
+    "issue": "Unit wording: both local lines read '= 4.25 bit/value' and '= 4.5 bit/value'. The unit is a count of bits per value and should be plural ('bits/value'), consistent with the book's other per-token units.",
+    "evidence": "Figure text: 'Local: 17 B / 32 = 0.53125 B/value = 4.25 bit/value' and 'Local: 18 B / 32 = 0.5625 B/value = 4.5 bit/value'. The arithmetic is correct (17/32 = 0.53125 B = 4.25 bits; 18/32 = 0.5625 B = 4.5 bits).",
+    "acceptance_test": "Change 'bit/value' to 'bits/value' in both lines; grep the manuscript for 'bit/value' and normalise."
+  },
+  {
+    "id": "FIG-7.4-03",
+    "page": "PDF 144 / printed 124",
+    "figure": "FIGURE 7.4 — 'Four-bit values, different scale bills'",
+    "severity": "P3",
+    "issue": "Label placement is inconsistent between the two bars: payload labels ('32 E2M1 values = 16 B', '16 values = 8 B') sit inside the bar, while the scale labels ('1 B scale', '2 B scales') sit below and outside it. The reader must move the eye between two different label positions to compare the two rows, and the scale labels are the ones that carry the figure's actual message.",
+    "evidence": "MXFP4 bar: '32 E2M1 values = 16 B' centred inside the light segment; '1 B scale' printed below the bar at its right end. NVFP4 bar: '16 values = 8 B' inside each light segment; '2 B scales' printed below the bar at its right end.",
+    "acceptance_test": "Place all segment labels inside their segments (or all outside) consistently, and ensure the scale-segment labels remain legible if the segment is narrow."
+  },
+  {
+    "id": "FIG-7.2-03",
+    "page": "PDF 138 / printed 118",
+    "figure": "FIGURE 7.2 — 'History recurrence and attention history have different lifetimes'",
+    "severity": "P3",
+    "issue": "Caption grammar: 'a recurrent layer group updates hidden state, fixed-shape state' is a comma splice and is missing an article; the intended meaning is that the recurrent group updates a hidden state which is fixed-shape.",
+    "evidence": "Caption: 'a recurrent layer group updates hidden state, fixed-shape state, while a separate full-attention group retains growing KV history'. The figure's own box text reads 'state after t1 / fixed-size state', which is the clearer phrasing.",
+    "acceptance_test": "Rewrite as 'a recurrent layer group updates a hidden state - a fixed-size state - while a separate full-attention group retains a growing KV history', and align the terminology ('fixed-size state' in the figure vs 'fixed-shape state' in the caption) with the book's glossary entry for recurrent state."
+  },
+  {
+    "id": "FIG-7.1-02",
+    "page": "PDF 136 / printed 116",
+    "figure": "FIGURE 7.1 — 'Grouped-Query Attention (GQA)'",
+    "severity": "P3",
+    "issue": "The figure's internal annotations ('many query heads -> few shared KV heads', 'query heads', 'shared KV heads', and the boxed '8 query heads : 1 KV head (x 8 groups)') are set noticeably smaller than the figure title and smaller than the caption text, and appear to fall below the 8 pt print floor for figure in-text annotations. This was measured by eye on a ~68 dpi rendering, so it must be confirmed against the source.",
+    "evidence": "Relative type sizes on the rendered page: figure title is clearly the largest; the subtitle and the three coloured labels plus the boxed note are roughly 60-70% of the caption's size. The house convention sets an 8 pt floor for figure in-text annotations.",
+    "acceptance_test": "Measure the rendered font size of every string inside the figure (subtitle, 'query heads', 'shared KV heads', boxed note) and confirm each is >= 8 pt at print size; enlarge if not. Note that this check is an estimate from a downscaled render and must be repeated on the print-resolution PDF."
+  },
+  {
+    "id": "FIG-7.6-02",
+    "page": "PDF 153 / printed 133",
+    "figure": "FIGURE 7.6 — 'Memory floor: inference vs fine-tuning (canonical 70B, FP16 unless noted)'",
+    "severity": "P3",
+    "issue": "The five-line note block below the chart and the red annotation 'full fine-tune exceeds an 8xH100 box: needs multi-node or offload' are set in small type, below the caption's size, and the note block carries the figure's most important scoping statements (what is and is not included). At print size these are the hardest text on the page to read.",
+    "evidence": "The note block ('Each bar is a conditional floor ... Activation, microbatch/sequence, and offload/checkpointing are NOT included (Table 7-2) ...') is visibly smaller than the caption below it; the red annotation above the full-fine-tune bar is likewise small.",
+    "acceptance_test": "Confirm the note block and the red annotation are >= 8 pt at print size; if not, enlarge them or move the scoping statements into the caption, where they are already partly restated."
+  }
+]
+```
+
+COVERAGE: PDF pages 118, 119, 136, 138, 143, 144, 152, 153 (printed pages 98, 99, 116, 118, 123, 124, 132, 133; offset +20, recomputed from the rendered headers). Figures inspected visually at render resolution: FIGURE 6.2 (PDF 119), FIGURE 7.1 (PDF 136), FIGURE 7.2 (PDF 138), FIGURE 7.3 (PDF 143), FIGURE 7.4 (PDF 144), FIGURE 7.5 (PDF 152), FIGURE 7.6 (PDF 153). PDF 118 contains no figure (text only: 6.3 / 6.3.1). NOT VERIFIED: no access to the manuscript source, the figure-generation scripts, the machine gates (check_regressions.py, check_stale_values.py, scan_overlaps.py), or a print-resolution (300+ dpi) render; therefore all point-size findings (FIG-7.1-02, FIG-7.6-02) are estimates requiring confirmation, and the bar-width proportionality finding (FIG-7.4-01) is a pixel-ratio estimate from a ~68 dpi rendering rather than a measurement. Section 7.1 was not available, so the 9.5K / 165 GB residency constraint referenced in the FIGURE 7.5 and 7.6 captions could not be checked at source.

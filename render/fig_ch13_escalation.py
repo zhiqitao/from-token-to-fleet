@@ -68,7 +68,7 @@ for y in tier_y:
 # ---------------------------------------------------------------------------
 triggers = [
     (3.35, 'Single GPU:\nKV residency > cap\n\u2191 Single host'),
-    (6.05, 'Single host:\ngoodput < demand\n\u2191 Multi-host'),
+    (6.05, 'Single host:\ngoodput < demand\nor weights+KV\n> node memory\n\u2191 Multi-host'),
     (8.75, 'Multi-host:\ndemand > ceiling\n\u2191 Cluster / fleet'),
 ]
 # placed in the clear band between the tier cards (x<2.7) and the red shaft (x>6.1);
@@ -85,7 +85,7 @@ ax.annotate('', xy=(9.5, 0.95), xytext=(9.5, 10.1), arrowprops=dict(
 # label sits ABOVE the dashed arrow's head so it clears the red escalation
 # shaft entirely (it used to straddle the shaft at x=8.0); stacked short lines
 # keep it narrow, fs/weight now match the bold trigger annotations.
-ax.text(8.72, 11.02, 'DE-ESCALATE:\nprivacy \u00b7\nsovereignty \u00b7\ncost\n(primary triggers)', ha='center', va='center',
+ax.text(8.72, 11.02, 'DE-ESCALATE:\nprivacy \u00b7\nsovereignty \u00b7\non-device \u00b7\ncost\n(primary triggers)', ha='center', va='center',
         fontsize=9.5, color='#1a6fa8', fontweight='bold', linespacing=1.2)
 
 # ---------------------------------------------------------------------------

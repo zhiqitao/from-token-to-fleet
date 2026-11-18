@@ -27,7 +27,7 @@ layers = [
     ("Inside agent runtime", "Ch17–20, Ch24", '#3a6ea5', 7.8),
     ("Inside tools", "Ch19, Ch24", '#4d8fc4', 6.8),
     ("Inside test-time search", "Ch22", '#6aa0d8', 5.8),   # R5 (FIG-A4-06): Ch8/Ch20 hold no test-time-search content; Ch22 names the test-time-search loop.
-    ("Inside post-training (build-time)", "", '#8fb8e0', 4.8),           # R5 (FIG-A4-06): no chapter covers post-training (0 hits Ch19/Ch21) - citation dropped.
+    ("Inside post-training (build-time)", "Ch19, Ch21\n(outside serving scope)", '#8fb8e0', 4.8),  # R7 (FIG-A4-01): chapter field filled from the prose (Ch19 Agentic, Ch21 AI Factory); build-time post-training is drawn on the system-side ramp but sits outside this book's serving scope.
     ("Inside MoE routing", "Ch10", '#4c7246', 3.8),
     ("Inside attention", "Ch7, Ch8", '#6f9e5f', 2.8),
     ("Inside weights", "Ch3, Ch8", '#9ac98a', 1.8),
@@ -74,7 +74,7 @@ for i, (name, ch, color, y) in enumerate(layers):
     ax.add_patch(box)
     ax.text(NAME_X, y, name, fontsize=8.4, fontweight='bold', color=_text_color(color),
             va='center', ha='left')
-    ax.text(CH_X, y, ch, fontsize=8.0, color='#333', va='center', ha='left')
+    ax.text(CH_X, y, ch, fontsize=8.0 if '\n' not in ch else 6.8, color='#333', va='center', ha='left')
 
 # R4 MISC fix (F-A.3-1): the SYSTEM/MODEL grouping was carried by hue alone —
 # uniform gaps and one border style, so a grayscale reader could not tell which

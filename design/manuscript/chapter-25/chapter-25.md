@@ -8,7 +8,7 @@ As the "From Token to Fleet" handbook reaches its final chapters, we turn from t
 
 An Architecture Decision Record is a single Markdown file that captures a significant architectural decision and its context. The format was popularized by Michael Nygard (2011, "Documenting Architecture Decisions") and has been adopted by teams ranging from startups to enterprises managing complex AI/ML stacks. Each ADR follows a minimal structure:
 
-- **Title** and status (proposed, accepted, superseded, deprecated)
+- **Title** and status (proposed, accepted, superseded, deprecated, hold — where **HOLD** means screened but not committed, with named exit criteria, as in ADR 0015)
 - **Context** — the problem, constraints, and goals that prompted the decision
 - **Decision** — the chosen approach, concise and explicit
 - **Consequences** — outcomes, both positive and negative, that flow from the decision
@@ -54,7 +54,7 @@ Render the serving model in BF16.
 
 **Consequences:**
 
-- **Positive:** range robustness in attention/softmax and long-context accumulation; no change in weight residency (both precisions are ~140 GB). Accepted, this record sets the canonical deployment's precision label to BF16; because FP16 and BF16 are both 2 B/parameter, every footprint, KV and cost figure in this handbook is unchanged.
+- **Positive:** range robustness in attention/softmax and long-context accumulation; no change in weight residency (both precisions are ~140 GB). Accepted, this record sets the canonical runtime precision to BF16; the 16-bit footprint label stays FP16 (both 2 B/param), so no footprint, KV or cost figure changes.
 - **Negative:** lower mantissa precision than FP16 in the weights (BF16 has 7 mantissa bits vs FP16's 10), so FP16 is more precise where values already sit in range; in the illustrative evaluation on this workload the exact-match result showed no quality difference [ILLUSTRATIVE][ASSUMPTION] (to be confirmed by the deployment quality gate), so the trade-off is precision headroom, not observed quality. There is no free memory — and none should be expected.
 - **Monitoring:** track per-request latency, GPU memory utilization, and held-out Q&A quality. If the BF16 output drifts, fall back to FP16 and compare both on the same set (they differ in precision, not footprint).
 
@@ -76,7 +76,8 @@ This is the template to copy into a repo, intended to be filled and to serve as 
 # ADR-NNNN — <Short Decision Title>
 
 ## Status
-<proposed | accepted | superseded | deprecated>  (date)
+<proposed | accepted | superseded | deprecated | hold>  (date)
+   (hold = screened, not committed; name the exit criteria in Review trigger)
 
 ## Decision (the committed choice, one paragraph;
    significant and costly to reverse — the criterion that made this an ADR)
@@ -185,7 +186,7 @@ On the negative side, ADRs add a small writing overhead. For a team of ~10 engin
 >
 > An ADR may record this state. The canonical candidate has cleared the capability and *single-region* cost screens (Ch 16 §16.6, Ch 17 §17.6), but the canonical workload's 99.9% multi-region active-active requirement is unsized and unpriced, only N−1 single-host failover is modeled, SLO-goodput is unmeasured at the target offered load (Ch 14), and the delivery modes are not compared on matched scopes. Writing **HOLD** into the Status field is the correct, auditable record — and it is not the same as choosing the cheapest row.
 
-**A worked HOLD record — ADR 0015, in this chapter's template** (the compact form appears at the Decision rung in Ch 22 §6; its decision body is kept, not rewritten — the status is updated to superseded, with a link to the successor).
+**A worked HOLD record — ADR 0015, in this chapter's template** (the compact form appears at the Decision rung in Ch 22 §6; when superseded, the body is kept and only the Status line is updated, with a link to the successor).
 
 #### ADR 0015 — Delivery mode and region topology for the canonical Q&A workload {.unnumbered}
 
@@ -261,7 +262,7 @@ These open questions are not blockers; they are signals for when the practice ma
 - **Consequences:**
   - Positive: KV residency per request falls from ~24.9 GB (FP16) to ~12.45 GB (FP8, raw byte-halving — 50% of FP16) at the 9,500-token max, so the canonical budget supports ~35.0 concurrent requests rather than ~17.5. This is a memory lever, not a compute lever. At batch 1 the weight read dominates a decode step: 140 GB of weights against ~24.9 GB of KV, so the KV read is a secondary ~15% term (~15% of batch-1 decode reads; halving it cuts total read traffic ≈7.5% at batch 1) and intensity is ~1 FLOP/byte. At this ADR's own operating point, C ≈ 17.5 concurrent 9,500-token requests, the KV read dominates instead: 17.5 × ~24.9 GB ≈ 435.6 GB (FP16) against 140 GB of weights. Halving the KV-read bytes then cuts decode memory traffic ≈38% (575.6 → 357.8 GB) and raises arithmetic intensity from ≈4.3 to ≈6.9 FLOP/byte. The lever also raises the concurrency the host can hold under the same KV budget.
   - Negative: FP8 KV has lower precision in the cached K/V tensors, which can add small retrieval-fidelity error on long contexts. The trade-off is memory capacity vs long-context reconstruction fidelity; it must be validated on the held-out Q&A set, not assumed.
-  - Fleet-level effect: the peak KV-residency screen moves from 21 hosts to ~11 (344 in-flight ÷ 35.0 concurrent per host = 9.8, +N−1); ADR 0015 R1 must be re-screened on adoption.
+  - Fleet-level effect: the peak KV-residency screen moves from 21 hosts to 10 (raw screens: 344 in-flight ÷ 35.0 concurrent per host = 9.8 → 10; under the +N−1 policy, 22 → 11); ADR 0015 R1 must be re-screened on adoption.
 - **Alternatives considered:**
   1. **Add capacity** — rejected as the first move: the canonical peak already needs 21 hosts on the KV screen (22 under the case (ii) prefill screen; Ch 16/17/20), so "adding hosts beyond the 21" misunderstands the scale; relieving the memory ceiling by adding hosts multiplies the fleet cost (~$7.4K/mo all-in per 8×H100 host — ~$5.8K/mo hardware amortization plus power, ops and staff, Ch 16 Table 16-1), while FP8 KV relaxes the same ceiling without commissioning new hardware.
   2. **GQA (grouped-query attention) reduction** — not available for the canonical model: the 70B reference geometry is full multi-head attention (64 KV-heads, 2.62 MB/token, Ch 7). Adopting GQA would cut KV per token by ~8× (the largest single capacity lever in this book, Ch 16), but it changes the model architecture and requires retraining and re-evaluation — it is outside a serving-only change. It is the right *next-model* decision, not a knob on this deployment.

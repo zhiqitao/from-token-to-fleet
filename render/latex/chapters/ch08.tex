@@ -226,7 +226,7 @@ whether we should profile memory bandwidth or compute throughput.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The figure groups the resources three ways: compute units (tensor cores/ALU); the memory hierarchy, whose levels run from the smallest/fastest/closest (registers, shared memory, L2) to the largest/slower/farther (HBM); and interconnect (GPU interconnect, other GPUs/remote). Inference work maps onto these groups: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- compute, memory and interconnect are separate groups in this figure, not levels of one ladder. Color key: blue = compute, orange = memory (registers to HBM), green = interconnect --- the colors mark the groups, and only the memory hierarchy is a smallest-to-largest ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Where inference computation and data movement actually live. The figure groups the resources three ways: compute units (tensor cores/ALU); the memory hierarchy, whose levels run from the smallest/fastest/closest (registers, shared memory, L2) to the largest/slower/farther (HBM); and interconnect (GPU interconnect, other GPUs/remote). Inference work maps onto these groups: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are distinct architectural constraints --- compute, memory and interconnect are separate groups in this figure, not levels of one ladder. Color key: blue = compute, orange = memory (registers to HBM), green = interconnect --- the colors mark the groups, and only the memory hierarchy is a smallest-to-largest ladder. Schematic note: the vertical ordering is a relative speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0802.png}}
 \caption[Where inference computation and data movement actually live]{Where inference computation and data movement actually live. The figure groups the resources three ways: compute units (tensor cores/ALU); the memory hierarchy, whose levels run from the smallest/fastest/closest (registers, shared memory, L2) to the largest/slower/farther (HBM); and interconnect (GPU interconnect, other GPUs/remote). Inference work maps onto these groups: matrix multiply runs on the tensor cores; model weights and the KV cache are predominantly HBM-resident; FlashAttention restructures attention to tile through on-chip memory and cut HBM traffic; tensor-parallel (TP) communication crosses the GPU interconnect; pipeline-parallel (PP) communication moves activations between pipeline stages. The gradient of speed↔capacity↔distance is why compute, memory bandwidth, memory capacity and interconnect bandwidth are \emph{distinct} architectural constraints --- compute, memory and interconnect are separate groups in this figure, not levels of one ladder. \textbf{Color key:} blue = compute, orange = memory (registers to HBM), green = interconnect --- the colors mark the groups, and only the memory hierarchy is a smallest-to-largest ladder. \textbf{Schematic note:} the vertical ordering is a \emph{relative} speed/capacity/distance ranking, not a measured timing scale --- the gaps between levels are not to scale. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:8.1}\end{figure}
@@ -451,8 +451,8 @@ H100 sustained MFU (typical) & 30--40\% {[}2°: industry benchmarks{]} &
 \textasciitilde346 TFLOPS sustained at 35\% MFU \\
 prefill throughput per GPU & \textasciitilde2,471 tokens/s & 346 TFLOPS
 ÷ 140 GFLOP/token {[}DERIVED; \textbf{per-GPU scope; case (i)
-linear-only, 140 GFLOP/token} --- including attention at 9.2K gives
-\textasciitilde2,110 tokens/s{]} \\
+linear-only, 140 GFLOP/token} --- including case (ii) full-square
+attention at 9.2K gives \textasciitilde2,110 tokens/s{]} \\
 prefill throughput per host (8×H100) & \textasciitilde19,800 tokens/s &
 8 × 2,471 {[}DERIVED; \textbf{idealized aggregate, before TP/system
 loss; case (i) linear-only} --- including attention at 9.2K
@@ -581,12 +581,17 @@ within one host of each other for cases (ii) and (iii) --- and two hosts
 apart for case (i) --- is the useful cross-check that they point at the
 same order of fleet. \textbf{Host counts, scannable (Ch 16/17).}
 Full-utilization compute screens, cases (i) / (iii) / (ii): \textbf{19 /
-21 / 22}. Their labeled 70\% × 95\% + N−1 policy totals: case (i) 19 →
-29 compute, fleet 21 → 32; case (iii) 21 → 32; case (ii) 22 → 34;
-KV-only 21 → 32. The ρ = 1 u-only screen reads 30 / 32 (ceil(N ÷ 0.7)
-for KV-only 21 and case (ii) 22). All of these are illustrative planning
-screens under the stated FLOP-counting case and the 35\% MFU assumption
---- NOT measured SLO-goodput.
+21 / 22}. The policy behind them, stated once (Ch 16/17): with N
+full-utilization hosts, \textbf{total = ⌈N ÷ (0.7 × 0.95)⌉ = ⌈N ÷
+0.665⌉} and \textbf{working = total − 1} (one host held for failure
+reserve). Written as working/total pairs: case (i) N = 19 gives 28/29
+compute and 31/32 for the fleet (N = 21); case (iii) N = 21 gives 31/32;
+case (ii) N = 22 gives 33/34; the KV-only N = 21 gives 31/32. The
+utilization-only (ρ = 1, no 95\% N+1 term) screen is total = ⌈N ÷ 0.7⌉
+--- 30 for KV-only, 32 for case (ii) --- and is reported as a floor, not
+a deployment count. All of these are illustrative planning screens under
+the stated FLOP-counting case and the 35\% MFU assumption --- NOT
+measured SLO-goodput.
 
 \textbf{Honest boundary on both numbers.} The per-GPU
 \texttt{2,471\ tokens/s} is itself an \emph{analytical} figure at an
@@ -609,15 +614,18 @@ prefill takes about 1.08 s for 9.2K input tokens (Ch 4) --- a rate of
 9,200 ÷ 1.08 ≈ 8,519 input tokens/s on the request leg, which is 1.288
 PFLOP ÷ 1.08 s ÷ 8 GPUs ≈ 149 TFLOPS/GPU ≈ \textbf{15\% MFU}, not the
 35\% used above. The two numbers measure different things and must not
-be mixed: 1.08 s is the \emph{end-to-end prefill budget} inside the 1.2
-s TTFT (it absorbs queueing, scheduling, tokenization and admission
-overhead), while \textasciitilde19,800 tokens/s/host is the
-\emph{sustained planning rate} for capacity arithmetic. Size the host
-screens against the planning rate; if a deployment sustained only the
-1.08 s-implied rate, the peak prefill demand of \textasciitilde51.6
-PFLOP/s (1.288 PFLOP × 40 rps) would need 51.6 ÷ 1.19 = 43.4 → ⌈43.4⌉ =
-\textbf{44 hosts}, not 19 --- the gap a benchmark (Ch 14) has to close
-before either number is quoted as capacity. \mbox{{[}DERIVED{]}}
+be mixed: 1.08 s is the \emph{prefill compute budget} inside the 1.2 s
+TTFT after the \textasciitilde120 ms retrieval allocation --- queueing,
+scheduling, tokenization and admission overhead are scoped out of it and
+live in the 1.2 s residual (Ch 4, \hyperref[tab:4.2]{Table 4-2}; Ch 5/6), so the 149
+TFLOPS/GPU it implies is a lower bound on the required prefill rate ---
+while \textasciitilde19,800 tokens/s/host is the \emph{sustained
+planning rate} for capacity arithmetic. Size the host screens against
+the planning rate; if a deployment sustained only the 1.08 s-implied
+rate, the peak prefill demand of \textasciitilde51.6 PFLOP/s (1.288
+PFLOP × 40 rps) would need 51.6 ÷ 1.19 = 43.4 → ⌈43.4⌉ = \textbf{44
+hosts}, not 19 --- the gap a benchmark (Ch 14) has to close before
+either number is quoted as capacity. \mbox{{[}DERIVED{]}}
 
 This rough sizing illustrates that prefill is FLOP-bound at this scale
 --- its arithmetic intensity sits far above the ridge, so memory
@@ -637,7 +645,7 @@ scales with L; at the canonical 9.2K it sits far above the ridge).
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as 2 FLOPs (the FMA convention of §8.1); dense (no sparsity) FP16; the ceilings are peak/theoretical datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input), decode (batch=1) and decode (batch B=8, intensity ≈ 8 FLOP/byte) points are illustrative operating points, and a kernel's position on the roofline is a theoretical bound on its FLOP/byte intensity --- it is not a measured latency. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge classification (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0801.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as 2 FLOPs (the FMA convention of §8.1); dense (no sparsity) FP16; the ceilings are peak/theoretical datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input), decode (batch=1) and decode (batch B=8, intensity ≈ 8 FLOP/byte) points are illustrative operating points, and a kernel's position on the roofline is a theoretical bound on its FLOP/byte intensity --- it is not a measured latency. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge classification (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-08-0801.png}}
 \caption[Per-GPU roofline for dense FP16, one H100 vs one H200]{Per-GPU roofline for dense FP16, one H100 vs one H200 (a per-GPU chart, not a host-level one). Compute ceiling and HBM bandwidth are single-GPU quantities here (989 TFLOPS, 3.35 / 4.8 TB/s), so the ridge point and the memory-bound slope are per-GPU. Conventions: a multiply-add counts as \textbf{2 FLOPs} (the FMA convention of §8.1); \textbf{dense} (no sparsity) FP16; the ceilings are \textbf{peak/theoretical} datasheet values, not achieved rates (sustained MFU is 30--40\%, §8.3); the plotted prefill (9.2K input), decode (batch=1) and decode (batch B=8, intensity ≈ 8 FLOP/byte) points are \textbf{illustrative operating points}, and a kernel's position on the roofline is a \emph{theoretical} bound on its FLOP/byte intensity --- it is \textbf{not a measured latency}. Prefill (9.2K input) sits to the right of the ridge, on the compute-bound plateau; decode (batch=1) sits to the left, on the memory-bound slope, and continuous batching climbs the slope as batch grows. The ridge \emph{classification} (compute- vs memory-bound) is unchanged by ideal N-way replication because both peak FLOP/s and HBM bandwidth scale with GPU count; host-level attainable performance additionally depends on sharding and communication. {[}DERIVED from 1P: vendor datasheet{]}}
 
 \label{fig:8.2}\emph{The roofline: at the canonical long-prompt operating point prefill
@@ -770,8 +778,10 @@ Three measurable quantities anchor compute sizing:
   \textbf{Sustained MFU.} Profile TFLOP/s achieved divided by peak
   TFLOP/s for the target hardware and precision. A well-tuned
   transformer on H100 FP16 typically lands in the 30--40\% range; below
-  20\% suggests a memory or communication bottleneck that should be
-  diagnosed before scaling.
+  20\% \emph{kernel-measured} MFU suggests a memory or communication
+  bottleneck that should be diagnosed before scaling. (The canonical
+  1.08 s-implied \textasciitilde15\% (§8.3) is a budget-implied figure,
+  not a kernel measurement --- it does not trip this rule.)
 \item
   \textbf{Arithmetic intensity (FLOP/byte).} Compute as achieved FLOPs
   divided by bytes transferred (weights + activations + KV read/write).
@@ -843,17 +853,18 @@ design:
 
 \begin{itemize}
 \item
-  \textbf{If prefill is FLOP-bound} (as it is for 70B+ models with long
-  contexts), the primary optimization is batching --- larger prefill
-  batches do \textbf{not} remove the per-request attention work (each
-  sequence still has its own attention computation); they \emph{improve
-  accelerator utilization} by forming larger matrix operations,
-  amortizing weight and execution overhead across requests, and raising
-  achieved FLOP/s. The relevant lever is the achieved efficiency (MFU)
-  of the prefill kernel, not a change to the per-request FLOP count.
-  System design should therefore provision for batchable prefill
-  (continuous batching, Orca, vLLM continuous batching) as the
-  first-order throughput lever.
+  \textbf{If prefill is FLOP-bound} (as it is at the canonical 9.2K
+  operating point on this model geometry --- an operating-point
+  property, not a property of the model class; see §8.1), the primary
+  optimization is batching --- larger prefill batches do \textbf{not}
+  remove the per-request attention work (each sequence still has its own
+  attention computation); they \emph{improve accelerator utilization} by
+  forming larger matrix operations, amortizing weight and execution
+  overhead across requests, and raising achieved FLOP/s. The relevant
+  lever is the achieved efficiency (MFU) of the prefill kernel, not a
+  change to the per-request FLOP count. System design should therefore
+  provision for batchable prefill (continuous batching, Orca, vLLM
+  continuous batching) as the first-order throughput lever.
 \item
   \textbf{If decode is memory-bound} (single-stream, low batch), the
   primary optimization is batching --- decode arithmetic intensity ≈
@@ -1045,14 +1056,19 @@ rather than assuming memory. The profile separates four candidates:
   a bandwidth constraint and should be diagnosed separately.
 \end{itemize}
 
-The architect measures MFU to choose among these. If the prefill kernel
-is running at 12\% MFU, the problem is occupancy or launch --- grow the
-batch or fuse kernels. If MFU is already near \textasciitilde40\% and
-the kernel is compute-saturated, then prefill \emph{is} compute-bound
-and more batch just queues more work without reducing per-request TTFT;
-the lever instead is kernel efficiency, attention-term control, or P/D
-disaggregation so prefill's FLOP profile is served by compute-optimized
-GPUs while decode's bandwidth profile runs on wide-memory GPUs.
+The architect measures MFU to choose among these, but MFU alone does not
+select the cause: 12\% MFU is equally consistent with exposed
+communication, memory stalls, inefficient kernels, or launch/occupancy
+limits. Take the trace step first, then act --- grow the batch or fuse
+kernels only when the trace shows occupancy/launch limits; when it shows
+exposed collective time or memory stalls, the lever is the
+parallelization or the traffic, not the batch. If MFU is already near
+\textasciitilde40\% and the kernel is compute-saturated, then prefill
+\emph{is} compute-bound and more batch just queues more work without
+reducing per-request TTFT; the lever instead is kernel efficiency,
+attention-term control, or P/D disaggregation so prefill's FLOP profile
+is served by compute-optimized GPUs while decode's bandwidth profile
+runs on wide-memory GPUs.
 
 The recommendation is therefore: profile first (MEASURE, do not assume),
 and only then pick the intervention. Batching helps when prefill is

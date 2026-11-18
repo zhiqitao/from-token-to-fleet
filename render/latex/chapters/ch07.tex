@@ -48,7 +48,7 @@ reduction below 4×, so no specific multiplier may be assumed without the
 actual layout. Weight-only quantization carries the same
 raw-bound-versus-realized distinction --- its 2×--4× is a raw bit-width
 bound, not a realized saving (FP8 KV realizes exactly 2× before block
-metadata; MXFP4 weights realize \textasciitilde3.57× at 0.53125 B/value,
+metadata; MXFP4 weights realize \textasciitilde3.76× at 0.53125 B/value,
 §7.3). The residency floor is weights + KV for inference; for
 fine-tuning it is weights + gradients + optimizer states (+
 activations/workspace), and the architect's first question is whether
@@ -69,12 +69,12 @@ basis the KV budget becomes \textasciitilde480 GB (684 − 140 − 64) and
 the per-host concurrency ceiling \textasciitilde19 (480 ÷ 24.9037 =
 19.3; floor 19), against 436 GB and \textasciitilde17.5 (floor 17) on
 the decimal basis. Re-run this fit test on that basis before
-procurement. On the vendor-binary basis the aggregate test still reads
-164.1 \textless{} 171.0 GB, but per rank 70 + 12.05 + \textasciitilde8
-GB reserve = 90.05 GB \textgreater{} 85.5 GB, so the ≥3-GPU conclusion
-is unchanged. The 2×H100 fit verdict, the 640 GB envelope, the 436 GB KV
-budget and the \textasciitilde17.5 concurrency all use this decimal
-basis.
+procurement. On the vendor-binary basis the aggregate test flips to
+passing (164.1 \textless{} 171.0 GB), but the per-rank test still fails
+(70 + 12.05 + \textasciitilde8 GB reserve = 90.05 GB \textgreater{} 85.5
+GB), so the ≥3-GPU conclusion is unchanged. The 2×H100 fit verdict, the
+640 GB envelope, the 436 GB KV budget and the \textasciitilde17.5
+concurrency all use this decimal basis.
 
 The residency floor has two distinct regimes. For inference, the floor
 is weights + KV: the model's static parameters plus the
@@ -129,48 +129,22 @@ hardware. Conflating the two is exactly what produces a ``165 GB fits in
 \subsection{Count state by lifetime, not by the model
 label}\label{count-state-by-lifetime-not-by-the-model-label}
 
-The residency floor is not a property of the model label; it is a
-property of the set of tensors alive at peak.
-
-The weights-plus-KV floor in this chapter describes the autoregressive
-baseline. For non-autoregressive generators, inventory state by lifetime
-before applying the KV arithmetic --- the formula prices K/V tensors,
-not all persistent state. The live sets are resident weights, reusable
-context state, mutable canvas state, peak activations and logits, kernel
-workspace, and runtime allocations. They must be disjoint at the instant
-being measured; two names for the same buffer do not create two memory
-costs. \mbox{{[}DERIVED{]}}
-
-The KV tensor byte formula remains valid for actual K/V tensors. What
-changes is the proof that those tensors can be reused: \hyperref[chap:3]{Chapter 3}'s
-dependency figure shows why unchanged token IDs are insufficient under
-bidirectional refinement. A block-causal boundary can make an earlier
-prefix immutable. Approximate cache policies instead trade refresh work
-against quality. Memory capacity and cache validity are separate checks.
-\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-Repeated sequential evaluations need not multiply peak memory by the
-number of rounds when inference releases temporary buffers after each
-round. Retained histories, previous-round logits for self-conditioning,
-or simultaneous verification views change that lifetime calculation. A
-diffusion runtime's peak memory includes intermediate tensors (logits,
-attention scores, sampling buffers) that have no analogue in the AR
-weights+KV formula. As a shape-only example, a 256-position canvas over
-a 262,144-entry vocabulary needs 256 × 262,144 × 4 = 268,435,456 bytes,
-or 256 MiB, for one FP32 logits tensor at batch one. This excludes
-probabilities, sampling workspace, retained logits, attention buffers
-and the rest of the model. It is not a measured model footprint.
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
-
-This distinction affects admission control. A runtime may have enough
-capacity for prefix state yet fail when many requests enter a
-high-workspace refinement phase together. Weight precision alone cannot
-certify fit: the deployed sampler's live tensor shapes and lifetimes
-decide the practical requirement. \mbox{{[}DERIVED{]}}
-
-None of this changes the canonical autoregressive budget above --- it
-changes what must be inventoried before that budget's arithmetic is
-reused for a different generation mechanism.
+\begin{quote}
+\textbf{Caveat --- inventorying state for non-autoregressive
+generators.} The residency floor is a property of the set of tensors
+alive at peak, not of the model label, and the KV formula prices K/V
+tensors, not all persistent state. For a non-autoregressive generator,
+inventory state by lifetime before applying the weights+KV arithmetic
+--- resident weights, reusable context state, mutable canvas state, peak
+activations and logits, kernel workspace and runtime allocations,
+disjoint at the instant measured (Ch 3 develops the non-autoregressive
+generation thread this caveat scopes). Capacity and cache validity are
+separate checks, and the deployed sampler's live tensor shapes and
+lifetimes --- not weight precision alone --- decide the practical
+requirement. None of this changes the canonical autoregressive budget
+above; it changes what must be inventoried before that budget's
+arithmetic is reused for a different generation mechanism. \mbox{{[}DERIVED{]}}
+\end{quote}
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -197,12 +171,7 @@ autoregressive steps. A whole-clip denoiser has a different lifetime
 model. Its latent video changes after each scheduler update, so video
 keys and values cannot simply be retained as immutable prefix entries
 for every later step. Static prompt embeddings can remain reusable, but
-that is not the growing autoregressive cache. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-
-The canonical KV table below is untouched: it prices the autoregressive
-text path this chapter sizes. The boundary changes which state function
-we plug into ``does it fit?'' for a different generator --- the same
-decision, a different inventory.
+that is not the growing autoregressive cache. \mbox{{[}DERIVED{]}}
 
 \ntsection{Worked Example}\label{worked-example}
 
@@ -293,10 +262,12 @@ in 2×H100; needs ≥3×H100 by aggregate capacity (or lower precision /
 more GPUs) \\
 fits 8×H100 at 9.2K? & yes & 164.1 GB \textless{} 640 GB \\
 fits 3×H100 at 9.2K? & passes aggregate bytes only; TP=3 placement not
-established & 164.1 GB \textless{} 240 GB, but a canonical hidden-dim of
-8192 does not split evenly into 3 shards (8192/3 not integral); viable
-TP=3 requires a supported sharding/head-partition plan, per-rank
-allocation and a working engine benchmark --- see the note below \\
+established & 164.1 GB \textless{} 240 GB, but tensor parallelism shards
+attention heads, not the hidden dim, and the canonical 64-query-head /
+8-KV-head geometry does not partition evenly into 3 ranks (64/3 = 21.3,
+8/3 = 2.7; the MLP intermediate size must divide too); viable TP=3
+requires a supported head-partition plan, per-rank allocation and a
+working engine benchmark --- see the note below \\
 fits 8×H100 at 32K? & yes (passes aggregate bytes) & 224.0 GB
 \textless{} 640 GB \\
 fits 8×H100 at 128K? & passes aggregate bytes + TP=8 shard; per-rank
@@ -323,19 +294,21 @@ single-request) and the \textasciitilde436 GB KV budget (Ch. 17,
 concurrency) answer different questions. \textbf{``Passes aggregate
 bytes'' is NOT an execution result.} A fit verdict needs three distinct
 gates: (1) aggregate bytes (pool ≥ residency), (2) per-rank
-allocation/shard compatibility (a hidden dim of 8192 does not shard
-evenly into 3 ranks; attention-head partition, runtime/workspace and
-topology must be supported), and (3) a working engine/kernel/topology
-benchmark. 8×H100 (no sharding ambiguity at 8 shards) passes gates 1--2
-for the 9.2K and 32K rows. The 3×H100 row passes gate 1 only (8192 does
-not shard into 3 ranks) and carries the label ``passes aggregate bytes
-only --- placement not established.'' The 128K row --- also 8×H100, so
-TP=8 sharding is integral --- clears gate 1 and the shard check, and its
-per-rank budget fits at the stated reserve (17.5 + 41.94 + 8 = 67.4 GB
-of 80 GB); what it does not carry is a measured context-scaled
-activation/workspace reserve at 128K, so its label reads ``passes
-aggregate bytes + shard; long-context reserve unmeasured'' --- a
-different label for a different reason.}
+allocation/shard compatibility (TP shards attention heads and MLP width,
+not the hidden dim: 64 query heads and 8 KV heads do not divide into 3
+ranks --- 64/3, 8/3 --- and the MLP intermediate size must divide as
+well; attention-head partition, runtime/workspace and topology must be
+supported), and (3) a working engine/kernel/topology benchmark. 8×H100
+(no sharding ambiguity at 8 shards) passes gates 1--2 for the 9.2K and
+32K rows. The 3×H100 row passes gate 1 only (64 query heads and 8 KV
+heads do not divide into 3 ranks) and carries the label ``passes
+aggregate bytes only --- placement not established.'' The 128K row ---
+also 8×H100, so TP=8 sharding is integral --- clears gate 1 and the
+shard check, and its per-rank budget fits at the stated reserve (17.5 +
+41.94 + 8 = 67.4 GB of 80 GB); what it does not carry is a measured
+context-scaled activation/workspace reserve at 128K, so its label reads
+``passes aggregate bytes + shard; long-context reserve unmeasured'' ---
+a different label for a different reason.}
 
 \emph{Attention-family sensitivity note.} The \textasciitilde2.62
 MB/token (2.5 MiB) figure is the \textbf{full-MHA} (multi-head
@@ -366,7 +339,7 @@ constant is tracked alongside the canonical workload's other constants.)
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Grouped-Query Attention cuts per-token KV. The head glyphs are schematic; the load-bearing number is the n\_q : n\_kv ratio (8 : 1 here) --- 8 query heads share one K/V head, so the per-token KV falls \textasciitilde8× (the full arithmetic is in the text below). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0703.pdf}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Grouped-Query Attention cuts per-token KV. The head glyphs are schematic; the load-bearing number is the n\_q : n\_kv ratio (8 : 1 here) --- 8 query heads share one K/V head, so the per-token KV falls \textasciitilde8× (the full arithmetic is in the text below). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0703.png}}
 \caption[Grouped-Query Attention cuts per-token KV]{Grouped-Query Attention cuts per-token KV. The head glyphs are schematic; the load-bearing number is the \textbf{n\_q : n\_kv ratio (8 : 1 here)} --- 8 query heads share one K/V head, so the per-token KV falls \textasciitilde8× (the full arithmetic is in the text below). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:7.1}\end{figure}
@@ -1004,8 +977,9 @@ keeps inference and training on separate memory-planning tracks.
 \item
   Quality loss from aggressive KV quantization (2-bit KIVI, or sub-4-bit
   schemes) at very long context lengths (128K+) and in MoE models. The
-  primary sources anchor FP8 KV ≈50\% of FP16 (raw byte-halving) with
-  only a small loss in the cited benchmarks, but 2-bit asymmetric
+  primary sources anchor FP8 KV ≈50\% of FP16 (raw byte-halving); the
+  \emph{quality} cost of FP8 KV is not benchmarked in this chapter, so
+  any `small loss' claim is unverified here, and 2-bit asymmetric
   patterns and their interaction with RoPE and sliding-window layers are
   not fully mapped.
 \item
@@ -1090,15 +1064,15 @@ claim, no stated KV metric & {[}1P: HF Qwen/Qwen3.8-Flash-Next{]} \\
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Inference vs fine-tuning memory floor. The same 70B model has a weights+KV floor of \textasciitilde165 GB, not a full deployment footprint (max 9.5K --- canonical input 9.2K), but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA's 4-bit base + adapters + optimizer floor is \textasciitilde36 GB (no inference KV cache sits in a training step), so it fits on a single GPU. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0702.png}}
-\caption[Inference vs fine-tuning memory floor]{Inference vs fine-tuning memory floor. The same 70B model has a weights+KV floor of \textasciitilde165 GB, not a full deployment footprint (max 9.5K --- canonical input 9.2K), but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA's 4-bit base + adapters + optimizer floor is \textasciitilde36 GB (no inference KV cache sits in a training step), so it fits on a single GPU. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Inference vs fine-tuning memory floor. The same 70B model has a weights+KV floor of \textasciitilde165 GB, not a full deployment footprint (max 9.5K --- canonical input 9.2K), but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA's 4-bit base + adapters + optimizer floor is \textasciitilde36 GB (no inference KV cache sits in a training step), so it fits on a single 48--80 GB GPU (e.g.~an H100), not on the 24 GB or 32 GB devices above. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0702.png}}
+\caption[Inference vs fine-tuning memory floor]{Inference vs fine-tuning memory floor. The same 70B model has a weights+KV floor of \textasciitilde165 GB, not a full deployment footprint (max 9.5K --- canonical input 9.2K), but needs \textasciitilde1,120 GB for full Adam fine-tuning; QLoRA's 4-bit base + adapters + optimizer floor is \textasciitilde36 GB (no inference KV cache sits in a training step), so it fits on a single 48--80 GB GPU (e.g.~an H100), not on the 24 GB or 32 GB devices above. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:7.6}\end{figure}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The concurrency budget: 140 GB weights + \textasciitilde64 GB runtime/NCCL leaves \textasciitilde436 GB of KV budget in a 70B (canonical 80-layer full-MHA teaching geometry) host's 640 GB pool, and that KV budget ÷ the per-request KV price sets concurrency --- at 24.9 GB/request max-FP16 KV (9.5K max context, per \hyperref[fig:7.6]{Fig 7.6}), C ≈ 17.5 concurrent (floor 17, not 18; the faint vertical rules inside the KV band mark those 24.9 GB request slots), and FP8 (\textasciitilde12.45 GB/request) roughly raises it to \textasciitilde35.0. Scope: the arithmetic behind Ch 17's single-host capacity; derivation in §3 above and Ch 17. Aggregate-feasibility caveat: 640 GB is an aggregate across eight 80-GB H100s, not a freely-allotable heap --- ``total bytes \textless{} total HBM'' is necessary but not sufficient, so per-rank fit must be validated separately (technical note below; Chs. 9--10). This is an analytical upper bound, not a validated concurrent-request count --- measure it under the target workload (Ch 14). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0704.pdf}}
-\caption[The concurrency budget]{The concurrency budget: 140 GB weights + \textasciitilde64 GB runtime/NCCL leaves \textasciitilde436 GB of KV budget in a 70B (canonical 80-layer full-MHA teaching geometry) host's 640 GB pool, and that KV budget ÷ the per-request KV price sets concurrency --- at 24.9 GB/request max-FP16 KV (9.5K max context, per \hyperref[fig:7.6]{Fig 7.6}), C ≈ 17.5 concurrent (floor 17, not 18; the faint vertical rules inside the KV band mark those 24.9 GB request slots), and FP8 (\textasciitilde12.45 GB/request) roughly raises it to \textasciitilde35.0. \textbf{Scope:} the arithmetic behind Ch 17's single-host capacity; derivation in §3 above and Ch 17. \textbf{Aggregate-feasibility caveat:} 640 GB is an \emph{aggregate} across eight 80-GB H100s, not a freely-allotable heap --- ``total bytes \textless{} total HBM'' is necessary but not sufficient, so per-rank fit must be validated separately (technical note below; Chs. 9--10). \textbf{This is an analytical upper bound, not a validated concurrent-request count} --- measure it under the target workload (Ch 14). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The concurrency budget: 140 GB weights + \textasciitilde64 GB runtime/NCCL leaves \textasciitilde436 GB of KV budget in a 70B (canonical 80-layer full-MHA teaching geometry) host's 640 GB pool, and that KV budget ÷ the per-request KV price sets concurrency --- at 24.9 GB/request max-FP16 KV (9.5K max context, per \hyperref[fig:7.6]{Fig 7.6}), C ≈ 17.5 concurrent (floor 17, not 18; the band's height is the KV budget and the arithmetic 436 ÷ 24.9 carries the 17-slot decomposition), and FP8 (\textasciitilde12.45 GB/request) roughly raises it to \textasciitilde35.0. Scope: the arithmetic behind Ch 17's single-host capacity; derivation in §3 above and Ch 17. Aggregate-feasibility caveat: 640 GB is an aggregate across eight 80-GB H100s, not a freely-allotable heap --- ``total bytes \textless{} total HBM'' is necessary but not sufficient, so per-rank fit must be validated separately (technical note below; Chs. 9--10). This is an analytical upper bound, not a validated concurrent-request count --- measure it under the target workload (Ch 14). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-07-0704.pdf}}
+\caption[The concurrency budget]{The concurrency budget: 140 GB weights + \textasciitilde64 GB runtime/NCCL leaves \textasciitilde436 GB of KV budget in a 70B (canonical 80-layer full-MHA teaching geometry) host's 640 GB pool, and that KV budget ÷ the per-request KV price sets concurrency --- at 24.9 GB/request max-FP16 KV (9.5K max context, per \hyperref[fig:7.6]{Fig 7.6}), C ≈ 17.5 concurrent (floor 17, not 18; the band's height is the KV budget and the arithmetic 436 ÷ 24.9 carries the 17-slot decomposition), and FP8 (\textasciitilde12.45 GB/request) roughly raises it to \textasciitilde35.0. \textbf{Scope:} the arithmetic behind Ch 17's single-host capacity; derivation in §3 above and Ch 17. \textbf{Aggregate-feasibility caveat:} 640 GB is an \emph{aggregate} across eight 80-GB H100s, not a freely-allotable heap --- ``total bytes \textless{} total HBM'' is necessary but not sufficient, so per-rank fit must be validated separately (technical note below; Chs. 9--10). \textbf{This is an analytical upper bound, not a validated concurrent-request count} --- measure it under the target workload (Ch 14). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:7.7}\end{figure}
 

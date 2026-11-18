@@ -1,0 +1,342 @@
+[
+ {
+  "id": "CH12-03-08",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (Candidate (a) prose) vs Table 12-1 (a) verdict cell",
+  "chapter": "12",
+  "quoted_clause": "§3: 'a lone host cannot carry the arrival rate (~6 hosts are needed for the canonical average, and ~21 at peak ...) ... the gate closes only when the host class is replicated to ~5 hosts on the average prefill screen (92K ÷ 19.8K ≈ 4.65 → 5), ~6 on the average KV/service-time screen (10 × 8.6 ÷ 17 ≈ 5.06 → 6), and ~21 at peak (40 × 8.6 ÷ 17 ≈ 20.2 → 21)'.  Table 12-1: '✗ single-host capacity: needs ~5 hosts at average load (92K tok/s); ~19 at the 368K peak prefill screen, before headroom'",
+  "observed": "Two different peak host counts (21 and 19) appear for the same candidate in the same chapter, derived from two different screens, with no statement of which one binds. The prose gives the KV/service-time screen at peak (21) and omits the prefill screen at peak (19); the table gives the prefill screen at peak (19) and omits the KV screen (21). At the average the prose gives both (5 and 6) but does not say that 6 is the binding one. A reader comparing prose to table sees an unexplained 21-vs-19 discrepancy.",
+  "evidence": "Re-derivation: prefill screen = demand / 19,780 tok/s per host -> 92,000/19,780 = 4.65 -> 5 (avg), 368,000/19,780 = 18.60 -> 19 (peak). KV/service-time screen = rps x 8.6 s / 17 slots -> 10 x 8.6/17 = 5.06 -> 6 (avg), 40 x 8.6/17 = 20.24 -> 21 (peak). The KV screen binds in both cases (6 > 5, 21 > 19). The chapter's own numbers therefore imply a single answer (6 at average, 21 at peak) that the prose and the table each present only partially.",
+  "root_cause": "Two capacity screens were introduced without a stated combination rule (take the max), and each surface (prose, table) happened to show a different one.",
+  "correction": "State the combination rule once in §3: 'the fleet size is the maximum of the compute screen and the KV/service-time screen; at the canonical load the KV screen binds (6 hosts at average, 21 at peak, versus 5 and 19 on the compute screen).' Then show both screens in Table 12-1's verdict cell for (a) and (b), and use the binding figure in the prose.",
+  "acceptance_test": "Every host count quoted for the canonical workload names its screen, and the chapter states which screen binds at average and at peak; no two surfaces quote different peak host counts without labeling the screen.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH12-03-09",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (all candidates) and §4 item 3",
+  "chapter": "12",
+  "quoted_clause": "the three gates ... **memory fit** (weight memory plus KV cache must fit within the on-premise GPU inventory), **throughput at the SLO** (total tokens-per-second across the installed devices, delivered within the TTFT/TPOT budget, must exceed the traffic demand), and **quality**",
+  "observed": "The gate is named and defined as SLO-conditioned throughput, but it is evaluated with an idealized, SLO-independent prefill rate (35% MFU, no batching efficiency, no queueing, no TPOT check, no TTFT check). The chapter's own Table 12-1 records the SLO as '? TTFT SLO unmeasured' for (a) and (b), so the gate that is being scored is not the gate that is named. A reader could conclude that a candidate passing the prefill screen has passed 'throughput at the SLO'.",
+  "evidence": "The computed quantity is 989 TFLOP/s x 35% / 17.5 GFLOP/token = 19,780 tok/s, a raw compute-bound prefill ceiling at an assumed MFU. Nothing in the derivation involves TTFT, TPOT, batching, or admission control. The chapter's §4 item 3 says the number should be 'measured on the target hardware', which the worked example does not do either.",
+  "root_cause": "The chapter needed a screen computable from the canonical inputs and used a compute ceiling, then attached the SLO-conditioned gate name to it; the distinction between 'capacity screen' and 'goodput at the SLO' was never made explicit.",
+  "correction": "Rename the computed quantity throughout §3 and Table 12-1 as what it is — 'the idealized prefill capacity screen' — and state explicitly that the throughput-at-the-SLO gate is not closed by this screen and is closed only by the Ch 14 measurement. Add a one-line note that a capacity screen can only ever be an upper bound on goodput, since goodput is capacity minus the requests that miss the SLO.",
+  "acceptance_test": "No table cell or prose sentence presents the 19,780 tok/s figure as a throughput-at-the-SLO result; the word 'goodput' appears with a definition in this chapter or the reader is pointed to where it is defined.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH12-03-10",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (opening paragraph) vs §4 item 2",
+  "chapter": "12",
+  "quoted_clause": "§3: 'The KV cache for 9.2K context at FP16 precision ... is approximately 24 GB (2 × num_layers × hidden_dim × 9,200 × 2 bytes per FP16 element)'.  §4: 'where L is the context length (full-MHA assumption: n_KV-heads × d_kv = d_hidden; for GQA/MQA use the reduced KV-head count)'",
+  "observed": "§4 states the full-MHA caveat explicitly; §3's inline formula uses hidden_dim with no caveat. A reader who reuses §3's formula for a GQA or MQA model — the case the book elsewhere insists on distinguishing — will overstate the KV footprint by the GQA factor (e.g. 8x for an 8-way GQA model). The chapter's own §3 candidate (c) paragraph makes the point that 'the per-token KV depends on the model's own attention shape ... NOT the 70B's constant', which directly contradicts the unqualified hidden_dim formula two paragraphs earlier.",
+  "evidence": "Formula comparison: §3's form 2 x L x d_hidden x L_ctx x bytes is valid only when n_KV-heads x d_kv = d_hidden. §4's form 2 x L x n_KV-heads x d_kv x L_ctx x bytes is general. For the canonical 70B (80 layers, 8192 hidden, full MHA) both give 2 x 80 x 8192 x 9,200 x 2 = 24.12 GB, so the canonical numbers are unaffected; the risk is in reuse.",
+  "root_cause": "The opening paragraph uses a shorthand form for the canonical model without marking it as model-specific, while the chapter's own method section gives the general form.",
+  "correction": "Use the general form in §3 as well, with the canonical substitution shown: '2 x n_layers x n_KV-heads x d_kv x 9,200 x bytes = 2 x 80 x 8192 x 9,200 x 2 = 24.1 GB (full MHA, so n_KV-heads x d_kv = d_hidden = 8,192)'. Add a parenthetical that GQA/MQA reduce this by the KV-head ratio.",
+  "acceptance_test": "Every KV formula in Ch 12 is the general n_KV-heads x d_kv form, or is explicitly marked '(full MHA)'; a reader applying the chapter's formula to a GQA model gets the correct footprint.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH12-03-11",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3 (Candidate (a) quality paragraph) and §8 (gate definition)",
+  "chapter": "12",
+  "quoted_clause": "§3: 'Quality: the 70B is the workload's quality reference, so candidate (a) inherits the reference quality by definition rather than by measurement — the gate is satisfied relative to the reference, and the absolute requirement still needs the Ch 14 capability screen on the true evaluation set.'  §8: '**quality** (answer quality on the evaluation set must meet the ~70B requirement)'",
+  "observed": "The quality gate is defined as 'must meet the ~70B requirement', but candidates (a) and (b) ARE the 70B. A gate defined relative to the model that the candidate is built from is satisfied by construction and cannot discriminate between candidates. The chapter half-acknowledges this ('satisfied relative to the reference') but never states what the absolute bar is, so the quality gate has no operational content for (a) and (b) and the reader cannot tell what Ch 14 will measure against.",
+  "evidence": "Logical: gate(candidate) = quality(candidate) >= quality(70B); for candidates (a) and (b), quality(candidate) = quality(70B) by construction, so the gate is vacuous for exactly the two candidates that advance. The chapter's own §7 lists 'Whether 8-bit KV caching is sufficient for 9.2K context at FP16-equivalent quality' as an open question, which is the only place where a non-vacuous quality question about (a)/(b) appears.",
+  "root_cause": "The chapter uses 'quality' for two different things — a relative comparison against a reference model and an absolute capability bar — without separating them, and the gate definition inherits the relative sense.",
+  "correction": "Split the quality gate into two named checks in §8: (i) a relative check (candidate quality vs the 70B reference on the evaluation set), which is vacuous for (a) and (b) and decisive for (c); and (ii) an absolute capability check (the workload's task-level accuracy bar, e.g. a retrieval-Q&A correctness threshold), which applies to all candidates including (a) and (b). State that (a) and (b) pass (i) by construction and still owe (ii).",
+  "acceptance_test": "The quality gate has a stated absolute threshold or an explicit pointer to where it is defined, and the chapter says plainly that (a) and (b) satisfy the relative check trivially.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH12-07-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §7 (What We Still Don't Know), third bullet",
+  "chapter": "12",
+  "quoted_clause": "**P/D-disaggregation communication overhead in multi-host settings.** The KV-transfer volume and latency between prefill and decode pools — as a function of context length, request rate, and fabric bandwidth — is relatively unexplored at the 70B scale; the actual communication volume and its latency impact depend on the routing library and network topology **[HYPOTHESIS]**.",
+  "observed": "This is listed as an open empirical question, but the KV-transfer volume is fully determined by the canonical workload's own inputs and can be computed analytically. Leaving it as 'relatively unexplored' withholds the single most decision-relevant number for candidate (b), and it is the number that determines whether the two-pool design is even fabric-feasible at the canonical peak.",
+  "evidence": "Independent re-derivation from the canonical inputs: each request transfers its KV once from the prefill pool to the decode pool. KV per request at the 9.5K context = 24.9 GB. At 10 rps average: 24.9 x 10 = 249 GB/s. At 40 rps peak: 24.9 x 40 = 996 GB/s (~1 TB/s) of sustained KV traffic, one-directional. Against fabric: a single 400 Gb/s InfiniBand NDR port is 50 GB/s, so the peak needs ~20 NDR ports or ~10 XDR (800 Gb/s) ports; a single H100 NVLink 4.0 link is 450 GB/s per direction, so ~3 links sustained at peak. The chapter's own §3 already flags the KV-transfer fabric as a cost item for candidate (b) ('plus the KV-transfer fabric'), so the number belongs in the chapter.",
+  "root_cause": "The open-questions list was populated from what the author had not measured, without first checking which of the listed unknowns are already determined by the canonical inputs the chapter has adopted.",
+  "correction": "Convert this bullet into a derived constraint in §3 (candidate (b)): state the KV-transfer rate (249 GB/s average, ~996 GB/s peak), compare it to the fabric the architecture would need, and note that the transfer must complete inside the TTFT budget (a 24.9 GB transfer at, say, 200 GB/s effective adds ~125 ms to TTFT). Then narrow the §7 bullet to what genuinely remains unknown: the achieved efficiency of the routing library, the overlap achieved between transfer and decode, and the behaviour under burst.",
+  "acceptance_test": "The chapter states a KV-transfer bandwidth figure for the canonical workload and compares it to a named fabric; the §7 bullet no longer lists as 'unknown' anything the chapter's own inputs determine.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH12-08-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §8 (mini-case), economics paragraph",
+  "chapter": "12",
+  "quoted_clause": "the self-host totals do not scale purely per-host ($155,816.93, ≈$24.97/1K on the 6.24M‑req/mo business‑hours basis, Ch 16 — the cloud legs are $87,600 ≈ $14.04/1K at the default paid-occupancy input and $306,600 ≈ $49.13/1K at 21 hosts always-on)",
+  "observed": "Two problems. (1) The 6.24M-req/mo basis is not reproducible from anything stated in the chapter: the canonical workload is ~10 rps average, which over a full month is 25.92M requests, and the chapter never states the business-hours assumption (hours per month, or effective rate) that yields 6.24M. The reader cannot check any of the three per-1K figures. (2) The $87,600 cloud leg equals exactly 6 hosts x 730 h x $20/h = $87,600 — that is, it prices the average-load host count (6 hosts, from the KV/service-time screen), not a discount or partial occupancy of the 21-host peak fleet. The label 'default paid-occupancy input' is undefined, and the two cloud legs in the same parenthetical price different fleets while appearing to price the same one.",
+  "evidence": "Re-derivation: 6.24M requests at 10 rps implies 624,000 s = 173.3 h/month of serving, which the chapter never states (173.3 h is not a recognizable business-hours figure: 8 h x 22 days = 176 h would give 6.336M). Per-1K checks: 155,816.93/6,240 = $24.97; 87,600/6,240 = $14.04; 306,600/6,240 = $49.13 — all three are arithmetically correct against 6.24M, so the defect is the unstated denominator, not the division. 87,600/(730 x 20) = 6.0 hosts exactly.",
+  "root_cause": "The economics were imported from Ch 16 with a pointer rather than restated with their assumptions, and the mini-case is expected to be self-contained enough for the reader to audit its headline numbers.",
+  "correction": "State the volume basis in the mini-case: 'the canonical workload serves 6.24M requests/month on a business-hours basis (10 rps average x 173.3 serving hours/month; 25.92M on a 24x7 basis)'. State the paid-occupancy basis explicitly: '$87,600 = 6 hosts x 730 h x $20/h, i.e. the average-load fleet priced always-on, versus $306,600 = 21 hosts x 730 h x $20/h for the peak fleet'. If the 6.24M figure is Ch 16's, keep the cross-reference but add the one-line derivation so the reader can reproduce it.",
+  "acceptance_test": "A reader can reproduce 6.24M, $24.97/1K, $14.04/1K, and $49.13/1K from the mini-case text alone, and can tell which fleet each cloud leg prices.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH12-08-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §8 (mini-case), economics paragraph",
+  "chapter": "12",
+  "quoted_clause": "Total fleet cost $155.8K/mo (21 hosts) ÷ $15K = ~10.4× the total budget — the economic constraint fails at fleet scale (Ch 16). ... the 21-host full-utilization screen fleet (Ch 16 case (i)/KV-screen line) costs ~$155.8K/mo",
+  "observed": "The fleet is sized for the 40 rps peak (21 hosts) while the per-1K figures amortize that peak-capacity fleet over the average-volume basis (6.24M requests/month). That is a legitimate planning choice, but the chapter never states it, so the reader sees a peak-sized fleet divided by an average-volume denominator with no indication that the two are on different operating points. This is exactly the kind of denominator/operating-point mismatch that makes a cost figure look better than it is.",
+  "evidence": "Structural: 21 hosts is derived from 40 rps peak x 8.6 s / 17 slots (Ch 13); 6.24M requests/month corresponds to ~10 rps average over 173.3 h. The fleet therefore carries peak capacity while the unit cost is computed on average volume. The chapter's own Table 12-2 flags 'Peak headroom (N−1): not demonstrated' for all candidates, so the fleet is not even sized for the peak with headroom.",
+  "root_cause": "Capacity sizing and cost amortization were taken from two different screens without a sentence reconciling the operating points.",
+  "correction": "Add one sentence: 'The fleet is sized for the 40 rps peak while the unit economics amortize that capacity over the average-volume month; the resulting $/1K is therefore a peak-capacity cost, not a steady-state cost, and it improves only if the peak is shaped or the fleet is scaled down.' Then show the steady-state alternative (6 hosts at average load) alongside the peak fleet so the reader sees both.",
+  "acceptance_test": "The mini-case states which operating point each cost figure corresponds to, and a reader cannot mistake the peak-amortized $/1K for a steady-state cost.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH12-08-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12 §8 (mini-case), economics paragraph",
+  "chapter": "12",
+  "quoted_clause": "The stakeholder's $15,000 is a total monthly system budget — the chapter notes it equals one host's cloud-equivalent (one 8×H100 at ~$20/hr × 730 hr ≈ $14.6K/mo; an on-premise host has no $/hr, so this is a budget cap, not a metered cost, and the cloud-equivalent is a proxy at those assumptions). ... The operational constraint is that the system must run on existing on-premise GPU infrastructure (no cloud add-ons).",
+  "observed": "The chapter compares the $15,000 budget only against a cloud proxy that the architect is explicitly forbidden from buying, and never against the on-premise cost it already computes elsewhere in the same paragraph. The on-premise per-host monthly cost is recoverable from the chapter's own totals and is the number that actually answers 'what does $15,000 buy on-prem?' — a question the mini-case poses and leaves unanswered.",
+  "evidence": "Re-derivation from the chapter's own figures: 21 hosts x X + $10,000 staff = $155,816.93 -> X = $6,943.66/host/month; cross-check 32 x $6,943.66 + $10,000 = $232,197, matching the stated ~$232.2K. So $15,000/month buys about 2.2 on-prem 8xH100 hosts gross of staff, or about 0.7 hosts plus the $10K staff line — i.e. roughly one host, against a 21-host requirement. The chapter states the 10.4x overshoot but never the per-host on-premise cost, even though it is derivable from two numbers it prints.",
+  "root_cause": "The economics were framed as a cloud-versus-budget comparison because the cloud proxy was the number Ch 16 supplied, rather than being framed against the on-premise constraint the stakeholder actually imposed.",
+  "correction": "State the on-premise per-host monthly cost explicitly (~$6,944/host/month, derived from the two totals) and answer the stakeholder's question directly: '$15,000/month buys roughly two on-prem 8xH100 hosts (or one plus the $10K staff line) against a 21-host requirement — the gap is a factor of ~10, and it is a capital-and-staff gap, not a rental-rate gap.' Keep the cloud-equivalent as a secondary comparison, clearly labelled as a proxy for a deployment the stakeholder has excluded.",
+  "acceptance_test": "The mini-case states what $15,000/month buys in on-premise hosts and states the gap in those units; the cloud proxy is labelled as a non-actionable reference.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH12-08-06",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 12 §8 (mini-case), candidate-generation paragraphs",
+  "chapter": "12",
+  "quoted_clause": "The architect generates three candidates using the method from §12.3. Candidate (a): a single 8×H100 host with 70B FP16 weights + 24 GB KV cache and prefix caching, which fits the memory budget (164 GB < 640 GB aggregate ...) — but as Chapter 8 shows, one 8×H100 host sustains only ~19,800 prefill-tokens/s at the idealized 35%-MFU TP=8 operating point (~19,780 tok/s per GPU; the host aggregate is the same rate, since each GPU carries 1/8 of the shared token stream — the ~2,472 figure is a full-model-equivalent FLOP rate, not a per-GPU capability), far short of the ~92K input tokens/s the 10 rps average demands, so the memory gate passes while the throughput gate already fails.",
+  "observed": "The mini-case's candidate-generation section re-narrates §3's arithmetic almost verbatim, including the parenthetical explanations of the TP=8 rate and the 2,472 figure. A mini-case should require the reader to perform the chapter's reasoning, not replay it. The genuinely new work in this mini-case (the budget analysis, the 32-host policy fleet, the operational constraint, the return-to-synthesis move) is squeezed into the last third, while the first two-thirds restate material the reader has just read.",
+  "evidence": "Structural comparison: §3 and §8 both state 140 + 24 = 164 GB < 640 GB, both state ~19,800 tok/s at 35% MFU with the same parenthetical, both state the 92K demand, and both state the ~15 GB / 14 + 1.2 GB residency for candidate (c). The mini-case adds no calculation the reader has not been handed.",
+  "root_cause": "The mini-case was written as a summary of the chapter rather than as an application of it; the chapter's own §8 title ('From Vague Ask to Candidate Architectures') promises the latter.",
+  "correction": "Compress the candidate-generation paragraphs to the inputs and the decisions (what the stakeholder's constraints are, what the architect computes, what the verdicts are) and move the arithmetic the reader can perform themselves into the exercise framing — e.g. give the per-host prefill rate and the demand and ask the reader to derive the host counts. Expand the budget and peak-fleet work, which is where the mini-case's unique contribution lies.",
+  "acceptance_test": "The mini-case contains at least one quantity the reader must compute rather than read, and its length is dominated by the new economic and peak-fleet analysis rather than by restating §3.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH13-03-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 13 §3, opening paragraph of 'Placing the Canonical Workload'",
+  "chapter": "13",
+  "quoted_clause": "The canonical enterprise-Q&A RAG workload's model residency is **server-class**, and at the 40 rps peak its deployment is a **cluster** of ~21 server-class hosts (Ch 16/17) — placed there by Table 13-1's *traffic > host goodput* trigger, not by weight-splitting.",
+  "observed": "The headline host count for the canonical workload is the full-utilization screen (21 hosts), which the same chapter later shows is 32 hosts under the Table 17-1 provisioning policy (70% x 95% + N-1). Leading with 21 understates the provisioned fleet by 52%, and a reader who cites '21 hosts' from this chapter will under-provision. Ch 12's mini-case gives both figures; Ch 13's headline gives only the smaller one.",
+  "evidence": "Re-derivation: 344/(17 x 0.665) = 30.43 -> 31 working + 1 spare = 32 total (the chapter's own arithmetic, stated later in the same section). 32/21 = 1.52, i.e. the policy fleet is 52% larger than the screen figure.",
+  "root_cause": "The section's opening sentence was written before the policy screen was introduced and was not updated when the policy numbers were added.",
+  "correction": "Lead with both: 'at the 40 rps peak its deployment is a **cluster** of ~21 server-class hosts at full utilization, or 32 under the Table 17-1 provisioning policy (70% x 95% + N-1)'. Add a one-line note that the screen figure is a capacity floor and the policy figure is the provisioned fleet.",
+  "acceptance_test": "The first host count a reader encounters for the canonical workload is accompanied by its policy counterpart, and no chapter quotes '21 hosts' without noting that it is the full-utilization screen.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH13-03-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 13 §3, 'Memory' bullet; and the 17.5-slot figure throughout Ch 13",
+  "chapter": "13",
+  "quoted_clause": "**Memory**: 70B FP16 weights = 140 GB; KV for the 9.5K max context at FP16 ≈ 24.9 GB; inference residency ≈ 165 GB [ILLUSTRATIVE][DERIVED]. An 8×H100 host (640 GB) fits this with ample headroom for concurrency (Ch11 showed ~24 GB per request × concurrent requests still fits).",
+  "observed": "Two issues. (1) The per-request KV is quoted as '~24 GB' here, but the 17.5-slot figure that drives every host count in the chapter is derived from 24.9 GB (the 9.5K basis), not 24 GB; a reader who divides 436 by 24 gets 18.2, not 17.5, and cannot reproduce the chapter's central capacity number. (2) The derivation of 17.5 is never shown — it appears as a bare figure. (3) 'ample headroom for concurrency' is in tension with the chapter's own conclusion that the KV budget is 68% of the host.",
+  "evidence": "Re-derivation: 436 GB KV budget / 24.9 GB per request = 17.51 slots (floor 17). 436 / 24.0 = 18.17. The 17.5 figure is therefore only reproducible from the 9.5K basis, which the chapter states for the 24.9 GB but not for the slot count.",
+  "root_cause": "The slot count was carried over from Ch 16/17 as a known constant rather than being re-derived where it is first used, and the two KV bases (9.2K and 9.5K) were not reconciled at the point of use.",
+  "correction": "Show the derivation inline: 'the canonical per-host KV budget is 640 - 140 (weights) - ~64 (runtime) = 436 GB; at the 9.5K max context each request holds 24.9 GB of KV, so a host holds 436/24.9 = 17.5 slots (17 whole slots after flooring)'. Replace '~24 GB per request' with '24.9 GB per request at the 9.5K max context' and replace 'ample headroom' with the actual figure ('the KV budget is 68% of the host, which is why the KV screen binds before the compute screen').",
+  "acceptance_test": "A reader can reproduce 17.5 and 17 from the text of Ch 13 §3 alone, and the per-request KV figure quoted in Ch 13 matches the basis used for the slot count.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH13-08-02",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 13 §8 (mini-case) vs §2 and §4",
+  "chapter": "13",
+  "quoted_clause": "Applying this chapter's ladder, the architect measures the three triggers. Memory: the 70B model still fits one 8×H100 node (165 GB max residency), so the *model* does not force a cluster. Traffic: host goodput is exceeded at ~100 rps — the binding trigger. Operational: the data privacy requirement still forbids a public hyperscale cloud.",
+  "observed": "The mini-case says it measures 'the three triggers', but the list it uses (Memory, Traffic, Operational) matches neither of the chapter's two lists: §2's ladder triggers are Memory, KV residency per GPU, Traffic, Contention/phase interference, Distance/geography; §4's three measurements are residency vs tier memory, host goodput ceiling vs demand, and communication fraction. The mini-case substitutes 'Operational' (which appears in §5's common mistakes, not in §2) and never exercises §4's third measurement, the communication fraction — even though the chapter's own escalation is to a multi-host cluster where that measurement is most relevant.",
+  "evidence": "Set comparison across §2, §4, and §8; the communication-fraction measurement (>~20% of step time on collectives) is stated in §4 and used nowhere in the chapter.",
+  "root_cause": "The mini-case was written from the chapter's conclusion (escalate to cluster, keep on-prem) rather than from the chapter's method, and the method's third measurement was dropped because it does not change the conclusion.",
+  "correction": "Either align the mini-case's list with §4's three measurements (and state the communication-fraction result for the chosen layout), or change the wording to 'the architect checks the ladder's binding triggers' and add the §2 triggers that were checked and found not to bind (KV residency per GPU, contention/phase interference, geography).",
+  "acceptance_test": "The mini-case's checklist is traceable to a numbered list in §2 or §4, and every measurement the chapter defines is either exercised in the mini-case or explicitly marked as not applicable to the scenario.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH12-03-12",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3, opening paragraph; vs §5 Common Mistakes",
+  "chapter": "12",
+  "quoted_clause": "A single 8×H100 host provides 640 GB aggregate memory (8 ×80 GB), leaving ample headroom.",
+  "observed": "'Ample headroom' is true for a single request and false for the host's actual operating point: the chapter's own canonical KV budget is 436 GB of 640 GB (~68%), and §5's common mistakes says 'at the canonical host concurrency the KV budget is 436 GB of 640 GB (~68%) — which is why KV is often the binding constraint'. The opening paragraph of the worked example therefore contradicts the chapter's own common-mistakes section.",
+  "evidence": "Re-derivation: 436/640 = 68.1% of host memory is KV budget at the canonical concurrency; 140/640 = 21.9% is weights; ~64/640 = 10% is runtime. The host is not 'ample headroom' in any operational sense.",
+  "root_cause": "The opening sentence was written for the single-request residency check and was not revisited when the chapter adopted the concurrent-host KV budget.",
+  "correction": "Replace with: 'A single 8×H100 host provides 640 GB aggregate memory (8 x 80 GB): 140 GB of weights plus a 436 GB KV budget at the canonical concurrency, leaving ~64 GB for runtime — ample for one request, but the KV budget is the host's dominant consumer.'",
+  "acceptance_test": "No statement in Ch 12 characterizes the 8xH100 host's memory as 'ample headroom' without qualifying it against the 68% KV budget.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH12-03-13",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3, Candidate (b)",
+  "chapter": "12",
+  "quoted_clause": "**Candidate (b): P/D-disaggregated two-pool.** We keep the full 70B model in both pools and split by *phase* ... Crucially, P/D disaggregation does **not** raise the per-host prefill *ceiling* ... Economics: two hosts and added fabric as a baseline, more as each pool scales; it is the right architecture *at scale*, not a two-host answer to the canonical case.",
+  "observed": "Candidate (a) receives an explicit quality paragraph ('the 70B is the workload's quality reference ... the gate is satisfied relative to the reference') and an explicit SLO paragraph ('this is the SLO gate that Ch 14 must close'). Candidate (b) receives neither, even though it also runs the full 70B and has the same open SLO gate. The asymmetry makes (b) look better-scoped than it is and leaves the reader to infer (b)'s quality and SLO status.",
+  "evidence": "Structural comparison of the three candidate paragraphs: (a) has Memory / Throughput / SLO / Quality / Economics paragraphs; (b) has Residency / Win / Ceiling / Scaling / Economics; (c) has Residency / Quality / Throughput / Provisional.",
+  "root_cause": "The candidate paragraphs were written to emphasize each candidate's distinguishing feature rather than to score every candidate against the same three gates, so the common fields are unevenly populated.",
+  "correction": "Give each candidate the same five fields (Memory, Throughput, SLO, Quality, Economics) so the reader can compare like with like, and let the distinguishing feature be an additional paragraph rather than a replacement for a missing one.",
+  "acceptance_test": "Each of the three candidates in §3 has an explicit statement of its memory, throughput, SLO, quality, and economics status against the same three gates.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH12-03-14",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3, Candidate (c), closing sentences",
+  "chapter": "12",
+  "quoted_clause": "This candidate illustrates the extreme end of the KV-quantization space: the memory footprint is trivially small and its throughput is a genuine strength ... what keeps it from being competitive is quality, the still-open Ch 14 gate.",
+  "observed": "Candidate (c) is described as illustrating the KV-quantization space, but it changes two independent variables at once: the model class (70B -> 7B) and the KV precision (FP16 -> 4-bit). The chapter's own open-questions list is about 8-bit KV, not 4-bit, and the mini-case's evaluation plan ('we compare answer quality against the 70B baseline') cannot separate a model-class effect from a KV-quantization effect. The reader is invited to read a KV-quantization result out of a two-variable change.",
+  "evidence": "The chapter's §7 bullet is 'Whether 8-bit KV caching is sufficient for 9.2K context at FP16-equivalent quality' — a different precision from candidate (c)'s 4-bit, and a different model. §6's evaluation plan for (c) names only 'the quality-degradation trade-off' without specifying which change is being measured.",
+  "root_cause": "The candidate was constructed as a combined 'smaller model + quantized KV' option for economy, and the chapter then discussed it as though it were a KV-quantization experiment.",
+  "correction": "State explicitly that candidate (c) varies two factors and that its quality result is therefore an upper bound on the acceptable degradation, not an attribution to KV quantization. Add the missing single-variable candidate (70B with 8-bit KV, which the chapter already computes at 12.06 GB) as the isolating case, or state that the isolation is deferred to Ch 14's evaluation plan.",
+  "acceptance_test": "The chapter states which variables candidate (c) changes, and the evaluation plan names the comparison that isolates each variable.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH12-03-15",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 12 §3, Candidate (b) and the memory summary",
+  "chapter": "12",
+  "quoted_clause": "at the canonical per-host KV budget (640 − 140 weights − ~64 runtime ≈ 436 GB, Ch 7/17)",
+  "observed": "The '~64 GB runtime' allowance is load-bearing for the 436 GB KV budget, the 17.5-slot figure, and every host count in Ch 12 and Ch 13, but it is never explained in this chunk: the reader is not told what it covers (CUDA context, activation workspace, NCCL/collective buffers, allocator fragmentation, sampling/logit buffers) or how it was obtained. A reader cannot sanity-check it, and it is the difference between 17 and 18 slots per host.",
+  "evidence": "Sensitivity: 436/24.9 = 17.51 slots; if the runtime allowance were 32 GB instead of 64, the budget would be 468 GB and the slot count 18.8 (floor 18), changing the canonical peak fleet from 21 to 20 hosts and the 100 rps fleet from 51 to 49.",
+  "root_cause": "The runtime allowance was imported from Ch 7/17 as a constant and never surfaced with its composition, even though it is a first-order input to the book's capacity arithmetic.",
+  "correction": "Add a one-line breakdown of the ~64 GB (e.g. 'CUDA context and kernels ~8-10 GB, activation/workspace for the largest batched prefill, NCCL buffers for TP=8, and allocator headroom') with a pointer to Ch 7/17 for the derivation, and state that it is an estimate.",
+  "acceptance_test": "The runtime allowance is itemized or explicitly labelled as an estimate with a sensitivity note, and a reader can see why the KV budget is 436 GB rather than 500 GB.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH12-06-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 12 §6 (Architecture Consequence)",
+  "chapter": "12",
+  "quoted_clause": "Candidate (b), the P/D-disaggregated two-pool, is evaluated on the added complexity of inter-group communication and the pipeline overlap efficacy ... Candidate (c), the KV-quantized 7B model, is evaluated on the quality-degradation trade-off; we compare answer quality against the 70B baseline and compute the economic break-even point (number of hosts required) against the quality loss.",
+  "observed": "Two wording problems. (1) 'inter-group communication' is not the chapter's term; the pools are the groups, and the quantity of interest is the cross-pool KV transfer (which the chapter elsewhere calls the 'KV-transfer fabric'). (2) 'compute the economic break-even point (number of hosts required) against the quality loss' conflates two different quantities: a break-even point is the host count at which two alternatives cost the same, whereas 'number of hosts required' is a capacity result and 'quality loss' is not a cost. The sentence does not specify what is being compared with what.",
+  "evidence": "Terminology drift: the chapter uses 'pool', 'two-pool', 'prefill pool', 'decode pool', 'KV-transfer fabric', and 'inter-group' for the same two entities.",
+  "root_cause": "The evaluation-plan paragraph was written as a summary of the three candidates' evaluation needs and compressed the terminology and the comparison being requested.",
+  "correction": "Write 'the added complexity of cross-pool KV transfer and the pipeline overlap efficacy', and for (c): 'we compare answer quality against the 70B baseline and compute the host count at which the smaller model's lower infrastructure cost offsets its quality loss on the evaluation set'.",
+  "acceptance_test": "One term is used for the P/D pools throughout Ch 12, and the (c) evaluation plan names the two quantities being compared and the axis of comparison.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH12-07-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 12 §7 (What We Still Don't Know), closing paragraph",
+  "chapter": "12",
+  "quoted_clause": "These flags exist because home-lab measurements do not count as reference evidence per the evidence taxonomy; each is an open empirical question a team should validate against its own target workload, not a claim the handbook has settled.",
+  "observed": "The stated reason for the flags is an evidence-policy statement (home-lab measurements are not citable), which is not why these four questions are open. Three of them (4-bit KV quality, prefix-overlap effectiveness, KV-transfer overhead) are open because no systematic characterization exists in the literature or because they are workload-dependent; the fourth (8-bit KV quality) is open for the same reason. The sentence as written implies the questions would be closed if the author had run the measurements, which conflicts with the chapter's own [HYPOTHESIS] labelling and with the 'unknown because workload-dependent' category the taxonomy provides.",
+  "evidence": "The taxonomy referenced (Ch 4, Appendix A) distinguishes [HYPOTHESIS] from [UNRESOLVED] and from [ASSUMPTION]; the closing sentence collapses them into an evidence-provenance explanation.",
+  "root_cause": "A note about the author's own citation policy was placed where a note about the epistemic status of the four questions belonged.",
+  "correction": "Replace with a statement of the four questions' status: 'Each of these is open because the answer is workload-dependent or because no systematic characterization exists — not because the handbook lacks a measurement. A team should validate them against its own target workload before relying on them.'",
+  "acceptance_test": "The closing paragraph of §7 classifies each open question by why it is open, consistent with the book's evidence taxonomy, and does not imply that the author's own measurements would settle them.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH13-08-03",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 13 §8 (mini-case), closing sentence",
+  "chapter": "13",
+  "quoted_clause": "The result, with the 74-host headroom fleet (78 hosts at the Table 17-1 policy): p95 TTFT back under 1.8 s at 100 rps [ILLUSTRATIVE SCENARIO RESULT], on site, without hyperscale",
+  "observed": "The sentence names two different fleet sizes (74 and 78) in a parenthetical without saying which one the stated result corresponds to, and the result itself is asserted rather than derived from the chapter's method. A reader cannot tell whether 'p95 TTFT back under 1.8 s' is the outcome at 74 hosts or at 78.",
+  "evidence": "The chapter's own arithmetic: 74 hosts x 1.977 rps = 146 rps capacity; 78 hosts x 1.977 = 154 rps; both are far above the 100 rps average, so both would give a similar TTFT — which is exactly why the ambiguity is harmless numerically but confusing rhetorically.",
+  "root_cause": "The mini-case reports two sizing policies because the chapter discusses both, and the closing sentence was written to carry both without selecting one.",
+  "correction": "Pick one fleet for the scenario result (the Table 17-1 policy fleet, 78 hosts, since that is the chapter's recommended policy) and state the other as the alternative: 'with the 78-host Table 17-1 policy fleet (74 hosts on the u-only screen), p95 TTFT returns under 1.8 s at 100 rps'. Add the one-line derivation of the TTFT outcome (per-host load 100/78 = 1.28 rps against a 1.98 rps ceiling -> negligible queueing; prefill of 9.2K tokens at 19,780 tok/s = ~0.47 s) so the result is derived rather than asserted.",
+  "acceptance_test": "The mini-case names one fleet for its result and shows the arithmetic that produces the stated TTFT.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH13-01-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 13, Table 13-1",
+  "chapter": "13",
+  "quoted_clause": "| Local / edge | 1 | n/a (memory-bound) | 7-13B dense | low (on-device) | on-device/offline/connectivity (data residency → on-prem server or cluster tier) | ... | Cluster | tens-hundreds | InfiniBand/Eth | any that needs splitting | depends | model > node, or traffic > host goodput |",
+  "observed": "Two cell-level defects. (1) The Local/edge 'Model range' cell says '7-13B dense' with no precision qualifier, while §1 requires the qualifier ('up to ~7-13B at tight context, assuming 8-bit/4-bit weight quantization — 13B FP16 = 26 GB exceeds many edge GPUs'). A reader reading only the table will believe 13B FP16 fits an edge GPU. (2) The Cluster 'Model range' cell says 'any that needs splitting', which contradicts the chapter's own canonical placement: the canonical cluster is 21 hosts of *replicas* of a 70B that fits a node and needs no splitting. The 'When to use' cell ('model > node, or traffic > host goodput') is correct; the 'Model range' cell contradicts it.",
+  "evidence": "Internal comparison: §1's Server tier is described as 'the canonical enterprise-Q&A tier and the book's 8xH100 baseline', and §3 places the canonical workload's deployment in a cluster by traffic, not by splitting. 13B x 2 bytes = 26 GB, which §1 itself flags as exceeding many edge GPUs.",
+  "root_cause": "The table was drafted from the tier definitions rather than from the chapter's worked example, and the precision qualifier that §1 carries was not carried into the table.",
+  "correction": "Change the Local/edge model range to '7-13B dense (8/4-bit weights)' and the Cluster model range to 'any (split only if the model exceeds node memory)'. Add a footnote to the table pointing to §3 for the canonical placement.",
+  "acceptance_test": "Every model-range cell in Table 13-1 carries the precision assumption it depends on, and the Cluster row does not imply that a cluster requires weight splitting.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ }
+]

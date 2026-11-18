@@ -2,7 +2,7 @@
 
 > **Snapshot: 2026-08-30 technical evidence snapshot, compiled from the first-party technical reports and model cards listed in A.10 (First-hand Sources), with separately dated 2026-09-27 and 2026-10-28 addenda.** The body of this handbook works through durable mechanisms — tokens, memory floors, rooflines, parallelism, KV arithmetic — that do not change; this appendix reads the 2026 frontier (DeepSeek-V4, Kimi K3, Qwen3.8-Flash-Next, GLM-5.3-Flash) as one signal about where those mechanisms are heading, and every mechanism below maps back to a chapter. The four-family comparison and the First-hand Sources list reflect nothing released after 2026-08-30; reverify vendor claims against the cited first-party sources before any procurement or deployment decision, and once more immediately before publication. Dated service-status corrections live with the post-snapshot notes below. This is a framework walkthrough on a changing frontier, **not** a current model leaderboard.
 
-**Three registers, read separately (operationally separable).** The appendix mixes three kinds of statement on three different clocks; keep them apart when checking currency, and re-verify only the serving-status row on release day:
+**Four registers, read separately (operationally separable).** The appendix mixes four kinds of statement on four different clocks; keep them apart when checking currency, and re-verify only the serving-status row on release day:
 
 | Register | What it holds | As-of date | Currency |
 |---|---|---|---|
@@ -30,7 +30,7 @@ Four 2026 frontier open models we surveyed converge on a **second-order architec
 
 *Definition of "active" (what counts in the activated-parameter numerator, and what it does **not** mean).* Here "active" (equivalently "activated") means the parameters that participate in the forward pass for a given token: the routed experts dispatched for that token, the shared/always-on experts, and the attention and embedding/head parameters that run for every token. It is **not** the same as any of these: (a) **resident** parameters — the full expert + attention + embedding fabric that must be held in memory (or sharded/offloaded), which is the total-parameter count, not the active count; (b) per-token **FLOPs**, since activation count is not a proxy for compute cost under softmax-routing and layered dispatch; (c) KV or attention-state **sparsity**, which is a different quantity (see the GQA/MLA discussion in Ch 7); and (d) **achievable serving speed** — a low active fraction does **not** translate proportionally into a faster served rate, because total-weight residency, expert routing/traffic, and attention cost still dominate. The four families use different expert counts, dispatch schemes, and embedding splits (Qwen's N-gram embedding table and MTP module are excluded from both the numerator and the denominator below — see the Fig A.1 note — so the Qwen figure is a backbone-only ratio, not a fraction of the deployed parameter inventory; the table is offloadable), so the active fractions below are comparable only *after* this definition is fixed; the numbers are not a drop-in cross-model ranking of serving cost. (Here "active" contrasts total vs activated parameters — see the model/MoE discussion in Ch 3 and the GQA/MHA KV discussion in Ch 7.) [1P]
 
-_Frontier MoE sparsity in 2026. Kimi K3 is the extreme case: 2.8 T total / 104 B active (~3.7% active); DeepSeek-V4-Flash 284 B/13 B (~4.6%); GLM-5.3-Flash 320 B/18 B (~5.6%); Qwen3.8-Flash-Next 125 B/6 B (~4.8% — *backbone-only ratio*: the denominator is the 125 B backbone; the separate 51 B n-gram embedding and 4 B MTP modules are excluded from both numerator and denominator, so this is a *backbone* fraction, not a fraction of the complete deployed parameter inventory). Active-parameter fraction in each of these four frontier MoE families is in the single digits — the anchor for the Ch10 expert-parallelism serving calculus. [1P] arXiv:2606.19348; arXiv:2607.24653; HF Qwen/Qwen3.8-Flash-Next; HF zai-org/GLM-5.3-Flash_
+_Frontier MoE sparsity in 2026. Within this four-family set Kimi K3 is the extreme case: 2.8 T total / 104 B active (~3.7% active), with DeepSeek-V4-Pro 1.6 T total / 49 B active (~3.1%) the next most sparse; DeepSeek-V4-Flash 284 B/13 B (~4.6%); GLM-5.3-Flash 320 B/18 B (~5.6%); Qwen3.8-Flash-Next 125 B/6 B (~4.8% — *backbone-only ratio*: the denominator is the 125 B backbone; the separate 51 B n-gram embedding and 4 B MTP modules are excluded from both numerator and denominator, so this is a *backbone* fraction, not a fraction of the complete deployed parameter inventory). Active-parameter fraction in each of these four frontier MoE families is in the single digits — the anchor for the Ch10 expert-parallelism serving calculus. [1P] arXiv:2606.19348; arXiv:2607.24653; HF Qwen/Qwen3.8-Flash-Next; HF zai-org/GLM-5.3-Flash_
 
 Three **efficiency levers** the 2026 frontier families pulled (items 1-2 in all four entries; item 3 is reported unevenly across the surveyed families and is a capability lever, not an efficiency one):
 
@@ -120,7 +120,7 @@ A recurring error — easy to fall into after reading four new model cards — i
 | Agent harness / tool use | Real-world task completion |
 | Multimodal architecture | New modalities |
 
-**A frequently underestimated layer is the one the model card almost never shows: post-training.** Two models with broadly similar architectures and pre-training can end up materially different when one went through mediocre post-training and the other excellent. The recipe — the same families every lab now runs — is what carries much of the qualitative gap:
+**A frequently underestimated layer is the one the model card almost never shows: post-training.** Two models with broadly similar architectures and pre-training can end up materially different when one went through mediocre post-training and the other excellent. The recipe — the same broad families most frontier labs now run, scoped to the families surveyed here — is what carries much of the qualitative gap:
 
 - RLVR / reinforcement learning for reasoning
 - synthetic reasoning data
@@ -144,7 +144,7 @@ This chain is the spine of this handbook — from a single model's tokens (Ch1�
 
 The most useful lens for an AI Solution Architect in 2026 is not "which attention mechanism does the model card list?" but *where the intelligence and the compute budget should be placed*:
 
-![Fig A.4 — Where should intelligence live? The horizontal bands are a **design choice** (which layer owns which capability), not a ranking of superiority: a lower band is not "better" or "worse" than a higher one, and the boundaries shift with the workload, the trust model, and the cost/latency budget. Read each band as "what we put here and why," not "what is best here." The upward arrow marks the historical direction of capability migration (from the weights outward to the fleet), not a ranking: it is not a preference ordering and a higher band is not a better one. [ILLUSTRATIVE] conceptual placement map](figures/fig-27-2702.png)
+![Fig A.4 — Where should intelligence live? The horizontal bands are a **design choice** (which layer owns which capability), not a ranking of superiority: a lower band is not "better" or "worse" than a higher one, and the boundaries shift with the workload, the trust model, and the cost/latency budget. Read each band as "what we put here and why," not "what is best here." The upward arrow marks the historical direction of capability migration (from the weights outward to the fleet), not a ranking: it is not a preference ordering and a higher band is not a better one. [ILLUSTRATIVE] conceptual placement map. The build-time post-training band is drawn on the system-side (blue) ramp because post-training runs before serving — build-time: outside this book's serving scope — and is covered in Ch19/Ch21 rather than in the serving chapters.](figures/fig-27-2702.png)
 
 The placement ladder. Every placement layer that can carry intelligence is a place the architect may choose to push capability or cost; this book gives the arithmetic and decision framework for each (Ch3/7/8 weights & attention, Ch10 MoE routing, Ch19/21 post-training, Ch8/20 test-time, Ch19/24 tools, Ch17–20 runtime, Ch18/20 fleet). [ILLUSTRATIVE] conceptual
 
@@ -160,6 +160,74 @@ Every placement layer maps to chapters in this book:
 - **Across a fleet of specialized models** — Ch18 Operating Multiple Models, Ch20 Fleet-Level Optimization
 
 Deciding where intelligence lives — rather than which attention variant a model card lists — is the actual job of an AI Solution Architect. The frontier of 2026 makes that explicit: DeepSeek-V4-Flash vs Qwen3.8-Flash-Next vs a fleet of specialized agents on a 2×DGX cluster are no longer merely *model* choices; they are *placement-of-intelligence* choices whose economics this handbook's chapters give the tools to evaluate.
+
+## 9A. Alternative inference in detail (moved from Ch 3) {.unnumbered}
+
+The paper-by-paper treatment behind Ch 3 §1’s alternative-inference scope note. Citations are unchanged.
+
+### From corruption to learned generation
+
+A diffusion model learns to reverse a specified corruption process. In a continuous denoising diffusion model, the forward process progressively adds noise to data. Training constructs corrupted examples and teaches a model to predict information needed for the reverse process, such as the added noise ([Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239)). At generation time, sampling starts from a simple prior and repeatedly applies learned reverse updates. The forward process is not an inference pipeline that first corrupts the requested answer: the answer is not available during generation. The forward process defines the learning problem. [1P][FACT]
+
+Score-based formulations express related dynamics through the score, the gradient of the log density of perturbed data ([Score-Based Generative Modeling through Stochastic Differential Equations](https://arxiv.org/abs/2011.13456)). The associated reverse-time stochastic differential equation and probability-flow ordinary differential equation provide different sampling trajectories. In the ideal formulation they can share time-marginal distributions; this does not make their finite-step numerical errors, randomness or network-evaluation counts identical. A deterministic solver can still require many sequential evaluations. [1P][FACT]
+
+Text requires a discrete construction because token IDs are categories, not continuous pixel values. Discrete diffusion defines corruption through transitions between categorical states. Uniform token replacement and an absorbing MASK state are different choices ([Structured Denoising Diffusion Models in Discrete State-Spaces](https://arxiv.org/abs/2107.03006)). In masked diffusion, training hides selected tokens and learns to recover them from the visible sequence. MDLM ([Simple and Effective Masked Diffusion Language Models](https://arxiv.org/abs/2406.07524)) and LLaDA ([Large Language Diffusion Models](https://arxiv.org/abs/2502.09992), [generation code](https://github.com/ML-GSAI/LLaDA)) connect this procedure to diffusion likelihood objectives; it is not merely a fixed-rate masked-language-model loss with a new name. LLaDA samples mask rates and weights the masked-token loss accordingly. Its conditional fine-tuning leaves the prompt clean while corrupting the response. This teaches the reverse model to reconstruct an answer conditioned on a known request. [1P][FACT]
+
+Flow matching belongs next to this discussion, but not inside a synonym list. It regresses a vector field on a chosen probability path ([Flow Matching for Generative Modeling](https://arxiv.org/abs/2210.02747)); the family of paths can include diffusion paths and can extend beyond them. Rectified flow uses straight interpolants to learn transport and can iteratively rectify the coupling ([Flow Straight and Fast](https://arxiv.org/abs/2209.03003)). Straight training interpolants do not guarantee that any trained model has perfectly straight generation trajectories or equal-quality one-step sampling. The shared systems question is repeated model evaluation along a path. The objectives and samplers remain distinct. [1P][FACT]
+
+### A language-generation trajectory
+
+A basic masked language sampler allocates an output canvas containing unresolved positions. Each evaluation predicts token distributions using the current canvas and the prompt. The sampler accepts some predictions and leaves other positions unresolved. A confidence policy may accept several positions at once, so generation need not advance strictly left to right. In the inspected LLaDA base sampler (observation 2026-10-28), already accepted token IDs are retained; remasking low-confidence candidates does not mean that every accepted token is repeatedly edited. The configured output capacity and evaluation schedule still determine work even when later display logic removes an EOS suffix. [1P][FACT]
+
+Parallel predictions are not free joint reasoning. Several position-wise predictions from one canvas evaluation are conditioned on the old canvas, not necessarily on one another's newly sampled values. Individually plausible tokens can form an implausible combination. Confidence thresholds, extra rounds and verification can improve this tradeoff, but they change the amount of work and may change task quality. A lower iteration count is therefore not a quality-neutral implementation improvement by default. [1P][FACT]
+
+The inference loop is also not an agent loop. An agent turn may invoke a model, inspect a tool result and decide its next action. A diffusion round updates an internal output state. An autoregressive model with a long chain of thought remains autoregressive. A diffusion draft model can also propose blocks for an autoregressive verifier, as in [DFlash](https://arxiv.org/abs/2602.06036); that combination does not turn the verifier's target distribution into a fully diffusion-based language model. [1P][FACT]
+
+### State reuse follows dependency boundaries
+
+The ordinary causal-cache argument depends on a fixed prefix. Later output tokens cannot change an earlier token's causal hidden state. Under bidirectional attention, an unchanged token ID can acquire a different representation when another canvas position changes. Its previous K/V tensors can therefore be stale even though its spelling is unchanged. Approximate cache policies exploit empirical stability, delayed caching or selective refresh; those policies require quality and refresh-cost measurements. [Fast-dLLM](https://arxiv.org/abs/2505.22618) and [dKV-Cache](https://arxiv.org/abs/2505.15781) are concrete examples, not proof that ordinary autoregressive caching transfers unchanged. [1P][FACT]
+
+A block-causal model creates a stronger boundary. Earlier finalized blocks cannot depend on later blocks, while the active block can use bidirectional attention internally ([Block Diffusion](https://arxiv.org/abs/2503.09573)). The runtime can reuse correctly finalized prefix state and repeatedly recompute the active block. Finalization must make cached state correspond to the accepted block contents; accepting token IDs alone is not always enough. DiffusionGemma ([model card](https://huggingface.co/google/diffusiongemma-26B-A4B-it), [Google release post](https://blog.google/innovation-and-ai/technology/developers-tools/diffusion-gemma-faster-text-generation/)) uses a related separation between cached encoded context and a mutable decoder canvas, then encodes the completed canvas before continuing. These are architectural boundaries, not a universal property of the word "diffusion." [1P][FACT]
+
+Not every language diffusion process starts from MASK or only fills holes. Uniform-state renoising can begin with ordinary token states. Editing models can replace accepted tokens or perform insertion/deletion operations within a bounded block. LLaDA2.2 ([paper](https://arxiv.org/abs/2602.08676), [checkpoint](https://huggingface.co/inclusionAI/LLaDA2.2-flash)) restores its configured block length after such operations; this is not an unbounded global canvas. A stopping rule may test unresolved positions, stability, confidence, EOS or an iteration limit. These are operational termination rules, not proofs of semantic correctness. [1P][FACT]
+
+The architectural consequence is conditional, and it is the reason Ch 3 §1 only scopes this material, with the paper-by-paper treatment collected here as durable background rather than in a serving chapter. Parallel positions can improve matrix utilization at low request concurrency, but repeated evaluation can increase total compute and communications. Block size changes both parallel work and the delay before commitment. A useful deployment comparison therefore fixes the task-quality requirement first, then measures the inference schedule, peak state and committed-output latency together. The token remains the application interface; the execution trace connects that interface to resources. [DERIVED]
+
+### Noise-stage expert selection (Wan2.2 A14B)
+
+If both expert checkpoints remain on GPU, both occupy weight memory even though only one expert runs in a branch evaluation. Explicit offload changes that placement: it introduces a weight-transfer operation and may lengthen the transition or interfere with other transfers. It does not change the model into a smaller checkpoint. The two noise stages also do not imply equal numbers of scheduler timesteps. [1P][FACT]
+
+### Deriving attention FLOPs for a whole-clip video workload (Wan2.2 TI2V-5B)
+
+The same derive-then-decide move applies to a workload that evaluates all of its token positions together rather than one per step: the budget below is derived from counted dimensions, not from a duration label. This example applies the Ch 8 §1 principle (fewer sequential evaluations ≠ less total work) to a whole-clip denoiser, where 50 timesteps × 2 CFG branches = 100 evaluations each process all 27,280 tokens simultaneously.
+
+A worked example makes the new work unit concrete. We use Wan2.2 TI2V-5B in its text-to-video path, not the A14B expert model. Its configuration specifies a dense transformer with hidden width 3,072, 30 layers, and 24 attention heads. The VAE has 48 latent channels and temporal/spatial strides of 4, 16, and 16. The denoiser patches the latent video by `(1,2,2)`. The release's "720P" example is precisely 1,280 × 704 pixels, 121 frames, at 24 frames/s. The dimensions, rather than the marketing resolution label, determine the budget. [1P][FACT] ([Wan2.2 TI2V-5B configuration](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_ti2v_5B.py), pinned revision `1ea34ff`, retrieved 2026-10-28; [Diffusers transformer config](https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers/blob/main/transformer/config.json)).
+
+Fig 8.3 in Ch 8 shows the data path. The prompt passes through UMT5-XXL. An optional image follows a separate reference-conditioning path. The T2V calculation below does not add that I2V branch to its state budget. Initial noise spans the entire latent video. Each scheduler step calls the denoiser on this representation; VAE decoding follows the final update. [1P][FACT] ([sampling loop](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py), pinned revision `1ea34ff`, retrieved 2026-10-28).
+
+**Geometry: from pixels to tokens.** For this aligned shape, the temporal latent count includes the first-frame convention:
+
+$$T_l=\left\lfloor\frac{F-1}{4}\right\rfloor+1=31, \qquad H_l=704/16=44, \qquad W_l=1280/16=80.$$
+
+There are 109,120 latent spatial-temporal cells, each with 48 channels. Patching reduces the number of transformer positions:
+
+$$N=T_l\frac{H_l}{2}\frac{W_l}{2}=31\times22\times40=27{,}280.$$
+
+Channels contribute features to each token; they do not multiply the token count. Sequence-parallel implementations may pad this length to a device-partition multiple. Conditioning tokens and condition tensors require separate accounting. [1P][DERIVED] ([sampling loop](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py)).
+
+**Attention FLOPs per evaluation.** For batch size one, full noncausal attention with hidden width $d$ requires approximately
+
+$$C_{\mathrm{attention,layer}}=4N^2d$$
+
+FLOP for the two matrix products $QK^T$ and $AV$, counting a multiply-add as two FLOP. This excludes projections, MLPs, normalization, softmax, text cross-attention, and the decoder. Wan's inspected default sets `causal=False` and `window_size=(-1,-1)` (inspected upstream revision `1ea34ff`, retrieved 2026-10-28: [attention module](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/modules/attention.py); [model geometry](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/modules/model.py)). A triangular autoregressive reduction does not apply. [1P][FACT] attention mode; [1P][DERIVED] arithmetic.
+
+**Total trajectory work.** At this shape the attention core requires 9,144,709,939,200 FLOP per layer, or about 9.145 TFLOP. Across 30 layers it requires about 274.341 TFLOP per branch evaluation. The inspected upstream loop evaluates conditional and unconditional predictions separately at each of its 50 default scheduler timesteps (same pinned revision `1ea34ff`). That is 100 single-sample branch evaluations, giving about 27.434 PFLOP of attention-core work over the trajectory. This is not the whole model's FLOP count and is not a GPU execution time. A runtime may batch the two branches into one forward call without removing their two-sample arithmetic. [1P][DERIVED] ([configuration](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_ti2v_5B.py); [sampling loop](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py)).
+
+**Memory boundary.** The memory calculation has an equally important boundary. One hypothetical BF16 hidden tensor contains $N\times d\times2=167{,}608{,}320$ bytes. Materializing one BF16 score tensor for 24 heads would require $24\times N^2\times2=35{,}721{,}523{,}200$ bytes, or about 33.268 GiB. This is a hypothetical implementation choice, not a claim that FlashAttention allocates such a tensor. Tiled exact attention avoids retaining the full score matrix while still performing the pairwise work. The upstream code creates initial latent noise in FP32, so assigning BF16 to every live tensor would also undercount state. [1P][DERIVED] ([attention module](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/modules/attention.py); [sampling loop](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py)).
+
+**Sensitivity.** This explains the architectural consequence. Extending 121 to 241 frames changes the temporal latent count from 31 to 61. Token count rises by about 1.968×; the dense pairwise term rises by about 3.872×. Doubling both spatial dimensions gives four times the tokens and sixteen times the pairwise work. These are algebraic sensitivities, not claims that either larger workload meets the release's quality or memory envelope. A request limit expressed only in clip-seconds misses this distinction. [1P][DERIVED]
+
+At 24 frames/s, 121 frames also exposes a measurement convention. The final frame's timestamp is 5 seconds after the first. A constant-frame-duration container spans $121/24$, or about 5.0417 seconds. A service contract needs one convention. "Five-second clip," "121 frames," and "27,280 transformer tokens (patch positions)" describe related but different quantities. [DERIVED]
 
 ## Post-snapshot technology notes — 2026-10-28 {.unnumbered}
 
@@ -363,7 +431,7 @@ Public weights do not remove rights or safety obligations. Wan's inspected relea
 
 [^oct-ix-42]: First-party source retrieved 2026-10-28: [A-S87].
 
-[^oct-ix-47]: First-party source retrieved 2026-10-28: <https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html>.
+[^oct-ix-47]: First-party source retrieved 2026-10-28: [A-S88]. <https://docs.habana.ai/en/latest/API_Reference_Guides/HCCL_APIs/index.html>
 
 [^oct-ix-49]: First-party source retrieved 2026-10-28: [A-S89].
 
@@ -371,7 +439,7 @@ Public weights do not remove rights or safety obligations. Wan's inspected relea
 
 [^oct-ix-54]: First-party source retrieved 2026-10-28: [A-S91].
 
-[^oct-ix-55]: First-party source retrieved 2026-10-28: <https://docs.habana.ai/en/latest/PyTorch/PyTorch_Model_Porting/Porting_PyTorch_Models_to_Gaudi.html>.
+[^oct-ix-55]: First-party source retrieved 2026-10-28: [A-S92]. <https://docs.habana.ai/en/latest/PyTorch/PyTorch_Model_Porting/Porting_PyTorch_Models_to_Gaudi.html>
 
 [^oct-ix-56]: First-party source retrieved 2026-10-28: [A-S93].
 
@@ -384,74 +452,6 @@ Public weights do not remove rights or safety obligations. Wan's inspected relea
 [^oct-ix-67]: First-party source retrieved 2026-10-28: [A-S97].
 
 [^oct-ix-71]: First-party source retrieved 2026-10-28: [A-S98].
-
-## 7A. Alternative inference in detail (moved from Ch 3) {.unnumbered}
-
-The paper-by-paper treatment behind Ch 3 §1’s alternative-inference scope note. Citations are unchanged.
-
-### From corruption to learned generation
-
-A diffusion model learns to reverse a specified corruption process. In a continuous denoising diffusion model, the forward process progressively adds noise to data. Training constructs corrupted examples and teaches a model to predict information needed for the reverse process, such as the added noise ([Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239)). At generation time, sampling starts from a simple prior and repeatedly applies learned reverse updates. The forward process is not an inference pipeline that first corrupts the requested answer: the answer is not available during generation. The forward process defines the learning problem. [1P][FACT]
-
-Score-based formulations express related dynamics through the score, the gradient of the log density of perturbed data ([Score-Based Generative Modeling through Stochastic Differential Equations](https://arxiv.org/abs/2011.13456)). The associated reverse-time stochastic differential equation and probability-flow ordinary differential equation provide different sampling trajectories. In the ideal formulation they can share time-marginal distributions; this does not make their finite-step numerical errors, randomness or network-evaluation counts identical. A deterministic solver can still require many sequential evaluations. [1P][FACT]
-
-Text requires a discrete construction because token IDs are categories, not continuous pixel values. Discrete diffusion defines corruption through transitions between categorical states. Uniform token replacement and an absorbing MASK state are different choices ([Structured Denoising Diffusion Models in Discrete State-Spaces](https://arxiv.org/abs/2107.03006)). In masked diffusion, training hides selected tokens and learns to recover them from the visible sequence. MDLM ([Simple and Effective Masked Diffusion Language Models](https://arxiv.org/abs/2406.07524)) and LLaDA ([Large Language Diffusion Models](https://arxiv.org/abs/2502.09992), [generation code](https://github.com/ML-GSAI/LLaDA)) connect this procedure to diffusion likelihood objectives; it is not merely a fixed-rate masked-language-model loss with a new name. LLaDA samples mask rates and weights the masked-token loss accordingly. Its conditional fine-tuning leaves the prompt clean while corrupting the response. This teaches the reverse model to reconstruct an answer conditioned on a known request. [1P][FACT]
-
-Flow matching belongs next to this discussion, but not inside a synonym list. It regresses a vector field on a chosen probability path ([Flow Matching for Generative Modeling](https://arxiv.org/abs/2210.02747)); the family of paths can include diffusion paths and can extend beyond them. Rectified flow uses straight interpolants to learn transport and can iteratively rectify the coupling ([Flow Straight and Fast](https://arxiv.org/abs/2209.03003)). Straight training interpolants do not guarantee that any trained model has perfectly straight generation trajectories or equal-quality one-step sampling. The shared systems question is repeated model evaluation along a path. The objectives and samplers remain distinct. [1P][FACT]
-
-### A language-generation trajectory
-
-A basic masked language sampler allocates an output canvas containing unresolved positions. Each evaluation predicts token distributions using the current canvas and the prompt. The sampler accepts some predictions and leaves other positions unresolved. A confidence policy may accept several positions at once, so generation need not advance strictly left to right. In the inspected LLaDA base sampler (observation 2026-10-28), already accepted token IDs are retained; remasking low-confidence candidates does not mean that every accepted token is repeatedly edited. The configured output capacity and evaluation schedule still determine work even when later display logic removes an EOS suffix. [1P][FACT]
-
-Parallel predictions are not free joint reasoning. Several position-wise predictions from one canvas evaluation are conditioned on the old canvas, not necessarily on one another's newly sampled values. Individually plausible tokens can form an implausible combination. Confidence thresholds, extra rounds and verification can improve this tradeoff, but they change the amount of work and may change task quality. A lower iteration count is therefore not a quality-neutral implementation improvement by default. [1P][FACT]
-
-The inference loop is also not an agent loop. An agent turn may invoke a model, inspect a tool result and decide its next action. A diffusion round updates an internal output state. An autoregressive model with a long chain of thought remains autoregressive. A diffusion draft model can also propose blocks for an autoregressive verifier, as in [DFlash](https://arxiv.org/abs/2602.06036); that combination does not turn the verifier's target distribution into a fully diffusion-based language model. [1P][FACT]
-
-### State reuse follows dependency boundaries
-
-The ordinary causal-cache argument depends on a fixed prefix. Later output tokens cannot change an earlier token's causal hidden state. Under bidirectional attention, an unchanged token ID can acquire a different representation when another canvas position changes. Its previous K/V tensors can therefore be stale even though its spelling is unchanged. Approximate cache policies exploit empirical stability, delayed caching or selective refresh; those policies require quality and refresh-cost measurements. [Fast-dLLM](https://arxiv.org/abs/2505.22618) and [dKV-Cache](https://arxiv.org/abs/2505.15781) are concrete examples, not proof that ordinary autoregressive caching transfers unchanged. [1P][FACT]
-
-A block-causal model creates a stronger boundary. Earlier finalized blocks cannot depend on later blocks, while the active block can use bidirectional attention internally ([Block Diffusion](https://arxiv.org/abs/2503.09573)). The runtime can reuse correctly finalized prefix state and repeatedly recompute the active block. Finalization must make cached state correspond to the accepted block contents; accepting token IDs alone is not always enough. DiffusionGemma ([model card](https://huggingface.co/google/diffusiongemma-26B-A4B-it), [Google release post](https://blog.google/innovation-and-ai/technology/developers-tools/diffusion-gemma-faster-text-generation/)) uses a related separation between cached encoded context and a mutable decoder canvas, then encodes the completed canvas before continuing. These are architectural boundaries, not a universal property of the word "diffusion." [1P][FACT]
-
-Not every language diffusion process starts from MASK or only fills holes. Uniform-state renoising can begin with ordinary token states. Editing models can replace accepted tokens or perform insertion/deletion operations within a bounded block. LLaDA2.2 ([paper](https://arxiv.org/abs/2602.08676), [checkpoint](https://huggingface.co/inclusionAI/LLaDA2.2-flash)) restores its configured block length after such operations; this is not an unbounded global canvas. A stopping rule may test unresolved positions, stability, confidence, EOS or an iteration limit. These are operational termination rules, not proofs of semantic correctness. [1P][FACT]
-
-The architectural consequence is conditional, and it is the reason Ch 3 §1 only scopes this material, with the paper-by-paper treatment collected here as durable background rather than in a serving chapter. Parallel positions can improve matrix utilization at low request concurrency, but repeated evaluation can increase total compute and communications. Block size changes both parallel work and the delay before commitment. A useful deployment comparison therefore fixes the task-quality requirement first, then measures the inference schedule, peak state and committed-output latency together. The token remains the application interface; the execution trace connects that interface to resources. [DERIVED]
-
-### Noise-stage expert selection (Wan2.2 A14B)
-
-If both expert checkpoints remain on GPU, both occupy weight memory even though only one expert runs in a branch evaluation. Explicit offload changes that placement: it introduces a weight-transfer operation and may lengthen the transition or interfere with other transfers. It does not change the model into a smaller checkpoint. The two noise stages also do not imply equal numbers of scheduler timesteps. [1P][FACT]
-
-### Deriving attention FLOPs for a whole-clip video workload (Wan2.2 TI2V-5B)
-
-The same derive-then-decide move applies to a workload that evaluates all of its token positions together rather than one per step: the budget below is derived from counted dimensions, not from a duration label. This example applies the Ch 8 §1 principle (fewer sequential evaluations ≠ less total work) to a whole-clip denoiser, where 50 timesteps × 2 CFG branches = 100 evaluations each process all 27,280 tokens simultaneously.
-
-A worked example makes the new work unit concrete. We use Wan2.2 TI2V-5B in its text-to-video path, not the A14B expert model. Its configuration specifies a dense transformer with hidden width 3,072, 30 layers, and 24 attention heads. The VAE has 48 latent channels and temporal/spatial strides of 4, 16, and 16. The denoiser patches the latent video by `(1,2,2)`. The release's "720P" example is precisely 1,280 × 704 pixels, 121 frames, at 24 frames/s. The dimensions, rather than the marketing resolution label, determine the budget. [1P][FACT] ([Wan2.2 TI2V-5B configuration](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_ti2v_5B.py), pinned revision `1ea34ff`, retrieved 2026-10-28; [Diffusers transformer config](https://huggingface.co/Wan-AI/Wan2.2-TI2V-5B-Diffusers/blob/main/transformer/config.json)).
-
-Fig 8.3 in Ch 8 shows the data path. The prompt passes through UMT5-XXL. An optional image follows a separate reference-conditioning path. The T2V calculation below does not add that I2V branch to its state budget. Initial noise spans the entire latent video. Each scheduler step calls the denoiser on this representation; VAE decoding follows the final update. [1P][FACT] ([sampling loop](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py), pinned revision `1ea34ff`, retrieved 2026-10-28).
-
-**Geometry: from pixels to tokens.** For this aligned shape, the temporal latent count includes the first-frame convention:
-
-$$T_l=\left\lfloor\frac{F-1}{4}\right\rfloor+1=31, \qquad H_l=704/16=44, \qquad W_l=1280/16=80.$$
-
-There are 109,120 latent spatial-temporal cells, each with 48 channels. Patching reduces the number of transformer positions:
-
-$$N=T_l\frac{H_l}{2}\frac{W_l}{2}=31\times22\times40=27{,}280.$$
-
-Channels contribute features to each token; they do not multiply the token count. Sequence-parallel implementations may pad this length to a device-partition multiple. Conditioning tokens and condition tensors require separate accounting. [1P][DERIVED] ([sampling loop](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py)).
-
-**Attention FLOPs per evaluation.** For batch size one, full noncausal attention with hidden width $d$ requires approximately
-
-$$C_{\mathrm{attention,layer}}=4N^2d$$
-
-FLOP for the two matrix products $QK^T$ and $AV$, counting a multiply-add as two FLOP. This excludes projections, MLPs, normalization, softmax, text cross-attention, and the decoder. Wan's inspected default sets `causal=False` and `window_size=(-1,-1)` (inspected upstream revision `1ea34ff`, retrieved 2026-10-28: [attention module](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/modules/attention.py); [model geometry](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/modules/model.py)). A triangular autoregressive reduction does not apply. [1P][FACT] attention mode; [1P][DERIVED] arithmetic.
-
-**Total trajectory work.** At this shape the attention core requires 9,144,709,939,200 FLOP per layer, or about 9.145 TFLOP. Across 30 layers it requires about 274.341 TFLOP per branch evaluation. The inspected upstream loop evaluates conditional and unconditional predictions separately at each of its 50 default scheduler timesteps (same pinned revision `1ea34ff`). That is 100 single-sample branch evaluations, giving about 27.434 PFLOP of attention-core work over the trajectory. This is not the whole model's FLOP count and is not a GPU execution time. A runtime may batch the two branches into one forward call without removing their two-sample arithmetic. [1P][DERIVED] ([configuration](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_ti2v_5B.py); [sampling loop](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py)).
-
-**Memory boundary.** The memory calculation has an equally important boundary. One hypothetical BF16 hidden tensor contains $N\times d\times2=167{,}608{,}320$ bytes. Materializing one BF16 score tensor for 24 heads would require $24\times N^2\times2=35{,}721{,}523{,}200$ bytes, or about 33.268 GiB. This is a hypothetical implementation choice, not a claim that FlashAttention allocates such a tensor. Tiled exact attention avoids retaining the full score matrix while still performing the pairwise work. The upstream code creates initial latent noise in FP32, so assigning BF16 to every live tensor would also undercount state. [1P][DERIVED] ([attention module](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/modules/attention.py); [sampling loop](https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/textimage2video.py)).
-
-**Sensitivity.** This explains the architectural consequence. Extending 121 to 241 frames changes the temporal latent count from 31 to 61. Token count rises by about 1.968×; the dense pairwise term rises by about 3.872×. Doubling both spatial dimensions gives four times the tokens and sixteen times the pairwise work. These are algebraic sensitivities, not claims that either larger workload meets the release's quality or memory envelope. A request limit expressed only in clip-seconds misses this distinction. [1P][DERIVED]
-
-At 24 frames/s, 121 frames also exposes a measurement convention. The final frame's timestamp is 5 seconds after the first. A constant-frame-duration container spans $121/24$, or about 5.0417 seconds. A service contract needs one convention. "Five-second clip," "121 frames," and "27,280 transformer tokens (patch positions)" describe related but different quantities. [DERIVED]
 
 ## 10. First-hand Sources (all [1P])
 

@@ -79,7 +79,7 @@ for i, (q, a) in enumerate(stages):
 ax.add_patch(FancyBboxPatch((1.7, 1.13), 6.6, 1.15, boxstyle='round,pad=0.02', fc='#4e7a42', ec='#3d5a2f'))
 ax.text(5, 1.86, 'Quantified bounds: TTFT / throughput / cost', ha='center', va='center',
         color='white', fontsize=8.5, fontweight='bold')
-ax.text(5, 1.43, 'decisions enabled: KV FP16\u2192FP8 + prefix cache + routing', ha='center', va='center',
+ax.text(5, 1.43, 'decisions: KV FP16\u2192FP8 + prefix cache + routing', ha='center', va='center',
         color='white', fontsize=8.5)
 ax.annotate('', xy=(5, 2.30), xytext=(5, 3.18),
             arrowprops=dict(arrowstyle='-|>', lw=1.6, color='#3d5a2f', mutation_scale=13))

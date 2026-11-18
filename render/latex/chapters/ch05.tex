@@ -259,11 +259,13 @@ The decision hinges on whether the top‑of‑range \textasciitilde15\% MAP
 gain (a \mbox{{[}HYPOTHESIS{]}} scenario input, and a within‑family /
 controlled‑dimension upper bound that cannot be assumed to transfer
 across model families --- §5.3(a)) translates into sufficient
-answer‑quality improvement to justify the \textasciitilde4.8×FLOP cost
-(14.08 vs 2.94 GFLOP per 64‑token query, Table 5‑1). The same bar that
-rules out bge‑large applies here: the mpnet‑vs‑MiniLM quality gap must
-be measured on the target corpus before the \textasciitilde4.8× FLOP
-cost is paid --- a workload‑specific tradeoff, not a universal rule.
+answer‑quality improvement to justify the \textasciitilde7.7× body-only
+FLOP cost (\textasciitilde4.8× on total parameters; 14.08 vs 2.94 GFLOP
+per 64‑token query, which understate the ratio). The same bar that rules
+out bge‑large applies here: the mpnet‑vs‑MiniLM quality gap must be
+measured on the target corpus before the \textasciitilde7.7× body-only
+FLOP cost is paid --- a workload‑specific tradeoff, not a universal
+rule.
 
 \textbf{Takeaway for the canonical RAG workload:} 768‑dim
 (all‑mpnet‑base‑v2) is the recommended embedding model. It balances
@@ -315,10 +317,13 @@ scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Output tokens per dollar (single‑stream decode, 50 tok/s) & 9,000 output
 tokens per dollar & 50 tok/s × 3600 s/hr ÷ \$20/hr
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-Total tokens per dollar (prefill + decode, stated concurrency) &
-\textasciitilde285,000 tokens per dollar at 300 output tokens/request &
-50 × (1 + 9,200/300) ≈ 1,583 tok/s × 3600 ÷ \$20
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+Total tokens per dollar (single-stream decode + overlapped prefill; not
+the 10 rps fleet point) & \textasciitilde285,000 tokens per dollar at
+300 output tokens/request & 50 × (1 + 9,200/300) ≈ 1,583 tok/s × 3600 ÷
+\$20 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+Total tokens per dollar (serial single-stream floor, no overlap) &
+\textasciitilde242,000 tokens per dollar & 9,500/7.08 ≈ 1,342 tok/s ×
+3600 ÷ \$20 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Selection status & recommended, pending target-corpus validation &
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Verdict & Embedding: all‑mpnet‑base‑v2 (768‑dim); Generation: 70B FP16
@@ -550,12 +555,13 @@ does not change the live weight footprint. Consequently the latency
 effect of fine‑tuning is not ``smaller effective model'' and cannot be
 assumed to cut TTFT; any TTFT change must be measured. The monetary
 deltas are (a) one-time training cost and (b) incremental storage;
-separately, the latency effect on TTFT must be measured --- the RAG
-pipeline's \textasciitilde1.08 s prefill dominates any plausible TTFT
-delta. Parametrically, fine‑tuning becomes worth it only when its total
-(one-time training + storage/carry) cost spread over \(Q\) queries is
-repaid by \(\Delta Q \cdot \text{value}\) --- this is exactly the
-\(Q^*\) above.
+separately, the latency effect on TTFT must be measured: the RAG
+pipeline's \textasciitilde1.08 s prefill is the baseline TTFT term, and
+any change from a shorter or absent retrieved context must be measured
+and can be material. Parametrically, fine‑tuning becomes worth it only
+when its total (one-time training + storage/carry) cost spread over
+\(Q\) queries is repaid by \(\Delta Q \cdot \text{value}\) --- this is
+exactly the \(Q^*\) above.
 
 \textbf{Takeaway:} For the canonical enterprise Q\&A RAG workload, the
 base‑model + RAG + guardrails paradigm is the default under this
@@ -661,7 +667,7 @@ the intended serving SLO.\footnote{Inspected first-party engine sources
   storage, and per‑query latency, so the architect must balance these
   against the workload's quality requirements rather than treat
   dimension as a cost‑free or universally-better knob (see the caveat in
-  §5.3(a); section references §N.M read as chapter N, section M).
+  §5.3(a)).
 \item
   \textbf{Over‑engineering the fine‑tuning path.} Fine‑tuning adds
   training compute and model/checkpoint‑management cost; depending on
@@ -719,7 +725,8 @@ characterized with reproducible benchmarks. Some inspected embedding
 models use 768 dimensions; this is not a general quality optimum and
 must be validated on the target corpus. The quality difference between
 768 and 1024 dim varies by corpus genre (legal vs.~engineering
-vs.~creative), and no public study quantifies this domain‑dependence.
+vs.~creative), and we are not aware of a public study that quantifies
+this 768‑vs‑1024 domain‑dependence.
 
 \mbox{{[}HYPOTHESIS{]}}~: the break‑even point between RAG + guardrails and
 fine‑tuned models as a function of query volume and domain
@@ -801,8 +808,11 @@ residency: at \textasciitilde94 GB resident it is 46 GB \emph{below} the
 dense 70B's 140 GB. The dense 70B stands only as the provisional choice,
 because equal‑task quality, placement and measured goodput for the
 challenger remain \mbox{{[}UNRESOLVED{]}}, and expert dispatch/placement is the
-added cost), served on 8×H100 with vLLM continuous batching. Under the
-illustrative quality assumptions, no fine‑tuning is selected at this
+added cost), served on 8×H100 with vLLM continuous batching (a per-host
+placement statement, not a fleet size: one host is memory-sane but
+compute-oversubscribed at the 10 rps design point --- the \hyperref[chap:8]{Chapter 8}
+prefill screen needs \textasciitilde5 hosts, \textasciitilde4.7×). Under
+the illustrative quality assumptions, no fine‑tuning is selected at this
 scale; validate the quality gap before ruling it out. The architecture
 decision record (to be written in \hyperref[chap:25]{Chapter 25}) will reference this
 characterization and the selection surfaces that drove it.
@@ -811,8 +821,8 @@ characterization and the selection surfaces that drove it.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision. The five surfaces are the model-selection dimensions; they are deliberately distinct from the end-to-end evaluation gates (retrieval quality, reranking, embedding recall, grounding, and final answer quality) that a RAG system must also pass --- those gates are measured on the target corpus and are not shown here because this figure is a selection map, not an evaluation pipeline. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-05-0501.pdf}}
-\caption[Model selection for RAG]{Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision. The five surfaces are the \emph{model-selection} dimensions; they are deliberately distinct from the \textbf{end-to-end evaluation gates} (retrieval quality, reranking, embedding recall, grounding, and final answer quality) that a RAG system must also pass --- those gates are measured on the target corpus and are not shown here because this figure is a selection map, not an evaluation pipeline. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision. The first four surfaces are model-selection dimensions; the fifth, retrieve‑vs‑generate, is a system split rather than a model choice. All five are deliberately distinct from the end-to-end evaluation gates (retrieval quality, reranking, embedding recall, grounding, and final answer quality) that a RAG system must also pass --- those gates are measured on the target corpus and are not shown here because this figure is a selection map, not an evaluation pipeline. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-05-0501.pdf}}
+\caption[Model selection for RAG]{Model selection for RAG: workload → five selection surfaces → two legs (retrieval/embedding, generation/70B) → the system decision. The first four surfaces are \emph{model-selection} dimensions; the fifth, retrieve‑vs‑generate, is a system split rather than a model choice. All five are deliberately distinct from the \textbf{end-to-end evaluation gates} (retrieval quality, reranking, embedding recall, grounding, and final answer quality) that a RAG system must also pass --- those gates are measured on the target corpus and are not shown here because this figure is a selection map, not an evaluation pipeline. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:5.1}\end{figure}
 

@@ -1,0 +1,206 @@
+```json
+[
+  {
+    "id": "FIG-3.4-01",
+    "page": 68,
+    "printed_page": 48,
+    "figure": "FIGURE 3.4 (Dense vs MoE parameter allocation and KV cache behavior)",
+    "severity": "P1",
+    "issue": "The figure's per-token weight-traffic line and the caption state the same quantity with different units and different values, and the caption's decomposition understates the expert traffic by 2x. Figure reads: 'per token: top-2 = 11.4 GB (2 x 5.78) / + 1.4 GB always-on = 12.8 GB / ~ 25.6 GB'. Caption reads: 'only ~12.8 GB is active per token: the always-on attention/shared weights (~1.4 GB) plus the two routed experts (11.4 GB)'. Three mutually inconsistent readings are available to the reader: 12.8 GB (caption), 24.2 GB (if 11.4 GB/expert and 1.4 GB always-on are literal), or 25.6 GB (figure's last line). The figure's own chain only closes if the first two numbers are billions of PARAMETERS (11.56 + 1.4 = 12.96 B params, x2 bytes = 25.9 GB) rather than GB; the 'GB' labels on those two lines are therefore wrong. Separately, the caption's 'two routed experts (11.4 GB)' is the size of ONE expert (5.78B params x 2 B = 11.56 GB); two experts are 22.8-23.1 GB, as the figure's own legend states ('active experts = 23 GB resident (2 x 11.4)').",
+    "evidence": "Re-derivation from the figure's own stated inputs: 1 expert = 5.78B params x 2 B/param = 11.56 GB (figure prints 11.4 GB). Top-2 = 23.1 GB. Always-on per token = 1.4 GB (figure) or 1.4B params = 2.8 GB (if the '12.8' chain is in B params). Per-token active weight traffic is therefore 24.2 GB or 25.9 GB, never 12.8 GB. The figure's '~ 25.6 GB' is the only value consistent with a B-params reading of the chain, but it is unlabeled and unreconciled with the caption. The caption's '~12.8 GB' is a unit slip (12.8 B params) that directly contradicts the figure's '~ 25.6 GB' on the same page. This is the figure whose entire purpose is a quantitative dense-vs-MoE contrast, and the number an architect would carry away (per-token weight traffic, which sets decode bandwidth demand) is ambiguous by a factor of two.",
+    "acceptance_test": "Pick one unit convention and apply it to every line of the figure and the caption. Recommended: state per-token active weight traffic in GB only, e.g. 'per token: top-2 experts 23.1 GB (2 x 11.56) + always-on 1.4 GB = 24.5 GB' (or whatever the always-on figure resolves to), and delete the '~ 25.6 GB' line or label it explicitly with what it represents. The caption must then quote the same number as the figure. If '~ 25.6 GB' was intended as a comparison to a different model (e.g. the ~12.8B-active challenger at FP16), label it with that model's name. A reviewer recomputing 2 x 5.78B x 2 B/param + always-on from the figure's own printed inputs must land on the same number the caption prints."
+  },
+  {
+    "id": "FIG-3.4-02",
+    "page": 68,
+    "printed_page": 48,
+    "figure": "FIGURE 3.4",
+    "severity": "P2",
+    "issue": "The expert size is stated two mutually inconsistent ways: '1 expert = 5.78B params = 11.4 GB (FP16)'. 5.78B params x 2 bytes/param = 11.56 GB, not 11.4 GB. The legend's 'inactive experts = 68 GB (6 x 11.4)' and 'active experts = 23 GB resident (2 x 11.4)' are consistent with 11.4 GB/expert (= 5.7B params), while the '5.78B' figure is not. The 1.4% discrepancy propagates into the per-token line ('2 x 5.78') and into the caption's '11.4 GB'.",
+    "evidence": "8 x 11.4 GB = 91.2 GB ~ '91 GB experts' (consistent). 8 x 5.78B x 2 B = 92.5 GB, which does not equal the printed 91 GB. 8 x 5.7B x 2 B = 91.2 GB, which does. The internally consistent parameter set is 5.7B/expert, not 5.78B.",
+    "acceptance_test": "Either change '5.78B params' to '5.7B params' (or print 11.56 GB), or change '11.4 GB' to '11.56 GB' and re-derive the legend's 68/23/91/94 GB figures. All four of '1 expert = ...', 'inactive = 68 GB', 'active = 23 GB', 'experts = 91 GB' must be mutually consistent to within the printed rounding."
+  },
+  {
+    "id": "FIG-3.4-03",
+    "page": 68,
+    "printed_page": 48,
+    "figure": "FIGURE 3.4",
+    "severity": "P2",
+    "issue": "The MoE grid contains nine cells but only eight are labeled (E1-E8); the ninth cell (bottom-right) is blank white and is not represented in the legend. The legend defines exactly three swatches (blue = all 140 GB resident & active; gray = inactive experts; orange = active experts). A reader cannot tell whether the blank cell is the always-on/shared-weight block (3 GB), an empty slot, or a rendering artifact. Since the figure's headline claim is 'MoE total resident = 94 GB = 91 GB experts + 3 GB always-on', the always-on block is exactly the quantity the blank cell appears to stand for, and it is the one element left undecoded.",
+    "evidence": "Visual inspection of the rendered page: the MoE grid is 3 rows x 3 columns; cells E1-E8 are filled (E1 and E4 orange, E2/E3/E5/E6/E7/E8 gray); the ninth cell is empty with no border fill and no label. No legend entry corresponds to it.",
+    "acceptance_test": "Either label the ninth cell (e.g. 'shared/always-on 3 GB') and add a legend swatch for it, or remove it so the grid is 3x2 + a separate labeled always-on block. A reader must be able to account for all 94 GB from the drawn elements without doing arithmetic the figure does not show."
+  },
+  {
+    "id": "FIG-3.4-04",
+    "page": 68,
+    "printed_page": 48,
+    "figure": "FIGURE 3.4",
+    "severity": "P2",
+    "issue": "The two grids encode different things and are not proportional, so the visual comparison the figure invites is wrong. The dense panel draws 20 identical unlabeled squares; the MoE panel draws 8 named expert cells plus one blank. Area ratio 20:9 = 2.2x, while the parameter/residency ratio the figure states is 140 GB : 94 GB = 1.49x. The caption's caveat 'not shown to scale' is attached only to the MoE, leaving the dense grid apparently to scale. A reader glancing at the picture will conclude the dense model is roughly twice the MoE, which is not what the numbers say. The dense squares are also unlabeled, so the reader cannot tell what a square represents (layers? blocks? parameter groups?), while the MoE cells are explicitly experts.",
+    "evidence": "Visual inspection: dense grid = 4 rows x 5 columns of blue squares; MoE grid = 3 rows x 3 columns of expert cells. Caption: 'An 8-expert MoE keeps full expert set as resident weights - ~94 GB, not shown to scale'. The 'not shown to scale' qualifier does not cover the dense grid, and the two grids use different cell semantics (generic chunk vs named expert).",
+    "acceptance_test": "Make the encoding explicit and consistent: either (a) state in the figure that cells are schematic and non-proportional, applying the caveat to BOTH panels, or (b) make the cell areas proportional to bytes (e.g. 140 GB vs 94 GB drawn to scale) and label what one cell represents in each panel. A reader should not be able to infer a parameter ratio from the drawn areas that contradicts the printed 140 GB / 94 GB."
+  },
+  {
+    "id": "FIG-3.4-05",
+    "page": 68,
+    "printed_page": 48,
+    "figure": "FIGURE 3.4 (caption)",
+    "severity": "P2",
+    "issue": "The caption parenthetical appears to read '(~10^7)' in the clause 'the active-expert fraction (~10^7) vs ~27B'. The exponent is not legible at 150 dpi and, more importantly, no quantity in the figure or caption corresponds to 10^7. The sentence is a list of three differences (weight residency, active-expert fraction, attention shape) between the dense/MoE pair and the challenger; the active-parameter fraction of the MoE is 12.8B of ~47B = ~0.27, and of the challenger ~14B of ~27B = ~0.52. Neither is 10^7. As printed, the clause is uninterpretable and appears to be a corrupted number.",
+    "evidence": "Rendered-page inspection: the parenthetical is a base-10 numeral with a superscript that cannot be resolved at print size; no quantity in FIG 3.4 has that magnitude (the smallest printed quantity is 1.4 GB). The caption's own later paragraph gives the active quantities (12.8 B params for the MoE; ~14B active of ~27B for the challenger), neither of which matches.",
+    "acceptance_test": "Replace the parenthetical with an explicit, legible quantity and value, e.g. 'the active-parameter fraction (~0.27 of the MoE's ~47B vs ~0.52 of the challenger's ~27B)'. The value must be recomputable from the numbers printed elsewhere in the same caption."
+  },
+  {
+    "id": "FIG-3.4-06",
+    "page": 68,
+    "printed_page": 48,
+    "figure": "FIGURE 3.4",
+    "severity": "P3",
+    "issue": "The term 'always-on' is used for two different quantities on the same figure without distinction: 'MoE total resident = 94 GB = 91 GB experts + 3 GB always-on' and 'per token: ... + 1.4 GB always-on'. The caption explains the 1.4 GB as 'the always-on attention/shared weights', i.e. a subset of the 3 GB, but the figure gives no hint that the per-token figure is a subset rather than the same quantity. A reader may reasonably ask why the always-on block shrinks from 3 GB to 1.4 GB per token, and the figure gives no answer (the likely answer - embeddings and lm_head are resident but not fully read per token - is exactly the kind of distinction the book should make explicit).",
+    "evidence": "Figure text: 'MoE total resident = 94 GB = 91 GB experts + 3 GB always-on' vs 'per token: top-2 = ... + 1.4 GB always-on = ...'. Caption: 'the always-on attention/shared weights (~1.4 GB)'.",
+    "acceptance_test": "Rename the two quantities distinctly in the figure (e.g. 'always-on resident 3 GB (incl. embeddings + lm_head)' vs 'always-on read per token 1.4 GB (attention + shared)'), or add a one-line note stating why the per-token read is smaller than the resident footprint."
+  },
+  {
+    "id": "FIG-3.4-07",
+    "page": 68,
+    "printed_page": 48,
+    "figure": "FIGURE 3.4 (caption)",
+    "severity": "P3",
+    "issue": "The caption sentence 'A dense 70B activates all 70B parameters per token (resident weights + 140 GB, KV grows linearly with context)' is garbled: 'resident weights + 140 GB' reads as a sum of two things when 140 GB IS the resident weight footprint. Separately, the figure never states the dense per-token weight traffic (140 GB/token) as a number, so the headline contrast of the figure - dense reads 140 GB of weights per token while the MoE reads roughly 25 GB - is left for the reader to assemble, and the caption's '12.8 GB' (see FIG-3.4-01) actively misleads in that assembly.",
+    "evidence": "Caption text as rendered; figure legend states 'all 140 GB resident & active' but no per-token dense figure is printed.",
+    "acceptance_test": "Rewrite as 'A dense 70B reads all 140 GB of weights per token (all 70B parameters resident and active)'. Add the dense per-token traffic as an explicit number in the figure so the dense-vs-MoE ratio is visible without arithmetic."
+  },
+  {
+    "id": "FIG-3.2-01",
+    "page": 54,
+    "printed_page": 34,
+    "figure": "FIGURE 3.2 (panel B)",
+    "severity": "P2",
+    "issue": "The caption claims a property the drawing does not show. Caption: 'a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional prefixes'. Panel B's middle canvas shows positions 1, 2 and 3 accepted in order (A, B, C) with position 4 still '?', i.e. strictly in-order acceptance. The distinguishing feature of full-canvas masked sampling - that a later position may be committed before an earlier one - is never depicted, so the figure cannot support the caption's claim. A reader who takes the picture as evidence would conclude that masked diffusion accepts tokens left to right, which is the autoregressive behavior the figure is contrasting against.",
+    "evidence": "Rendered panel B: canvas 1 = [?][?][?][?]; canvas 2 = [A][B][C][?] with a dashed orange bracket over A,B,C; canvas 3 = [A][B][C][D]. No canvas shows a gap in the accepted prefix.",
+    "acceptance_test": "Either change the middle canvas to show out-of-order acceptance (e.g. [?][B][?][?] -> [A][B][C][?]) or amend the caption to describe what is drawn ('accepts selected positions, recomputing the bidirectional prefix each evaluation'). The caption's claim must be visible in the drawing."
+  },
+  {
+    "id": "FIG-3.2-02",
+    "page": 54,
+    "printed_page": 34,
+    "figure": "FIGURE 3.2 (panel B, final canvas)",
+    "severity": "P2",
+    "issue": "Panel B's final canvas marks A, B, C, D with the same solid-blue brackets that the caption defines as 'finalized prefix state' - the marking the book elsewhere uses to signal reusable, cacheable prefix state. The caption's own point for this panel is the opposite: 'Full bidirectional forwards: fixed IDs can still acquire new KV.' As drawn, the reader can conclude that a full-canvas masked sampler ends with a stable, reusable prefix, which is precisely the misconception the caption is trying to prevent. The figure and the caption are in tension on the single most consequential property of the panel.",
+    "evidence": "Caption key: 'Solid brackets mark finalized prefix state, not just accepted IDs' and 'accepted token IDs alone do not establish reusable KV'. Panel B's final canvas uses solid blue brackets on all four cells, identical to panel A's finalized prefix. The caption's warning that fixed IDs can still acquire new KV applies to the sampling process, which the figure's terminal canvas does not distinguish from panel A's terminal canvas.",
+    "acceptance_test": "Make the distinction visible: either use a distinct marking for panel B's terminal canvas (e.g. a note 'KV not reusable: full-canvas recompute') or add a caption clause stating explicitly that the terminal canvas in panel B is a completed sample, not a reusable prefix, and that the reusable-prefix marking is deliberately absent. A reader must not be able to carry away 'masked diffusion yields a reusable prefix' from the drawing."
+  },
+  {
+    "id": "FIG-3.2-03",
+    "page": 54,
+    "printed_page": 34,
+    "figure": "FIGURE 3.2 (caption key)",
+    "severity": "P3",
+    "issue": "The figure uses three cell states (solid-blue finalized cell, '?' undetermined cell, '-' not-yet cell) and two bracket styles (solid blue, dashed orange), but the caption's key defines only the solid blue ('Solid brackets mark finalized prefix state'). The dashed orange bracket - which carries the panel's main point about recomputation and repeated evaluations - is never defined; the reader must infer it from the 'repeat evaluations' annotation. The '-' glyph is also used with two slightly different senses (panel A: not yet generated; panel C: position not yet in scope because it belongs to a future block), and neither sense is stated.",
+    "evidence": "Caption text: 'Solid brackets mark finalized prefix state, not just accepted IDs' and 'Loops represent repeated evaluations, not fixed counts or proportional time.' No clause defines the dashed orange bracket or the '-' cell.",
+    "acceptance_test": "Extend the caption's key to three lines: solid blue bracket = finalized prefix state (reusable); dashed orange bracket = accepted but not finalized / recomputed region; '?' = undetermined position in scope; '-' = position not yet in scope. Each glyph must be decodable from the caption alone."
+  },
+  {
+    "id": "FIG-3.2-04",
+    "page": 54,
+    "printed_page": 34,
+    "figure": "FIGURE 3.2 (panel C)",
+    "severity": "P3",
+    "issue": "Panel C is titled 'Block-causal diffusion: refine, commit, advance' and the caption says it 'finalizes an active block before advancing' and that 'A valid block-causal boundary prevents later blocks changing it', but the drawing contains no visible block boundary. The canvas is a single row of four cells with no separator, bracket, or shading distinguishing the active block from future blocks, so the defining property of block-causal sampling - that a committed block is immutable and later blocks cannot revise it - is not readable from the picture. The reader sees a four-cell canvas that differs from panel B only in the placement of '?' and '-'.",
+    "evidence": "Rendered panel C: 'causal prefix' -> [?][?][-][-] -> [A][B][?][?] (dashed orange over A,B) -> [A][B][C][D]. No block delimiter is drawn between cells 2 and 3 or elsewhere.",
+    "acceptance_test": "Draw the block boundary explicitly (a vertical rule or a bracketed group between the committed block and the pending block) and show the pending block being refined while the committed block is drawn as immutable. A reader must be able to state what the block boundary is from the drawing alone."
+  },
+  {
+    "id": "FIG-3.1-01",
+    "page": 53,
+    "printed_page": 33,
+    "figure": "FIGURE 3.1 (panel A)",
+    "severity": "P2",
+    "issue": "Panel A is headed 'Continuous diffusion (schematic state values; bars = token probabilities)'. Labeling the bars as token probabilities inside the continuous-diffusion lane invites the reader to conclude that continuous diffusion operates over a categorical token distribution - i.e. that the continuous lane is just a differently-drawn discrete diffusion. The caption draws exactly the opposite distinction ('a continuous-noise lane and a categorical-MASK lane'), and the prose above the figure says 'Forward: q, add corruption', which is a continuous-state operation. The figure's own label undercuts the distinction the figure exists to make.",
+    "evidence": "Panel A header text as rendered: 'A Continuous diffusion (schematic state values; bars = token probabilities)'. Panel B header: 'B Masked discrete diffusion (one categorical choice)'. Caption: '...in a continuous-noise lane and a categorical-MASK lane.'",
+    "acceptance_test": "Relabel panel A's bars so the state type is unambiguous, e.g. 'schematic continuous state (shown as a categorical readout for illustration)' or 'schematic state values (not a token distribution)'. The reader must not be able to conclude that continuous diffusion is defined over token probabilities."
+  },
+  {
+    "id": "FIG-3.1-02",
+    "page": 53,
+    "printed_page": 33,
+    "figure": "FIGURE 3.1 (panel A)",
+    "severity": "P3",
+    "issue": "The 'noise prior' canvas does not read as noise. Its bars are of roughly the same varying heights as the 'clean continuous data' canvas, so the visual progression clean -> partly corrupted -> noise prior is carried entirely by the captions under the boxes rather than by the drawing. In a continuous diffusion the forward process drives the marginal toward a broad, near-uniform distribution; showing that flattening would make the corruption direction self-evident and would let the picture do the work the labels currently do.",
+    "evidence": "Rendered panel A: the third canvas's bar heights are comparable in spread to the first canvas's; no flattening toward uniform is visible.",
+    "acceptance_test": "Make the third canvas visibly flatter (near-uniform bars) and, if desired, the second intermediate, so that a reader who ignores the labels still reads 'progressive corruption toward a prior'. Verify at print size that the flattening is visible."
+  },
+  {
+    "id": "FIG-3.3-01",
+    "page": 64,
+    "printed_page": 44,
+    "figure": "FIGURE 3.3 (page layout)",
+    "severity": "P3",
+    "issue": "Printed page 44 is a figure-only page whose figure begins roughly a quarter of the way down the page, leaving a large empty band at the top and a comparable band at the bottom. The page reads as an accidental float placement rather than a designed figure page. This is the same pattern visible on printed page 97 (FIG 6.1), suggesting a systematic float-placement issue rather than a one-off.",
+    "evidence": "Rendered page 64: blank from the top margin to approximately 28% of the page height before the figure title 'Wan2.2 A14B: active != resident parameters'; the caption ends at roughly 72% of the page height.",
+    "acceptance_test": "Adjust float placement (or add a short lead-in paragraph) so the figure sits at the top of the page or the page is filled; no printed page should carry an unexplained blank band exceeding roughly 20% of the page height."
+  },
+  {
+    "id": "FIG-3.3-02",
+    "page": 64,
+    "printed_page": 44,
+    "figure": "FIGURE 3.3",
+    "severity": "P3",
+    "issue": "The two-line annotation 'Denoising schedule progresses / Not two experts within one forward' is placed in the gap between the two dashed checkpoint-to-stage arrows, where it reads as a label on those arrows rather than as a statement about the stage-to-stage transition. The black arrow from 'High-noise stage' to 'Low-noise stage' already carries the schedule-progression meaning, so the annotation is both ambiguously placed and partly redundant.",
+    "evidence": "Rendered figure: the annotation sits between the two vertical dashed blue arrows, above the horizontal black arrow.",
+    "acceptance_test": "Move the annotation so it unambiguously annotates the horizontal stage-to-stage arrow (or place it as a caption-side note), and confirm at print size that no reader can take it as an arrow label for the dashed arrows."
+  },
+  {
+    "id": "FIG-4.1-01",
+    "page": 95,
+    "printed_page": 75,
+    "figure": "FIGURE 4.1",
+    "severity": "P3",
+    "issue": "The figure's disclosure of its own main caveat is typographically weak. The caption's central claim is that the mapping is 'non-exclusive: in practice a dimension often influences several decisions at once', but the figure draws a strict one-to-one bipartite mapping with no cross-links, and the only in-figure disclosure is the small light-gray italic line 'primary mapping shown; cross-influences omitted (see caption)' at the bottom. At print size that line is the least visually prominent element on the page, so a reader who skims the figure (the normal case) receives the one-to-one message the caption explicitly disclaims.",
+    "evidence": "Rendered figure: the caveat line is set in small italic gray type, centered below the last row, with no rule, box, or color to distinguish it from a source note.",
+    "acceptance_test": "Give the caveat line at least the weight of the figure's other annotations (e.g. non-italic, darker, or set in a tinted band), or draw one representative cross-link (e.g. Latency SLO -> model size/type, which the caption itself names) so the non-exclusivity is visible in the geometry."
+  },
+  {
+    "id": "FIG-5.1-01",
+    "page": 114,
+    "printed_page": 94,
+    "figure": "FIGURE 5.1",
+    "severity": "P2",
+    "issue": "The two arrows from 'Five selection surfaces' are both labeled 'split', which asserts that the five surfaces are partitioned between the retrieval leg and the generation leg. That is not what the caption describes: the five surfaces (quality, latency, KV cache, cost per token, retrieve-vs-generate) are the criteria applied to model selection, and each leg is evaluated against all of them - latency and cost-per-token matter for the embedding model as much as for the generator. As drawn, the figure teaches a partitioning model that the caption's own framing ('the five surfaces are the model-selection dimensions') contradicts, and a reader could conclude that, for example, KV cache is only a generation-leg concern.",
+    "evidence": "Rendered figure: 'Five selection surfaces' -> two arrows, both labeled 'split' -> 'Retrieval leg' and 'Generation leg'. Caption: 'The five surfaces are the model-selection dimensions; they are deliberately distinct from the end-to-end evaluation gates...'.",
+    "acceptance_test": "Relabel the two arrows so they do not assert partition (e.g. 'applies to', 'evaluated for'), or draw the five surfaces feeding both legs with a shared bracket. The figure must not imply that any surface applies to only one leg."
+  },
+  {
+    "id": "FIG-5.1-02",
+    "page": 114,
+    "printed_page": 94,
+    "figure": "FIGURE 5.1",
+    "severity": "P3",
+    "issue": "The abbreviation 'S/tok' in the 'Five selection surfaces' box is ambiguous and undefined on the page: 'S' can plausibly mean seconds (a latency measure, which would duplicate the adjacent 'latency' surface) or dollars (a cost measure, which would duplicate the workload box's 'cost'). The reader cannot resolve it from the figure or the caption, and the two readings point to different architectural decisions.",
+    "evidence": "Rendered box text: 'quality . latency . KV cache . S/tok . retrieve-vs-generate'. The caption lists the surfaces only by name ('the five surfaces are the model-selection dimensions') without expanding 'S/tok'.",
+    "acceptance_test": "Spell the surface out in the figure (e.g. '$/token' or 's/token'), or define it in the caption's first sentence. If it is a cost surface, the caption should say so, since 'cost' appears separately in the workload box."
+  },
+  {
+    "id": "FIG-5.1-03",
+    "page": 114,
+    "printed_page": 94,
+    "figure": "FIGURE 5.1",
+    "severity": "P3",
+    "issue": "The terminal box reads 'base + RAG + quadrals'. 'Quadrals' is not a standard term and is not defined on the inspected pages. If it denotes the four evaluation gates the caption enumerates (retrieval quality, embedding recall, grounding, final answer quality), then the figure contradicts the caption's explicit statement that those gates 'are not shown here because this figure is a selection map, not an evaluation pipeline'. If it denotes something else, the reader has no way to know what.",
+    "evidence": "Rendered box text: 'RAG system decision / base + RAG + quadrals'. Caption: '...those gates are measured on the target corpus and are not shown here because this figure is a selection map, not an evaluation pipeline.'",
+    "acceptance_test": "Either replace 'quadrals' with the term the chapter actually uses for that comparison, or define it in one clause in the caption. If it denotes the four gates, remove it from the figure or amend the caption's 'not shown here' clause so the two do not conflict."
+  },
+  {
+    "id": "FIG-6.1-01",
+    "page": 117,
+    "printed_page": 97,
+    "figure": "FIGURE 6.1 (page layout)",
+    "severity": "P3",
+    "issue": "Printed page 97 carries FIG 6.1 alone, with roughly 25% blank space above the figure and roughly 30% below the caption. The figure is small relative to the page and the surrounding white space makes the page look unfinished rather than composed. The same top-band artifact appears on printed page 44 (see FIG-3.3-01), so this is a systematic float-placement issue.",
+    "evidence": "Rendered page 97: blank from the top margin to approximately 25% of page height before the first box; the caption ends at approximately 68% of page height.",
+    "acceptance_test": "Either enlarge the figure to use the available measure and pull it to the top of the page, or place it on a page with running text so the white space is not a full-page band. No printed page should carry an unexplained blank band exceeding roughly 20% of the page height."
+  }
+]
+```
+
+COVERAGE: PDF pages 53, 54, 64, 68, 95, 114, 116, 117 (printed pages 33, 34, 44, 48, 75, 94, 96, 97; printed offset +20, recomputed from the rendered headers on every page in this batch, not assumed). All 8 pages were inspected as rendered images at 150 dpi. 7 figures inspected: FIG 3.1 (p.53), FIG 3.2 (p.54), FIG 3.3 (p.64), FIG 3.4 (p.68), FIG 4.1 (p.95), FIG 5.1 (p.114), FIG 6.1 (p.117). PDF page 116 (printed 96) contains no figure — text only; its prose cross-references to Fig 6.1 and §6.3 were checked against the figure on the following page and are consistent. Arithmetic independently re-derived for FIG 3.4: expert size (5.78B params x 2 B = 11.56 GB vs printed 11.4 GB), resident totals (8 x 11.4 = 91.2 GB; +3 GB = 94 GB; 6 x 11.4 = 68.4 GB; 2 x 11.4 = 22.8 GB), per-token active traffic (three candidate readings: 12.8 / 24.2 / 25.9 GB), and 8-bit KV at 9.2K tokens for both attention shapes (dense 80L x 64 KV heads x 128 dim x 2 x 1 B = 1.25 MiB/token -> 11.25 GiB ~ printed 12 GB; MoE 32L x 8 KV heads x 128 dim x 2 x 1 B = 64 KiB/token -> 0.5625 GiB ~ printed 0.6 GB; ratio 20x, matching the printed 12/0.6). Grayscale distinguishability was assessed by inspection of the color renders (blue/orange/green/red/gray encodings in FIG 3.3, 3.4, 4.1, 5.1, 6.1 are separable by luminance and by direction/label, not by hue alone). NOT VERIFIED: the caption parenthetical on printed p.48 that appears to read '(~10^7)' could not be resolved at 150 dpi and its intended quantity could not be determined from the inspected pages; the definition of 'quadrals' (printed p.94) was not located on any inspected page; no grayscale-converted render was produced, so grayscale separation was judged from the color images; no source PDF text layer or manuscript source was available, so all findings are based on the rendered pages alone.

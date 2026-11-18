@@ -1,0 +1,342 @@
+[
+ {
+  "id": "CH10-AC-02",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 10, section '6. Architecture Consequence', bullet 1",
+  "chapter": "10",
+  "quoted_clause": "or PP (across nodes, low comm)",
+  "observed": "'Low comm' glosses over the two costs the chapter's own mini-case quantifies - the pipeline bubble (u = m/(m+P-1)) and per-stage activation memory ('per-stage memory cost bounds P from below'). As written, PP looks free on the communication axis, which is the opposite of the mini-case's careful treatment and could lead a reader to pick PP without budgeting the bubble.",
+  "evidence": "Mini-case: 'they choose the stage count P and micro-batch count m jointly to shrink the bubble (utilization u = m/(m+P-1); each stage also carries its own activation memory, so per-stage memory cost bounds P from below)'. The Architecture Consequence bullet contains neither cost.",
+  "root_cause": "The bullet compresses a two-axis trade-off into a single adjective.",
+  "correction": "'PP (across nodes, low communication volume, but a pipeline bubble and per-stage activation memory that bound the stage count)'.",
+  "acceptance_test": "The Architecture Consequence bullet and the mini-case use compatible descriptions of PP's costs; a reader does not have to learn PP's bubble cost only from the mini-case.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH10-AC-03",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 10, section '6. Architecture Consequence', closing paragraph (Table 10-1 reference)",
+  "chapter": "10",
+  "quoted_clause": "Table 10-1 above consolidates the five parallelization strategies; ... the table adds the specialist EP and CP rows.",
+  "observed": "CP (context parallelism) appears as a Table 10-1 row, and the chapter flags 'long-context models' as an open question, but the Architecture Consequence decision framework (memory -> TP/PP; throughput -> independent replicas; MoE -> EP) never mentions context parallelism. A reader with a long-context problem gets no guidance from the chapter's decision section, and the table promises a row the prose never uses.",
+  "evidence": "Section 6 bullets cover: model exceeds one GPU's memory (TP/PP); high throughput demand (replicas); MoE (EP); canonical answer (TP=8). No CP. Section 7 bullet 1 names 'long-context models' as an open question without pointing to CP.",
+  "root_cause": "The decision framework was written before the specialist rows (EP, CP) were added to the table, and was not updated.",
+  "correction": "Add a CP bullet (long-context workloads where the KV/activation working set, not the weights, forces a decomposition), or explicitly scope the framework to the strategies it covers and point to where CP is treated.",
+  "acceptance_test": "Every strategy row in Table 10-1 appears in the Architecture Consequence decision framework or is explicitly excluded with a stated reason.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH10-MINI-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 10, section '8. End-of-Chapter Mini-Case', paragraph 2",
+  "chapter": "10",
+  "quoted_clause": "they verify the DP gradient-sync (if fine-tuning) stays under ~20% [ILLUSTRATIVE heuristic] of step time",
+  "observed": "The chapter's own ring model makes this check unsatisfiable for the mini-case's 400B model. The check is stated as a routine verification step without noting that the configuration it describes cannot meet it, so a reader either performs an impossible check or silently ignores the chapter's own arithmetic.",
+  "evidence": "Recomputation with the chapter's formulas: 400e9 params x 4 B = 1,600 GB of FP32 gradients. Ring per-rank send = 2(N-1)/N x 1,600 GB ~ 3,200 GB for large N. At the H100 NVLink directional peak of 450 GB/s: 3,200/450 = 7.1 s per step. At 25 GB/s: 3,200/25 = 128 s per step. A 20% budget therefore requires a step time of >= 35.6 s (NVLink) or >= 640 s (25 GB/s). The mini-case's own TPOT figures (80 ms -> 38 ms) imply a step time on the order of tens of milliseconds.",
+  "root_cause": "The mini-case reuses the Ch 10 DP heuristic (a ~20% budget) without re-deriving it at the mini-case's model scale, where the gradient object is 5.7x larger than the canonical 70B.",
+  "correction": "Either state that the fine-tuning path uses sharded DP (FSDP/ZeRO) so the synchronized object is a per-shard gradient rather than a full-replica gradient, or replace the check with the sharded-DP accounting and its own numbers. If the check is retained as-is, add the sentence that it is unsatisfiable at 400B without sharding.",
+  "acceptance_test": "A reader can compute the gradient-sync time for the mini-case's model from the chapter's own formulas and can state what configuration would bring it under 20% of step time.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH10-MINI-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 10, section '8. End-of-Chapter Mini-Case', final sentence",
+  "chapter": "10",
+  "quoted_clause": "Moving the cross-node decomposition from TP to PP cuts TPOT from 80 ms to 38 ms [ILLUSTRATIVE], with ~3 ms of the residual being PP stage-boundary and bubble cost under the chosen $P$ and $m$, and the team's \"parallelism is slow\" becomes a precise, diagnosed, and fixed split.",
+  "observed": "The mini-case's stated target is 25 ms TPOT; the achieved value is 38 ms. The conclusion describes the split as 'fixed', but the SLO is still missed by 13 ms (52% over target). The mini-case ends without stating what closes that gap, or that the gap remains and is a separate problem. The arithmetic inside the mini-case is otherwise consistent (80 - 45 + 3 = 38 ms), so the defect is in the conclusion, not the computation.",
+  "evidence": "Mini-case opening: 'TPOT is measured at 80 ms against a 25 ms target [ILLUSTRATIVE]'. Final: 'cuts TPOT from 80 ms to 38 ms'. 38 ms > 25 ms target. The phrase 'fixed split' refers to the decomposition, but the sentence's subject ('the team's parallelism is slow') is the latency, which is not fixed.",
+  "root_cause": "The mini-case was written to demonstrate a correct diagnosis rather than to close the stated problem, and the closing clause was drafted to describe the diagnosis rather than the outcome.",
+  "correction": "Either close the gap with a named, mechanism-level step and its own arithmetic (larger m to shrink the bubble; EP to cut the per-layer exchange; speculative decoding to cut steps per token), or state explicitly that the diagnosis is complete and that the residual 13 ms is a separate, named optimization target with an owner and a next measurement.",
+  "acceptance_test": "The mini-case's final sentence states the achieved TPOT against the 25 ms target and does not describe a missed SLO as 'fixed'.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH10-MINI-03",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 10, section '8. End-of-Chapter Mini-Case', paragraph 2",
+  "chapter": "10",
+  "quoted_clause": "profiling the inherited configuration attributes 45 ms of the 80 ms TPOT to its cross-node per-layer all-reduce [ILLUSTRATIVE]",
+  "observed": "The attribution is ambiguous: '45 ms ... to its cross-node per-layer all-reduce' can be read as 45 ms per layer (impossible inside an 80 ms TPOT) or as the sum over layers (45 ms total). The mini-case also never states how many nodes the 800 GB of weights spans, even though it checks per-node residency against 640 GB - the node count is needed to make the residency check meaningful.",
+  "evidence": "Mini-case: 'a 400B model needs ~400e9 x 2 bytes = 800 GB ... that is ~10 x H100 for weights alone (~11 once KV/workspace is included), far beyond one node' and 'checks the sharded total resident bytes per node against the node's 640 GB HBM'. 800 GB / 640 GB per node implies >= 2 nodes, but no node count is given.",
+  "root_cause": "The mini-case compresses a per-layer measurement into a per-step total without saying so, and omits the one quantity (node count) that the residency check depends on.",
+  "correction": "'attributes 45 ms of the 80 ms TPOT to the cross-node per-layer all-reduces (summed over layers)', and state the node count (e.g. 2 nodes at 400 GB/node of weights).",
+  "acceptance_test": "The mini-case states the node count and the per-layer-versus-summed attribution unambiguously; a reader can check 800 GB against 640 GB/node without inferring the node count.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH10-MINI-04",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 10, section '8. End-of-Chapter Mini-Case', paragraph 1",
+  "chapter": "10",
+  "quoted_clause": "a 400B model needs ~`400e9 ×2 bytes = 800 GB` even before KV",
+  "observed": "An arithmetic expression is set in monospace code font inside running prose, inconsistent with the book's math typesetting elsewhere in the same chapter (display equations with \\times, subscripts, and \\approx).",
+  "evidence": "The same chapter sets '70 \\times 10^9 \\times 4 \\text{ B} \\approx 280 \\text{ GB}' as display math and '490 / 25 \\approx 19.6 s' as inline code in the same section - so the inconsistency is internal to one section.",
+  "root_cause": "Drafting artifact from a code-oriented note that was pasted into prose without conversion.",
+  "correction": "Set as inline math: 400 \\times 10^9 \\times 2\\,\\text{B} = 800\\,\\text{GB}.",
+  "acceptance_test": "No arithmetic expression in the book is set in code font; inline code is reserved for identifiers, paths, and configuration tokens.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH10-WDWK-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 10, section '7. What We Still Don't Know', bullets 1 and 2",
+  "chapter": "10",
+  "quoted_clause": "**Optimal split for very large MoE or long-context models** is workload- and interconnect-dependent; ... **How should EP sizing and all-to-all communication be budgeted for frontier MoE models at extreme sparsity?**",
+  "observed": "The two bullets answer the same question (how to size EP / the split for large MoE), and the second bullet is roughly 70% established fact with citations rather than uncertainty - only its final sentence is an open question. The section's purpose is to isolate what is genuinely unknown; a long expository bullet dilutes that.",
+  "evidence": "Bullet 2 contains three [1P] citations (Kimi K3, Qwen3.8-Flash-Next, DeepSeek/TileLang) and a long parenthetical before reaching 'The activated-vs-total residency crossover at current interconnect bandwidths is unmeasured [UNRESOLVED].' Bullet 1 already covers 'optimal split for very large MoE'.",
+  "root_cause": "Two related unknowns were written as two bullets, and the evidence supporting the second was moved into the uncertainty section rather than into the body.",
+  "correction": "Merge the two bullets into one, keep the cited frontier-model facts as a short lead-in (or move them into the body where the EP decision is discussed), and state the unknown sharply: the activated-vs-total residency crossover at current interconnect bandwidths.",
+  "acceptance_test": "No two bullets in 'What We Still Don't Know' answer the same question, and each bullet's non-uncertain content is bounded to a couple of sentences.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH11-SRC-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 11, section '1. Concept', source-key block (immediately after the four-item mechanism list)",
+  "chapter": "11",
+  "quoted_clause": "**Source keys [S1]-[S6].** The bracketed keys used throughout this book (and in the evidence taxonomy of the Sources, Method, and Reproducibility chapter) point to the primary sources below.",
+  "observed": "The manuscript uses at least two distinct citation systems. Ch 10 cites with numbered footnotes ([^oct-ccl-meg], [^oct-ccl-ring], [^oct-ccl-ep], [^oct-ccl-fsdp], [^oct-ix-t4b]) and inline provenance keys ([1P: arXiv 2607.24653], [1P: HF Qwen/Qwen3.8-Flash-Next], [1P: arXiv 2606.19348]); Ch 11 introduces [S1]-[S6] and asserts they are 'used throughout this book'. As written the claim is false for the material visible in Ch 10, and a reader who follows the instruction to look up '[S3]' in Ch 10 finds nothing. The block is also placed inside the Concept section, interrupting the argument it follows.",
+  "evidence": "Ch 10's 'What We Still Don't Know' bullet 2 cites three papers inline with [1P: ...] keys and no [S#] key; Ch 10's footnotes are numbered and implementation-scoped. Ch 11's four-item mechanism list uses [S1][1P] ... [S4][1P]. No [S#] key appears anywhere in the Ch 10 material visible here.",
+  "root_cause": "A chapter-local source list was written with a book-wide claim attached, without an inventory of how the rest of the manuscript actually cites.",
+  "correction": "Either (a) restate the scope accurately - '[S1]-[S6] are the primary sources for the serving mechanisms in this chapter; implementation observations and one-off papers are cited by numbered footnote and inline [1P: ...] key' - and define the boundary between the two systems, or (b) convert the paper citations in Ch 10 to the [S#] scheme. Separately, consider moving the block into a boxed sidebar or the Sources chapter so the Concept section is not interrupted by a six-entry list.",
+  "acceptance_test": "Every [S#] key used anywhere in the book resolves to exactly one entry in the source list, and the sentence describing the key system matches actual usage in at least three chapters.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH11-CON-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 11, chapter opener and section '1. Concept' (four-item list) vs the source-key block entries [S5] and [S6]",
+  "chapter": "11",
+  "quoted_clause": "Serving is a small set of composable mechanisms - continuous batching, paged/blocked KV cache, prefix caching, and prefill/decode disaggregation - that turn a static in-memory model into a live multi-request system. ... Serving is a small set of mechanisms, invented roughly in order:",
+  "observed": "The chapter's own source list defines [S5] (DFlash, a speculative-decoding system) and [S6] (vLLM FP8-KV, KV-cache quantization), neither of which appears in the four-mechanism enumeration that the opener and section 1 both present as the book's framing for serving. The chapter therefore opens by promising a four-mechanism model of serving and then supplies primary sources for at least two further mechanisms. (Caveat: this chunk is truncated mid-section 3, so the later sections may well cover them - but the framing sentence is already on the page and is the reader's map.)",
+  "evidence": "Source list: '[S5] DFlash - Chen et al., ... Speculative-decoding system reporting >6x lossless acceleration'; '[S6] vLLM FP8-KV blog - The State of FP8 KV-Cache and Attention Quantization in vLLM'. Neither appears in the four-item list in the opener or in section 1.",
+  "root_cause": "The chapter's framing sentence was written before the mechanism inventory was complete, and the source list grew independently of it.",
+  "correction": "Either widen the enumeration and the opener to include speculative decoding and KV quantization, or scope the opener explicitly: 'the four mechanisms that define the structure of serving; two further mechanisms - speculative decoding and KV quantization - change the cost of a step rather than the structure of serving.'",
+  "acceptance_test": "The chapter opener's enumeration and the chapter's source list cover the same set of mechanisms, or the opener states its scope in one clause.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH11-SRC-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 11, section '1. Concept', source-key block entry [S6]",
+  "chapter": "11",
+  "quoted_clause": "The post's '54%' figure is a decode inter-token-latency (ITL) slope, a LATENCY metric, not a memory/residency ratio.",
+  "observed": "This is the book's own interpretation of a vendor blog's headline number, not a first-party fact, yet it carries no status label from the book's taxonomy ([FACT]/[DERIVED]/[ASSUMPTION]/[HYPOTHESIS]/[UNRESOLVED]) and no quotation of the source's own wording. The same entry then imposes a book-wide constraint on seven other locations ('Chapters 1, 3, 6, 7, 15, 22, Appendix A and the glossary'), so the whole constraint rests on an unquoted reading of a secondary source.",
+  "evidence": "The entry is labelled [1P] as a source, but the interpretive clause ('is a decode ITL slope') is the book's inference from that source, and no status label is attached to it. The book's own taxonomy (Ch 4 / Appendix A) provides [DERIVED] for exactly this case.",
+  "root_cause": "The interpretive clause was written in the same voice as the bibliographic clause and inherited its provenance label.",
+  "correction": "Quote the blog's own sentence for the 54% figure, label the interpretation [DERIVED], and state the condition under which it would not be an ITL slope (e.g. if the post's slope is per-step rather than per-token).",
+  "acceptance_test": "The [S6] entry contains a quotation from the blog for the 54% figure and a status label on the interpretation, and the seven cross-referenced locations are consistent with that interpretation.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH11-MOD-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 11, section '3. Worked Example', subsection 'Discrete Batching Wastes the GPU', bullet 1",
+  "chapter": "11",
+  "quoted_clause": "Discrete batching forces early-arriving requests to **wait** for the batch to fill, inflating TTFT toward the 2 s SLO breach (budget 1.2 s, p95 ≤ 2 s).",
+  "observed": "The sentence names two different TTFT numbers - a 1.2 s design budget and a 2 s p95 SLO - and then says TTFT inflates 'toward the 2 s SLO breach', which conflates the budget with the limit and leaves the reader unsure which is the target being breached.",
+  "evidence": "The parenthetical itself distinguishes them ('budget 1.2 s, p95 <= 2 s'), so the text contains the disambiguation but the main clause does not use it.",
+  "root_cause": "The parenthetical was added after the main clause and the main clause was not updated.",
+  "correction": "'...inflating TTFT past the 1.2 s design budget and toward the 2 s p95 SLO limit.'",
+  "acceptance_test": "Every mention of the canonical TTFT target names it as either the budget or the SLO, and no clause names both without distinguishing them.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH11-WE-01",
+  "severity": "P3",
+  "confidence": "low",
+  "page_hint": "Ch 11, section '3. Worked Example', subsection 'Discrete Batching Wastes the GPU', bullet 1",
+  "chapter": "11",
+  "quoted_clause": "inflating TTFT toward the 2 s SLO breach (budget 1.2 s, p95 ≤ 2 s)",
+  "observed": "The section asserts a specific SLO consequence at the canonical shape (9,200 input tokens, ~40 rps peak) without any arithmetic, while the rest of the book derives such consequences. The two quantities that determine the breach are the batch-fill wait (arrival rate / batch size) and the batch prefill time (batch size x 9,200 tokens at the canonical prefill rate); neither is shown. Caveat: this chunk is truncated immediately after this subsection, so a quantitative treatment may follow.",
+  "evidence": "The canonical workload is stated two paragraphs above with all the inputs needed (9,200 input tokens, ~40 rps peak, 1.2 s TTFT budget, 2 s p95 SLO). No number derived from those inputs appears in the discrete-batching subsection.",
+  "root_cause": "The subsection was written as a qualitative contrast to continuous batching rather than as a worked consequence of the canonical workload.",
+  "correction": "Add the two-term computation at the canonical shape (batch-fill wait + batch prefill time), or add an explicit pointer to where the quantitative treatment appears.",
+  "acceptance_test": "The discrete-batching subsection contains at least one number derived from the canonical workload, or an explicit cross-reference to the subsection that does.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH11-WE-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 11, section '3. Worked Example', subsection 'Discrete Batching Wastes the GPU', bullet 2",
+  "chapter": "11",
+  "quoted_clause": "The batch is locked until its *slowest* member finishes (the batch runs to completion), so a short 100-token output tails behind the longest while the GPU finishes the whole batch - idle bubbles at the end of every batch.",
+  "observed": "The bullet names two effects - head-of-line blocking on response delivery, and the drain bubble between batches - but omits the primary GPU-efficiency loss in discrete batching: sequences that finish early keep consuming compute slots (padding to the batch's longest member) until the batch completes. That is the effect continuous batching removes, and it is the one the subsection's own title ('Wastes the GPU') points at.",
+  "evidence": "The canonical output is ~300 tokens and the bullet's example is a 100-token output - a 3x spread within one batch, which is exactly the regime where padding waste dominates. The bullet's 'idle bubbles at the end of every batch' describes the inter-batch drain, not the intra-batch waste.",
+  "root_cause": "The bullet conflates 'the GPU is idle' with 'the GPU is doing useless work'; only the former is described.",
+  "correction": "Add the padding-waste effect explicitly and distinguish it from the drain bubble: finished sequences occupy slots and consume compute until the batch's longest member completes, and separately the GPU drains between batches.",
+  "acceptance_test": "The discrete-batching subsection names at least three distinct costs and identifies which one continuous batching removes and which it does not.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH11-XC-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 11, section '3. Worked Example', subsection 'The Canonical Workload in a Serving System'",
+  "chapter": "11",
+  "quoted_clause": "each request carries ~9,200 input tokens and ~300 output tokens; TTFT budget 1.2 s, TPOT ~25 ms/token",
+  "observed": "The canonical end-to-end service time implied by this chunk is 1.2 s + 300 x 25 ms = 8.7 s (or 8.675 s if the first token is counted inside the TPOT span). Any service-time figure used elsewhere in the book must reconcile with this derivation; a figure of 8.6 s would require a TTFT of 1.1 s or a 296-token output, neither of which is stated here. The second anchor is outside this chunk, so this is a verification item rather than a confirmed contradiction.",
+  "evidence": "1.2 s + 300 x 0.025 s = 1.2 + 7.5 = 8.7 s. The chunk's own mini-case in Ch 10 uses the same 25 ms TPOT target, so the TPOT term is consistent across chapters; the TTFT term (1.2 s) is the one that must be checked against the capacity and economics chapters.",
+  "root_cause": "The service-time figure is derived in more than one place from a set of canonical parameters, with no single stated accounting convention (does the TPOT span include the first token?).",
+  "correction": "State the convention once (whether the first token is inside the TPOT span) and verify that the service-time figure used in the capacity and economics chapters equals 1.2 s + N_out x 25 ms under that convention.",
+  "acceptance_test": "The service-time figure used in the capacity and economics chapters equals 1.2 s + N_out x 25 ms under a stated convention, or the discrepancy is explained in the text.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FTF-01",
+  "severity": "P1",
+  "confidence": "medium",
+  "page_hint": "Ch 12, §1 'Concept', para. 4 (page not determinable from chunk)",
+  "chapter": "Ch 12",
+  "quoted_clause": "as a single host falls against the canonical ~92K input tokens/s",
+  "observed": "The figure is used as a canonical threshold, but the chunk never states whether it is a per-host capacity or a fleet-level demand, nor the model, precision, host count, or MFU behind it. Under the capacity reading it is arithmetically impossible on the substrate this same chunk fixes; under the demand reading it contradicts the canonical workload's peak input-token rate established in Ch 11's mini-case.",
+  "evidence": "Canonical model is pinned by this chunk: 70B full-MHA FP16 (KV 2.62 MB/token; 9.2K tokens -> 24.1 GB, 9.5K -> 24.9 GB). Canonical host is pinned by this chunk: 8xH100. Prefill FLOPs/token for a 70B model at 9.2K context ~ 2x70e9 + attention (~4x80x8192x9200 = 2.4e10) ~ 1.64e11. 8xH100 FP16 dense = 8 x 989 TFLOPS = 7.91e15 FLOP/s => <=48.2K tok/s at 100% MFU, and 19-24K tok/s at a realistic 40-50% MFU. FP8 dense (1,979 TFLOPS/H100) => 96.5K tok/s at 100% MFU, so 92K would require ~95% MFU. Demand reading: Ch 11 mini-case fixes the canonical service peak at 40 rps and the canonical request at 9.2K input tokens => 40 x 9,200 = 368K input tokens/s at peak, 4x the 92K figure.",
+  "root_cause": "A canonical throughput value was carried across chapters without a stated scope (capacity vs. demand), model, precision, or MFU, and without reconciliation against the canonical workload's own token-rate arithmetic.",
+  "correction": "State explicitly what 92K is. If it is a per-host prefill capacity, re-derive it from the canonical model, precision, host count, and an explicit MFU and correct the number (for 70B on 8xH100 FP16 the ceiling is ~48K tok/s at 100% MFU). If it is a demand, state the request rate and input length that produce it and reconcile it with 40 rps x 9.2K = 368K input tokens/s from Ch 11's mini-case. Add the derivation, or a cross-reference to the chapter that holds it, at first use.",
+  "acceptance_test": "From the text alone a reader can state (a) whether 92K input tokens/s is a per-host capacity or a fleet demand, (b) the model, precision, host count, and MFU that produce it, and (c) the arithmetic reconciling it with 40 rps x 9.2K input tokens/s. If any of the three is unavailable, the figure is not publication-ready.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1"
+ },
+ {
+  "id": "FTF-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12, §1 'Concept', gate list; and §2 'Mental Model', resource list (page not determinable from chunk)",
+  "chapter": "Ch 12",
+  "quoted_clause": "(1) **memory fit** — the weight memory plus the KV cache footprint must fit the target host's aggregate memory",
+  "observed": "The gate is defined as weights + KV only, while Ch 11's qualification gate 2 in the same chunk requires weights, KV, workspace, and temporary conversion state, and the appendix states that workspace and overlapping transfers can bind even when the weight set fits. Ch 12 §2 repeats the narrower definition.",
+  "evidence": "Ch 11 gate 2 (this chunk): 'Each rank fits weights, KV, workspace, and temporary conversion state.' Appendix (this chunk): 'The largest VAE reconstruction, full-clip attention workspace, compiler workspace, and overlapping transfers can bind even when the weight set fits.' Ch 12 §2: 'GPU memory (weight residency + KV cache)'.",
+  "root_cause": "The gate list was written as a summary of the memory-fit idea rather than as the operative acceptance test, and was never reconciled with the book's own stronger statement elsewhere.",
+  "correction": "Redefine gate 1 to include workspace/activation/transient buffers (e.g. 'weights + KV + measured peak workspace and transient buffers must fit the target host's aggregate memory'), or state explicitly that Ch 11 gate 2 is the operative test and Ch 12 gate 1 is a screening approximation. Apply the same component list in §2's substrate list.",
+  "acceptance_test": "No passage in Ch 12 asserts that weights + KV fitting implies admissibility; the memory-fit wording in §1 and §2 matches Ch 11 gate 2, or names the difference explicitly.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "FTF-03",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Appendix 'Beyond autoregressive text: video and diffusion serving', footnote block (page not determinable from chunk)",
+  "chapter": "Appendix (video/diffusion serving)",
+  "quoted_clause": "[^oct-df-sglang-diffusion-sched]: SGLang documentation and source at pinned revision `a1966e1b5d8b750b494d7e53cca1d2464f960038`, §\"First-Done-First-Out (FDFO) Scheduling\"",
+  "observed": "Three footnote definitions in this block have no in-text reference marker anywhere in the chunk: oct-df-sglang-diffusion-sched, oct-ix-openvino-paged-attention, oct-ix-sglang-xpu-graph. The diffusion-scheduling footnote is topically required by the appendix's step-boundary claim, which currently carries no citation, and the paragraph's [1P][FACT] span therefore covers a conditional capability claim with no first-party evidence attached.",
+  "evidence": "The chunk's other two footnotes (oct-vg-wan-fullclip, oct-vg-wan22-ulysses) do carry visible markers in the appendix prose; the three above do not. The appendix sentence 'A step boundary can be a scheduling or cancellation point if the runtime exposes it' is exactly the claim the FDFO footnote documents.",
+  "root_cause": "Footnote definitions were collected into the section's footnote block without a matching-reference check, and one citation marker was dropped when the appendix was written.",
+  "correction": "Add the [^oct-df-sglang-diffusion-sched] marker at the step-boundary sentence (or remove the definition); confirm that oct-ix-openvino-paged-attention and oct-ix-sglang-xpu-graph are cited in the text they support and, if that text is in Ch 11, move their definitions to Ch 11's footnote block. Re-scope the paragraph's [1P][FACT] label so it covers only the sentences the cited source actually supports.",
+  "acceptance_test": "Every footnote definition in the manuscript has exactly one matching in-text marker and every marker resolves; a footnote-lint pass over the built PDF reports zero orphans and zero unresolved markers.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "FTF-04",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Between Ch 11 §8 and Ch 12, heading '## Appendix — Beyond autoregressive text: video and diffusion serving' (page not determinable from chunk)",
+  "chapter": "Appendix (video/diffusion serving)",
+  "quoted_clause": "## Appendix — Beyond autoregressive text: video and diffusion serving",
+  "observed": "The appendix is placed between Chapter 11 and Chapter 12, at the same heading level (##) as Chapter 11's numbered sections, and carries no letter. To a reader it reads as Chapter 11 §9. The book's other appendix (the Appendix A axis table) is lettered, so this one is presumably B or C but is not marked as such.",
+  "evidence": "Heading levels in the chunk: '# Chapter 12' (chapter), '## 7. What We Still Don't Know', '## 8. End-of-Chapter Mini-Case', '## Appendix — ...', '### The serving concerns transfer...'. Ch 11's closing paragraph refers forward to it as 'the appendix'.",
+  "root_cause": "The appendix was inserted at the point of topical convenience (end of the serving chapter) without a numbering/placement decision, and its heading level was inherited from the section level.",
+  "correction": "Either (a) move it to the back matter, letter it (e.g. 'Appendix B — Beyond autoregressive text: video and diffusion serving'), add a TOC entry, and update Ch 11's forward reference; or (b) keep it at the end of Part II but label it explicitly as a part-end appendix, raise its heading to chapter level, and add it to the TOC. Do not leave it at section level between two chapters.",
+  "acceptance_test": "The built PDF's table of contents lists the appendix with a letter and a page; no heading in the flow of Ch 11 or Ch 12 uses the word 'Appendix' at section level; Ch 11's forward reference resolves to the appendix's actual number.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "FTF-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 12, §1 'Concept', para. 4 (page not determinable from chunk)",
+  "chapter": "Ch 12",
+  "quoted_clause": "Any architecture that violates any one of these is eliminated before evaluation — candidates that fail a gate are not finalists (a *finalist* is a candidate advanced to evaluation; a *conditional finalist* is one advanced with its gate still open): they return to synthesis or are carried forward only as labeled sensitivity cases.",
+  "observed": "Three problems in one sentence. (a) 'eliminated before evaluation' cannot apply to the quality gate, since quality is only knowable by evaluation — and the same paragraph says 'a smaller-model candidate whose quality is unmeasured is gated, not promoted'. (b) 'carried forward only as labeled sensitivity cases' contradicts 'eliminated before evaluation' if sensitivity cases are evaluated. (c) 'gated, not promoted' conflicts with the definition of a conditional finalist as 'one advanced with its gate still open': the text both advances and does not advance candidates with an open gate.",
+  "evidence": "All three clauses occur in the same paragraph of Ch 12 §1; the quality-unmeasured case is stated two sentences later in the same paragraph.",
+  "root_cause": "The candidate-status vocabulary was introduced inline, in a subordinate parenthetical, while the surrounding prose was still being revised.",
+  "correction": "Replace the parenthetical with a short definition list (finalist / conditional finalist / sensitivity case / eliminated) stating for each: what is known, whether it enters evaluation, and what it may be used for. Change 'eliminated before evaluation' to 'eliminated from the finalist set', and reconcile the quality-gate case explicitly (quality is evaluated, not screened).",
+  "acceptance_test": "The four candidate statuses are mutually exclusive and exhaustive, and applying them to the three example cases in §1 (single host failing throughput, smaller model with unmeasured quality, memory-fitting but slow layout) yields one unambiguous status each.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "FTF-06",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 11, §8 mini-case, scope note (page not determinable from chunk)",
+  "chapter": "Ch 11",
+  "quoted_clause": "The baseline unshared-KV capacity quotient is about 17.5 complete requests per host, conservatively floored to 17 integer slots.",
+  "observed": "The mini-case's headline capacity number is not reconstructible from the mini-case: the KV pool it divides by is never stated, nor is the weight/workspace reservation that produces it. The reader can check 24.9 GB/request but not 17.5 requests/host.",
+  "evidence": "Reconstruction: 17.5 x 24.9 GB implies a pool of ~436 GB, which appears nowhere in the chunk. The mini-case cites '§3' only for the 24.1 GB KV figure, not for the pool.",
+  "root_cause": "The mini-case was assembled from figures established elsewhere without restating the one input needed to reproduce its headline result.",
+  "correction": "State the KV pool and its derivation inline (pool size, weights reserved, workspace reserved, source of each), or cross-reference the section that fixes the pool so the quotient is checkable in one hop.",
+  "acceptance_test": "A reader with only the mini-case can reproduce 17.5 from stated inputs, or is given an explicit pointer to the section that supplies the missing input.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ }
+]

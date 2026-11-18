@@ -1,0 +1,349 @@
+[
+ {
+  "id": "CH16-12",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 16 §16.3, Mode 3",
+  "chapter": "16",
+  "quoted_clause": "A hosted frontier-70B-class API at ~$0.002/input + ~$0.008/output per 1K tokens (typical as of 2026).",
+  "observed": "A 70B model is not 'frontier-class' in 2026; the phrase is confusing.",
+  "evidence": "The book's own canonical model is a 70B model, described as a 'conservative teaching geometry', not frontier.",
+  "root_cause": "Imprecise wording.",
+  "correction": "'A hosted 70B-class API' or 'a hosted mid-size-model API'.",
+  "acceptance_test": "The revised phrase must not imply that a 70B model is frontier-class in 2026.",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH17-06",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 17 §4 (25 ms/token paragraph)",
+  "chapter": "17",
+  "quoted_clause": "serving all 12,000 output tok/s on one host needs 12,000 × (140/17 + 24.1) GB/token ≈ 388 TB/s",
+  "observed": "The calculation fixes B=17 (KV capacity) while assuming 12,000 output tok/s. At B=17 and ~21 ms/step, the maximum output rate is 17/0.021≈810 tok/s, not 12,000. To serve 12,000 tok/s, the batch would be ~252 at 21 ms/step (or 344 at 8.6 s service), and the weight amortization would be 140/252 or 140/344, not 140/17. The 388 TB/s figure mixes incompatible operating points.",
+  "evidence": "17 tokens/step ÷ 0.021 s = 809.5 tok/s. 12,000/809.5≈14.8 hosts. At B=344, per-token bytes=140/344+24.1≈24.51 GB; ×12,000≈294 TB/s, still >26.8 TB/s but not 388 TB/s.",
+  "root_cause": "Operating-point inconsistency: batch size and throughput are not tied by step time.",
+  "correction": "Replace with a consistent calculation: at B=17, max output rate≈810 tok/s, so 12,000 tok/s needs≈15 hosts; or compute bandwidth at the actual batch implied by 12,000 tok/s and the step time. Remove or relabel 388 TB/s as a hypothetical.",
+  "acceptance_test": "The calculation uses one consistent B, step time, and throughput; max output rate and host count reconcile.",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH19-08",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 19 §6, 'Two token counts must be kept distinct'",
+  "chapter": "19",
+  "quoted_clause": "The **billable tokens** (what the API charges, = Σ over turns of the full accumulated context each turn sends — 41,990 input tokens for the T = 3 no-reuse trace of §4, not the single final context of 12,095)",
+  "observed": "Billable tokens include output tokens as well as input tokens; 41,990 is only the sum of input tokens. Also 12,095 is total tokens incl 300 output, not 'single final context' input (11,795).",
+  "evidence": "The ledger's T=3 total is 42,485 =41,990 input +495 output. Table 19-1's final-call input is 11,795; 12,095 includes output.",
+  "root_cause": "The term 'billable tokens' is used for billable input tokens, and the comparison quantity is mislabeled.",
+  "correction": "Say 'billable input tokens' and compare 41,990 with 11,795; separately account for output tokens at the output rate.",
+  "acceptance_test": "Check that input and output billing components are separately named and summed.",
+  "_models": [
+   "DeepSeek-V4.1-Flash",
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH12-005",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 12, §3 Candidate (a) and §8 Mini-Case",
+  "chapter": "12",
+  "quoted_clause": "the ~2,472 figure is one GPU's share of the 70B's full-model FLOPs, i.e. a full-model-equivalent rate, never a per-GPU capability",
+  "observed": "2,472 tok/s is not 'one GPU's share of the 70B's full-model FLOPs'; it is the token rate obtained by dividing one H100's 35%-MFU compute by the full 70B model's ~140 GFLOP/token. One GPU's share under TP=8 is ~17.5 GFLOP/token, which yields ~19,780 tok/s of the shared stream. The wording can make readers think 2,472 is a per-GPU FLOP share.",
+  "evidence": "989 TFLOP/s × 0.35 = 346.15 TFLOP/s. 346.15 / 140 GFLOP/token = 2,472 tok/s (full-model-equivalent). 346.15 / 17.5 GFLOP/token = 19,780 tok/s (TP=8 shared stream).",
+  "root_cause": "Imprecise description of the 2,472 figure.",
+  "correction": "Reword to: 'the ~2,472 figure is a full-model-equivalent token rate (one H100's 35%-MFU compute divided by the 70B's full ~140 GFLOP/token), not a per-GPU TP=8 capability.'",
+  "acceptance_test": "The text distinguishes 17.5 GFLOP/token per GPU (TP share) from 140 GFLOP/token (full model) without calling 2,472 a FLOP share.",
+  "_models": [
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH15-007",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch15 §4 Measurement",
+  "chapter": "15",
+  "quoted_clause": "A minimal benchmark runs 40 rps — a saturation run on one host ... (report p95 only at offered loads ≤ the host's admission capacity, ~2 rps per host: 17 slots ÷ 8.6 s)",
+  "observed": "The sentence can be read as saying the minimal benchmark's 40 rps run is the load at which p95 is reported, but 40 rps is far above the ~2 rps per-host admission capacity. The intended meaning is that the benchmark includes a 40 rps saturation run while p95 SLO reporting is restricted to lower loads.",
+  "evidence": "40 rps × 9,200 = 368,000 input tok/s, 6.5× the 56,500 tok/s 100%-MFU prefill ceiling; host admission capacity is 17/8.6 ≈ 2 rps.",
+  "root_cause": "Compressed sentence structure.",
+  "correction": "Reword: 'A minimal benchmark includes a 40 rps saturation run on one host ...; p95 SLO values are reported only at offered loads ≤ the host's admission capacity (~2 rps per host).'",
+  "acceptance_test": "No reading implies that p95 SLO reporting is done at 40 rps on one host.",
+  "_models": [
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH18-002",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 18, §18.3.3, Placement assumption, per-tier C and N",
+  "chapter": 18,
+  "quoted_clause": "Under dedicated placement each tier gets its own group: 8-bit C = ⌊506/24.89⌋ = 20 → 13 + 4 + 3 = 20 hosts / 32 with policy.",
+  "observed": "The dedicated-placement C = 20 assumes one 70 GB 8-bit weight set resident in the 8-GPU pool, but Table 18-1 says 8-bit needs 2 GPUs per instance and 4 instances if that model alone occupies the pool.",
+  "evidence": "Four 2-GPU 8-bit instances use 4 × 70 = 280 GB weights, leaving 640 − 280 − 64 = 296 GB KV and C = ⌊296/24.89⌋ = 11. One 2-GPU instance has 160 − 70 = 90 GB KV and C = 3. C = 20 comes from 640 − 70 − 64 = 506 GB, i.e. one 8-bit model using the whole 8-GPU pool, which is not the stated 2-GPU instance placement.",
+  "root_cause": "The dedicated placement is not specified: one 8-bit model per 8-GPU host versus four 2-GPU instances per host.",
+  "correction": "State the dedicated placement explicitly. If one 8-bit model per host uses the 8-GPU pool, change the table or add a placement note and keep C = 20. If four 2-GPU instances are used, recompute C ≈ 11 and the 13 + 4 + 3 / 32 host counts.",
+  "acceptance_test": "The C derivation matches the GPUs-per-instance and instance-count assumptions, and the policy host count is derived per tier from the same C.",
+  "_models": [
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P1"
+ },
+ {
+  "id": "CH18-004",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 18, §18.3.2, Row hardware note",
+  "chapter": 18,
+  "quoted_clause": "70B dense 8-bit on 2×H100 (or 1×H100 with FP8 KV + offload, shown feasible)",
+  "observed": "The chunk does not show 1×H100 with FP8 KV + offload to be feasible for the canonical 9,500-token request; §18.3.1 says 1×H100 8-bit has only ~10 GB KV headroom and zero concurrent canonical requests.",
+  "evidence": "§18.3.1: 80 − 70 = 10 GB; 10/24.89 = 0.40, i.e. zero concurrent canonical requests. No offload arithmetic is provided.",
+  "root_cause": "An unsupported feasibility claim was left in the hardware note.",
+  "correction": "Remove 'shown feasible' or add the offload assumptions, transfer cost, and resulting canonical-request capacity.",
+  "acceptance_test": "Any 1×H100 claim is consistent with the §18.3.1 fit test or is explicitly scoped to short-prompt/offload conditions.",
+  "_models": [
+   "MiniMax-M3.1-Flash",
+   "Qwen3.8-27B"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH4-SERV-01",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 4 §6 Architecture Consequence, Serving configuration bullet",
+  "chapter": "4",
+  "quoted_clause": "continuous batching (e.g. vLLM) is nearly mandatory under this load to hold the 1.2 s TTFT budget",
+  "observed": "'Nearly mandatory' is a strong claim stated as fact without an evidence label ([HYPOTHESIS], [ASSUMPTION], or [DERIVED]) or a concrete queueing argument showing why discrete batching would fail. The supporting reasoning ('reduces queueing and improves utilization') establishes benefit, not necessity.",
+  "evidence": "No queueing analysis is shown comparing discrete vs continuous batching under 86 concurrent requests with 8.6 s service time against the 1.2 s TTFT / 2 s p95 ceiling. The claim appears in the Architecture Consequence section without any evidence tag.",
+  "root_cause": "Architectural judgment stated with the strength of a derived conclusion.",
+  "correction": "Either add a brief queueing argument (e.g., discrete-batch admission delay under 86 in-flight requests would push p95 TTFT past 2 s) or soften to 'strongly recommended' / 'a practical necessity under this load' with an [ASSUMPTION] or [HYPOTHESIS] label.",
+  "acceptance_test": "The claim is either backed by a concrete queueing argument or softened/labeled as an architectural judgment.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH2-OCC-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 2 §3 Occupancy thresholds paragraph",
+  "chapter": "2",
+  "quoted_clause": "KV traffic (~3.01 GB/seq at canonical context per GPU)",
+  "observed": "3.01 GB = 24.1 GB / 8 (9.2K input-only basis). But the slot-counting basis used elsewhere in the book (Ch 4 §6, Ch 2 canonical host verdict) is 9.5K resident (24.9 GB), which would give 24.9 / 8 = 3.11 GB/seq. The phrase 'at canonical context' is ambiguous between the two bases.",
+  "evidence": "24.1 / 8 = 3.0125 ≈ 3.01 (9.2K input-only). 24.9 / 8 = 3.1125 ≈ 3.11 (9.5K resident). The slot-counting convention in Ch 4 §6 explicitly uses 9.5K (24.9 GB) as 'the resident slot-counting basis.'",
+  "root_cause": "Inconsistent basis (input-only 9.2K vs resident 9.5K) for the per-GPU KV traffic figure.",
+  "correction": "Specify the basis explicitly: either '~3.01 GB/seq at 9.2K input context per GPU' or use the resident basis '~3.11 GB/seq at 9.5K resident context per GPU' for consistency with the slot-counting convention.",
+  "acceptance_test": "The KV traffic figure explicitly states which context basis (9.2K input or 9.5K resident) it uses, and is consistent with the slot-counting basis used elsewhere in the book.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH4-MINI-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 4 §8 mini-case",
+  "chapter": "4",
+  "quoted_clause": "roughly ~37 hosts on the u-only screen at a 70% target utilization",
+  "observed": "'u-only screen' is used without definition in this chunk. A first-time reader cannot determine what 'u-only' distinguishes from the full provisioning policy without consulting another chapter.",
+  "evidence": "The term appears in the Ch 4 mini-case. The subsequent text clarifies it implicitly by contrasting with 'the book's provisioning policy, which multiplies the independent ρ = 0.95 as well,' but 'u-only' itself is never defined in this chunk.",
+  "root_cause": "Undefined shorthand terminology on first use.",
+  "correction": "Define on first use: 'the u-only screen (utilization-only: 70% target utilization without the SLO-compliance factor)' or equivalent.",
+  "acceptance_test": "A reader encountering 'u-only screen' for the first time can determine its meaning without consulting another chapter.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH4-MINI-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 4 §8 mini-case",
+  "chapter": "4",
+  "quoted_clause": "multiplies the independent ρ = 0.95 as well",
+  "observed": "ρ is used to denote the SLO-compliance factor (95%). In queueing theory and systems engineering, ρ conventionally denotes utilization (λ/μ). Using ρ for a compliance headroom factor is non-standard and may confuse readers familiar with the standard notation.",
+  "evidence": "Standard queueing notation: ρ = utilization. Here ρ = 0.95 represents 'SLO-compliance headroom,' a different quantity. The text does explain the meaning in context, but the symbol choice is non-standard.",
+  "root_cause": "Non-standard symbol reuse that collides with established queueing-theory notation.",
+  "correction": "Either use a different symbol (e.g., h_SLO or α) or explicitly note the non-standard usage: 'ρ (here: SLO-compliance headroom, not queueing utilization) = 0.95.'",
+  "acceptance_test": "The symbol ρ is either replaced or explicitly disambiguated from its standard queueing-theory meaning.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH2-CONCEPT-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 2 §1 Concept",
+  "chapter": "2",
+  "quoted_clause": "confusing them is the most common architectural misstep",
+  "observed": "'Most common' is a frequency claim about architectural mistakes without supporting evidence (survey, study, or even anecdotal sourcing).",
+  "evidence": "No citation or evidence is provided for the frequency claim.",
+  "root_cause": "Unsupported superlative.",
+  "correction": "Soften to 'a common architectural misstep' or 'one of the most common' or add a qualifier like 'in our experience.'",
+  "acceptance_test": "The superlative 'most common' is removed or qualified.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH3-CONCEPT-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 3 §1 Concept",
+  "chapter": "3",
+  "quoted_clause": "This inequality is the single most important number to read from a model card when sizing a deployment",
+  "observed": "'Single most important' is a superlative claim about relative importance without justification. Other model-card numbers (attention architecture, layer count, hidden dimension) are equally critical for KV sizing and residency calculations.",
+  "evidence": "No reasoning is given for why total-vs-active is more important than attention architecture (which determines KV bytes/token) or layer count/hidden dimension (which determine both weight and KV sizing). The chapter itself demonstrates that attention shape matters as much as parameter count for KV.",
+  "root_cause": "Unsupported superlative.",
+  "correction": "Soften to 'one of the most important numbers' or 'a critical number' or provide brief reasoning for the superlative (e.g., 'because it is the number most often misread').",
+  "acceptance_test": "The superlative 'single most important' is removed, qualified, or justified.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH5-T52-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 5, Table 5-2",
+  "chapter": "5",
+  "quoted_clause": "Table 5-2 — Model-selection decision: embedding vs generation model",
+  "observed": "The table interleaves embedding-model properties (rows 1–2: dimension, parameter count) with generation-model properties (rows 3–5: KV cost, tokens/dollar) and selection status (rows 6–7) without visual or structural separation between the two legs. A reader looking for the embedding model's properties must scan past generation-model rows.",
+  "evidence": "Row-by-row inspection: rows 1–2 are embedding, rows 3–5 are generation, rows 6–7 are status/verdict. The title promises 'embedding vs generation' but the layout does not deliver that comparison.",
+  "root_cause": "Table organizes by metric type rather than by selection leg.",
+  "correction": "Either split into two sub-tables (one per leg) or add a visual separator / leg column so the two selection legs are immediately distinguishable.",
+  "acceptance_test": "A reader can identify all embedding-model rows and all generation-model rows without reading every cell.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH5-ECON-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 5, §3(b), economics unit note blockquote",
+  "chapter": "5",
+  "quoted_clause": "Economics unit note (reconciliation with Ch 4 and Ch 15).",
+  "observed": "The blockquote is approximately 200 words of dense reconciliation prose embedded in the middle of a worked example. It addresses a real cross-chapter consistency issue but its length and density disrupt the reading flow of §3(b).",
+  "evidence": "Word count of the blockquote; position within the worked example section.",
+  "root_cause": "Cross-chapter reconciliation material placed inline rather than as a sidebar, footnote, or dedicated note.",
+  "correction": "Consider moving to a sidebar or end-of-section note, or condensing to the two key points (units are identical; throughput bases differ) with a forward reference to Ch 15 for detail.",
+  "acceptance_test": "The worked example reads continuously without a 200-word interruption; the reconciliation content is still fully accessible.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH5-EMB-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5, §3(a) takeaway",
+  "chapter": "5",
+  "quoted_clause": "768‑dim (all‑mpnet‑base‑v2) is the recommended embedding model",
+  "observed": "The word 'recommended' implies a validated choice, but the quality claim behind the recommendation is explicitly [HYPOTHESIS] and 'not quantified for this model pair.' Compute and storage alone favour the 384-dim option; the recommendation rests entirely on an unverified quality assumption.",
+  "evidence": "The same paragraph states: 'The quality gain behind this recommendation is an unverified scenario input of up to ~15% MAP [HYPOTHESIS], not quantified for this model pair.'",
+  "root_cause": "Recommendation language used where the evidence supports only a provisional default.",
+  "correction": "Replace 'recommended' with 'default candidate pending target-corpus validation' or equivalent phrasing that matches the evidence strength. The selection-status row in Table 5-2 already says 'recommended, pending target-corpus validation' — align the prose takeaway with that.",
+  "acceptance_test": "The takeaway sentence does not use 'recommended' without an immediately visible qualification matching the [HYPOTHESIS] label.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH7-UNIT-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 7, §1, 'Unit basis (locked)' paragraph",
+  "chapter": "7",
+  "quoted_clause": "Unit basis (locked): the H100's quoted 80 GB is treated as decimal 80×10^9 B throughout",
+  "observed": "This important unit-convention paragraph is placed inline in the Concept section, interrupting the flow between the residency-floor discussion and the two-regime distinction. It contains dense arithmetic (vendor-binary conversion, alternate KV budget, alternate concurrency ceiling, per-rank test) that competes for attention with the conceptual material around it.",
+  "evidence": "Paragraph position: between the 'residency floor' concept paragraph and the 'two distinct regimes' paragraph.",
+  "root_cause": "Convention/derivation material placed inline rather than as a sidebar, footnote, or boxed note.",
+  "correction": "Move to a sidebar or boxed 'Unit convention' note, or reduce to one sentence ('All capacity figures use decimal 80×10^9 B per H100; see Appendix for the vendor-binary alternative') with the full derivation in an appendix or footnote.",
+  "acceptance_test": "The Concept section reads continuously through the residency-floor argument without a dense unit-convention interruption.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH8-PCT-01",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8, §3, prefill FLOP accuracy paragraph",
+  "chapter": "8",
+  "quoted_clause": "at 128K it *dominates* (~2.4× the linear term, ≈+240%; ~1.2× under case (iii))",
+  "observed": "The '+240%' notation uses the plus sign, which conventionally denotes an increase (i.e., total = 340% of original), but here it means '240% of the linear term' (= 2.4×). The '~2.4×' in the same clause disambiguates, and the parallel '+60%' at 32K uses the same convention, but the '+' prefix is misleading in isolation.",
+  "evidence": "Recomputation: attention at 128K case (ii) = 42.95 PFLOP; linear at 128K = 17.92 PFLOP; ratio = 2.397 ≈ 2.4×. The increase is +140%, not +240%. The '+240%' means '240% of the linear term.'",
+  "root_cause": "Non-standard use of '+' prefix for 'percentage of' rather than 'percentage increase.'",
+  "correction": "Either drop the '+' (write '≈240% of the linear term') or use '+140%' for the increase. The same applies to '+60%' at 32K (which means 60% of, not 60% increase).",
+  "acceptance_test": "A reader interpreting '+' as 'increase of' arrives at the same ratio as the '~2.4×' in the same clause.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH5-INFMODE-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 5, §1, 'Inference mode is a candidate' subsection",
+  "chapter": "5",
+  "quoted_clause": "Parallel refinement (diffusion-style decoding that updates many token positions per step) is worth investigating when low-batch latency or constrained infilling dominates",
+  "observed": "This subsection discusses parallel refinement, FIM, and structured output — topics tangential to the canonical RAG workload that the chapter's worked example and mini-case both center on. The text acknowledges this ('For the canonical RAG workload, the inference mode is standard autoregressive generation') but the subsection still occupies significant space relative to its contribution to the chapter's core argument.",
+  "evidence": "The subsection's own text concedes the canonical workload reduces to standard AR generation; the non-AR discussion does not feed into §3, §5, §6, or §8.",
+  "root_cause": "Breadth of model-selection dimensions pursued without proportional connection to the chapter's worked example.",
+  "correction": "Condense to 2–3 sentences establishing that inference mode is a selection dimension, with a cross-reference to Ch 3 for mechanism detail, and move the structured-output example to a footnote.",
+  "acceptance_test": "The subsection is no longer longer than the paragraph it introduces; the chapter's selection-surface list still covers inference mode.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH7-LIFETIME-01",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 7, §1, 'Count state by lifetime' subsection",
+  "chapter": "7",
+  "quoted_clause": "For non-autoregressive generators, inventory state by lifetime before applying the KV arithmetic",
+  "observed": "This subsection (including the diffusion-logits example and the admission-control paragraph) is a significant tangent from the chapter's canonical autoregressive workload. The text acknowledges this ('None of this changes the canonical autoregressive budget above') but the subsection occupies substantial space.",
+  "evidence": "Subsection length relative to the chapter's core KV arithmetic; the text's own disclaimer that it doesn't change the canonical budget.",
+  "root_cause": "Correctness warning for non-AR models given full subsection treatment rather than a concise caveat.",
+  "correction": "Condense to a boxed caveat or footnote: 'The KV formula prices K/V tensors, not all persistent state. For non-AR generators, inventory state by lifetime (Ch 3).' Move the diffusion-logits example to Ch 3 or an appendix.",
+  "acceptance_test": "The chapter's Concept section flows directly from the residency-floor definition to the two-regimes distinction without a multi-paragraph non-AR detour.",
+  "_models": [
+   "MiMo-V2.6-Flash-RL"
+  ],
+  "_sev": "P3"
+ }
+]

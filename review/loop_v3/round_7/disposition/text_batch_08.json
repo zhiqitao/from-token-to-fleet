@@ -1,0 +1,342 @@
+[
+ {
+  "id": "CH14-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch14 §3 Step 2 TPOT bullet; Ch14 §8 mini-case; Ch15 §1 canonical SLO",
+  "chapter": "Chapter 14 / Chapter 15",
+  "quoted_clause": "TPOT p50/p95 (SLO: p50 ≤ ~25 ms/token; record p95 for tail diagnosis, not SLO-bound).",
+  "observed": "Ch14 treats p95 TPOT as diagnostic only, while Ch15 states the canonical SLO as 'TPOT median ≤ 25 ms, p95 ≤ 35 ms (Ch 4, Table 4-2)' and the Ch14 mini-case lists only 'median TPOT about 25 ms'.",
+  "evidence": "Direct cross-chapter contradiction in the canonical SLO. A benchmark acceptance test cannot simultaneously treat p95 TPOT as non-SLO-bound and as bounded at 35 ms.",
+  "root_cause": "Ch14's benchmark protocol was written against a narrower TPOT SLO and was not reconciled with Ch15/Ch4.",
+  "correction": "Align every TPOT SLO statement to the canonical Ch4/Ch15 definition: median ≤25 ms and p95 ≤35 ms. If p95 TPOT is intentionally diagnostic in a particular sweep, say so explicitly and explain why it is not the acceptance gate.",
+  "acceptance_test": "Search all Ch14/Ch15 SLO statements and the mini-case; every TPOT threshold is identical (median ≤25 ms, p95 ≤35 ms), and no clause says p95 TPOT is 'not SLO-bound' unless it is explicitly scoped as an additional diagnostic.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1"
+ },
+ {
+  "id": "CH15-02",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch15 §2 Mental Model, first paragraph",
+  "chapter": "Chapter 15",
+  "quoted_clause": "The compute phases run in order: (1) request preprocessing / tokenization, (2) prefill, (3) iterative model decode, (4) token sampling / selection, (5) detokenization / streaming.",
+  "observed": "The list presents sampling and detokenization as terminal phases after all decode. In autoregressive generation, sampling/selection occurs after each decode step, the selected token is appended, and detokenization/streaming occurs per token or block before the next decode step.",
+  "evidence": "Autoregressive generation is a loop: decode step → sample → append token → detokenize/stream → repeat until stop. A one-pass pipeline misstates the causal path and the latency structure.",
+  "root_cause": "A linear pipeline model was used for an iterative process.",
+  "correction": "Replace the linear list with a loop: prefill → decode step → sample/select → append token → detokenize/stream → repeat; show KV management as a cross-cutting plane spanning the loop.",
+  "acceptance_test": "The mental model text or figure explicitly shows the decode-sampling-append loop and per-step/per-block detokenization; no text implies sampling occurs only once after all decode.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1"
+ },
+ {
+  "id": "CH15-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch15 §1 Concept and §2 Mental Model",
+  "chapter": "Chapter 15",
+  "quoted_clause": "kernel choice (FlashAttention vs. SDPA)",
+  "observed": "The text also contrasts 'FlashAttention vs. scaled‑dot‑product' in §1. FlashAttention is an I/O-aware implementation of scaled dot-product attention; SDPA is the operation/API, not a disjoint alternative. The juxtaposition can also imply that FlashAttention reduces the O(L²) attention FLOPs.",
+  "evidence": "FlashAttention reorganizes attention to reduce HBM traffic and avoid materializing the full score matrix; it does not change the fundamental O(L²) arithmetic. SDPA may dispatch to FlashAttention.",
+  "root_cause": "Implementation and mathematical operation are conflated, and the mechanism is described by kernel name rather than by resource effect.",
+  "correction": "Contrast fused/IO-aware attention kernels (e.g., FlashAttention) with naive/materialized attention. State explicitly that FlashAttention reduces HBM traffic and transient score-matrix memory, not attention FLOPs.",
+  "acceptance_test": "No sentence presents FlashAttention and SDPA as mutually exclusive alternatives; the text states the mechanism (I/O-aware tiling, reduced HBM traffic, no FLOP elimination) and connects it to the hardware hierarchy.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH15-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch15 §1 Concept",
+  "chapter": "Chapter 15",
+  "quoted_clause": "The serving system must therefore optimize three inter‑dependent quantities: SLO‑goodput, per‑token latency, and GPU memory utilization.",
+  "observed": "The same section later says to identify 'which resource—compute, bandwidth, or latency—is the primary constraint.' GPU memory utilization is not an objective (high utilization can reduce headroom and increase tail risk), and latency is an SLO outcome, not a resource.",
+  "evidence": "Architecture reasoning distinguishes resource constraints (compute, HBM bandwidth, memory capacity, interconnect) from objectives (SLO-goodput) and outcomes (latency). Optimizing utilization as an end in itself can be harmful.",
+  "root_cause": "Constraints, objectives, and outcomes are conflated in the chapter's framing.",
+  "correction": "Reframe as: maximize SLO-goodput subject to latency SLOs and memory-capacity/headroom constraints; identify the bottleneck among compute, HBM bandwidth, memory capacity, and interconnect. Treat latency as an outcome/SLO, not a resource.",
+  "acceptance_test": "The text separates objectives, constraints, and resources; no clause says to optimize GPU memory utilization or lists latency as a resource.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH14-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch14 §3 Step 2 and Step 3",
+  "chapter": "Chapter 14",
+  "quoted_clause": "about 344 executing requests fleet-wide",
+  "observed": "The text also says 'mean executing population is 1.3 × 8.6 ≈ 11.2 requests.' Little's Law L = λW gives the mean number in the system (executing plus queued), not the number executing. Ch15 correctly says '344 requests in flight.'",
+  "evidence": "Queueing theory: L is in-system population; executing population is L minus queue. Without a no-queue assumption, 'executing' is unjustified.",
+  "root_cause": "In-flight/in-system population was relabeled as executing population.",
+  "correction": "Use 'in-flight (executing plus queued)' or 'mean number in system'; if the example assumes no queue, state that assumption explicitly.",
+  "acceptance_test": "Every Little's Law statement in Ch14/Ch15 uses in-flight/in-system terminology and distinguishes queueing; no unqualified 'executing requests' claim remains.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH14-03",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch14 §5 Common Mistakes, mean-only latency bullet",
+  "chapter": "Chapter 14",
+  "quoted_clause": "A 0.84 s mean hides a 5 s tail that breaches the p95 SLO (Ch6).",
+  "observed": "A 5 s tail breaches a p95 SLO only if more than 5% of the population exceeds the SLO threshold (or if the p95 itself is above threshold). A single 5 s request does not breach p95.",
+  "evidence": "Definition of p95: 95% of the population must be at or below the threshold. The sentence omits the tail frequency/population.",
+  "root_cause": "The example asserts a breach without specifying the fraction above threshold.",
+  "correction": "Say 'can hide a tail; whether it breaches p95 depends on the fraction of requests above the threshold' or specify that more than 5% exceed 2 s.",
+  "acceptance_test": "The common-mistake bullet states the percentile condition or gives a frequency that justifies the breach.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH15-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch15 §2 Mental Model, attention quadraticity sentence",
+  "chapter": "Chapter 15",
+  "quoted_clause": "O(L²) FLOPs and O(L²) memory per head once the $QK^{T}$/softmax score matrix is materialized",
+  "observed": "Attention FLOPs per head are O(L² d_head), not O(L²) unless d_head is held fixed. The O(L²) memory is transient score-matrix memory, not the O(L) KV cache; the sentence's 'memory cost' framing can blur that distinction.",
+  "evidence": "Standard attention arithmetic: QK^T and AV each cost O(L² d_head) per head; materialized scores cost O(L²) memory; KV cache costs O(L) per sequence per layer.",
+  "root_cause": "Shorthand drops the head-dimension factor and conflates transient attention workspace with persistent KV state.",
+  "correction": "Write O(L² d_head) FLOPs per head (or 'quadratic in L for fixed head dimension') and explicitly distinguish O(L²) transient score memory from O(L) KV-cache memory.",
+  "acceptance_test": "The text is dimensionally correct and explicitly distinguishes transient attention workspace from persistent KV cache.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH15-06",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chunk §3, MFU definition",
+  "chapter": "Ch 15 §3",
+  "quoted_clause": "MFU (Model FLOPs Utilization) is by definition achieved realities divided by peak",
+  "observed": "'achieved realities' is not the intended technical term; MFU is achieved FLOPs divided by peak FLOPs.",
+  "evidence": "The surrounding sentence defines MFU as a utilization ratio. 'Realities' is a wording error.",
+  "root_cause": "Typo or incomplete edit.",
+  "correction": "Replace 'achieved realities' with 'achieved FLOPs'.",
+  "acceptance_test": "The sentence reads 'achieved FLOPs divided by peak' and the definition is consistent with the rest of the MFU discussion.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH15-07",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chunk §7, What We Still Don't Know, KV eviction bullet",
+  "chapter": "Ch 15 §7",
+  "quoted_clause": "H2O-, SnapKV- or TinK-style",
+  "observed": "'TinK' appears to be a misspelling of 'ThinK' (the KV-cache pruning method). If the intended method is ThinK, the current spelling will not resolve in a search or citation check.",
+  "evidence": "The named family includes H2O and SnapKV; 'ThinK' is the known query-driven KV-cache pruning method. 'TinK' is not the standard spelling.",
+  "root_cause": "Typo in a method name.",
+  "correction": "Verify the intended method and correct to 'ThinK' if that is the reference; otherwise cite the exact method name.",
+  "acceptance_test": "The method name matches a primary source and is spelled consistently in the glossary, index, and references.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH15-08",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chunk §7, What We Still Don't Know, prefix/KV reuse bullet",
+  "chapter": "Ch 15 §7",
+  "quoted_clause": "prefix/KV reuse (few-shot prefixes, cached query prefixes) removes prefill work and KV capacity",
+  "observed": "'removes ... KV capacity' is imprecise. Prefix/KV reuse can reduce KV-capacity demand when blocks are shared, but it does not remove physical KV capacity; it may also leave per-request KV unchanged if blocks are not shared.",
+  "evidence": "The same distinction is handled more carefully in §5, where inactive prefix-cache eviction is separated from active-request KV. The open-question bullet collapses the distinction.",
+  "root_cause": "Shorthand that conflates reduced demand with removed capacity.",
+  "correction": "Say 'reduces prefill work and, when cached blocks are shared, reduces aggregate KV-capacity demand.'",
+  "acceptance_test": "The revised sentence distinguishes prefill-work savings from KV-capacity savings and states the sharing condition.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH15-09",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chunk §3, decode bandwidth paragraph",
+  "chapter": "Ch 15 §3",
+  "quoted_clause": "bytes/token = 140 GB/B + 24.9 GB of KV per request",
+  "observed": "The notation is dimensionally ambiguous: '140 GB/B' is weight bytes per token, while '24.9 GB of KV per request' is a per-request context total that is read once per generated token. The phrase 'bytes/token' should make clear that the KV term is per generated token per request.",
+  "evidence": "The arithmetic is correct only under that reading, but the written expression can be misread as adding a per-request total to a per-token quantity.",
+  "root_cause": "Compressed notation for a two-term per-token budget.",
+  "correction": "Write 'bytes per generated token per request = 140 GB/B + KV_per_request(context), where KV_per_request is read once per generated token.'",
+  "acceptance_test": "The revised expression states the unit of each term and a reader can reproduce the 33.1 GB/token figure without guessing.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH15-10",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chunk §3, decode bandwidth paragraph",
+  "chapter": "Ch 15 §3",
+  "quoted_clause": "The 19/21-host prefill-and-KV screen above",
+  "observed": "Only the 19-host prefill screen is derived in this chunk; the 21-host KV screen is not shown here. If 21 is derived earlier in the chapter, the reference is acceptable; if not, the reader cannot reconstruct it.",
+  "evidence": "The chunk derives 19 hosts from 6.5/0.35 and separately derives 17.5 KV-resident requests, but does not show the step from 17.5 to 21 hosts.",
+  "root_cause": "Cross-reference to a value whose derivation is outside the chunk.",
+  "correction": "Either add the one-line derivation (peak in-flight requests ÷ per-host KV slots, with the integer ceiling) or make the cross-reference explicit ('the 21-host KV screen derived in §X').",
+  "acceptance_test": "A reader can locate the derivation of both 19 and 21 from the surrounding text or an explicit cross-reference.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH15-11",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chunk §3 and §6, FP8 KV discussion",
+  "chapter": "Ch 15 §3/§6",
+  "quoted_clause": "the 17.5 → 35.0 concurrency and 10-host FP8 figures assume that gate is met",
+  "observed": "The '10-host FP8 figures' are not defined in this chunk. The reader sees a new host count without its derivation or antecedent.",
+  "evidence": "The chunk derives 19 hosts and 15 decode-bandwidth hosts, but not 10 FP8 hosts. If the 10-host figure is derived elsewhere, the reference should say where.",
+  "root_cause": "Undefined cross-reference.",
+  "correction": "Add the derivation or an explicit cross-reference to the section where the 10-host FP8 figure is computed.",
+  "acceptance_test": "The 10-host FP8 figure has a locatable derivation and is consistent with the 17.5→35.0 concurrency calculation.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH15-12",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chunk §7, chunked-prefill open question",
+  "chapter": "Ch 15 §7",
+  "quoted_clause": "Analytical models assume Poisson arrivals, but real user traffic exhibits bursts (e.g. social-media events) that may require larger chunks or alternative back-pressure mechanisms.",
+  "observed": "'Analytical models assume Poisson arrivals' is too broad, and 'may require larger chunks' is not obviously the right direction: bursty arrivals can argue for smaller chunks to protect tail latency, or for admission control rather than larger chunks.",
+  "evidence": "Queueing models can use Poisson, bursty, or trace-driven arrivals. The sentence does not justify why bursts would require larger chunks rather than smaller chunks or back-pressure.",
+  "root_cause": "Overgeneralized modeling claim and an unsupported directional recommendation.",
+  "correction": "Say 'many analytical queueing models assume Poisson arrivals; bursty traffic may change the optimal chunk size and may require back-pressure or admission control, so the direction must be measured.'",
+  "acceptance_test": "The revised open question does not assert a direction for chunk size under bursts without evidence.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH16-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §1 'Concept' vs. §16.3 'Included-cost scope and exclusions'",
+  "chapter": "16",
+  "quoted_clause": "**Capital (capex)** — the one-time cost of the cards, servers, networking, racks, and cooling that make up the system. ... rack, external network, site preparation and colocation are excluded and unpriced",
+  "observed": "§1 defines capex to include networking, racks, and cooling; §16.3's exclusion note says rack, external network, site preparation, and colocation are excluded. The $350K figure's scope is therefore ambiguous.",
+  "evidence": "Direct textual contradiction between §1 and §16.3.",
+  "root_cause": "The capex definition was written broadly, while the worked example prices a narrower 'fully built host' scope.",
+  "correction": "Narrow the §1 definition to match the priced scope (cards, server, on-host networking, on-host cooling), and list rack/external network/site/colocation as explicit exclusions in both places.",
+  "acceptance_test": "The capex definition and the exclusion note must name the same included and excluded items.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH16-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §1 'Concept', opex definition",
+  "chapter": "16",
+  "quoted_clause": "**Operating (opex)** — the recurring cost of running it: electricity and cooling, staff, software/licenses, cloud instance rental, and replacement/amortization of hardware.",
+  "observed": "The worked example amortizes capex ($350K/60) and separately adds energy and staff; it does not add a separate 'amortization of hardware' line. Listing amortization under opex creates a double-counting risk.",
+  "evidence": "§16.3 Mode 1: capex $122,500 + energy $23,316.93 + staff $10,000 = $155,816.93. No amortization line in opex.",
+  "root_cause": "The opex definition mixes recurring costs with the amortization of a capex item.",
+  "correction": "Remove 'replacement/amortization of hardware' from the opex definition, or state explicitly that amortization is the mechanism for spreading capex and must not be added again as an opex line.",
+  "acceptance_test": "The opex definition and the worked example's line items must not double-count hardware amortization.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH16-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §16.3, after the 21-host peak KV screen paragraph",
+  "chapter": "16",
+  "quoted_clause": "this TCO prices that 21-host scenario, and a one-host difference changes no mode comparison",
+  "observed": "At ~7.6M req/mo, the 21-host self-host cost ($155,816.93) is below the API cost (7.6M × $0.0208 = $158,080), while the 22-host self-host cost ($162,760.59) is above it. A one-host difference therefore flips the mode comparison in the crossover region.",
+  "evidence": "155,816.93 < 158,080 < 162,760.59.",
+  "root_cause": "The claim is true away from the crossover but false near it.",
+  "correction": "Scope the claim: 'a one-host difference changes no mode comparison at the canonical 6.24M volume, though it shifts the break-even by ~0.3M req/mo.'",
+  "acceptance_test": "Evaluate the mode comparison at 7.6M req/mo for N = 21 and N = 22; the revised claim must be consistent with the result.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH16-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §16.3, 'Apples-to-apples caveat' paragraph",
+  "chapter": "16",
+  "quoted_clause": "the multiplier depends on whether the comparison is against peak- or average-provisioned capacity (Table 16-2, this section)",
+  "observed": "Table 16-2 is the availability-scope reconciliation table; it does not contain the 21×/6× multiplier.",
+  "evidence": "Table 16-2's columns are deployment/availability mode, provisioned, monthly cost, $/1K, qualification. No multiplier column.",
+  "root_cause": "Stale cross-reference after restructuring.",
+  "correction": "Point to the correct location (the 'Apples-to-apples caveat' paragraph or Table 16-1's provisioned column), or add the multiplier to Table 16-2.",
+  "acceptance_test": "The referenced table must contain the 21×/6× multiplier.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH16-05",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 16 §16.3, 'Treat both provisioning policies explicitly' paragraph",
+  "chapter": "16",
+  "quoted_clause": "applied to the compute screen they are the same numerical headroom derate against the 35% MFU assumption, identical arithmetic, different quantity",
+  "observed": "Applying u = 0.70 and ρ = 0.95 on top of the 35% MFU assumption gives an effective 23.3% MFU. The text asserts this is valid ('identical arithmetic, different quantity') without justifying why KV-slot occupancy and LB/scheduling efficiency derate a compute-throughput screen.",
+  "evidence": "0.35 × 0.70 × 0.95 = 0.23275.",
+  "root_cause": "The same derate factors are being reused across two different screens without a physical argument for why they apply to both.",
+  "correction": "Either justify why u and ρ apply to the compute screen (e.g., they represent scheduler-level headroom that affects any resource), or use a separate compute-screen derate and state it.",
+  "acceptance_test": "The revised text must give a physical justification for applying u and ρ to the compute screen, or use a different derate.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH16-06",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 16 §16.6, 'Feasible served-volume bound' paragraph",
+  "chapter": "16",
+  "quoted_clause": "Everything to the right of 24.96M on the x-axis ... is **infeasible for this frozen fleet under the canonical 624,000-active-s/mo duty cycle**",
+  "observed": "The x-axis is defined as 'served volume through duration / duty-cycle', so the duty cycle varies along x. If the duty cycle varies, the feasibility envelope is not a single vertical line at 24.96M; a point at 50M could be feasible under a 24×7 shape (envelope 103.7M). The shading/labeling of 'infeasible' beyond 24.96M is only valid under the canonical duty cycle, which the text acknowledges but then contradicts by saying the x-axis varies duty cycle.",
+  "evidence": "The text itself says 'A 24×7 shape raises the envelope to ... 103.7M req/mo on the same fleet.'",
+  "root_cause": "The figure's x-axis definition and the feasibility bound use different assumptions about the duty cycle.",
+  "correction": "Either hold the duty cycle fixed at 624,000 s/mo and state that the x-axis varies only volume at fixed peak, or make the feasibility envelope a function of the duty cycle and shade accordingly.",
+  "acceptance_test": "The figure's shaded infeasible region must be consistent with the x-axis definition; a point at 50M must be either feasible or infeasible under a stated duty cycle, not both.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ }
+]

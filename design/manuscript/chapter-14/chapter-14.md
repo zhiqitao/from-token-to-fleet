@@ -27,14 +27,14 @@ Just as important, we benchmark the **workload, not the model in the abstract.**
 
 ### Designing a Deployment Benchmark for the Canonical Workload
 
-We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (canonical scenario (Ch 4, Table 4-2)): ~10 rps average / 40 rps peak, ~9,200 input tokens (1,200 query + 8K retrieved) + ~300 output, TTFT budget (median ≤ 1.2 s, p95 ≤ 2 s), TPOT ~25 ms/token. [canonical scenario (Ch 4, Table 4-2)]
+We build a deployment benchmark for the canonical enterprise-Q&A RAG workload (canonical scenario (Ch 4, Table 4-2)): ~10 rps average / 40 rps peak, ~9,200 input tokens (1,200 query + 8K retrieved) + ~300 output, TTFT budget (median ≤ 1.2 s, p95 ≤ 2 s), TPOT SLO (median ≤ 25 ms, p95 ≤ 35 ms; Ch 4, Table 4-2). [canonical scenario (Ch 4, Table 4-2)]
 
 **Step 1 — representative queries.** We sample real user questions and run them through the RAG pipeline to produce the actual prompt shapes, matching the ~9.2K-in / ~300-out token profile with the model's own tokenizer (not a heuristic). [2°]
 
 **Step 2 — sweep the offered load, not a single point.** The analytical KV quotient C ≈ 17.5 FP16-KV request-equivalents (436 GB FP16 KV budget ÷ 24.9 GB per 9,500-token maximum sequence; 9,500 = 9,200 input + 300 output, the conservative whole-context basis, not the input-only 9,200; 9,500 × 2.62 MB ≈ 24.9 GB) gives at most 17 whole-context slots, not a deployable concurrency of 17.5. At the assumed 8.6-second execution time, 17/8.6 ≈ 1.98 req/s is a single-host residency ceiling before headroom and competing resource limits (the unfloored 17.5-slot quotient gives ~2.03 req/s on the analytical planning screens; the ~3% gap is the fractional-slot rounding — floor 17 for provisioning, 17.5 for analysis). We sweep offered load and measure the tail rather than treating that ceiling as achieved capacity. An illustrative single-host sweep can cover 2, 4, 8, 12 and 16 active requests. Higher offered concurrency tests queueing or rejection; it does not imply that all requests are simultaneously resident. At each level we record:
 
 - **TTFT** p50/p95/p99 (must be median ≤ 1.2 s, p95 ≤ 2 s).
-- **TPOT** p50/p95 (SLO: p50 ≤ ~25 ms/token; record p95 for tail diagnosis, not SLO-bound).
+- **TPOT** p50/p95 (SLOs: p50 ≤ 25 ms/token **and** p95 ≤ 35 ms/token, Ch 4 Table 4-2 — both are acceptance criteria, not diagnostics only).
 - **Goodput** — tokens/s that meet the SLO (Ch6), not raw throughput.
 - **KV cache utilization** and prefix-cache hit ratio (to validate the serving choices of Ch11).
 - **Admission / rejection** — the offered-load level at which the server starts queueing or rejecting (the saturation knee).
@@ -47,8 +47,9 @@ The analytical ceiling sets the range of the sweep. The scenario's 40 req/s peak
 |---|---|---|---|
 | Load trace | the exact query set and offered-load schedule (2 / 4 / 8 / 12 / 16 active requests, Step 2) | to be captured | [UNMEASURED] |
 | TTFT | p50 / p95 / p99 at each load level | budget: median ≤ 1.2 s, p95 ≤ 2 s | [UNMEASURED] |
-| TPOT | p50 / p95 | ~25 ms/token median | [UNMEASURED] |
+| TPOT | p50 / p95 | SLO: p50 ≤ 25 ms, p95 ≤ 35 ms (Ch 4 Table 4-2) | [UNMEASURED] |
 | SLO-goodput | tokens/s meeting the SLO (Ch 6), not raw throughput | — | [UNMEASURED] |
+| Cost per SLO-meeting request | $/request at the measured goodput, with the priced-occupancy basis (reserved vs on-demand, utilization) stated | Ch 16 cost model | [UNMEASURED] |
 | KV allocator usage | resident bytes per rank, block occupancy, prefix-cache hit ratio | C ≈ 17.5 request-equivalents/host (analytical); integer whole-context slots = 17 | [UNMEASURED] |
 | Rank imbalance | max − min load and memory across the 8 GPUs | — | [UNMEASURED] |
 | Admission rejection | offered load at the saturation knee (Step 2) | — | [UNMEASURED] |
@@ -105,7 +106,7 @@ A reproducible video result identifies the exact model and revision; task and co
 
 This section keeps the video measurement protocol; the serving side — request scheduling, live state, reuse, and resource-specialized pools for a video workload — is treated in the Ch 11 appendix, "Beyond autoregressive text: video and diffusion serving".
 
-A primary report can still leave that tuple incomplete. HunyuanVideo-1.5 reports 5.5070 versus 2.9475 seconds per diffusion step for dense versus sparse attention at 720 × 1,280 pixels and 241 frames. Those measurements use eight H800 GPUs with context parallelism and a CFG-distilled model. Its separate 50-step table adds SageAttention, compilation, and feature caching, and reports 96.78 versus 58.39 seconds for the same shape. Neither table establishes a single-GPU service rate or a complete request-to-media latency.[^oct14-vg-h15] [1P][FACT]
+A primary report can still leave that tuple incomplete. HunyuanVideo-1.5 reports 5.5070 versus 2.9475 seconds per diffusion step for dense versus sparse attention at 720 × 1,280 pixels and 241 frames. Those measurements use eight H800 GPUs with context parallelism and a CFG-distilled model. Its separate 50-step table adds SageAttention, compilation, and feature caching, and reports 96.78 versus 58.39 seconds total for the 50 steps (~1.94 vs 1.17 s/step). Neither table establishes a single-GPU service rate or a complete request-to-media latency.[^oct14-vg-h15] [1P][FACT]
 
 LTX-2's report compares 22.30 seconds/step for Wan2.2-14B with 1.22 seconds/step for LTX-2. The stated context is an H100 GPU, 121 frames, a 720p label, single-step Euler, and CFG=1. It is not a matched-quality completed-clip comparison. Missing precision, exact pixel shape, engine revision, and per-run quality prevent a price-per-usable-clip conclusion. The appropriate response to incomplete evidence is a bounded deployment experiment, not a TFLOP-to-price conversion.[^oct14-vg-ltx] [1P][FACT]
 
@@ -127,7 +128,7 @@ Collective microbenchmarks isolate one communication mechanism; they do not esta
 
 - **Citing a capability leaderboard as proof of serving fitness.** MMLU does not predict TTFT; it screens capability only.
 - **Benchmarking a single request.** Real SLOs break under concurrency; a single-request benchmark hides the tail.
-- **Mean-only latency reporting.** A 0.84 s mean hides a 5 s tail that breaches the p95 SLO (Ch6).
+- **Mean-only latency reporting.** A 0.84 s mean can hide a 5 s tail; a p95 breach needs more than 5% of requests above 2 s (Ch6).
 - **Using the wrong tokenizer estimate.** Under-counting context via the 4-char heuristic mis-sizes KV cache and prefill.
 - **Optimizing raw throughput past the SLO window.** Bigger batch sizes raise tokens/s but push TTFT over the deadline for the affected requests and can reduce goodput — to zero only if no request in the measurement window meets the SLO (Ch6, Ch11).
 
@@ -154,8 +155,8 @@ The benchmark is not a one-time event; it is the recurring production validation
 
 ## 8. End-of-Chapter Mini-Case: Capability Screen vs. Deployment Benchmark
 
-In this hypothetical mini-case, a team proposes a model because it tops MMLU. It also passes the task-specific retrieval-QA capability screen. The remaining question is deployment fitness. The comparison fixes prompt texts, output requirements, hardware, arrival trace and timing boundaries; each model uses its own tokenizer. A single-host load sweep establishes each replica's accepted operating point before the fleet is tested at the scenario's 40 req/s peak. The SLO remains median TTFT ≤ 1.2 s, p95 TTFT ≤ 2 s and median TPOT about 25 ms. Suppose the candidate generates more input tokens for the same prompt texts and the paired deployment test yields p95 TTFT 2.6 s, versus the incumbent's 1.9 s at that same offered load. Those are illustrative results, not book measurements. The candidate fails the latency gate despite passing the capability screen; diagnosis must separate token-count effects from implementation and queueing costs before a revised deployment is accepted. [ILLUSTRATIVE][ASSUMPTION][UNMEASURED]
+In this hypothetical mini-case, a team proposes a model because it tops MMLU. It also passes the task-specific retrieval-QA capability screen. The remaining question is deployment fitness. The comparison fixes prompt texts, output requirements, hardware, arrival trace and timing boundaries; each model uses its own tokenizer. A single-host load sweep establishes each replica's accepted operating point before the fleet is tested at the scenario's 40 req/s peak. The SLO remains median TTFT ≤ 1.2 s, p95 TTFT ≤ 2 s, TPOT median ≤ 25 ms and p95 ≤ 35 ms (Ch 4, Table 4-2). Suppose the candidate generates more input tokens for the same prompt texts and the paired deployment test yields p95 TTFT 2.6 s, versus the incumbent's 1.9 s at that same offered load. Those are illustrative results, not book measurements. The candidate fails the latency gate despite passing the capability screen; diagnosis must separate token-count effects from implementation and queueing costs before a revised deployment is accepted. [ILLUSTRATIVE][ASSUMPTION][UNMEASURED]
 
-[^oct14-vg-h15]: HunyuanVideo-1.5 Technical Report, arXiv:2511.18870, especially model architecture and §6 Tables 7–8. https://arxiv.org/html/2511.18870 . Official repository: https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5 . Retrieved 2026-10-28. Timing results are vendor-reported, not measurements made for this book.
+[^oct14-vg-h15]: HunyuanVideo-1.5 Technical Report, arXiv:2511.18870, especially model architecture and §6 Tables 7–8. https://arxiv.org/html/2511.18870 . Official repository: https://github.com/Tencent-Hunyuan/HunyuanVideo-1.5 . Retrieved 2026-10-28; outside the book's 2026-08-30 evidence cutoff — post-cutoff sources are admitted only as dated, vendor-reported context. Timing results are vendor-reported, not measurements made for this book.
 
-[^oct14-vg-ltx]: LTX-2: Efficient Joint Audio-Visual Foundation Model, arXiv:2601.03233, architecture, §6.3/Table 1, limitations and conclusion. https://arxiv.org/html/2601.03233 . Retrieved 2026-10-28. Timing results are vendor-reported, not measurements made for this book.
+[^oct14-vg-ltx]: LTX-2: Efficient Joint Audio-Visual Foundation Model, arXiv:2601.03233, architecture, §6.3/Table 1, limitations and conclusion. https://arxiv.org/html/2601.03233 . Retrieved 2026-10-28; outside the book's 2026-08-30 evidence cutoff — post-cutoff sources are admitted only as dated, vendor-reported context. Timing results are vendor-reported, not measurements made for this book.

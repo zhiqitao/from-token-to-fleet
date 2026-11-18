@@ -1,0 +1,149 @@
+```json
+[
+  {
+    "id": "CH16-MC-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 16 §8 mini-case, 'Which term is which — no double-counting' paragraph and the subsequent 'Reading' paragraph",
+    "chapter": "16",
+    "quoted_clause": "$104K + $26K − $40K = $90.2K/mo",
+    "observed": "The displayed equation is arithmetically incorrect: 104 + 26 − 40 = 90, not 90.2. The same equation appears twice in the mini-case (once in the 'Reading' paragraph, once in the 'To justify paying the API premium' paragraph), both stating $90.2K. The surrounding prose consistently says '~$90K/month' and '~$90K threshold', making $90.2K an outlier inconsistent with both the equation's own operands and the adjacent text.",
+    "evidence": "104,000 + 26,000 − 40,000 = 90,000. Using exact components: API = 5,000,000 × 0.0208 = 104,000; staff = 0.5 × 624,000/12 = 26,000; self-host = 11,666.67 + 2,220.66 + 26,000 = 39,887.33. Then 104,000 + 26,000 − 39,887.33 = 90,112.67 ≈ $90.1K, still not $90.2K. No combination of the stated rounded operands yields 90.2.",
+    "root_cause": "Arithmetic error in the displayed equation; the rounded operands (104, 26, 40) sum to 90, not 90.2.",
+    "correction": "Change '$90.2K/mo' to '$90K/mo' in both occurrences (matching the rounded operands and the surrounding '~$90K' references), or recompute with exact values and display consistently (e.g., '~$90.1K/mo' using the exact $39,887.33 self-host cost).",
+    "acceptance_test": "The displayed equation balances: left-hand side equals right-hand side to the stated precision, and the value is consistent with the surrounding '~$90K' references in the same mini-case."
+  },
+  {
+    "id": "CH15-T1501-01",
+    "severity": "P1",
+    "confidence": "high",
+    "page_hint": "Ch 15 Table 15-1, 'kernel regime (§3)' column, Light row",
+    "chapter": "15",
+    "quoted_clause": "Compute (SDPA)",
+    "observed": "Table 15-1's 'kernel regime' column labels the Light row as 'Compute (SDPA)', but the Common Mistakes section of the same chapter states 'For long contexts (9,200+ tokens) the O(L²) intermediate makes the naive kernel memory-traffic-bound'. These directly contradict each other regarding whether SDPA at 9,200 tokens is compute-bound or memory-bound. The table footnote says kernel regime is 'a kernel property' that 'does not change across these three load regimes', so the contradiction applies to all rows.",
+    "evidence": "Table 15-1 Light row, kernel regime column: 'Compute (SDPA)'. Ch 15 §5 Common Mistakes: 'For long contexts (9,200+ tokens) the O(L²) intermediate makes the naive kernel memory-traffic-bound (it dominates the attention kernel's HBM traffic).' The footnote states: 'kernel regime (a kernel property — it does not change across these three load regimes, so only the row that states one carries a label)'.",
+    "root_cause": "The column appears to conflate the overall prefill workload regime (compute-bound because parameter matmuls dominate at ~85% of FLOPs) with the specific attention kernel's regime (memory-traffic-bound for naive SDPA at 9,200 tokens). The label 'Compute (SDPA)' is ambiguous between these two readings, and one reading directly contradicts the Common Mistakes section.",
+    "correction": "Either (a) rename the column to 'workload regime' or 'phase regime' and clarify it refers to the overall prefill/decode regime, removing the specific kernel name; or (b) change the label to 'Memory-traffic (SDPA)' to match the Common Mistakes section; or (c) add a footnote clarifying that 'Compute' refers to the overall prefill regime (parameter matmuls dominate) while SDPA itself is memory-traffic-bound, and the two coexist because attention is only ~15% of total FLOPs at 9.2K.",
+    "acceptance_test": "The table's kernel regime label and the Common Mistakes section's characterization of SDPA at 9,200 tokens do not contradict each other. A reader can determine from the table alone whether the label refers to the overall workload regime or the specific kernel's regime."
+  },
+  {
+    "id": "CH15-MC-01",
+    "severity": "P1",
+    "confidence": "medium-high",
+    "page_hint": "Ch 15 §8 mini-case, parenthetical after 'both latencies quoted at the same sub-capacity offered load'",
+    "chapter": "15",
+    "quoted_clause": "the ~12.5 rps average, below a host's admission capacity",
+    "observed": "The text claims 12.5 rps is 'below a host's admission capacity', but the book's own KV-slot analysis gives a single host's admission capacity as ~2 rps (17 slots ÷ 8.6 s ≈ 1.98 rps). Even the dual-host configuration being tested gives ~4 rps (2 × 1.98). 12.5 rps exceeds both. If the queue is growing without bound at 12.5 rps, the reported 140 ms queueing delay would not be a stable sub-capacity measurement.",
+    "evidence": "Ch 15 §4: 'admission capacity, ~2 rps per host: 17 slots ÷ 8.6 s'. Ch 16: 'C/W = 17/8.6 = 1.9767'. The mini-case configures 2 hosts, giving ~3.95 rps total. 12.5 > 3.95 > 1.98. Using Little's Law at 12.5 rps on 2 hosts: in-flight = 12.5 × 8.6 = 107.5 requests, but only 34 KV slots exist, implying a queue of ~73 requests and a queueing delay of ~73/6.25 ≈ 11.7 s per host — not 140 ms.",
+    "root_cause": "Either 'a host' is imprecise language for 'the fleet' or 'the serving configuration', or the claim confuses the workload's average rate with the actual sub-capacity measurement load, or 'admission capacity' is being used with a different definition than the KV-slot ceiling established elsewhere in the book.",
+    "correction": "Clarify what 'a host's admission capacity' refers to. If the intent is that 12.5 rps is below the canonical 21-host fleet's capacity (~42 rps), change 'a host's' to 'the fleet's'. If the intent is that the latency measurement was performed at a load below the dual-host configuration's capacity, state the actual measurement load explicitly rather than equating it with the 12.5 rps workload average.",
+    "acceptance_test": "The stated offered load for the latency measurement is below the stated admission capacity of the stated configuration, using the book's own KV-slot ceiling definition (C/W per host)."
+  },
+  {
+    "id": "CH16-MC-02",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch 16 §8 mini-case, 'Which term is which — no double-counting' paragraph",
+    "chapter": "16",
+    "quoted_clause": "so ~$0.2K of the $26.2K remainder is unallocated",
+    "observed": "The remainder should be ~$26.1K, not $26.2K, and the unallocated amount should be ~$0.1K, not ~$0.2K. The text rounds capex to $11.7K and power to $2.2K, giving 40 − 11.7 − 2.2 = 26.1, not 26.2.",
+    "evidence": "Capex = 2 × 350,000/60 = 11,666.67 ≈ $11.7K. Power = 2 × 1,110.33 = 2,220.66 ≈ $2.2K. 40,000 − 11,700 − 2,200 = 26,100 ≈ $26.1K. With staff at $26,000: 26,100 − 26,000 = 100 ≈ $0.1K. Using exact values: 40,000 − 11,666.67 − 2,220.66 = 26,112.67 ≈ $26.1K.",
+    "root_cause": "Rounding inconsistency: the text appears to round capex down to $11.6K (giving 40 − 11.6 − 2.2 = 26.2) rather than the correct $11.7K (giving 40 − 11.7 − 2.2 = 26.1).",
+    "correction": "Change '$26.2K' to '$26.1K' and '$0.2K' to '$0.1K', using consistent rounding with the displayed capex ($11.7K) and power ($2.2K) figures.",
+    "acceptance_test": "40,000 − capex − power = stated remainder, using the same rounding as the displayed capex and power figures in the same sentence."
+  },
+  {
+    "id": "CH15-FA-01",
+    "severity": "P2",
+    "confidence": "medium-high",
+    "page_hint": "Ch 15 §3, Figure 15.1 caption",
+    "chapter": "15",
+    "quoted_clause": "a reduction factor of M/d² (≈6× at d = 128, M ≈ 192 KB of fp16)",
+    "observed": "The notation 'M ≈ 192 KB of fp16' is ambiguous about whether M is measured in bytes or in fp16 elements. The FlashAttention paper's I/O complexity uses M as SRAM size in words (elements). The ≈6× result holds only if M is in elements: 192,000 bytes ÷ 2 bytes/element = 96,000 elements, and 96,000/128² = 96,000/16,384 = 5.86 ≈ 6. If a reader interprets M as 192,000 elements, M/d² = 11.7 ≈ 12×, not 6×.",
+    "evidence": "FlashAttention (Dao et al., NeurIPS 2022) defines I/O complexity as Θ(L²d²/M) where M is SRAM size in words. With d=128: d²=16,384. For M/d²≈6: M≈98,304 words ≈ 192 KB of fp16 data (98,304 × 2 bytes = 196,608 bytes ≈ 192 KB). The calculation works only if M is in elements, not bytes.",
+    "root_cause": "The caption does not specify the unit of M in the formula M/d². A reader who interprets M as 192 KB (bytes) would compute 192,000/16,384 ≈ 11.7, not 6.",
+    "correction": "Clarify the unit: e.g., 'M ≈ 192 KB of fp16 ≈ 96K elements, so M/d² ≈ 96,000/16,384 ≈ 6×' or state 'M is SRAM size in elements: ~96K fp16 elements from ~192 KB'.",
+    "acceptance_test": "A reader can reproduce the ≈6× figure from the stated values of M and d without guessing the unit of M."
+  },
+  {
+    "id": "CH15-FIG1501-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 15 §3, Figure 15.1 caption",
+    "chapter": "15",
+    "quoted_clause": "FlashAttention: the same math, far less HBM traffic. Before (naive materialized attention)... [entire caption through I/O bound citation]",
+    "observed": "The Figure 15.1 caption is extremely long — approximately 200+ words forming multiple paragraphs of prose, including an arrow legend explanation, a 'read once' scope qualification, an I/O complexity formula with reduction factor, a floating-point equivalence caveat, and a citation. This is paragraph-length text in a caption slot, which forces the reader to choose between reading the caption and studying the figure.",
+    "evidence": "The caption contains: (1) arrow legend for both panels, (2) 'read once' scope qualification, (3) I/O complexity formula Θ(L²d²/M) with reduction factor, (4) floating-point caveat about accumulation order, (5) I/O bound citation to Dao et al. — all within the caption block.",
+    "root_cause": "Important qualifications were placed in the caption rather than in the surrounding prose, making the caption function as a text block rather than a figure annotation.",
+    "correction": "Move the I/O complexity formula, floating-point caveat, and citation to the surrounding prose (the 'Read the figure as an I/O story' paragraph already covers similar ground and could absorb them). Keep the caption to: what the figure shows, the key scope qualification ('read once' is per-tile, not global), and the arrow legend if needed. Target: 3-5 sentences maximum.",
+    "acceptance_test": "The caption can be read in under 30 seconds while looking at the figure, and all qualifications that affect interpretation are either in the caption (briefly) or in immediately adjacent prose."
+  },
+  {
+    "id": "CH15-S3-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 15 §3 Worked Example",
+    "chapter": "15",
+    "quoted_clause": "Canonical scenario: ~2,000 registered users... [entire §3 through Attention FLOP comparison and FlashAttention discussion]",
+    "observed": "Chapter 15 §3 'Worked Example' is extremely long and contains at least four major independent sub-discussions: (1) compute demand vs peak with three FLOP-counting cases and MFU discussion, (2) KV cache memory footprint with unit-check rule, (3) attention FLOP comparison, and (4) FlashAttention I/O analysis with figure. Each could be a separate subsection. The reader must track the worked example's thread across what amounts to several pages of dense, multi-topic material without structural signposts.",
+    "evidence": "§3 contains: derived quantities 1-2, a 'hard terminology distinction' callout, a 'Compute demand versus peak' paragraph with cases (i)/(ii)/(iii), a 'KV cache memory footprint' paragraph, an 'Attention FLOP comparison' paragraph, a FlashAttention figure with very long caption, and a 'Read the figure as an I/O story' paragraph — all under one heading.",
+    "root_cause": "Multiple distinct analytical topics were placed under a single 'Worked Example' heading without subsection structure.",
+    "correction": "Add subsection headings within §3 (e.g., '3.1 Compute demand and the MFU distinction', '3.2 KV capacity', '3.3 Attention FLOPs', '3.4 FlashAttention I/O') or restructure so that the FlashAttention discussion moves to its own section. This preserves all content while improving navigability and allowing readers to locate specific sub-topics.",
+    "acceptance_test": "A reader can locate any specific sub-topic within §3 without scanning the entire section. The worked example's thread (canonical scenario → derived quantities → conclusions) remains traceable across the subsections."
+  },
+  {
+    "id": "CH16-S2-01",
+    "severity": "P2",
+    "confidence": "medium",
+    "page_hint": "Ch 16 §3, 'Reading the result' paragraph",
+    "chapter": "16",
+    "quoted_clause": "a ~1.8 ratio, not a 2× gap",
+    "observed": "The text corrects a '2× gap' misconception, but nowhere in Chapter 16 is a 2× figure established, computed, or attributed. The correction addresses a claim the reader has not been given in this chapter.",
+    "evidence": "The ratio is computed as 155,816.93 ÷ 87,600 = 1.78 ≈ 1.8. No prior text in Ch 16 states or implies a 2× ratio. A search of the chapter finds no '2×' or 'twice' in relation to the self-host/cloud ratio.",
+    "root_cause": "The correction likely references an earlier draft, a common intuition, or a figure that was removed, but as written it corrects an unstated claim.",
+    "correction": "Either remove 'not a 2× gap' (the ~1.8 ratio speaks for itself), or establish the 2× intuition first (e.g., 'A quick mental estimate might suggest self-hosting costs about twice the cloud figure; the actual ratio is ~1.8').",
+    "acceptance_test": "Every correction in the text corrects a claim that appears earlier in the same chapter or is explicitly attributed to a common intuition."
+  },
+  {
+    "id": "CH15-T1501-02",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 15 Table 15-1, 'Illustrative load pressure' note below the table",
+    "chapter": "15",
+    "quoted_clause": "the 12/38/52 values (light/typical/peak) are a demand-side/congestion label for teaching shape [ILLUSTRATIVE]",
+    "observed": "The load pressure scores (12/38/52) are explicitly stated to have 'no FLOP numerator or denominator behind it' and to be 'ordinal and scenario-chosen'. The table already provides computed ratios (prefill demand ÷ ceiling: 0.33×/1.63×/6.51×; KV demand ÷ budget: 0.97×/4.91×/19.6×) that convey the same progression quantitatively. The scores may not earn their place given the computed ratios.",
+    "evidence": "The note itself says the scores have 'no FLOP numerator or denominator' and 'must not be read as' a percentage. The table's prefill-demand and KV-demand columns already show the shape progression. The extensive caveat text explaining what the scores are NOT takes more space than the scores themselves.",
+    "root_cause": "An ordinal label was added alongside computed ratios that already convey the same information more rigorously, requiring extensive caveating to prevent misinterpretation.",
+    "correction": "Consider removing the load pressure scores entirely, or if they serve a pedagogical purpose (e.g., giving students a quick ordinal reference), move them to a brief prose sentence rather than the table's extended footnote. The computed ratio columns already show the regime progression.",
+    "acceptance_test": "Removing the load pressure scores does not reduce the reader's ability to compare the three regimes. If retained, the scores add information not already conveyed by the computed ratio columns."
+  },
+  {
+    "id": "CH14-S4-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch 14 §4, 'A video benchmark is a workload tuple' subsection",
+    "chapter": "14",
+    "quoted_clause": "A reproducible video result identifies the exact model and revision; task and conditioning; hardware model, count, and topology...",
+    "observed": "The video benchmark subsection discusses video generation (HunyuanVideo-1.5, LTX-2) in detail with specific vendor timing comparisons, which is a different modality and workload from the chapter's canonical enterprise-Q&A RAG workload. While it demonstrates the 'workload tuple' concept, it is lengthy and specific to a workload the chapter does not otherwise address.",
+    "evidence": "The subsection spans multiple paragraphs with specific vendor benchmarks (HunyuanVideo-1.5: 5.5070 vs 2.9475 s/step; LTX-2: 22.30 vs 1.22 s/step), detailed timing comparisons, and a deployment experiment protocol — all for video generation, not the canonical text workload. The text itself references Ch 11's appendix for the serving side.",
+    "root_cause": "A detailed example from a different workload class was included to illustrate benchmark specification completeness.",
+    "correction": "Consider condensing to 2-3 sentences that state the 'workload tuple' principle and point to Ch 11's appendix for video serving details (which the text already references). The specific vendor timing comparisons could move to the appendix. Alternatively, if retained for pedagogical value in showing what a complete specification looks like, add a sentence explaining why a video example illustrates a principle that applies to the canonical text workload.",
+    "acceptance_test": "The 'workload tuple' principle is established with an example that either matches the chapter's canonical workload or is explicitly justified as a contrasting case. The subsection's length is proportional to its contribution to the chapter's argument."
+  },
+  {
+    "id": "CH14-CH15-LABELS-01",
+    "severity": "P3",
+    "confidence": "low-medium",
+    "page_hint": "Ch 14 worksheet, Ch 15 mini-case, figure captions",
+    "chapter": "14/15",
+    "quoted_clause": "[UNMEASURED], [ILLUSTRATIVE SCENARIO RESULT], [ILLUSTRATIVE conceptual]",
+    "observed": "Three evidence labels appear that are not in the house-convention sets listed in the review instructions: [UNMEASURED] (used as a status label throughout Ch 14's worksheet), [ILLUSTRATIVE SCENARIO RESULT] (compound label in Ch 15's mini-case), and [ILLUSTRATIVE conceptual] (compound with qualifier in figure captions). The defined sets are provenance [1P][2 degree][LAB][ILLUSTRATIVE], status [FACT][DERIVED][ASSUMPTION][HYPOTHESIS][UNRESOLVED], and [ANALYTICAL].",
+    "evidence": "[UNMEASURED] appears in every row of Ch 14's result worksheet. [ILLUSTRATIVE SCENARIO RESULT] appears in Ch 15's mini-case (twice). [ILLUSTRATIVE conceptual] appears in Figure 14.1 and Figure 15.1 captions. None appear in the defined label sets.",
+    "root_cause": "Labels may be defined in Ch 4 or Appendix A (not included in this chunk), or they may be ad-hoc extensions of the defined taxonomy.",
+    "correction": "Verify against Ch 4 and Appendix A whether these labels are defined. If defined, no action needed. If not defined, either add them to the taxonomy or map them to existing labels (e.g., [UNMEASURED] → [ASSUMPTION] or [UNRESOLVED]; [ILLUSTRATIVE SCENARIO RESULT] → [ILLUSTRATIVE]; [ILLUSTRATIVE conceptual] → [ILLUSTRATIVE]).",
+    "acceptance_test": "Every evidence label in the chunk appears in the sets defined in Ch 4 / Appendix A, or is added to those sets with a definition."
+  }
+]
+```
+
+COVERAGE: Text read (T) for all of Ch 14, Ch 15, and Ch 16 in this chunk, including all sections, tables (14-1, 15-1, 16-1, 16-2, provisioning sensitivity, multi-region worksheet, mini-case terms), figure captions (14.1, 15.1, 15.2, 16.1), footnotes (oct14-vg-h15, oct14-vg-ltx, oct-ccl-proxy, oct28-lifecycle), and all evidence labels. Quantities recomputed (Q): all major numerical claims in all three chapters independently rederived — Ch 14 KV quotient/sweep arithmetic/prefill ceiling; Ch 15 compute demand (3 FLOP cases), decode bandwidth (2 formulations), KV footprint, attention FLOPs, FlashAttention I/O ratio, Table 15-1 all columns, fleet screens (KV/prefill/decode), FP8 KV, mini-case MFU; Ch 16 all TCO line items (21/22/32/34-host costs, per-1K figures, cloud modes, API cost, break-even region, feasible bound, mini-case staffing sensitivity, $90K threshold). Rendered pages NOT viewed (V) — figures 14.1, 15.1, 15.2, 16.1 and all table layouts reviewed only from text extraction; visual legibility, grayscale distinguishability, and geometric quality deferred to vision stage. References NOT checked (R) — arXiv:2511.18870, arXiv:2601.03233, NCCL proxy.cc URL, Intel IPEX URLs not fetched. Cross-chapter consistency checked against Ch 4/6/7/8 canonical values as stated within this chunk; consistency with Ch 17/20 not verifiable from this chunk alone.

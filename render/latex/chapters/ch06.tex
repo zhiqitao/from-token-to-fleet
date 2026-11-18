@@ -39,10 +39,10 @@ different role:
   that workload. Time-to-first-token (TTFT), time-per-output-token
   (TPOT), inter-token latency, and \textbf{goodput} (tokens per second
   that actually meet the SLO). These are the dependent variables; they
-  are what the SLO is written against --- the canonical SLO targets are
-  TTFT 1.2 s / TPOT \textasciitilde25 ms. \textbf{Queue depth} is not
-  one of them: it is a scheduler state, a leading indicator that helps
-  explain these serving metrics.
+  are what the SLO is written against --- the canonical design budgets
+  are TTFT 1.2 s / TPOT \textasciitilde25 ms, and the SLOs written
+  against them are p95 TTFT ≤ 2 s and p95 TPOT ≤ 35 ms (Ch 4, \hyperref[tab:4.2]{Table 4-2}). \textbf{Queue depth} is not one of them: it is a scheduler
+  state, a leading indicator that helps explain these serving metrics.
 \item
   \textbf{Resource metrics} --- \emph{why} performance is what it is.
   HBM bandwidth utilization, FLOP utilization / model FLOPs utilization
@@ -180,16 +180,22 @@ at p95, Ch 4). Log the distribution; SLO against the percentile.
 Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval
 \textasciitilde120 ms + prefill \textasciitilde1.08 s) with a p95 ≤ 2 s.
 Suppose a flash crowd (the \textasciitilde40 rps peak) causes prefill
-requests to queue. If on average the batch is well-behaved, p50 TTFT
-might sit at \textasciitilde1.0 s. But the jobs that arrive behind
-\textasciitilde1--2 same-time prefill requests each pay the full 1.08 s
-prefill of the job(s) ahead of them, so p95 TTFT drifts to
-\textasciitilde2.5 s. The \emph{average} says ``fine''; the \emph{p95}
-says ``we just violated our SLO.'' We hence log p50, p90, p95, and p99
-independently and run the SLO against the percentile, never the mean.
-\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} author-chosen SLO budget from
-the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}); the arithmetic is the point,
-not a citation.
+requests to queue on a fleet sized for that peak ---
+\textasciitilde19--22 hosts (Ch 8 §3). If on average the batch is
+well-behaved, p50 TTFT might sit at \textasciitilde1.0 s. But the jobs
+that arrive behind \textasciitilde1--2 same-time prefill requests each
+pay the full 1.08 s prefill of the job(s) ahead of them, so p95 TTFT
+drifts to \textasciitilde2.5 s. \emph{(Fleet scope: this 1--2-jobs-ahead
+illustration is the fleet-sized case. On a single 8×H100 host at the
+same 40 rps peak, prefill demand is \textasciitilde18.6× that host's
+sustained capacity --- §8, \hyperref[tab:8.1]{Table 8-1} --- so the queue is unbounded and
+p95 TTFT grows until admission control intervenes; the 2.5 s figure does
+not describe that case.)} The \emph{average} says ``fine''; the
+\emph{p95} says ``we just violated our SLO.'' We hence log p50, p90,
+p95, and p99 independently and run the SLO against the percentile, never
+the mean. \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} author-chosen SLO
+budget from the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}); the arithmetic is
+the point, not a citation.
 
 \subsection{Goodput vs Raw Throughput}\label{goodput-vs-raw-throughput}
 
@@ -367,7 +373,7 @@ scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} arithmetic traced to the canonical 
 intensity, not from the demand-vs-capacity rate comparison: prefill
 \textasciitilde9,200 FLOP/byte = 1.29 PFLOP linear FLOPs ÷ 140 GB
 weights (adding the quadratic attention term raises it to
-\textasciitilde10.6K, activation traffic lowers it --- either way ≫ 295)
+\textasciitilde10.8K, activation traffic lowers it --- either way ≫ 295)
 (compute-bound), decode \textasciitilde1.0 FLOP/byte ≪ ridge
 (bandwidth-bound). The 1.19-vs-0.989 PFLOPS and 5.6-vs-3.35 TB/s rate
 comparisons are illustrative single-device roofline arguments (a
@@ -380,29 +386,29 @@ parallelism the 140 GB is sharded, so each GPU only needs
 Decision}\label{reading-telemetry-into-a-decision}
 
 A concrete dashboard-read → decision trace. We see: p95 TTFT climbing
-(serving), KV cache hit ratio low (resource: memory), and prefill queue
-depth growing (serving). Workload is unchanged. Reading up the chain:
-low prefix-cache hit means many independent 9.2K prefixes are being
-prefill-processed from scratch on the \textasciitilde40 rps peak ---
-each \textasciitilde1.29 PFLOP (case (i), linear-only) --- aggregate
-prefill demand at the 40 rps peak is 40 × 1.29 ≈ 51.6 PFLOP/s against
-the 8×H100 sustained prefill capacity of \textasciitilde2.77 PFLOP/s
-(35\% MFU, Ch 8 §3) --- \textasciitilde18.6× oversubscribed (the
-datasheet-peak \textasciitilde7.9 PFLOPS gives \textasciitilde6.5×, the
-theoretical ceiling only), consistent with Ch 8's 19-host screen at this
-peak, so the prefill queue grows until backpressure or prefix caching
-intervenes. The decision: enable prefix / RadixAttention-style caching
-(SGLang) or Automatic Prefix Caching (vLLM) so the byte-identical shared
-prefix is reused instead of re-prefilled - in the canonical workload
-(1,200 prompt + 8,000 per-query retrieved, Ch 4 \hyperref[tab:4.2]{Table 4-2}) that shared
-prefix is at most the \textasciitilde1,200-token prompt
-(\textasciitilde13\% of prefill FLOPs), because the 8K retrieved block
-differs per query; prefix caching is therefore a partial mitigation, not
-the fix for the 40 rps prefill queue (§7 keeps the actual reduction
-\mbox{{[}UNRESOLVED{]}}). \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} Prefix caching is a
-compute-saving move --- its TTFT benefit arrives through the prefill
-work it removes, not through a latency knob of its own --- and the
-telemetry told us that.
+(serving), KV cache hit ratio low (resource: FLOP/reuse --- prefill
+recomputation), and prefill queue depth growing (serving). Workload is
+unchanged. Reading up the chain: low prefix-cache hit means many
+independent 9.2K prefixes are being prefill-processed from scratch on
+the \textasciitilde40 rps peak --- each \textasciitilde1.29 PFLOP (case
+(i), linear-only) --- aggregate prefill demand at the 40 rps peak is 40
+× 1.29 ≈ 51.6 PFLOP/s against the 8×H100 sustained prefill capacity of
+\textasciitilde2.77 PFLOP/s (35\% MFU, Ch 8 §3) --- \textasciitilde18.6×
+oversubscribed (the datasheet-peak \textasciitilde7.9 PFLOPS gives
+\textasciitilde6.5×, the theoretical ceiling only), consistent with Ch
+8's 19-host screen at this peak, so the prefill queue grows until
+backpressure or prefix caching intervenes. The decision: enable prefix /
+RadixAttention-style caching (SGLang) or Automatic Prefix Caching (vLLM)
+so the byte-identical shared prefix is reused instead of re-prefilled -
+in the canonical workload (1,200 prompt + 8,000 per-query retrieved, Ch
+4 \hyperref[tab:4.2]{Table 4-2}) that shared prefix is at most the
+\textasciitilde1,200-token prompt (\textasciitilde13\% of prefill
+FLOPs), because the 8K retrieved block differs per query; prefix caching
+is therefore a partial mitigation, not the fix for the 40 rps prefill
+queue (§7 keeps the actual reduction \mbox{{[}UNRESOLVED{]}}).
+\mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} Prefix caching is a compute-saving move ---
+its TTFT benefit arrives through the prefill work it removes, not
+through a latency knob of its own --- and the telemetry told us that.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -448,7 +454,7 @@ edge, before any architecture decision is committed.
 \item
   \textbf{Optimizing raw throughput when the SLO windows it.} Bigger
   batches raise raw tokens/s but can push TTFT past its deadline,
-  zeroing goodput. Optimize goodput.
+  erasing the throughput gain. Optimize goodput.
 \item
   \textbf{Jumping straight to ``buy more GPUs.''} A bandwidth-bound
   decode and a prefill-cost problem need different fixes; without the
@@ -538,26 +544,35 @@ Chain}\label{end-of-chapter-mini-case-the-post-lunch-slowdown-reading-telemetry-
 An on-call architect is paged: ``the internal Q\&A tool got slow after
 lunch.'' The dashboard shows rps at the \textasciitilde40 rps peak
 (workload, up from the 10 rps baseline), p95 TTFT at 2.4 s against a 2 s
-SLO (serving, breached), and KV cache occupancy at 85\% with low
-prefix-hit ratio (resource, memory/FLOP pressure). Following the chain
-rather than guessing, the architect reads: a concurrency spike
-(workload) with repeated full 9.2K prefills (low prefix hit) drives
-prefill FLOP demand several times past the host aggregate capacity
-(compute-bound). The architecture is memory- and compute-sane at the 10
-rps design point but was never sized for the lunch peak. The diagnosis
-is the \textasciitilde18.6× prefill oversubscription at the 40 rps peak
-(40 × 1.29 ≈ 51.6 PFLOP/s vs the \textasciitilde2.77 PFLOP/s host
-capacity); prefix caching is a partial mitigation (\textasciitilde13\%
-of prefill FLOPs), not the fix. The resolution is capacity/scheduling
---- additional hosts, chunked prefill, admission control/backpressure,
-or P/D disaggregation. The architect re-checks the dashboard an hour
-later: p95 TTFT is back under 2 s, and the mechanism check confirms the
-\emph{capacity/scheduling} change rather than the cache: a
-\textasciitilde13\% prefill reduction alone cannot close an
-\textasciitilde18.6× oversubscription (it still leaves
+SLO (serving, breached), and KV cache occupancy at 85\% (resource,
+memory pressure) with low prefix-hit ratio (resource, FLOP/reuse ---
+prefill recomputation). Following the chain rather than guessing, the
+architect reads: a concurrency spike (workload) with repeated full 9.2K
+prefills (low prefix hit) drives prefill FLOP demand several times past
+the host aggregate capacity (compute-bound). The architecture is
+memory-sane at the 10 rps design point but was never compute-sized for
+it, let alone for the lunch peak: 10 rps already demands 10 × 1.29 ≈
+12.9 PFLOP/s of prefill, ≈ \textbf{4.7 host-equivalents} of one 8×H100
+host's \textasciitilde2.77 PFLOP/s sustained prefill capacity, and the
+40 rps peak demands 40 × 1.29 ≈ 51.6 PFLOP/s ≈ \textbf{18.6
+host-equivalents}. On the single host this mini-case assumes (deployed
+host count H = 1) that is a 4.66× oversubscription at baseline and 18.6×
+at the peak; the fleet oversubscription at peak is 51.6 ÷ (H × 2.77) =
+18.6/H, so an H-host fleet sized at 10 rps with H ≈ 5 would be
+\textasciitilde3.7× oversubscribed at the peak. The diagnosis is
+therefore stated against a named denominator: the peak demands
+\textasciitilde18.6× \emph{one host's} prefill capacity (18.6
+host-equivalents); prefix caching is a partial mitigation
+(\textasciitilde13\% of prefill FLOPs), not the fix. The resolution is
+capacity/scheduling --- additional hosts, chunked prefill, admission
+control/backpressure, or P/D disaggregation. The architect re-checks the
+dashboard an hour later: p95 TTFT is back under 2 s, and the mechanism
+check confirms the \emph{capacity/scheduling} change rather than the
+cache: a \textasciitilde13\% prefill reduction alone cannot close an
+\textasciitilde18.6 host-equivalent gap (it still leaves
 \textasciitilde44.9 PFLOP/s of demand against \textasciitilde2.77
-PFLOP/s of sustained capacity, \textasciitilde16.2×), so hosts were
-added to raise sustained prefill capacity and admission control held the
-queue inside it, with the \textasciitilde13\% prefill reduction from
-prefix caching contributing on top; goodput restored --- because they
-measured the right thing at the right layer.
+PFLOP/s of sustained capacity, \textasciitilde16.2 host-equivalents), so
+hosts were added to raise sustained prefill capacity and admission
+control held the queue inside it, with the \textasciitilde13\% prefill
+reduction from prefix caching contributing on top; goodput restored ---
+because they measured the right thing at the right layer.

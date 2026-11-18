@@ -262,12 +262,11 @@ require §9.4 measurements.
 
 \label{fig:9.1}\end{figure}
 
-\begin{figure}
-\centering
 \pandocbounded{\includegraphics[keepaspectratio,alt={One SUM through a balanced four-rank ring. Reduce-scatter leaves one reduced element per rank; all-gather then replicates the already-reduced fragments. Illustrative FP16 inputs, exactly representable; each rank sends 12 B and receives 12 B across both phases. Indexing is per phase, 0-indexed ranks and 1-indexed reduce-scatter rounds: in round r of the reduce-scatter (r = 1\ldots N−1) rank i sends chunk (i−r) mod N and retains chunk i; in round r of the all-gather (r = 0\ldots N−2) rank i sends chunk (i−r) mod N, beginning with its own reduced chunk i. No averaging or measured performance is implied. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-09-0902-collective-semantics.pdf}}
-\caption[One SUM through a balanced four-rank ring]{One SUM through a balanced four-rank ring. Reduce-scatter leaves one reduced element per rank; all-gather then replicates the already-reduced fragments. Illustrative FP16 inputs, exactly representable; each rank sends 12 B and receives 12 B across both phases. Indexing is per phase, 0-indexed ranks and 1-indexed reduce-scatter rounds: in round r of the reduce-scatter (r = 1\ldots N−1) rank i sends chunk (i−r) mod N and retains chunk i; in round r of the all-gather (r = 0\ldots N−2) rank i sends chunk (i−r) mod N, beginning with its own reduced chunk i. No averaging or measured performance is implied. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
-
-\label{fig:9.2}\end{figure}
+\emph{Figure note (grayscale): colour marks the two phases (orange =
+reduce-scatter, blue = all-gather) and the box borders, but reading
+order is carried by the numbered phase labels and the text inside each
+box --- a grayscale print loses nothing.}
 
 The reduce-scatter and all-gather rows of \hyperref[tab:9.2]{Table 9-2} become concrete in
 \hyperref[fig:9.2]{Fig 9.2}, which follows one SUM through a balanced four-rank ring.
@@ -879,17 +878,23 @@ tensor --- batch × hidden × bytes --- so an 8-rank ring sends 1.75 ×
 that ≈ 0.45 MB per rank; across all 80 layers the per-step total is
 \textasciitilde36 MB of per-rank send traffic, against \textasciitilde20
 MB of logical volume, sub-MB to tens of MB and not GBs at the canonical
-batch and hidden size). In disaggregated serving a separate, one-time
-movement --- not a per-step one --- moves the KV cache fragment:
-e.g.~\textasciitilde35 GB of KV moved over NVLink (\textasciitilde0.08 s
-at 450 GB/s per direction, §9.2) when a P/D sequence transfers a
-\textasciitilde13K-token context (35 GB ÷ 2.62 MB/token ≈ 13.3K) between
-prefill and decode pools. The distinction changes the answer by orders
-of magnitude: re-fetching 140 GB of weights each step is pathological
-(that is a design smell, an anti-pattern to flag, not a baseline);
-exchanging activations or KV fragments is the normal case ---
-bandwidth-feasible within NVLink (\textasciitilde0.08 s for the 35 GB KV
-move), with acceptability judged against the TTFT/SLO budget.
+batch and hidden size. Scope of that arithmetic: it is deliberately
+\emph{simplified} --- one collective per transformer block and 16
+resident sequences (\textasciitilde256 KiB = 16 × 8192 × 2 B). A real
+block issues two collectives (attention output and MLP), which doubles
+the figure to \textasciitilde70 MiB per rank, the budget Ch 10's
+TP-decode example carries). In disaggregated serving a separate,
+one-time movement --- not a per-step one --- moves the KV cache
+fragment: e.g.~\textasciitilde35 GB of KV moved over NVLink
+(\textasciitilde0.08 s at 450 GB/s per direction, §9.2) when a P/D
+sequence transfers a \textasciitilde13K-token context (35 GB ÷ 2.62
+MB/token ≈ 13.3K) between prefill and decode pools. The distinction
+changes the answer by orders of magnitude: re-fetching 140 GB of weights
+each step is pathological (that is a design smell, an anti-pattern to
+flag, not a baseline); exchanging activations or KV fragments is the
+normal case --- bandwidth-feasible within NVLink (\textasciitilde0.08 s
+for the 35 GB KV move), with acceptability judged against the TTFT/SLO
+budget.
 
 The architect proposes keeping each tensor-parallel engine within an
 eight-GPU host where memory and operator support permit. Additional

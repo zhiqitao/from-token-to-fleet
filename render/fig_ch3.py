@@ -74,20 +74,24 @@ ax.text(5, A_KV, 'KV grows linearly with context', fontsize=9.0, color='#555', h
 # ================= RIGHT: MoE (8 experts, top-2 active) =================
 ax = axes[1]
 panel_setup(ax, 'MoE (8 experts)\n32L/4096H GQA', '#e67e22', tx=3.9)   # centred over the 0.8..7.0 expert grid
-# 8 experts in a 3-col x 3-row arrangement (last cell of row 3 empty), same cell grid
-expert_cells = [(r, c) for r in range(3) for c in range(3)][:8]   # 8 experts, not 9
-activated = {(0, 0), (1, 0)}   # E1 (row0,col0), E4 (row1,col0)
+# R7 FIG-3.4-03: 8 experts in a 2-row x 4-col grid — every drawn cell is a
+# labelled expert (the old 3x3 layout drew a 9th, blank/unlabelled cell that the
+# legend could not account for).
+EO_W, EO_P = 1.35, 1.55          # expert cell width / column pitch (0.8 .. 6.8)
+expert_cells = [(r, c) for r in range(2) for c in range(4)]   # 8 experts, not 9
+activated = {(0, 0), (0, 1)}     # E1, E2 (row 0)
 for idx, (r, c) in enumerate(expert_cells):
     y = cell_top(r) - CELL_H
     active = (r, c) in activated
     fc = '#e67e22' if active else '#cccccc'
     ec = '#8a4a12' if active else '#888888'
-    ax.add_patch(Rectangle((0.8+c*2.15, y), 1.9, CELL_H, fc=fc, ec=ec, lw=1.0,
+    ax.add_patch(Rectangle((0.8+c*EO_P, y), EO_W, CELL_H, fc=fc, ec=ec, lw=1.0,
                   hatch='//' if active else None))
-    ax.text(0.8+c*2.15+0.95, y+CELL_H/2, f'E{idx+1}', ha='center', va='center', fontsize=8.6,
+    ax.text(0.8+c*EO_P+EO_W/2, y+CELL_H/2, f'E{idx+1}', ha='center', va='center', fontsize=8.6,
             color='white' if active else '#555', fontweight='bold' if active else 'normal')
-# red bracket around the two active E1/E4 cells (col 0, rows 0-1)
-ax.add_patch(Rectangle((0.66, cell_top(1)-CELL_H-0.10), 2.06, ROW_P+CELL_H+0.22, fc='none', ec='#c0392b', lw=2.0))
+# red bracket around the two active E1/E2 cells (row 0, cols 0-1)
+ax.add_patch(Rectangle((0.66, cell_top(0)-CELL_H-0.10), 2*EO_P-EO_W+EO_W+0.06, CELL_H+0.22,
+                       fc='none', ec='#c0392b', lw=2.0))
 ax.text(3.9, cell_top(0)+0.42, 'top-2 active', fontsize=9, color='#c0392b', ha='center', fontweight='bold')
 legend_row(ax, A_RES, '#cccccc', '#888', 'inactive experts \u2248 68 GB (6 \u00d7 11.4)', '#444')
 # P1-02: the ledger's per-token active-weight bytes are 12.8B x 2 = 25.6 GB

@@ -114,8 +114,7 @@ fig._hermes_print_sized = True   # print-size authored: regen must not re-boost/
 # managed curve read through it.  No text sits on the band (checked: every
 # annotation box / legend / vline label is far outside it at its own x).
 ax.fill_between(req, managed_lo, managed_hi, color='#c0392b', alpha=0.60,
-                label=f'price band ${api_lo*1000:.0f}–{api_hi*1000:.0f} per 1K '
-                      f'requests (≈${api_lo:.3f}–{api_hi:.3f}/req)')
+                label=f'price band ${api_lo*1000:.0f}–{api_hi*1000:.0f}/1K requests')
 ax.loglog(req, managed_lo, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, managed_hi, ':', color='#c0392b', lw=1.1, alpha=0.9)
 ax.loglog(req, self_host, '-', color='#27408b', lw=2.0,
@@ -148,9 +147,9 @@ ax.annotate('feasible max 24.96M',
 # INFEASIBLE: solid dark leader line from the box down into the hatched region.
 # The box sits above the managed curve, clear of it, and its tail points into
 # the hatched band (the box face is white so it stays legible on the hatch).
-ax.annotate('INFEASIBLE\n(> 24.96M)',
+ax.annotate('INFEASIBLE at the\n624,000 s/mo window\n(> 24.96M req/mo)',
             xy=(5.0e7, 4.0e6), xytext=(5.0e7, 5.0e6),
-            ha='center', va='center', fontsize=8.2, color='#7b241c',
+            ha='center', va='center', fontsize=7.6, color='#7b241c',
             fontweight='bold',
             arrowprops=dict(arrowstyle='-|>', lw=1.0, color='0.15',
                             mutation_scale=9, shrinkA=1, shrinkB=1),
@@ -196,8 +195,8 @@ be_lo = be['lo']      # crossover at the HIGH end of the price band
 be_hi = be['hi']      # crossover at the LOW end of the price band
 ax.plot([be_mid], [self_total], '*', ms=11, color='#c0392b', mec='#7b241c', zorder=6)
 # sensitivity span: horizontal bracket just ABOVE the self-host line, end-ticks down.
-span_y = self_total * 1.12
-ax.plot([be_lo, be_hi], [span_y, span_y], '-', color='#c0392b', lw=1.6, zorder=7)
+span_y = self_total * 1.34
+ax.plot([be_lo, be_hi], [span_y, span_y], '-', color='#c0392b', lw=2.0, zorder=7)
 ax.plot([be_lo, be_lo], [self_total, span_y], '-', color='#c0392b', lw=1.0, zorder=7)
 ax.plot([be_hi, be_hi], [self_total, span_y], '-', color='#c0392b', lw=1.0, zorder=7)
 # break-even annotation: left-middle clear band — below the legend, above the

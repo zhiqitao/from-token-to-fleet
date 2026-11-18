@@ -71,10 +71,12 @@ LEAF_TOP = RES + FS * 1.2
 
 def hflow(defs, y, xstart, gap):
     xc = xstart; edges = []
-    for lab, fc, ec in defs:
+    for d in defs:
+        lab, fc, ec = d[:3]
+        tc = d[3] if len(d) > 3 else 'white'   # FIG-18.1-03: ink per fill
         w = max(tw(l) for l in lab.split('\n')) * (1+PADX)
         xc = xc + w/2
-        l, rr = box(xc, y, lab, fc, ec)
+        l, rr = box(xc, y, lab, fc, ec, tc)
         edges.append((l, rr))
         xc = rr + gap
     return edges
@@ -84,9 +86,11 @@ spine_defs = [
     # FIG-333-02: Request is neutral grey — it was a second blue (#27408b) close to
     # the specialist blue (#3a6ea5), so the entry node read as a leaf category.
     ('Request', '#6b7280', '#4b5563'),
-    ('Capability filter', '#e67e22', '#b35900'),
-    ('Cost/SLO gate', '#e67e22', '#b35900'),
-    ('Fallthrough', '#e67e22', '#b35900'),
+    # FIG-18.1-03: dark ink on the amber stage fill (5.9:1) — white was 2.85:1
+    # and the weakest text in the figure when the page is printed in grayscale.
+    ('Capability filter', '#e67e22', '#b35900', '#2b1a00'),
+    ('Cost/SLO gate', '#e67e22', '#b35900', '#2b1a00'),
+    ('Fallthrough', '#e67e22', '#b35900', '#2b1a00'),
 ]
 spine_w = sum(max(tw(l) for l in d[0].split('\n'))*(1+PADX) for d in spine_defs) + SPINE_GAP*(len(spine_defs)-1)
 spine = hflow(spine_defs, SP, (W - spine_w)/2, SPINE_GAP)
@@ -237,15 +241,19 @@ ax.text(label_cx(gen_ft_x, 'no match \u2192\ngeneral'), 128, 'no match \u2192\ng
         fontsize=FS-0.2, color='#444', ha='center', fontweight='bold')
 
 # ---- bottom annotation ----
-ax.text(W/2, 26, 'only ONE model is selected per request (early exit on a match)',
+ax.text(W/2, 24, 'only ONE model is selected per request (early exit on a match)',
         fontsize=FS-0.2, ha='center', color='#444')
 # NOTE: the [ILLUSTRATIVE][DERIVED] tag lives in the figure CAPTION (chapter-18.md),
 # not in the diagram — keep it out of the drawn text.
-ax.text(W/2, 13, 'policy: capability first, then cost/SLO, then general fallback.',
+ax.text(W/2, 12, 'policy: capability first, then cost/SLO, then general fallback.',
         fontsize=FS-0.2, ha='center', color='#444')
 # FIG-18.1-1: one-line colour key so the leaf hues encode the caption's three
 # model families (specialist / general-purpose / fallback) instead of being unexplained.
-ax.text(W/2, 39, 'color: blue = specialist · teal = frontier · green = small gen · purple = general-purpose',
+# FIG-18.1-02: the key must name EVERY fill class, not just the leaf hues —
+# the amber stage boxes and the grey Request entry were left unexplained.
+ax.text(W/2, 47, 'fill: amber = decision stage · grey = request entry',
+        fontsize=FS-0.2, ha='center', color='#444')
+ax.text(W/2, 36, 'color: blue = specialist · teal = frontier · green = small gen · purple = general-purpose',
         fontsize=FS-0.2, ha='center', color='#444')
 
 plt.tight_layout()

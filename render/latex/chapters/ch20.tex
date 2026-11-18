@@ -19,9 +19,9 @@ storage. Two cost effects must be kept distinct. The \textbf{average}
 cost per query declines only along the canonical 10 → 40 rps ramp, where
 fixed overhead (model loading, infrastructure, staff) is spread across
 4× the requests and across more SLO-compliant completions per
-observation window (Ch 14's goodput definition), cost per request may
-decline until additional capacity steps dominate; adding idle hosts at
-fixed demand increases unit cost. The \textbf{marginal} cost of each
+observation window (Ch 14's goodput definition). Cost per request may
+decline only until additional capacity steps dominate; adding idle hosts
+at fixed demand raises unit cost. The \textbf{marginal} cost of each
 added host, however, is roughly constant in this model --- one host buys
 \textasciitilde2.0 req/s (17/8.6 = 1.977, \mbox{{[}ANALYTICAL{]}}) at
 \textasciitilde\$20/hr, so the marginal cost stays near
@@ -181,7 +181,7 @@ model-derived, \textbf{not an implied deployed rate}. \textbf{No p95/p99
 performance guarantee has been shown} for any of the host counts in this
 chapter; the p95/p99 tail latency and achieved goodput must be measured
 on the target deployment (\hyperref[chap:14]{Chapter 14}) before the governing 23-host
-sizing (21 = the KV/Little screen under case (i); 22 = the ρ ≈ 0.95
+sizing (21 = the KV/Little screen, case-independent; 22 = the ρ ≈ 0.95
 derate of that screen --- and, independently, the raw full-square case
 (ii) prefill compute screen, which also gives 22 and rises to 23 with
 the same ρ derate, the governing screen; 34 at the 70\% × 95\% + N−1
@@ -249,9 +249,11 @@ bound on host count), a fleet for 40 rps starts at \textbf{21 hosts}:
 count at 40 rps is λ·W = 40 × 8.6 ≈ 344, and ⌈344/17⌉ = \textbf{21
 hosts} (17 whole contexts per host, no fractional admission).
 
-\textbf{Token-throughput screen → 11 hosts (non-binding).} The
-token-throughput ceiling gives ⌈40 / 3.684⌉ = 11 hosts, which stays
-non-binding here.
+\textbf{Token-throughput screen → 11 hosts (non-binding artifact).} The
+token-throughput ceiling gives ⌈40 / 3.684⌉ = 11 hosts, but 3.684 req/s
+is a phase-mixed prefill+decode rate divided by tokens-per-request:
+without an explicit phase-equivalence model this is an artifact, not a
+valid screen, and it stays non-binding here either way.
 
 \textbf{ρ-derate → 22 hosts.} The ρ ≈ 0.95 fractional-throughput derate
 raises the requirement to 344 / (0.95 × 17) = 344/16.15 ≈ 21.3 →
@@ -273,7 +275,11 @@ the \emph{larger} requirement wins --- \textbf{19 hosts under case (i),
 21 under case (iii), 22 under case (ii)}; with the standalone ρ = 0.95
 derate applied to the prefill screen exactly as the policy arithmetic
 applies it, case (ii) rises to ⌈21.81 / 0.95⌉ = \textbf{23 hosts} ---
-the largest requirement before the full policy (ρ = 0.95 is a
+the largest requirement before the full policy, and on that count the
+fleet is \textbf{\textasciitilde95\% prefill-saturated}: each host
+serves 40/23 = 1.74 req/s ⇒ 1.74 × 9,200 = 16,000 prefill tok/s against
+the case-(ii) ceiling of ≈16,870 tok/s, i.e.~\textasciitilde5\% headroom
+for decode coexistence and interference (ρ = 0.95 is a
 throughput-efficiency derate: dividing the host requirement by ρ is the
 same as dividing each host's effective rate by ρ, so it applies to any
 throughput-bound screen --- KV or prefill --- and does not re-derive the
@@ -311,14 +317,19 @@ request as fixed costs amortize across more requests) is sound, but the
 exact per-req/s figure is only meaningful after the real per-host
 throughput is benchmarked. Quantifying the break-even, with a fixed
 overhead of \textasciitilde\$40/hr (infrastructure and staff,
-\mbox{{[}ILLUSTRATIVE{]}}): at the 40-rps peak the autoscaled fleet runs 21
-hosts at (21 × \$20 + \$40) ÷ 144,000 requests/hr ≈ \textbf{\$3.19 per
-1K requests}, and at the 10-rps average it runs 6 hosts at (6 × \$20 +
-\$40) ÷ 36,000 ≈ \textbf{\$4.44 per 1K} --- a \textasciitilde28\%
-average-cost decline across the 4× demand ramp while the marginal
-\$10.12 per req/s per hour is unchanged. The break-even against a
-statically provisioned 21-host fleet (\$420/hr) sits at 19 hosts,
-i.e.~sustained demand ≤ \textasciitilde37.6 rps: above that, autoscaling
+\mbox{{[}ILLUSTRATIVE{]}}): at the 40-rps peak the autoscaled fleet runs the
+governing \textbf{23 hosts} at (23 × \$20 + \$40) ÷ 144,000 requests/hr
+≈ \textbf{\$3.47 per 1K requests}, and at the 10-rps average it runs 6
+hosts at (6 × \$20 + \$40) ÷ 36,000 ≈ \textbf{\$4.44 per 1K} --- a
+\textasciitilde22\% average-cost decline across the 4× demand ramp while
+the marginal \$10.12 per req/s per hour is unchanged. Two basis notes:
+the \$40/hr is autoscaling-only control-plane overhead --- a statically
+provisioned fleet needs no autoscaler and avoids it --- and the 21-host
+Little/KV screen (⌈344/17⌉) is a \emph{lower bound} on the host count;
+the case-(ii) prefill screen with the ρ derate binds at 23 (§3). The
+break-even against a statically provisioned, peak-sized 23-host fleet
+(\$460/hr = 23 × \$20, no control plane) sits at 21 hosts,
+i.e.~sustained demand ≤ \textasciitilde41.5 rps: above that, autoscaling
 costs more than the peak-sized fleet it replaces.
 
 \Needspace{13\baselineskip}
@@ -358,9 +369,9 @@ waits in the fleet dispatcher (NOT end-to-end --- model execution is
 multi-second here) & \textless{} 100 ms \\
 \textbf{Scheduler-added median latency} & 50th-percentile dispatch
 latency, scheduler overhead only & \textless{} 30 ms \\
-\textbf{Scheduling overhead} & Fraction of per-query time spent in
-dispatcher, not compute & \textless{} 5\% of the 2 s turn budget (= 100
-ms) \\
+\textbf{Scheduling overhead} & Scheduler-added latency (dispatch +
+placement) on top of the request's own model-execution time, as a
+fraction of the 2 s TTFT SLO budget & \textless{} 5\% (= 100 ms) \\
 \textbf{Utilization variance} & Standard deviation of per-host query
 rate as a fraction of mean & \textless{} 0.2 \\
 
@@ -712,17 +723,17 @@ derate), so the peak requirement governs.)
   analytical upper bounds (the KV-slot bound on admitted rate for
   \textasciitilde2.0 req/s; the idealized Ch 8 roofline for
   \textasciitilde19,800 prefill tokens/s), not implied deployed rates;
-  no p95/p99 guarantee for the governing 23-host sizing (21 = KV screen
-  under case (i); 22 = the ρ ≈ 0.95 derate of that screen; 23 = the
-  ρ-derated full-square case (ii) prefill compute screen, which governs;
-  34 at 70\% × 95\% + N−1 under case (ii) versus 32 for KV-only) --- the
-  host count is a KV-residency/service-time \textbf{capacity floor}
-  (derived from the KV-slot upper bound on the per-host rate), and the
-  deployable host count is \textbf{max(capacity requirement,
-  tail-latency requirement N\_SLO)}, so measure p95/p99 and SLO-goodput
-  (\hyperref[chap:14]{Chapter 14}) before committing hardware. Little's Law stays a mean
-  relation there: E\mbox{{[}L{]}} = λ·E\mbox{{[}W{]}} with E\mbox{{[}W{]}} the mean KV
-  residency --- never a p95/p99 W.
+  no p95/p99 guarantee for the governing 23-host sizing (21 = the
+  KV/Little screen, case-independent; 22 = the ρ ≈ 0.95 derate of that
+  screen; 23 = the ρ-derated full-square case (ii) prefill compute
+  screen, which governs; 34 at 70\% × 95\% + N−1 under case (ii) versus
+  32 for KV-only) --- the host count is a KV-residency/service-time
+  \textbf{capacity floor} (derived from the KV-slot upper bound on the
+  per-host rate), and the deployable host count is \textbf{max(capacity
+  requirement, tail-latency requirement N\_SLO)}, so measure p95/p99 and
+  SLO-goodput (\hyperref[chap:14]{Chapter 14}) before committing hardware. Little's Law
+  stays a mean relation there: E\mbox{{[}L{]}} = λ·E\mbox{{[}W{]}} with E\mbox{{[}W{]}} the
+  mean KV residency --- never a p95/p99 W.
 \end{itemize}
 
 {\intextsep=6pt\relax\begin{figure}[H]
@@ -750,9 +761,11 @@ precedes treating the 21/22-host KV-screen peak sizing as validated.
 
 \emph{Aggregate-req/s note}: ≥ 2× peak = 80 req/s is a
 \textbf{stress/soak} target, not the planning screen: sustaining 80
-req/s needs \textasciitilde41--43 hosts (80 / 1.977 = 40.5 → 41; with
-the ρ = 0.95 derate → 43), a larger pool than the 21/22-host KV-screen
-sizing.
+req/s needs \textasciitilde41--46 hosts --- 41 on the KV screen (80 /
+1.977 = 40.5 → 41) and 43 with the ρ = 0.95 derate, but the governing
+figure is the case-(ii) prefill screen: 80 × 9,200 = 736,000 prefill
+tok/s ÷ 16,870 tok/s per host = 43.6 → 44 raw, and 46 with the same ρ
+derate --- a larger pool than the 21/22-host KV-screen sizing.
 
 The 21-host KV-screen sizing has an analytical capacity of ≈ 41.5 req/s
 ≈ 1.04× peak (C\_analytic = 21 × 17/8.6); the 22-host ρ-derated sizing

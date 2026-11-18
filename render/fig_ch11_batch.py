@@ -95,9 +95,9 @@ ax.text(9.8, 4.15, 'a finishing sequence frees\nits slot immediately',
         fontsize=8.2, color='#555', ha='right', va='top')
 ax.annotate('', xy=(6.7, 2.9), xytext=(7.3, 3.5),
             arrowprops=dict(arrowstyle='->', lw=0.9, color='#555'))
-ax.text(5.0, 0.30, 'a freed slot is backfilled at the green admission tick;\n'
+ax.text(5.0, 3.5, 'a freed slot is backfilled at the green admission tick;\n'
         'the new sequence then runs as the following blue block',
-        fontsize=7.6, color='#2e8b57', ha='center', va='center')
+        fontsize=8.2, color='#2e8b57', ha='center', va='center')
 
 # Ch 11.1 IMPROVE: the "decode-only" scope is in the caption; put it in the
 # figure too so a reader cannot mistake it for full mixed prefill/decode

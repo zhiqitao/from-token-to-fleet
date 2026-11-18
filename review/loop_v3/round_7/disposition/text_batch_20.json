@@ -1,0 +1,342 @@
+[
+ {
+  "id": "FT-33",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 4 §3 — 'Economic Constraints' subsection (from '**Infrastructure**' bullet through the cost-basis table)",
+  "chapter": "Ch 4",
+  "quoted_clause": "**Cost per request**: At 10 rps, each request carries ~9,500 tokens (9,200 input + 300 output). At the per-million rates, cost per request ~ ($1.20 x 9.2 + $2.00 x 0.3) / 1,000 ~ $0.01164 ~ **$0.012 per request** per inference cycle. [...] **Basis note — two different cost bases, not interchangeable.** [...] So the owned per-request cost **on the active service-hour basis** [...] is (N_hosts x $20/hr) / (rps x 3600) ~ (6 x $20) / (10 x 3600) ~ **~$0.0033 per request** at average, and (21 x $20) / (40 x 3600) ~ **~$0.0029 per request** at peak",
+  "observed": "The Economic Constraints subsection runs to roughly 1,100 words and asks the reader to hold four cost bases simultaneously (mid-tier API list price; frontier-class API list price; owned-fleet active-hours; owned-fleet wall-clock paid-occupancy), each with its own denominator, plus a blended rate, plus a per-1K-request normalisation, plus the 6.24M vs 24.96M volume bases. The distinctions are all correct and all necessary, but they are delivered as a single unbroken block of prose with nested parentheticals, which is the hardest possible form for a reader who must later reuse the numbers. The subsection also duplicates the sidebar table's content.",
+  "evidence": "The subsection contains: the API price basis, the frontier-tier basis, the whole-fleet tokens-per-dollar basis, the always-on basis, the single-host prefill-rate basis, the API cost-per-request, the owned-fleet cost-per-request at two rates, the 9/32-host policy variant, the one-host unit-error warning, and a two-row cost-basis table — all within one subsection, with the sidebar table repeating several of the same figures.",
+  "root_cause": "The subsection accumulated successive corrections (each new basis added as a paragraph rather than as a row in a single comparison), and the sidebar was added later without folding the prose into it.",
+  "correction": "Restructure into (a) a short statement of the two bases (hosted-API price vs owned-fleet cost) with the rule for which to use, (b) one table with a row per basis and columns for derivation, denominator, and value — absorbing the current cost-basis table and the sidebar's overlapping rows, and (c) a short 'common errors' paragraph for the two unit errors the text currently handles in prose (dividing the offered rate by one host's price; dividing one host's price by the whole workload's rps). Move the sidebar's four delivery-mode rows into the same table with an explicit 'volume basis' column so the 6.24M vs 24.96M distinction is visible in the table rather than in a footnote.",
+  "acceptance_test": "Every cost figure in Ch 4 appears in exactly one table with an explicit denominator and volume basis; the prose around it explains which basis to use rather than re-deriving each one.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FT-34",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 2 §3 — 'Canonical host verdict' bullet",
+  "chapter": "Ch 2",
+  "quoted_clause": "**Canonical host verdict.** On the canonical 8xH100 host (TP = 8): prefill 1.29 PFLOP / (8 x 0.989 PFLOPS) = 0.16 s at peak, ~0.47 s at 35% MFU, inside the 1.08 s budget; decode shard 70B/8 = 8.75B params = 17.5 GB/GPU per step -> 17.5 GB / 3.35 TB/s = 5.2 ms, inside the 25 ms TPOT budget",
+  "observed": "Two gaps. (a) The prefill verdict is stated as 'inside the 1.08 s budget' without the qualification Ch 4 attaches to that number: Table 4-2 labels 1.08 s a 'two-term-only upper cap, NOT a feasible deployed prefill target' that 'leaves zero allowance for admission/queue and tokenization/transfer', so the correct statement is 'inside the 1.08 s upper cap, with no allowance left for queueing or tokenization'. (b) The decode verdict quotes only the weight-shard read (5.2 ms) as the step time; the step also reads the KV cache (~3.01 GB/seq per GPU at the canonical context) and pays TP communication, so 5.2 ms is a component, not the step. The reader could take 5.2 ms as the achievable TPOT.",
+  "evidence": "Ch 4 Table 4-2 row: 'Prefill compute budget — two-term-only upper cap, NOT a feasible deployed prefill target | 1.08 s | ... it leaves zero allowance for admission/queue and tokenization/transfer, so budget_prefill <= 1.08 s - B_other where B_other is positive and must be measured.' Ch 2's own occupancy paragraph adds the KV traffic term (3.01 GB/seq per GPU) that the host verdict omits.",
+  "root_cause": "The host verdict was written before Ch 4 tightened the prefill-budget caveat and before the KV-traffic term was introduced in the same section.",
+  "correction": "Rewrite the verdict: 'prefill 1.29 PFLOP / (8 x 0.989 PFLOPS) = 0.16 s at peak, ~0.47 s at 35% MFU — inside the 1.08 s upper cap, but that cap carries no allowance for admission/queue or tokenization (Ch 4), so the real prefill budget is smaller; decode shard 70B/8 = 8.75B params = 17.5 GB/GPU per step -> 5.2 ms of weight streaming at peak HBM bandwidth, plus the KV read (~3.01 GB/seq per GPU at the canonical context) and TP communication — comfortably inside the 25 ms TPOT budget, but 5.2 ms is the weight component, not the step.'",
+  "acceptance_test": "Every 'inside the budget' verdict in the book names the budget's own caveats, and every quoted step time is labelled as a component or as the whole step.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "FT-36",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 1 §5 'Common Mistakes' — first bullet",
+  "chapter": "Ch 1",
+  "quoted_clause": "A token is often a *word fragment*, not a whole word: a high-frequency English word is frequently one token, but a longer or rarer word is usually split into several subword tokens, and code, numerics, and non-Latin scripts can run 2–5x (rule of thumb; the multiplier is tokenizer- and language-specific) the naive word-count estimate.",
+  "observed": "The sentence is grammatically broken: 'can run 2–5x ... the naive word-count estimate' has no verb complement ('can run 2–5x the naive word-count estimate' is missing 'times' or 'of'). The intended meaning — tokens per word can be 2–5x the naive one-token-per-word assumption — is recoverable but the sentence as printed is not grammatical.",
+  "evidence": "The same chapter states the counterpart rule correctly: 'The \"one token ~ 4 characters\" rule of thumb is for rough estimation of general-English prose, never a law'.",
+  "root_cause": "An inserted qualifier ('rule of thumb; the multiplier is tokenizer- and language-specific') was spliced into the middle of a sentence without re-flowing it.",
+  "correction": "Rewrite: 'and code, numerics, and non-Latin scripts can run 2–5x the naive one-token-per-word estimate (rule of thumb; the multiplier is tokenizer- and language-specific).'",
+  "acceptance_test": "Every sentence in Ch 1 §5 parses without a missing complement, and the qualifier sits at the end of the clause it qualifies.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH5-08-P1",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 6 §8 (mini-case, 'The Post-Lunch Slowdown'); Ch 8 §3 (Scope note; 'n_hosts' derivation); Ch 5 §8 (mini-case, 'served on 8×H100 with vLLM continuous batching')",
+  "chapter": "Ch 5–8 (cross-chapter)",
+  "quoted_clause": "Ch 6 §8: \"The architecture is memory- and compute-sane at the 10 rps design point but was never sized for the lunch peak.\" | Ch 8 §3: \"n_hosts = 92,000/19,800 ≈ 4.6 → ~5 hosts\" | Ch 8 §8: \"at ~10 rps the prefill leg alone demands ~12.9 PFLOP/s, so the fleet spans several nodes — Ch 24's prefill screen: 1.63 nodes at 100% MFU, ~5 at 35% MFU\"",
+  "observed": "Ch 6's mini-case asserts the canonical design point is compute-sane on one 8×H100 host. The book's own compute screen (Ch 8 §3) says the opposite: at 10 rps the prefill demand is 92,000 tokens/s (12.9 PFLOP/s) against a per-host sustained prefill rate of ~19,800 tokens/s (2.7692 PFLOP/s at 35% MFU), i.e. ~4.66× oversubscribed, requiring ~5 hosts. Ch 8 §8 states the same ('the fleet spans several nodes ... ~5 at 35% MFU'). Ch 8's Scope note disclaims only the 40 rps peak ('It is not a claim that one host absorbs the 40 rps peak arrival rate'), leaving the 10 rps average implication unstated, and Ch 5's mini-case presents a single 8×H100 host as the architecture for the 10 rps workload.",
+  "evidence": "Independent rederivation: 10 rps × 9,200 tokens = 92,000 tokens/s; 92,000 ÷ 19,768 tokens/s per host = 4.66 → 5 hosts. Equivalently 12.9 PFLOP/s ÷ 2.7692 PFLOP/s = 4.66×. Ch 6 §3 itself computes 40 × 1.29 ≈ 51.6 PFLOP/s vs 2.77 PFLOP/s = 18.6× at the peak, so the same host is 4.66× oversubscribed at the *average*, not merely at the peak.",
+  "root_cause": "The per-host 'feasibility container' framing (Ch 8 §3 Scope note) was applied to the peak only, and Ch 6's mini-case was written against the memory-fit conclusion (one host holds the model) rather than the compute screen. The two screens were never reconciled in prose.",
+  "correction": "In Ch 6 §8, replace the design-point claim with the compute screen: 'The architecture is memory-sane at the 10 rps design point but compute-oversubscribed on a single host: 12.9 PFLOP/s of prefill demand against ~2.77 PFLOP/s of sustained per-host capacity (~4.7×), so the canonical fleet is ~5 hosts at 35% MFU (Ch 8 §3).' Extend Ch 8 §3's Scope note to disclaim the 10 rps average as well as the 40 rps peak, and add a one-line qualifier in Ch 5 §8's mini-case that the 8×H100 host is the per-request/per-host container, not the whole fleet.",
+  "acceptance_test": "A reader who reads Ch 5 §8, Ch 6 §8 and Ch 8 §3 in sequence can state, without contradiction, how many 8×H100 hosts the canonical 10 rps workload needs and why; no sentence in Ch 5/6/8 asserts that one host is compute-sane at 10 rps.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1"
+ },
+ {
+  "id": "CH5-02-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3, Table 5-2 (row 'Total tokens per dollar'); Ch 5 §3(b) 'tokens/s per dollar with prefill included'",
+  "chapter": "Ch 5",
+  "quoted_clause": "Table 5-2: \"| Total tokens per dollar (prefill + decode, stated concurrency) | ~285,000 tokens per dollar at 300 output tokens/request | 50 × (1 + 9,200/300) ≈ 1,583 tok/s × 3600 ÷ $20 [ILLUSTRATIVE][DERIVED] |\"",
+  "observed": "The row label says 'stated concurrency', but the derivation contains no concurrency: 50 tok/s is the single-stream decode rate and 9,200/300 is a per-request token ratio, so the figure describes one stream with prefill overlapped (the §3(b) 'continuous batching' case). The row immediately above it is explicitly labelled 'single-stream decode', so the table juxtaposes a single-stream output-token metric with a batched total-token metric without saying so. The prose in §3(b) supplies the missing scope ('the 9,000 tokens-per-dollar figure should be read as a floor set by the single-stream assumption'), but the table — the artifact a reader copies from — loses it.",
+  "evidence": "Re-derivation: 50 × (1 + 9,200/300) = 1,583.3 tok/s; × 3600 ÷ $20 = 285,000 tokens/$. The strictly serial single-stream figure is 9,500/7.08 = 1,341.8 tok/s → 241,530 ≈ 242,000 tokens/$ (also in §3(b)). The canonical workload's 10 rps concurrency would imply 95,000 tokens/s, which is neither figure.",
+  "root_cause": "Table rows were written as self-contained derivations without carrying the operating-point qualifier that the surrounding prose had established.",
+  "correction": "Relabel the row: 'Total tokens per dollar (single-stream decode + overlapped prefill; not the 10 rps fleet point) | ~285,000 tokens per dollar at 300 output tokens/request' and add a second row for the strictly serial single-stream floor (~242,000 tokens/$) so the two operating points are visible in the table rather than only in prose.",
+  "acceptance_test": "Every row of Table 5-2 states its operating point (single-stream / overlapped / batched) and its concurrency basis; no reader can take 285,000 tokens/$ as the canonical 10 rps fleet figure.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH5-03-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3(a), paragraph beginning 'On that basis the incremental cost stays well within…'",
+  "chapter": "Ch 5",
+  "quoted_clause": "\"On that basis the incremental cost stays well within the ~120 ms retrieval budget; single-core encoding fits only above ≈92.8 GFLOP/s sustained per core (11.14 GFLOP ÷ 0.12 s), beyond the typical sustained range (371 ms at 30 GFLOP/s vs 186 ms at 60 GFLOP/s) — conditional on measured single-core throughput.\"",
+  "observed": "The conclusion sentence is stated before its qualification and reads as applying to both bases presented in the preceding paragraph. On the CPU basis the incremental cost is 186–371 ms, which is 1.6–3.1× the 120 ms retrieval budget — i.e. it does NOT fit. Only the GPU basis (~1.1 ms) fits. The semicolon then supplies the correct CPU verdict, so the paragraph contains a flat 'stays well within the budget' immediately followed by the arithmetic showing it does not.",
+  "evidence": "11.14 GFLOP ÷ 30 GFLOP/s = 0.371 s; ÷ 60 GFLOP/s = 0.186 s; both > 0.12 s. 11.14 ÷ 0.12 = 92.8 GFLOP/s required. GPU: 11.14 GFLOP ÷ 10,000 GFLOP/s = 1.1 ms.",
+  "root_cause": "The GPU and CPU bases were presented in one paragraph and the summary sentence was written for the GPU case without naming it.",
+  "correction": "Split the sentence: 'On the GPU basis the incremental cost (~1.1 ms) stays well within the ~120 ms retrieval budget. On a single CPU core it does not: 186–371 ms at 30–60 GFLOP/s sustained exceeds the budget, and single-core encoding would require ≈92.8 GFLOP/s sustained per core — conditional on measured single-core throughput.'",
+  "acceptance_test": "No sentence in §3(a) asserts that the incremental embedding cost fits the 120 ms budget without naming the execution basis (GPU vs single CPU core).",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH5-04-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3(a), Table 5-1 footnote; §3(a) 'The decision hinges on…'; §3(a) Takeaway; §8 mini-case bullet 1",
+  "chapter": "Ch 5",
+  "quoted_clause": "Footnote: \"the proxy ratio (4.8×) is a lower bound on the true body-only compute ratio (≈7.7×), not an upper bound.\" | Decision text: \"justify the ~4.8×FLOP cost (14.08 vs 2.94 GFLOP per 64-token query, Table 5-1)\" | Takeaway: \"the ~4.8× FLOP cost is paid\"",
+  "observed": "The chapter establishes that the 2×params×L proxy understates the true cross-model compute ratio (4.8× total-params vs ≈7.7× body-only), then uses the understated 4.8× figure as the decision threshold in three places (the decision paragraph, the Takeaway, and the mini-case). The bar the reader is told to apply is therefore the one the chapter has just shown to be the wrong one for a cross-model comparison.",
+  "evidence": "Total-params ratio 110/23 = 4.78. Body-only: mpnet 109.5M − 23.4M embedding = 86.1M; MiniLM 22.7M − 11.7M embedding = 11.0M; 86.1/11.0 = 7.8. The proxy overstates each model's compute most for the smallest model, so the proxy ratio is the lower bound — as the footnote itself states.",
+  "root_cause": "The footnote correction was added without propagating the corrected constant into the decision rule that depends on it.",
+  "correction": "Use one stated bar everywhere: 'the cross-model compute ratio is ≈4.8× on total parameters and ≈7.7× on body parameters (the proxy understates it); the quality gain must clear the body-parameter ratio, ≈7.7×, to justify the larger encoder.' Alternatively, state explicitly that the decision is taken on the Table 5-1 proxy rows and that the true ratio is higher, so the bar is conservative in the wrong direction and must be re-derived before use.",
+  "acceptance_test": "Every occurrence of the cross-model FLOP-cost ratio in Ch 5 states which parameter basis it uses, and no occurrence uses 4.8× as the decision threshold after the chapter has established 7.7× as the true body-only ratio.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH5-05-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3(a) Takeaway; §3(a) 'The decision hinges on…'; §8 mini-case bullet 1",
+  "chapter": "Ch 5",
+  "quoted_clause": "Takeaway: \"768-dim (all-mpnet-base-v2) is the recommended embedding model. It balances compute, storage, and expected quality as a mid-range candidate — compute and storage alone favour the 384-dim option — and the quality claim itself is the §5.3(a)/§7 item still to validate on the target corpus\"",
+  "observed": "The chapter's own analysis says compute and storage both favour the 384-dim option, and the only evidence for the 768-dim option is a quality uplift the chapter explicitly labels an unverified scenario input that 'cannot be assumed to transfer across model families' — yet the decision being made is cross-model (mpnet vs MiniLM). The recommendation therefore rests on no admissible evidence, and no decision rule is given that would let the reader reach the same conclusion from the same inputs. The mini-case then presents the choice as settled ('the team has agreed on the retrieval architecture: … 768-dim all-mpnet-base-v2'), so the reader is never asked to make the decision the chapter is named for.",
+  "evidence": "The chapter's own text: 'an unquantified gain would have to clear a ~3× FLOP bar … validate the gain on the target corpus before paying it' (bge-large) and 'the mpnet-vs-MiniLM quality gap must be measured on the target corpus before the ~4.8× FLOP cost is paid'. The ~15% MAP figure is explicitly 'not quantified for this model pair'.",
+  "root_cause": "The worked example was written to demonstrate the method, but the method's output (a conditional recommendation) was replaced by an unconditional recommendation to make the mini-case read cleanly.",
+  "correction": "Replace the unconditional recommendation with the decision rule the chapter's own analysis implies: 'Choose 768-dim if the measured MAP/answer-quality uplift over MiniLM on the target corpus exceeds the threshold at which the ≈7.7× body-parameter compute cost is repaid; otherwise choose 384-dim, which compute and storage both favour. Until that measurement exists, the defensible default is the 384-dim option and the 768-dim option is a pending-quality-gate candidate.' In the mini-case, give the architect the measurement task rather than the answer.",
+  "acceptance_test": "The §3(a) takeaway and the mini-case both state a conditional rule with a measurable threshold; a reader who assumes the quality uplift is zero reaches the 384-dim option from the text alone.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH5-06-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §3(a) (index-storage paragraph); Ch 5 §6 Architecture Consequence, bullet 2",
+  "chapter": "Ch 5",
+  "quoted_clause": "§6: \"The embedding model is chosen at ingestion time (compute-light, storage-bound) but also carries query-time embedding cost and latency\"",
+  "observed": "The chapter compares embedding models on query-time compute and index storage but never prices ingestion-time embedding compute, and then characterizes the ingestion leg as 'compute-light'. For the chapter's own 1 M-chunk corpus, ingestion at 14.08 GFLOP/chunk is 1.41×10¹⁶ FLOP (14 PFLOP) for mpnet versus 2.94×10¹⁵ FLOP (2.9 PFLOP) for MiniLM — the same ≈4.8× ratio as the query-time cost, and roughly 5 host-hours of the canonical host's sustained prefill capacity (2.77 PFLOP/s) for mpnet versus ~1 host-hour for MiniLM. Calling the ingestion leg 'compute-light' is not supported by the chapter's own workload.",
+  "evidence": "1×10⁶ chunks × 14.08 GFLOP = 1.408×10¹⁶ FLOP; ÷ 2.7692 PFLOP/s = 5,085 s ≈ 1.41 h. MiniLM: 1×10⁶ × 2.94 GFLOP = 2.94×10¹⁵ FLOP; ÷ 2.7692 = 1,062 s ≈ 0.30 h. At 10 M chunks the mpnet figure is ~14.1 host-hours.",
+  "root_cause": "The selection surfaces were applied only to the query path; the ingestion path was treated as a storage-only concern.",
+  "correction": "Add the ingestion leg to the comparison: one sentence giving ingestion FLOPs per corpus size for the two candidates, and either drop 'compute-light' or replace it with 'one-time, corpus-scaled, and amortized over the corpus lifetime — but not negligible: ~1.4 host-hours per 1 M chunks at 14.08 GFLOP/chunk on the canonical host.'",
+  "acceptance_test": "The §3(a) comparison and the §6 bullet both account for ingestion-time compute, and the word 'compute-light' no longer appears without a quantified basis.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH5-07-P2",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 5 §2 Mental Model; compare Ch 5 §6 bullet 3 and Ch 8 §3 ('Whether prefill compute or KV residency is the binding fleet constraint depends on the FLOP-counting case')",
+  "chapter": "Ch 5",
+  "quoted_clause": "\"the system is first-order memory-capacity-bound (the KV cache's HBM footprint limits how many concurrent requests fit — KV HBM capacity limits concurrency, not bandwidth — at the Ch 17 concurrency screen) and prefill-dominated in FLOPs\"",
+  "observed": "The label 'first-order memory-capacity-bound' is applied to the canonical workload without qualification, while the book's own analysis elsewhere concludes that the binding constraint is case-dependent (Ch 8 §3: 'KV residency binds under case (i); case (iii) is a 21/21 tie; compute binds under case (ii)'), and Ch 5's own §6 says 'prefill often compute-bound and decode often memory-bandwidth-bound'. Ch 8 §1 explicitly warns that 'Input-heavy does not by itself mean memory-bound'. The parenthetical does the qualifying work, but the sentence's leading label is the part a reader remembers.",
+  "evidence": "Ch 8 §3 host screens: compute 19/21/22 hosts vs KV-residency 21 hosts; Ch 8 §3 'the screens are within one host for cases (ii) and (iii); case (i) is two hosts apart'. Ch 5 §3(b) shows a single request's 24.1 GB KV is only ~5.5% of the ~436 GB KV budget.",
+  "root_cause": "The mental-model paragraph was written before the case-dependent fleet screens existed, and was not revised when they did.",
+  "correction": "Rewrite as: 'the system is first-order KV-capacity-constrained for concurrency (the KV cache's HBM footprint caps resident requests per host) and prefill-dominated in FLOPs; which of the two binds the fleet is case-dependent (Ch 8 §3) and must be computed, not assumed.'",
+  "acceptance_test": "No sentence in Ch 5 labels the canonical workload 'memory-bound' or 'memory-capacity-bound' without naming which constraint and which screen it refers to.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH5-09-P2",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 5 §3(b), 'tokens/s per dollar with prefill included', final sentence",
+  "chapter": "Ch 5",
+  "quoted_clause": "\"GPU-hour cost follows occupancy, batching and scheduling — it is not proportional to either share without a stated utilization assumption. The per-dollar economics therefore favor models that reduce the *prefill compute* burden (smaller context, larger batch, lower per-token FLOP) more than models that optimize decode throughput alone — but a deployment must balance both, since decode still sets the latency SLO.\"",
+  "observed": "The paragraph correctly disclaims any directional conclusion ('not proportional to either share without a stated utilization assumption') and then immediately draws one ('therefore favor models that reduce the prefill compute burden … more than models that optimize decode throughput alone'). Worse, the conclusion is backwards for the operating point the paragraph just computed: at the single-stream point, cost per token is set by decode wall-clock (300 output tokens at 50 tok/s = 6 s per request), so halving the context from 9.2K to 4.6K leaves the request time unchanged while halving the tokens delivered — cost per token roughly doubles. 'Larger batch' is also listed under 'reduce the prefill compute burden', but batching amortizes prefill rather than reducing it.",
+  "evidence": "Single-stream: 6 s/request → 600 requests/h × 9,500 tokens = 5.7M tokens/h → $20/5.7M = $3.51 per M tokens. Halving context: 600 × 4,800 = 2.88M tokens/h → $6.94 per M tokens. The prefill is hidden under the decode time at this operating point (1.08 s of prefill against 6 s of decode), so it is not the cost driver here.",
+  "root_cause": "A regime-dependent conclusion was written without naming the regime, immediately after a sentence that says a regime must be named.",
+  "correction": "Name the regimes: 'In the batched regime, where prefill FLOPs set host capacity, reducing the prefill burden (smaller context, lower per-token FLOP) lowers cost per token more than decode tuning does. In the single-stream regime used above, cost per token is set by decode wall-clock, so the same context reduction raises cost per token. Which regime applies is a scheduling decision, not a property of the model.'",
+  "acceptance_test": "Every directional economic claim in §3(b) names the operating regime (single-stream vs batched) it holds in, and no sentence follows a 'not proportional without a stated utilization assumption' disclaimer with an unqualified 'therefore'.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH5-08-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 5 §1 (five selection surfaces); Ch 5 §3(b) opening ('The architect must decide whether a base 70B-class dense model, a smaller dense model, or a fine-tuned variant…'); Ch 5 §8 mini-case",
+  "chapter": "Ch 5",
+  "quoted_clause": "§1 surface 2: \"This surface determines whether we need a dense 70B, a distilled 13B, or a MoE variant.\" | §3(b): \"The architect must decide whether a base 70B-class dense model, a smaller dense model, or a fine-tuned variant best satisfies the latency, quality, and economic constraints.\"",
+  "observed": "The chapter promises a five-surface framework and a three-way generation-model comparison, but the worked example prices only the 70B candidate. No smaller dense model is costed or latency-checked, and the MoE challenger appears only as a parenthetical in the mini-case ('was not rejected on residency'). Surface 5 (retrieve-then-generate vs end-to-end) is asserted as a decision but never examined — the chapter assumes the two-leg split throughout. The framework's most useful behaviour (narrowing the model space across sizes on latency and cost) is therefore never demonstrated.",
+  "evidence": "§3(b) contains only 'Derived arithmetic for the 70B candidate'; the mini-case's shortlist is '768-dim all-mpnet-base-v2 for the retrieval leg, and the 70B FP16 base model for the generation leg' with the MoE challenger mentioned only in parentheses.",
+  "root_cause": "The worked example was scoped to the canonical 70B geometry for numerical consistency with Ch 7/8, and the cross-size comparison was dropped rather than carried as a labelled sensitivity.",
+  "correction": "Add a short comparison table in §3(b) pricing at least one smaller dense candidate and the MoE challenger on the same surfaces (weights, KV/token, per-request residency, decode rate, tokens/$, and the quality gate), with the quality gate marked as the deciding surface. Alternatively, state explicitly that the cross-size comparison is deferred to Ch 14/17 and cross-reference it.",
+  "acceptance_test": "A reader can name at least two generation-model candidates that were compared on the five surfaces, and can say which surface decided between them.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH6-01-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 6 §1 (Serving metrics bullet); compare Ch 6 §4 habit 2 and Ch 5 §3 opening",
+  "chapter": "Ch 6",
+  "quoted_clause": "§1: \"These are the dependent variables; they are what the SLO is written against — the canonical SLO targets are TTFT 1.2 s / TPOT ~25 ms.\" | §4: \"State the SLO window (p95 ≤ 2 s TTFT) before quoting any rate\" | Ch 5: \"TTFT budget 1.2 s (retrieval ~120 ms + prefill), TPOT ~25 ms/token; p95 TTFT ≤ 2 s, p95 TPOT ≤ 35 ms.\"",
+  "observed": "Ch 6 §1 labels the internal design budget (1.2 s TTFT / 25 ms TPOT) as 'the canonical SLO targets'. Ch 5, Ch 6 §3, Ch 6 §4 and Ch 8 §8 all distinguish the design budget (1.2 s / 25 ms) from the SLO (p95 ≤ 2 s / p95 ≤ 35 ms). Ch 6 therefore contradicts itself between §1 and §4, and mislabels the budget in a chapter whose entire thesis is that the metric you SLO against is the one that matters.",
+  "evidence": "Ch 8 §8: 'p95 TTFT is 2.8 s, exceeding the 2 s p95 TTFT SLO (the 1.2 s figure is the internal design budget)'. Ch 6 §3: 'We budget TTFT ≤ 1.2 s … with a p95 ≤ 2 s.'",
+  "root_cause": "Terminology drift between 'budget' and 'SLO' introduced when the canonical scenario's two numbers were first written down.",
+  "correction": "In Ch 6 §1, replace with: 'the canonical design budgets are TTFT 1.2 s / TPOT ~25 ms; the SLOs written against them are p95 TTFT ≤ 2 s and p95 TPOT ≤ 35 ms (Ch 4, Table 4-2).'",
+  "acceptance_test": "Every occurrence of '1.2 s' and '25 ms' in Ch 5–8 is labelled either 'design budget' or 'SLO', and the two labels are never interchanged.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH6-02-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 6 §3, 'Goodput vs Raw Throughput'",
+  "chapter": "Ch 6",
+  "quoted_clause": "\"Deploying a higher-throughput configuration can *reduce* goodput: goodput = raw_rate × compliant_fraction, so a throughput increase helps goodput only if the compliant fraction holds.\" | Scenario A: \"goodput … is effectively unchanged *in this case*\" | Scenario B: \"goodput is 50×0.96 = 48 vs 70×0.94 = 65.8 — it *rises* despite the p95 breach.\"",
+  "observed": "The section's headline claim is that a higher-throughput configuration can reduce goodput, but neither scenario demonstrates a reduction: Scenario A shows goodput unchanged (compliant fraction falls proportionally, 96% → 68.6%) and Scenario B shows it rising (96% → 94%). The case that would support the claim — compliant fraction falling faster than the raw rate rises, e.g. 50 → 70 tok/s with compliant fraction 96% → 60%, giving 48 → 42 — is never shown. The reader is asked to accept the most consequential claim in the section without a worked instance of it.",
+  "evidence": "goodput = raw_rate × compliant_fraction. Scenario A: 70 × (0.96 × 50/70) = 48 = 50 × 0.96 (unchanged). Scenario B: 70 × 0.94 = 65.8 > 48 (rises). A decreasing case requires compliant_fraction < 48/70 = 68.6%.",
+  "root_cause": "The two scenarios were written to explore the compliant-fraction sensitivity but neither was chosen to instantiate the section's own claim.",
+  "correction": "Add Scenario C with a compliant fraction that falls faster than the rate rises (e.g. 50 → 70 tok/s, compliant 96% → 60% → goodput 48 → 42, a 12.5% goodput loss on a 40% raw-throughput gain), and reorder so the section's claim is demonstrated first and the two existing scenarios are presented as the boundary cases.",
+  "acceptance_test": "At least one worked scenario in the section shows goodput decreasing as raw throughput increases, and the reader can state the compliant-fraction threshold at which the sign flips (48/70 ≈ 68.6% for the 50→70 case).",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH6-03-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 6 §3, 'Apply this to the canonical workload'; compare Ch 6 §3 'Reading Telemetry Into a Decision' and Ch 6 §8",
+  "chapter": "Ch 6",
+  "quoted_clause": "\"Suppose a flash crowd (the ~40 rps peak) causes prefill requests to queue. If on average the batch is well-behaved, p50 TTFT might sit at ~1.0 s. But the jobs that arrive behind ~1–2 same-time prefill requests each pay the full 1.08 s prefill of the job(s) ahead of them, so p95 TTFT drifts to ~2.5 s.\"",
+  "observed": "The queueing model assumes only one or two prefill jobs ahead of an arriving request. The same chapter, two paragraphs later, computes that at the 40 rps peak the host is ~18.6× oversubscribed on prefill (51.6 PFLOP/s demand vs 2.77 PFLOP/s sustained), which means the queue is unbounded, not one-to-two deep, and that p95 TTFT would drift far past 2.5 s. The two passages describe incompatible operating regimes for the same event (the 40 rps peak).",
+  "evidence": "51.6 ÷ 2.77 = 18.63×. At 18.6× oversubscription, the arrival-to-service ratio means the queue grows at ~17.6 jobs per second of wall-clock; a p95 TTFT of 2.5 s (≈1.4 jobs of queue) is not a stable operating point. Ch 6 §8 itself says 'the prefill queue grows until backpressure or prefix caching intervenes'.",
+  "root_cause": "The illustrative queueing example was written before the oversubscription arithmetic existed and was not revisited; the two use different implicit fleet sizes (one host vs the fleet).",
+  "correction": "State the fleet assumption explicitly in the example and reconcile it: either (a) note that the 1–2-jobs-ahead model describes a fleet sized for the peak (≈19–22 hosts, Ch 8 §3) rather than one host, or (b) replace the example with the single-host behaviour the chapter actually derives (queue growth at 18.6× oversubscription, p95 TTFT unbounded until admission control), and keep the 2.5 s figure only as the multi-host case.",
+  "acceptance_test": "Every queueing illustration in Ch 6 states the fleet size it assumes, and the single-host and fleet-wide behaviours are not conflated.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH7-01-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 7 §1 ('Practical host requirement' bullet); Ch 7 §3 Table 7-1 note and Fig 7.7 technical note; Ch 8 §3 host-count screens",
+  "chapter": "Ch 7 (with Ch 8)",
+  "quoted_clause": "Ch 7 §1: \"[ILLUSTRATIVE][ASSUMPTION] The ~64 GB is a planning reserve, not a measured constant … The exact value must come from a deployment benchmark on the target stack (Chapter 14); the 436 GB KV budget (640 − 140 − 64) shifts by the same amount if the measured reserve differs.\"",
+  "observed": "The 64 GB runtime/workspace reserve is the single most load-bearing unmeasured assumption in the memory→concurrency→fleet→cost chain: it produces the ~436 GB KV budget, the ~17.5 (floor 17) concurrency, the ⌈344/17⌉ = 21-host KV screen, and (via Ch 16) the ~$155,816.93/mo fleet cost. The chapter flags it as an assumption but never quantifies its effect, and neither Ch 7's concurrency screen nor Ch 8's host-count screens restate it as a sensitivity. A reader cannot see how much of the fleet sizing is assumption rather than arithmetic.",
+  "evidence": "KV budget = 640 − 140 − R. R = 48 → 452 GB → 452/24.9037 = 18.15 → 18 concurrent → ⌈344/18⌉ = 20 hosts. R = 64 → 436 GB → 17.51 → 17 → ⌈344/17⌉ = 21 hosts. R = 80 → 420 GB → 16.87 → 16 → ⌈344/16⌉ = 22 hosts. A ±16 GB reserve swings the fleet screen by ±1 host and the per-rank occupancy from 99.97% to ~93%/~107% (the latter infeasible).",
+  "root_cause": "The reserve was introduced as a labelled assumption and then consumed silently as a constant by three downstream chapters.",
+  "correction": "Add a one-line sensitivity wherever the 436 GB budget or the 17-request concurrency is quoted: 'KV budget = 640 − 140 − R; at R = 48/64/80 GB the budget is 452/436/420 GB, concurrency is 18/17/16, and the Ch 17 fleet screen is 20/21/22 hosts.' Carry the same three-value range into Ch 8's host-count table and Ch 16's cost screen.",
+  "acceptance_test": "Every downstream figure derived from the 436 GB budget is accompanied by the reserve's stated range, and a reader can state the fleet-size swing attributable to the reserve alone.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH8-01-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, 'The 1.08 s budget versus the 35% planning rate'; compare Ch 6 §3 and Table 6-1, Ch 5 §3(b), Ch 5 economics unit note",
+  "chapter": "Ch 8 (cross-chapter)",
+  "quoted_clause": "Ch 8 §3: \"1.08 s is the *end-to-end prefill budget* inside the 1.2 s TTFT (it absorbs queueing, scheduling, tokenization and admission overhead), while ~19,800 tokens/s/host is the *sustained planning rate* for capacity arithmetic.\" | Ch 6 §3: \"against the ~1.08 s prefill budget implies a required rate of ≈ 1.19 PFLOPS\"",
+  "observed": "The 1.08 s figure carries two incompatible meanings. Ch 5, Ch 6 and Ch 8's own Table 8-1 treat 1.08 s as the prefill compute window (9,200 tokens ÷ 1.08 s = 8,519 tokens/s is called 'the prefill-side rate' in Ch 5's economics note; Ch 6 divides 1.29 PFLOP by 1.08 s to get the required prefill rate). Ch 8's parenthetical says 1.08 s absorbs queueing, scheduling, tokenization and admission overhead, which would make the pure prefill compute window shorter and the required rate higher than 1.19 PFLOPS. The two readings give different required rates, different implied MFU (15% vs lower), and different host counts (44 vs more).",
+  "evidence": "Ch 6/Table 6-1: 1.288 PFLOP ÷ 1.08 s = 1.19 PFLOPS required; Ch 8: 1.288 ÷ 1.08 ÷ 8 = 149 TFLOPS/GPU = 15% MFU. If 1.08 s includes non-prefill overhead, the prefill kernel's own rate is higher than 149 TFLOPS/GPU and the 44-host figure is a lower bound.",
+  "root_cause": "The canonical 1.08 s was derived once as a prefill-compute time and later annotated with a broader meaning in one parenthetical, without propagating the change to the arithmetic that consumes it.",
+  "correction": "Pick one meaning and state it once in Ch 4 (Table 4-2) and reference it thereafter. If 1.08 s is the prefill compute window, delete the 'absorbs queueing, scheduling, tokenization and admission overhead' clause and instead say that those overheads are what the 1.2 s TTFT budget leaves room for (0.12 s, shared with retrieval). If 1.08 s is an end-to-end leg time, relabel it and restate the required prefill rate as a lower bound.",
+  "acceptance_test": "The 1.08 s figure has one definition stated in Ch 4 and referenced identically in Ch 5, Ch 6 and Ch 8; the 1.19 PFLOPS, 15% MFU and 44-host figures are all derived from that same definition.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH8-02-P2",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3, paragraph beginning '**Host counts, scannable (Ch 16/17).**'",
+  "chapter": "Ch 8",
+  "quoted_clause": "\"Their labeled 70% × 95% + N−1 policy totals: case (i) 19 → 29 compute, fleet 21 → 32; case (iii) 21 → 32; case (ii) 22 → 34; KV-only 21 → 32. The ρ = 1 u-only screen reads 30 / 32 (ceil(N ÷ 0.7) for KV-only 21 and case (ii) 22).\"",
+  "observed": "The policy that produces these totals is never stated, so the reader cannot reproduce them; the '+ N−1' descriptor does not match either candidate formula; 'ρ = 1 u-only' is undefined jargon; and the paragraph mixes 'N → M' totals with Ch 17's '31 working / 32 total' pair without saying which of the two numbers is working and which is total. The totals are consistent with total = ⌈N/(0.7×0.95)⌉ (19→29, 21→32, 22→34) and with working = total − 1, but neither reading is stated, and the '+ N−1' wording suggests a redundancy term that would give 47, 52 and 55 rather than 29, 32 and 34.",
+  "evidence": "⌈19/0.665⌉ = 29; ⌈21/0.665⌉ = 32; ⌈22/0.665⌉ = 34; ⌈21/0.7⌉ = 30; ⌈22/0.7⌉ = 32. Ch 17's '31 working / 32 total' is consistent with working = ⌈N/0.665⌉ − 1 and total = ⌈N/0.665⌉, but is inconsistent with a '+ N−1' spare-host policy.",
+  "root_cause": "A summary line was added to Ch 8 to avoid a cross-chapter page-flip, but the policy it summarizes lives in Ch 16/17 and was not restated with its formula.",
+  "correction": "Restate the policy inline in one line, e.g. 'Policy: working hosts = ⌈N/(0.7×0.95)⌉ − 1, total = ⌈N/(0.7×0.95)⌉ (Ch 16/17); the ρ=1 utilization-only variant is ⌈N/0.7⌉.' Then give the table as working/total pairs rather than 'N → M' arrows, and delete or define '+ N−1' and 'u-only'.",
+  "acceptance_test": "A reader with only Ch 8 in hand can recompute all six host-count numbers from a stated formula and can tell which numbers are working hosts and which are total hosts.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH8-03-P3",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 6, Table 6-1 footnote",
+  "chapter": "Ch 6",
+  "quoted_clause": "\"(adding the quadratic attention term raises it to ~10.6K, activation traffic lowers it — either way ≫ 295)\"",
+  "observed": "The full-square attention intensity at 9.2K is ~10.8K FLOP/byte, not ~10.6K. The value is not used in any downstream decision, but it is a derived number in a table footnote that a reader can check, and it disagrees with the book's own case-(ii) total (1.5099 PFLOP, Table 8-1).",
+  "evidence": "1.5099e15 FLOP ÷ 140e9 B = 10,785 FLOP/byte ≈ 10.8K. (Case (iii) would give 1.3989e15 ÷ 140e9 = 9,992 ≈ 10.0K; neither equals 10.6K.)",
+  "root_cause": "The footnote was written from a rounded intermediate rather than from the case-(ii) total the chapter elsewhere fixes.",
+  "correction": "Change '~10.6K' to '~10.8K' (or state '≈10.8K under case (ii)').",
+  "acceptance_test": "The Table 6-1 footnote's intensity figure equals 1.5099 PFLOP ÷ 140 GB to the displayed precision.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH8-04-P3",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 8 §3 ('This rough sizing illustrates that prefill is FLOP-bound at this scale'); Ch 8 §5 Common Mistakes bullet 2",
+  "chapter": "Ch 8",
+  "quoted_clause": "\"This rough sizing illustrates that prefill is FLOP-bound at this scale\" | \"prefill reads the full context once and is FLOP-bound (weight-only intensity ~9,200 FLOP/byte …)\"",
+  "observed": "The book defines a three-way distinction between compute-bound, memory-bandwidth-bound and memory-capacity-constrained in §8.1 and uses 'compute-bound' consistently in Ch 6 and Ch 8 §6. Here the term 'FLOP-bound' is used, which is not one of the three defined labels and reads as a fourth regime. The §5 bullet is the more consequential instance because it is a Common Mistake entry that will be quoted.",
+  "evidence": "Ch 8 §1: '**Compute-bound** means performance is limited primarily by arithmetic throughput'. Ch 6 §3: 'Prefill is compute-bound at the canonical long-prompt operating point.' Ch 8 §6: '**If prefill is FLOP-bound** (as it is for 70B+ models with long contexts)'.",
+  "root_cause": "Terminology drift between the roofline vocabulary introduced in §8.1 and the older shorthand used in the worked example and mistakes list.",
+  "correction": "Replace 'FLOP-bound' with 'compute-bound' in all three places (Ch 8 §3, Ch 8 §5, Ch 8 §6), keeping 'FLOP' only for the quantity itself.",
+  "acceptance_test": "The strings 'FLOP-bound' and 'memory-bound' (unqualified) do not appear anywhere in the book; only the three defined labels are used.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ }
+]

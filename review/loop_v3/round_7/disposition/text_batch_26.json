@@ -1,0 +1,342 @@
+[
+ {
+  "id": "CH20-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 20 §3 \"Autoscaling economics\", final sentence",
+  "chapter": "Ch 20",
+  "quoted_clause": "The break-even against a statically provisioned 21-host fleet ($420/hr) sits at 19 hosts, i.e. sustained demand ≤ ~37.6 rps: above that, autoscaling costs more than the peak-sized fleet it replaces.",
+  "observed": "The comparison is asymmetric: the autoscaled alternative is costed as (hosts x $20 + $40/hr) including the $40/hr fixed overhead, while the static alternative is costed as $420/hr with no overhead. The same infrastructure and staff overhead applies to a static fleet, so the static baseline is understated by $40/hr and the break-even is biased toward autoscaling.",
+  "evidence": "As printed: autoscaled break-even at N x 20 + 40 = 420 -> N = 19, demand 19 x 1.977 = 37.6 rps. With the overhead applied symmetrically: static 21-host fleet = 21 x 20 + 40 = $460/hr; autoscaled break-even at N x 20 + 40 = 460 -> N = 21, demand 21 x 1.977 = 41.5 rps. The printed conclusion (\"above ~37.6 rps autoscaling costs more\") is therefore wrong by ~4 rps, and it changes the sign of the recommendation in the 37.6–41.5 rps band.",
+  "root_cause": "The $40/hr overhead was added to one side of a two-sided comparison only.",
+  "correction": "Apply the $40/hr overhead to both alternatives (or state explicitly that the static baseline excludes it and why), and recompute the break-even. If the overhead is genuinely avoided by a static fleet, say so and justify it.",
+  "acceptance_test": "Both sides of the break-even comparison are costed on the same overhead basis, and the printed break-even demand can be reproduced from the printed inputs by a reader.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH20-05",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 20 §4, Table 20-1, row 4",
+  "chapter": "Ch 20",
+  "quoted_clause": "| **Scheduling overhead** | Fraction of per-query time spent in dispatcher, not compute | < 5% of the 2 s turn budget (= 100 ms) |",
+  "observed": "The metric's denominator (per-query time, i.e. the ~8.6 s service time) and the target's denominator (the 2 s TTFT turn budget) are different quantities. 5% of per-query time is ~430 ms, not 100 ms. As written, the row is internally inconsistent and cannot be measured as defined.",
+  "evidence": "8.6 s x 5% = 430 ms; 2 s x 5% = 100 ms. The §3 scheduling-overhead paragraph uses the correct framing (\"~1.2% of the canonical 8.6 s request and, equivalently, ≤ 5% of the 2 s TTFT SLO turn budget; the fraction is derived from the absolute number, not a second constraint\"), so the table row contradicts the prose it summarizes.",
+  "root_cause": "The table row was written as a fraction-of-service-time metric but given a fraction-of-TTFT-budget target.",
+  "correction": "Redefine the row as \"Scheduler-added latency as a fraction of the TTFT budget\" with target \"< 5% of the 2 s turn budget (= 100 ms)\", or keep the per-query-time definition and change the target to \"< 5% of the 8.6 s service time (= 430 ms)\" — but the latter contradicts the §3 absolute target, so the first is preferable.",
+  "acceptance_test": "Every row of Table 20-1 has a definition and a target expressed over the same denominator, and the scheduling-overhead row agrees with the §3 paragraph.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH20-06",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 20 §3, \"Fleet aggregate throughput (illustrative form)\", second bullet",
+  "chapter": "Ch 20",
+  "quoted_clause": "**Token-throughput screen → 11 hosts (non-binding).** The token-throughput ceiling gives ⌈40 / 3.684⌉ = 11 hosts, which stays non-binding here.",
+  "observed": "One subsection earlier the chapter states that this exact division is invalid: \"what makes the division wrong here is what its numerator mixes and its answer assumes, not its units\" — the 35,000 tokens/s numerator is a phase-mixed prefill+decode total with no cost/phase-equivalence model. The chapter then performs the division and reports the result as a named screen, without repeating the caveat at the point of use.",
+  "evidence": "35,000 / 9,500 = 3.684 req/s; ceil(40 / 3.684) = 11. The chapter's own §3 \"Throughput bound\" subsection states the division \"is not achievable here\" and that \"aggregating the two phases into one 'total' rate requires an explicit cost/phase-equivalence model\". A reader who skims the screen list will carry \"11 hosts\" forward as a legitimate capacity screen.",
+  "root_cause": "The caveat lives in a different subsection from the screen list, and the screen list was written as if the caveat did not apply.",
+  "correction": "Either drop the 11-host screen, or restate it as \"an illustrative artifact of a phase-mixed rate, shown only to demonstrate that it is non-binding; it is not a valid screen without a phase-equivalence model\". If retained, attach the caveat clause at the point of use.",
+  "acceptance_test": "No screen in Ch 20 is presented as a valid capacity screen while the chapter elsewhere declares the operation that produced it invalid.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH20-07",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 20 §3, \"Simultaneous feasibility check (prefill + decode coexistence)\" and \"Fleet aggregate throughput\"",
+  "chapter": "Ch 20",
+  "quoted_clause": "The ~93% leaves very little headroom before decode coexistence, interference, and the actual achieved MFU. ... with the standalone ρ = 0.95 derate applied to the prefill screen exactly as the policy arithmetic applies it, case (ii) rises to ⌈21.81 / 0.95⌉ = **23 hosts** — the largest requirement before the full policy",
+  "observed": "The chapter never states the prefill utilization implied by its own governing sizing, and it treats the decode-coexistence headroom inconsistently. The feasibility check says there is essentially no headroom for decode coexistence at the KV-bound rate, yet the sizing applies only a 5% rho derate and calls 23 hosts governing. The reader is never told that the governing fleet is prefill-saturated.",
+  "evidence": "At 23 hosts and 40 rps, per-host rate = 40/23 = 1.739 req/s; prefill demand = 1.739 x 9,200 = 16,000 tokens/s against the case-(ii) ceiling of 16,870 tokens/s = 94.8% prefill utilization. At 22 hosts (raw case-(ii) screen): 40/22 = 1.818 req/s -> 16,727 tokens/s = 99.2% of the ceiling. So the governing fleet leaves roughly 1–5% of host compute for decode, which is inconsistent with the §3 statement that the ~93% figure \"leaves very little headroom before decode coexistence\" and with the claim that the rho derate is a generic \"throughput-efficiency derate\" rather than a decode-coexistence allowance.",
+  "root_cause": "The feasibility check was performed at the KV-bound rate (2.0 req/s) rather than at the governing per-host rate implied by each screen, so the two analyses never meet.",
+  "correction": "Add the implied prefill utilization to the screen table (per-host rate, prefill tokens/s, % of the case-(ii) ceiling) and state the consequence explicitly: the governing case-(ii) sizing is prefill-saturated, so decode coexistence requires either more hosts, a lower planning MFU, or P/D disaggregation. State whether the rho = 0.95 derate is intended to represent decode-coexistence headroom; if it is, say so and stop treating the 93% figure as evidence of no headroom.",
+  "acceptance_test": "A reader can state, from Ch 20 alone, the prefill utilization at the governing host count and what that implies for decode coexistence on the same host.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH20-08",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 20 §1 Concept, second paragraph",
+  "chapter": "Ch 20",
+  "quoted_clause": "The **average** cost per query declines only along the canonical 10 → 40 rps ramp, where fixed overhead (model loading, infrastructure, staff) is spread across 4× the requests and across more SLO-compliant completions per observation window (Ch 14's goodput definition), cost per request may decline until additional capacity steps dominate; adding idle hosts at fixed demand increases unit cost.",
+  "observed": "The sentence is grammatically broken: a dangling clause (\"cost per request may decline until additional capacity steps dominate\") is spliced in after the parenthetical, leaving the subject of the main clause ambiguous and the semicolon clause orphaned. This is the chapter's opening Concept paragraph.",
+  "evidence": "Text inspection: the clause after the closing parenthesis has no grammatical attachment to the preceding subject (\"The average cost per query declines...\").",
+  "root_cause": "An edit inserted a clause without restructuring the sentence.",
+  "correction": "Rewrite as two sentences, e.g.: \"The average cost per query declines along the canonical 10 → 40 rps ramp, because fixed overhead (model loading, infrastructure, staff) is spread across 4× the requests and across more SLO-compliant completions per observation window (Ch 14's goodput definition). It declines until additional capacity steps dominate; adding idle hosts at fixed demand increases unit cost.\"",
+  "acceptance_test": "The paragraph parses as complete sentences with one subject per clause; no orphaned clause remains after the parenthetical.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH20-09",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 20 §2 Mental Model, second paragraph; §2 third paragraph",
+  "chapter": "Ch 20",
+  "quoted_clause": "intelligent scheduling — such as consistent hashing for session affinity or predictive placement based on historical patterns — tends to keep utilization more uniform across the fleet and reduces tail latency. ... the fleet must sustain **~40 requests/s at peak**",
+  "observed": "Two small defects in the same section: (a) \"tends to keep ... and reduces\" mixes a modal construction with a finite verb; (b) the chapter opens §1 with an explicit unit convention (\"rps denotes an arrival rate and req/s a capacity rate\") but §2 then writes \"~40 requests/s at peak\" for an arrival rate, and §1 defines \"Aggregate throughput\" as \"the total queries-per-second\", introducing a third term (\"queries\") for the same quantity.",
+  "evidence": "Text inspection against the §1 convention sentence.",
+  "root_cause": "Unit convention was introduced but not applied consistently in later prose.",
+  "correction": "Fix the verb agreement (\"tends to keep utilization more uniform across the fleet and to reduce tail latency\"), and apply the convention: use \"rps\" for the arrival rate and \"req/s\" for capacity throughout, and use \"requests\" rather than \"queries\" for the counted object.",
+  "acceptance_test": "Every rate in Ch 20 is labelled rps (arrival) or req/s (capacity), and \"queries\" does not appear as a synonym for \"requests\".",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH20-10",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 20 §7 \"What We Still Don't Know\", bullet \"Economic auto-scaling\"",
+  "chapter": "Ch 20",
+  "quoted_clause": "A fleet that runs at 20% utilization on average may be cheaper in the cloud; one at 80% utilization favors owned hardware.",
+  "observed": "The chapter's own §3 numbers imply a specific crossover (cloud $20/hr vs owned ~$8/hr amortized -> owned wins above ~40% duty cycle), but §7 substitutes a vaguer 20%/80% framing. The open-question bullet is therefore less precise than the chapter's own arithmetic allows, and the two are not reconciled.",
+  "evidence": "$8 / $20 = 0.40, so a fleet that is up more than ~40% of the time is cheaper owned. The 20%/80% pair is not derivable from any number in the chapter.",
+  "root_cause": "The open-questions bullet was written generically rather than from the chapter's own cost inputs.",
+  "correction": "Either state the crossover implied by the chapter's numbers (~40% duty cycle at $20/hr cloud vs $8/hr amortized owned) and note that the true threshold also depends on the amortization period, or remove the 20%/80% pair so the bullet does not appear to assert a threshold the chapter has not derived.",
+  "acceptance_test": "Any utilization threshold stated in Ch 20 is either derived from the chapter's printed cost inputs or explicitly labelled as an external rule of thumb.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH20-11",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 20 §3, planning-bound caveat parenthetical",
+  "chapter": "Ch 20",
+  "quoted_clause": "the governing 23-host sizing (21 = the KV/Little screen under case (i); 22 = the ρ ≈ 0.95 derate of that screen — and, independently, the raw full-square case (ii) prefill compute screen, which also gives 22 and rises to 23 with the same ρ derate, the governing screen; 34 at the 70% × 95% + N−1 policy against 32 for KV-only — Ch 17 Table 17-1, u and ρ independent)",
+  "observed": "The KV/Little screen is labelled \"under case (i)\", but it is case-independent — it depends only on the KV ceiling and the residency time, not on the FLOP-counting convention. Ch 25's ADR 0015 R1 row states this correctly (\"21 hosts (KV, case-independent)\"), so the two chapters label the same screen differently.",
+  "evidence": "KV screen = ceil(lambda x W / C) with C = 17 slots and W = 8.6 s; no FLOP convention appears in the derivation. Ch 25 ADR 0015 R1: \"21 hosts (KV, case-independent)\".",
+  "root_cause": "Case labels were attached to the screen list positionally rather than by dependency.",
+  "correction": "Relabel as \"21 = the KV/Little screen (case-independent)\" and keep the case labels attached only to the prefill screens.",
+  "acceptance_test": "The case labels in Ch 20 and Ch 25 attach to the same screens with the same meaning.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH20-12",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 20 §6, unnumbered subsection \"The useful completion is an accepted output\"",
+  "chapter": "Ch 20",
+  "quoted_clause": "For a RAG fleet the useful completion is an *accepted* output — a response that passes the deadline, integrity, quality, and safety gates in the observation window — so hosts are sized against accepted outputs per observation window, not raw work ... a video-generation fleet is the clearest parallel beyond RAG",
+  "observed": "This subsection arrives without a heading number, without a transition, and pivots from RAG fleet sizing to a video-generation fleet in the middle of the Architecture Consequence section. It restates the Ch 14 goodput definition (accepted outputs per observation window) that Ch 20 has already invoked twice, and then adds a cross-domain analogy that is not used again. Its intellectual job (transfer the accepted-output accounting to another workload class) is real, but its placement inside §6 breaks the section's three-part structure (centralized scheduler / data colocation / graceful degradation).",
+  "evidence": "Structural inspection: §6 opens \"Fleet-level optimization reshapes the serving architecture in three ways\" and enumerates exactly three; the accepted-output subsection is neither numbered nor part of the three.",
+  "root_cause": "A cross-domain transfer note was appended to the section rather than integrated into it.",
+  "correction": "Either promote it to a numbered fourth consequence with a heading (\"4. Accepted-output accounting\") and connect it explicitly to the three preceding items, or move it to §7 as a transfer note, or cut it and keep the accepted-output definition to a single clause (the Ch 14 cross-reference already carries the concept).",
+  "acceptance_test": "§6's numbered list matches its introductory sentence, and every subsection in §6 has a heading and a stated job.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH21-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 21 §8 mini-case, legal-subset binomial test",
+  "chapter": "Ch 21",
+  "quoted_clause": "the incumbent's baseline failure rate on that subset is ~0.83% (3 in ≈360), and a one-sided binomial test at α = 0.05 returns p ≈ 6.4×10⁻⁵, so the gate fires",
+  "observed": "The binomial test is correct as computed, but the null rate it tests against is itself an estimate from 3 events in 360 trials, and the chapter does not acknowledge that the gate's firing is not robust to the null's own sampling uncertainty. At the upper end of a 95% interval for 3/360 (~2.3%), 12/360 is not significant (p ~ 0.13). The chapter presents the gate as a deterministic, reproducible decision rule; it is in fact sensitive to an estimated baseline.",
+  "evidence": "Recomputation of the printed p-value: exact binomial P(X >= 12 | n=360, p=1/120) = 6.36e-5, matching the printed 6.4e-5 — the arithmetic is correct. Wilson 95% interval for 3/360 is approximately [0.28%, 2.31%]. At p0 = 0.0231, P(X >= 12 | n=360) ~ 0.13 (Poisson lambda = 8.3), i.e. the gate would not fire.",
+  "root_cause": "The worked example treats an estimated baseline rate as a known null, and does not state the sensitivity.",
+  "correction": "Add one sentence: the null rate is estimated from 3 events, so the gate's power depends on the baseline's own confidence interval; either widen the baseline sample, use a one-sided test against the upper confidence bound, or state that the gate fires on the point estimate and that the false-promotion rate metric (§4) is what catches a mis-set baseline. The chapter's §4 false-promotion-rate metric is the natural place to make this connection.",
+  "acceptance_test": "The mini-case states the uncertainty in the null rate and either qualifies the gate's firing or explains how the false-promotion-rate metric covers the residual risk.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH21-03",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 21 §8 mini-case, second sentence",
+  "chapter": "Ch 21",
+  "quoted_clause": "A year ago the architect might have, and watched p95 TTFT silently drift past the SLO for a week.",
+  "observed": "Broken sentence: the verb phrase after \"might have\" is missing, leaving a comma splice.",
+  "evidence": "Text inspection.",
+  "root_cause": "Dropped words during editing.",
+  "correction": "\"A year ago the architect might have shipped it, and watched p95 TTFT silently drift past the SLO for a week.\"",
+  "acceptance_test": "The sentence parses; no orphaned auxiliary remains.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH21-04",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 21 §4 Measurement, item 1",
+  "chapter": "Ch 21",
+  "quoted_clause": "1. **Gate pass rate** — the share of candidates the gate admits. A rising rate can mean better candidates *or* looser thresholds, so it is read only alongside the second number. **False-promotion rate** — how often a gated change later regresses in production; only this one directly indicates that the evaluation suite is losing fidelity.",
+  "observed": "The false-promotion rate is a second, separately named metric but is set as an unnumbered continuation of item 1, while the text refers to it as \"the second number\" — a reader looking for item 2 finds \"Canary-to-production time\" instead. The list therefore advertises four metrics but enumerates three numbered items.",
+  "evidence": "Text inspection of the numbered list in §4.",
+  "root_cause": "A metric was added to an existing item without renumbering.",
+  "correction": "Split into two numbered items (1. Gate pass rate, 2. False-promotion rate) and renumber the rest, or fold the false-promotion rate into item 1 explicitly as \"read alongside the false-promotion rate\" and remove the ordinal reference.",
+  "acceptance_test": "The number of metrics named in §4 equals the number of numbered items, and \"the second number\" resolves unambiguously.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH21-05",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 21 §3, heading \"Cost of a good gated release\"",
+  "chapter": "Ch 21",
+  "quoted_clause": "**Cost of a good gated release.** A canary at 5% traffic for 2 hours serves 5% × 288,000 ×2/8 ≈ **3,600 requests** through the candidate while it is measured against a full evaluation suite.",
+  "observed": "The heading promises a cost; the body gives a request count. The chapter's framing is \"the economics of promotion gating\", so the gated path's cost is the quantity the reader came for, and it is never stated.",
+  "evidence": "Text inspection; the canary's incremental cost is computable from the chapter's own inputs (see CH21-01).",
+  "root_cause": "Heading written for a cost argument; body delivered a volume argument.",
+  "correction": "Either add the cost (one additional resident model for the canary window, ~$40 at the chapter's $20/hr host rate, plus the evaluation-runner compute) or retitle the subsection to \"Exposure of a good gated release\".",
+  "acceptance_test": "Every subsection heading in Ch 21 §3 is matched by the quantity its body delivers.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH21-06",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 21 §8 mini-case",
+  "chapter": "Ch 21",
+  "quoted_clause": "the canary has served 3,600 requests with 12 legal-subset failures vs the incumbent's 3 expected at α = 0.05",
+  "observed": "The phrase \"3 expected at α = 0.05\" conflates two different quantities: 3 is the expected count under the incumbent's baseline rate (0.83%), while α = 0.05 is the significance level of the test. As written, the expected count appears to depend on the significance level.",
+  "evidence": "Text inspection; the following clause (\"the incumbent's baseline failure rate on that subset is ~0.83% (3 in ≈360)\") supplies the correct decomposition.",
+  "root_cause": "Compressed phrasing of two separate quantities.",
+  "correction": "\"12 legal-subset failures against the 3 expected under the incumbent's ~0.83% baseline (one-sided binomial test, α = 0.05, p ≈ 6.4×10⁻⁵)\".",
+  "acceptance_test": "The expected count and the significance level are never presented as a single quantity.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH23-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 23 §8 mini-case, mirror restatement and \"The burst buffer, spelled out\"",
+  "chapter": "Ch 23",
+  "quoted_clause": "a 7B-class model on one on-prem GPU, resolving baseline tickets under 3 s, with a 200-rps burst buffer ... a decode-only ceiling of 100% MFU (≤141 rps — 7B FP16, ~500 output tokens/request, H100); with the ~500-token prefill included the *total* request rate is ~71 rps at 100% MFU (~21–28 rps at 30–40% MFU), so r = 50 in the worked example below is an optimistic decode-only illustration",
+  "observed": "The mini-case's own arithmetic shows that one H100 sustains at most ~71 req/s at a physically impossible 100% MFU (and ~21–28 req/s at the 30–40% MFU the book uses elsewhere), yet the mirror restatement commits the scope to \"one on-prem GPU\" with \"a 200-rps burst buffer\". The worked burst drain (r = 50) is itself above the realistic single-GPU rate, so the 3 s drain conclusion rests on a rate the chapter has already flagged as unattainable. The chapter's conclusion (bursts under a degraded SLO) is sound, but the committed scope statement is not.",
+  "evidence": "Recomputation: decode-only at 100% MFU = 989 TFLOPS / (2 x 7e9 FLOP/token) = 70,643 tokens/s / 500 output tokens = 141 req/s; with 500-token prefill, per-request FLOPs = 7 + 7 = 14 TFLOP -> 989/14 = 70.6 req/s; at 30–40% MFU = 21–28 req/s. r = 50 therefore requires ~71% MFU on one GPU. At r = 25 (40% MFU), a 200-rps 1-s burst queues 175 requests and drains in 7 s, not 3 s.",
+  "root_cause": "The burst arithmetic was carried out at an r the chapter had already declared unattainable, and the mirror restatement was written from the burst rate rather than from the capacity.",
+  "correction": "State the burst capacity the committed topology can actually absorb (one GPU at 21–28 req/s; N GPUs at N x that), and either size the burst buffer to the real drain rate or state the degraded-mode SLO in terms of the real r. The mirror restatement should say \"one on-prem GPU serving ~5 rps average, with the 200-rps burst admitted under a queue-and-drain degraded mode at the measured single-GPU rate of ~25 req/s\", and the burst arithmetic should be re-run at that r.",
+  "acceptance_test": "The r used in the burst arithmetic is at or below the rate the committed topology can sustain at the book's own planning MFU, and the mirror restatement's burst claim is consistent with it.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH23-03",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 23 §3, \"Reading the result\"",
+  "chapter": "Ch 23",
+  "quoted_clause": "a ~21–32-host fleet at the canonical peak (Ch 17/20/24)",
+  "observed": "The fleet range quoted here omits Ch 20's governing figure (23 hosts, case-(ii) prefill with the rho derate) and the full-policy figure (34 hosts), both of which are stated in the chapter being cited. The range as printed (21–32) is not the range Ch 20 produces.",
+  "evidence": "Ch 20 §3 governing: 23 hosts (case-(ii) with rho = 0.95); full policy: 34 (case-(ii)) vs 32 (KV-only). Ch 25 ADR 0015 R1 lists 21 / 22 / 32 / 34.",
+  "root_cause": "The range was written from an earlier screen set and not updated when the case-(ii) prefill screen became governing.",
+  "correction": "Quote the range Ch 20 actually produces: \"a ~21–23-host fleet at the canonical peak (32–34 under the 70% x 95% + N−1 policy)\".",
+  "acceptance_test": "Any host-count range quoted outside Ch 20 matches the range Ch 20 derives.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH24-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 24 §2 Mental Model, fenced code block",
+  "chapter": "Ch 24",
+  "quoted_clause": "```\nRed Team → Probes →\nExposure Surface → Guardrails →\nMetrics → Green Team →\nHarden → Reduce → Loop\n```",
+  "observed": "The chapter's mental model is rendered as an ASCII arrow diagram in a fenced code block, in monospace, with hard line breaks that split the loop across four lines. This is visually inconsistent with every other chapter in this part, which uses a typeset figure for the mental model or loop (Ch 21 Fig 21.1, Ch 24 Fig 24.1, Ch 25 Fig 25.1), and it is the one place in Ch 24 where the reader is asked to internalize the loop's shape. The line breaks also obscure that the loop is cyclic.",
+  "evidence": "Visual inspection of the source; the same chapter carries a proper figure (Fig 24.1) for the same loop.",
+  "root_cause": "The mental model was drafted as ASCII before the figure existed and never replaced.",
+  "correction": "Replace the code block with a typeset figure (or fold it into Fig 24.1 and reference it), so the mental model and the cycle figure are one visual object with consistent typography.",
+  "acceptance_test": "Ch 24's mental model is typeset, not monospace ASCII, and is visually consistent with the chapter's own Fig 24.1.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH25-04",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 25 §1 Concept (status list) and §3.1 template (\"## Status\" block)",
+  "chapter": "Ch 25",
+  "quoted_clause": "**Title** and status (proposed, accepted, superseded, deprecated) ... ## Status\n<proposed | accepted | superseded | deprecated>  (date)",
+  "observed": "The chapter's status vocabulary has four values, but the chapter's own worked HOLD record and the §6 callout both instruct the reader to write \"HOLD\" into the Status field, and Ch 22 §6's ADR 0015 excerpt does exactly that. The template a reader is told to copy does not permit the value the chapter tells them to use.",
+  "evidence": "Text inspection: §1 list, §3.1 template placeholder, §6 callout (\"Writing **HOLD** into the Status field is the correct, auditable record\"), ADR 0015 Status field.",
+  "root_cause": "The HOLD state was introduced in §6 without being added to the enumerated vocabulary in §1 or the template.",
+  "correction": "Add HOLD to both lists: \"status (proposed, accepted, hold, superseded, deprecated)\" and \"<proposed | accepted | hold | superseded | deprecated>  (date)\", with one clause defining HOLD as \"screened, not committed, with named exit criteria\".",
+  "acceptance_test": "Every status value used anywhere in Ch 22 or Ch 25 is one of the enumerated values in §1 and is permitted by the §3.1 template.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH25-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 25 §8 mini-case, ADR 0017 \"Decision\"",
+  "chapter": "Ch 25",
+  "quoted_clause": "**Decision:** Render the KV cache in FP8 for the long-context decode path, keeping prefill and the retrieval/prompt phase in FP16.",
+  "observed": "The decision is ambiguous about the KV write path. KV tensors are produced during prefill and consumed during decode; a single cache cannot be \"FP8 for decode\" and \"FP16 for prefill\" without a conversion step. The intended reading is presumably that the KV cache is stored in FP8 (quantized at write time) while prefill activations remain FP16, but the sentence as written can be read as a per-phase cache format, which is not implementable.",
+  "evidence": "Text inspection; the ADR's own Consequences bullet (\"KV residency per request falls from ~24.9 GB (FP16) to ~12.45 GB (FP8, raw byte-halving)\") confirms a single stored format.",
+  "root_cause": "The decision was phrased by phase rather than by stored artifact.",
+  "correction": "Rewrite as: \"Store the KV cache in FP8 (quantized at write time during prefill; prefill activations and the retrieval/prompt path remain FP16), so the resident KV per request halves.\"",
+  "acceptance_test": "The ADR's Decision names the stored artifact whose format changes, and is implementable as written.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH26-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 26 §8 Step 1 (baseline inputs); §3 (Capstone Execution); §8 Step 2; Fig 26.2 takeaway",
+  "chapter": "Ch 26",
+  "quoted_clause": "request rate ~2 rps (at the ~2.0 rps per-host analytical planning ceiling) ... at the offered ~2 rps against the ~2.0 rps analytical ceiling the assumed prefill-queue inflation already sits inside the 320 ms compute term",
+  "observed": "The baseline is placed at the host's analytical capacity ceiling: offered load ~2.0 rps against a per-host ceiling of ~2.0 rps, i.e. rho ~ 0.98-1.0. At that operating point a work-conserving queue has no finite steady-state wait, so no finite 'queue-inflated' compute term can be assigned to the baseline. The declared 320 ms compute term (and hence the 450 ms baseline p99) is not consistent with the declared offered load under any standard queueing model. The cached configuration, by contrast, runs at 1.3 rps (rho ~ 0.64) and does have a steady state, so the chapter's headline -44% compares a non-realizable baseline operating point against a stable one.",
+  "evidence": "Per-host ceiling = C / service time = 17.5 / 8.6 s = 2.03 rps (the chunk's own Ch 17/20 figures). Baseline offered load = 2.0 rps -> rho = 0.98. Cached engine load = 2.0 x 0.65 = 1.3 rps -> rho = 0.64. For scale, an M/M/1 at rho = 0.98 gives a mean wait of order rho/(mu(1-rho)) ~ 400 s, i.e. three orders of magnitude above the declared 320 ms total compute term. The chunk itself states the cached case is 'queue-light' and the baseline is 'queue-inflated'.",
+  "root_cause": "The scenario inputs were selected so that the component arithmetic closes (450 = 320+80+50; 250 = 120+80+50) without checking that the baseline's offered load is a stable operating point. The chapter's own caveat ('the utilisation that 320 ms embeds is a declared scenario input, not a queueing-model output') acknowledges the modelling gap but not the physical inconsistency.",
+  "correction": "Either (a) lower the baseline offered load to a stated fraction of the ceiling (e.g. 1.6-1.8 rps) and re-declare the queue-inflation term against that load, or (b) keep 2.0 rps and state explicitly that the baseline sits at the capacity ceiling where no finite steady-state queue exists, that the 450 ms is therefore a declared illustration rather than a realizable p99, and carry that statement into the -44% headline in §3 and the Fig 26.2 takeaway.",
+  "acceptance_test": "The §8 Step 1 baseline paragraph states the offered load's rho explicitly and either shows rho < 1 with a stated queueing assumption or states the rho ~ 1 non-stationarity caveat; the §3 and Fig 26.2 takeaway sentences carry the same caveat.",
+  "_models": [
+   "MiniMax-M3.1-Flash"
+  ],
+  "_sev": "P1"
+ }
+]

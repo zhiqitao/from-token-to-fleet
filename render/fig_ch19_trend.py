@@ -59,6 +59,9 @@ _legend_a = [
 ax1.legend(handles=[Patch(fc=c, ec='#333', hatch=h, label=l) for l, c, h in _legend_a],
            fontsize=8.6, loc='upper center', bbox_to_anchor=(0.5, -0.25), ncol=1, frameon=False)
 ax1.tick_params(labelsize=8.6)
+# FIG-19.2-06: thousands separators on panel (a) ticks to match '9,200' in the legend
+from matplotlib.ticker import FuncFormatter as _FF
+ax1.yaxis.set_major_formatter(_FF(lambda v, _pos: f'{int(v):,}'))
 # headroom so the tallest bar (turn 4 ~12.7K) plus the leader-line labels
 # (FIG-347-06, up to ~14.4K) are not clipped at the top spine
 ax1.set_ylim(0, 14600)

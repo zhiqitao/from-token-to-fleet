@@ -1,0 +1,93 @@
+[
+ {
+  "id": "CH10-06",
+  "severity": "P3",
+  "chapter_hint": "Chapter 10",
+  "page_hint": "Ch 10 §1, Fig 10.1",
+  "quoted_clause": "**FIGURE 10.1: Three parallelism patterns, one per panel** — tensor parallel shards one layer's weights, pipeline parallel splits the layer stack into stages with an idle bubble at fill/drain, and data parallel replicates the model while splitting the batch.",
+  "observed": "The figure caption appears twice: once in the image alt text/caption and again as a bold paragraph immediately after the figure note. The bold paragraph repeats the same description.",
+  "correction": "Keep one caption and remove the duplicate, or replace the bold paragraph with interpretation that adds information not already in the caption.",
+  "acceptance_test": "Only one Fig 10.1 caption remains; the surrounding prose adds interpretation rather than repeating the caption.",
+  "verdict_evidence": "ch10 L27 image alt (rendered as LaTeX caption) and L30 bold 'FIGURE 10.1' paragraph repeat caption near-verbatim; only such paragraph in manuscript.",
+  "fix_instruction": "Delete L30, or replace it with interpretation that adds information beyond the caption.",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-001",
+  "severity": "P2",
+  "chapter_hint": "10",
+  "page_hint": "Chapter 10, §6 Architecture Consequence, MoE bullet",
+  "quoted_clause": "MoE models (if chosen per Ch3) push toward EP, because the full expert set must be resident (the active count sets compute per token, not residency) and EP shards the experts across GPUs.",
+  "observed": "The clause states that the full expert set must be resident as a general reason for using EP. Expert offloading, caching, or non-resident expert storage can change the residency requirement. The same chapter later qualifies this point in §7, so the unqualified statement in the architecture-consequence section is inconsistent with the more careful later treatment.",
+  "correction": "Add scope: 'when the deployment keeps the full expert set resident in HBM; expert offloading or caching changes the residency calculus (see §7).'",
+  "acceptance_test": "The MoE bullet does not assert full expert residency as unconditional.",
+  "verdict_evidence": "ch10:164 'the full expert set must be resident' unconditionally; ch10:175 scopes to 'if the deployment keeps all experts resident in HBM'.",
+  "fix_instruction": "Add the section 7 scope: 'when the deployment keeps the expert set resident in HBM; offloading or caching changes the residency calculus (see section 7)'.",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-002",
+  "severity": "P2",
+  "chapter_hint": "10",
+  "page_hint": "Chapter 10, Table 10-1, DP row",
+  "quoted_clause": "model fits one GPU; need throughput",
+  "observed": "The 'Fits when' cell for data parallelism can be read as requiring the full model to fit one GPU for any DP use. Plain DP does require that, but DP is commonly composed with TP/PP when the model does not fit one device. The chapter's own canonical 70B uses TP=8 within each DP replica, so the table cell is too narrow if read as a general DP condition.",
+  "correction": "Change the cell to 'plain DP (without TP/PP): full model fits one device; DP can be composed with TP/PP for larger models' or add a table note.",
+  "acceptance_test": "A reader does not conclude that DP is unavailable for a 70B simply because the model does not fit one H100.",
+  "verdict_evidence": "Table 10-1 (ch10:46) DP 'Fits when: model fits one GPU' but ch10:162 scales canonical 70B by 'additional replicas' of an 8xH100 node.",
+  "fix_instruction": "Change the cell to 'plain DP: model fits one device; DP is composed with TP/PP for larger models', or add a table note.",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-DP-01",
+  "severity": "P2",
+  "chapter_hint": "10",
+  "page_hint": "Ch 10, section 'Data Parallelism: Replicating, Then Syncing Gradients', paragraph 1 (final sentence)",
+  "quoted_clause": "The sync cost, not compute, often caps DP at small scale unless the interconnect is fast.",
+  "observed": "The sentence asserts that gradient-sync cost limits DP to *small* scale. The chapter's own ring model shows the opposite relationship: per-rank send volume is 2(N-1)/N x S, which is monotonically increasing but asymptotically flat in N. Sync time therefore does not grow materially with replica count; it is a fixed per-step tax. The binding fact is that the tax is large in absolute terms relative to a ~1 s step, at *any* N.",
+  "correction": "Replace with something like: 'Because ring all-reduce moves 2(N-1)/N x S per rank, the sync time is nearly independent of the replica count: adding DP replicas buys throughput at a fixed per-step tax rather than reducing the tax. DP is viable only when the interconnect is fast enough that this tax is a small fraction of the step (here 1.09 s at 450 GB/s against a ~1 s step - still marginal).'",
+  "acceptance_test": "A reader who has read the section can state, without consulting the text, whether adding DP replicas increases or decreases per-step synchronization time, and can cite 2(N-1)/N as the reason. The phrase 'caps DP at small scale' no longer appears anywhere in the chapter.",
+  "verdict_evidence": "ch10:124 verbatim; from its own 2(N-1)/N x 280: N=2 280 GB, N=8 490, N=64 551 -> 11.2/19.6/22.0 s at 25 GB/s — sync nearly N-independent, cannot 'cap DP at small scale'.",
+  "fix_instruction": "Rewrite ch10:124's close: ring send 2(N-1)/N x S is near-flat in N, so DP pays a fixed per-step tax at any replica count.",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-CM-01",
+  "severity": "P3",
+  "chapter_hint": "10",
+  "page_hint": "Ch 10, section '5. Common Mistakes', bullet 2",
+  "quoted_clause": "The same byte term is larger at 25 GB/s than at 450 GB/s",
+  "observed": "The byte term is identical at both bandwidths; only the time differs. As written, the sentence asserts that the number of bytes changes with link speed, which is a category error in a section whose whole point is byte accounting.",
+  "correction": "'The same byte term takes ~18x longer at 25 GB/s than at 450 GB/s (490/25 = 19.6 s vs 490/450 = 1.09 s).'",
+  "acceptance_test": "No sentence in the book attributes a change in a byte count to a change in bandwidth.",
+  "verdict_evidence": "ch10:148 verbatim; bytes are 490 GB at both rates and only time changes (490/25=19.6 s vs 490/450=1.09 s, ~18x).",
+  "fix_instruction": "'The same 490 GB takes ~18x longer at 25 GB/s than at 450 GB/s (19.6 s vs 1.09 s).'",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-MINI-01",
+  "severity": "P2",
+  "chapter_hint": "10",
+  "page_hint": "Ch 10, section '8. End-of-Chapter Mini-Case', paragraph 2",
+  "quoted_clause": "they verify the DP gradient-sync (if fine-tuning) stays under ~20% [ILLUSTRATIVE heuristic] of step time",
+  "observed": "The chapter's own ring model makes this check unsatisfiable for the mini-case's 400B model. The check is stated as a routine verification step without noting that the configuration it describes cannot meet it, so a reader either performs an impossible check or silently ignores the chapter's own arithmetic.",
+  "correction": "Either state that the fine-tuning path uses sharded DP (FSDP/ZeRO) so the synchronized object is a per-shard gradient rather than a full-replica gradient, or replace the check with the sharded-DP accounting and its own numbers. If the check is retained as-is, add the sentence that it is unsatisfiable at 400B without sharding.",
+  "acceptance_test": "A reader can compute the gradient-sync time for the mini-case's model from the chapter's own formulas and can state what configuration would bring it under 20% of step time.",
+  "verdict_evidence": "ch10:181 exact; 400e9x4B=1.6TB FP32 grads; ring 2(N-1)/N~3.2TB; /450GB/s=7.1s, /25GB/s=128s — 20% check unsatisfiable at 400B unless sharded; mini-case never says FSDP/ZeRO.",
+  "fix_instruction": "State that fine-tuning uses sharded DP (FSDP/ZeRO) so the synced object is a per-shard gradient, or note the check is unsatisfiable at 400B unsharded.",
+  "is_vision": false
+ },
+ {
+  "id": "CH10-MINI-02",
+  "severity": "P2",
+  "chapter_hint": "10",
+  "page_hint": "Ch 10, section '8. End-of-Chapter Mini-Case', final sentence",
+  "quoted_clause": "Moving the cross-node decomposition from TP to PP cuts TPOT from 80 ms to 38 ms [ILLUSTRATIVE], with ~3 ms of the residual being PP stage-boundary and bubble cost under the chosen $P$ and $m$, and the team's \"parallelism is slow\" becomes a precise, diagnosed, and fixed split.",
+  "observed": "The mini-case's stated target is 25 ms TPOT; the achieved value is 38 ms. The conclusion describes the split as 'fixed', but the SLO is still missed by 13 ms (52% over target). The mini-case ends without stating what closes that gap, or that the gap remains and is a separate problem. The arithmetic inside the mini-case is otherwise consistent (80 - 45 + 3 = 38 ms), so the defect is in the conclusion, not the computation.",
+  "correction": "Either close the gap with a named, mechanism-level step and its own arithmetic (larger m to shrink the bubble; EP to cut the per-layer exchange; speculative decoding to cut steps per token), or state explicitly that the diagnosis is complete and that the residual 13 ms is a separate, named optimization target with an owner and a next measurement.",
+  "acceptance_test": "The mini-case's final sentence states the achieved TPOT against the 25 ms target and does not describe a missed SLO as 'fixed'.",
+  "verdict_evidence": "ch10:181 target 25 ms, achieved 38 ms; case ends without stating 13 ms / 52% residual, calls outcome 'diagnosed, and fixed split'.",
+  "fix_instruction": "Close with the achieved 38 ms against the 25 ms target: name the residual 13 ms and the next lever (larger m, EP, speculative decoding).",
+  "is_vision": false
+ }
+]

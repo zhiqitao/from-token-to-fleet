@@ -22,7 +22,7 @@ ax.set_xlim(0, 10); ax.set_ylim(1.1, 7.5); ax.axis('off')
 levels = [
     ('Workload metrics', 'rps · token profile · concurrency', '#e7f5ec', '#1e8449', 6.4),
     ('Resource metrics', 'HBM BW · MFU · KV occupancy · memory pressure', '#e7f5ec', '#1e8449', 4.3),
-    ('Serving metrics', 'TTFT · TPOT · goodput · queue depth (scheduler)', '#e7f5ec', '#1e8449', 2.2),
+    ('Serving metrics', 'TTFT · TPOT · goodput', '#e7f5ec', '#1e8449', 2.2),
 ]
 bw, bh = 7.4, 1.4
 xc = 5.0
@@ -49,6 +49,13 @@ ax.text(x_c-0.35, 5.35, 'causation', fontsize=9.0, ha='right', va='center', colo
         rotation=90)
 ax.text(x_d+0.35, 5.35, 'diagnosis', fontsize=9.0, ha='left', va='center', color='#c0392b', fontweight='bold',
         rotation=90)
+
+# FIG-6.1-01: queue depth sits OUTSIDE the Serving metrics box.  The prose (ch6 §1)
+# states queue depth is a scheduler state, not a serving metric; the figure now says
+# the same, so figure-only and prose-only readers reach one classification.
+ax.text(xc, 1.28, 'queue depth: scheduler state, not a serving metric',
+        ha='center', va='center', fontsize=8.5, style='italic', color='#555555',
+        bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='#999999', lw=0.6, ls='--'))
 
 
 out = 'design/manuscript/chapter-06/figures/fig-06-0601.png'

@@ -53,12 +53,11 @@ for x in (1.635, 4.465):
     ax.add_patch(FancyArrowPatch((x, 2.74), (x, 2.085),
                  arrowstyle='-|>', mutation_scale=11, lw=1.4,
                  linestyle=(0, (4, 3)), color=NAVY, shrinkA=0, shrinkB=0))
-# R4 FIG-3.3-01: the annotation carried a trailing '→' immediately above
-# the drawn solid stage arrow, so the schedule direction was stated twice.
-# The connector stays solid black (data-flow arrows here are dashed blue, so
-# the two are already distinct); only the duplicated glyph is dropped.
-ctext(W / 2, 2.48, 'Denoising schedule progresses', size=8.5)
-ctext(W / 2, 2.28, 'Not two experts within one forward', size=8.5)
+# R7 FIG-3.3-02: the two-line note used to sit in the band between the two
+# dashed checkpoint-to-stage arrows, where it read as a label ON those arrows.
+# The schedule direction and the 'not two experts within one forward' scope are
+# now stated in the figure caption instead of floating in that band.
+
 
 # orange stage boxes + the single solid schedule arrow
 rbox(0.42, 1.42, 2.43, 0.68, PEACH_FILL, ORANGE, 1.6)

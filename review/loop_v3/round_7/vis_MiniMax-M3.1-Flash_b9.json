@@ -1,0 +1,177 @@
+```json
+[
+  {
+    "id": "FIG-22.1-01",
+    "page": "PDF 399 / printed 379",
+    "figure": "Figure 22.1 (Attention vs. projection prefill FLOP crossover), left panel annotation + caption",
+    "severity": "P1",
+    "issue": "The annotation 'full-square quad overtakes ~52.4K' and the caption's 'at ~52.4K context tokens under full-square counting' are numerically wrong. The correct crossover is ~53.4K. The figure contradicts itself: its own legend defines the full-square quadratic term as 4*n_layers*L^2*d and the causal-triangle term as 2*n_layers*L^2*d, i.e. exactly a factor of two, so the two crossover points against the same linear term MUST differ by exactly a factor of two. The figure prints 106.8K for the causal case (correct) and 52.4K for the full-square case (should be 53.4K). This is a digit transposition (53.4 -> 52.4), not a modelling difference.",
+    "evidence": "Independent rederivation from the figure's own stated geometry (caption: 70B, 80 layers, hidden d=8192) and the figure's own legend formulas: linear(L) = 2*N*L = 2*70e9*L = 1.4e11*L. Full-square quad(L) = 4*80*8192*L^2 = 2,621,440*L^2. Setting quad = linear: L = 1.4e11 / 2,621,440 = 53,406.6 tokens = 53.4K. Causal quad(L) = 2*80*8192*L^2 = 1,310,720*L^2; L = 1.4e11 / 1,310,720 = 106,813 = 106.8K, which reproduces the figure's printed causal value exactly and therefore confirms N=70e9, n_layers=80, d=8192 are the intended constants. Cross-check: 106,813/2 = 53,406. The printed 52.4K is inconsistent with the printed 106.8K by a factor of 2.038, not 2. The conclusion ('at 32K it is large but not yet dominant') is unaffected: at L=32,000, quad/linear = 2,621,440*32,000/1.4e11 = 0.599, so the qualitative statement still holds; the defect is the wrong number, not the wrong conclusion. NOT VERIFIED against the source file (no tool access); the rederivation above is deterministic from the printed figure and caption.",
+    "acceptance_test": "A deterministic rederivation from N=70e9, n_layers=80, d=8192 must print 53,406 tokens (53.4K) for the full-square crossover and 106,813 tokens (106.8K) for the causal crossover; the figure annotation and the caption must both read '~53.4K'. The two printed values must satisfy full_square_crossover * 2 == causal_crossover to within rounding."
+  },
+  {
+    "id": "FIG-22.1-02",
+    "page": "PDF 399 / printed 379",
+    "figure": "Figure 22.1, left panel (PREFILL per request)",
+    "severity": "P2",
+    "issue": "The annotation 'causal-triangle quad overtakes linear ~106.8K' points at a crossing that is outside the plotted x-range. The x-axis spans 10^0 to 10^2 in K tokens (1K to 100K), and at the right edge (100K) the causal-triangle quadratic term (1.31e16) is still BELOW the linear term (1.40e16). The reader is directed to a feature the figure does not contain, and the leader line terminates at the plot boundary rather than at a crossing.",
+    "evidence": "quad_causal(100,000) = 2*80*8192*(1e5)^2 = 1.31072e16 FLOP; linear(100,000) = 2*70e9*1e5 = 1.4e16 FLOP. Ratio 0.937 < 1, so no crossing occurs within the axis. The crossing is at 106,813 tokens (see FIG-22.1-01 derivation), i.e. 6.8% beyond the right edge. The same applies to the 'total (causal-triangle)' orange dotted curve, which crosses the linear term at the same point. The full-square crossing (53.4K) IS in range, so the figure is asymmetric in a way the reader will not notice.",
+    "acceptance_test": "Either extend the left panel's x-axis to at least 3e2 K tokens so both annotated crossings are visible, or replace the off-scale annotation with an explicit off-scale marker (e.g. an arrow to the right edge labelled 'crossing at 106.8K, beyond axis') plus a note that the causal-triangle curve has not yet overtaken the linear term at 100K. A reviewer must be able to locate both annotated crossings inside the axes."
+  },
+  {
+    "id": "FIG-22.1-03",
+    "page": "PDF 399 / printed 379",
+    "figure": "Figure 22.1, both panels' y-axes",
+    "severity": "P2",
+    "issue": "The log-axis tick exponents are the most consequential labels in the figure and they are not legible at print size in the rendered page. As rendered, the left panel's y-axis appears to read 10^-1 / 10^0 / 10^1 / 10^2 and the right panel's 10^-1 / 10^-2 / 10^-3 / 10^-4 / 10^-5, which would contradict the axis titles 'Prefill compute (FLOP / request)' and 'Decode compute (FLOP / token)' by 10^15 and 10^11 respectively (prefill at the canonical 9.2K is ~1.5e15 FLOP; decode 2N is 1.4e11 FLOP/token). The most likely truth is that the ticks are raw FLOP (10^14-10^17 left, 10^8-10^12 right), but this cannot be confirmed from the rendered page, and a reader who misreads them will conclude the figure is off by fifteen orders of magnitude.",
+    "evidence": "Left panel geometry is unit-invariant (the curves occupy identical relative positions under either reading), so the tick glyphs are the only discriminator and they are sub-legible at the rendered resolution. Right panel: 2N = 2*70e9 = 1.4e11 FLOP/token; under a 10^8-10^12 axis this sits at ~79% of panel height, under a 10^-1-10^-5 (PFLOP) axis at ~98%; the rendered flat line sits at roughly 80% of panel height, which favours the raw-FLOP reading, but this is an estimate from a low-resolution render, not a measurement. NOT VERIFIED: I could not read the superscripts at print size and did not inspect the source file.",
+    "acceptance_test": "Inspect the source/vector PDF at 100% zoom and confirm the left panel's y-ticks read 10^14, 10^15, 10^16, 10^17 and the right panel's read 10^8, 10^9, 10^10, 10^11, 10^12 (raw FLOP). If they read 10^-1..10^2 and 10^-1..10^-5, the axis titles must be changed to PFLOP (or the data rescaled) - this would be a P0. Independently, increase the tick-label size so the exponents are readable at 100% print size (target >= 8 pt including the exponent), and add an explicit unit multiplier if any axis is not in base FLOP."
+  },
+  {
+    "id": "FIG-22.1-04",
+    "page": "PDF 399 / printed 379",
+    "figure": "Figure 22.1, right panel (DECODE per token) legend",
+    "severity": "P3",
+    "issue": "The right panel's legend carries two entries - 'decode 2*N (per token)' and 'PARAMETER term only' - but only one line is drawn. The two entries describe the same quantity, so the legend implies a second series that does not exist and invites the reader to hunt for it.",
+    "evidence": "Rendered right panel shows a single flat horizontal line. The caption confirms the intent: 'RIGHT = decode FLOPs/token (2N parameter term only, flat)'. The in-panel annotation '2*N only - full decode adds KV attention' already carries the 'parameter term only' qualifier, so the second legend entry is redundant with the annotation as well.",
+    "acceptance_test": "Reduce the right-panel legend to one entry ('decode 2*N per token (parameter term only)') or add the missing second series (the KV-attention term growing with context) so the legend matches the drawn content. A reader must not have to reconcile a legend entry with an absent line."
+  },
+  {
+    "id": "FIG-22.1-05",
+    "page": "PDF 399 / printed 379",
+    "figure": "Figure 22.1, right panel",
+    "severity": "P3",
+    "issue": "The right panel devotes roughly four decades of vertical axis to a single flat line, leaving most of the panel empty. The panel's job is to make one point - that the parameter term is independent of context length - and that point is made by the flatness, which is diluted by the empty space.",
+    "evidence": "Rendered right panel: one horizontal line in the upper portion, three-plus decades of unused grid below it. The left panel, which carries the actual crossover argument, is comparatively cramped.",
+    "acceptance_test": "Tighten the right panel's y-range to the band the flat line occupies (plus a small margin), or add the KV-attention term as a second curve so the panel carries information proportional to its area."
+  },
+  {
+    "id": "FIG-19.3-01",
+    "page": "PDF 364 / printed 344",
+    "figure": "Figure 19.3 (State-management policy at four agent turns), dashed reference line",
+    "severity": "P2",
+    "issue": "The dashed vertical line labelled 'single-shot reference 24.9 GB' appears to be drawn at roughly 20 GB on the axis, not at 24.9 GB. It sits visibly to the LEFT of the right edge of the Compaction bar, which is itself labelled '~24.9 GB'. A reference marker that does not land on the value it labels, and does not coincide with the bar it is supposed to coincide with, is a semantic error in the figure's central visual claim.",
+    "evidence": "Axis calibration from the rendered page: '0' at the left spine, '40' at the right spine, with 10-unit ticks between. The dashed line's x-position falls between the 20 and 30 ticks, near 20; the Compaction bar's right edge falls near 24-25. The figure's own arithmetic (printed below the axes) gives single-shot = I_0 + O_final = 9,200 + 300 = 9,500 tokens x 2.62 MB/token = 24.89 GB, and the compaction bar is labelled '~24.9 GB', so the two must coincide. NOT VERIFIED: I could not measure the pixel positions precisely at the rendered resolution; this needs confirmation against the vector source.",
+    "acceptance_test": "Measure the dashed line's x-coordinate against the axis scale in the source file: it must land at 24.9 GB, coincident with the right edge of the Compaction bar and at 73% of the Append-only bar's length (24.9/34.0). If it is at 20 GB, move it to 24.9 GB."
+  },
+  {
+    "id": "FIG-19.3-02",
+    "page": "PDF 364 / printed 344",
+    "figure": "Figure 19.3, prefix-cache eviction bar label",
+    "severity": "P3",
+    "issue": "The label '34.0 GB unchanged' extends past the right end of the plotting area (the axis ends at 40 GB) and into the surrounding text block, whereas the other two value labels sit inside the axes. The overflow is small but it breaks the figure's right-hand alignment and makes the label look detached from its bar.",
+    "evidence": "Rendered page: the '34.0 GB unchanged' label begins at the bar end (~34 GB) and runs past the axis end at 40 GB; the '34.0 GB' and '~24.9 GB' labels are shorter and remain within the axes.",
+    "acceptance_test": "Either shorten the label to '34.0 GB' (the word 'unchanged' is already carried by the caption and the bar's hatch) or extend the x-axis to 45 GB so all three labels sit inside the axes."
+  },
+  {
+    "id": "FIG-20.1-01",
+    "page": "PDF 385 / printed 365",
+    "figure": "Figure 20.1 (Fleet capacity vs host count), red annotation in the shaded region",
+    "severity": "P3",
+    "issue": "The red annotation reads 'insufficient offered demand, 5 capped at 40 rps - not scheduling overhead'. The glyph before 'capped' renders as '5' but the quantity being capped is S (the actually-served demand), as defined in the legend ('actually-served demand S = min(40, C_eff)'). If the source really contains '5', this is a typo that names a non-existent quantity in the figure's key takeaway.",
+    "evidence": "Legend defines S = min(40, C_eff); the caption repeats 'actually-served demand S = min(40, C_eff)'. No quantity named '5' exists anywhere in the figure. At the rendered resolution 'S' and '5' are not reliably distinguishable, so this must be checked in the source. NOT VERIFIED against source.",
+    "acceptance_test": "Confirm the source glyph is 'S' (i.e. 'S capped at 40 rps'); if it is '5', correct it. The annotation must name a quantity defined in the same figure's legend."
+  },
+  {
+    "id": "FIG-20.1-02",
+    "page": "PDF 385 / printed 365",
+    "figure": "Figure 20.1, caption",
+    "severity": "P3",
+    "issue": "The caption's parenthetical reads '(17/8.6 = 1.977 + 2.0 req/s/host x ~95% throughput-efficiency derate)'. The '+' between 1.977 and 2.0 is not a valid relation between two values of the same quantity; the intended operator is almost certainly '~' or '~=' (1.977 ~ 2.0 req/s/host). As printed it reads as an arithmetic sum, which is meaningless.",
+    "evidence": "17/8.6 = 1.9767 req/s/host; the figure title states '(17 contexts / 8.6 s per host)'. The '+' is inconsistent with every other relation in the same sentence, which uses '=' and 'x'.",
+    "acceptance_test": "Replace '+' with '~' (or '~=') so the caption reads '17/8.6 = 1.977 ~ 2.0 req/s/host x ~95% throughput-efficiency derate'."
+  },
+  {
+    "id": "FIG-20.1-03",
+    "page": "PDF 385 / printed 365",
+    "figure": "Figure 20.1, in-plot annotations vs plotted lines",
+    "severity": "P3",
+    "issue": "Three annotation/line collisions degrade legibility: (a) the red 'UNUSED capacity (N >= 22)...' block sits in the region traversed by the dashed C_eff line, which rises through that block between roughly N=30 and N=50; (b) the 'throughput-efficiency derate (-5%); C_eff = 0.95 x C_analytic' text begins at approximately the x-position of the vertical dotted marker at N~22, so the marker may strike the first characters; (c) the 'canonical peak = 40 rps' label is left-aligned outside the y-axis spine and crosses it. The red block is the most important annotation in the figure (it carries the 'not scheduling overhead' distinction) and it is the one most at risk.",
+    "evidence": "Rendered page: the dashed C_eff line passes through the vertical span occupied by the red text block; the vertical dotted marker at N~22 is immediately adjacent to the start of the derate annotation; the 'canonical peak = 40 rps' text extends left of the plot's left spine. NOT VERIFIED: exact glyph/line intersections could not be measured at the rendered resolution; confirm in the vector source.",
+    "acceptance_test": "In the source, verify no annotation glyph intersects any plotted line or spine. Move the red block into the empty lower-right region below the flat S line (y < 40, N > 25), right-align the 'canonical peak = 40 rps' label inside the axes, and shift the derate annotation right of the N~22 marker. A print proof at 100% must show clean separation."
+  },
+  {
+    "id": "FIG-20.1-04",
+    "page": "PDF 385 / printed 365",
+    "figure": "Figure 20.1, legend vs plotted line styles",
+    "severity": "P3",
+    "issue": "The legend's third entry ('actually-served demand S = min(40, C_eff)') is drawn with a dotted line sample, but the served-demand curve in the plot is drawn as a solid line with round markers. Meanwhile the horizontal demand-ceiling line at 40 rps is also dotted and is not represented in the legend at all. The result is that the legend's dotted swatch does not match any plotted series, and the only dotted line in the plot is an unlabelled one.",
+    "evidence": "Rendered page: legend row 3 shows a dotted sample; the S curve in the plot is solid with markers; the 'canonical peak = 40 rps' horizontal line is dotted and appears in no legend row.",
+    "acceptance_test": "Make the legend swatch match the drawn S curve (solid + markers), and add a fourth legend entry for the dotted horizontal line ('offered demand ceiling = 40 rps peak'). Every line style in the plot must be resolvable from the legend alone."
+  },
+  {
+    "id": "FIG-20.1-05",
+    "page": "PDF 385 / printed 365",
+    "figure": "Figure 20.1, figure note (below caption)",
+    "severity": "P3",
+    "issue": "The figure note is split across the page boundary: it ends mid-sentence at the bottom of printed page 365 with '...with the rho derate), up to 34' and continues on the next page. A note that qualifies the figure's scope should not be broken across a page, especially when the break falls inside a parenthetical. The same note also contains an unbalanced parenthesis ('(case (ii)) with the rho derate)').",
+    "evidence": "Rendered page 365 shows the note truncated at 'up to 34' with no closing punctuation; the parenthetical '(case (ii)) with the rho derate)' opens one bracket and closes two.",
+    "acceptance_test": "Keep the entire Fig 20.1 note on one page (apply a keep-with-next / keep-together rule to the note block), and fix the parenthesis to '(case (ii) with the rho derate)' or '(case (ii)) with the rho derate' as intended."
+  },
+  {
+    "id": "FIG-21.1-01",
+    "page": "PDF 391 / printed 371",
+    "figure": "Figure 21.1 (AI Factory promotion), FAIL band vs caption",
+    "severity": "P3",
+    "issue": "The caption says 'each labelled FAIL branch restores last-known-good state and re-validates', but the figure draws a single continuous red FAIL band spanning all six gates with one label, not six labelled FAIL branches. The caption describes a per-gate structure the figure does not show, so a reader looking for the six branches finds one bar.",
+    "evidence": "Rendered page: one wide red rectangle labelled 'FAIL' with the sub-label 'rollback to last-known-good + re-validate' beneath it, spanning the full width under the six gate boxes. The figure's own text says 'Gates check data validity, training cost, eval quality, canary health, TTFT, and promotion cost; a breach rolls back' - singular 'a breach', consistent with the drawing but not with the caption's 'each labelled FAIL branch'.",
+    "acceptance_test": "Either draw six short FAIL stubs, one under each gate box, each labelled FAIL, or change the caption to 'a single FAIL band: any gate failure rolls back to last-known-good and re-validates'. Caption and drawing must agree on whether FAIL is per-gate or global."
+  },
+  {
+    "id": "FIG-21.1-02",
+    "page": "PDF 391 / printed 371",
+    "figure": "Figure 21.1, production-feedback loop",
+    "severity": "P3",
+    "issue": "The caption states 'Production feedback returns evidence to data/evaluation', but the figure's green feedback arrow terminates only at the Data box; there is no return path to Eval. The figure therefore under-draws a claim the caption makes, and the 'evaluation' half of the loop is invisible.",
+    "evidence": "Rendered page: the green line runs from beneath Serve leftward along the bottom and turns up into the Data box (arrowhead at Data). No green connector reaches the Eval box.",
+    "acceptance_test": "Either add a second green return arrow into Eval (labelled, e.g. 'evaluation evidence'), or change the caption to 'Production feedback returns evidence to data'. The caption's scope and the drawn loop must match."
+  },
+  {
+    "id": "FIG-23.1-01",
+    "page": "PDF 411 / printed 391",
+    "figure": "Figure 23.1 (From a vague ask to architectural bounds), box 4",
+    "severity": "P2",
+    "issue": "Box 4 ('What are the constraints?') reads '8 x H100 host; ~14.6K/mo, no SLO headroom'. The monetary figure has no currency symbol, so '14.6K/mo' is uninterpretable on its face - it could be read as requests/month, tokens/month, or dollars/month. The figure's own box 5 uses '$/mo' as a quantity to quantify, and the caption refers to 'the cost ceiling in §23.3', so the intended reading is dollars per month. The missing '$' also hides an elegant internal consistency the figure should be making explicit: $14.6K/mo is exactly one 8 x H100 host at the canonical $20/hour on-demand rate for 730 hours/month ($20 x 730 = $14,600), which is precisely why the constraint box names a single host.",
+    "evidence": "Rendered page: box 4 shows '~14.6K/mo' with no '$' visible. Cross-checks: box 5 lists 'p95 TTFT, peak rps, hit rate, $/mo' (so '$/mo' is the book's notation for the cost quantity); the caption says 'the cost ceiling in §23.3 supplies the quality bar'; the canonical host cost on printed page 358 is '~$20/hour (cloud, $2.50/GPU-hr canonical)', and 8 GPUs x $2.50 = $20/hour, x 730 h = $14,600/month = $14.6K/month. NOT VERIFIED: whether the '$' is present in the source but illegible at the rendered resolution.",
+    "acceptance_test": "Confirm the source string is '~$14.6K/mo'; if the '$' is absent, add it. Additionally, make the one-host equivalence explicit in the box or the caption (e.g. '~$14.6K/mo = 1 host at $20/h x 730 h'), so the reader can see why a single 8 x H100 host is the binding constraint against the 40 rps peak in box 2."
+  },
+  {
+    "id": "FIG-23.1-02",
+    "page": "PDF 411 / printed 391",
+    "figure": "Figure 23.1, green 'Quantified bounds' box",
+    "severity": "P2",
+    "issue": "The second line of the green box ('decisions enabled: KV FP16->FP8 + prefix cache + routing') appears to touch or overflow the box's left and right borders. Because the text is white on a dark green fill, any character that spills outside the box falls onto the white page and becomes invisible - a silent loss of content at the ends of the line, which is where 'KV FP16->FP8' and 'routing' sit.",
+    "evidence": "Rendered page: the green box spans a fixed width and the white text line appears to begin at or slightly left of the left border and end at or slightly right of the right border, with no visible padding. The five orange boxes above use visibly generous padding, so the green box is inconsistent with the figure's own spacing standard. NOT VERIFIED: exact overflow could not be measured at the rendered resolution; confirm in the vector source.",
+    "acceptance_test": "In the source, confirm the text line's rendered width is at least 4 mm narrower than the green box's inner width (or widen the box / shorten the text). A print proof at 100% must show the full string 'decisions enabled: KV FP16->FP8 + prefix cache + routing' with visible green padding on both sides and no white-on-white characters."
+  },
+  {
+    "id": "FIG-24.1-01",
+    "page": "PDF 426 / printed 406",
+    "figure": "Figure 24.1 (Red Team / Green Team cycle), subtitle",
+    "severity": "P2",
+    "issue": "The subtitle reads '(1->4 forward cycle; one red feedback loop back to step 1)'. The forward cycle in the figure is 1 -> 2 -> 3 -> 4 -> 5 -> 6 (Red Team -> Probes -> Exposure -> Guardrails -> Metrics -> Green Team), as the caption itself states. '1->4' misdescribes the cycle and excludes steps 5 and 6, which are drawn as part of the forward path. A reader who trusts the subtitle will read the figure as a four-step cycle with two trailing boxes.",
+    "evidence": "Rendered page: six numbered boxes with forward arrows 1->2->3->4->5->6; the caption enumerates all six ('red team -> probe -> exposure -> guardrails -> metrics -> green team'). The subtitle's '1->4' matches neither the drawing nor the caption.",
+    "acceptance_test": "Change the subtitle to '(1->6 forward cycle; one red feedback loop back to step 1)'. The step range in the subtitle must match the number of forward arrows drawn."
+  },
+  {
+    "id": "FIG-24.1-02",
+    "page": "PDF 426 / printed 406",
+    "figure": "Figure 24.1, caption",
+    "severity": "P3",
+    "issue": "The caption uses the term 'Pa2Ps' ('any PoV+ finding blocks promotion; Pa2Ps are tracked but non-blocking') without defining it in the caption or in the figure. If the term is not defined earlier in Chapter 24, the reader cannot act on the severity criterion the caption is introducing.",
+    "evidence": "Rendered page: 'PoV+' is also used undefined in the same parenthetical. Both are severity-class names that the caption's own argument depends on ('a release-blocking severity criterion'). NOT VERIFIED: I did not have Chapter 24's earlier pages in this batch, so I cannot confirm whether PoV+ and Pa2P are defined before this point.",
+    "acceptance_test": "Confirm that 'PoV+' and 'Pa2P' are defined earlier in Chapter 24; if not, expand both on first use in the caption (e.g. 'proof-of-vulnerability (PoV+)', 'prompt-and-path (Pa2P)'). A reader must be able to apply the severity criterion from the caption alone."
+  },
+  {
+    "id": "TBL-22.2-01",
+    "page": "PDF 398 / printed 378",
+    "figure": "Table 22.2 (KV cache memory per request), table fragment at top of page",
+    "severity": "P3",
+    "issue": "Table 22.2 breaks across the page boundary leaving a single orphan data row ('KV cache memory per request | ~24.1 GB (9.2K, FP16) / ~24.9 GB (9.5K max) | 2.62 MB/token x 9,200 tokens = 24.1 GB; x 9,500 tokens = 24.9 GB') at the top of printed page 378 under a repeated header, with the table note immediately below. A one-row remnant reads as a fragment rather than a table and forces the reader back a page for the other rows.",
+    "evidence": "Rendered page 378 opens with the header row 'metric | value | derivation' followed by exactly one data row, then the note 'Table 22.2 note. - KV cache row, sensitivity: at FP8 KV (8-bit) the same 9.2K context falls to ~12.06 GB under raw tensor byte-halving (2.62 -> 1.31 MB/token, exactly 50% of FP16)'. The arithmetic in the row and the note are internally correct: 9,200 x 2.62 MB = 24.1 GB; 9,500 x 2.62 MB = 24.9 GB; 9,200 x 1.31 MB = 12.06 GB.",
+    "acceptance_test": "Keep Table 22.2 (header, all rows, and note) on a single page, or move at least two rows onto printed page 378 so the table does not present as a one-row orphan. Verify the note stays with the table."
+  }
+]
+```
+
+COVERAGE: PDF pages 364, 378, 385, 391, 398, 399, 411, 426 inspected as rendered page images (printed pages 344, 358, 365, 371, 378, 379, 391, 406; offset +20 confirmed on every page in this batch). Figures reviewed: Fig 19.3 (PDF 364), Fig 20.1 (PDF 385), Fig 21.1 (PDF 391), Fig 22.1 (PDF 399), Fig 23.1 (PDF 411), Fig 24.1 (PDF 426); plus the Table 22.2 fragment (PDF 398). PDF page 378 contains no figure (prose only) and produced no findings. NOT VERIFIED: no source-file access, no vector-PDF inspection, no print proof, no external fetches; all pixel-position and glyph claims (FIG-19.3-01, FIG-20.1-01, FIG-20.1-03, FIG-22.1-03, FIG-23.1-01, FIG-23.1-02) are flagged for source confirmation rather than asserted as fact; the FIG-22.1-01 numeric error is derived deterministically from the figure's own printed formulas and geometry and needs only a source edit plus a rederivation check.

@@ -320,11 +320,14 @@ explicit.)
 bandwidth-bound.} It is like pushing the water of that same 140 GB
 reservoir through a standard garden hose: the whole volume must flow
 every 25 milliseconds just to deliver one glass of water --- one
-generated token. The reservoir is not drained --- the same 140 GB is
-re-read every step. The pump (compute) is more than powerful enough, but
-the diameter of the hose (HBM bandwidth) physically cannot move that
-volume of water in that time frame. (Again an operating-point property,
-not an identity: at high batch decode can become compute-bound.)
+generated token. (The 140 GB hose is the single-device illustration: on
+the canonical 8×H100 host the step's weight shard is 17.5 GB/GPU, which
+streams in \textasciitilde5.2 ms at peak --- 21\% of the 25 ms step.)
+The reservoir is not drained --- the same 140 GB is re-read every step.
+The pump (compute) is more than powerful enough, but the diameter of the
+hose (HBM bandwidth) physically cannot move that volume of water in that
+time frame. (Again an operating-point property, not an identity: at high
+batch decode can become compute-bound.)
 
 When we ask ``is this workload compute-bound or bandwidth-bound?'' the
 answer depends entirely on which physical constraint we are hitting: the
@@ -521,7 +524,9 @@ throughout we quote the \emph{dense}, no-sparsity tensor-core peak for
 any precision; NVIDIA's datasheet prints the 2× \emph{with-sparsity}
 figure --- 1,979 TFLOPS for FP16/BF16 --- as its headline number, so a
 dense-vs-sparse note is required even in vendor material.) The required
-rate against the \textasciitilde1.08 s prefill budget is
+rate against the \textasciitilde1.08 s two-term prefill residual (TTFT
+SLO minus retrieval time --- an upper cap, not a deployable prefill
+target; see Ch 4, \hyperref[tab:4.2]{Table 4-2}) is
 
 \[
 \text{rate} = \frac{1.29 \text{ PFLOP}}{1.08 \text{ s}} \approx 1.19 \text{ PFLOPS}
@@ -542,42 +547,46 @@ kernels land well under MFU 100\%. Meeting the latency SLO therefore
 calls for constraint-matched levers: more GPUs (model parallelism for
 per-request latency --- data parallelism raises aggregate throughput,
 not a single request's TTFT), a lower-precision path with a higher
-tensor-core peak (FP8/FP4), a smaller or quantized model, or fewer input
-tokens (retrieval quality, prefix reuse). Better attention kernels are
-not one of them: they reduce HBM traffic, not the 2 × params × tokens
-FLOP floor, so at the canonical point (arithmetic intensity
-\textasciitilde9.2K FLOP/byte \textgreater\textgreater{} ridge
-\textasciitilde295) they cannot close the gap. Attention kernels are a
-lever for the bandwidth side of the ridge. - \textbf{Canonical host
-verdict.} On the canonical 8×H100 host (TP = 8): prefill 1.29 PFLOP / (8
-× 0.989 PFLOPS) = 0.16 s at peak, \textasciitilde0.47 s at 35\% MFU,
-inside the 1.08 s budget; decode shard 70B/8 = 8.75B params = 17.5
-GB/GPU per step → 17.5 GB / 3.35 TB/s = 5.2 ms, inside the 25 ms TPOT
-budget; KV 24.1 GB per request (24.9 GB at the 9.5K resident basis)
-against the 640 GB pool (\textasciitilde228 GB total resident: 140 GB
-weights + \textasciitilde64 GB runtime/workspace reserve + 24.1 GB KV
---- the reserve is introduced in Ch 4 and derived in Ch 7). The
-single-H100 arithmetic above is a device-feasibility illustration, not
-this host's verdict. \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+tensor-core peak (FP8 on H100; FP4 only on Blackwell-class parts), a
+smaller or quantized model, fewer input tokens (retrieval quality,
+context compression) or less prefill work for the same tokens (prefix
+reuse). Better attention kernels are not one of them: they reduce HBM
+traffic, not the 2 × params × tokens FLOP floor, so at the canonical
+point (arithmetic intensity \textasciitilde9.2K FLOP/byte
+\textgreater\textgreater{} ridge \textasciitilde295) they cannot close
+the gap. Attention kernels are a lever for the bandwidth side of the
+ridge. - \textbf{Canonical host verdict.} On the canonical 8×H100 host
+(TP = 8): prefill 1.29 PFLOP / (8 × 0.989 PFLOPS) = 0.16 s at peak,
+\textasciitilde0.47 s at 35\% MFU, inside the 1.08 s budget; decode
+shard 70B/8 = 8.75B params = 17.5 GB/GPU per step → 17.5 GB / 3.35 TB/s
+= 5.2 ms, inside the 25 ms TPOT budget; KV 24.1 GB per request (24.9 GB
+at the 9.5K resident basis) against the 640 GB pool (\textasciitilde228
+GB total resident: 140 GB weights + \textasciitilde64 GB
+runtime/workspace reserve + 24.1 GB KV --- the reserve is introduced in
+Ch 4 and derived in Ch 7). The single-H100 arithmetic above is a
+device-feasibility illustration, not this host's verdict. \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \textbf{Occupancy thresholds.} Two thresholds bound the
 \emph{weight-matmul portion} of the step, and they rest on opposite
 batching models. At the canonical operating point the 5.2 ms weight read
-is not HBM-saturating; it saturates HBM above \textasciitilde5
-concurrent sequences per GPU (\textasciitilde40 per host) only in the
-batch-1-equivalent case where each sequence streams its own full 17.5 GB
-shard, with no weight-read amortization. Under amortized batching that
-read is shared across the batch, so the weight-matmul portion stays
-bandwidth-bound up to \textasciitilde295 concurrent sequences per GPU
-(\textasciitilde2,360 per host) --- the point where its arithmetic
-intensity (B tokens ≈ B FLOP/byte) reaches the \textasciitilde295
-FLOP/byte ridge and it becomes compute-bound. Neither number describes
-the full decode step: the attention portion reads KV cache at an
-intensity of only \textasciitilde1--8 FLOP/byte and stays
-bandwidth-bound at every realistic batch size, so the real saturation
-threshold, which includes KV traffic (\textasciitilde3.01 GB/seq at
-canonical context per GPU), must be measured rather than read off either
-subset.
+moves 21\% of peak over the 25 ms step (5.2 ms is the time to stream the
+17.5 GB shard at peak bandwidth); it saturates HBM above
+\textasciitilde5 concurrent sequences per GPU (\textasciitilde40 per
+host) only in the no-amortization case where each sequence streams its
+own full 17.5 GB shard, with no weight-read amortization. Under
+amortized batching that read is shared across the batch, so the
+weight-matmul portion stays bandwidth-bound up to \textasciitilde295
+concurrent sequences per GPU (\textasciitilde2,360 per host) --- the
+point where its arithmetic intensity (B tokens ≈ B FLOP/byte) reaches
+the \textasciitilde295 FLOP/byte ridge and it becomes compute-bound.
+Neither number describes the full decode step: the attention portion
+reads KV cache at an intensity of only \textasciitilde1 FLOP/byte for
+the full-MHA canonical model (\textasciitilde8 FLOP/byte for an 8:1 GQA
+geometry) and stays bandwidth-bound at every realistic batch size, so
+the real saturation threshold, which includes KV traffic
+(\textasciitilde3.01 GB/seq at the 9.2K input context per GPU), must be
+measured rather than read off either subset.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -689,15 +698,17 @@ architectural consequences:
   \emph{bandwidth-side} lever: it cuts HBM reads, so it helps when the
   prefill point sits on the bandwidth side of the ridge, not at the
   canonical \textasciitilde9.2K FLOP/byte point. Lowering byte-width
-  precision (e.g.~FP8, or FP4) does \emph{not} reduce the underlying
-  algorithmic operation count (the usual 2 × params × tokens FLOPs are
-  approximately unchanged --- the matmuls still multiply the same
-  matrices); it lowers the bytes transferred/stored and can raise the
-  \emph{effective} accelerator throughput (8-bit tensor cores run at a
-  higher peak rate). Changing format at the same byte width (BF16 in
-  place of FP16) changes neither the bytes stored nor the H100 dense
-  tensor-core peak: it trades mantissa bits (10 → 8) for exponent range,
-  a numerical-stability choice rather than a throughput one.
+  precision (e.g.~FP8 on H100; FP4 only on Blackwell-class parts) does
+  \emph{not} reduce the underlying algorithmic operation count (the
+  usual 2 × params × tokens FLOPs are approximately unchanged --- the
+  matmuls still multiply the same matrices); it lowers the bytes
+  transferred/stored and can raise the \emph{effective} accelerator
+  throughput (8-bit tensor cores run at a higher peak rate). Changing
+  format at the same byte width (BF16 in place of FP16) changes neither
+  the bytes stored nor the H100 dense tensor-core peak: it trades
+  mantissa precision for exponent range (10 → 7 explicit mantissa bits,
+  11 → 8 with the implicit leading bit), a numerical-stability choice
+  rather than a throughput one.
 \item
   \textbf{With decode in the bandwidth-bound regime → optimization
   levers:} continuous batching (as implemented in vLLM) to amortize

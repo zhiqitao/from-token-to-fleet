@@ -104,9 +104,10 @@ for x0, head, l1, l2 in (
     ctext(cx, 0.80, l2)
 
 ctext(W / 2, 0.40, 'Only supported combinations can load and execute.')
-ctext(W / 2, 0.18, 'No compatible kernel: reject; fallback is not guaranteed.')
+ctext(W / 2, 0.18, 'No compatible kernel: may reject; fallback is not guaranteed.')
 
 out = 'design/manuscript/chapter-07/figures/fig-07-0707-quantization-layers.pdf'
+plt.savefig(out.replace('.pdf', '.png'), dpi=350)   # preview raster alongside the typeset PDF
 with matplotlib.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig(out, format='pdf')
 print('wrote', out)

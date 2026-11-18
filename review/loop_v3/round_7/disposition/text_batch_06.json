@@ -1,0 +1,342 @@
+[
+ {
+  "id": "CH6-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 6 'Goodput vs Raw Throughput'",
+  "chapter": "6",
+  "quoted_clause": "goodput = raw_rate × compliant_fraction ... goodput is 50×0.96 = 48 vs 70×0.94 = 65.8",
+  "observed": "raw_rate is in tokens/s, while compliant_fraction is described as request-level SLO compliance. Multiplying tokens/s by a fraction of requests is dimensionally valid only if compliant_fraction is token-weighted or all requests have identical token counts. The example 50×0.96 assumes token-weighted compliance, but the text does not define the denominator. A request-weighted 96% can produce a different token-weighted goodput when request lengths vary.",
+  "evidence": "Dimensional analysis: tokens/s × requests-compliant/requests = tokens·requests-compliant/(s·requests), not tokens/s unless the request factor cancels. The text later says 'Request-level SLO-goodput is a separate measurement: compute it from the compliant fraction', which leaves the population ambiguous.",
+  "root_cause": "Undefined denominator/population for compliant_fraction.",
+  "correction": "Define goodput explicitly as either (a) requests/s meeting the SLO, using request rate × request-compliant fraction, or (b) tokens/s meeting the SLO, using token rate × token-weighted compliant fraction. State which one the 50→70 tok/s example uses.",
+  "acceptance_test": "Construct two requests with different token counts and show the difference between request-weighted and token-weighted goodput. The formula must produce the stated 48 and 65.8 only under the declared weighting.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH6-04",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 6 'Reading Telemetry Into a Decision' and §8 mini-case",
+  "chapter": "6",
+  "quoted_clause": "KV cache hit ratio low (resource: memory) ... KV cache occupancy at 85% with low prefix-hit ratio (resource, memory/FLOP pressure)",
+  "observed": "The text conflates two different quantities: KV-cache occupancy (a memory-capacity signal) and prefix-cache hit ratio (a reuse/compute signal). A low prefix-cache hit ratio means more prefill recomputation; it is not itself evidence of memory pressure. Conversely, high KV occupancy is a memory signal even when prefix hits are high. Labeling 'KV cache hit ratio low' as 'resource: memory' misclassifies the bottleneck.",
+  "evidence": "The same chapter later says prefix caching is a compute-saving move whose TTFT benefit arrives through removed prefill work. That is a compute/reuse effect, not a memory-capacity effect.",
+  "root_cause": "Terminology conflation between KV-cache occupancy and prefix-cache hit ratio.",
+  "correction": "Separate the dashboard signals: 'KV-cache occupancy' → memory capacity; 'prefix-cache hit ratio' → reuse/compute. In the mini-case, say 'KV occupancy 85% (memory pressure) and low prefix-hit ratio (prefill recomputation)' rather than grouping both under memory.",
+  "acceptance_test": "A dashboard with high KV occupancy and high prefix-hit ratio must be distinguishable from one with high occupancy and low prefix-hit ratio. The text must assign the correct resource layer to each.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH6-05",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 6 'Common Mistakes'",
+  "chapter": "6",
+  "quoted_clause": "Bigger batches raise raw tokens/s but can push TTFT past its deadline, zeroing goodput.",
+  "observed": "A p95 TTFT breach does not zero goodput. The same chapter's Scenario B shows goodput rising from 48 to 65.8 despite a p95 breach. 'Zeroing' overstates the effect and contradicts the earlier nuanced treatment.",
+  "evidence": "Scenario B: 50×0.96 = 48 vs 70×0.94 = 65.8, an increase despite the p95 breach.",
+  "root_cause": "Claim strength exceeds the evidence.",
+  "correction": "Replace 'zeroing goodput' with 'can reduce goodput' or 'can erase the throughput gain'.",
+  "acceptance_test": "The Common Mistakes bullet must be consistent with Scenario B: a p95 breach can coexist with higher goodput.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH7-01",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 7 §1 Concept",
+  "chapter": "7",
+  "quoted_clause": "MXFP4 weights realize ~3.57× at 0.53125 B/value",
+  "observed": "At 0.53125 bytes/value, the reduction versus FP16/BF16 (2 bytes/value) is 2 / 0.53125 = 3.7647×, not 3.57×. The stated multiplier and the stated bytes/value are inconsistent.",
+  "evidence": "2 ÷ 0.53125 = 3.764705882. 3.57× would correspond to about 0.5602 bytes/value.",
+  "root_cause": "Arithmetic error or mismatched bytes/value assumption.",
+  "correction": "Change to '~3.76× at 0.53125 B/value' or adjust the bytes/value to the value that actually yields 3.57×.",
+  "acceptance_test": "Recompute 2/0.53125. The printed multiplier must equal the ratio of the baseline bytes/value to the stated bytes/value within rounding.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH7-02",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 7 §3 note on 'does it fit?'",
+  "chapter": "7",
+  "quoted_clause": "the ~500 GB headroom (Ch. 4/7, single-request) and the ~436 GB KV budget (Ch. 17, concurrency) answer different questions",
+  "observed": "The ~500 GB figure is 640 − 140, i.e. headroom after weights but before any KV or runtime reserve. It is not 'single-request' headroom: a single 9.5K request consumes ~24.9 GB of KV, leaving ~475 GB, and the practical host requirement subtracts ~64 GB more. Calling 500 GB 'single-request' headroom is misleading.",
+  "evidence": "640 − 140 = 500. 640 − 140 − 24.9 = 475.1. 640 − 140 − 64 = 436.",
+  "root_cause": "Terminology imprecision: weight-only headroom labeled as single-request headroom.",
+  "correction": "Call the 500 GB figure 'headroom after weights' or 'weight-only headroom', and distinguish it from the single-request residency floor (~165 GB) and the concurrency KV budget (~436 GB).",
+  "acceptance_test": "The three quantities must be named unambiguously: weight-only headroom (500 GB), single-request residency floor (~165 GB), and concurrency KV budget (~436 GB).",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH8-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Chapter 8, section 'The 1.08 s budget versus the 35% planning rate'",
+  "chapter": "8",
+  "quoted_clause": "if a deployment sustained only the 1.08 s-implied rate, the peak prefill demand of ~51.6 PFLOP/s (1.288 PFLOP × 40 rps) would need 51.6 ÷ 1.19 = 43.4 → ⌈43.4⌉ = 44 hosts, not 19",
+  "observed": "The text converts a per-request prefill latency budget (1.08 s) into a per-host sustained request rate (1/1.08 s) and then into a 44-host fleet screen. This assumes zero concurrency, zero batching, zero pipelining, and that the entire 8-GPU host is occupied by one request for the full 1.08 s. The same paragraph explicitly says 1.08 s 'absorbs queueing, scheduling, tokenization and admission overhead', so it is not a compute service time and cannot be inverted into a throughput rate.",
+  "evidence": "1.08 s is defined as the end-to-end prefill latency budget inside the 1.2 s TTFT (retrieval ~120 ms + prefill). A latency budget is not a service rate. With batching or multiple in-flight requests, a host can sustain far more than 1/1.08 requests/s even if each request's prefill latency is 1.08 s. The 44-host figure is therefore not a valid lower bound or alternative capacity screen. The arithmetic 51.6/1.19 = 43.4 is internally consistent, but the denominator 1.19 PFLOP/s is derived from an invalid inversion of a latency budget.",
+  "root_cause": "Conflating latency with throughput; treating a per-request end-to-end prefill budget as a per-host sustained service rate.",
+  "correction": "Remove the 44-host calculation, or replace it with an explicit serialized worst-case bound that states the zero-concurrency assumption and labels it as such. If the intent is to show the gap between the 1.08 s latency budget and the 35% MFU planning rate, compare compute time to compute time: derive the pure compute time from 1.288 PFLOP / (8 × 346 TFLOPS) ≈ 0.465 s, then explain that the remaining 0.615 s is overhead/queueing/scheduling, not a throughput rate. Do not convert the 1.08 s latency budget into hosts.",
+  "acceptance_test": "Recompute the host screen with a stated concurrency/batching model. Show that 1.08 s latency does not imply 0.926 requests/s/host. If a serialized bound is retained, label it 'zero-concurrency serialized bound' and show it is not used as a capacity screen.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1"
+ },
+ {
+  "id": "CH8-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 8, section 'The 1.08 s budget versus the 35% planning rate'",
+  "chapter": "8",
+  "quoted_clause": "which is 1.288 PFLOP ÷ 1.08 s ÷ 8 GPUs ≈ 149 TFLOPS/GPU ≈ 15% MFU",
+  "observed": "The text computes an 'MFU' by dividing model FLOPs by the full 1.08 s prefill latency budget, then dividing by 8 GPUs. But the same paragraph says 1.08 s includes queueing, scheduling, tokenization, and admission overhead. Dividing by that inflated time yields an effective end-to-end utilization, not model FLOPs utilization (MFU). Calling it '15% MFU' conflates compute efficiency with latency overhead.",
+  "evidence": "MFU is model FLOPs divided by pure compute time divided by peak FLOP/s. If the denominator includes non-compute overhead, the result is an effective utilization, not MFU. The text itself warns that the two numbers 'measure different things and must not be mixed', then mixes them by labeling the latency-derived value as MFU.",
+  "root_cause": "Using a latency budget as the denominator for a utilization metric.",
+  "correction": "Rename the 15% figure to 'effective end-to-end utilization' or 'latency-implied utilization', and state that it is not MFU. Alternatively, compute MFU from the pure compute time (1.288 PFLOP / (8 × 346 TFLOPS) ≈ 0.465 s) and compare that to the 1.08 s budget to show the overhead fraction.",
+  "acceptance_test": "The text must not call a latency-derived ratio 'MFU'. If the term MFU is retained, the denominator must be pure compute time, not the 1.08 s end-to-end budget.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH8-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Chapter 8, section 'FLOPs per token'",
+  "chapter": "8",
+  "quoted_clause": "This applies to both prefill and decode: each token that enters the forward pass costs ~140 GFLOP. The distinction between prefill and decode is not in the per-token FLOP count but in the data movement pattern",
+  "observed": "The text says the ~140 GFLOP/token 2N estimate applies to both prefill and decode and that the distinction is not in per-token FLOP count. But decode attention over the context adds a history-dependent term that grows with context length. At the canonical 9.2K context, decode attention adds roughly 24 GFLOP/token (~17% of 140 GFLOP), so decode per-token FLOPs are not ~140 GFLOP. The text later acknowledges that the 2N estimate omits history-dependent attention, but this sentence states the opposite before the qualification.",
+  "evidence": "Decode attention per generated token: 4 × n_layers × L × d = 4 × 80 × 9,200 × 8,192 ≈ 24.1 GFLOP. Total decode per-token ≈ 164 GFLOP, not 140 GFLOP. The prefill attention term is quadratic in L; the decode attention term is linear in L per token. The per-token FLOP count therefore differs between prefill and decode, and the difference grows with context.",
+  "root_cause": "Overgeneralizing the 2N parameterized-linear estimate to all phases and all context lengths.",
+  "correction": "Scope the sentence: 'For the parameterized linear layers, the 2N estimate applies to both prefill and decode. Decode also pays a history-dependent attention term that grows with context; at 9.2K it adds roughly 17% to the per-token count. The distinction between prefill and decode is therefore both in data movement and in the attention term.'",
+  "acceptance_test": "The text must not claim that per-token FLOP count is identical for prefill and decode at the canonical 9.2K context. The decode attention term must be stated or explicitly excluded with a scope label.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH8-04",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Chapter 8, Table 8-1, row 'prefill throughput per GPU'",
+  "chapter": "8",
+  "quoted_clause": "including attention at 9.2K gives ~2,110 tokens/s",
+  "observed": "The table row is labeled 'case (i) linear-only' but the parenthetical 'including attention at 9.2K gives ~2,110 tokens/s' corresponds to case (ii) full-square attention (1.5099 PFLOP/request), not case (iii) causal-triangle (1.3989 PFLOP/request). The table has three cases, so 'including attention' is ambiguous.",
+  "evidence": "346 TFLOPS / (1.5099 PFLOP / 9,200 tokens) ≈ 2,108 tokens/s, matching ~2,110. Case (iii) would give 346 / (1.3989 PFLOP / 9,200) ≈ 2,275 tokens/s. The table does not state which attention case the 2,110 figure uses.",
+  "root_cause": "Ambiguous case label in a table that otherwise carefully distinguishes three FLOP-counting cases.",
+  "correction": "Change the parenthetical to 'including full-square attention (case ii) at 9.2K gives ~2,110 tokens/s; causal-triangle (case iii) gives ~2,275 tokens/s.' Or remove the parenthetical from the case (i) row and put it in a separate row.",
+  "acceptance_test": "Every attention-inclusive throughput figure in Table 8-1 must name its FLOP-counting case.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH8-05",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chapter 8, section 'Mental Model'",
+  "chapter": "8",
+  "quoted_clause": "the roofline that explains why prefill is compute-bound while decode is memory-bound",
+  "observed": "The chapter roadmap states as a general explanation that prefill is compute-bound and decode is memory-bound. The manuscript later qualifies this as a first-order regime that depends on model architecture, sequence length, batch/concurrency, precision, kernels, hardware, and serving configuration. The roadmap sentence reads as a universal law.",
+  "evidence": "Prefill can become bandwidth-bound for short sequences or small batches; decode can become compute-bound at very large batch sizes or short contexts. The book's own later text treats these as regime statements, not universal laws.",
+  "root_cause": "Roadmap shorthand that drops the regime qualifier.",
+  "correction": "Change to 'the roofline that explains why, in the canonical long-context regime, prefill tends to be compute-bound while decode tends to be memory-bound, and why that classification is workload- and configuration-dependent.'",
+  "acceptance_test": "The roadmap sentence must not state prefill/decode bottleneck regimes as universal laws without a scope qualifier.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH8-06",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Chapter 8, section 'Accuracy of the 2 × N × L approximation'",
+  "chapter": "8",
+  "quoted_clause": "at 128K it dominates (~2.4× the linear term, ≈+240%; ~1.2× under case (iii))",
+  "observed": "The phrase '~1.2× under case (iii)' is ambiguous: it could mean the attention term is ~1.2× the linear term, or the total is ~1.2× the linear term. The preceding '~2.4× the linear term' refers to the attention term, while '≈+240%' refers to the total increase. The case (iii) clause does not say which quantity is 1.2×.",
+  "evidence": "At 128K, case (iii) attention term = 2 × 80 × 128,000² × 8,192 ≈ 2.147e16 FLOP; linear term = 1.792e16 FLOP; ratio ≈ 1.20. Total = 3.939e16 FLOP, which is 2.20× the linear term (+120%). The text's '~1.2×' matches the attention term, not the total.",
+  "root_cause": "Pronoun/ellipsis ambiguity in a numerical comparison.",
+  "correction": "Rewrite: 'at 128K the full-square attention term is ~2.4× the linear term (total ≈ +240%); under case (iii) the attention term is ~1.2× the linear term (total ≈ +120%).'",
+  "acceptance_test": "The sentence must state explicitly whether '1.2×' refers to the attention term or the total.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH9-01",
+  "severity": "P1",
+  "confidence": "high",
+  "page_hint": "Ch 9 §6 Architecture Consequence",
+  "chapter": "Chapter 9",
+  "quoted_clause": "If the architecture calls for data-parallel training of a 70B FP16 model across 8 nodes (an eight-rank DP group, e.g. one rank per node), the all-reduce bandwidth dictates whether the nodes are connected by InfiniBand, 200 GbE, or even 100 GbE.",
+  "observed": "The example treats a 70B FP16 model as a plain DP replica per rank/node. At 2 bytes/param, 70B = 140 GB of weights, which exceeds one 80 GB H100. The same chapter (§9.3) and Ch 10 (§10.3) explicitly say plain DP is infeasible for this model because the replica does not fit one GPU.",
+  "evidence": "70e9 × 2 B = 140 GB > 80 GB. Ch 10 §10.3: 'Plain data parallelism is infeasible here: it would replicate the 140 GB model on every GPU...'",
+  "root_cause": "The communication-only DP example silently assumes a per-rank memory-feasible replica, contradicting the book's own weight-residency arithmetic.",
+  "correction": "Either use a model that fits one rank (e.g., a smaller model) or define each DP rank as a multi-GPU model-parallel replica that fits, and state the all-reduce volume for that replica. Label the example communication-only and not memory-feasible if retained.",
+  "acceptance_test": "The example either has per-rank weights + state ≤ 80 GB, or explicitly says each DP rank is a multi-GPU replica and adjusts the all-reduce byte count; no sentence implies a 140 GB replica fits one H100.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P1"
+ },
+ {
+  "id": "CH9-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 9 §8 Mini-Case vs Ch 10 §3 Worked Example",
+  "chapter": "Chapters 9–10",
+  "quoted_clause": "across all 80 layers the per-step total is ~36 MB of per-rank send traffic, against ~20 MB of logical volume",
+  "observed": "Ch 9's canonical 8×H100 TP example uses one all-reduce per layer (80 calls, ~36 MB per-rank send). Ch 10 §3 uses two output all-reduces per transformer block (160 calls, 70 MiB per-rank send) for the same 256 KiB activation and 80 blocks.",
+  "evidence": "Ch 10: 'Assume two output all-reduces per transformer block — attention output and MLP — 80 blocks' and 'Across 160 calls ... each rank sends 70 MiB'. Ch 9: 'across all 80 layers ... ~36 MB'.",
+  "root_cause": "Different collective-count assumptions are not reconciled across chapters.",
+  "correction": "Use one canonical call count in both chapters, or explicitly label Ch 9 as a one-per-layer simplification and explain why Ch 10 uses two-per-block. If both are legitimate, state the scenario difference and keep the numbers scoped.",
+  "acceptance_test": "Both chapters either use 80 or 160 calls consistently, or each number is explicitly tied to a named scenario and the other scenario is cross-referenced.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH10-02",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 10 §8 Mini-Case",
+  "chapter": "Chapter 10",
+  "quoted_clause": "each stage also carries its own activation memory, so per-stage memory cost bounds P from below",
+  "observed": "The sentence says activation memory per stage bounds the number of pipeline stages P from below. In pipeline parallelism, per-stage activation memory primarily bounds the number of in-flight micro-batches m (or total activation memory), while weight memory per stage is what forces a minimum P. Increasing P does not reduce per-stage activation memory in the simple model.",
+  "evidence": "The chapter's own pipeline model uses P stages and m micro-batches; activation memory is associated with micro-batches in flight, not with the number of stages. The statement conflates weight residency and activation residency.",
+  "root_cause": "Weight-memory and activation-memory constraints are conflated in the mini-case.",
+  "correction": "Distinguish: total weight memory bounds P from below (enough stages to hold weights); per-stage activation memory bounds m from above (or total in-flight memory), not P from below. Rewrite the parenthetical accordingly.",
+  "acceptance_test": "The corrected sentence states a dimensionally and causally correct constraint: weight memory → minimum P; activation memory → maximum m or total memory budget.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH10-03",
+  "severity": "P2",
+  "confidence": "high",
+  "page_hint": "Ch 10 Table 10-1",
+  "chapter": "Chapter 10",
+  "quoted_clause": "Pipeline (PP) | the layer stack into stages | nothing (full hidden state passes unsharded)[^rep-col] | hidden states → P2P (stage boundaries only) | model spans nodes",
+  "observed": "The 'Fits when' column says PP fits when the model spans nodes. PP can be used within a single node when the model does not fit one GPU; it is not inherently a cross-node strategy.",
+  "evidence": "The chapter itself defines PP as splitting the layer stack across GPUs and later says PP can be used across nodes; it does not establish that PP requires multiple nodes. PP is commonly used intra-node as well.",
+  "root_cause": "A typical deployment pattern is stated as a necessary fit condition.",
+  "correction": "Change to something like: 'model does not fit one GPU; PP is attractive when stage-boundary traffic is cheaper than TP's per-layer exchanges, often across nodes.'",
+  "acceptance_test": "The table no longer implies PP requires multiple nodes; the condition is stated as a trade-off, not a requirement.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH10-04",
+  "severity": "P2",
+  "confidence": "medium-high",
+  "page_hint": "Ch 10 §2 Mental Model",
+  "chapter": "Chapter 10",
+  "quoted_clause": "When the model is too big to replicate, TP wins over DP.",
+  "observed": "The sentence says TP wins over DP when the model is too big to replicate. The real requirement is model parallelism; PP or EP may be better than TP depending on topology, model structure, and stage-boundary cost.",
+  "evidence": "The same chapter presents PP and EP as alternatives and later says 'fits one node → TP; spans nodes → PP.' The blanket 'TP wins' is narrower than the chapter's own decision rule.",
+  "root_cause": "A local heuristic is stated as a universal winner.",
+  "correction": "Replace with: 'When the model is too big to replicate, DP is ruled out; choose among TP, PP, and EP based on where the model fits and which communication pattern the topology supports.'",
+  "acceptance_test": "The sentence no longer names TP as the universal winner; it states the actual constraint and the alternatives.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH10-05",
+  "severity": "P2",
+  "confidence": "medium",
+  "page_hint": "Ch 10 §1 Concept, DP bullet",
+  "chapter": "Chapter 10",
+  "quoted_clause": "throughput scales linearly until KV or memory binds (Ch. 17)",
+  "observed": "The claim names only KV or memory as the limit to linear scaling of independent inference replicas. Throughput can also be limited by compute, shared network, scheduler/frontend, power, SLO, or other shared resources.",
+  "evidence": "The chapter's own resource triangle includes compute and bandwidth, not only memory. The sentence is in a DP bullet that otherwise acknowledges multiple resources.",
+  "root_cause": "A single bottleneck is promoted to the general scaling limit.",
+  "correction": "Say 'until a shared resource or the SLO binds; KV capacity is one such constraint' and name the likely shared resources.",
+  "acceptance_test": "The sentence no longer implies memory/KV is the only limit to replica scaling.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P2"
+ },
+ {
+  "id": "CH10-06",
+  "severity": "P3",
+  "confidence": "high",
+  "page_hint": "Ch 10 §1, Fig 10.1",
+  "chapter": "Chapter 10",
+  "quoted_clause": "**FIGURE 10.1: Three parallelism patterns, one per panel** — tensor parallel shards one layer's weights, pipeline parallel splits the layer stack into stages with an idle bubble at fill/drain, and data parallel replicates the model while splitting the batch.",
+  "observed": "The figure caption appears twice: once in the image alt text/caption and again as a bold paragraph immediately after the figure note. The bold paragraph repeats the same description.",
+  "evidence": "The chunk shows the same Fig 10.1 caption before and after the figure note.",
+  "root_cause": "Production duplication of figure caption text.",
+  "correction": "Keep one caption and remove the duplicate, or replace the bold paragraph with interpretation that adds information not already in the caption.",
+  "acceptance_test": "Only one Fig 10.1 caption remains; the surrounding prose adds interpretation rather than repeating the caption.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH9-03",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 9 §5 Common Mistakes, InfiniBand cost bullet",
+  "chapter": "Chapter 9",
+  "quoted_clause": "the price per port (or per Gb/s) of optics and cables is 5–10× that of Ethernet [ILLUSTRATIVE]",
+  "observed": "A specific 5–10× cost multiple is given without a source or date. It is tagged [ILLUSTRATIVE], but the range is precise enough to be read as a planning input.",
+  "evidence": "No citation or date accompanies the cost multiple; the chapter elsewhere insists on dated, scoped evidence for time-sensitive claims.",
+  "root_cause": "A time-sensitive cost ratio is presented as an illustrative but specific number without provenance.",
+  "correction": "Either cite a dated source for the range, replace it with a qualitative statement ('substantially higher optics/cabling cost'), or explicitly label it as a scenario assumption with a date.",
+  "acceptance_test": "The cost claim is either sourced/dated or softened to a qualitative statement; no unsourced 5–10× planning number remains.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ },
+ {
+  "id": "CH9-04",
+  "severity": "P3",
+  "confidence": "medium",
+  "page_hint": "Ch 9 §6 Architecture Consequence, cost paragraph",
+  "chapter": "Chapter 9",
+  "quoted_clause": "A cluster of 8‑GPU H100 servers (NVSwitch inside each node) is the highest upfront capital expenditure",
+  "observed": "The sentence says an 8-GPU H100/NVSwitch cluster is the highest upfront capital expenditure. That is not universally true; cost depends on GPU count, generation, optics, facility, and comparison scope.",
+  "evidence": "The same paragraph later says NVSwitch and the inter-node fabric are different layers and the capex comparison must name which layer it prices, which undercuts the unqualified 'highest' claim.",
+  "root_cause": "A local cost intuition is stated as a universal ranking.",
+  "correction": "Qualify: 'Among the compared options, an 8-GPU H100/NVSwitch node has high upfront capex...' and name the comparison scope.",
+  "acceptance_test": "The sentence is scoped to the compared configurations and does not assert a universal highest capex.",
+  "_models": [
+   "DeepSeek-V4.1-Flash"
+  ],
+  "_sev": "P3"
+ }
+]

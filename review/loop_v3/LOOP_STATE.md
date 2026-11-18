@@ -14,7 +14,8 @@ updates it at every phase transition.
 | 4 | DONE (653 findings: text 315 + vision 338) | DONE (common 8/unique 637) | DONE (compact register; 12 prompt edits saved) | DONE (286 CONFIRMED / 180 FP / 187 DEFENSIBLE; ledger disposition.md) | DONE (278 deduped → 245 applied / 17 skipped-premise / 17 duplicates; 77 chunks) | DONE (486pp, all gates green; commits fdc95be5 + 1f2a1473) | closed; round 5 data in flight |
 | 5 | DONE (823 findings: text 450 + vision 373; 72/72 clean files via effort ladder + max_tokens=262144 for MiniMax 1M ctx) | DONE (common 21/unique 802) | DONE (compact register 102/40K; 4/4; prompt_edits_r5.json) | DONE (341 CONFIRMED / 242 FP / 239 DEFENSIBLE / 1 UNVERIFIABLE; 42/42 batches gate 0 problems; ledger disposition.md) | DONE (292 deduped → 189 applied / 58 skipped-premise / 45 duplicates / 0 needs-regen; 13 packs; commit 910aa565) | DONE (497pp tagged + plain green, all audits; 89 vision pages re-rendered; commits 910aa565 + d438ac05) | closed; NOT converged (292 CONFIRMED > 0) → round 6 required |
 | 6 | DONE (76/72 files on 501pp: text 28/28 + vision 48/48; stubs purged x3 waves; MiniMax discuss 3x failed, dropped, 3/4 discuss) | DONE (common 33/unique 1091) | DONE (compact register; 3/4 models) | DONE (62 batches: 58 parallel + 4 this session after it stalled; 374 CONFIRMED / 305 DEFENSIBLE / 186 FP of 865 unique; ledger gap_ledger.json) | DONE (374 rows: 13 groups x 27 chapter batches, 371 DONE + 2 SKIP + 1 PARTIAL + 3 lead loose-ends; DS critical path; responses.md 865 rows) | DONE (514pp, all gates green, overlap 0; 93 vision pages re-rendered) | closed; NOT converged (374 CONFIRMED > 0) → round 7 required |
-| 7–14 | next: DATA on 514pp build (93-page manifest ready; panel 4 models; delegate backends DS/MiniMax alternating, DS on critical path) | | | | | | |
+| 7 | DONE (76/76 on 514pp: 33 stubs purged, retry_split + sequential vision re-collect) | DONE (common 29/unique 864 -> 710 unique) | DONE (DS+Qwen real; MiMo/MiniMax discuss stubs, 2/4) | DONE (36 batches x 6 waves, DS critical path; 259 CONFIRMED / 283 DEFENSIBLE / 168 FP) | DONE (8 groups + 5 cross + 7 lead loose-ends incl. new fig_ch3_corruption.py generator; 3 build-level overlap fixes) | DONE (519pp, all gates green, overlap 0; 91 vision pages re-rendered) | closed; NOT converged (259 CONFIRMED > 0) → round 8 required |
+| 8–14 | next: DATA on 519pp build (91-page manifest ready; panel 4 models; DS on critical path) | | | | | | |
 
 Panel: MiMo-V2.6-Flash-RL, DeepSeek-V4.1-Flash, Qwen3.8-27B,
 MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
@@ -115,3 +116,12 @@ MiniMax-M3.1-Flash (new, joined r4). All im-eglb/qwen38, reasoning_effort=max.
   path, stub purge before re-run). MiniMax delegate casualties this round:
   batch_10 verifier stalled -> stopped and re-dispatched on DS (5 min).
   NOT converged (374 > 0) -> round 7.
+- 2026-11-18: ROUND 7 CLOSED (this session, single track per speed rules):
+  710 unique findings -> 259 CONFIRMED all fixed (8 groups + cross + lead
+  loose-ends) + 283 DEFENDED + 168 REJECTED; responses.md 710 rows;
+  gap_ledger.json written. Rebuild 519pp (514->519) all gates green,
+  SAME-LINE overlap 0 (fixed: Fig 16.1 legend/annotation collision, Table 13-1
+  column widths, Table 15-1 'Compute' cell). New figure generator
+  render/fig_ch3_corruption.py (Fig 3.1 had no in-repo source; lane A
+  noise-prior near-uniform fix, vision-verified). NOT converged (259 > 0)
+  -> round 8.

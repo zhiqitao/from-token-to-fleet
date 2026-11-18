@@ -80,8 +80,10 @@ ax.text(7.9, y_res+0.10, 'resolved', ha='center', va='bottom',
 # Stopped: vertical from Decide's bottom-right to Stopped's top (Stopped at xs[3])
 ax.annotate('', xy=(x_stp, term_y+box_h), xytext=(x_stp, y0),
             arrowprops=dict(arrowstyle='-|>', lw=1.4, color='#555'))
-ax.text(x_stp+0.12, (y0+term_y+box_h)/2, 'limit hit', ha='left', va='center',
-        fontsize=8.0, color='#555', fontweight='bold')
+# FIG-19.1-01: this exit is a system-side budget gate, not a model decision —
+# label it as such so the figure does not imply Decide chose to stop.
+ax.text(x_stp-box_w/2-0.20, term_y+box_h/2, 'turn/token budget\nexhausted (system)', ha='right', va='center',
+        fontsize=7.2, color='#555', fontweight='bold', linespacing=1.15)
 terms = [   # terminal outcomes: second (and only other) fill class
     ('Final answer', 'emit', '#e3ae52', '#a86a1e', 'done', xs[1]),
     ('Stopped', 'limit', '#e3ae52', '#a86a1e', 'terminal', xs[3]),
@@ -91,7 +93,8 @@ for (name, desc, fc, ec, tag, tx) in terms:
                                 fc=fc, ec=ec, lw=1.4))
     ax.text(tx+0.18, term_y+box_h-0.42, name, ha='left', va='center', fontsize=8.4, fontweight='bold', color='#1a1a1a')
     ax.text(tx+box_w/2-0.55, term_y+0.48, desc, ha='center', va='center', fontsize=8.3, color='#444')
-    ax.text(tx+box_w-0.12, term_y+0.48, tag, ha='right', va='center', fontsize=8.0, color=ec, style='italic')
+    # FIG-19.1-05: role tags darkened to #2b1a00 on the amber fill (8.4:1)
+    ax.text(tx+box_w-0.12, term_y+0.48, tag, ha='right', va='center', fontsize=8.0, color='#2b1a00', style='italic')
 
 ax.text(5.0, 5.95, 'The agent loop: a four-state machine', ha='center', va='center',
         fontsize=10.5, fontweight='bold', color='#1a1a1a')

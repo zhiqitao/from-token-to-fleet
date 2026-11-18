@@ -94,7 +94,10 @@ for (cx, head, sub, fc, bw) in [(lg1_cx,'Retrieval leg','embedding · 768-dim','
                                 (lg2_cx,'Generation leg','70B FP16 · serving','#f2d9a6',2.6)]:
     box(cx, leg_bot, LEG_W, BOX_H, head, sub, fc, lw=bw)
     arrow(MID, sur_bot, cx, leg_bot+BOX_H)
-    edge_label((MID+cx)/2, (sur_bot+leg_bot+BOX_H)/2 - 4, 'split')
+    # R7 FIG-5.1-01: both legs were labelled 'split', which asserted that the
+    # five surfaces are partitioned between them.  Every surface applies to both
+    # legs, so the edge now reads 'applies to'.
+    edge_label((MID+cx)/2, (sur_bot+leg_bot+BOX_H)/2 - 4, 'applies to')
 
 # RAG system decision (centred)
 box(MID, dec_bot, WBOX, BOX_H, 'RAG system decision', 'base + RAG + guardrails', '#e8eef7')

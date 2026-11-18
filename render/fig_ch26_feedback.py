@@ -53,13 +53,14 @@ stage_text(0.8, 7.4, ['1 · ASSUMPTION',
                       'utilization ~45%',
                       'baseline TTFT p99 ~450 ms'], big=9.8)
 box(11.8, 7.4, BW, 2.5, '#16a085')
-# R4 MISC (F-26.2-2): the bare 'decode bandwidth-bound' read as an
-# unconditional law, while the prose conditions it on the low-batch regime
-# (batch size / precision / kernel / hardware decide whether it stays there).
-# Qualifier rides as a second body line so it stays inside the box at 8.6pt.
+# R7: box 2 states the TTFT-budget diagnosis the caption makes (prefill- and
+# queue-dominated at the ~2.0 rps per-host ceiling). The decode-bandwidth term
+# is not a TTFT term; it rides as a side annotation scoped to TPOT/ITL only.
 stage_text_small(11.8, 7.4, ['2 · DERIVED',
-                            'decode bandwidth-bound',
-                            '(low-batch regime)'], big=9.8)
+                            'prefill + queue-bound',
+                            'at ~2.0 rps'], big=9.8)
+ax.text(19.85, 7.25, 'decode → TPOT/ITL\n(not TTFT)', fontsize=7.6, ha='right', va='top',
+        color='#16a085', style='italic', linespacing=1.25)
 
 # Bottom row: PATTERN (right, below DERIVED) so the flow turns clockwise
 box(11.8, 1.0, BW, 2.5, '#34495e')
@@ -79,7 +80,7 @@ arrow((0.8 + BW + 0.1, 8.65), (11.8, 8.65), '#2980b9')
 ax.text(10.0, 8.15, 'trace', fontsize=8.6, ha='center', color='#2980b9', fontweight='bold')
 # Step 2 -> 3 (right side, down)
 arrow((15.5, 7.4), (15.5, 3.5), '#16a085')
-ax.text(16.6, 5.3, 'validate\np99 < 300 ms\n(target ≤ 800 ms)', fontsize=8.2, ha='left', va='center',
+ax.text(16.6, 5.3, 'select pattern to\nmeet p99 < 300 ms\n(target ≤ 800 ms)', fontsize=8.2, ha='left', va='center',
         color='#16a085', fontweight='bold', linespacing=1.25)
 
 # Step 3 -> 1: a SINGLE L-shaped return edge (left along the bottom, then up the left
@@ -89,7 +90,7 @@ ret_verts = [(11.8, 2.25), (4.5, 2.25), (4.5, 7.4)]
 ret_codes = [Path.MOVETO, Path.LINETO, Path.LINETO]
 ax.add_patch(FancyArrowPatch(path=Path(ret_verts, ret_codes), arrowstyle='-|>',
              mutation_scale=18, lw=2.6, color='#a83232', zorder=1))
-ax.text(8.0, 1.7, 'adjust + pick pattern', fontsize=8.6, ha='center', color='#a83232', fontweight='bold')
+ax.text(8.0, 1.7, 'adjust + validate', fontsize=8.6, ha='center', color='#a83232', fontweight='bold')
 ax.text(3.9, 5.4, 'feedback', fontsize=8.6, ha='right', va='center', color='#a83232', fontweight='bold')
 
 plt.tight_layout()

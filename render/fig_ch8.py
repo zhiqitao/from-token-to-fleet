@@ -103,7 +103,10 @@ for name, a, t, tag in pts:
 # place the label fully ABOVE the plateau with an opaque white bbox and a leader
 # down-to the marker; the bbox keeps the plateau line, ridge dotted line and the
 # prefill marker from crossing the glyphs (Loop review: label straddled the plateau).
-ax.annotate('prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', xy=(9200, 989), xytext=(0.66, 0.885),
+# F82-05: the callout used to sit at axes-x 0.66 and straddled the H200 ridge rule
+# (~0.62).  It now sits at 0.80 — right of both ridge rules (~0.62 H200, ~0.66 H100),
+# left of the prefill marker (0.94) — in the empty band above the plateau.
+ax.annotate('prefill 9.2K\n(intensity ≈ 9.2K\nFLOP/byte)', xy=(9200, 989), xytext=(0.80, 0.91),
             textcoords='axes fraction', fontsize=9.5, color=colors['prefill'],
             ha='center', va='center',
             bbox=dict(boxstyle='round,pad=0.20', fc='white', ec='none', alpha=1.0),
@@ -117,7 +120,11 @@ ax.annotate('decode\nbatch=1', xy=(0.5, 1.7), xytext=(0.045, 0.72),
                             shrinkA=2, shrinkB=6),
             bbox=dict(boxstyle='round,pad=0.18', fc='white', ec='none', alpha=1.0))
 # decode batch B=8: below the batch=1 callout, pointing up-right to its (8,27) marker
-ax.annotate('decode batch B=8\n(intensity ≈ B\nFLOP/byte)', xy=(8, 27), xytext=(0.045, 0.52),
+# FIG-169-01: this label used to sit at axes (0.045, 0.52) with a leader that ran the
+# width of the plot across the memory-bound slope and the H200 curve.  It now sits in
+# the empty region just above-right of its own (8, 27) marker: a short leader crosses
+# no curve, no ridge rule and no other annotation.
+ax.annotate('decode batch B=8\n(intensity ≈ B\nFLOP/byte)', xy=(8, 27), xytext=(0.40, 0.55),
             textcoords='axes fraction', fontsize=9, color=colors['decode'],
             ha='left', va='center',
             arrowprops=dict(arrowstyle='-', lw=0.9, color=colors['decode'],

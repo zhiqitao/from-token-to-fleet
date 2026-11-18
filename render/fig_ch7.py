@@ -43,8 +43,12 @@ ax.axhline(436, color='#27408b', ls='--', lw=1.5, label='KV budget ~436 GB')
 _xc = 436 / 2.62144
 ax.plot([128, _xc], [kv_fp16[-1], 436], '-', color='#c0392b')
 ax.scatter([_xc], [436], color='#c0392b', zorder=5, s=25)
+# FIG-7.5-01/1/04: this block used to sit at xytext=(250, 100), where its two lines
+# shared pixel rows with the 4-line GQA block at (150, 55).  It now owns a separate
+# y-band (~125-320 GB): clear of the GQA block below, clear of the 436 GB and 640 GB
+# rules above, and the leader lands on the crossing marker without crossing a curve.
 ax.annotate('FP16 bound reaches the\n436 GB budget at ~166K', xy=(_xc, 436),
-            xytext=(250, 100), ha='left', va='center',
+            xytext=(250, 160), ha='left', va='center',
             arrowprops=dict(arrowstyle='->', lw=0.8), fontsize=8.5)
 ax.scatter([9.5], [2.62144*9.5], color='#c0392b', zorder=5, s=25)
 # Loop-2 review (N1): at xytext=(10.2, 70) the label sat just above the red
@@ -88,12 +92,12 @@ ax.scatter([9.5], [0.33*9.5], color='#27408b', zorder=5, s=25)
 # whitespace (x=150 -> spine) measures 1.74 in: line 1 = 1.61 in, line 2 = 1.52 in,
 # line 4 = 1.29 in — every line fits with margin; the single-line wording would
 # need 3.66 in and does not fit without opening the x-window further.
-ax.annotate('9.5K ≈ 3.1 GB (GQA FP16)\n8× saving: full-MHA FP16\nvs GQA FP16\n(2.62 → 0.33 MB/tok)',
-            xy=(9.5, 0.33*9.5), xytext=(150, 55),
-            ha='left', va='center',   # leader anchor sits on the label's left edge, not below it
-            bbox=dict(boxstyle='square,pad=0', fc='none', ec='none'),  # clips the leader to the text box
-            arrowprops=dict(arrowstyle='->', lw=0.8, color='#555555', shrinkA=0, shrinkB=0),
-            fontsize=8.5, color='#3a3a3a')
+# FIG-7.5-01/1/04: this block was stacked on the 166K block at (150, 55) and its leader
+# ran across the GQA curves.  It now sits alone in the empty lower-right quadrant
+# (no data beyond x=128K), with NO leader: the "8x" double-headed span at 9.5K carries
+# the anchor, so no annotation glyph crosses a curve, a rule or another annotation.
+ax.text(150, 2.2, '9.5K ≈ 3.1 GB (GQA FP16)\n8× saving: full-MHA FP16\nvs GQA FP16\n(2.62 → 0.33 MB/tok)',
+        ha='left', va='center', fontsize=8.5, color='#3a3a3a', linespacing=1.25)
 # R4 fix (FIG-7.5-06): the span itself — a double-headed arrow at the stated
 # context (9.5K) whose endpoints sit exactly on the two curves it compares
 # (0.33*9.5 = 3.14 GB on GQA FP16, 2.62*9.5 = 24.9 GB on full-MHA FP16).
@@ -128,8 +132,11 @@ labels = ['Inference\n(weights+KV)', 'Full fine-tune\n(weights+grad+opt)', 'QLoR
 vals = [165, 1120, 36]
 fig, ax = plt.subplots(figsize=(6.1, 4.9))
 fig._hermes_print_sized = True   # regen must not re-boost/reflow
+# FIG-7.6-01: the three bars had three different fill treatments (hatch '//', solid,
+# hatch 'xx') with nothing in the caption or a legend to say what they encoded.
+# All three are now solid; colour (plus the value tags) carries the only distinction.
 bars = ax.bar(labels, vals, color=['#3a6ea5', '#c0392b', '#6f9e5f'],
-              hatch=['//', '', 'xx'], edgecolor='#333333', linewidth=0.8, width=0.6)
+              edgecolor='#333333', linewidth=0.8, width=0.6)
 # v9 review: value tags must clear the host-reference rules (80/160/640 cross
 # every column).  The QLoRA tag can't sit at 60+30 (the 80 GB rule ran through
 # it) nor centred above the bar (the green annotation's arrow shaft is there),

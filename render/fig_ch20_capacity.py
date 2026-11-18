@@ -55,7 +55,7 @@ ax.fill_between(hosts, peak_rps, c_eff, where=(c_eff >= peak_rps),
 
 # ---- the three curves ----
 ax.plot(hosts, analytical, '-', color='#888', lw=1.8, zorder=4,
-        label='analytical host capacity C_analytic = N x 17/8.6 (req/s)')
+        label='analytical fleet capacity C_analytic = N x 17/8.6 (req/s)')
 ax.plot(hosts, c_eff, '--', color='#4a7ebb', lw=1.8, zorder=4,
         label='efficiency-adjusted capacity C_eff = 0.95 x C_analytic (req/s)')
 ax.plot(hosts, served, ':', color='#1f4e9c', lw=2.8, zorder=5,
