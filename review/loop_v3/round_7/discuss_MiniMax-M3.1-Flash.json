@@ -1,0 +1,630 @@
+{
+  "false_positives": [
+    "CH8-01 [DeepSeek P1]",
+    "CH25-PREC-01 [Qwen P2]",
+    "CH11-01 [DeepSeek P1]",
+    "CH21-02 [MiniMax P2]",
+    "CH11-03 [common P3]"
+  ],
+  "adjudications": [
+    {
+      "id": "CH8-01 [DeepSeek P1]",
+      "verdict": "DISPROVED",
+      "why": "The finding divides fleet demand by a per-request rate. 1.288 PFLOP x 40 rps = 51.52 PFLOP/s; the book's own host capacity is 8 x 0.989 PFLOPS x 0.35 MFU = 2.77 PFLOP/s, so 51.52 / 2.77 = 18.6 -> 19 hosts, which is exactly the printed 19. The finding's 44 hosts comes from dividing by 1.19 PFLOPS, which is the rate needed to finish ONE 9,200-token prefill in 1.08 s, not a host capacity. Category error: per-request rate used as per-host throughput. The book's 19 is correct under its stated 19,800 tok/s/host sustained planning rate (368,000 / 19,800 = 18.6)."
+    },
+    {
+      "id": "CH25-PREC-01 [Qwen P2]",
+      "verdict": "DISPROVED",
+      "why": "The quoted ADR text already states the resolution: 'because FP16 and BF16 are both 2 B/parameter, every footprint, KV and cost figure in this handbook is unchanged.' This is house convention #2 and the book has already discharged it. The only residual is a cosmetic label sweep (FP16 vs BF16 in table headers and the ADR title), which is a different, P3 finding and should be filed separately rather than as a P2."
+    },
+    {
+      "id": "CH11-01 [DeepSeek P1]",
+      "verdict": "DISPROVED",
+      "why": "The quoted clause is truncated in the register ('batching divides the rate proportionally'). On the only reading consistent with the surrounding arithmetic - batching divides the PER-TOKEN weight-read rate - it is correct: at batch B the 140 GB weight read is amortized over B tokens, so per-token weight traffic falls as 1/B. The register entry states no defect beyond the truncated quote, so it is not actionable as filed."
+    },
+    {
+      "id": "CH21-02 [MiniMax P2]",
+      "verdict": "DISPROVED",
+      "why": "I independently recomputed the one-sided binomial tail: n = 360, p = 1/120, P(X >= 12) = 6.5e-5 (P(X=12) = 5.02e-5, ratio to X=13 is 0.225, tail factor 1.29). The printed 6.4e-5 is correct to the stated precision, and 3/360 = 0.833% is correct. The register entry identifies no defect in the quoted arithmetic. (The legitimate residual question - whether the baseline rate is estimated from the same 360-request subset, and whether the gate is one-sided across multiple subsets - is a different finding and must be restated.)"
+    },
+    {
+      "id": "CH11-03 [common P3]",
+      "verdict": "DISPROVED",
+      "why": "The quoted arithmetic is correct: 2 x 70e9 x 9,200 = 1.288e15 FLOP; 1.288 PFLOP / 1.08 s = 1.193 PFLOPS. No defect is stated in the register entry. The legitimate residual is a scope question (1.19 PFLOPS is a whole-model-equivalent rate, not a per-GPU capability; per-GPU it is 149 TFLOPS = 15% MFU), which is already captured by CH12-005 and CH8-02."
+    },
+    {
+      "id": "CH4-ECO-01 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: ($1.20 x 2 + $2.00 x 0.3)/1000 = $0.003. The defect is claim strength, not arithmetic: the canonical input is 9,200 tokens = 1,200 query + 8,000 retrieved, so '2 K' implies cutting retrieved context ~10x, which changes answer quality. The book must state that the $0.003 figure assumes a retrieval-depth change that invalidates the canonical quality assumption, or label it as a hypothetical outside the canonical scenario."
+    },
+    {
+      "id": "CH11-01 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "The 'B FLOP/byte' formula is exactly the weight-only intensity: 2 x 70e9 x B / 140e9 = B. Including KV traffic the true intensity at B = 17.5 is 2.45e12 / (140e9 + 17.5 x 24.9e9) = 4.26 FLOP/byte, not 17.5. The conclusion (bandwidth-bound) survives because both are far below the 295 FLOP/byte ridge, but the label 'B FLOP/byte' must be marked weight-only, and the book must state the KV-inclusive figure where it claims a decode roofline."
+    },
+    {
+      "id": "CH12-005 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "2,472 = 346e12 / 140e9 = 19,779/8. It is a full-model-equivalent rate (one GPU doing the whole model's FLOPs per token), not what a GPU in a TP=8 group produces (each TP shard advances the shared token stream at 19,780 tok/s). The aggregate arithmetic is sound (8 x 2,472 = 19,776 = the book's 19,800 tok/s/host), so this is a labeling defect, not an arithmetic one: the gate text 'tokens-per-second that a single device can sustain' must be rewritten to say 'one device's share of the model's per-token FLOPs'."
+    },
+    {
+      "id": "CH13-PEAK-AVERAGE-10 [common P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 92,000 / 19,800 = 4.65 -> 5 hosts at the 10 rps average; 19,800 = 8 x 989 TFLOPS x 0.35 / 140 GFLOP. The conceptual point stands and is worth making explicitly: the peak failure mode is a prefill-compute shortfall (18.6x oversubscription at 40 rps), not merely queueing delay."
+    },
+    {
+      "id": "CH15-01 [common P1]",
+      "verdict": "REPRODUCED",
+      "why": "Confirmed: a host's admission capacity is 17 slots / 8.6 s = 1.98 req/s, so a 40 rps run on one host is a saturation run and its p95 latency is a queueing artifact, not a service-time measurement. The finding is correct that the two latencies quoted in the mini-case must not be read at the same offered load. Severity P1 is appropriate because this is the chapter that teaches measurement methodology."
+    },
+    {
+      "id": "CH15-007 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "Confirmed: 17 slots / 8.6 s = 1.977 req/s is the single-host residency ceiling, so p95 must be reported at offered loads <= ~2 rps per host. The methodological instruction is correct and should be stated as a rule in the chapter's benchmark protocol, not only in the mini-case."
+    },
+    {
+      "id": "CH16-12 [common P3]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "$0.002/1K input + $0.008/1K output = $2.00/$8.00 per 1M, which is 1.67x and 4x the book's canonical API price ($1.20/$2.00 per 1M, used in Ch 4 and Ch 26). This may be a deliberately separate Ch 16 mini-case price, but the book must label the basis and date it; two hosted-API price points in one book is a consistency defect if unlabeled."
+    },
+    {
+      "id": "CH17-01 [common P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The row reads '70B dense FP16 | 140 GB | ... | 1 GPU | 1 (140 GB weights across the 8-GPU pool, ~17.5 GB/GPU under TP; ...)'. The parenthetical resolves the apparent contradiction (140/8 = 17.5 GB/GPU is correct), so the P1 severity is inflated unless the column header literally reads 'GPUs required'. If it does, the cell is wrong: 140 GB cannot sit on one 80 GB H100. Check the header before acting."
+    },
+    {
+      "id": "CH17-02 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "Operator-aware finding: the parenthetical components sum to 0.12 + 1.08 + 7.5 = 8.70 s, not '~10 s', and the book's canonical service time is 8.6 s. '~10 s' is a third number for the same quantity. Because the canonical 8.6 s is what feeds the in-flight and host-count screens, the loose figure must either be dropped or explicitly marked as a coarse planning round. Severity P3, not P2."
+    },
+    {
+      "id": "CH17-02 [common P1]",
+      "verdict": "REPRODUCED",
+      "why": "Confirmed inconsistency: the sizing pole is stated as 25 ms in one place and 40 ms in another (Ch 15 §1), and Ch 14 adds a third (p95 <= 35 ms). Sizing at 25 ms gives ~31 hosts; at 40 ms it gives ~19-21. The book must name one sizing pole and one SLO pole, state which is which, and use them consistently in every host count."
+    },
+    {
+      "id": "CH17-03 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 12,000 x (140/17 + 24.1) = 12,000 x 32.34 GB = 388 TB/s. But the sibling figure in Ch 15 is 12,000 x (140/17 + 24.9) = 398 TB/s, and Ch 15's weight-only version is 98.8 TB/s. Three numbers for one screen (3.7x, 14.5x, 14.9x oversubscription) because the KV basis (24.1 vs 24.9 GB) and the inclusion of KV traffic are both unstated. One screen, one basis, one number."
+    },
+    {
+      "id": "CH17-06 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "Same root cause as CH17-03. 388 TB/s against a host peak of 8 x 3.35 = 26.8 TB/s is a 14.5x oversubscription; the book's Ch 15 text says 3.7x for the same screen because it omits KV. Reconcile."
+    },
+    {
+      "id": "CH17-04 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "The printed comparison is incomplete: 290 GB is the headroom AFTER the 350 GB of other tiers' weights (640 - 350), and the FP16 tier's own 140 GB of weights must be subtracted before comparing against the 436 GB KV budget. The correct comparison is (290 - 140) = 150 GB of KV headroom vs 436 GB, so the conclusion survives but the printed arithmetic does not support it. Note also that 226 GB (640 - 350 - 64) is the figure used two paragraphs later."
+    },
+    {
+      "id": "CH17-05 [common P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed (9,200 + 3 x 800 = 11,600; 11,600 - 9,200 = 2,400), but the claim 'only the final call's new context is prefilled' is wrong: under prefix reuse each turn prefills its own new tokens, so the task's new prefill is 800 (turn 1) + 865 (turn 2) + 800 (turn 3) = 2,465, not 2,400. The 65-token discrepancy is small but the sentence's logic ('only the final call') is the substantive error."
+    },
+    {
+      "id": "CH17-08 [common P3]",
+      "verdict": "REPRODUCED",
+      "why": "Confirmed and consistent with the book's own policy arithmetic: N_policy = ceil(N / (0.7 x 0.95)) gives 29 for N=19, 32 for N=21, 34 for N=22, and the rho=1 u-only screen gives ceil(21/0.7) = 30. The finding is a correct subsumption note: the extra hosts are already carried by Table 17-1, so the prefill leg must not be double-counted."
+    },
+    {
+      "id": "CH18-002 [common P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "Arithmetic confirmed: 640 - 70 (8-bit weights) - 64 (reserve) = 506 GB; 506/24.89 = 20.33 -> 20 slots; 13 + 4 + 3 = 20. The '/32 with policy' figure cannot be reconstructed from the quoted material (ceil(20/0.665) = 31, not 32), so the policy application for the mixed fleet must be shown explicitly. Severity P1 is not yet justified."
+    },
+    {
+      "id": "CH18-004 [common P2]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "70 GB (8-bit weights) + 12.45 GB (FP8 KV at 9,500 tokens) = 82.45 GB > 80 GB, so the 1 x H100 case is feasible only with explicit offload of at least ~2.5 GB. The book must state the offloaded quantity and the transfer cost, or drop the 1-GPU claim. Also check the sibling row (70 + 24.9 = 94.9 GB > 80 GB) for consistency of framing."
+    },
+    {
+      "id": "CH19-02 [common P1]",
+      "verdict": "REPRODUCED",
+      "why": "Confirmed as a denominator-basis defect. The book carries at least three per-request token counts: 12,095 (retained context at T=3), 23,927 (mix-weighted sum of per-call input), and 41,990 (billable, T=3 no-reuse). I reproduced 41,990 = 9,200 + 10,065 + 10,930 + 11,795 and 23,927 to within 5 tokens of 0.68(19,265) + 0.25(30,195) + 0.05(41,990) + 0.02(9,500) = 23,922.45, which also pins the fallback's basis. The cost model must declare which basis it uses; the Ch 18 $2.63/1M figure uses 9,500 while the Ch 19 ledger uses 23,927."
+    },
+    {
+      "id": "CH19-08 [common P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 41,990 = 9,200 + 10,065 + 10,930 + 11,795 (four accumulated contexts sent across the T=3 no-reuse trace). The number is right; the finding's substance is that it is a THIRD basis alongside 12,095 and 23,927 and must be labeled as such wherever it appears."
+    },
+    {
+      "id": "CH20-01 [common P1]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 21 x $20 + $40 = $460/hr autoscaled at peak vs $420/hr static, so break-even is at N = (420 - 40)/20 = 19 hosts, i.e. sustained demand <= 19 x 1.98 = 37.6 rps. Since the canonical peak is 40 rps, autoscaling is MORE expensive at the peak than the static fleet it replaces. If the chapter presents autoscaling as a cost win at the canonical peak, that is a contradiction; if it presents the break-even as a set of crossing points, the finding is already discharged."
+    },
+    {
+      "id": "CH22-01 [common P1]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 436/24.1 = 18.09 -> 18 in flight per host; 40 x 8.58 = 343.2 in flight; 343.2/18.09 = 18.97 -> 19 hosts. But Ch 17 uses 24.9 GB/request and floors C to 17, giving 344/17 = 20.2 -> 21 hosts, and Ch 20 adds a 22-host case. The same screen therefore yields 19, 21 and 22 hosts in three chapters. One basis (KV bytes/request, flooring rule, service time) must be fixed book-wide."
+    },
+    {
+      "id": "CH26-FIG26.1-CAPTION [common P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The entry is truncated mid-sentence and the underlying claim (drawn chat series vs prose series) requires the rendered figure. Related unique findings FIG26-01 (P1) and FIG26-02 (P2) point at the same page and are consistent with it, but the specific values cannot be checked from the register. Render PDF 446 / printed 426 and compare all eighteen bar values against the prose."
+    },
+    {
+      "id": "CH12-THRU-MULT-02 [common P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The quoted gate text ('tokens-per-second ... multiplied by the number of devices') does not specify WHICH tokens (input, output, or total) and at what operating point (35% MFU? peak?). The gate is therefore not checkable as written. This is a real defect but the entry states no observed failure; restate it against a specific candidate."
+    },
+    {
+      "id": "CH15-MC-01 [common P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The '~12.5 rps average' is a fourth traffic number (the canonical average is 10 rps). If the mini-case deliberately uses a different offered load, it must be labeled as such; if it is a slip, it is a P1 because the latency numbers in that mini-case are quoted at that load. Check the mini-case's stated offered load."
+    },
+    {
+      "id": "CH1-KV-01 [common P2]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The book already states the reading ('on this book's reading, a decode inter-token-latency (ITL) slope, not a memory ratio'). The remaining question is whether that reading is itself correct against the vLLM blog's Table 3, and whether it is labeled as an interpretation rather than a fact. Requires the source."
+    },
+    {
+      "id": "APPA-EFFICIENCY-LEVERS [common P2]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "A taxonomy-consistency claim about the appendix's four-family table (item 3 is a capability lever, not an efficiency lever). Requires the appendix table; the fix is a relabel or a split of the list, which is cheap once confirmed."
+    },
+    {
+      "id": "APPA-REGISTERS-COUNT [common P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "A structural claim about Appendix A mixing three statement registers on three clocks. Plausible and important if true, but the entry states no specific instance; it must be anchored to at least one sentence pair that mixes registers."
+    },
+    {
+      "id": "CH16-MINI-CAPABILITY-CONTRADICTION [DeepSeek P0]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The P0 severity is not supported by the register's own material. The sibling finding CH16-MINI-BREAKEVEN-GRAPH-MISREFERENCE states that the book explicitly narrows the decision to one labeled assumption, which is the correct handling of an assumption-bound decision. If the book says the arithmetic points to self-hosting and then shows the CTO choosing the API for organizational reasons, that is a teaching point, not a contradiction. Re-read the mini-case's decision paragraph before treating this as P0."
+    },
+    {
+      "id": "CH16-MC-01 [MiMo P1]",
+      "verdict": "REPRODUCED",
+      "why": "104 + 26 - 40 = 90, not 90.2. The printed total requires the $26.2K component, so the displayed sum does not close from the displayed terms. Either print $26.2K in the sum or print $90K. This is exactly the kind of budget-closure defect the round-7 brief asked for and it is real."
+    },
+    {
+      "id": "CH16-MC-02 [MiMo P2]",
+      "verdict": "REPRODUCED",
+      "why": "Follows directly from CH16-MC-01: if the remainder is $26.2K and power is $2.2K, then ~$0.2K is unallocated. The mini-case's cost ledger must close to the cent, or the residual must be named."
+    },
+    {
+      "id": "CH16-MINI-STAFF-BASIS-MISMATCH [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: $104K - $23.9K = $80.1K. The finding is that the mini-case's staff basis (0.5 FTE at ~$26K/mo, i.e. $624K/yr fully loaded for one FTE) differs from Mode 1's ~$10K/mo mature-team allocation, so the two modes are not compared on the same basis. The book must state that the comparison is deliberately on different bases, or restate it."
+    },
+    {
+      "id": "CH16-MINI-KV-ARITH [DeepSeek P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "1 rps x 8.6 s = 8.6 in flight per host is correct, but the quoted '~32 GB of KV across both hosts' does not reconcile with 8.6 x 24.9 GB = 214 GB per host. Either the mini-case uses a much shorter context (in which case the basis must be stated) or the KV figure is wrong. This is a P1 if the latter."
+    },
+    {
+      "id": "CH16-MINI-RATE-SIZING-INCONSISTENCY [DeepSeek P3]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "Same locus as CH16-MINI-KV-ARITH. The two hosts are sized for ~4 rps of rate; 4 rps x 8.6 s = 34.4 in flight against ~17 slots per host is a 2x oversubscription. Confirm the mini-case's stated rate and slot count together."
+    },
+    {
+      "id": "CH16-FIG-CAPTION-NOT-APPLES [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and consistent with CH20-01/CH20-04: the break-even is a set of crossing points (19 hosts, ~37.6 rps), not a single value, and the caption should say so. Cheap fix, real clarity gain."
+    },
+    {
+      "id": "CH16-08 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 20 x 730 = $14,600/mo for one 8 x H100 host, and the book correctly notes that an on-prem host has no $/hr, so $15K is a budget cap rather than a price. The finding is that the cap is then compared against a $155.8K self-host total without saying that the comparison is cap-vs-total, not cap-vs-cap. Label it."
+    },
+    {
+      "id": "CH16-10 [DeepSeek P3]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "'21 hosts (22 at the 95% scheduling factor)' does not follow from 21 x 0.95 = 19.95 -> 20. The book's own policy arithmetic gives ceil(21/0.665) = 32 and the rho=1 u-only screen gives 30. The '22' must be traced to a specific screen (case (ii) prefill) or corrected."
+    },
+    {
+      "id": "CH16-08 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and important: the canonical cost figures exclude the 99.9% availability topology (N-1 spare, cross-region, failover), so every $/1K and $/1M figure in Ch 16 and Ch 18 understates the cost of the canonical workload's own stated availability requirement. The book already flags this as UNPRICED; the fix is to carry the flag into the summary tables rather than only the caveat paragraph."
+    },
+    {
+      "id": "CH16-11 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct distinction: the 70% provisioning target determines host COUNT, not unit cost. The book should state this once, explicitly, because Ch 16 and Ch 17 both use 'utilization' in both senses."
+    },
+    {
+      "id": "CH17-01 [DeepSeek P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The quoted '~14 GB' per-GPU weight read does not match the canonical TP=8 shard (140/8 = 17.5 GB). If the passage is a 7B illustration (7e9 x 2 = 14 GB) it is fine but must be labeled as such; if it is the canonical 70B, it is a P1 arithmetic error. Also note the quoted '~239 tok/s per GPU' = 3.35e12/14e9, which is the 7B number, not the 70B's 191 tok/s per shard."
+    },
+    {
+      "id": "CH17-03 [DeepSeek P1]",
+      "verdict": "REPRODUCED",
+      "why": "Correct scope finding: the canonical case is one regime (mid-context, mid-rate RAG) in which the KV-residency ceiling binds; under case (ii) the prefill screen binds instead. The book must not present 'the KV screen sets the fleet size' as a general rule, and the case labels must travel with every host count."
+    },
+    {
+      "id": "CH17-04 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 140 + 17 x 24.9 = 563.3 GB per step; 563.3 GB / 26.8 TB/s = 21.0 ms/step. This is the correct decode-step cost and it is the number that should replace the weight-only 3.7x oversubscription figure used elsewhere."
+    },
+    {
+      "id": "CH17-05 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: C must be derived from the canonical per-token KV (2 x layers x hidden x bytes) with the stated precision and context, and the derivation must be shown once and reused. The book currently derives C from three different per-request KV figures (24.1, 24.9, 12.45)."
+    },
+    {
+      "id": "CH17-07 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct four-way screen decomposition (KV residency, prefill compute, decode bandwidth/compute, measured SLO goodput). The finding is that the screen list must be presented once, in one place, with the binding screen named per case - which is exactly what Ch 20 then has to reconstruct."
+    },
+    {
+      "id": "CH17-08 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 5 MB / 1.25 GB/s = 4 ms, inside the 20 ms observed duration. The finding's value is that the book should state which reading it adopts (fabric-limited vs per-request) rather than presenting both as equally valid."
+    },
+    {
+      "id": "CH17-09 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and pedagogically valuable: C = 17.5 is a residency ceiling, not a service rate. The book should make this distinction explicit wherever C is used, because Ch 22's 19-host derivation silently treats it as a service rate."
+    },
+    {
+      "id": "CH17-04 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct claim-strength finding: with PagedAttention-style block management and prefix caching, sticky sessions are NOT required for KV correctness - they are a locality optimization. The book elsewhere (Ch 17 density-vs-evenness) treats it as a choice, so the Ch 17 sentence overstates necessity. Rewrite as 'if the engine does not share or migrate KV state across hosts'."
+    },
+    {
+      "id": "CH18-01 [DeepSeek P1]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 6.24e6 x 9,500 = 5.928e10 tokens/month; 155,817 / 5.928e10 x 1e6 = $2.63/1M. The defect is the denominator: 9,500 is the retained context, while the book's own Ch 19 ledger says the cost model consumes 23,927 tokens/request of per-call input. The $/1M-token figure and the $/1K-request figure ($24.97) are therefore on different bases and must be reconciled or explicitly paired."
+    },
+    {
+      "id": "CH18-02 [MiniMax P1]",
+      "verdict": "REPRODUCED",
+      "why": "Same root cause as CH18-01. One root-cause issue with both anchors, not two findings."
+    },
+    {
+      "id": "CH18-03 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 640 - 350 - 64 = 226 GB; 226/24.89 = 9.08 -> 9 slots. The finding is that the same paragraph also quotes 290 GB (640 - 350, no reserve) for the FP16-tier comparison, so two different headroom figures are in play within one section. Fix the reserve convention once."
+    },
+    {
+      "id": "CH18-04 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: the 226 GB is a shared KV budget that must be split between the active generation tiers and the smaller specialist models; the book should show the split rather than presenting 226 GB as free capacity."
+    },
+    {
+      "id": "CH18-05 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and important: the book asserts a saving while its own numbers leave the total-cost sign undetermined (18-27 extra hosts at the Ch 16 per-host basis exceeds the ~$69.7K/mo saving). Either supply a marginal per-host cost and a break-even, or state the sign as undetermined wherever the saving is claimed."
+    },
+    {
+      "id": "CH18-07 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: ceil((70 + 24.89)/80) = 2 GPUs. But the same passage's '3 concurrent' implies 160 - 70 = 90 GB of KV with no runtime reserve, whereas the book elsewhere reserves 64 GB per host. The reserve convention must be applied consistently to per-GPU as well as per-host budgets."
+    },
+    {
+      "id": "CH18-08 [MiniMax P3]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The table's $2.50/1M tokens conflicts with the $2.63/1M computed in the same chapter from $155,817 / 5.93e10. If the $2.50 excludes staff or uses a different token basis, the basis column must say so; otherwise one of the two numbers is wrong."
+    },
+    {
+      "id": "CH18-11 [MiniMax P3]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "'~18 by weights alone' does not reconcile with 350 GB / 80 GB = 4.4 -> 5 GPUs, nor with 18 hosts. The three numbers in this sentence ('~18', '~5', 'reserves 2') must be traced to their bases."
+    },
+    {
+      "id": "CH19-01 [MiMo P1]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed and the defect is real: 19,265 + 365 = 19,630 (sum-of-calls basis) while 10,065 x 2.62 MB = 26.4 GB (retained-context basis). One table row carries two different token bases with no column-level label. Add a basis column or split the columns."
+    },
+    {
+      "id": "CH19-001 [Qwen P1]",
+      "verdict": "REPRODUCED",
+      "why": "Same root cause as CH19-01. The parenthetical ('the T = 1 and fallback rows quote the last retained context without a separate terminal answer on top') confirms the two bases coexist in one table."
+    },
+    {
+      "id": "CH19-03 [MiMo P1]",
+      "verdict": "REPRODUCED",
+      "why": "Real contradiction in the W cluster: 17.70 s is stated as model-side excluding 660 ms of orchestration, so end-to-end should be 18.36 s, but the book also prints 17.60 s end-to-end. Separately, the same T=3 case is given as 18.19 s (case iii) and 18.68 s (case ii). Four numbers for one service time. Each must carry its basis (model-side vs end-to-end; case i/ii/iii) and the canonical 8.6 s must be reconciled with them."
+    },
+    {
+      "id": "CH19-01 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Same root cause as CH19-03: 17.70 + 0.66 = 18.36, not 17.60. The '~200 ms guardrail evaluation + re-dispatch' term is also not in the 17.70 s figure, so the end-to-end number should be 18.56 s if both terms apply."
+    },
+    {
+      "id": "CH19-02 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: the quadratic attention term is +17.2% at 9.2K (4 x L^2 x d x 80 layers = 2.219e14 against 1.288e15 linear), so the case-(ii) and case-(iii) W values differ from case (i) by a stated, computable amount. The finding is that the book must show this rather than presenting 17.70 s as the single T=3 service time."
+    },
+    {
+      "id": "CH19-04 [MiMo P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: (2,392,670 - 2 x 30,390)/98 = 23,794.8, a reduction of 619 tokens (-2.5%) from 24,414. The finding's substance is that a 2.5% token reduction is being used to support a decision; the book should say what the 2.5% buys and what it costs."
+    },
+    {
+      "id": "CH19-06 [MiMo P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 9,200 + 865 = 10,065 and 9,200 + 3 x 865 + 300 = 12,095. These are the anchors the whole Ch 19 ledger depends on; they should be stated once as the canonical per-turn increment (865 = 800 retrieved + 65 generated) and reused."
+    },
+    {
+      "id": "CH19-06 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "This is a genuine internal contradiction with CH19-10 (same chapter, same model): 'a fallback request attempts the full cap (T = 3 - 3 model calls + 3 tool calls) before the guardrail trips' versus 'the 2% fallback ... incurs zero added turns (single-shot)'. Two mutually exclusive descriptions of the fallback path. The single-shot reading is corroborated by CH19-01's 'the fallback never makes a synthesis call', so the T=3 fallback sentence is the likely error. P1."
+    },
+    {
+      "id": "CH19-10 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Corroborated by CH19-01 and CH19-06; the fallback is single-shot. The book must state the fallback's turn count once, because it feeds the mix (68/25/5/2) and therefore the 23,927-token cost basis."
+    },
+    {
+      "id": "CH19-07 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 9,200 + 4 x 865 = 12,660 < 13,000, so the turn cap binds before the guardrail budget. Correct and worth keeping; the finding is only that the ordering should be stated once."
+    },
+    {
+      "id": "CH19-09 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and important: the scheduling unit is the request, so a T=3 request holds its KV slot for W ~ 17.70 s while the GPU idles through the tool legs. This is the mechanism behind the agentic fleet-size explosion and should be stated earlier (Ch 11 or Ch 17), not only in Ch 19."
+    },
+    {
+      "id": "CH20-02 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: (21 x $20 + $40) / 144,000 req/hr x 1000 = $3.19 per 1K requests. Note this is HIGHER than the static fleet's $420/hr / 144,000 x 1000 = $2.92 per 1K, which is the same break-even point as CH20-01 and should be shown side by side rather than in two chapters."
+    },
+    {
+      "id": "CH20-04 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 19 hosts x 1.98 req/s = 37.6 rps. Consistent with CH20-01 and CH20-02. One break-even statement, one place."
+    },
+    {
+      "id": "CH20-06 [MiniMax P2]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "ceil(40/3.684) = 11 is arithmetically correct, but the 3.684 req/s per-host ceiling is not derivable from any quoted canonical quantity (it is neither the KV screen's 1.98 nor the prefill screen's 2.15). The derivation of 3.684 must be shown or the number dropped."
+    },
+    {
+      "id": "CH20-11 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: the governing count is the maximum over named screens (21 under case (i), 22 under case (ii)), and the book must say that once rather than letting each chapter quote a different screen's number. This is the same root cause as CH22-01."
+    },
+    {
+      "id": "CH20-03 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: 80 req/s is a stress target, not a planning screen (80 / 1.98 = 41 hosts, or 80 / 2.15 = 38 on the prefill screen). The table row must be labeled as such."
+    },
+    {
+      "id": "CH21-01 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 216,000 / 3,600 = 60x. Correct and worth keeping."
+    },
+    {
+      "id": "CH21-05 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 5% x 288,000 x 2/8 = 3,600, with 288,000 = 10 rps x 8 h. The 8-hour business window should be stated once, since it also underpins the 624,000 active-seconds/month denominator used in Ch 16."
+    },
+    {
+      "id": "CH22-03 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 7.91 x 0.4 = 3.164 PFLOPS/host; 40 x 1.288 = 51.52 PFLOP/s; 51.52/3.164 = 16.28 -> 17 hosts; 16 x 3.164 = 50.6 PFLOP/s < 51.52. Correct. Note the companion CH22-02 labels the 10 rps (average) demand as 'at peak' - the two sentences must be reconciled."
+    },
+    {
+      "id": "CH22-02 [MiMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed (10 x 1.288 = 12.88 PFLOP/s; 12.88/7.91 = 1.63 hosts at 100% MFU), but 10 rps is the canonical AVERAGE, not the peak. The label 'at peak' is wrong, and the same screen at 40 rps gives 6.5 hosts at 100% MFU or 16.3 at 40% MFU. One screen, one operating point, one label."
+    },
+    {
+      "id": "CH22-04 [MiMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: the decode weight-read per token is 140 GB under the full-weight-read model, and the table's basis label is right. The finding's value is that this row must be reconciled with the KV-inclusive 388/398 TB/s figures used in Ch 15 and Ch 17."
+    },
+    {
+      "id": "CH22-MINICASE-1719-01 [Qwen P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and important: the mini-case's '~17-19 hosts clears both budgets' is inconsistent with Ch 17's 21 and Ch 20's 22. The mini-case must use the same screen set and the same basis as the chapters it summarizes, or explicitly say which screen it is running."
+    },
+    {
+      "id": "CH23-01 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: the decode-only ceiling is 989 TFLOPS / 14 GFLOP = 70,643 tok/s / 500 tokens = 141 rps at 100% MFU. The finding is that the worked example's r = 50 is optimistic and the ~500-token prefill must be included (total ~71 rps at 100% MFU, ~21-28 at 30-40%)."
+    },
+    {
+      "id": "CH23-03 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: the canonical peak fleet is 21-32 hosts depending on the screen and policy, and the range must be quoted as a range with its basis, not as a single number."
+    },
+    {
+      "id": "CH24-01 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: FP16 KV screen ~5 hosts at average load (92,000/19,800 = 4.65), 8-bit KV screen ~2.5 hosts (concurrency doubles to 35.0 = 436/12.45). The finding is that the chapter must say which screen binds under which KV precision rather than presenting both as equally applicable."
+    },
+    {
+      "id": "CH24-03 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 48,000 x 64 B = 3.07 MB. Correct and harmless."
+    },
+    {
+      "id": "CH25-01 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 17.5 x 24.9 = 435.75 GB of KV against 140 GB of weights at the ADR's own operating point, so the KV read dominates there - the opposite of the batch-1 case (24.9/(140+24.9) = 15.1%). Both statements are correct on their own operating points; the ADR must state which operating point it reasons from, because the conclusion (halving KV bytes) is only material at high concurrency."
+    },
+    {
+      "id": "CH25-02 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 436/12.45 = 35.0 concurrent per host at FP8 KV; 344/35.0 = 9.83 -> 10, +1 spare = 11 hosts. Correct. Note this uses 344 (40 x 8.6 s) while Ch 22 uses 343.2 (40 x 8.58 s) - pick one."
+    },
+    {
+      "id": "CH25-ADR17-INTENSITY-01 [Qwen P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 24.9/(140+24.9) = 15.1% of batch-1 decode reads; halving KV bytes gives 12.45/152.45 = 8.2%, a 6.9% total-traffic reduction (~7.5% as printed). Correct and properly scoped."
+    },
+    {
+      "id": "CH25-ADR15-21-01 [Qwen P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and important: 6.24e6 requests / (730 x 3600 s) = 2.37 rps average against a peak-sized 21-host fleet. The book must keep the average-denominator and the peak-provisioning basis visibly separate in every cost table."
+    },
+    {
+      "id": "CH25-01 [DeepSeek P1]",
+      "verdict": "REPRODUCED",
+      "why": "Label inconsistency: the ADR title reads '70B dense FP16 deployment (FP16 label; see ADR 0016)' while ADR 0016 sets the canonical precision label to BF16. The footprint is unaffected (house convention #2), but the title should read BF16 or say 'FP16/BF16 footprint-equivalent'. Severity P2, not P1."
+    },
+    {
+      "id": "CH25-03 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: the canonical peak already needs 21 hosts on the KV screen (22 under case (ii)), so a recommendation to 'add hosts beyond 21' misunderstands the scale. The ADR should quote the screen and case, not a bare host count."
+    },
+    {
+      "id": "CH26-01 [MiniMax P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The finding is that the capstone's offered load (~2 rps) sits at the per-host analytical ceiling (~2.0 rps), which would leave no queueing headroom and make the 450 ms queue-inflated baseline vs 250 ms queue-light comparison internally inconsistent. This is a strong hypothesis but requires the Ch 26 §8 numbers to confirm."
+    },
+    {
+      "id": "CH26-02 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: (450 - 250)/450 = 44.4%. The finding is that the 450 ms baseline is queue-inflated while the 250 ms figure is queue-light, so the 44% is not a like-for-like cache benefit. The comparison must be stated on the same queueing basis."
+    },
+    {
+      "id": "CH26-07 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: $0.01164 x 0.65 = $0.00757 ~ $0.0076. The finding is that the 'marginal-generation-work share only' basis must be visible in the table cell, not only in the parenthetical, because the reader will otherwise compare $0.0076 against a full per-query price."
+    },
+    {
+      "id": "CH26-05 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 2.0 x (1 - 0.35) = 1.3 rps. Correct. The finding is that the 7% shed population is outside the two-point latency model, which must be stated where the model is introduced."
+    },
+    {
+      "id": "CH26-12 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 45% x 1.3/2.0 = 29.3%. Correct and properly scoped."
+    },
+    {
+      "id": "CH26-13 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correctly labeled [HYPOTHESIS]; the finding is that the TTL hypothesis needs a stated basis (session-scoped repetition) and a falsification test, which the book should add rather than leaving it as a bare prediction."
+    },
+    {
+      "id": "CH26-14 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 250 ms vs 450 ms. The finding is that the p99 claim inherits the queue-basis problem in CH26-02 and must be labeled as an illustrative scenario result."
+    },
+    {
+      "id": "CH2-BF16-MANTISSA [Qwen P1]",
+      "verdict": "NEEDS-VERIFICATION",
+      "why": "The quoted statement is technically correct (BF16 trades 2 mantissa bits for 2 exponent bits at the same byte width and the same dense tensor-core peak). The register states no defect. Either the book elsewhere claims a different BF16 peak, or this is a non-finding. Search for 'BF16' claims of speed/peak and re-file only if one is inconsistent."
+    },
+    {
+      "id": "CH2-140GB-HOSE-AGGREGATE [Qwen P1]",
+      "verdict": "REPRODUCED",
+      "why": "Two defects in one analogy. (a) Quantitative: 140 GB per 25 ms is 5.6 TB/s, which is ~2,000x a garden hose; the analogy inverts the intuition it is meant to create. (b) Architectural: 'the whole volume must flow every 25 milliseconds' is true only at batch 1 on a single device; under the canonical TP=8 host each GPU flows 17.5 GB (0.70 TB/s, 21% of its 3.35 TB/s peak), and at B = 17.5 the weights are read once per step for 17 tokens. Replace with a batch-1-explicit statement."
+    },
+    {
+      "id": "CH3-ACTIVE-OMITS-ALWAYSON [Qwen P1]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: 'top-k x parameters-per-expert' omits the always-active components (attention, embeddings, shared expert, norms). The book's own Fig 3.4 carries a '3 GB always-on' term, so the Ch 3 formula and the Ch 3 figure disagree. The formula must add the always-on term, and the active-fraction percentages (24-27% for top-2-of-8) must be recomputed with it."
+    },
+    {
+      "id": "CH3-ACTIVE-FRACTION-24 [Qwen P3]",
+      "verdict": "REPRODUCED",
+      "why": "2/8 = 25% is the routing-only fraction; once the always-on term is added the active fraction rises. The finding is that the 24-27% band is a routing fraction presented as an active-parameter fraction."
+    },
+    {
+      "id": "CH7-001 [Qwen P1]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic error: 2 B/value / 0.53125 B/value = 3.76x, not 3.57x. The 0.53125 B/value (4-bit element + 8-bit scale per 32 elements) is correct; the compression factor printed beside it is not. Either correct to 3.76x or state the baseline that yields 3.57x."
+    },
+    {
+      "id": "CH7-01 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Same root cause as CH7-001. One issue, both anchors."
+    },
+    {
+      "id": "CH8-001 [Qwen P1]",
+      "verdict": "REPRODUCED",
+      "why": "Correct scope finding: if 1.08 s is the END-TO-END prefill budget (absorbing queueing, scheduling, tokenization, admission), then the pure-compute prefill time is less than 1.08 s, so the 1.19 PFLOPS required rate and the 15% MFU it implies are optimistic. The book must either reserve the overhead explicitly inside the 1.08 s or state that the 15% MFU is an upper bound on achievable efficiency."
+    },
+    {
+      "id": "CH8-01 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and consistent with CH8-001: the 1.08 s budget and the 19,800 tok/s/host sustained planning rate are two different quantities (a per-request budget vs a per-host rate) and the book must not let them stand in for each other in the same derivation."
+    },
+    {
+      "id": "CH8-03 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and important: the per-token FLOP count is the same in prefill and decode; what differs is the data-movement pattern and the arithmetic intensity. This is the distinction the book must teach, and it should be stated once, early, and reused."
+    },
+    {
+      "id": "CH8-05 [DeepSeek P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct and it exposes a real tension: the book's own canonical prefill implies 15% MFU (1.288 PFLOP / 1.08 s / 8 GPUs = 149 TFLOPS/GPU), while the book states that a well-tuned H100 transformer lands at 30-40% and that 'below 20% suggests a memory or communication bottleneck'. The canonical case therefore trips the book's own diagnostic heuristic. The book must reconcile this - either explain why the canonical prefill is a low-MFU regime (short prefill, launch-bound, queueing) or soften the heuristic."
+    },
+    {
+      "id": "CH8-04 [Qwen P2]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: the 12% MFU diagnostic and the 15% canonical figure are the same tension as CH8-05. One issue, both anchors."
+    },
+    {
+      "id": "CH6-001 [Qwen P1]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: the canonical SLO targets (TTFT 1.2 s, TPOT ~25 ms) must be stated once, in Ch 4's canonical box, and every later chapter must cite rather than restate them. The register shows at least four restatements with three different TPOT poles (25, 35, 40 ms)."
+    },
+    {
+      "id": "CH6-01-P2 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 50 x 0.96 = 48 and 70 x 0.94 = 65.8. The goodput point is correct and is one of the book's strongest; it needs a single canonical worked example reused later rather than being re-derived per chapter."
+    },
+    {
+      "id": "CH6-04 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "This is a direct internal contradiction with the Fig 6.1 prose: the book labels 'prefill queue depth growing' as '(serving)' here, while the facing page explicitly states queue depth is NOT a serving metric. This corroborates and strengthens FIG-6.1-01. Fix both."
+    },
+    {
+      "id": "CH11-001 [Qwen P1]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 140 GB x 40 tok/s = 5.6 TB/s (one device); 17.5 GB x 40 = 0.70 TB/s per GPU under TP=8, i.e. 21% of the 3.35 TB/s peak. The finding is that the 'bandwidth-bound' verdict at batch 1 is a roofline statement about which resource binds, not a statement that the machine is saturated - and at the canonical operating point (B = 17.5) the per-step read is 140 + 17.5 x 24.9 = 575.8 GB, which IS ~86% of peak. The book must state the operating point with the verdict."
+    },
+    {
+      "id": "CH11-02 [DeepSeek P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed (5.6 TB/s, 3.35 TB/s, 0.70 TB/s). The finding is the same as CH11-001: 0.70 of 3.35 TB/s means the canonical TP=8 host at batch 1 is NOT bandwidth-saturated, so the decode verdict must be qualified by batch size."
+    },
+    {
+      "id": "FT-01 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 17.5 GB / 3.35 TB/s = 5.2 ms per weight read per GPU, i.e. 21% of a 25 ms TPOT. The finding is correct and important: at batch 1 the canonical host is latency/occupancy-bound, not bandwidth-bound; saturation needs roughly 5 concurrent sequences per GPU (~40 per host) once KV traffic is included. This is the single most consequential regime qualification in the round and should be stated in Ch 2 and carried into Ch 11 and Ch 15."
+    },
+    {
+      "id": "FT-11 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Correct: 2NL is a lower bound on prefill compute; the quadratic term is +17.2% at 9.2K. The book must say so wherever the 1.29 PFLOP figure is used, because the prefill screen's host count changes with it (case (ii) gives 22 hosts vs case (i) 21)."
+    },
+    {
+      "id": "FT-12 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: ridge = 989e12/3.35e12 = 295 FLOP/byte; canonical prefill intensity ~9.2K FLOP/byte. Correct, and the figure should carry these two numbers so the verdict is checkable."
+    },
+    {
+      "id": "FT-14 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 24.1 GB / 8 = 3.01 GB per GPU per sequence. Correct and it is the missing term in the batch-1 saturation threshold."
+    },
+    {
+      "id": "FT-08 [MiniMax P2]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 2 x 32 x 4096 x 1 B = 262,144 B = 256 KiB/token; 2 x 80 x 8192 x 1 B = 1,310,720 B = 1.25 MiB = 1.31 MB/token. Correct and consistent with the house KV canonical."
+    },
+    {
+      "id": "FT-17 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 1.31 MB x 9,200 = 12.05 GB; GQA 2 x 32 x 8 x 128 x 1 B = 65,536 B/token x 9,200 = 0.60 GB. Correct."
+    },
+    {
+      "id": "FT-33 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: ($1.20 x 9.2 + $2.00 x 0.3)/1000 = $0.01164. Correct. Note this is the same $0.01164 that Ch 26 uses as the 'canonical-mix unit price', so the two chapters are consistent - but both must state that it is a 9,200/300 mix price and not the 23,927-token ledger basis."
+    },
+    {
+      "id": "FT-34 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 1.29/7.91 = 0.163 s at peak; /0.35 = 0.466 s at 35% MFU, inside the 1.08 s budget. Correct. Note the 0.47 s figure is the honest prefill compute time and it is well inside budget - which strengthens the case that the 15% MFU reading needs the CH8-05 reconciliation."
+    },
+    {
+      "id": "FT-28 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 6 x 20 x 730 = $87,600; 21 x 20 x 730 = $306,600. Correct."
+    },
+    {
+      "id": "FT-30 [MiniMax P3]",
+      "verdict": "REPRODUCED",
+      "why": "Arithmetic confirmed: 10 rps x 9,200 = 92,000 input tok/s. Correct."
+    },
+    {
