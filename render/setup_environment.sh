@@ -79,14 +79,29 @@ check_tools() {
 
 # ---------------------------------------------------------------- fonts (fontspec)
 check_fonts() {
-  say "fonts required by fontspec (render/latex/book.sty)"
-  local f
-  for f in "Linux Libertine O" "Source Code Pro" "EB Garamond" "Noto Serif" "Liberation Sans" "Latin Modern Mono"; do
-    if command -v fc-match >/dev/null 2>&1; then
-      printf '  [font] %-20s -> %s\n' "$f" "$(fc-match "$f" 2>/dev/null | cut -d: -f1)"
+  say "fonts required by fontspec (render/latex/book.sty), via luaotfload (what lualatex resolves)"
+  local f resolved missing=0
+  # luaotfload-tool is the resolver lualatex actually uses; fc-match CANNOT see
+  # TeX Live fonts (they are outside fontconfig's path) and falsely reports a
+  # fallback, so we must use luaotfload-tool, not fc-match.
+  if ! command -v luaotfload-tool >/dev/null 2>&1; then
+    note "luaotfload-tool not found — install TeX Live (texlive-luatex) to resolve fonts."
+    return 1
+  fi
+  for f in "Linux Libertine O" "Source Code Pro" "EB Garamond" "Noto Serif" "Liberation Sans" "Latin Modern Mono" "Liberation Mono"; do
+    resolved="$(luaotfload-tool --find="$f" 2>/dev/null | grep 'Resolved file name' | head -1 | sed 's/.*Resolved file name \"//; s/\"$//')"
+    if [ -n "$resolved" ]; then
+      printf '  [ok]   %-20s -> %s\n' "$f" "$(basename "$resolved")"
+    else
+      printf '  [MISS] %-20s -> not found (lualatex will fall back)\n' "$f"
+      missing=$((missing+1))
     fi
   done
-  note "if a font falls back to a default, install it (TeX Live fonts + fonts-linuxlibertine fonts-noto fonts-liberation)."
+  if [ "$missing" -gt 0 ]; then
+    note "$missing font(s) missing — install TeX Live fonts (texlive-fonts-extra / fonts-linuxlibertine / fonts-noto / fonts-liberation)."
+  else
+    note "all fontspec fonts resolve via luaotfload."
+  fi
 }
 
 # ---------------------------------------------------------------- legacy tectonic (HTML/legacy path only)
