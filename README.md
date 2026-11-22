@@ -88,20 +88,40 @@ Every quantitative claim carries **two orthogonal labels** (per the architecture
 
 Build tooling lives in [`render/`](render/). Two pipelines share one manuscript and one set of source figures:
 
-- **LaTeX PDF** — `render/latex/emit_book.py` assembles `book.tex` (title page → preface → TOC → 27 chapters), `render/latex/md_to_latex.py` converts each chapter, and `xelatex` produces the PDF. All figures are embedded as **vector PDF** (28 matplotlib + the hand-drawn rough.js figures hardened to SVG/PDF). [Download `from-token-to-fleet-v20260831.pdf`](render/build/from-token-to-fleet-v20260831.pdf)
+- **LaTeX PDF** — `render/latex/emit_book.py` assembles `book.tex` (title page → preface → TOC → 27 chapters), `render/latex/md_to_latex.py` converts each chapter, and **`lualatex`** produces the PDF (not xelatex — `tagpdf` needs lualatex for the structure tree). All figures are embedded as **vector PDF** (matplotlib `pdf.fonttype=42` + the hand-drawn rough.js figures hardened to SVG/PDF). [Download `from-token-to-fleet-v20260913.pdf`](render/build/from-token-to-fleet-v20260913.pdf) — the delivered file is **5.36 MB**, shrunk 55% from the raw 12 MB build (see below).
 - **Self-contained HTML** — `render/make_html.py` renders the whole book as one dark-mode, dependency-free HTML file with every figure inlined (SVG first, PNG fallback) as base64 data URIs. [Download `from-token-to-fleet-v20260831.html`](render/build/from-token-to-fleet-v20260831.html)
 
-Deliverables land in `render/build/` named **`from-token-to-fleet-vYYYYMMDD.{pdf,html}`** — the date is the version (e.g. `from-token-to-fleet-v20260831.pdf`).
+Deliverables land in `render/build/` named **`from-token-to-fleet-vYYYYMMDD.{pdf,html}`** — the date is the version (e.g. `from-token-to-fleet-v20260913.pdf`).
 
-```
-python3 render/make_html.py                 # -> render/build/from-token-to-fleet-v<date>.html
-# LaTeX:
-cd render/latex && python3 emit_book.py     # -> book.tex
-python3 md_to_latex.py                      # -> chapters/*.tex
-xelatex -interaction=nonstopmode book.tex   # (3 passes) -> render/build/...pdf
+### Reproduce this build
+
+```bash
+# 0) one-time: install the toolchain (pandoc + lualatex + python deps + font check)
+bash render/setup_environment.sh
+pip install -r render/requirements.txt   # pymupdf, fontTools, matplotlib, Pillow, PyYAML
+
+# 1) build the tagged PDF (~10.3 MB; vector figures, structure tree, 3 lualatex passes)
+bash render/build.sh                     # -> render/build/from-token-to-fleet-vYYYYMMDD.pdf
+
+# 2) merge 136 per-figure DejaVu subsets into 3 union subsets (~9.2 MB)
+python3 render/merge_fig_fonts.py \
+  --src render/build/from-token-to-fleet-vYYYYMMDD.pdf \
+  --out /tmp/merged.pdf
+
+# 3) pack objects into compressed object streams (~5.4 MB)
+python3 render/merge_fig_fonts.py \
+  --src /tmp/merged.pdf --out /tmp/final.pdf --objstm
+
+# verify at any step: pages, full text-layer equality, tagging, labels, pixel render
+python3 render/verify_merge.py /tmp/merged.pdf /tmp/final.pdf
 ```
 
-The `render/fig_*.py` scripts regenerate the matplotlib figures (vector of each); `render/harden_kv_svg.py` converts the hand-drawn rough.js figures to static SVG/PDF.
+Requirements the build depends on (all now declared in-repo):
+- **`render/requirements.txt`** — pinned Python packages.
+- **`render/setup_environment.sh`** — pandoc (download if absent), lualatex, verification tools, and a font-resolution check. Uses system binaries when present, else fetches static ones into `render/bin/` (git-ignored).
+- **Fonts** (via `fontspec`): Linux Libertine O, Source Code Pro, EB Garamond, Noto Serif, Liberation Sans/Mono, Latin Modern — the setup script reports how each resolves.
+
+The `render/fig_*.py` scripts regenerate the matplotlib figures (vector `.pdf` each; `pdf.fonttype=42`, PDF saved last so the build's `mtime(pdf) >= mtime(png)` guard picks the vector over the raster); `render/harden_kv_svg.py` converts the hand-drawn rough.js figures to static SVG/PDF.
 
 ---
 
