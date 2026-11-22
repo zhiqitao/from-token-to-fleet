@@ -1,0 +1,70 @@
+
+
+[
+  {
+    "id": "CH15-ATT-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch15 §5 Common Mistakes, FlashAttention bullet",
+    "chapter": "15",
+    "quoted_clause": "attention is only ~4–8% of forward FLOPs at 2–4K tokens, so the end-to-end gain is bounded near 4–8% even for a perfect attention kernel",
+    "observed": "The end-to-end latency bound is derived from attention's share of FLOPs, but a memory-bound attention kernel can consume a larger share of end-to-end time than its FLOP share.",
+    "evidence": "For the canonical 70B full-MHA geometry, full-square attention FLOPs are about 3.7% of forward FLOPs at 2,000 tokens and about 7.5% at 4,000 tokens. That is a FLOP share, not necessarily a time share. If the attention kernel is memory-bound while the rest of the request is compute-bound, its time share can exceed its FLOP share, so the end-to-end improvement is bounded by attention's time share, not directly by its FLOP share.",
+    "root_cause": "Conflation of FLOP share with end-to-end time share when bounding the effect of an attention-kernel speedup.",
+    "correction": "Reword the bound to use attention's measured or assumed end-to-end time share, or explicitly condition the FLOP-share argument on a compute-bound remainder. For example: 'if attention accounts for ~4–8% of end-to-end time (or if the rest of the request is compute-bound so FLOP share approximates time share), the end-to-end gain is bounded near that fraction; otherwise measure attention's time share on the target stack.'",
+    "acceptance_test": "The text distinguishes FLOP share from time share and states the condition under which the 4–8% FLOP share can be used as an end-to-end latency bound."
+  },
+  {
+    "id": "CH16-MINI-STAFF-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch16 §8 End-of-Chapter Mini-Case, staffing sensitivity paragraph",
+    "chapter": "16",
+    "quoted_clause": "at $156K/yr fully loaded (0.5 FTE engineer → $6.5K/mo) self-host = 13.9 + 6.5 = $20.4K/mo — the verdict is robust to the rate; the $84K saving and the threshold margin are not",
+    "observed": "This sentence introduces a second staffing basis that changes the all-in self-host cost from ~$40K/mo to $20.4K/mo and the cash saving from ~$64K/mo to ~$84K/mo, but then says the threshold margin is not robust. The opportunity-cost threshold actually remains about $90K/mo under both staffing bases.",
+    "evidence": "Using the mini-case's two-server capex/power base of $13.9K/mo and API cost of 5M × $0.0208 = $104K/mo: at $624K/yr fully loaded, 0.5 FTE = $26K/mo, self-host ≈ $40K/mo, cash saving ≈ $64K/mo, threshold = $104K + $26K − $40K = $90K/mo. At $156K/yr fully loaded, 0.5 FTE = $6.5K/mo, self-host = $20.4K/mo, cash saving ≈ $83.6K/mo, threshold = $104K + $6.5K − $20.4K = $90.1K/mo. The threshold is invariant because it equals API cost minus capex/power; only the cash saving changes.",
+    "root_cause": "The paragraph mixes two staffing bases and conflates the cash saving with the opportunity-cost threshold, making the final clause misleading.",
+    "correction": "State both bases explicitly and separate the two quantities. For example: 'Under the lower $156K/yr staffing basis, the all-in self-host cost would be $20.4K/mo and the cash saving would be ~$84K/mo, but the opportunity-cost threshold remains ~$90K/mo because it is API cost minus capex/power ($104K − $13.9K). The verdict is robust; the cash saving is not.'",
+    "acceptance_test": "The text reconciles the $40K/mo and $20.4K/mo self-host figures, shows the cash saving changing from ~$64K to ~$84K, and explains why the ~$90K threshold remains approximately unchanged."
+  },
+  {
+    "id": "CH16-MINI-KV-01",
+    "severity": "P2",
+    "confidence": "high",
+    "page_hint": "Ch16 §8 End-of-Chapter Mini-Case, two-host memory geometry paragraph",
+    "chapter": "16",
+    "quoted_clause": "against 1 rps × 8.6 s ≈ 8.6 requests in flight per host (~32 GB of KV across both hosts against ~17 in flight)",
+    "observed": "The parenthetical can be read as saying that ~17 in-flight requests require ~32 GB of KV, but 17 full-context requests require ~423 GB. The 32 GB is the available KV capacity (16 GB per host), not the required KV for 17 in-flight requests.",
+    "evidence": "The preceding sentence establishes ~16 GB of available KV per host, so two hosts have ~32 GB available. The canonical full-context KV per request is ~24.9 GB. Therefore ~17 in-flight full-context requests would require ~17 × 24.9 GB ≈ 423 GB, far above the 32 GB available.",
+    "root_cause": "The sentence omits the distinction between available KV capacity and required KV demand, creating a plausible but false reading.",
+    "correction": "Reword to make available versus required explicit. For example: 'the two hosts have only ~32 GB of available KV (16 GB each), while ~17 in-flight full-context requests would require ~423 GB.'",
+    "acceptance_test": "A reader can tell from the sentence that 32 GB is available KV capacity and that the required KV for ~17 in-flight full-context requests is approximately 423 GB."
+  },
+  {
+    "id": "CH15-MEAS-LOAD-01",
+    "severity": "P3",
+    "confidence": "medium",
+    "page_hint": "Ch15 §4 Measurement, minimal benchmark paragraph",
+    "chapter": "15",
+    "quoted_clause": "A minimal benchmark runs 40 rps — a saturation run on one host (6.5× the ~56,500 tok/s prefill ceiling at 100% MFU — theoretical peak), whose queue is expected to grow — with warm‑up, recording offered load alongside p95 TTFT and p95 TPOT/ITL separately (report p95 only at offered loads ≤ the host's admission capacity, ~2 rps per host: 17 slots ÷ 8.6 s), and measuring the GPU memory fraction consumed by KV cache",
+    "observed": "The protocol says the benchmark 'runs 40 rps' but also says to 'report p95 only at offered loads ≤ ... ~2 rps per host.' Without clarification, a reader may think p95 is being reported at the 40 rps saturation point.",
+    "evidence": "40 rps on one host is 6.5× the 100%-MFU parameter-matmul prefill ceiling and far above the ~1.98 rps per-host KV admission capacity. It is appropriate as a saturation/queue-growth test, but not as an SLO p95 reporting point under the book's own subcapacity reporting rule.",
+    "root_cause": "The sentence combines a saturation-run instruction with an SLO-reporting restriction without explicitly separating the two purposes.",
+    "correction": "Reword to separate the saturation run from the SLO reporting loads. For example: 'Include a 40 rps single-host saturation run to observe queue growth, but report SLO p95 only at subcapacity offered loads (≤~2 rps per host, 17 slots ÷ 8.6 s).'",
+    "acceptance_test": "The text clearly states that 40 rps is used to observe saturation/queue growth and that p95 SLO reporting is restricted to subcapacity loads of about 2 rps or less per host."
+  },
+  {
+    "id": "CH16-247-01",
+    "severity": "P3",
+    "confidence": "high",
+    "page_hint": "Ch16 §3 Worked Example, Feasible served-volume bound paragraph",
+    "chapter": "16",
+    "quoted_clause": "A 24×7 shape raises the envelope to 40 rps × 2,592,000 s ≈ 103.7M req/mo on the same fleet",
+    "observed": "2,592,000 seconds is 720 hours, i.e. a 30-day month. Elsewhere in this chapter the billing/energy calendar is 730 hours per month, which is 2,628,000 seconds. Using the chapter's 730-hour convention gives 40 × 2,628,000 = 105.12M req/mo, not 103.7M.",
+    "evidence": "2,592,000 / 3,600 = 720 h. 730 h × 3,600 = 2,628,000 s. 40 rps × 2,628,000 s = 105,120,000 req/mo. The 103.7M figure is internally correct for a 30-day month but inconsistent with the 730 h/month convention used for energy and cloud occupancy in the same chapter.",
+    "root_cause": "Mixed month conventions: 30-day seconds for the 24×7 envelope versus 730-hour billing/energy calendar elsewhere.",
+    "correction": "Either use 730 h (2,628,000 s) and report ~105.1M req/mo, or explicitly state that this 24×7 envelope uses a 30-day month and is therefore not the same calendar as the 730 h billing/energy figures.",
+    "acceptance_test": "All 24×7 monthly-second values in the chapter use the same stated month convention, or the exception is explicitly labeled."
+  }
+]
+COVERAGE: Read the provided Ch14-Ch16 text chunk; recomputed canonical KV slot, prefill/decode FLOP and HBM bandwidth, host-screen, TCO monthly/per-request, break-even, GQA, and mini-case staffing/KV numbers; checked terminology, evidence labels, and internal consistency within the chunk. Did not view rendered pages or figures because figures are stripped from the chunk; did not independently fetch or verify external sources beyond the footnotes present in the chunk.
