@@ -11,6 +11,17 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
+# Ensure pymupdf (and other user-site packages) are importable no matter which
+# python3 lands on PATH (base Hermes vs an activated venv with user-site disabled).
+# Idempotent: adds the user site-packages dir only if it is not already in PYTHONPATH.
+_PYUSERSITE="${HOME}/.local/lib/python3.14/site-packages"
+if [ -d "$_PYUSERSITE" ]; then
+	case ":${PYTHONPATH:-}:" in
+		*":$_PYUSERSITE:"*) ;;
+		*) export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$_PYUSERSITE" ;;
+	esac
+fi
+
 echo "== check_tables (fail loud on column-count mismatch) =="
 python3 render/check_tables.py
 echo "== check_md_leaks (fail loud on markdown leaking into PDF) =="

@@ -119,10 +119,12 @@ import matplotlib as _mpl
 # (3.6 pt) of white at the top, so the trim would cut into the title. Saving
 # the plain 6.1 x 5.4 in canvas keeps the canonical 439.2 x 388.8 pt page
 # (identical to R26) AND keeps >8.8 pt of white above the topmost artist.
+# also emit a PNG (the build copies the .png when no sibling .pdf exists; keep both
+# in sync so a stale PNG can never shadow the new vector). Save the PNG FIRST and the
+# PDF LAST: md_to_latex's vector guard requires mtime(pdf) >= mtime(png), so writing
+# the PDF last guarantees the guard picks the vector over the raster.
+plt.savefig('design/manuscript/chapter-20/figures/fig-20-2001.png', dpi=400)
 with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
     plt.savefig('design/manuscript/chapter-20/figures/fig-20-2001.pdf', format='pdf')
-# also emit a PNG (the build copies the .png when no sibling .pdf exists; keep both
-# in sync so a stale PNG can never shadow the new vector)
-plt.savefig('design/manuscript/chapter-20/figures/fig-20-2001.png', dpi=400)
 plt.close()
 print('wrote fig-20-2001 (R27: three labelled series + derate/unused/served regions, 21/22/40 markers)')

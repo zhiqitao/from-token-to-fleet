@@ -116,5 +116,8 @@ fig.text(0.5, 0.060,
 plt.subplots_adjust(left=0.12, right=0.97, top=0.78, bottom=0.385, wspace=0.40)
 plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.png',
             dpi=400, bbox_inches='tight', pad_inches=0.05)
+# vector copy for the build's vector guard (mtime(pdf) >= mtime(png)); PDF saved last
+with plt.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-19/figures/fig-19-1902.pdf', format='pdf')
 plt.close()
 print('wrote fig-19-1902 (narrow, tight-bbox, append-only label + grayscale hatch split)')

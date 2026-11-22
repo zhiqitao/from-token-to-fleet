@@ -197,5 +197,8 @@ label(CX, 10, 'not every component shown — the gradient makes compute, bandwid
 
 plt.tight_layout(pad=0.2)
 plt.savefig('design/manuscript/chapter-08/figures/fig-08-0802.png', dpi=400)
+# vector copy for the build's vector guard (mtime(pdf) >= mtime(png)); PDF saved last
+with plt.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-08/figures/fig-08-0802.pdf', format='pdf')
 plt.close()
 print('wrote fig-08-0802')

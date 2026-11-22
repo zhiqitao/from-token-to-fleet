@@ -144,5 +144,8 @@ ax.tick_params(labelsize=11)
 ax.legend(fontsize=8, loc='lower right')
 plt.tight_layout()
 plt.savefig('design/manuscript/chapter-08/figures/fig-08-0801.png', dpi=350)
+# vector copy for the build's vector guard (mtime(pdf) >= mtime(png)); PDF saved last
+with _mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-08/figures/fig-08-0801.pdf', format='pdf')
 plt.close()
 print('wrote fig-08-0801 (per-GPU roofline)')

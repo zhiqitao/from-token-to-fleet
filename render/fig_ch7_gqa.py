@@ -67,5 +67,8 @@ ax.text(5.0, 1.62, '8 q : 1 KV per group (8 total; 3 shown)',
         bbox=dict(boxstyle='round,pad=0.35', fc='#f5f5f5', ec='#b9b9b9', lw=0.8))
 
 plt.savefig('design/manuscript/chapter-07/figures/fig-07-0703.png', dpi=350)
+# vector copy for the build's vector guard (mtime(pdf) >= mtime(png)); PDF saved last
+with plt.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-07/figures/fig-07-0703.pdf', format='pdf')
 plt.close()
 print('wrote fig-07-0703')

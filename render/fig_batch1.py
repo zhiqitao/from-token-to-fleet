@@ -118,7 +118,11 @@ plt.tight_layout()
 # only), with the dashed style explained in-figure so it is not a stray cue.
 ax.text(0.5, 0.045, 'Dashed border: a deployment-level concern, chosen after the engine internals (1-3).',
         fontsize=7.4, ha='center', va='center', color='#555')
-plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=350); plt.close()
+plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.png', dpi=350)
+# vector copy for the build's vector guard (mtime(pdf) >= mtime(png)); PDF saved last
+with plt.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
+    plt.savefig('design/manuscript/chapter-11/figures/fig-11-1102.pdf', format='pdf')
+plt.close()
 print('Ch11 done')
 
 print('batch part 1 complete')
