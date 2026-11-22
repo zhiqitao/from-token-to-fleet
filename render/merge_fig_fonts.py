@@ -366,7 +366,14 @@ def inventory(doc) -> list[FontRec]:
         r.data = doc.xref_stream(r.fontfile2)
         r.raw_len = len(doc.xref_stream_raw(r.fontfile2))   # on-disk (compressed)
         r.tt = TTFont(io.BytesIO(r.data))
-        r.cmap = r.tt.getBestCmap()
+        try:
+            r.cmap = r.tt.getBestCmap()
+        except KeyError:
+            # Some rebuilt subsets have no cmap table (glyphs addressed by CID only).
+            # Cannot merge what we cannot map — skip this font, leave it untouched.
+            continue
+        if not r.cmap:
+            continue
         r.tu = parse_tounicode(doc.xref_stream(r.tounicode))
         if r.w_xref is None:
             r.widths = {}
