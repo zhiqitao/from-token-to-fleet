@@ -112,7 +112,7 @@ $$
 
 [DERIVED]
 
-**Table 8-1** — Per-token FLOP cost, prefill PFLOP, and the derived prefill and roofline rates for the canonical 70B workload. *(Per-token FLOP and prefill PFLOP computations are [ILLUSTRATIVE][DERIVED] from 2 × params × tokens; hardware peaks [1P: vendor datasheet] or [1P][FACT]; the 30–40% MFU range is [2°: industry benchmarks]; the ~295 FLOP/byte ridge is [1P][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s (both inputs first-party).)*
+**Table 8-1** — Per-token FLOP cost, prefill PFLOP, and the derived prefill and roofline rates for the canonical 70B workload. *(Per-token FLOP and prefill PFLOP computations are [canonical scenario][DERIVED] from 2 × params × tokens; hardware peaks [1P: vendor datasheet] or [1P][FACT]; the 30–40% MFU range is [2°: industry benchmarks]; the ~295 FLOP/byte ridge is [1P][DERIVED] = 989 TFLOPS ÷ 3.35 TB/s (both inputs first-party).)*
 
 | metric | value | derivation |
 |---|---|---|
@@ -123,8 +123,8 @@ $$
 | sustained prefill demand @ 10 rps | ~12.9 PFLOP/s | 1.29 PFLOP × 10 [DERIVED; **case (i)** — case (ii) gives ~15.1 PFLOP/s] |
 | H100 peak FP16 TFLOPS | ~989 TFLOPS [1P: NVIDIA H100 datasheet] | NVIDIA H100 SXM5 datasheet, without sparsity |
 | H100 sustained MFU (typical) | 30–40% [2°: industry benchmarks] | ~346 TFLOPS sustained at 35% MFU |
-| prefill throughput per GPU | ~2,471 tokens/s | 346 TFLOPS ÷ 140 GFLOP/token [DERIVED; **per-GPU scope; case (i) linear-only, 140 GFLOP/token** — including case (ii) full-square attention at 9.2K gives ~2,110 tokens/s] |
-| prefill throughput per host (8×H100) | ~19,800 tokens/s | 8 × 2,471 [DERIVED; **idealized aggregate, before TP/system loss; case (i) linear-only** — including attention at 9.2K ~16,900 tokens/s] |
+| prefill throughput per GPU | ~2,472 tokens/s | 346.15 TFLOPS ÷ 140 GFLOP/token = 2,472.5 → 2,472 [DERIVED; **per-GPU scope; case (i) linear-only, 140 GFLOP/token** — including case (ii) full-square attention at 9.2K gives ~2,110 tokens/s] |
+| prefill throughput per host (8×H100) | ~19,800 tokens/s | 8 × 2,472 = 19,776 (unrounded 8 × 2,472.5 = 19,780) ≈ 19,800 [DERIVED; **idealized aggregate, before TP/system loss; case (i) linear-only** — including attention at 9.2K ~16,900 tokens/s] |
 | H100 ridge point (dense FP16) | ~295 FLOP/byte | 989 ÷ 3.35 [DERIVED: peak TFLOPS ÷ HBM bandwidth] |
 
 *All figures trace to the canonical scenario (Ch 4, Table 4-2) and validated sources; none are measurement claims.*
@@ -140,23 +140,23 @@ $$
 
 [1P][2°][DERIVED: vendor peak (1P) × typical MFU (2°) — the MFU range is a secondary, empirical figure, so the sustained value inherits the provenance of its weakest input, the 2° MFU, while the peak is first-party]
 
-**Scope matters here.** The 346 TFLOPS figure is the sustained rate of a *single* H100, and the 2,471 tokens/s derived from it is therefore a **per-GPU** number. The canonical host is an *8×H100* node, so we must not multiply demand by a per-GPU rate as if it were per-node. Track the scope explicitly as we scale.
+**Scope matters here.** The 346 TFLOPS figure is the sustained rate of a *single* H100, and the 2,472 tokens/s derived from it is therefore a **per-GPU** number. The canonical host is an *8×H100* node, so we must not multiply demand by a per-GPU rate as if it were per-node. Track the scope explicitly as we scale.
 
 Per **GPU** (one H100 at 35% MFU):
 
 $$
-\text{prefill tokens/s (per GPU)} = \frac{346 \text{ TFLOPS}}{140 \text{ GFLOP/token}} \approx 2{,}471 \text{ tokens/s}
+\text{prefill tokens/s (per GPU)} = \frac{346.15 \text{ TFLOPS}}{140 \text{ GFLOP/token}} = 2{,}472.5 \approx 2{,}472 \text{ tokens/s}
 $$
 
-[DERIVED: sustained FLOPS ÷ per-token FLOPs; **per-GPU scope**]
+[DERIVED: 989 TFLOPS × 0.35 = 346.15 TFLOPS; 346.15 ÷ 140 = 2,472.5, quoted as ~2,472 — the same planning rate Ch 4 §4.8, Ch 17 and Ch 20 print as ~2,472; **per-GPU scope**]
 
 Per **host** (8×H100, idealized before TP communication, imbalance, and kernel/system overhead):
 
 $$
-\text{prefill tokens/s (per 8×H100 host)} = 8 \times 2{,}471 \approx 19{,}800 \text{ tokens/s}
+\text{prefill tokens/s (per 8×H100 host)} = 8 \times 2{,}472 \approx 19{,}800 \text{ tokens/s}
 $$
 
-or, equivalently, `8 × 346 TFLOPS ≈ 2.77 PFLOPS` sustained ÷ 140 GFLOP/token. [DERIVED: per-GPU × 8; **idealized aggregate, first-order only**]
+or, equivalently, `8 × 346.15 TFLOPS ≈ 2.77 PFLOPS` sustained ÷ 140 GFLOP/token (19,780 before the 19,800 rounding). [DERIVED: per-GPU × 8; **idealized aggregate, first-order only**]
 
 For 10 rps with 9.2K input tokens each, the prefill demand is ~92,000 tokens/s (from the canonical workload). At ~19,800 tokens/s per host, we would need roughly:
 
@@ -176,7 +176,7 @@ At the peak 40 rps (368,000 tokens/s) the same arithmetic gives ~18.6 → **19 h
 
 Under case (ii) the compute screen **binds above** the KV-residency / Little's-Law fleet sizing derived in Chapter 17 (⌈344/17⌉ = 21 hosts at peak, the full-utilization screen; 31 working / 32 total at the 70% × 95% policy), so the capacity floor is the *max* of the named screens — **21 hosts under case (i) and case (iii), 22 under case (ii)** — with the cost basis in Chapter 16 pricing both (~$155,816.93/mo ≈ $24.97/1K at 21 hosts; ~$162,760.59/mo ≈ $26.08/1K at 22 — illustrative included-cost on the canonical 6.24M-req/mo basis, Ch 16; the two totals do not scale linearly with host count: each host adds ~$6,943.67/mo of capex and energy while the $10,000/mo staff allocation is fixed, Ch 16). That two fundamentally different constraints (prefill FLOP throughput vs. KV residency/service time) land within one host of each other for cases (ii) and (iii) — and two hosts apart for case (i) — is the useful cross-check that they point at the same order of fleet. **Host counts, scannable (Ch 16/17).** Full-utilization compute screens, cases (i) / (iii) / (ii): **19 / 21 / 22**. The policy behind them, stated once (Ch 16/17): with N full-utilization hosts, **total = ⌈N ÷ (0.7 × 0.95)⌉ = ⌈N ÷ 0.665⌉** and **working = total − 1** (one host held for failure reserve). Written as working/total pairs: case (i) N = 19 gives 28/29 compute and 31/32 for the fleet (N = 21); case (iii) N = 21 gives 31/32; case (ii) N = 22 gives 33/34; the KV-only N = 21 gives 31/32. The utilization-only (ρ = 1, no 95% N+1 term) screen is total = ⌈N ÷ 0.7⌉ — 30 for KV-only, 32 for case (ii) — and is reported as a floor, not a deployment count. All of these are illustrative planning screens under the stated FLOP-counting case and the 35% MFU assumption — NOT measured SLO-goodput.
 
-**Honest boundary on both numbers.** The per-GPU `2,471 tokens/s` is itself an *analytical* figure at an assumed 35% MFU — not a measured throughput. The `8×` aggregate (`~19,800`/host) is a **theoretical first-order estimate** that assumes perfect tensor-parallel scaleout: it does **not** account for TP communication, per-rank load imbalance, kernel inefficiency under a given batch, or scheduling/system overhead. It is an upper-bound analysis value, not a servable goodput. Actual reachable prefill throughput must come from benchmark goodput under the target workload (Chapter 14). Treat both numbers as scope-disciplined *models*, never as measured capacity — and treat every host count they produce (listed in the preceding paragraph) as an **illustrative planning screen under its stated FLOP-counting case and the 35% MFU assumption, not measured SLO-goodput**.
+**Honest boundary on both numbers.** The per-GPU `2,472 tokens/s` is itself an *analytical* figure at an assumed 35% MFU — not a measured throughput. The `8×` aggregate (`~19,800`/host) is a **theoretical first-order estimate** that assumes perfect tensor-parallel scaleout: it does **not** account for TP communication, per-rank load imbalance, kernel inefficiency under a given batch, or scheduling/system overhead. It is an upper-bound analysis value, not a servable goodput. Actual reachable prefill throughput must come from benchmark goodput under the target workload (Chapter 14). Treat both numbers as scope-disciplined *models*, never as measured capacity — and treat every host count they produce (listed in the preceding paragraph) as an **illustrative planning screen under its stated FLOP-counting case and the 35% MFU assumption, not measured SLO-goodput**.
 
 **The 1.08 s budget versus the 35% planning rate.** The canonical prefill takes about 1.08 s for 9.2K input tokens (Ch 4) — a rate of 9,200 ÷ 1.08 ≈ 8,519 input tokens/s on the request leg, which is 1.288 PFLOP ÷ 1.08 s ÷ 8 GPUs ≈ 149 TFLOPS/GPU ≈ **15% MFU**, not the 35% used above. The two numbers measure different things and must not be mixed: 1.08 s is the *prefill compute budget* inside the 1.2 s TTFT after the ~120 ms retrieval allocation — queueing, scheduling, tokenization and admission overhead are scoped out of it and live in the 1.2 s residual (Ch 4, Table 4-2; Ch 5/6), so the 149 TFLOPS/GPU it implies is a lower bound on the required prefill rate — while ~19,800 tokens/s/host is the *sustained planning rate* for capacity arithmetic. Size the host screens against the planning rate; if a deployment sustained only the 1.08 s-implied rate, the peak prefill demand of ~51.6 PFLOP/s (1.288 PFLOP × 40 rps) would need 51.6 ÷ 1.19 = 43.4 → ⌈43.4⌉ = **44 hosts**, not 19 — the gap a benchmark (Ch 14) has to close before either number is quoted as capacity. [DERIVED]
 
@@ -271,7 +271,7 @@ The architectural consequence is the *scaling*, not the absolute figure: extend 
 
 ## 8. End-of-Chapter Mini-Case: Continuous Deployment Scenario
 
-An architect is brought into an ongoing deployment of a 70B-class Q&A system on a fleet of 8×H100 GPU nodes (tensor-parallel 8 per node; at ~10 rps the prefill leg alone demands ~12.9 PFLOP/s, so the fleet spans several nodes — Ch 24's prefill screen: 1.63 nodes at 100% MFU, ~5 at 35% MFU). The system is serving ~10 requests/s average with ~9.2K input + 300 output tokens per request, and the TTFT budget is being missed: p95 TTFT is 2.8 s, exceeding the 2 s p95 TTFT SLO (the 1.2 s figure is the internal design budget). The TPOT of 28 ms/token is within the 35 ms p95 TPOT SLO (though above the 25 ms design budget), but the prefill delay is the bottleneck.
+An architect is brought into an ongoing deployment of a 70B-class Q&A system on a fleet of 8×H100 GPU nodes (tensor-parallel 8 per node; at ~10 rps the prefill leg alone demands ~12.9 PFLOP/s under case (i) linear-only, so the fleet spans several nodes — §8.3.4's prefill screen: 1.63 nodes at 100% MFU, ~5 hosts at 35% MFU under case (i); case (ii) full-square attention gives ~6 hosts at the same 10 rps, per the case table, and Ch 24 §3.3 carries the 40 rps peak form of the same screen at 40% MFU). The system is serving ~10 requests/s average with ~9.2K input + 300 output tokens per request, and the TTFT budget is being missed: p95 TTFT is 2.8 s, exceeding the 2 s p95 TTFT SLO (the 1.2 s figure is the internal design budget). The TPOT of 28 ms/token is within the 35 ms p95 TPOT SLO (though above the 25 ms design budget), but the prefill delay is the bottleneck.
 
 The temptation is to reach for a roofline and "prove" prefill is memory-bound. That reasoning is wrong here, and the error is worth naming: it is spread by treating prefill like token-by-token decode. In decode, each new token re-reads the weight matrix from HBM, so the arithmetic intensity is ~1 FLOP/byte — genuinely memory-bound. In prefill, the weight matrix is read *once* and reused across the whole sequence; the sequence dimension supplies the matrix-matrix reuse. Prefill's **weight-only** effective intensity is `(2 × N × L) / (N × 2 bytes/param)` = `L` = **9,200 FLOP/byte** at the canonical 9.2K context; including the ~24 GB KV write it is ~**7,850** FLOP/byte — both far above the ~295 FLOP/byte dense-FP16 ridge, ~1.5 orders of magnitude. At that operating point prefill is compute-bound, exactly as the rest of this chapter teaches.
 
