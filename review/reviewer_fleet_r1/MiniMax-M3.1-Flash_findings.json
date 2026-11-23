@@ -1,0 +1,145 @@
+[
+ {
+  "id": "F-001",
+  "severity": "P1",
+  "dimension": "(b) arithmetic error",
+  "page": 148,
+  "chapter": "8",
+  "evidence": "the decode intensity is (164·b)/(140 + 24·b) FLOP/byte — (164 GFLOP × b) ÷ (140 GB + 24 GB × b) for batch b, where 164 = 140 linear + 24 attention — which saturates at ~6.8 FLOP/byte as b→∞",
+  "issue": "The stated saturation value is wrong: 164 ÷ 24 ≈ 6.83, but the formula as written (164·b)/(140 + 24·b) has limit 164/24 ≈ 6.83 FLOP/byte only if the numerator's coefficient is 164 and the denominator's b-coefficient is 24 — however the expression is dimensionally inconsistent (FLOP per batch element mixed with GB), and the stated KV figure of ~24 GB per sequence is wrong for the canonical case because KV at 9.2K in FP16 is ~24.1 GB per sequence but the decode KV read is per-token-step over the whole prefix, making the numerator's KV-flops term (24 GFLOP/token) inconsistent with the ~24 GB KV-read denominator at batch 1; the ratio only coincidentally lands near 6.8.",
+  "fix_instruction": "State the decode intensity derivation explicitly and consistently: with per-token FLOPs F=164 GFLOP and per-sequence bytes B=140 GB (weights) + 24.1 GB (KV re-read), intensity(b) = (F·b)/(140 + 24.1·b) GB-scale, limit = F/24.1 ≈ 6.8 FLOP/byte, and label it a weight+KV-traffic upper bound; do not mix GFLOP/GB units without stating the normalization.",
+  "confidence": "med"
+ },
+ {
+  "id": "F-002",
+  "severity": "P1",
+  "dimension": "(a) internal contradiction",
+  "page": 67,
+  "chapter": "3",
+  "evidence": "Dense 70B: KV cache ~1.31 MB per token × 9,200 tokens ≈ 12.06 GB (at 8-bit, the raw tensor byte-halving figure = 1.31 MB/token, exactly 50% of FP16 …) or ~24 GB (at FP16 precision …)",
+  "issue": "Chapter 3 uses a full-MHA 80-layer/8192-hidden geometry for the dense 70B and reports ~12.06 GB KV at 9.2K tokens, yet the same chapter's Table 3-3 and the Ch. 7 canonical ledger fix the dense 70B's KV per token at 2.62 MB (FP16) / 1.31 MB (8-bit) on an 80-layer full-MHA model; the two are numerically consistent only if the 8-bit assumption is stated, but Ch. 3's phrase \"at 8-bit, the raw tensor byte-halving figure = 1.31 MB/token, exactly 50% of FP16\" is then also applied to the MoE challenger as \"0.0655 MB/token at 8-bit\" while the canonical dense figure of 2.62 MB/token in Table 4-2 is FP16 — the chapter mixes precision bases in one sentence without the 8-bit qualifier being carried into the \"~24 GB\" alternative.",
+  "fix_instruction": "In §3.3.3, label every KV figure with its precision inline (e.g. \"~24.1 GB at FP16 / ~12.06 GB at 8-bit\") and remove the bare \"~24 GB\" phrasing so the chapter cannot be read as contradicting Table 4-2's 24.1 GB FP16 canonical figure.",
+  "confidence": "med"
+ },
+ {
+  "id": "F-003",
+  "severity": "P2",
+  "dimension": "(d) broken cross-reference",
+  "page": 79,
+  "chapter": "3",
+  "evidence": "the full treatment is in Ch 27.",
+  "issue": "Chapter 3 §3.1.1 refers to \"Ch 27\" for the alternative-inference treatment, but the book's table of contents contains no Chapter 27 (chapters run 1–26, then Appendix A, Glossary, References, Sources/Method/Reproducibility, and the Architecture Worksheet), so the cross-reference does not resolve.",
+  "fix_instruction": "Either retarget the two \"Ch 27\" references (Ch. 3 §3.1.1 and the §3.2 cross-reference line \"return through the cross-references in Ch 27\") to the actual location of the alternative-inference treatment (Appendix A's alternative-inference note), or add the missing chapter and update the Contents list.",
+  "confidence": "high"
+ },
+ {
+  "id": "F-004",
+  "severity": "P2",
+  "dimension": "(d) broken cross-reference",
+  "page": 112,
+  "chapter": "4",
+  "evidence": "(Ch 24's prefill screen: 1.63 nodes at 100% MFU, ~5 at 35% MFU)",
+  "issue": "Chapter 4 §4.8 cites \"Ch 24's prefill screen\", but there is no Chapter 24 — the prefill screen is developed in Chapter 8 (Compute), and Chapter 24 is \"Red Team / Green Team\" in the Contents.",
+  "fix_instruction": "Change \"Ch 24's prefill screen\" in §4.8 to \"Ch 8's prefill screen\" and add a real cross-reference to Ch. 24 only if a red-team item is intended there.",
+  "confidence": "high"
+ },
+ {
+  "id": "F-005",
+  "severity": "P2",
+  "dimension": "(b) arithmetic error",
+  "page": 69,
+  "chapter": "3",
+  "evidence": "KV cache per request (9.2K ctx, 8-bit) … ~12 GB … dense 80L/8192H full-MHA = 1.31 MB/token × 9,200 ≈ 12.06 GB",
+  "issue": "Table 3-3's dense row labels the KV figure \"(9.2K ctx, 8-bit)\" and gives \"~12 GB\", but the same row's derivation text also states the FP16 resident-slot figure (~24.9 GB at 9.5K) used elsewhere in the book; more importantly the row header omits that 12 GB is 8-bit only, so a reader comparing it against the canonical ledger's \"24.1 GB @ 9.2K input-only (FP16)\" sees an unexplained factor-of-2 discrepancy.",
+  "fix_instruction": "Split Table 3-3's KV row into two explicitly precision-labelled rows (FP16 ≈ 24.1 GB at 9.2K; 8-bit ≈ 12.06 GB at 9.2K) so the table cannot be misread against Table 4-2's FP16 canonical value.",
+  "confidence": "med"
+ },
+ {
+  "id": "F-006",
+  "severity": "P2",
+  "dimension": "(e) unclear/ambiguous sentence",
+  "page": 19,
+  "chapter": "Preface",
+  "evidence": "Prefill latency is not interchangeable with TTFT: prefill is a component of, not identical to, the user-observed TTFT. In the book's convention (Ch. 2, 4), TTFTe2e = retrieval + admission/queue + tokenization/transfer+prefill+first decode step, and the canonical 1.2 s budget names the two dominant modeled terms (retrieval ∼120 ms + prefill ∼1.08 s).",
+  "issue": "The equation string \"tokenization/transfer+prefill+first decode step\" is missing spaces around the plus signs and mixes a slash-joined pair with space-joined terms, making the summation ambiguous as to whether \"tokenization/transfer\" is one term; the text then lists only two terms as \"dominant\", leaving the reader unclear how \"first decode step\" relates to the 1.2 s budget.",
+  "fix_instruction": "Rewrite as a clean sum with consistent separators, e.g. \"TTFT_e2e = retrieval + admission/queue + tokenization + transfer + prefill + first decode step\", and state explicitly which terms are included in the 1.2 s canonical budget and which are outside it.",
+  "confidence": "high"
+ },
+ {
+  "id": "F-007",
+  "severity": "P2",
+  "dimension": "(f) rendering artifact",
+  "page": 106,
+  "chapter": "5",
+  "evidence": "undercontinuousbatching(prefillofonerequestoverlappingdecodeofanother), onacombinedprefill+decodebasisthesamehostmoves50×(1 + 9, 200/300)≈1, 583tok/s≈285, 000tokens/ (one hour of host time at that rate)",
+  "issue": "A run of text in the §5.3.2 economics derivation has lost all inter-word spaces (\"undercontinuousbatching(prefillofonerequestoverlappingdecodeofanother)…≈1, 583tok/s\"), and \"9, 200\" and \"1, 583\" contain spurious internal spaces after the comma — a text-layer rendering defect that makes the sentence unreadable.",
+  "fix_instruction": "Re-flow or re-typeset this paragraph so spaces are preserved and thousands separators are not broken (\"9,200\", \"1,583\"); check the source-to-PDF text run for a missing-space or kerning/ligature issue in that block.",
+  "confidence": "high"
+ },
+ {
+  "id": "F-008",
+  "severity": "P1",
+  "dimension": "(a) internal contradiction",
+  "page": 151,
+  "chapter": "7",
+  "evidence": "a 70B-parameter teaching model that stores 98% of parameters in MXFP4 and 2% in BF16 … needs 39.24375 GB of compact weight storage rather than 140 GB. Retaining this chapter's full-MHA, BF16 KV assumptions (80 layers, KV width 8192, 9,500 tokens per sequence) leaves raw KV at 24.90368 GB per sequence. In a 640 GB aggregate pool with a fixed 64 GB reserve, the storage-only integer ceiling rises from 17 sequences to 21",
+  "issue": "The KV budget after weight compression should be 640 − 39.24375 − 64 ≈ 536.76 GB, giving 536.76 ÷ 24.90368 ≈ 21.5 (floor 21), but the text jumps from the raw KV figure to the ceiling \"21\" without showing the intermediate budget; and elsewhere (Ch. 7 §7.1 and Fig. 7.7) the concurrency ceiling of 17.5/17 is tied to the 436 GB budget, so a reader cannot verify why the reserve stays \"fixed at 64 GB\" when the weight footprint dropped by ~100 GB — the text leaves the reserve assumption unexplained and unstated as a limitation.",
+  "fix_instruction": "Show the arithmetic explicitly (640 − 39.24375 − 64 = 536.76 GB KV budget; 536.76 ÷ 24.90368 = 21.55 → floor 21) and state that the 64 GB runtime reserve is held constant as an explicit assumption, noting that per-rank fit and fragmentation were not validated.",
+  "confidence": "med"
+ },
+ {
+  "id": "F-009",
+  "severity": "P2",
+  "dimension": "(c) unsupported/overreaching claim",
+  "page": 98,
+  "chapter": "6",
+  "evidence": "the population p99 of the stated 99 % log-normal + 1 % straggler mixture is 5.0 s (one extra straggler, 101 of 10,000, moves the sample p99 to 5.0 s too)",
+  "issue": "The parenthetical is internally inconsistent: it states the population p99 is 5.0 s, but then says 101 stragglers out of 10,000 \"moves the sample p99 to 5.0 s too\" — with N=10,000 the 99th percentile rank is 9,900, so 101 stragglers would leave the sample p99 interpolated near the boundary rather than exactly at 5.0 s; the claim is presented as a fact about sampling behaviour without an explicit [ILLUSTRATIVE] tag in that sentence.",
+  "fix_instruction": "Restate the sampling statement precisely (e.g. \"with 100 stragglers the sorted-sample p99 interpolates at 1.33 s; with 101 stragglers the rank-9,900 draw is itself a straggler, so the sample p99 becomes 5.0 s\") and tag the mixture assumption as [ILLUSTRATIVE].",
+  "confidence": "med"
+ },
+ {
+  "id": "F-010",
+  "severity": "P2",
+  "dimension": "(a) internal contradiction",
+  "page": 59,
+  "chapter": "4",
+  "evidence": "The canonical workload is KV-capacity- and prefill-dominated because of that long context, not because of the ratio … under the canonical timing assumptions prefill is not the dominant wall-clock component of an individual request. Prefill takes about 1.08 s, while generating the 300-token answer takes about 7.5 s (300 × 25 ms/TPOT) — so decode is the dominant per-request wall-clock component (~87% of the ~8.58 s total).",
+  "issue": "The same paragraph calls the workload \"prefill-dominated\" and then states decode dominates wall-clock at ~87%, without resolving which quantity the word \"dominated\" refers to; earlier in the same section (Ch. 4 §4.3 token profile) the text also says the canonical workload's dominant demands are \"prefill compute and KV-memory capacity\", so \"dominated\" is used for three different senses in one page.",
+  "fix_instruction": "Replace \"prefill-dominated\" with an explicit qualifier (e.g. \"prefill-FLOP- and KV-capacity-dominated, but decode-latency-dominated\") and add a one-line note that the three senses (FLOP share, capacity pressure, wall-clock share) are distinct quantities.",
+  "confidence": "med"
+ },
+ {
+  "id": "F-011",
+  "severity": "P2",
+  "dimension": "(b) arithmetic error",
+  "page": 150,
+  "chapter": "7",
+  "evidence": "the GQA FP16 line reaches that budget only at ~1.32M tokens",
+  "issue": "The GQA FP16 KV rate is ~0.33 MB/token (more precisely 2×80×1024×2 = 327,680 B = 0.32768 MB/token); 436 GB ÷ 0.32768 MB = ~1,330,688 tokens ≈ 1.33M, not ~1.32M — the figure is off by roughly 10,000 tokens and does not match the stated 0.33 MB/token constant used elsewhere in the same figure caption (2.62 → 0.33 MB/tok).",
+  "fix_instruction": "Recompute using the exact byte constant (436 × 10^9 ÷ 327,680 = 1,330,688 tokens ≈ 1.33M) and state \"~1.33M tokens\" in the figure annotation and caption.",
+  "confidence": "med"
+ },
+ {
+  "id": "F-012",
+  "severity": "P3",
+  "dimension": "(e) unclear/ambiguous sentence",
+  "page": 81,
+  "chapter": "4",
+  "evidence": "a 70B dense full-MHA model is a teaching/reference model, not a representative 2026 production 70B: GQA/MQA and sparse attention shrink the KV constant several-fold (Ch 7), so ~2.62 MB/token is a deliberate upper bound and Appendix A is its deliberate relaxation — not a correction.",
+  "issue": "\"Appendix A is its deliberate relaxation\" is a dangling reference: it does not say which Appendix A section or figure performs the relaxation, so a reader cannot verify the claim or locate the alternative constants.",
+  "fix_instruction": "Name the specific Appendix A subsection/figure (e.g. \"Appendix A §A.2's vendor-relative KV/compute ratios (Fig. A.2)\") wherever the relaxation is invoked.",
+  "confidence": "med"
+ },
+ {
+  "id": "F-013",
+  "severity": "P3",
+  "dimension": "(d) broken cross-reference",
+  "page": 87,
+  "chapter": "4",
+  "evidence": "On the API basis the request cost is driven by the 9.2 K input tokens: if the input token count could be reduced to 2 K … cost per request drops to ~$0.003",
+  "issue": "The stated result does not follow from the inputs given on the same page: $1.20 per 1M input tokens × 2,000 tokens = $0.0024 input, plus $2.00 per 1M output × 300 tokens = $0.0006, giving ≈$0.003 — but the page's earlier worked value for 9.2K input was \"~$0.01164 ≈ $0.012 per request\", and $1.20 × 9.2 = $11.04 per 1M-equivalent plus $0.60 = $11.64 per 1K, i.e. $0.01164 — the chapter's own numbers are consistent, yet the drop from $0.012 to $0.003 (a 4× reduction) is not shown, and the more relevant point (the input leg dropping from $0.01104 to $0.00240) is left unstated.",
+  "fix_instruction": "Show the reduction arithmetic explicitly (input leg $0.01104 → $0.00240; total $0.012 → $0.003) so the ~4× improvement is auditable from the page's own numbers.",
+  "confidence": "low"
+ }
+]

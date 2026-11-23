@@ -1,0 +1,567 @@
+{
+ "model": "GLM-5.3-Flash",
+ "own_findings": [
+  {
+   "id": "F1",
+   "severity": "P1",
+   "dimension": "(a) internal contradiction",
+   "page": "36",
+   "chapter": "Ch. 2 What Actually Happens During Inference",
+   "evidence": "the 140 GB weight matrix is re-read every step for a single token",
+   "issue": "The garden-hose metaphor asserts the entire 140 GB weight matrix is re-read every decode step, but the same paragraph's own parenthetical states the canonical 8xH100 host streams only a 17.5 GB/GPU shard, so the metaphor contradicts the host-level deployment arithmetic used elsewhere (Ch. 2 Table 2-1, Ch. 6 Table 6-1).",
+   "fix_instruction": "Rewrite the decode metaphor to say each GPU streams its own 17.5 GB weight shard per step (140 GB aggregate across the TP=8 host), and note the 140 GB figure is the single-device illustration.",
+   "confidence": "high"
+  },
+  {
+   "id": "F2",
+   "severity": "P1",
+   "dimension": "(a) internal contradiction",
+   "page": "97",
+   "chapter": "Ch. 6 Measuring What Matters",
+   "evidence": "a fleet sized for that peak — ~19–22 hosts (Ch 8 §3)",
+   "issue": "This states a 40 rps peak fleet of ~19–22 hosts (i.e., the fleet IS sized for the peak), but the very next sentence says 'prefill requests to queue on a fleet sized for that peak' with p95 TTFT drifting to ~2.5 s, which contradicts the premise that a peak-sized fleet would not queue prefills; Ch. 8's own screens (19/21/22) are full-utilization compute floors, not SLO-compliant p95 guarantees, so 'sized for that peak' overstates what those screens deliver.",
+   "fix_instruction": "Reword to 'a fleet provisioned at the full-utilization compute screen (~19–22 hosts, Ch 8 §3) — which is not an SLO-goodput guarantee, so residual queueing under bursts can still push p95 TTFT above target'.",
+   "confidence": "med"
+  },
+  {
+   "id": "F3",
+   "severity": "P2",
+   "dimension": "(a) internal contradiction",
+   "page": "30",
+   "chapter": "Ch. 1 It All Starts With the First Token",
+   "evidence": "At 9.2K tokens the raw byte-halving figure gives ~12.06 GB (not ~13.4 GB",
+   "issue": "Ch. 1 computes the 9.2K-token FP8 KV total as 9,200 × 1.31 MB = ~12.06 GB using a rounded 1.31 MB/token constant, while Ch. 3/Table 3-3 uses the exact 1,310,720 B/token (0.0655 MB/token for the MoE challenger) basis; the rounded-input figure slightly understates the exact byte value (9,200 × 1,310,720 = 12,058,624,000 B ≈ 12.06 GB, so this one checks), but the chapter simultaneously quotes both ~1.31 MB and exact-byte derivations without flagging which rounding feeds the 12.06 GB headline.",
+   "fix_instruction": "State once in Ch. 1 that the 12.06 GB figure derives from the exact 1,310,720 B/token (not the rounded 1.31 MB), so later chapters inherit the same rounding convention.",
+   "confidence": "low"
+  },
+  {
+   "id": "F4",
+   "severity": "P2",
+   "dimension": "(b) arithmetic inconsistency",
+   "page": "89",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "(6 × $20) ÷ (10 × 3600) ≈ ~$0.0033 per request at average, and (21 × $20) ÷ (40 × 3600) ≈ ~$0.0029 per request at peak",
+   "issue": "The parenthetical's own division yields 120/36,000 = $0.00333 and 420/144,000 = $0.0029167, but the surrounding sidebar (p. 60) derives ≈$14.04 per 1K requests for the 6-host fleet ($87,600 ÷ 6,240K = $14.04/1K = $0.01404 per request) — an order-of-magnitude discrepancy between the two owned-fleet per-request figures for the same 6-host/$20/hr configuration.",
+   "fix_instruction": "Reconcile the two per-request figures by stating the hourly-fleet-division figure ($0.0033) is the paid-occupancy active-hours basis while the $14.04/1K is the always-on monthly basis, and label each inline.",
+   "confidence": "high"
+  },
+  {
+   "id": "F5",
+   "severity": "P2",
+   "dimension": "(b) arithmetic check fails",
+   "page": "56",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "~$120/hour, giving ~2.76M input and ~90K output tokens per cloud dollar",
+   "issue": "At the stated ~$120/hour whole-fleet spend, output tokens per dollar is 3,000 tok/s ÷ (120/3600 $/s) = 90,000 output tokens per dollar, which matches, but the input figure 92,000 ÷ (120/3600) = 2,760,000 rounds to ~2.76M only if the fleet spend is exactly $120/hr — however the 6-host average is itself derived from a KV screen (5.06→6) whose rounding means the quoted tokens-per-dollar inherits an unstated ceiling assumption; the economic row presents this as a fleet property without the 'full-utilization KV-screen basis, no headroom' qualifier appearing until much later in the same dense cell.",
+   "fix_instruction": "Move the 'full-utilization KV-screen basis, no headroom, during active hours' qualifier to the front of the economic-constraints cell so the tokens-per-dollar figures cannot be quoted without it.",
+   "confidence": "med"
+  },
+  {
+   "id": "F6",
+   "severity": "P1",
+   "dimension": "(b) arithmetic error",
+   "page": "61",
+   "chapter": "Ch. 3 Understanding the Model",
+   "evidence": "a drop of 46 GB, ~32.9% of FP16 weight memory",
+   "issue": "140 GB − 94 GB = 46 GB is correct, but 46/140 = 32.857% which the text rounds to ~32.9% — correct — yet Table 3-3's MoE residency row simultaneously states ~94 GB as '47B × 2' while the MoE total is described as ~47B derived from '45.6B + ~1.4B' (= 47.0B), so 47.0 × 2 = 94.0 GB is consistent; however the mini-case (p. 65) repeats 'a 46 GB (~32.9%) saving' while Fig 3.4 labels inactive experts as '≈ 68 GB (6 × 11.4)' plus 'active experts ≈ 23 GB resident (2 × 11.4)' summing to 91 GB experts + 3 GB always-on = 94 GB, but 6 × 11.4 = 68.4 GB and 2 × 11.4 = 22.8 GB, so the figure's rounded '23 GB' and the body's 12.8B-active × 2 = 25.6 GB read-per-token conflate resident-active (22.8 GB) with read-per-token (25.6 GB) without reconciliation.",
+   "fix_instruction": "Add one sentence in Fig 3.4's caption distinguishing the 22.8 GB resident-active expert weights from the 25.6 GB batch-1 read-per-token figure (the extra ~2.8 GB being the 1.4B always-on parameters).",
+   "confidence": "med"
+  },
+  {
+   "id": "F7",
+   "severity": "P2",
+   "dimension": "(b) arithmetic error",
+   "page": "107",
+   "chapter": "Ch. 5 From Workload to Model Selection",
+   "evidence": "50 × (1 + 9,200/300) ≈ 1,583 tok/s ≈ 285,000 tokens/ (one hour of host time at that rate); the single-stream floor is 9,500/7.08 ≈ 1,342 tok/s ≈ 242,000 tokens/$",
+   "issue": "9,200/300 = 30.667, so 50 × 31.667 = 1,583.3 tok/s is correct, and 1,583 × 3600 ÷ 20 = 285,014 ≈ 285,000 is correct; the serial floor 9,500/7.08 = 1,341.8 and × 3600 ÷ 20 = 241,525 ≈ 242,000 is correct — but the 7.08 s denominator is itself derived from 1.08 s prefill + 6.0 s decode where 6.0 s assumes 20 ms/token (50 tok/s), which conflicts with the canonical 25 ms/token TPOT budget (300 × 25 ms = 7.5 s decode → 8.58 s total → 1,107 tok/s → ~199,000 tokens/$), so the 242,000 figure embeds an inconsistent 20 ms/token assumption nowhere declared in this chapter.",
+   "fix_instruction": "State explicitly that the 7.08 s floor uses the illustrative 20 ms/token (50 tok/s) rate rather than the canonical 25 ms TPOT budget, and give the 25 ms variant (~199,000 tokens/$) alongside.",
+   "confidence": "high"
+  },
+  {
+   "id": "F8",
+   "severity": "P2",
+   "dimension": "(a) internal contradiction",
+   "page": "106",
+   "chapter": "Ch. 5 From Workload to Model Selection",
+   "evidence": "a low-batch (single-stream) decode rate of ~50 tokens/s on 8×H100 with a 70B FP16 model",
+   "issue": "The chapter's own reconciliation note says the ~50 tok/s is 'above the canonical 40 tok/s batch-1 point (25 ms/token)', but Ch. 2's canonical host verdict computes decode shard time 17.5 GB / 3.35 TB/s = 5.2 ms of a 25 ms step, implying batch-1-equivalent ~40 tok/s is the budget point — an illustrative 50 tok/s (~20 ms/token) on the same host contradicts the 25 ms TPOT budget unless the faster rate is explained by batching, which the 'single-stream' label forbids.",
+   "fix_instruction": "Either relabel the 50 tok/s as a batched point or explain the mechanism (e.g., shorter context, KV in FP8) that lets single-stream beat the 25 ms batch-1 budget on the same host.",
+   "confidence": "med"
+  },
+  {
+   "id": "F9",
+   "severity": "P1",
+   "dimension": "(b) arithmetic error",
+   "page": "77",
+   "chapter": "Ch. 6 Measuring What Matters",
+   "evidence": "The two-point approximation of the mean is E[L] ≈ 0.99 × 0.8 + 0.01 × 5.0 ≈ 0.84 s",
+   "issue": "0.99 × 0.8 + 0.01 × 5.0 = 0.792 + 0.05 = 0.842 s ≈ 0.84 s is arithmetically correct, but the figure and several prose passages state 'mean = 0.85s' for the simulated stream while §6.3.1 says 'the mean hides the tail' with 'mean ≈ 0.84 s' — the text flags this discrepancy itself ('the figure's exact simulated stream mean ≈ 0.85 s'), yet Fig 6.2's caption and the Common-Mistakes bullet (p. 102) quote '~0.85 s mean (the figure's simulated stream; the two-point analytic approximation gives ~0.84 s' — the load-bearing percentile claim 'p99 ≈ 1.33 s' is also admitted to be a knife-edge interpolation artifact, with population p99 = 5.0 s, so presenting 1.33 s as 'the p99' in the figure without the population caveat visible in-figure is misleading.",
+   "fix_instruction": "Add the population-p99 = 5.0 s annotation directly inside Fig 6.2 (not only in body text) so the knife-edge sample-p99 caveat travels with the figure.",
+   "confidence": "high"
+  },
+  {
+   "id": "F10",
+   "severity": "P2",
+   "dimension": "(b) arithmetic verification",
+   "page": "130",
+   "chapter": "Ch. 7 Memory Is the First Constraint",
+   "evidence": "a rank holds 17.5 + 8 + 54.48 = 79.98 GB = 99.97% of an 80 GB rank",
+   "issue": "17.5 + 8 + 54.48 = 79.98 is correct and 79.98/80 = 99.975% ≈ 99.97% is correct; however the same technical note earlier states 'KV budget per rank: 436 ÷ 8 = ~54.5 GB' while the consumption figure is 54.48 GB (17.5 × 3.11296 = 54.4768), and the per-request KV per rank is quoted as '24.9 ÷ 8 = ~3.1 GB' where 24.9/8 = 3.1125 — but the byte-accurate per-request KV is 24.9037 GB (per the note's own '436 ÷ 24.9037 = 17.51'), so 24.9037/8 = 3.11296 GB matches the 3.11296 used in consumption; the residual inconsistency is that 436 ÷ 8 = 54.5 exactly yet the budget is elsewhere stated as 436 GB from 640 − 140 − 64, and 640 − 140 − 64 = 436 — consistent — but 17.51 × 3.11296 = 54.51 GB slightly exceeds the stated 54.48 GB consumption at 17.5 (not 17.51) slots, a rounding mismatch between the 17.5 and 17.51 slot counts used interchangeably.",
+   "fix_instruction": "Pick one slot count (17.51 analytical or 17.5 displayed) and recompute the 54.48/54.51 GB rank consumption consistently, noting the floor-17 deployment convention once.",
+   "confidence": "med"
+  },
+  {
+   "id": "F11",
+   "severity": "P2",
+   "dimension": "(b) arithmetic error",
+   "page": "145",
+   "chapter": "Ch. 8 Compute",
+   "evidence": "1.288 + 4 ×80 ×9,200² ×8,192 = 1.288 + 0.2219 [DERIVED; case (ii)",
+   "issue": "4 × 80 × 9,200² × 8,192 = 4 × 80 × 84,640,000 × 8,192 = 320 × 84,640,000 × 8,192 = 27,084,800,000,000 × 8,192 ≈ 2.2188 × 10^17 = 0.2219 PFLOP — this checks out; however the same table's case (iii) row '1.288 + 2 ×80 ×9,200² ×8,192 = 1.288 + 0.1109' gives 0.11094 PFLOP, and 1.288 + 0.1109 = 1.3989 as stated — both correct; the genuine mismatch is §8.3.3's claim the quadratic term is 'roughly +17% of the 1.29 PFLOP' while Table 8-1 states '+17.23%', and the mini-case (p. 175) says at 32K 'the attention term is ~+60%' — recomputing: 4 × 80 × 32,000² × 8,192 = 2.684 × 10^18 = 2.684 PFLOP vs linear 2 × 70e9 × 32e3 = 4.48 PFLOP, giving 2.684/4.48 = 59.9% ≈ +60% — correct — so the +17% family is consistent; no arithmetic error found here, but the '≈ 1.5 PFLOP full-square total, Ch 22 Table 22-1' forward reference (p. 100, Ch. 6) cannot be verified against the truncated document.",
+   "fix_instruction": "Verify the Ch. 22 Table 22-1 cross-reference resolves to a table containing the 1.5099 PFLOP full-square figure before publication.",
+   "confidence": "low"
+  },
+  {
+   "id": "F12",
+   "severity": "P1",
+   "dimension": "(b) arithmetic error",
+   "page": "90",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "($1.20 × 9.2 + $2.00 × 0.3) / 1,000 ≈ $0.01164 ≈ $0.012 per request",
+   "issue": "$1.20 × 9.2 = $11.04 and $2.00 × 0.3 = $0.60, summing to $11.64 per 1,000... but the formula divides by 1,000 when the per-million pricing already requires dividing by 1,000,000: (1.20 × 9,200 + 2.00 × 300)/1,000,000 = (11,040 + 600)/1e6 = $0.01164 — the written formula '($1.20 × 9.2 + $2.00 × 0.3) / 1,000' is dimensionally garbled (it treats 9.2K as 9.2 and then divides by 1,000 instead of 1,000,000), and the result $0.01164 is only correct if read as (1.20 × 9.2 + 2.00 × 0.3)/1,000 with 9.2 meaning 'thousands of tokens' — an unstated unit convention that contradicts the book's locked 'K = 1,000' SI convention declared on p. 60.",
+   "fix_instruction": "Rewrite as (9,200 × $1.20/1M) + (300 × $2.00/1M) = $0.01104 + $0.0006 = $0.01164 to match the K=1,000/M=1,000,000 convention.",
+   "confidence": "high"
+  },
+  {
+   "id": "F13",
+   "severity": "P2",
+   "dimension": "(b) arithmetic check",
+   "page": "78",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "⌈50 rps × 8.6 s / 17 slots⌉ = ⌈430/17⌉ = ⌈25.29⌉ = 26 hosts",
+   "issue": "50 × 8.6 = 430 and 430/17 = 25.294, ceiling 26 — correct; the 70% screen '⌈430/(17 × 0.7)⌉ = ⌈430/11.9⌉ = ⌈36.13⌉' gives 36.13 → 37 hosts — correct as written ('roughly ~37 hosts'); but the policy screen '⌈430/(17 × 0.70 × 0.95)⌉ = ⌈430/11.305⌉ = ⌈38.04⌉ = 39; Ch 17 Table 17-1 adds +1 for the N−1 spare → 40' — 17 × 0.7 × 0.95 = 11.305, 430/11.305 = 38.035, ceiling 39, +1 = 40 — correct; however the earlier canonical case (p. 77, §6.3.1 of Ch. 6 cross-ref) states the canonical 40 rps peak 'sizes to ~21 hosts full-util / ~31 working at the 70% × 95% policy (32 with N−1)' — ⌈344/17⌉ = ⌈20.24⌉ = 21 — correct; the 70%×95% variant: ⌈344/11.305⌉ = ⌈30.43⌉ = 31 working, 32 with spare — consistent; no error, but the mini-case's '~37 hosts on the u-only screen' vs the prefill cross-check '~24 hosts' are both labeled correctly as KV-bound dominating — internally consistent.",
+   "fix_instruction": "No fix required for arithmetic; optionally add the explicit 36.13→37 ceiling intermediate to match the style of the adjacent policy-screen derivation.",
+   "confidence": "low"
+  },
+  {
+   "id": "F14",
+   "severity": "P2",
+   "dimension": "(a) internal contradiction",
+   "page": "87",
+   "chapter": "Ch. 5 From Workload to Model Selection",
+   "evidence": "decode dominates single-stream wall-clock (~85% of 1.08 s + 6.0 s)",
+   "issue": "The parenthetical computes 6.0/(1.08+6.0) = 6.0/7.08 = 84.7% ≈ 85%, but the canonical scenario's decode time is 300 × 25 ms = 7.5 s (Ch. 4: 'decode is the dominant per-request wall-clock component (~87% of the ~8.58 s total)'), so this chapter's 6.0 s/85% figures use the 20 ms/token illustrative rate while Ch. 4's 87%/8.58 s uses the 25 ms canonical budget — two different decode wall-clock shares for the same workload presented without cross-reconciliation.",
+   "fix_instruction": "Add a scope note that the 6.0 s/85% figures are the 50 tok/s illustrative basis and cite Ch. 4's 7.5 s/87% canonical basis as the budget-point counterpart.",
+   "confidence": "high"
+  },
+  {
+   "id": "F15",
+   "severity": "P1",
+   "dimension": "(b) arithmetic error",
+   "page": "66",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "10 × 3,600 × 24 × 260/12 = 18,720,000",
+   "issue": "10 × 3,600 = 36,000; × 24 = 864,000; × 260 = 224,640,000; ÷ 12 = 18,720,000 — this checks out; however the same box computes the active-hours monthly volume '~6.24M active-hours requests/month (10 rps × 3,600 s × 8 h × 260 workdays ÷ 12 = 6,240,000' — 10 × 3,600 × 8 × 260 = 74,880,000, ÷ 12 = 6,240,000 — correct; and the sidebar's per-1K-req column '$87,600 ÷ 6,240K ≈ $14.04' — 87,600/6,240 = 14.038 — correct; the '$306,600 ÷ 24,960K ≈ $12.28/1K' — 306,600/24,960 = 12.283 — correct; but '$155,816.93 ÷ 6,240K ≈ $24.97' — 155,816.93/6,240 = 24.969 — correct; the remaining check 'the ~$15,000 budget row above is an illustrative per-host cap... one 8×H100 host at ~$20/hr × 730 hr ≈ $14.6K/mo' — 20 × 730 = 14,600 — correct; no error found in this cluster.",
+   "fix_instruction": "No fix required.",
+   "confidence": "low"
+  },
+  {
+   "id": "F16",
+   "severity": "P2",
+   "dimension": "(b) arithmetic error",
+   "page": "88",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "≈ 9,200 × 2.62 MB ≈ 24.1 GB of initial KV per request; a resident request also holds its 300 output tokens, so the slot-counting basis is 9,500 × 2.62 MB ≈ 24.9 GB",
+   "issue": "9,200 × 2,621,440 B = 24,117,248,000 B = 24.117 GB ≈ 24.1 GB — correct; 9,500 × 2,621,440 = 24,903,680,000 = 24.90 GB ≈ 24.9 — correct; but the concurrency quotient is stated as '436 GB ÷ 24.9 GB ≈ 17.5' where byte-accurate division gives 436/24.9037 = 17.5078 — consistent — yet Ch. 4 §5.3.2 quotes '~436/24.9 ≈ 17.5, i.e. 17 whole-slot concurrent' and Ch. 7's technical note quotes '436 ÷ 24.9037 = 17.51' — the two chapters use 24.9 vs 24.9037 interchangeably, and 436/24.9 = 17.510 vs 436/24.9037 = 17.508 — immaterial, but Ch. 4 §4.6 also states 'at 10 concurrent full-context requests the MHA figure is ~241 GB of KV on top of the 140 GB weights — 381 GB of the 640 GB pool' — 10 × 24.117 = 241.17 GB, + 140 = 381.17 — correct; however 'the pool presses well before concurrency reaches 100 (~17 full-context requests once the ~64 GB runtime is reserved: 436 GB ÷ 24.9 GB ≈ 17.5, floored to 17' is consistent; the genuine defect: 'the input-only 24.1 GB figure above would give 436 ÷ 24.1 ≈ 18' — 436/24.117 = 18.078 — correct as ≈18.",
+   "fix_instruction": "No arithmetic fix; harmonize the 24.9 vs 24.9037 GB notation across Ch. 4/7 to one decimal-place convention with the byte-accurate value stated once.",
+   "confidence": "low"
+  },
+  {
+   "id": "F17",
+   "severity": "P1",
+   "dimension": "(d) broken cross-reference",
+   "page": "32",
+   "chapter": "Ch. 3 Understanding the Model",
+   "evidence": "return through the cross-references in Ch 27",
+   "issue": "The book's table of contents (p. ii) ends at Chapter 26 plus Appendix A; Chapter 27 does not exist in the 519-page document, so the instruction to 'return through the cross-references in Ch 27' is a dangling reference.",
+   "fix_instruction": "Replace 'Ch 27' with the actual alternative-inference treatment location (Appendix A's alternative-inference note) or add the missing chapter.",
+   "confidence": "high"
+  },
+  {
+   "id": "F18",
+   "severity": "P2",
+   "dimension": "(d) broken cross-reference",
+   "page": "11",
+   "chapter": "Ch. 1 It All Starts With the First Token",
+   "evidence": "the canonical workload's concurrency ceiling is set by KV residency because of the long context, not by the input/output ratio — whether KV capacity dominates overall cost is what Ch 7/Ch 8 measurement confirms",
+   "issue": "Ch. 7 and Ch. 8 present analytical derivations and explicitly disclaim measurement ('Analytical bound — not a benchmark', p. 41; 'none are measurement claims', p. 142), so citing 'Ch 7/Ch 8 measurement' as the confirmer misstates those chapters' evidence status under the book's own Axis-3 taxonomy (ANALYTICAL vs MEASURED).",
+   "fix_instruction": "Reword to 'what the Ch 7/Ch 8 analytical screens establish (measurement pending, Ch 14)'.",
+   "confidence": "high"
+  },
+  {
+   "id": "F19",
+   "severity": "P2",
+   "dimension": "(e) unclear/ambiguous sentence",
+   "page": "40",
+   "chapter": "Ch. 2 What Actually Happens During Inference",
+   "evidence": "It is like pushing the water of that same 140 GB reservoir through a standard garden hose: the whole volume must flow every 25 milliseconds just to deliver one glass of water — one generated token.",
+   "issue": "The sentence's 'every 25 milliseconds' attaches ambiguously — it reads as the whole 140 GB flowing within each 25 ms window, which is the intended meaning, but 'just to deliver one glass of water' leaves unclear whether the glass is delivered at the end of each 25 ms interval or continuously; combined with the F1 contradiction (the canonical host streams 17.5 GB/GPU, not 140 GB), the metaphor's device scope (single GPU vs host) is never stated.",
+   "fix_instruction": "Rewrite as 'on a single device, the full 140 GB must stream within each 25 ms step to produce one token (on the canonical 8-GPU host, each GPU streams its 17.5 GB shard)'.",
+   "confidence": "med"
+  },
+  {
+   "id": "F20",
+   "severity": "P2",
+   "dimension": "(e) unclear/ambiguous sentence",
+   "page": "71",
+   "chapter": "Ch. 3 Understanding the Model",
+   "evidence": "and Muse Glimmer 30B ([2°][FACT], source: Meta model card, via vLLM-Recipes) is a dense 29.6B local-agentic model that runs in ~18 GB at ~5-bit weights [2°].",
+   "issue": "The sentence opens 'Qwen3.8-27B ([1P][FACT], model card: https://huggingface.co/Qwen/Qwen3.8-27B is a dense 27.8B model' — the opening parenthesis after 'Qwen3.8-27B' is never closed before the next clause begins ('and Muse Glimmer 30B...'), producing a run-on where the URL is fused into the predicate ('model card: https://... is a dense 27.8B model'), making the sentence grammatically broken and the provenance tag scope ambiguous (does [1P][FACT] cover the URL, the 27.8B count, or both?).",
+   "fix_instruction": "Close the parenthesis after the URL ('Qwen3.8-27B ([1P][FACT], model card: https://huggingface.co/Qwen/Qwen3.8-27B) is a dense 27.8B model...') and start a new sentence for Muse Glimmer 30B.",
+   "confidence": "high"
+  },
+  {
+   "id": "F21",
+   "severity": "P2",
+   "dimension": "(e) unclear/ambiguous",
+   "page": "72",
+   "chapter": "Ch. 3 Understanding the Model",
+   "evidence": "the active-weight working set for Qwen is ~6 × 10⁹ params × 2 bytes/param = ~12 GB read per batch-1 decode token — ~12× less per-token weight traffic than the canonical dense 70B (140 GB → 12 GB), and ~21× less than Qwen's own total weight footprint (~250 GB → 12 GB)",
+   "issue": "'~21× less' is arithmetically wrong as phrased: 250/12 ≈ 20.8 ≈ 21×, so the ratio is correct, but 'less' with a multiplicative comparator is a comparison-error construction (21× less than X would be X/21 stated confusingly); more substantively, the same paragraph later says the total is '~125 × 10⁹ params × 2 bytes/param ≈ 250 GB' — 125e9 × 2 = 250e9 B = 250 GB — correct, but the ratio claim '~12× less per-token weight traffic than the canonical dense 70B (140 GB → 12 GB)' uses 140/12 = 11.67 ≈ 12 — correct; the defect is stylistic ambiguity plus the undeclared switch from Qwen's stated 125B total to the earlier '125B total / 6B active' — internally consistent.",
+   "fix_instruction": "Rewrite '~21× less than' as '~1/21 of Qwen's own total weight footprint (~250 GB)' to remove the multiplicative-less construction.",
+   "confidence": "med"
+  },
+  {
+   "id": "F22",
+   "severity": "P2",
+   "dimension": "(b) arithmetic error",
+   "page": "44",
+   "chapter": "Ch. 3 Understanding the Model (Fig 3.3 page image)",
+   "evidence": "About 14B active per forward evaluation. If both experts stay on GPU: about 27B resident.",
+   "issue": "The figure's arithmetic is internally consistent (27B total, 14B active), but the figure caption in the text layer (p. 64) says 'official rounded counts (about 27B total, about 14B active), not an inferred per-expert split' while §3.6.2 (p. 62) says 'at about 27B total and about 14B active parameters as published (Wan2.2 source)' with [1P][FACT] — consistent — however Ch. 3's mini-case and Table 3-3's MoE column use an 8-expert top-2 split where '1 expert = 5.7B params ≈ 11.4 GB (FP16)' and '6 × 11.4 = 68.4 GB' is displayed as '≈ 68 GB' while '2 × 11.4' is displayed as '≈ 23 GB' — 22.8 rounds to 23 — correct; but '91 GB experts + 3 GB always-on = 94 GB' — 45.6 × 2 = 91.2 and 1.4 × 2 = 2.8 ≈ 3 — correct; no error in Fig 3.4's arithmetic.",
+   "fix_instruction": "No fix required for Fig 3.3/3.4 arithmetic.",
+   "confidence": "low"
+  },
+  {
+   "id": "F23",
+   "severity": "P2",
+   "dimension": "(b) arithmetic error",
+   "page": "63",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "decode alone is ~7.5 s versus ~1.08 s prefill, so end-to-end latency is decode-dominated",
+   "issue": "300 × 25 ms = 7.5 s — correct — and 7.5/(7.5+1.08) = 87.4% ≈ 87% as Ch. 4 states elsewhere; but this sentence (in Ch. 5's mini-case, p. 111 area) coexists with Ch. 5 §5.3.2's '6.0 s decode' and '~85%' figures — the same 300-token decode is 7.5 s in one chapter and 6.0 s in another with no flag at the point of use in the mini-case, violating the book's own rule that load-bearing contrasts are 'never relaxed'.",
+   "fix_instruction": "In the mini-case, either use the canonical 7.5 s figure or add an inline note that the 6.0 s variant assumes the illustrative 20 ms/token rate.",
+   "confidence": "high"
+  },
+  {
+   "id": "F24",
+   "severity": "P2",
+   "dimension": "(c) unsupported claim vs evidence labels",
+   "page": "57",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "for a 1 M-chunk corpus (a Ch 5-local illustrative input, not part of Table 4-2), the index storage for a D-dim float32 vector corpus is bytes = nchunks × D × 4. For 768-dim: 1×10⁶ × 768 × 4 = 3.07 GB; for 384-dim: 1×10⁶ × 384 × 4 = 1.54 GB; a difference of ~1.5 GB",
+   "evidence_note": "quote from p. 82 (Ch. 5 Table 5-1 discussion)",
+   "issue": "1e6 × 768 × 4 = 3.072e9 B = 3.07 GB — correct; 384-dim gives 1.536 GB — correct; difference 1.536 GB ≈ ~1.5 GB — correct; however the same passage claims 'At 10× the corpus (10 M chunks), that difference grows to ~15 GB' — 1.536 × 10 = 15.36 — correct; the unsupported element is the label '[ILLUSTRATIVE][DERIVED]' applied to a corpus size ('1 M-chunk') that the canonical scenario never defines and that later chapters (Ch. 5 mini-case, p. 111) then reuse as 'a 1 M-chunk corpus' as if established — a provenance drift from ILLUSTRATIVE one-off to de facto canonical input.",
+   "fix_instruction": "Add a note in the Ch. 5 mini-case that the 1 M-chunk corpus is the §5.3(a) illustrative input, not a canonical-scenario quantity.",
+   "confidence": "med"
+  },
+  {
+   "id": "F25",
+   "severity": "P2",
+   "dimension": "(b) arithmetic check",
+   "page": "82",
+   "chapter": "Ch. 5 From Workload to Model Selection",
+   "evidence": "~186–371 ms if encoded on a single CPU core at ~30–60 GFLOP/s sustained (~200 GFLOP/s is the AVX-512 theoretical peak, not a sustained rate), but only ~1.1 ms on a ~10 TFLOP/s GPU",
+   "issue": "11.14 GFLOP / 30 GFLOP/s = 0.371 s = 371 ms; / 60 = 186 ms — correct; GPU: 11.14e9 / 10e12 = 1.114 ms — correct; the threshold 'single-core encoding fits only above ≈92.8 GFLOP/s sustained per core (11.14 GFLOP ÷ 0.12 s)' — 11.14/0.12 = 92.83 — correct; but the passage says 'the incremental per-request compute cost... is ~11.1 GFLOP per 64-token query (2 × params × L: 14.08 − 2.94 GFLOP' — 14.08 − 2.94 = 11.14 — correct; the genuine defect: '14.08' derives from 2 × 110M × 64 = 14.08 GFLOP and '2.94' from 2 × 23M × 64 = 2.944 GFLOP, but Table 5-1 lists MiniLM as '~23M' params with '~2.9 GFLOPs' — 2 × 23e6 × 64 = 2.944e9 ≈ 2.9 — consistent; no arithmetic error found.",
+   "fix_instruction": "No fix required.",
+   "confidence": "low"
+  },
+  {
+   "id": "F26",
+   "severity": "P1",
+   "dimension": "(b) arithmetic error",
+   "page": "83",
+   "chapter": "Ch. 5 From Workload to Model Selection",
+   "evidence": "9,000 output tokens per dollar | 50 tok/s × 3600 s/hr ÷ $20/hr",
+   "issue": "50 × 3600 = 180,000; ÷ 20 = 9,000 — correct; but the same table row block includes 'Total tokens per dollar (single-stream decode + overlapped prefill; not the 10 rps fleet point) ~285,000 tokens per dollar ... 50 × (1 + 9,200/300) ≈ 1,583 tok/s × 3600 ÷ $20' — 1,583 × 3600 = 5,698,800; ÷ 20 = 284,940 ≈ 285,000 — correct — and 'Total tokens per dollar (serial single-stream floor, no overlap) ~242,000 ... 9,500/7.08 ≈ 1,342 tok/s × 3600 ÷ $20' — 1,342 × 3600 = 4,831,200; ÷ 20 = 241,560 ≈ 242,000 — correct; the error is the 7.08 s premise (see F7): it silently uses 6.0 s decode (20 ms/token), contradicting the canonical 25 ms/token budget that the same table's context column ('~24.1 GB (FP16 KV cache...)' [canonical scenario][DERIVED]) invokes.",
+   "fix_instruction": "Recompute the serial floor at the canonical 25 ms/token (8.58 s → 1,107 tok/s → ~199,000 tokens/$) or label the 7.08 s basis as the 20 ms/token illustrative rate inline.",
+   "confidence": "high"
+  },
+  {
+   "id": "F27",
+   "severity": "P2",
+   "dimension": "(a) internal contradiction",
+   "page": "111",
+   "chapter": "Ch. 8 Compute (mini-case)",
+   "evidence": "its arithmetic intensity is ~1 FLOP/byte — genuinely memory-bound. In prefill, the weight matrix is read once and reused across the whole sequence... Prefill's weight-only effective intensity is (2 × N × L) / (N × 2 bytes/param) = L = 9,200 FLOP/byte",
+   "issue": "The formula (2 × N × L)/(N × 2 B/param) simplifies to L FLOP/byte only if the denominator is total weight bytes N × 2 — giving 2NL/(2N) = L — arithmetically correct; but the same chapter's Table 8-1 and §8.3.5 give decode intensity ~1.0 FLOP/byte as 140 GFLOP / 140 GB — correct — while the mini-case earlier (Ch. 2, p. 47) states prefill intensity '~9.2K FLOP/byte ≫ ridge ~295' — consistent; the contradiction: Ch. 8 §8.1.2's boxed note says 'in a serving system prefill and decode from different requests overlap on the same devices, so the regimes coexist rather than partition the timeline', yet the mini-case's four-candidate diagnosis treats prefill as a cleanly separable phase for profiling without acknowledging the overlap caveat it stated one section earlier.",
+   "fix_instruction": "Add one sentence to the mini-case noting that under mixed serving, per-kernel profiles must attribute FLOPs/bytes to prefill vs decode requests before the four-candidate diagnosis applies.",
+   "confidence": "med"
+  },
+  {
+   "id": "F28",
+   "severity": "P2",
+   "dimension": "(e) unclear/ambiguous",
+   "page": "69",
+   "chapter": "Ch. 3 Understanding the Model",
+   "evidence": "This is not a memory-freeing lever unless offloading is in play.",
+   "issue": "The antecedent of 'This' is ambiguous — grammatically it points to the immediately preceding sentence ('The routed top-k fraction... sets the FLOPs per token (~25.6 GFLOP) and the active weight-read traffic (~25.6 GB...)'), but the intended referent is the active-parameter accounting itself; a reader can misparse 'This' as referring to the 25.6 GB traffic figure, inverting the meaning (the traffic figure is precisely not a memory lever; the accounting distinction is).",
+   "fix_instruction": "Replace 'This' with 'The active-parameter count' or 'This active/read accounting'.",
+   "confidence": "high"
+  },
+  {
+   "id": "F29",
+   "severity": "P2",
+   "dimension": "(f) rendering artifact / text-layer defect",
+   "page": "73",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload (Table 4-1, Latency row)",
+   "evidence": "(vector DB, same-region deployment) is an assumed estimate, not a measured figure. Traffic: the 10/40 rps are declared scenario inputs; the full walk-through is §4.3.)*",
+   "issue": "The derivation-notes parenthetical closes with a stray ')*' — an unmatched asterisk after the closing parenthesis (the matching '*' opener appears nowhere in the visible cell), leaving an orphan footnote-marker fragment in the rendered text layer.",
+   "fix_instruction": "Delete the stray trailing ')*' or restore the matching opening footnote marker.",
+   "confidence": "med"
+  },
+  {
+   "id": "F30",
+   "severity": "P2",
+   "dimension": "(f) rendering artifact",
+   "page": "56",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload (Table 4-1, Economic row)",
+   "evidence": "illustrative 2026 cloud-price input ($2.50/H100-GPU-hour, [canonical scenario] [ASSUMPTION], not a market fact) → $20/hr per 8-GPU node; $/1M and tokens-per-dollar values derived on the whole-fleet basis (rationale: derivation note beneath the table; §4.3, Ch 8/16–17)",
+   "issue": "The cell's dense text contains '(~2.76M input and ~90K output tokens per cloud dollar (full-utilization KV-screen basis, no headroom, during active hours — on the always-on monthly basis the same fleet yields ~655K input tokens per dollar; the 70% × 95% + N−1 policy fleet is 9 hosts avg / 32 peak: ...' with nested parentheses three levels deep and an em-dash clause that never closes its inner parenthesis before the cell ends — the rendered cell has unbalanced parentheses.",
+   "fix_instruction": "Break the economic-constraints cell into sub-bullets (price input / fleet derivation / tokens-per-dollar bases) to eliminate the triple-nested parenthetical.",
+   "confidence": "med"
+  },
+  {
+   "id": "F31",
+   "severity": "P1",
+   "dimension": "(a) internal contradiction",
+   "page": "60",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload (Canonical Workload box)",
+   "evidence": "Monthly budget | ~$15,000 (illustrative cap; not full workload budget — see the sidebar below)",
+   "issue": "The canonical box's own economic-constraints row (Table 4-1) sets the workload's economic dimension at fleet-level figures (~$120/hour, ~$87.6K–$306.6K/mo per the sidebar), while the box's 'Monthly budget ~$15,000' row names a per-host cap as the workload's monthly budget — the two coexist in the same authoritative reference box with only a cross-out pointer, so a chapter citing 'the canonical monthly budget' could validly quote either $15K or $306.6K; the box is supposed to be 'the one authoritative set of numbers every chapter disciplines on'.",
+   "fix_instruction": "Rename the row 'Per-host monthly cost (reference)' and move the workload-level monthly spend into the row, citing the sidebar's $87.6K–$306.6K range.",
+   "confidence": "high"
+  },
+  {
+   "id": "F32",
+   "severity": "P2",
+   "dimension": "(b) arithmetic error",
+   "page": "89",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload",
+   "evidence": "~19,800 × 3,600 / $20 ≈ ~3.56M prefill tokens per host-dollar",
+   "issue": "19,800 × 3,600 = 71,280,000; ÷ 20 = 3,564,000 ≈ 3.56M — correct; but the same bullet's denominator logic is flagged internally one paragraph earlier ('dividing the offered rate by one host's $20/hr would falsely imply a single host delivers it') — the 3.56M figure escapes that trap by using the host's own rate, yet the text then calls it 'a different quantity' without stating which denominator pairing is valid for what decision, leaving both ~2.76M (fleet) and ~3.56M (per-host) tokens-per-dollar figures live in the same chapter with opposite validity conditions.",
+   "fix_instruction": "Add a two-line decision rule: use ~2.76M/1M fleet basis for procurement comparisons, ~3.56M host basis only for per-host utilization questions.",
+   "confidence": "med"
+  },
+  {
+   "id": "F33",
+   "severity": "P2",
+   "dimension": "(c) unsupported/overreaching claim",
+   "page": "63",
+   "chapter": "Ch. 4 The Anatomy of an AI Workload (Table 4-2, KV per token row)",
+   "evidence": "[canonical scenario] [DERIVED] from the general KV formula at the canonical 80-layer, hidden-8192 full-MHA teaching geometry (2×80×8192×2 B); the geometry is a constructed reference, not a named vendor model",
+   "issue": "2 × 80 × 8192 × 2 = 2,621,440 B — correct — but the row labels the result '[canonical scenario][DERIVED]' while the row immediately above ('Model parameters 70B') is '[canonical scenario][ASSUMPTION] reference model' and the geometry rows (80 layers, hidden 8192) that DERIVED depends on are only declared as constructed in Ch. 7 Table 7-1 (p. 111), not in Table 4-2 itself — Table 4-2 omits the 80-layer/8192-hidden geometry rows entirely, so the DERIVED label rests on inputs not present in the ledger it claims authority for ('This is the authority for which is which').",
+   "fix_instruction": "Add the canonical geometry rows (n_layers = 80, hidden = 8192, full-MHA, [canonical scenario][ASSUMPTION]) to Table 4-2 so the 2.62 MB/token DERIVED row has its inputs in the same ledger.",
+   "confidence": "high"
+  },
+  {
+   "id": "F34",
+   "severity": "P2",
+   "dimension": "(b) arithmetic error",
+   "page": "76",
+   "chapter": "Ch. 6 Measuring What Matters",
+   "evidence": "0.99 × 0.8 + 0.01 × 5.0 ≈ 0.84 s — looks fine. But the distribution actually has a long tail: p50 ≈ 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s",
+   "issue": "The two-point mean is correct, but the percentile set is presented as properties of 'the distribution' while §6.3.1's own footnote concedes p99 ≈ 1.33 s is 'a knife-edge property of this N = 10,000 sample, not of the distribution' and 'population p99 → 5.0 s' — so the in-text percentile list contradicts the distribution it describes; additionally the two-point mean 0.842 is written '≈ 0.84 s' while the figure displays 'mean = 0.85s' and the Common Mistakes bullet says '~0.85 s mean (the figure's simulated stream; the two-point analytic approximation gives ~0.84 s' — three mean values (0.84 two-point, 0.842 exact, 0.85 simulated) circulate without a single reconciling statement at first presentation.",
+   "fix_instruction": "At first presentation (§6.3.1), state once: two-point analytic mean 0.842 s, simulated-stream mean 0.85 s, and that p99 is sample-dependent (population 5.0 s) before listing percentiles.",
+   "confidence": "high"
+  }
+ ],
+ "own_pages_found": [
+  "106",
+  "107",
+  "11",
+  "111",
+  "130",
+  "145",
+  "30",
+  "32",
+  "36",
+  "40",
+  "44",
+  "56",
+  "57",
+  "60",
+  "61",
+  "63",
+  "66",
+  "69",
+  "71",
+  "72",
+  "73",
+  "76",
+  "77",
+  "78",
+  "82",
+  "83",
+  "87",
+  "88",
+  "89",
+  "90",
+  "97"
+ ],
+ "n_missed": 33,
+ "missed_pages_top": [
+  {
+   "page": 10,
+   "others_found": [
+    {
+     "model": "Muse-Spark-Open",
+     "severity": "P2",
+     "issue": "List of Figures cites Fig 26.1 on page 431 but Ch.26 page range in Contents shows 427+ and Appendix A starts 447, making page 431 plausible but cross-reference to §2.1 in Preface reading conventions p"
+    }
+   ]
+  },
+  {
+   "page": 100,
+   "others_found": [
+    {
+     "model": "DeepSeek-V4.1-Flash",
+     "severity": "P3",
+     "issue": "The book's stated cross-reference convention is the '§ chapter.section' form; the bare '§7' on this page is malformed under that convention and, read literally as 'Chapter 7', does not contain the [UN"
+    }
+   ]
+  },
+  {
+   "page": 112,
+   "others_found": [
+    {
+     "model": "MiniMax-M3.1-Flash",
+     "severity": "P2",
+     "issue": "Chapter 4 §4.8 cites \"Ch 24's prefill screen\", but there is no Chapter 24 — the prefill screen is developed in Chapter 8 (Compute), and Chapter 24 is \"Red Team / Green Team\" in the Contents."
+    }
+   ]
+  },
+  {
+   "page": 129,
+   "others_found": [
+    {
+     "model": "HY4-Flash",
+     "severity": "P3",
+     "issue": "The unlabeled “17.5” in the sum is weights per rank in GB, while the immediately preceding “17.5” denotes concurrent requests, creating an ambiguous reused quantity."
+    }
+   ]
+  },
+  {
+   "page": 13,
+   "others_found": [
+    {
+     "model": "Muse-Spark-Open",
+     "severity": "P2",
+     "issue": "Ambiguous pronoun 'it' could refer to KV problem, memory question, or model-architecture question, violating ASD-STE100 pronoun clarity."
+    }
+   ]
+  },
+  {
+   "page": "13",
+   "others_found": [
+    {
+     "model": "Muse-Spark-Open",
+     "severity": "P2",
+     "issue": "Ambiguous pronoun 'it' could refer to KV problem, memory question, or model-architecture question, violating ASD-STE100 pronoun clarity."
+    }
+   ]
+  },
+  {
+   "page": 14,
+   "others_found": [
+    {
+     "model": "DeepSeek-V4.1-Flash",
+     "severity": "P3",
+     "issue": "The claim is labeled [1P][FACT] ('first-party: the model vendor's own spec') but no specific vendor model card is cited inline for the 8K-to-1M+ range; the label asserts a stronger provenance than the"
+    }
+   ]
+  },
+  {
+   "page": 148,
+   "others_found": [
+    {
+     "model": "MiniMax-M3.1-Flash",
+     "severity": "P1",
+     "issue": "The stated saturation value is wrong: 164 ÷ 24 ≈ 6.83, but the formula as written (164·b)/(140 + 24·b) has limit 164/24 ≈ 6.83 FLOP/byte only if the numerator's coefficient is 164 and the denominator'"
+    }
+   ]
+  },
+  {
+   "page": 15,
+   "others_found": [
+    {
+     "model": "Qwen3.8-Flash-Next",
+     "severity": "P3",
+     "issue": "Text-to-image rendering mismatch. The figure is rendered entirely in greyscale and lacks any color indicators (green or red), making the caption's descriptive directions physically impossible for the "
+    }
+   ]
+  },
+  {
+   "page": 150,
+   "others_found": [
+    {
+     "model": "MiniMax-M3.1-Flash",
+     "severity": "P2",
+     "issue": "The GQA FP16 KV rate is ~0.33 MB/token (more precisely 2×80×1024×2 = 327,680 B = 0.32768 MB/token); 436 GB ÷ 0.32768 MB = ~1,330,688 tokens ≈ 1.33M, not ~1.32M — the figure is off by roughly 10,000 to"
+    }
+   ]
+  },
+  {
+   "page": 151,
+   "others_found": [
+    {
+     "model": "MiniMax-M3.1-Flash",
+     "severity": "P1",
+     "issue": "The KV budget after weight compression should be 640 − 39.24375 − 64 ≈ 536.76 GB, giving 536.76 ÷ 24.90368 ≈ 21.5 (floor 21), but the text jumps from the raw KV figure to the ceiling \"21\" without show"
+    }
+   ]
+  },
+  {
+   "page": 180,
+   "others_found": [
+    {
+     "model": "Qwen3.8-Flash-Next",
+     "severity": "P1",
+     "issue": "Broken document truncation / rendering artifact. The text cuts off mid-paragraph at the bottom of the page with no conclusion, missing the transition into Section 9.1.1."
+    }
+   ]
+  },
+  {
+   "page": 19,
+   "others_found": [
+    {
+     "model": "MiniMax-M3.1-Flash",
+     "severity": "P2",
+     "issue": "The equation string \"tokenization/transfer+prefill+first decode step\" is missing spaces around the plus signs and mixes a slash-joined pair with space-joined terms, making the summation ambiguous as t"
+    }
+   ]
+  },
+  {
+   "page": 22,
+   "others_found": [
+    {
+     "model": "Muse-Spark-Open",
+     "severity": "P1",
+     "issue": "Linear FLOPs 2NL omits quadratic attention term 4*L^2*d*n_layers which at 9.2K adds ~0.22 PFLOP (+17%) making 1.29 PFLOP a lower bound mislabeled as total prefill FLOPs."
+    }
+   ]
+  },
+  {
+   "page": "33",
+   "others_found": [
+    {
+     "model": "MiMo-V2.6-Flash-RL",
+     "severity": "P1",
+     "issue": "The text references 'Ch 27' but the book's table of contents lists only Chapters 1–26 followed by Appendix A; the reference does not resolve to any chapter."
+    }
+   ]
+  }
+ ],
+ "total_unique_pages_in_fleet": 64
+}
