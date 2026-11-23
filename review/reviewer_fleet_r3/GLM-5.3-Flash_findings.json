@@ -1,0 +1,72 @@
+[
+ {
+  "id": "F01",
+  "severity": "P2",
+  "page": "132",
+  "chapter": "Ch 6 (Measuring What Matters), §6.8 mini-case",
+  "evidence": "p.132: 'The architecture is memory-sane at the 10 rps design point but was never compute-sized for it' with '(deployed host count H = 1)'. The book's own arithmetic: 10 rps → ~86 in-flight (Ch 4 p.90) vs 17 KV slots/host (436 ÷ 24.9, Ch 7 p.139), requiring ~6 hosts at 10 rps (Ch 4 p.98-99: 'the KV-residency screen (86 in-flight ÷ 17 slots = 5.06) is the binding bound and raises this to ~6 hosts').",
+  "issue": "The mini-case premise contradicts the book's own KV-residency/concurrency arithmetic: one host is not 'memory-sane' at 10 rps (86 in-flight vs 17 resident slots; the same paragraph computes a 4.7× prefill oversubscription at baseline, so SLOs were already breached before lunch). It commits exactly the single-request-fit vs concurrent-capacity conflation that Ch 7's fit note (p.139: 'this residency check answers a single-request question... It says nothing yet about how many such requests fit concurrently') warns against.",
+  "fix_instruction": "Reword the premise to 'the deployment passed the single-request residency check (≈165 GB < 640 GB) but was never sized for concurrency or compute', or set the deployed fleet to the canonical ~6 hosts and keep the lunch-peak failure.",
+  "confidence": "medium"
+ },
+ {
+  "id": "F02",
+  "severity": "P2",
+  "page": "133",
+  "chapter": "Ch 6 (Measuring What Matters), §6.8 mini-case",
+  "evidence": "p.133: 'an H-host fleet sized at 10 rps with H ≈ 5 would be ~3.7× oversubscribed at the peak' and 'hosts were raised from H = 1 to H = 19 (the Ch 8 case (i) screen), which took the peak from 18.6× to 51.6 ÷ (19 × 2.77) ≈ 1.0×'. The book's binding 10-rps fleet is 6 hosts (Ch 4 p.98-99), and the 40-rps peak KV floor is 21 hosts (Ch 8 p.169: 'the full-utilization KV-residency floor is ~21 hosts (Ch 17's floor-17 screen)'); 19 × 17 = 323 resident slots < 344 in-flight at the 40 rps peak.",
+  "issue": "The mini-case sizes fleets by the prefill-compute screen only and ignores the KV-residency screen the book itself applies: (a) 'H ≈ 5' should be 6 at 10 rps (peak oversubscription ~3.1×, not ~3.7×); (b) the remediation to H = 19 leaves ~21 of 344 peak in-flight requests unresidentsble (≈6% > 5%), so the claimed outcome 'p95 TTFT is back under 2 s' cannot hold under the book's own model (Ch 6 p.125 itself shows queuing pushes p95 past 2 s).",
+  "fix_instruction": "Use the binding screens (6 hosts at 10 rps; 21 at 40 rps) in the mini-case, or state explicitly that it tracks the compute screen only and that KV-residency sizing (Ch 17) adds hosts on top before the SLO-restoration claim.",
+  "confidence": "medium"
+ },
+ {
+  "id": "F03",
+  "severity": "P2",
+  "page": "161",
+  "chapter": "Ch 7 (Memory Is the First Constraint), §7.8 mini-case",
+  "evidence": "p.161: premise 'We need to let all 5,000 employees ask questions over our internal wikis.' followed by 'The next step — turning \"5,000 employees\" into ~2,000 registered users, ~100 concurrent typical / ~400 at peak, ~10 requests/s [canonical scenario][ASSUMPTION, from Ch 4 Table 4-2]'. Ch 4's mini-case (p.102-103) treats the same 5,000-employee headcount as a distinct growth scenario: 'Note this mini-case is a 5,000-employee growth scenario at 50 rps, distinct from the canonical 40 rps peak (which sizes to ~21 hosts full-util...)'.",
+  "issue": "Scenario bookkeeping contradiction: the identical '5,000 employees' ask is mapped here onto the canonical 2,000-user / 10-rps workload, while Ch 4 explicitly sizes 5,000 employees as a separate 50-rps / 26–40-host case; 5,000 cannot be 'turned into' 2,000 registered users.",
+  "fix_instruction": "Re-anchor the ask to a vague population (as Ch 1's mini-case does: 'thousands of employees'), or state that the canonical 2,000-user scenario is adopted as a modeling assumption despite the larger headcount, flagging the delta.",
+  "confidence": "high"
+ },
+ {
+  "id": "F04",
+  "severity": "P3",
+  "page": "103",
+  "chapter": "Ch 4 (The Anatomy of an AI Workload), §4.8 mini-case",
+  "evidence": "p.103: 'i.e. 2,472.5 per GPU, which Ch 8 Table 8-1 prints as ~2,471: the same rate rounded differently'. Table 8-1 (p.171) actually prints 'prefill throughput per GPU ~2,472 tokens/s … 346.15 TFLOPS ÷ 140 GFLOP/token = 2,472.5 → 2,472', and §8.3.4 (p.172) repeats '2,472.5 ≈2,472'. No occurrence of '2,471' exists in Ch 8.",
+  "issue": "Cross-reference misquotes its target: Ch 8 Table 8-1 prints ~2,472, not ~2,471, and 2,472.5 rounds to 2,472 — the claimed rounding discrepancy ('the same rate rounded differently') does not exist.",
+  "fix_instruction": "Change '~2,471' to '~2,472' and delete the 'the same rate rounded differently' clause.",
+  "confidence": "high"
+ },
+ {
+  "id": "F05",
+  "severity": "P3",
+  "page": "140",
+  "chapter": "Ch 7 (Memory Is the First Constraint), Table 7-1 'fits 3×H100 at 9.2K?' note",
+  "evidence": "p.140: 'the canonical 64-query-head / 8-KV-head geometry does not partition evenly into 3 ranks (64/3 = 21.3, 8/3 = 2.7…)'. The canonical teaching model is full-MHA — Table 4-2 (p.86): 'full-MHA reference model (K/V width = hidden_dim)… every query head keeps its own K,V'; Ch 7 itself (p.141-142): 'n_KV-heads = n_query-heads' for full MHA, and '8 KV-heads' is attributed to the GQA example ('LLaMA-2 70B… has 64 query heads but only 8 KV-heads').",
+  "issue": "Geometry mislabeled: the canonical full-MHA model has 64 KV heads (K/V width = hidden dim), not 8; the 64Q/8KV split belongs to the GQA sensitivity example. The 3-rank divisibility conclusion still holds (64/64 also fails), but the attribution is wrong.",
+  "fix_instruction": "Reword to 'the canonical 64-query-head full-MHA geometry (and the GQA variant's 64/8 head split alike) does not partition evenly into 3 ranks', or cite the GQA/LLaMA-2 example explicitly.",
+  "confidence": "medium"
+ },
+ {
+  "id": "F06",
+  "severity": "P3",
+  "page": "84, 109, 118, 128, 153, 154, 155, 161",
+  "chapter": "Chs 4–7 (cross-reference format, recurrence sweep)",
+  "evidence": "Bare single-part section refs, malformed under the book's own convention (Preface p.20: 'a bare § N.M refers to chapter N, section M'): Ch 5 p.118 uses both '(§5.3(a), §7)' (bullet 1) and '(§5.7)' (final paragraph) for the same open-questions target, and p.109 repeats 'the §5.3(a)/§7 item'; Ch 6 p.128: 'see §6 for the conditions under which it pays' (intended §6.6); Ch 7 p.153 '§1' twice ('decimal 80×10^9 B basis, §1… still fails — §1'), p.155 and p.161 once each (intended §7.1), p.154 '(§4 point 4)' (intended §7.4 item 4) — while the same chapter uses the full form '§7.3' (p.156). Also Ch 4 p.84: 'Appendix A §7's Fig A.2', a section form inconsistent with the Preface's 'A.3'/'A.6' usage (p.19); the List of Figures attests only figures A.1–A.5.",
+  "issue": "Cross-reference format violations with misread risk: under the stated convention a bare '§7' parses as Ch 7 §(nothing) and invites a Chapter-7 misread; bare '§1'/'§4'/'§6' are undefined forms; the Appendix A section naming is inconsistent with the rest of the book and its §7 target is unattested in the available front matter.",
+  "fix_instruction": "Expand every bare ref to the full form: §5.7 (pp.109, 118), §6.6 (p.128), §7.1 (pp.153 ×2, 155, 161), §7.4 (p.154); normalize 'Appendix A §7's Fig A.2' to the A.M form (e.g. 'Appendix A §A.7') or cite the section that actually hosts Fig A.2.",
+  "confidence": "high"
+ },
+ {
+  "id": "F07",
+  "severity": "P3",
+  "page": "67, 69, 78, 147",
+  "chapter": "Chs 3, 4, 7 (markup/footnote artifacts, recurrence sweep)",
+  "evidence": "Ch 7 p.147: 'Any inference residency after* fine-tuning is a separate weights+KV question, priced by Table 7-1.)*'; Ch 3 p.67: 'their resident* weight (2 × 11.4 GB = 22.8 GB…)' with the closing marker on p.69: 'holds the same ~0.6 GB.*'; Ch 4 p.78: 'a mid-tier* managed-API list price' with the closing marker 'the full walk-through is §4.3.)*'. No footnote text is anchored to any of these markers, whereas the book does anchor asterisk footnotes correctly elsewhere (e.g. Ch 4 p.83 sidebar: '≈ $24.97 *' → '* Peak-provisioned capacity ÷ average…').",
+  "issue": "Orphaned/misplaced asterisk markers: an asterisk opens mid-phrase after words that are not footnoted terms ('after', 'resident', 'mid-tier') and closes after the block's final period with no note text — broken emphasis or a dangling footnote marker.",
+  "fix_instruction": "Remove the orphaned asterisks or convert them to proper footnotes with anchored markers and note text (e.g. footnote the ~23 GB rounding of the two active experts' resident weight and the mid-tier vs frontier API price tier).",
+  "confidence": "medium"
+ }
+]

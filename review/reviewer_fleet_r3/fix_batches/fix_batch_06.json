@@ -1,0 +1,126 @@
+{
+ "target": "design/manuscript/chapter-06/chapter-06.md",
+ "findings": [
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "F-03",
+   "severity": "P2",
+   "page": 132,
+   "chapter": "Ch 6 §6.8 (p. 112) vs Ch 8 §8.3.4 (p. 153)",
+   "evidence": "Ch 6, PDF p. 132: \"so hosts were raised from H = 1 to H = 19 (the Ch 8 case (i) screen), which took the peak from 18.6× to 51.6 ÷ (19 × 2.77) ≈ 1.0×, and admission control held the residual queue inside the 2 s p95 TTFT SLO\" | Ch 8, PDF p. 173: \"Under case (ii) the compute screen binds above the KV-residency / Little's-Law fleet sizing derived in Chapter 17 (⌈344/17⌉ = 21 hosts at peak, the full-utilization screen; 31 working / 32 total at the 70% × 95% policy), so the capacity floor is the max of the named screens — 21 hosts under case (i) and case (iii), 22 under case (ii)\"",
+   "issue": "The Ch 6 mini-case resolves the canonical 40 rps peak by moving to exactly 19 hosts, which is the compute-only screen. Ch 8 explicitly states that the capacity floor is the MAX of the named screens and that under case (i) that floor is 21 hosts (the KV-residency / Little's-Law screen, ⌈344/17⌉ = 21). 19 hosts is therefore two hosts below the floor Ch 8 declares binding for the same workload and the same peak. The Ch 6 fix restores prefill compute (the ~1.0× figure is a prefill-capacity statement) but silently adopts a fleet size that Ch 8 says cannot carry the peak's 344 in-flight requests.",
+   "fix_instruction": "In Ch 6 §6.8, either raise H to 21 (and quote 51.6 ÷ (21 × 2.77) ≈ 0.9×), or state explicitly that 19 hosts closes the prefill/compute oversubscription only and that the KV-residency screen still requires 21 hosts (31 working / 32 provisioned at the 70% × 95% policy), cross-referencing Ch 8's max-of-screens rule.",
+   "confidence": "medium-high",
+   "_tid": "R3-012"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "F-08",
+   "severity": "P3",
+   "page": 123,
+   "chapter": "Ch 6 Fig 6.1 (p. 103) vs §6.1.1 (p. 101)",
+   "evidence": "Fig 6.1, PDF p. 123: \"Workload metrics | rps · token profile · concurrency | Resource metrics | HBM BW · MFU · KV occupancy · memory pressure | Serving metrics | TTFT · TPOT · goodput ... queue depth: scheduler state, not a serving metric\" | §6.1.1, PDF p. 121: \"1. Workload metrics — what the system is being asked to do. Requests per second (rps) and the token profile (input length, output length, context length). These are the independent variables — the offered load; we do not control them, we characterize them. Admitted concurrency is a serving/scheduler state (Little's law), not a workload input.\"",
+   "issue": "The figure places 'concurrency' in the Workload metrics box while the body text (a) enumerates workload metrics as rps and token profile only, and (b) explicitly assigns admitted concurrency to the serving/scheduler layer. The figure even draws attention to scheduler-state classification via its 'queue depth: scheduler state, not a serving metric' annotation, which makes the 'concurrency' placement read as a contradiction rather than an ambiguity. This is exactly the separation Ch 4 §4.3 insists on ('Concurrent users ≠ concurrent requests').",
+   "fix_instruction": "Remove 'concurrency' from the Workload metrics box in Fig 6.1, or relabel it 'offered concurrency' and add a matching annotation placing admitted/queued concurrency on the serving-scheduler side, so the figure and §6.1.1 classify it the same way.",
+   "confidence": "high",
+   "_tid": "R3-017"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "F-11",
+   "severity": "P3",
+   "page": 125,
+   "chapter": "Ch 6 §6.3.2 (pp. 105–106)",
+   "evidence": "PDF p. 125: \"Deploying a higher-throughput configuration can reduce goodput: goodput = raw_rate × compliant_fraction, so a throughput increase helps goodput only if the compliant fraction holds. ... Scenario A [ILLUSTRATIVE]: the extra 20 tok/s are produced, but they land in the tail that misses the SLO, so goodput does not grow. Raw throughput is up 40%; goodput (tokens that met the SLO) is effectively unchanged in this case\" | PDF p. 126: \"Scenario B [ILLUSTRATIVE]: if the compliant fraction falls from 96% to 94%, goodput is 50×0.96 = 48 vs 70×0.94 = 65.8 — it rises despite the p95 breach.\"",
+   "issue": "Neither scenario supports the section's opening claim that a higher-throughput configuration 'can reduce goodput': Scenario A leaves goodput unchanged and Scenario B raises it. Worse, Scenario A's 'unchanged' result requires a specific and unstated compliant fraction: to hold goodput at 50 × 0.96 = 48 with raw rate 70, the compliant fraction must fall from 96% to 48 ÷ 70 = 68.6%, a 27-point collapse — not the 2-point drop used in Scenario B. The two scenarios are therefore not comparable as presented, and the reader is left with 'goodput does not grow' for a reason that is never shown and is far more extreme than the adjacent scenario implies.",
+   "fix_instruction": "Either add a Scenario C that actually reduces goodput (state the compliant fraction that makes 70 × f < 50 × 0.96, i.e. f < 68.6%), or retitle the section to the claim the evidence supports ('a p95 breach does not determine goodput') and state Scenario A's implied compliant fraction (0.96 → 0.686) explicitly so the two scenarios are comparable.",
+   "confidence": "medium-high",
+   "_tid": "R3-020"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "F-12",
+   "severity": "P3",
+   "page": 126,
+   "chapter": "Ch 6 §6.3.1 and Fig 6.2 (pp. 104, 106)",
+   "evidence": "PDF p. 126 (Fig 6.2 caption): \"Reproducibility: the sample p99 of 1.33 s is contingent on exactly 100 stragglers in this draw — with 101 of 10,000 the interpolated sample p99 is 5.0 s, while the population p99 is 5.0 s in either case; reproduce with the stated stream definition (99% log-normal, median 0.8 s, + 1% at 5.0 s, N = 10,000).\" | PDF p. 124: \"The plotted stream is a synthetic sample of N = 10,000 requests — 99% drawn from a log-normal with median 0.8 s, 1% a straggler cluster at 5.0 s — and the percentiles are read by linear interpolation on the sorted sample.\"",
+   "issue": "The 'stated stream definition' that the caption offers for reproduction omits the log-normal's dispersion parameter (σ or equivalent). A log-normal is fully specified by two parameters; only the median (0.8 s) is given, so the quoted p90 (0.94 s), p95 (0.99 s) and mean (0.85 s) cannot be regenerated — a wide range of σ values produce a median-0.8 log-normal with very different means and p95s. (Back-solving from the figure's own p95 ≈ 0.99 s implies σ ≈ 0.13, which is nowhere stated.) The p99 knife-edge is carefully documented, but the parameter that actually fixes the body of the distribution is missing.",
+   "fix_instruction": "Add the dispersion parameter to the stated definition in both places — e.g. '99% log-normal, median 0.8 s, σ ≈ 0.13, + 1% at 5.0 s, N = 10,000' — and state the seed or generator, so the p50/p90/p95/mean and the p99 knife-edge are both reproducible.",
+   "confidence": "high",
+   "_tid": "R3-021"
+  },
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "F01",
+   "severity": "P2",
+   "page": "132",
+   "chapter": "Ch 6 (Measuring What Matters), §6.8 mini-case",
+   "evidence": "p.132: 'The architecture is memory-sane at the 10 rps design point but was never compute-sized for it' with '(deployed host count H = 1)'. The book's own arithmetic: 10 rps → ~86 in-flight (Ch 4 p.90) vs 17 KV slots/host (436 ÷ 24.9, Ch 7 p.139), requiring ~6 hosts at 10 rps (Ch 4 p.98-99: 'the KV-residency screen (86 in-flight ÷ 17 slots = 5.06) is the binding bound and raises this to ~6 hosts').",
+   "issue": "The mini-case premise contradicts the book's own KV-residency/concurrency arithmetic: one host is not 'memory-sane' at 10 rps (86 in-flight vs 17 resident slots; the same paragraph computes a 4.7× prefill oversubscription at baseline, so SLOs were already breached before lunch). It commits exactly the single-request-fit vs concurrent-capacity conflation that Ch 7's fit note (p.139: 'this residency check answers a single-request question... It says nothing yet about how many such requests fit concurrently') warns against.",
+   "fix_instruction": "Reword the premise to 'the deployment passed the single-request residency check (≈165 GB < 640 GB) but was never sized for concurrency or compute', or set the deployed fleet to the canonical ~6 hosts and keep the lunch-peak failure.",
+   "confidence": "medium",
+   "_tid": "R3-027"
+  },
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "F02",
+   "severity": "P2",
+   "page": "133",
+   "chapter": "Ch 6 (Measuring What Matters), §6.8 mini-case",
+   "evidence": "p.133: 'an H-host fleet sized at 10 rps with H ≈ 5 would be ~3.7× oversubscribed at the peak' and 'hosts were raised from H = 1 to H = 19 (the Ch 8 case (i) screen), which took the peak from 18.6× to 51.6 ÷ (19 × 2.77) ≈ 1.0×'. The book's binding 10-rps fleet is 6 hosts (Ch 4 p.98-99), and the 40-rps peak KV floor is 21 hosts (Ch 8 p.169: 'the full-utilization KV-residency floor is ~21 hosts (Ch 17's floor-17 screen)'); 19 × 17 = 323 resident slots < 344 in-flight at the 40 rps peak.",
+   "issue": "The mini-case sizes fleets by the prefill-compute screen only and ignores the KV-residency screen the book itself applies: (a) 'H ≈ 5' should be 6 at 10 rps (peak oversubscription ~3.1×, not ~3.7×); (b) the remediation to H = 19 leaves ~21 of 344 peak in-flight requests unresidentsble (≈6% > 5%), so the claimed outcome 'p95 TTFT is back under 2 s' cannot hold under the book's own model (Ch 6 p.125 itself shows queuing pushes p95 past 2 s).",
+   "fix_instruction": "Use the binding screens (6 hosts at 10 rps; 21 at 40 rps) in the mini-case, or state explicitly that it tracks the compute screen only and that KV-residency sizing (Ch 17) adds hosts on top before the SLO-restoration claim.",
+   "confidence": "medium",
+   "_tid": "R3-028"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 7,
+   "severity": "P3",
+   "page": 105,
+   "chapter": 6,
+   "evidence": "Ch 7 Fig 7.8",
+   "issue": "Incorrect reference to a figure.",
+   "fix_instruction": "Figure 7.8 is located in Chapter 7, not in Chapter 105. Change to Ch 7 Fig 7.8.",
+   "confidence": "High",
+   "_tid": "R3-040"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 8,
+   "severity": "P3",
+   "page": 100,
+   "chapter": 6,
+   "evidence": "Ch 10 §6",
+   "issue": "Reference to a non-existent section in Chapter 10.",
+   "fix_instruction": "Change to §7, or remove the reference if it is erroneous.",
+   "confidence": "High",
+   "_tid": "R3-041"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 9,
+   "severity": "P3",
+   "page": 100,
+   "chapter": 6,
+   "evidence": "Ch 11 §2",
+   "issue": "Reference to a non-existent section in Chapter 11.",
+   "fix_instruction": "Change to §11, or remove the reference if it is erroneous.",
+   "confidence": "High",
+   "_tid": "R3-042"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 15,
+   "severity": "P3",
+   "page": 108,
+   "chapter": 6,
+   "evidence": "Table 8-1",
+   "issue": "Reference to a Table in the wrong chapter.",
+   "fix_instruction": "Table 8-1 is located in Chapter 8. If referring to Chapter 6, ensure Table 6-1 or 6-2 is correctly cited; if referring to Table 8-1, change to Ch 8, Table 8-1.",
+   "confidence": "High",
+   "_tid": "R3-048"
+  }
+ ],
+ "count": 10
+}

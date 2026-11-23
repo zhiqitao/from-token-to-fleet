@@ -1,0 +1,54 @@
+{
+ "target": "design/manuscript/chapter-02/chapter-02.md",
+ "findings": [
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "F-01",
+   "severity": "P2",
+   "page": 19,
+   "chapter": "Preface (p. xiii) vs Ch 2 §2.1 (p. 15) vs Ch 4 §4.3 (p. 72)",
+   "evidence": "Preface, PDF p. 19: \"In the book's convention (Ch. 2, 4), TTFTe2e = retrieval + admission/queue + tokenization/transfer + prefill + first decode step, where tokenization/transfer counts as one combined term.\" | Ch 2, PDF p. 35: \"Timing convention (used throughout the book). We attribute the first sampled token to prefill: prefill = processing the prompt + sampling token 1, and decode = the per-token loop that begins with token 1 as its first input and produces token 2 onward.\" | Ch 4, PDF p. 92: \"TTFT_e2e convention (used throughout): TTFTe2e = retrieval+admission/queue+tokenization/transfer + prefill.\"",
+   "issue": "Three different TTFT_e2e formulas for the same named convention. The Preface adds '+ first decode step'; Ch 4 omits it; Ch 2's own prefill/decode attribution ('prefill = processing the prompt + sampling token 1') means the first decode step — the forward pass whose input is token 1 and whose output is token 2 — occurs strictly AFTER the first token is available and therefore after TTFT. The Preface's formula double-counts a step that lies outside the TTFT interval under the book's stated convention, and it also contradicts Ch 4's restatement of the same convention two chapters later. This is load-bearing: the canonical 1.2 s TTFT budget and the 'prefill ~1.08 s' residual are derived from this decomposition.",
+   "fix_instruction": "Pick one TTFT_e2e formula and state it once in the Preface, then make Ch 2 §2.1 and Ch 4 §4.3 quote it verbatim. Under the book's own convention (first token sampled inside prefill), TTFT_e2e must NOT contain '+ first decode step'; if the intent is to include the decode step that consumes token 1, say so explicitly and reconcile it with the 'prefill includes sampling token 1' rule, because the two cannot both hold.",
+   "confidence": "high",
+   "_tid": "R3-010"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "F-10",
+   "severity": "P3",
+   "page": 47,
+   "chapter": "Ch 2 §2.3 (p. 27)",
+   "evidence": "PDF p. 47: \"Two residency bases, named: at the pre-generation 9.2K-input point the request's KV is 24.1 GB, so total resident is ~228 GB (140 GB weights + ~64 GB runtime/workspace reserve + 24.1 GB KV); at the end-of-generation 9.5K resident basis the same host holds ~229 GB (140 + 64 + 24.9 GB — the figure Ch 7 Fig 7.8 uses).\"",
+   "issue": "Within a single sentence, 'resident' carries two different meanings: 'total resident' = the aggregate memory footprint of weights + reserve + KV on the host, while '9.5K resident basis' = the token-count basis (input + output tokens) used for KV slot sizing. The book elsewhere (Ch 4 Table 4-2 'the resident slot-counting basis, §4.6') uses 'resident' only in the token-basis sense, so the two senses are actively in tension. The figure the sentence points at (Ch 7 Fig 7.8) labels the same quantities 'used' and 'KV', not 'resident'.",
+   "fix_instruction": "Rewrite the sentence to use one word for each concept — e.g. 'the host footprint is ~228 GB' versus 'the 9.5K-token slot-counting basis gives ~229 GB' — and keep 'resident basis' reserved for the token-count sense as in Ch 4 Table 4-2.",
+   "confidence": "medium-high",
+   "_tid": "R3-019"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "F-17",
+   "severity": "P3",
+   "page": 42,
+   "chapter": "Ch 2 Table 2-1 (p. 22) vs Ch 8 §8.5 (p. 158)",
+   "evidence": "Ch 2 Table 2-1, PDF p. 42: \"Prefill: regime verdict | compute-bound regime | arithmetic intensity ~9.2K FLOP/byte > ridge ~295 → on the compute-bound side of the roofline | [canonical scenario][DERIVED]\" | Ch 8 §8.5, PDF p. 178: \"at the canonical operating point, prefill reads the full context once and is FLOP-bound (weight-only intensity ~9,200 FLOP/byte — an upper bound that omits the ~24 GB KV write; including it, ~7,850 FLOP/byte — both far above the ~295 ridge)\"",
+   "issue": "The same intensity figure is presented with different disclosure in two chapters. Ch 8 explicitly labels ~9,200 FLOP/byte as weight-only, an upper bound that omits the ~24 GB KV write, and gives the corrected ~7,850. Ch 2's Table 2-1 quotes the identical ~9.2K FLOP/byte with no weight-only qualifier and no mention of the omitted KV write, so a reader of Ch 2 alone cannot tell that the number silently omits a component — the same class of omission the book elsewhere flags as a defect (e.g. the FP8 'raw byte-halving' caveats, and the '54%' ITL-vs-memory-ratio correction).",
+   "fix_instruction": "Add the same qualifier to the Ch 2 Table 2-1 derivation cell — 'weight-only intensity ~9.2K FLOP/byte (omits the ~24 GB KV write; ~7,850 FLOP/byte including it, Ch 8)' — so the two chapters' disclosures match.",
+   "confidence": "medium",
+   "_tid": "R3-026"
+  },
+  {
+   "model": "Muse-Spark-Open",
+   "id": "F-005",
+   "severity": "P0",
+   "page": 22,
+   "chapter": "Ch2",
+   "evidence": "Decode: weight-read per token 140 GB vs Canonical host verdict On the canonical 8×H100 host, each GPU streams only its 17.5 GB shard per step, which takes ~5.2 ms at peak — 21% of the 25 ms step",
+   "issue": "Arithmetic scope error: Table 2-1 derives 5.6 TB/s > 3.35 TB/s single-H100 verdict but canonical host verdict shows sharded case 17.5 GB /3.35 TB/s =5.2ms passes 25ms SLO; same metric used for opposite conclusions without labeling aggregate vs per-GPU denominator.",
+   "fix_instruction": "Retitle Table 2-1 row as 'hypothetical single-device aggregate' and add separate row for sharded per-GPU verdict with TP=8 arithmetic.",
+   "confidence": 0.94,
+   "_tid": "R3-057"
+  }
+ ],
+ "count": 4
+}
