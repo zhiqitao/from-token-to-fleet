@@ -1,0 +1,138 @@
+{
+ "target": "design/manuscript/chapter-07/chapter-07.md",
+ "findings": [
+  {
+   "model": "DeepSeek-V4.1-Flash",
+   "id": "R004",
+   "severity": "P3",
+   "page": "149",
+   "chapter": "Ch 7",
+   "evidence": "\"at 24.9 GB/request max-FP16 KV (9.5K max context, per Fig 7.6; byte-accurate 24.90368 GB)\"",
+   "issue": "Fig 7.6 is the inference-vs-fine-tuning memory-floor figure. It displays the ~165 GB weights+KV floor (and ~1,120 GB fine-tuning, ~36 GB QLoRA), not a 24.9 GB/request KV value. The cross-reference target does not actually present the cited quantity; the correct target is Table 7-1 or §7.3.",
+   "fix_instruction": "Replace \"per Fig 7.6\" with the correct target, e.g. \"per Table 7-1\" or \"per §7.3\". If Fig 7.6 is intended, add the 24.9 GB/request KV annotation to the figure so the reference resolves.",
+   "confidence": "medium",
+   "_tid": "R6-004"
+  },
+  {
+   "model": "DeepSeek-V4.1-Flash",
+   "id": "R006",
+   "severity": "P3",
+   "page": "140",
+   "chapter": "Ch 7",
+   "evidence": "\"The match is a coincidence of layout rates rather than a shared design: 4 metadata bytes per 128-value group (2 B scale + 2 B zero) and MXFP4’s 1 scale byte per 32-value group both come to 0.03125 B/value on top of the same four-bit payload.\"",
+   "issue": "This sentence follows a packed four-bit zero-point layout (0.5 B zero/group, 8,716,288 B) and then a replacement with an FP16 scaled-zero (2 B zero/group, 8,912,896 B). The quoted 4 metadata bytes/group describes only the FP16 scaled-zero variant, not the packed-four-bit-zero variant. The referent of \"this integer scheme\" and \"the match\" is therefore ambiguous: which layout is being said to match MXFP4?",
+   "fix_instruction": "Name the matching layout explicitly: state that the FP16 scaled-zero variant (8,912,896 B) happens to match MXFP4's total bytes, while the packed-four-bit-zero variant (8,716,288 B) does not. Avoid saying \"this integer scheme\" without naming which zero layout is meant.",
+   "confidence": "medium",
+   "_tid": "R6-006"
+  },
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "F07",
+   "severity": "P3",
+   "page": 169,
+   "chapter": "Ch 7 (Fig 7.7)",
+   "evidence": "Figure body (page 149 render): \"in-flight ≈ KV budget ÷ KV per request ≈ 436 GB ÷ 24.9 GB ≈ 17.5 → ~17 requests\". Caption: \"Naming note: the arithmetic panel reads 'in-flight'; that quantity is the KV-resident slot count (concurrent sequences holding a KV slot), not the Little's-Law in-flight request count.\" Contrast Ch 4 (pp. 76-77): \"Whenever the book says 'concurrent users,' read 'active users...'... use the Little's-law λ·W figure\" and \"Requests in flight ≠ KV-resident sequences.\"",
+   "issue": "The figure prints \"in-flight\" for the KV-resident slot count — the exact conflation (in-flight vs KV-resident) Ch 4 spends a full subsection forbidding; the caption acknowledges the error but the figure itself is left uncorrected.",
+   "fix_instruction": "Relabel the figure panel to \"KV-resident slots ≈ KV budget ÷ KV per request\" (or \"resident sequences\") so the figure no longer needs a corrective caption note.",
+   "confidence": 0.85,
+   "_tid": "R6-020"
+  },
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "F08",
+   "severity": "P3",
+   "page": 151,
+   "chapter": "Ch 7",
+   "evidence": "Page 151 (§7.3.1): \"At 9,500 resident tokens, one sequence needs 1.245184 GB of raw KV. With an explicitly assumed 4 GB reserve for runtime state and workspace, the analytical budget is 21.245184 GB. A nominal 24 GB device passes this preliminary capacity gate.\" (16 GB weights + 1.245184 GB KV + 4 GB reserve = 21.245184 GB.)",
+   "issue": "Mislabelled quantity: 21.245184 GB is the total analytical footprint (weights + KV + reserve), not a \"budget\"; the KV budget on a 24 GB device with a 4 GB reserve is 24 − 4 = 20 GB. As written, a reader could read 21.2 GB as space available for KV.",
+   "fix_instruction": "Rename to \"the analytical total footprint is 21.245184 GB\" and, if a budget figure is wanted, state the KV budget separately as 20 GB (24 − 4).",
+   "confidence": 0.8,
+   "_tid": "R6-021"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 6,
+   "severity": "P3",
+   "page": 133,
+   "chapter": 7,
+   "evidence": "Figure 7.2: History recurrence and attention history have different lifetimes: a recurrent layer group updates bounded, fixed-shape state, while a separate full-attention layer group retains growing KV history. ... Schematic of a hybrid-attention history budget; the configuration-backed instance (Qwen3.8-27B) is worked in the text (§7.3), not a measured memory ratio.",
+   "issue": "Figure/Caption alignment. The text in Section 7.3.2 introduces the Qwen3.8-27B example specifically to illustrate the 'mixed history-state budget'. The figure caption refers to Section 7.3 for the instance, but the figure itself is a generic 'Schematic'. This is acceptable, but the caption explicitly says 'configuration-backed instance... is worked in the text... not a measured memory ratio'. This is a good disclaimer.",
+   "fix_instruction": "None.",
+   "confidence": 0.9,
+   "_tid": "R6-028"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 10,
+   "severity": "P1",
+   "page": 130,
+   "chapter": 7,
+   "evidence": "Note on “does it fit?”: this residency check answers a single-request question — does ONE request’s weights + KV fit in the pool? It says nothing yet about how many such requests fit concurrently.",
+   "issue": "Logic/Flow. In Section 7.3, the text calculates 'fits 8xH100 at 128K? passes aggregate bytes... per-rank budget fits...'. The 'Note on does it fit?' immediately follows this. This is a critical clarification. The note effectively defines 'fits' for the rest of the book as 'aggregate capacity >= residency'. However, the 'Technical note' below it (page 146) says 'Whether a given allocation actually fits depends on... tensor-parallel sharding...'. There is a slight disconnect: The Note on p130 defines 'fit' as the single-request residency check (passing the gate), while the Technical note on p146 defines 'fit' as the deployable state. The text should probably unify 'Passes aggregate gate' vs 'Deployable'.",
+   "fix_instruction": "Refine the 'Note on does it fit?' on page 130 to use the term 'Aggregate Feasibility' or similar, distinct from 'Deployability'.",
+   "confidence": 0.8,
+   "_tid": "R6-032"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 11,
+   "severity": "P2",
+   "page": 142,
+   "chapter": 7,
+   "evidence": "At 8-bit the per-token value halves to ~1.31 MB/token (~1.25 MiB; the Ch.1 reference). Do not assume the 1.3 MB/token figure applies at FP16 — it does not; it is an 8-bit number.",
+   "issue": "Contradiction/Confusion in Unit Naming. Section 7.3 defines '8-bit' and 'FP8' interchangeably (page 127 table row 'KV cache per token (8-bit)' and 'KV cache per token (FP8)' both list 1.31 MB). The text says 'At 8-bit... Do not assume... at FP16...'. This is correct. However, Chapter 1 (page 7) says '~1.25 MiB (1.31 MB) per token at 8-bit (~2.62 MB at FP16)'. It uses '8-bit' and 'FP16'. The term '8-bit' is generic (could be INT8 or FP8). 'FP8' is specific. Chapter 7 uses 'FP8' and '8-bit' somewhat interchangeably (e.g., 'FP8 KV = raw tensor byte-halving... [1.31 MB/token]... [8-bit] figure... [1.31 MB/token]'). The text on 142 explicitly calls 1.31 MB '8-bit'. This risks confusion if the reader assumes INT8 != FP8 in terms of hardware support or scale factors (though raw bits are the same). Given the 'scale/offset metadata' note, the author is aware of the difference. The defect is using '8-bit' to mean 'FP8' without a 'also known as' or 'in this context' marker.",
+   "fix_instruction": "Standardize the term to 'FP8' or '8-bit (FP8)' throughout Chapter 7 to avoid confusion with INT8/UINT8 quantization schemes which are not byte-halving (they require scales).",
+   "confidence": 0.85,
+   "_tid": "R6-033"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 19,
+   "severity": "P2",
+   "page": 146,
+   "chapter": 7,
+   "evidence": "Caveat — inventorying state for non-autoregressive generators... None of this changes the canonical autoregressive budget above; it changes what must be inventoried... [DERIVED]",
+   "issue": "Placement. This caveat is in Section 7.1.1, before the canonical arithmetic in 7.3. It references 'weights+KV arithmetic' which is derived later. While a 'concept' chapter can have forward references, it feels like a spoiler or a confusing aside. The text 'None of this changes the canonical... above' is technically false (it's below in the chapter flow if 7.3 is below 7.1.1). In the PDF structure, 7.1.1 is part of 7.1 (Concept). 7.3 is Worked Example. So 'above' is a layout error in the text, it should say 'the canonical arithmetic below' or 'in Section 7.3'.",
+   "fix_instruction": "Change 'None of this changes the canonical autoregressive budget above' to 'None of this changes the canonical autoregressive budget derived in Section 7.3'.",
+   "confidence": 0.85,
+   "_tid": "R6-041"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 20,
+   "severity": "P1",
+   "page": 148,
+   "chapter": 7,
+   "evidence": "3xH100 fits 8xH100 at 32K? yes (passes aggregate bytes) fits 8xH100 at 128K? passes aggregate bytes... fits 3xH100 at 9.2K? passes aggregate bytes only; TP=3 placement not established",
+   "issue": "Formatting/Clarity. The table 'Table 7-1' has a 'fits...' column. Some values are 'yes', some are 'no', some are 'passes aggregate bytes only...'. The mix of binary verdicts and nuanced prose in the same column makes it hard to scan. 'yes' and 'passes aggregate bytes' are distinct. 'no' and 'passes aggregate bytes only' are distinct. This is acceptable in a technical book, but 'passes aggregate bytes only; TP=3 placement not established' is very long for a table cell. The 'fits 2xH100' and 'fits 3xH100' rows are inconsistent in detail.",
+   "fix_instruction": "Standardize verdicts to [Pass/Fail/Conditionally Pass]. Move detailed explanations to footnotes.",
+   "confidence": 0.7,
+   "_tid": "R6-042"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": 21,
+   "severity": "P2",
+   "page": 155,
+   "chapter": 7,
+   "evidence": "Fine-tuning ... Adam: ~16 B/param total... The ~16 B/param label counts that whole set... The optimizer term alone is ~12 B/param (~840 GB), which is why §7.6’s additive decomposition (140 + 140 + 840 GB) totals the same floor.",
+   "issue": "Cross-reference. This text refers to '§7.6'. Section 7.6 is 'Architecture Consequence'. The additive decomposition is mentioned in Section 7.6 bullet point 2 'Fine-tuning is a different memory regime...'. Wait, Section 7.3.3 'Quantization describes several different choices' discusses 'AWQ and GPTQ'. The text in Table 7-2 discussion seems to verify 140+140+840 = 1120. 1120 GB fits. The reference to §7.6 is correct.",
+   "fix_instruction": "None.",
+   "confidence": 0.9,
+   "_tid": "R6-043"
+  },
+  {
+   "model": "HY4-Flash",
+   "id": "PROSE-EQ-7.3-001",
+   "severity": "P3",
+   "page": "166/538",
+   "chapter": "Ch. 7 — Memory Is the First Constraint",
+   "evidence": "PDF p. 166: \"At the deployed integer slot count C = 17, a rank holds 140 ÷ 8 = 17.5 GB of weights + 8 GB of runtime/NCCL + 17 × 3.11296 = 52.92 GB of KV = 78.42 GB, or 98% of its 80 GB — workable, with ~1.6 GB of headroom.\"",
+   "issue": "The chained equality makes 52.92 GB of KV appear to equal the 78.42 GB rank total. The arithmetic is correct when read with an implied parenthesis, but the sentence violates one-meaning-per-expression clarity and can be misread as an arithmetic error.",
+   "fix_instruction": "Rewrite as two sentences or add parentheses: 'The KV term is 17 × 3.11296 GB = 52.92 GB. Adding 17.5 GB of weights and 8 GB of runtime/NCCL gives 78.42 GB total.'",
+   "confidence": 0.88,
+   "_tid": "R6-052"
+  }
+ ],
+ "count": 11
+}

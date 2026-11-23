@@ -1,0 +1,62 @@
+[
+ {
+  "id": "R001",
+  "severity": "P2",
+  "page": "89, 90, 101",
+  "chapter": "Ch 4 / Ch 5 / Ch 8",
+  "evidence": "p89: \"Prefill takes about 1.08 s, while generating the 300-token answer takes about 7.5 s\"; p90: \"prefill (~1.08 s for 9,200 tokens across the 8×H100 canonical host, ≈8.5K tokens/s prefill — below the host’s ~19,800 tok/s sustained-planning prefill rate\"; p101: \"But it is only ~15% of the wall-clock time (1.08 s prefill vs 6.0 s decode)\"",
+  "issue": "The book elsewhere defines 1.08 s as the two-term TTFT residual budget cap, not an actual prefill latency: Ch 2 models the 8×H100 host prefill at ~0.16 s peak / ~0.47 s at 35% MFU, and Ch 8 Table 8-1 gives ~19,800 tok/s per host. Pages 89, 90 and 101 treat the budget cap as an actual prefill time, derive an \"≈8.5K tokens/s prefill\" rate from it, and use it for wall-clock share. This is a cross-chapter definition drift and produces numbers inconsistent with Ch 8's modeled prefill rate.",
+  "fix_instruction": "Label 1.08 s explicitly as the budget cap wherever it is used. Do not write \"Prefill takes about 1.08 s\" or derive an actual prefill rate from it. Use the modeled host prefill time (~0.47 s at 35% MFU, ~0.16 s peak) for wall-clock/decode-share statements, or state that ≈8.5K tok/s is only the budget-implied single-request rate and not the modeled/measured prefill rate.",
+  "confidence": "high"
+ },
+ {
+  "id": "R002",
+  "severity": "P3",
+  "page": "116",
+  "chapter": "Ch 6",
+  "evidence": "\"With the canonical 9.2K KV re-read included, intensity saturates at ~6.8 FLOP/byte, so decode stays bandwidth-bound at every batch size — Ch 8.\"",
+  "issue": "Under the chapter's own canonical inputs, decode arithmetic intensity including KV re-read saturates at roughly 140 GFLOP/token ÷ 24.1 GB/token ≈ 5.8 FLOP/byte (or ≈5.6 with the 24.9 GB resident basis), not ~6.8. The 6.8 value requires about 20.6 GB of KV bytes, which is not the stated canonical 9.2K FP16 KV footprint. The conclusion (bandwidth-bound) is unchanged, but the displayed derived number is inconsistent.",
+  "fix_instruction": "Recompute the saturation intensity from the stated canonical KV bytes (e.g. 140 GFLOP ÷ 24.1 GB ≈ 5.8 FLOP/byte) or state the exact denominator that yields 6.8 FLOP/byte. Keep the bandwidth-bound conclusion, but align the number with the canonical KV constant.",
+  "confidence": "medium"
+ },
+ {
+  "id": "R003",
+  "severity": "P3",
+  "page": "31, 34, 36, 46, 146",
+  "chapter": "Ch 1 / Ch 2 / Ch 3 / Ch 7",
+  "evidence": "p31: \"Ch. 2 §2.1.1 (latent video) and Ch. 3 §3.1.1\"; p34: \"Ch. 4 §4.8 and Ch. 7 §7.8\"; p36: \"Ch 4 §4.3 quotes this formula verbatim\"; p46: \"defined in full at Ch 8 §8.3.3\"; p146: \"developed in Ch 8 §8.7\"",
+  "issue": "Recurring malformed cross-references: the chapter number is repeated after \"Ch N\". The Preface's own convention says: \"Do not repeat a chapter number after the chapter name — write Ch. 8 § 3 or § 8.3.3, not Ch. 8 § 8.3.3.\" These pointers violate that rule and make the cross-reference form inconsistent across the book.",
+  "fix_instruction": "Normalize every repeated-chapter pointer to the allowed form: e.g. \"Ch. 2 §1.1\" or \"§2.1.1\"; \"Ch. 4 §8\" or \"§4.8\"; \"Ch. 7 §8\" or \"§7.8\"; \"Ch. 4 §3\" or \"§4.3\"; \"Ch. 8 §3.3.3\" or \"§8.3.3\"; \"Ch. 8 §7\" or \"§8.7\". Sweep the whole manuscript for the same pattern.",
+  "confidence": "high"
+ },
+ {
+  "id": "R004",
+  "severity": "P3",
+  "page": "149",
+  "chapter": "Ch 7",
+  "evidence": "\"at 24.9 GB/request max-FP16 KV (9.5K max context, per Fig 7.6; byte-accurate 24.90368 GB)\"",
+  "issue": "Fig 7.6 is the inference-vs-fine-tuning memory-floor figure. It displays the ~165 GB weights+KV floor (and ~1,120 GB fine-tuning, ~36 GB QLoRA), not a 24.9 GB/request KV value. The cross-reference target does not actually present the cited quantity; the correct target is Table 7-1 or §7.3.",
+  "fix_instruction": "Replace \"per Fig 7.6\" with the correct target, e.g. \"per Table 7-1\" or \"per §7.3\". If Fig 7.6 is intended, add the 24.9 GB/request KV annotation to the figure so the reference resolves.",
+  "confidence": "medium"
+ },
+ {
+  "id": "R005",
+  "severity": "P3",
+  "page": "71",
+  "chapter": "Ch 3",
+  "evidence": "\"Controlled comparison: same context length and cache dtype — while weight residency (140 GB dense vs ~94 GB for the ~47B MoE challenger), the active-compute fraction (~100% vs ~27%) and the attention shape (canonical dense 80L/8192H full-MHA vs the challenger’s 32L/4096H GQA) all differ\"",
+  "issue": "The caption calls this a \"Controlled comparison\" while explicitly listing three uncontrolled variables that differ (weight residency, active-compute fraction, attention shape). Only context length and cache dtype are controlled. This overstates the comparison and can mislead readers into treating the KV difference as a controlled routing effect.",
+  "fix_instruction": "Rewrite as \"partially controlled comparison\" or \"comparison holding only context length and cache dtype fixed\". Explicitly state that the KV difference is due to attention shape, not routing, as the caption already explains later.",
+  "confidence": "high"
+ },
+ {
+  "id": "R006",
+  "severity": "P3",
+  "page": "140",
+  "chapter": "Ch 7",
+  "evidence": "\"The match is a coincidence of layout rates rather than a shared design: 4 metadata bytes per 128-value group (2 B scale + 2 B zero) and MXFP4’s 1 scale byte per 32-value group both come to 0.03125 B/value on top of the same four-bit payload.\"",
+  "issue": "This sentence follows a packed four-bit zero-point layout (0.5 B zero/group, 8,716,288 B) and then a replacement with an FP16 scaled-zero (2 B zero/group, 8,912,896 B). The quoted 4 metadata bytes/group describes only the FP16 scaled-zero variant, not the packed-four-bit-zero variant. The referent of \"this integer scheme\" and \"the match\" is therefore ambiguous: which layout is being said to match MXFP4?",
+  "fix_instruction": "Name the matching layout explicitly: state that the FP16 scaled-zero variant (8,912,896 B) happens to match MXFP4's total bytes, while the packed-four-bit-zero variant (8,716,288 B) does not. Avoid saying \"this integer scheme\" without naming which zero layout is meant.",
+  "confidence": "medium"
+ }
+]

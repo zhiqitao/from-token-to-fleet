@@ -60,7 +60,7 @@ $$
 
 ## 2. Mental Model
 
-A token is best understood as a **metered unit of model I/O**, the way electricity is metered by the kilowatt-hour — important not because a single kilowatt-hour is meaningful by itself, but because *every* downstream cost and capacity number is denominated in it — or, for non-autoregressive generation, in model evaluations (Ch. 2 §2.1.1; Ch. 3 §3.1.1 and Appendix A §9A). (It is a computational/textual unit, not a unit of thought: two tokenizers can render the same semantic content in different token counts, and a reasoning model can spend very different compute per visible token.)
+A token is best understood as a **metered unit of model I/O**, the way electricity is metered by the kilowatt-hour — important not because a single kilowatt-hour is meaningful by itself, but because *every* downstream cost and capacity number is denominated in it — or, for non-autoregressive generation, in model evaluations (§2.1.2; §3.1.1 and Appendix A §9A). (It is a computational input unit, not a semantic unit: two tokenizers can render the same semantic content in different token counts, and a reasoning model can spend very different compute per visible token.)
 
 A useful image for the full pipeline:
 
@@ -72,7 +72,7 @@ A useful image for the full pipeline:
 
 *Reading the mnemonic:* read "remembers the prefix" as persistent state, not as a processing stage — the K/V are computed and read *within* the attention layers at every step. The full per-step read/append ordering is in Fig 2.1.
 
-We do not need to hold all of this as a practitioner. The durable mental model is: **tokens are the interface between a human's request and a machine's arithmetic**, and *anything* we are asked to size or price in an LLM system reduces, one way or another, to "how many tokens, in what context, with what precision." That holds for the autoregressive text path this chapter scopes to; for non-AR generation the same reasoning runs on model evaluations instead of output tokens, and Ch. 2 §2.1.1 (latent video) and Ch. 3 §3.1.1 (diffusion/LLaDA-style) carry the extension.
+We do not need to hold all of this as a practitioner. The durable mental model is: **tokens are the interface between a human's request and a machine's arithmetic**, and *anything* we are asked to size or price in an LLM system reduces, one way or another, to "how many tokens, in what context, with what precision." That holds for the autoregressive text path this chapter scopes to; for non-AR generation the same reasoning runs on model evaluations instead of output tokens, and §2.1.2 (latent video) and §3.1.1 (diffusion/LLaDA-style) carry the extension.
 
 ## 3. Worked Example
 
@@ -126,7 +126,7 @@ Whatever we learned here, file it under **"can I size an input before I buy capa
 
 ## 8. End-of-Chapter Mini-Case: The Internal Q&A Tool, From First Principles
 
-*(Chains the continuous scenario — this is its first appearance: the canonical enterprise Q&A over internal documents, sized at Ch. 4, Table 4-2. A 5,000-employee growth variant of this scenario is a separate population input, not a projection from this one; it is worked at Ch. 4 §4.8 and Ch. 7 §7.8.)*
+*(Chains the continuous scenario — this is its first appearance: the canonical enterprise Q&A over internal documents, sized at Ch. 4, Table 4-2. A 5,000-employee growth variant of this scenario is a separate population input, not a projection from this one; it is worked at Ch. 4 §8 and Ch. 7 §8.)*
 
 An architect is pulled into an early-stage design conversation about a new internal Q&A tool. There is no model, no server, no budget — just the raw ask: "We have thousands of employees who want to ask questions over our internal documents." Before any architecture can be defended, we have to turn that vague desire into a *machine-denominated* statement.
 
