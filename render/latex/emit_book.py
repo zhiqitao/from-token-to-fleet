@@ -97,7 +97,10 @@ def make_copyrightpage():
     lines.append(r"\begin{titlepage}")
     lines.append(r"\thispagestyle{empty}")
     lines.append(r"{\centering\MakeUppercase{Copyright \textcopyright{} 2026 Zhiqi Tao}\\[2pt] All rights reserved, except as explicitly granted below.\par}")
-    lines.append(r"\vspace{1.2cm}")
+    # R5-004 follow-on: the page must stay a single page.  It previously spilled
+    # the one-line warranty onto a second page (which printed "2", an arabic
+    # number inside roman front matter).  Reclaim the slack in the heading gap.
+    lines.append(r"\vspace{0.5cm}")
     lines.append(r"\noindent\textbf{License.} This work --- the book text, diagrams, figures, and build scripts --- is distributed under the \emph{source-available} grant stated below. That grant is the operative license for this edition: the default is all rights reserved, and the two permissions below are the stated exception. The full text of the license, including the redistribution restrictions and the channel-specific terms (e.g.\ Amazon KDP), is the \texttt{LICENSE} file in the repository, which is the authoritative statement of rights for this work.")
     lines.append("")
     lines.append(r"\begin{itemize}")
@@ -107,11 +110,18 @@ def make_copyrightpage():
     lines.append("")
     lines.append(r"\noindent To request commercial permission, contact \texttt{zhiqi.tao@gmail.com}.")
     lines.append("")
-    lines.append(r"\noindent Full terms: \href{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{github.com/zhiqitao/from-token-to-fleet}} (\texttt{LICENSE}, SPDX \texttt{LicenseRef-ZhiqiResearch-FromTokenToFleet-1.0})")
+    # Round-5 finding R5-003: the "Edition source revision." run-in heading was
+    # stretched across a line (huge interword gaps) and the SPDX identifier was
+    # split as "LicenseRef- / ZhiqiResearch...".  Cause: a 40-character commit
+    # hash is unbreakable, so LaTeX justified the short line before it to full
+    # measure.  Fix: set this reference block ragged-right (no justification
+    # stretch is possible) and \mbox the SPDX identifier so it never breaks.
+    lines.append(r"{\raggedright")
+    lines.append(r"\noindent Full terms: \href{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{github.com/zhiqitao/from-token-to-fleet}} (\texttt{LICENSE}, \mbox{SPDX~\texttt{LicenseRef-ZhiqiResearch-FromTokenToFleet-1.0}})")
     lines.append("")
-    lines.append(r"\noindent\emph{Edition source revision.} This edition is built from commit \texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3} (short \texttt{27f4cd5}) of the repository. The link above resolves that commit's \texttt{LICENSE} file directly, so the terms quoted here can be read in their exact published form without locating the revision elsewhere.")
+    lines.append(r"\noindent\textbf{Edition source revision.}\ This edition is built from commit \mbox{\texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3}} (short \texttt{27f4cd5}) of the repository. The link above resolves that commit's \texttt{LICENSE} file directly, so the terms quoted here can be read in their exact published form without locating the revision elsewhere.\par}")
     lines.append("")
-    lines.append(r"\noindent\emph{Applicable terms and edition.} The SPDX identifier above names the exact license version this edition is published under, and the commit above is the immutable source revision that carries it. To determine the terms that apply to this copy, retrieve the \texttt{LICENSE} file at that pinned commit, either through the link above or by substituting the commit into \texttt{github.com/zhiqitao/from-token-to-fleet/blob/<commit>/LICENSE}; the license version and the pinned commit are together the authoritative reference, so a buyer can confirm the exact text rather than infer it from the summary here.")
+    lines.append(r"\noindent\textbf{Applicable terms and edition.} The SPDX identifier above names the exact license version this edition is published under, and the commit above is the immutable source revision that carries it. To determine the terms that apply to this copy, retrieve the \texttt{LICENSE} file at that pinned commit, either through the link above or by substituting the commit into \texttt{github.com/zhiqitao/from-token-to-fleet/blob/<commit>/LICENSE}; the license version and the pinned commit are together the authoritative reference, so a buyer can confirm the exact text rather than infer it from the summary here.")
     lines.append("")
     lines.append(r"\noindent\textbf{Technical disclaimer.} This book describes an evolving field. Model names, parameter counts, prices, context limits, throughput and latency figures, licenses, and benchmark results change quickly and may differ by regional cloud pricing, hardware SKU, precision/sparsity configuration, batch and concurrency, software stack, and measurement methodology. Every quantitative value here is one of three kinds: a dated measurement, a figure derived from cited inputs, or is explicitly identified as an illustrative assumption (see the Sources, Method, and Reproducibility chapter for the full evidence taxonomy). Each is a snapshot as of the book's dated version, and must be re-verified against the vendor's current documentation before any procurement or deployment decision.")
     lines.append("")
@@ -149,6 +159,13 @@ def emit_book():
     # tagged build.
     lines.append(r"\includepdf[pages=1,fitpaper=false,noautoscale=false,alt={Front cover of From Token to Fleet: An AI Solution Architect's Handbook by Zhiqi Tao (first edition, 2026). Warm ivory editorial cover with elegant typography; large left-aligned title FROM TOKEN over TO FLEET in dark navy above an orange and teal two-dash rule; subtitle An AI Solution Architect's Handbook; a central diagram scaling left to right from one orange square labeled ONE TOKEN, through a 2x2 teal grid labeled MODEL, a pale-cyan grid labeled SYSTEM, to a 3x3 navy grid labeled FLEET, threaded by orange and teal wavy trace lines; a TRACE THE DECISION tagline, author and edition line.}]{../cover/cover_premium_front.pdf}")
     lines.append("")
+    # Round-5 finding R5-004: the front matter was numbered in two schemes
+    # (arabic 1-2 for the copyright page, roman i+ from the Contents).  Start
+    # the roman front matter here, before the title page, so every front-matter
+    # page carries one scheme; \mainmatter still restarts arabic at 1.  The
+    # Contents/List of Figures page references regenerate from the .toc/.lof.
+    lines.append(r"\frontmatter")
+    lines.append("")
     # title (custom typeset inline; \title/\subtitle/\maketitle are NOT used
     # because the custom \subtitle macro would typeset content immediately)
     lines.append("")
@@ -159,13 +176,18 @@ def emit_book():
     # and points to the full terms in the repo's LICENSE file.
     lines.append(make_copyrightpage())
     lines.append("")
-    lines.append(r"\frontmatter")
-    lines.append("")
     # KDP standard front-matter order: TOC (and list of figures) before the
     # preface.  Each on its own fresh page.
     lines.append(r"\tableofcontents")
     lines.append("")
     lines.append(r"\clearpage")
+    # \listoffigures typesets a \chapter*, which the book class does NOT add to
+    # the TOC; add the entry explicitly so the front-matter apparatus is
+    # navigable from the Contents (round-5 finding PA-001).  \phantomsection
+    # is required: without it the Contents row / PDF bookmark inherits the
+    # previous anchor and jumps to the copyright page.
+    lines.append(r"\phantomsection")
+    lines.append(r"\addcontentsline{toc}{chapter}{List of Figures}")
     lines.append(r"\listoffigures")
     lines.append("")
     lines.append(r"\clearpage")

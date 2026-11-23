@@ -60,7 +60,11 @@ def add_figure_links(doc):
         text = page.get_text()
         lines = [line for block in page.get_text('dict')['blocks']
                  for line in block.get('lines', [])]
-        if 'List of Figures' in text[:200]:
+        # Only a page whose running head IS the list is a LoF page. A substring
+        # test also matches the Contents page once it carries a "List of
+        # Figures" entry (round-5: that entry is added to the TOC), and the
+        # Contents' chapter numbers were then mis-read as figure keys.
+        if text.lstrip().startswith('List of Figures'):
             lists.append(number)
         for line in lines:
             value = ''.join(span['text'] for span in line['spans']).strip()
@@ -121,8 +125,13 @@ def fix(inpath, outpath):
                     return text
         return None
     scan_end = min(40, len(doc))
+    # The front-matter folio may start at 'i', or (if a page was added/removed)
+    # at 'ii'/'iii'. Accept the FIRST roman folio we find; the arabic-1 scan
+    # below still pins the main-matter boundary. Only fail if no roman folio
+    # appears at all in the first 40 pages.
     roman_start = next((idx for idx in range(scan_end)
-                        if printed_folio(idx) == 'i'), None)
+                        if (f := printed_folio(idx)) is not None
+                        and re.fullmatch(r'[ivxlcdm]+', f)), None)
     if roman_start is None:
         raise ValueError('Cannot identify the first printed Roman folio')
     main_start = int(os.environ.get("MAIN_START", "0"))
