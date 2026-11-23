@@ -1,0 +1,78 @@
+{
+ "target": "design/manuscript/chapter-08/chapter-08.md",
+ "findings": [
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "AR-002",
+   "severity": "P1",
+   "page": 179,
+   "chapter": "Ch. 8",
+   "evidence": "A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB — one full pass reads 140 GB (batch-1-equivalent), not 280 GB. (The naïve “2 ×70 ×10⁹ × 2 B ≈ 280 GB” double-counts the FP16 footprint...)",
+   "issue": "This correction is sound as far as it goes, but the surrounding decode arithmetic retains a unit error: 'arithmetic intensity_decode ≈140 GFLOP / 140 GB ≈1.0 FLOP/byte'. 140 GFLOP ÷ 140 GB = 1 GFLOP/GB = 1 FLOP/byte only because GFLOP/GB = FLOP/byte numerically (10^9 cancels). The text later states this explicitly, but the immediately preceding sentence 'The effective arithmetic intensity is therefore:' presents the ratio without the unit-cancellation note, and the earlier sentence 'Each decoded token re-reads all 70B weights from HBM... A 70B FP16 weight matrix is 70 ×10⁹ × 2 B = 140 GB' omits that at batch>1 the per-token amortized weight read is 140 GB / B. The same paragraph then states 'decode intensity ≈ batch size (weight-only)' without reconciling the '140 GFLOP / 140 GB' single-stream figure with the batched form. A reader copying the first formula into a batched model gets the intensity wrong by a factor of B.",
+   "fix_instruction": "State the batched form explicitly alongside the batch-1 form: I(B) = (140 GFLOP × B) ÷ 140 GB for the weight-only term, and note that the 1.0 FLOP/byte figure is the B=1 case. Add the GFLOP/GB = FLOP/byte cancellation note at first use of the ratio rather than later.",
+   "confidence": "medium",
+   "_tid": "R4-023"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "CC-005",
+   "severity": "P2",
+   "page": 179,
+   "chapter": "Ch. 8",
+   "evidence": "Host counts, scannable (Ch 16/17). Full-utilization compute screens, cases (i) / (iii) / (ii): 19 / 21 / 22.",
+   "issue": "The max-of-screens rule is stated ('the capacity floor is the max of the named screens — 21 hosts under case (i) and case (iii), 22 under case (ii)') but the listed compute screens and the KV screen use different roundings that are never reconciled in one place: Ch. 17's KV screen is ⌈344/17⌉ = 21 (using the floor-17 whole-slot convention), while Ch. 6's mini-case (p. 135) concludes 'the KV-residency / Little's-Law screen needs ⌈344/17⌉ = 21 hosts at the peak and therefore binds' — while also noting 'case (i)'s prefill screen needs ⌈18.6⌉ = 19 hosts. So at case (i) the KV screen (21) binds over prefill (19), but at case (ii) prefill (22) binds over KV (21) by one host. Ch. 6's mini-case concludes 'the capacity floor is the max of the named screens' and then reports hosts 'raised from H = 1 to H = 21' — the case-(i) number — without stating that a full-square attention accounting (case ii) would require 22. The reader cannot tell which FLOP-counting case the recommended 21-host fleet assumes.",
+   "fix_instruction": "State the FLOP-counting case explicitly next to the 21-host fleet figure wherever it appears (Ch. 6 mini-case p. 135; Ch. 8 p. 179; Ch. 17 Table 17-1), e.g. '21 hosts at case (i)/(iii); 22 at case (ii) — the case must be named on every host-count quotation'. Add one row to Ch. 17's screen table showing the case label alongside the count.",
+   "confidence": "high",
+   "_tid": "R4-029"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "CC-010",
+   "severity": "P2",
+   "page": 177,
+   "chapter": "Ch. 8",
+   "evidence": "At the 1.08 s budget versus the 35% planning rate ... 1.08 s is the prefill compute budget inside the 1.2 s TTFT after the ~120 ms retrieval allocation ... while ~19,800 tokens/s/host is the sustained planning rate for capacity arithmetic. ... if a deployment sustained only the 1.08 s-implied rate, the peak prefill demand of ~51.6 PFLOP/s (1.288 PFLOP × 40 rps) would need 51.6 ÷ 1.19 = 43.4 → ⌈43.4⌉ = 44 hosts, not 19",
+   "issue": "Recomputation: 51.6 ÷ 1.19 = 43.36 → 44 ✓ arithmetically. But the denominator 1.19 PFLOP/s is the *single-H100* rate required to prefill 9.2K in 1.08 s (1.288 PFLOP ÷ 1.08 s), whereas the host count is in units of 8×H100 hosts. Dividing a fleet-wide PFLOP/s demand by a single-GPU PFLOP/s rate yields a GPU count, not a host count: 43.4 GPUs = 5.4 hosts, not 44 hosts. The correct host figure at the 1.08 s-implied per-host rate is 51.6 ÷ (8 × 1.19) = 5.42 → 6 hosts. The '44 hosts, not 19' comparison is therefore off by a factor of 8 in units, and it materially misstates the sensitivity the paragraph is trying to convey.",
+   "fix_instruction": "Fix the units: either state '51.6 PFLOP/s ÷ 1.19 PFLOP/s per GPU = 43.4 GPUs ≈ 6 hosts of 8 (not 44 hosts)', or, if the intent is to compare like with like, state the per-host required rate as 8 × 1.19 = 9.52 PFLOP/s and the host count as ⌈51.6 ÷ 9.52⌉ = 6. Keep the 19-host figure for the 35% MFU planning rate and label the two rates by their per-unit basis.",
+   "confidence": "high",
+   "_tid": "R4-052"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "CC-011",
+   "severity": "P2",
+   "page": 176,
+   "chapter": "Ch. 8",
+   "evidence": "prefill throughput per GPU ~2,472 tokens/s 346.15 TFLOPS ÷ 140 GFLOP/token = 2,472.5 → 2,472 [DERIVED; per-GPU scope; case (i) linear-only, 140 GFLOP/token — including case (ii) full-square attention at 9.2K gives ~2,110 tokens/s]",
+   "issue": "Check of the case-(ii) per-GPU figure: case (ii) prefill FLOPs = 1.5099 PFLOP for 9,200 tokens; per-GPU sustained = 346.15 TFLOPS; rate = 346.15e12 / (1.5099e15/9200) = 346.15e12 / 1.6412e11 = 2,109 tokens/s ≈ ~2,110 ✓. And the host figure: 'including attention at 9.2K ~16,900 tokens/s' — 8 × 2,109 = 16,872 ≈ 16,900 ✓. The arithmetic is sound. The defect is that Table 8-1's per-GPU row is scoped 'per-GPU' and its host row is scoped '8×H100', yet the host row's derivation reads '8 × 2,472 = 19,776 (unrounded 8 × 2,472.5 = 19,780) ≈ 19,800' — presenting 19,776 and 19,780 as different 'unrounded' values when the second is simply 8 × 2,472.5 and the first is 8 × 2,472 (the rounded per-GPU value). The two numbers are the same quantity at two rounding stages, presented as if they were a discrepancy.",
+   "fix_instruction": "Restate as a single chain: '2,472.5 tokens/s per GPU (unrounded) → × 8 = 19,780 tokens/s per host ≈ 19,800'. Remove the '8 × 2,472 = 19,776' line or label it as the rounded-per-GPU-times-8 variant.",
+   "confidence": "medium",
+   "_tid": "R4-053"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "CC-012",
+   "severity": "P2",
+   "page": 180,
+   "chapter": "Ch. 8",
+   "evidence": "I(b) = (164.1 GFLOP × b) ÷ (140 GB + 24.1 GB × b) ... The 24.1 GFLOP and the 24.1 GB coincide by construction: both scale as 4·n_layers·d·L, the FLOPs counting two matmuls at two FLOPs each and the bytes counting two FP16 tensors at two bytes each.",
+   "issue": "Recomputation: the decode attention term 4·n_layers·L·d = 4 × 80 × 9,200 × 8,192 = 24,117,248,000 FLOP ≈ 24.1 TFLOP, not 24.1 GFLOP. And the KV bytes read per decode step = 2 × 80 × 8192 × 2 B × 9,200 = 24,117,248,000 B ≈ 24.1 GB. So the two quantities coincide at 24.1 TFLOP vs 24.1 GB — the coefficient coincidence is right (both are 4·n_layers·d·L, in FLOP and in bytes) — but the paragraph labels the FLOP term '24.1 GFLOP' while the total per-token decode FLOP is then given as '164.1 GFLOP' (140 + 24.1). If the attention term is 24.1 TFLOP, the per-token decode total is ~24.26 TFLOP, not 164.1 GFLOP, and the intensity formula I(b) = (164.1 GFLOP × b)/(140 GB + 24.1 GB × b) is off by three orders of magnitude in the numerator — the stated saturation at '164.1 ÷ 24.1 ≈ 6.8 FLOP/byte' actually comes out at ~24,260 GFLOP ÷ 24.1 GB ≈ 1,007 FLOP/byte, which would place decode near the ridge, contradicting the book's stated conclusion that 'decode stays bandwidth-bound at every batch size'.",
+   "fix_instruction": "Correct the units in the decode attention term and the intensity formula. The per-token decode attention FLOPs at 9.2K context are 4·n_layers·L·d = 24.1 TFLOP; the per-token decode total is ~140 GFLOP (projections) + 24.1 TFLOP (attention over the cached prefix) ≈ 24.26 TFLOP, and the KV bytes read per step ≈ 24.1 GB. Recompute I(b) = (24,260 GFLOP × b) ÷ (140 GB + 24.1 GB × b) and restate the saturation value and its comparison with the ~295 FLOP/byte ridge, or, if the intended model is per-generated-token attention over the prefix (2·d·L per layer, not 4·d·L), state that convention explicitly and recompute.",
+   "confidence": "medium",
+   "_tid": "R4-054"
+  },
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "F04",
+   "severity": "P3",
+   "page": "180 (PDF; printed 160)",
+   "chapter": "Ch. 8 §8.3.5 (decode roofline, KV-read caveat)",
+   "evidence": "Ch. 8 (PDF p.180, printed 160): 'the weight-only intensity above omits the per-sequence KV re-read: 2.62 MB/token × 9,200 tokens ≈ 24.1 GB (FP16, full-MHA; Ch 6).' Ch. 6's decode treatment (PDF pp.129–131, printed 109–111: §6.3.3 and Table 6-1) states only the 140 GB weight read, the 5.6 TB/s aggregate figure and the 0.70 TB/s sharded figure — the 24.1 GB KV figure appears nowhere in Ch. 6. The value's derivation home is Table 7-1 (PDF p.141, printed 121: '9,200 × 2,621,440 B') and Table 4-2 (PDF p.87, printed 67).",
+   "issue": "Wrong-chapter citation: the '(FP16, full-MHA; Ch 6)' provenance pointer attributes the 24.1 GB per-sequence KV re-read to Chapter 6, but Chapter 6 never states or derives that number; the cited-topic test fails. The arithmetic itself is correct (2.62 MB/token × 9,200 ≈ 24.1 GB).",
+   "fix_instruction": "Repoint the citation to its actual source: '(FP16, full-MHA; Ch 7 Table 7-1)' or '(Ch 4, Table 4-2)'.",
+   "confidence": 0.65,
+   "_tid": "R4-072"
+  }
+ ],
+ "count": 6
+}
