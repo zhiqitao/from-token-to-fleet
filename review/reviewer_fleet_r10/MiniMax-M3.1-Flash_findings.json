@@ -1,0 +1,62 @@
+[
+ {
+  "id": "R9-01",
+  "severity": "P2",
+  "page": "PDF p.39 (printed p.15); also PDF p.45 (printed p.21) and PDF p.49 (printed p.24)",
+  "chapter": "Ch 2 (What Actually Happens During Inference)",
+  "evidence": "Chapter opening claim (PDF p.39): \"why, at the canonical low-batch operating point, decode is HBM-bandwidth-bound while prefill is compute-bound\". §2.2 (PDF p.45): \"In the canonical operating point — low batch — decode is bandwidth-bound. It is like pushing the water of that same 140 GB reservoir through a standard garden hose. On a single device, the full 140 GB must stream within each 25 ms step to produce one token\" ... followed by \"(The 140 GB hose is the single-device illustration. On the canonical 8×H100 host, each GPU streams only its 17.5 GB shard per step, which takes ~5.2 ms at peak — 21% of the 25 ms step.)\" But Table 2-2 (PDF p.49) concludes for the same host: \"Decode: bandwidth verdict, canonical 8×H100 host (TP = 8) | bandwidth not binding at this point (weight-read only) | 700 GB/s < 3.35 TB/s → ... 21% of the 25 ms TPOT step, so weight-read bandwidth is not the binding constraint at this operating point\", and Ch 6 Table 6-1 (PDF p.145) repeats: \"weight-read bandwidth is not binding at the canonical point — 0.70 TB/s ÷ 3.35 TB/s = 20.9% achieved HBM util\".",
+  "issue": "The headline verdict of the chapter (\"at the canonical low-batch operating point, decode is HBM-bandwidth-bound\") is asserted for the canonical operating point, but the chapter's own arithmetic shows that on the canonical 8×H100 host the decode weight-read consumes only ~21% of peak HBM bandwidth and is therefore NOT the binding resource; the 5.6 TB/s figure that produces the \"bandwidth-bound\" verdict comes from a hypothetical single-device layout the book itself says is not deployable (140 GB FP16 does not fit in one 80 GB H100). The book elsewhere separates \"regime classification by arithmetic intensity\" (~1 FLOP/byte) from \"the binding constraint\" (which has headroom), but the chapter's framing sentence and §2.2's water analogy state the bandwidth-bound verdict as a property of \"the canonical operating point\". A reader who takes the chapter framing as the canonical verdict would mis-diagnose the canonical decode path (the actual binding terms there are the TP collectives, kernel efficiency, sampling and scheduling, plus the 9.2K KV attention read).",
+  "fix_instruction": "In the chapter opening and §2.2, restate the decode verdict as a regime/classification statement (arithmetic intensity ~1 FLOP/byte at low batch) and explicitly state that on the canonical 8×H100 host the weight-read is NOT bandwidth-saturated (~21% of peak), so the binding terms at that operating point are TP collectives, kernel efficiency, sampling/scheduling and the KV attention read. Reserve \"bandwidth-bound\" for the hypothetical single-device case and label it as such wherever it appears in the chapter.",
+  "confidence": "high"
+ },
+ {
+  "id": "R9-02",
+  "severity": "P2",
+  "page": "PDF p.123 (printed p.99); supporting text PDF p.121 (printed p.97) and PDF p.124 (printed p.100)",
+  "chapter": "Ch 5 (From Workload to Model Selection)",
+  "evidence": "Table 5-2 rows (PDF p.123): \"Selection status | recommended, pending target-corpus validation | [canonical scenario][ASSUMPTION]\" and \"Verdict | Embedding: all-mpnet-base-v2 (768-dim); Generation: 70B FP16 on 8×H100 | Selection surfaces (§5.1) [canonical scenario][DERIVED]\". But §5.3(a) (PDF p.121) states the quality basis of that verdict: \"Assume, as a scenario input rather than a measured result, a quality-vs-dimension uplift of up to ~15% MAP [ILLUSTRATIVE][ASSUMPTION] (a chosen input, not a cited finding — no study is invoked here)\", and the same section hedges the recommendation (\"the quality claim itself is the §5.3(a)/§5.7 item still to validate on the target corpus\"). The chapter's own rule (PDF p.124, Table 5-2 note): \"The mixed-input convention therefore governs: the non-canonical input wins, and the rows carry [ILLUSTRATIVE][DERIVED] rather than [canonical scenario][DERIVED]\".",
+  "issue": "Provenance/label mismatch: the Table 5-2 verdict and selection-status rows carry [canonical scenario] provenance even though the embedding-model recommendation's decisive input is explicitly an [ILLUSTRATIVE][ASSUMPTION] (~15% MAP uplift) whose transfer to the target corpus is an open [HYPOTHESIS]. Under the chapter's own stated mixed-input convention (non-canonical input wins → [ILLUSTRATIVE]), these two rows are mislabeled. The error matters because the two provenance tags are the book's mechanism for telling a reader which numbers survive re-derivation against a real corpus and a procured quote.",
+  "fix_instruction": "Relabel the Table 5-2 \"Selection status\" and \"Verdict\" rows to [ILLUSTRATIVE][ASSUMPTION] / [ILLUSTRATIVE][DERIVED] respectively (or split the row so the generation-model verdict keeps [canonical scenario][DERIVED] while the embedding-model verdict carries [ILLUSTRATIVE]), and add the same mixed-input note that the per-dollar rows already carry.",
+  "confidence": "high"
+ },
+ {
+  "id": "R9-03",
+  "severity": "P3",
+  "page": "PDF p.145 (printed p.121)",
+  "chapter": "Ch 6 (Measuring What Matters)",
+  "evidence": "Table 6-1, Decode row, \"Resource tell\" cell: \"batch-1 single-device illustration only: high HBM util, low FLOP util (at the canonical point HBM util is ~21%, not saturated)\". The same row's Verdict cell: \"memory-bound by intensity (~1.0 FLOP/byte ≪ ridge ~295); weight-read bandwidth is not binding at the canonical point — 0.70 TB/s ÷ 3.35 TB/s = 20.9% achieved HBM util\".",
+  "issue": "The diagnostic cell contradicts itself inside one cell: it names \"high HBM util\" as the telemetry tell for a bandwidth-bound decode, and then states that at the canonical operating point HBM utilization is ~21%, i.e. not high and not saturated. Ch 6's stated purpose is to let a reader \"tell bandwidth-bound from compute-bound purely from the counters\", so a tell that does not hold at the book's own canonical operating point is a defect in the diagnostic instruction, not just awkward phrasing.",
+  "fix_instruction": "Split the cell into two explicit cases: the single-device batch-1 illustration (tell: high HBM util, low FLOP util) and the canonical 8×H100 TP=8 operating point (tell: low-to-moderate HBM util (~21%), and the binding evidence is TP-collective/kernel/scheduling overhead plus KV-attention traffic, with MFU/queue-depth as the observable).",
+  "confidence": "high"
+ },
+ {
+  "id": "R9-04",
+  "severity": "P3",
+  "page": "PDF p.52 (printed p.28) vs PDF p.76 (printed p.52) and PDF p.88 (printed p.64)",
+  "chapter": "Ch 2 vs Ch 4",
+  "evidence": "Ch 2 §2.3 (PDF p.52): \"At FP16 (2 bytes per parameter), the weight footprint is W = N ×2 = 140 GB\" — here W denotes the weight footprint in bytes. Ch 4 (PDF p.76): \"Little's Law, L = λW, relates the average number of requests in the defined system L, the arrival rate λ, and the mean time in system W\" — here W denotes mean service time. Ch 4 Canonical Workload box (PDF p.88): \"the occupancy service time is Wexec ≈ 8.6 s\" and separately \"Mean request service time (planning headline — not used for occupancy) ~10 s\".",
+  "issue": "Symbol collision across chapters: W is used for two unrelated quantities (weight bytes in Ch 2; mean time in system in Ch 4, where it is also the multiplier in the book's most-used formula L = λW). The book goes out of its way to reserve other symbols explicitly (\"the active-user population is written U; C is reserved throughout the book for a host's KV slot capacity\"), so this is an inconsistency with the book's own notation discipline; a reader crossing from Ch 2's \"W = 140 GB\" into Ch 4's \"λW\" can misread one as the other.",
+  "fix_instruction": "Rename the Ch 2 weight-footprint symbol (e.g. W_bytes or M_weights) and keep W reserved for mean time in system throughout, adding the reservation to the Preface's reading-conventions list alongside U and C.",
+  "confidence": "high"
+ },
+ {
+  "id": "R9-05",
+  "severity": "P3",
+  "page": "PDF p.157 (printed p.133)",
+  "chapter": "Ch 7 (Memory Is the First Constraint)",
+  "evidence": "Table 7-1, row \"3×H100 total VRAM\", derivation cell reads in full: \"3× the vendor's 80 GB per-part constant [1P][FACT] (NVIDIA H100 80 GB specification); tagged as the 2× and 8× rows and the 640 GB pool in Table 7-2 are\" — the sentence ends on the word \"are\" with no predicate, and the same table's \"2×H100 total VRAM\" and \"8×H100 total VRAM\" rows carry complete derivations (\"2 ×80 GB = 160 GB [1P][FACT] (NVIDIA H100 80 GB specification)\", \"8 ×80 GB = 640 GB [1P][FACT] (NVIDIA H100 80 GB specification)\").",
+  "issue": "Truncated/incomplete derivation cell: the 3×H100 row's label text is missing its ending clause (apparently a note such as \"…are tagged [1P][FACT] as well\"), leaving a dangling predicate. Because this table is the book's anchor memory ledger, a half-finished label under a numeric row that feeds the \"≥3×H100\" conclusion is a visible production defect.",
+  "fix_instruction": "Complete the 3×H100 derivation cell (e.g. \"3 × 80 GB = 240 GB [1P][FACT] (NVIDIA H100 80 GB specification); like the 2× and 8× rows and the 640 GB pool in Table 7-2, the capacity is a [1P][FACT] vendor constant\") and proof the table for other truncated cells.",
+  "confidence": "high"
+ },
+ {
+  "id": "R9-06",
+  "severity": "P3",
+  "page": "PDF p.140 (printed p.116)",
+  "chapter": "Ch 6 (Measuring What Matters)",
+  "evidence": "In-figure label in Fig 6.2 reads \"SLO 2 s (TTFT budget)\" and \"SLO-violating region (> 2 s)\". The figure caption states the opposite convention: \"the p95 TTFT ceiling (Table 4-2), not the 1.2 s design budget — a superset of TTFT violations\". Ch 4 §4.3 makes the distinction explicit: \"The two thresholds are not interchangeable: 1.2 s is the design budget, ≤ 2 s is the p95 ceiling the budget relaxes to, and any pass/fail judgement on a measured distribution is made against the p95 ceiling, not the budget.\"",
+  "issue": "Figure-vs-caption/labelling mismatch: the in-figure legend calls the 2 s line the \"TTFT budget\", which is the book's term for the 1.2 s design budget (TTFT budget 1.2 s, retrieval ~120 ms + prefill ~1.08 s). The caption itself flags the correct reading (p95 ceiling). A reader reading only the graphic will apply the wrong threshold name to the wrong line, and the same line is used in Ch 6's text as \"the 2 s SLO\" / \"the p95 TTFT-ceiling line\".",
+  "fix_instruction": "Change the in-figure label from \"SLO 2 s (TTFT budget)\" to \"p95 TTFT ceiling 2 s (SLO)\" (and, if both lines are wanted, add the 1.2 s design-budget line separately), matching the caption's terminology and Table 4-2's naming.",
+  "confidence": "medium-high"
+ }
+]

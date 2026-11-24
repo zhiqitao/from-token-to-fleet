@@ -4,16 +4,26 @@ After this chapter we should be able to reason about the two fundamental
 modes of LLM inference --- prefill and decode --- and to identify which
 system constraint each mode exposes. We should be able to compute the
 bandwidth and FLOP demands of a given workload, compare them against
-real hardware limits, and understand why, \emph{at the canonical
-low-batch operating point}, decode is HBM-bandwidth-bound while prefill
-is compute-bound --- and that this is a regime statement, not a
-universal rule: at other batch sizes and context lengths the binding
-constraint can shift (the qualification is developed in §2.2 and Ch 8).
-This distinction directly shapes architectural decisions: whether we
-need more GPUs, whether we can disaggregate prefill from decode, and how
-we size memory and compute in a fleet. After this chapter we should see
-inference not as a single monolithic cost but as two opposite-bound
-processes that require different levers.
+real hardware limits, and understand why, at the canonical low-batch
+operating point, decode sits in the memory-bandwidth-bound \emph{regime}
+(weight-only arithmetic intensity ≈ 1 FLOP/byte, far left of the
+roofline ridge) while prefill sits in the compute-bound regime --- and
+that this is a regime statement, not a universal rule: at other batch
+sizes and context lengths the binding constraint can shift. A regime
+label is also not a claim that the weight read saturates HBM. On the
+canonical 8×H100 host each GPU streams only its 17.5 GB shard ---
+\textasciitilde21\% of peak bandwidth over the 25 ms step --- so the
+binding terms at that operating point are the TP collectives, kernel
+efficiency, sampling and scheduling, and the \textasciitilde9.2K-token
+KV attention read, not the weight read. The ``bandwidth-bound'' verdict
+that comes from comparing 5.6 TB/s against one device's 3.35 TB/s is the
+hypothetical whole-model-on-one-GPU case, labeled as such in §2.2 and
+\hyperref[tab:2.2]{Table 2-2} (Ch 8 develops the roofline). This distinction directly shapes
+architectural decisions: whether we need more GPUs, whether we can
+disaggregate prefill from decode, and how we size memory and compute in
+a fleet. After this chapter we should see inference not as a single
+monolithic cost but as two opposite-bound processes that require
+different levers.
 
 \ntsection{Concept}\label{concept}
 
@@ -348,20 +358,33 @@ prefill or a tiny prompt could shift it toward the bandwidth side ---
 Ch. 8 makes the dependence on model × workload × kernel × hardware
 explicit.)
 
-\textbf{In the canonical operating point --- low batch --- decode is
-bandwidth-bound.} It is like pushing the water of that same 140 GB
-reservoir through a standard garden hose. On a single device, the full
-140 GB must stream within each 25 ms step to produce one token: each
-step delivers one glass of water at its end, not a continuous flow. (The
-140 GB hose is the single-device illustration. On the canonical 8×H100
-host, each GPU streams only its 17.5 GB shard per step, which takes
-\textasciitilde5.2 ms at peak --- 21\% of the 25 ms step.) The reservoir
-is not drained --- the same weight volume is re-read every step: 140 GB
-in aggregate on one device, 17.5 GB per GPU on the canonical host. The
-pump (compute) is more than powerful enough, but the diameter of the
-hose (HBM bandwidth) physically cannot move that volume of water in that
-time frame. (Again an operating-point property, not an identity: at high
-batch decode can become compute-bound.)
+\textbf{In the canonical operating point --- low batch --- decode sits
+in the bandwidth-bound regime.} It is like pushing the water of that
+same 140 GB reservoir through a standard garden hose. On a single
+device, the full 140 GB must stream within each 25 ms step to produce
+one token: each step delivers one glass of water at its end, not a
+continuous flow. (The 140 GB hose is the single-device illustration. On
+the canonical 8×H100 host, each GPU streams only its 17.5 GB shard per
+step, which takes \textasciitilde5.2 ms at peak --- 21\% of the 25 ms
+step.) The reservoir is not drained --- the same weight volume is
+re-read every step: 140 GB in aggregate on one device, 17.5 GB per GPU
+on the canonical host. The pump (compute) is more than powerful enough,
+but the diameter of the hose (HBM bandwidth) physically cannot move that
+volume of water in that time frame. (Again an operating-point property,
+not an identity: at high batch decode can become compute-bound.)
+
+\textbf{The regime label is not a saturation verdict.} The
+classification comes from arithmetic intensity --- low-batch decode runs
+at \textasciitilde1 FLOP/byte, far left of the \textasciitilde295
+FLOP/byte ridge --- not from a per-GPU rate comparison. On the canonical
+8×H100 host the weight read uses \textasciitilde21\% of peak HBM
+bandwidth, so it is \emph{not} the binding term there; the binding terms
+at that operating point are the TP collectives, kernel efficiency,
+sampling and scheduling, and the attention read over the 9.2K-token KV
+cache. Reserve ``bandwidth-bound'' as a device verdict for the
+hypothetical whole-model-on-one-GPU case, where 5.6 TB/s is measured
+against one device's 3.35 TB/s (\hyperref[tab:2.2]{Table 2-2}, §2.5; Ch 6 states the same
+scope).
 
 When we ask ``is this workload compute-bound or bandwidth-bound?'' the
 answer depends entirely on which physical constraint we are hitting: the
@@ -445,7 +468,8 @@ per-GPU one \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 H100 HBM3 peak bandwidth & 3.35 TB/s & NVIDIA H100 specs
 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} \\
 Decode: bandwidth verdict, hypothetical single-device aggregate &
-bandwidth-bound & 5.6 \textgreater{} 3.35 → one device holding the whole
+bandwidth-bound --- \textbf{illustrative single-device only; not the
+host verdict} & 5.6 \textgreater{} 3.35 → one device holding the whole
 140 GB model cannot meet the demand. This row compares aggregate bytes
 against a \emph{single} device's bandwidth, and a 140-GB FP16 model does
 not fit on one 80-GB H100: the row illustrates the roofline point, not a
@@ -555,30 +579,32 @@ model checks, not a measurement of actual serving throughput.)*
   \textbf{Decode bandwidth.} In autoregressive decode, generating one
   token requires a full forward pass of the 70B parameter matrix. At
   FP16 (2 bytes per parameter), the weight footprint is
-  \(W = N \times 2 = 140\) GB. \textbf{This is the aggregate model-wide
-  weight traffic} --- but note the unit of comparison carefully. Name it
-  precisely: this 140 GB is the \textbf{logical model-weight footprint
-  used as a first-order HBM traffic approximation} (what later chapters
-  call the \textbf{canonical weight-stream approximation}). It is the
-  footprint that results from \emph{reading every parameter once per
-  decode step in a dense model with no reuse}, not a claim about
-  physical HBM traffic in a real engine. Physical traffic depends on
-  residency, caching hierarchy, fusion, batching, quantization,
-  sharding, and implementation, and rises or falls accordingly. For a
-  hypothetical single-device implementation holding the entire FP16
-  model, the aggregate model-weight traffic per decode step is
-  \textasciitilde140 GB; on a tensor-parallel deployment both weight
-  residency \emph{and} this traffic are sharded across GPUs, so the
-  relevant comparison is per-GPU shard traffic against per-GPU HBM
-  bandwidth, plus communication overhead. (A 140-GB FP16 model cannot
-  reside on a single 80-GB H100 anyway, so the whole-model-on-one-GPU
-  comparison is deliberately hypothetical.) With a TPOT budget of
-  \textasciitilde25 ms per token, the \emph{aggregate} required
-  bandwidth is
+  \(M_\text{weights} = N \times 2 = 140\) GB. (The symbol is
+  \(M_\text{weights}\), not \(W\): throughout the book \(W\) is reserved
+  for mean time in system in Little's law, \(L = \lambda W\), Ch 4.)
+  \textbf{This is the aggregate model-wide weight traffic} --- but note
+  the unit of comparison carefully. Name it precisely: this 140 GB is
+  the \textbf{logical model-weight footprint used as a first-order HBM
+  traffic approximation} (what later chapters call the \textbf{canonical
+  weight-stream approximation}). It is the footprint that results from
+  \emph{reading every parameter once per decode step in a dense model
+  with no reuse}, not a claim about physical HBM traffic in a real
+  engine. Physical traffic depends on residency, caching hierarchy,
+  fusion, batching, quantization, sharding, and implementation, and
+  rises or falls accordingly. For a hypothetical single-device
+  implementation holding the entire FP16 model, the aggregate
+  model-weight traffic per decode step is \textasciitilde140 GB; on a
+  tensor-parallel deployment both weight residency \emph{and} this
+  traffic are sharded across GPUs, so the relevant comparison is per-GPU
+  shard traffic against per-GPU HBM bandwidth, plus communication
+  overhead. (A 140-GB FP16 model cannot reside on a single 80-GB H100
+  anyway, so the whole-model-on-one-GPU comparison is deliberately
+  hypothetical.) With a TPOT budget of \textasciitilde25 ms per token,
+  the \emph{aggregate} required bandwidth is
 \end{itemize}
 
 \[
-B_\text{req} = \frac{W}{\tau} = \frac{140 \text{ GB}}{0.025 \text{ s}} = 5{,}600 \text{ GB/s} = 5.6 \text{ TB/s}
+B_\text{req} = \frac{M_\text{weights}}{\tau} = \frac{140 \text{ GB}}{0.025 \text{ s}} = 5{,}600 \text{ GB/s} = 5.6 \text{ TB/s}
 \]
 
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. A single NVIDIA H100 HBM3
@@ -659,30 +685,32 @@ point (arithmetic intensity \textasciitilde9.2K FLOP/byte
 the gap. Attention kernels are a lever for the bandwidth side of the
 ridge. - \textbf{Canonical host verdict.} On the canonical 8×H100 host
 (TP = 8): prefill 1.29 PFLOP / (8 × 0.989 PFLOPS) = 0.16 s at peak,
-\textasciitilde0.47 s at 35\% MFU {[}2°: industry
-benchmarks{]}{[}ASSUMPTION --- the book's planning MFU, with 25/35/45\%
-sensitivity in Ch 8, \hyperref[tab:8.1]{Table 8-1}{]}, inside the 1.08 s budget (a single
-request monopolizing the host; not the per-host aggregate rate of
-\textasciitilde19,800 tok/s --- see Ch 8 §3.4); decode shard 70B/8 =
-8.75B params = 17.5 GB/GPU per step → 17.5 GB / 3.35 TB/s = 5.2 ms at
-peak, inside the 25 ms TPOT budget (sustained-bandwidth sensitivity: at
-60--80\% of peak the same shard takes \textasciitilde8.7--6.5 ms ---
-still inside 25 ms, so the verdict does not rest on the peak figure;
-§2.5); KV 24.1 GB per request (24.9 GB on the 9.5K-token slot-counting
-basis) against the 640 GB pool --- i.e.~the \textasciitilde436 GB KV
-budget after the 140 GB of weights and the \textasciitilde64 GB reserve
-(640 − 140 − 64 = 436). Two KV bases, named: at the pre-generation
-9.2K-input point the request's KV is 24.1 GB, so the host footprint is
-\textasciitilde228 GB (140 GB weights + \textasciitilde64 GB
-runtime/workspace reserve + 24.1 GB KV); at the end-of-generation 9.5K
-resident basis the same host holds \textasciitilde229 GB (140 + 64 +
-24.9 GB --- the figure Ch 7 \hyperref[fig:7.8]{Fig 7.8} uses). Here \emph{footprint} is the
-byte total on the host, and \emph{resident basis} is only the token
-count the KV slots are sized against (Ch 4, \hyperref[tab:4.2]{Table 4-2}); the two are
-different quantities and the labels keep them apart. The reserve is
-introduced in Ch 4 and derived in Ch 7. The single-H100 arithmetic above
-is a device-feasibility illustration, not this host's verdict.
-\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+\textasciitilde0.47 s at 35\% MFU \mbox{{[}canonical scenario{]}}{[}ASSUMPTION
+--- the book's planning MFU, benchmark-informed: the \mbox{{[}2°{]}} industry
+range is 30--40\%, and the 35\% point is the book's chosen planning
+value, with 25/35/45\% sensitivity in Ch 8, \hyperref[tab:8.1]{Table 8-1}{]}, inside the
+1.08 s budget (a single request monopolizing the host; not the per-host
+aggregate rate of \textasciitilde19,800 tok/s --- see Ch 8 §3.4); decode
+shard 70B/8 = 8.75B params = 17.5 GB/GPU per step → 17.5 GB / 3.35 TB/s
+= 5.2 ms at peak, inside the 25 ms TPOT budget (sustained-bandwidth
+sensitivity: at 60--80\% of peak the same shard takes
+\textasciitilde8.7--6.5 ms --- still inside 25 ms, so the verdict does
+not rest on the peak figure; §2.5); KV 24.1 GB per request (24.9 GB on
+the 9.5K-token slot-counting basis) against the 640 GB pool --- i.e.~the
+\textasciitilde436 GB KV budget after the 140 GB of weights and the
+\textasciitilde64 GB reserve (640 − 140 − 64 = 436). Two KV bases,
+named: at the pre-generation 9.2K-input point the request's KV is 24.1
+GB, so the host footprint is \textasciitilde228 GB (140 GB weights +
+\textasciitilde64 GB runtime/workspace reserve + 24.1 GB KV); at the
+end-of-generation 9.5K resident basis the same host holds
+\textasciitilde229 GB (140 + 64 + 24.9 GB --- the figure Ch 7 \hyperref[fig:7.8]{Fig 7.8}
+uses). Here \emph{footprint} is the byte total on the host, and
+\emph{resident basis} is only the token count the KV slots are sized
+against (Ch 4, \hyperref[tab:4.2]{Table 4-2}); the two are different quantities and the
+labels keep them apart. The reserve is introduced in Ch 4 and derived in
+Ch 7. The single-H100 arithmetic above is a device-feasibility
+illustration, not this host's verdict. \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \textbf{Occupancy thresholds.} Two thresholds bound the
 \emph{weight-matmul portion} of the step, and they rest on opposite

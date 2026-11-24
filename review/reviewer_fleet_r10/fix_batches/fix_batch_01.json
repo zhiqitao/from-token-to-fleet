@@ -1,0 +1,54 @@
+{
+ "target": "design/manuscript/chapter-02/chapter-02.md",
+ "findings": [
+  {
+   "model": "DeepSeek-V4.1-Flash",
+   "id": "R9-001",
+   "severity": "P3",
+   "page": "24",
+   "chapter": "2",
+   "evidence": "Table 2-2 row: \"Decode: bandwidth verdict, hypothetical single-device aggregate ... bandwidth-bound ... This row compares aggregate bytes against a single device’s bandwidth, and a 140-GB FP16 model does not fit on one 80-GB H100: the row illustrates the roofline point, not a deployable layout\"",
+   "issue": "The table row is labeled \"bandwidth-bound\" and uses a hypothetical single-device aggregate, but the same table later says weight-read bandwidth is not binding on the canonical 8×H100 host (700 GB/s < 3.35 TB/s). The row is correct as scoped, but its placement and label invite readers to treat a non-deployable single-device comparison as a system verdict.",
+   "fix_instruction": "Move the hypothetical single-device row to a clearly marked sidebar or add a row-level label such as \"illustrative single-device only; not the host verdict\" so the deployable host conclusion is not visually conflated with the aggregate comparison.",
+   "confidence": "high",
+   "_tid": "R10-001"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "R9-01",
+   "severity": "P2",
+   "page": "PDF p.39 (printed p.15); also PDF p.45 (printed p.21) and PDF p.49 (printed p.24)",
+   "chapter": "Ch 2 (What Actually Happens During Inference)",
+   "evidence": "Chapter opening claim (PDF p.39): \"why, at the canonical low-batch operating point, decode is HBM-bandwidth-bound while prefill is compute-bound\". §2.2 (PDF p.45): \"In the canonical operating point — low batch — decode is bandwidth-bound. It is like pushing the water of that same 140 GB reservoir through a standard garden hose. On a single device, the full 140 GB must stream within each 25 ms step to produce one token\" ... followed by \"(The 140 GB hose is the single-device illustration. On the canonical 8×H100 host, each GPU streams only its 17.5 GB shard per step, which takes ~5.2 ms at peak — 21% of the 25 ms step.)\" But Table 2-2 (PDF p.49) concludes for the same host: \"Decode: bandwidth verdict, canonical 8×H100 host (TP = 8) | bandwidth not binding at this point (weight-read only) | 700 GB/s < 3.35 TB/s → ... 21% of the 25 ms TPOT step, so weight-read bandwidth is not the binding constraint at this operating point\", and Ch 6 Table 6-1 (PDF p.145) repeats: \"weight-read bandwidth is not binding at the canonical point — 0.70 TB/s ÷ 3.35 TB/s = 20.9% achieved HBM util\".",
+   "issue": "The headline verdict of the chapter (\"at the canonical low-batch operating point, decode is HBM-bandwidth-bound\") is asserted for the canonical operating point, but the chapter's own arithmetic shows that on the canonical 8×H100 host the decode weight-read consumes only ~21% of peak HBM bandwidth and is therefore NOT the binding resource; the 5.6 TB/s figure that produces the \"bandwidth-bound\" verdict comes from a hypothetical single-device layout the book itself says is not deployable (140 GB FP16 does not fit in one 80 GB H100). The book elsewhere separates \"regime classification by arithmetic intensity\" (~1 FLOP/byte) from \"the binding constraint\" (which has headroom), but the chapter's framing sentence and §2.2's water analogy state the bandwidth-bound verdict as a property of \"the canonical operating point\". A reader who takes the chapter framing as the canonical verdict would mis-diagnose the canonical decode path (the actual binding terms there are the TP collectives, kernel efficiency, sampling and scheduling, plus the 9.2K KV attention read).",
+   "fix_instruction": "In the chapter opening and §2.2, restate the decode verdict as a regime/classification statement (arithmetic intensity ~1 FLOP/byte at low batch) and explicitly state that on the canonical 8×H100 host the weight-read is NOT bandwidth-saturated (~21% of peak), so the binding terms at that operating point are TP collectives, kernel efficiency, sampling/scheduling and the KV attention read. Reserve \"bandwidth-bound\" for the hypothetical single-device case and label it as such wherever it appears in the chapter.",
+   "confidence": "high",
+   "_tid": "R10-006"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "R9-04",
+   "severity": "P3",
+   "page": "PDF p.52 (printed p.28) vs PDF p.76 (printed p.52) and PDF p.88 (printed p.64)",
+   "chapter": "Ch 2 vs Ch 4",
+   "evidence": "Ch 2 §2.3 (PDF p.52): \"At FP16 (2 bytes per parameter), the weight footprint is W = N ×2 = 140 GB\" — here W denotes the weight footprint in bytes. Ch 4 (PDF p.76): \"Little's Law, L = λW, relates the average number of requests in the defined system L, the arrival rate λ, and the mean time in system W\" — here W denotes mean service time. Ch 4 Canonical Workload box (PDF p.88): \"the occupancy service time is Wexec ≈ 8.6 s\" and separately \"Mean request service time (planning headline — not used for occupancy) ~10 s\".",
+   "issue": "Symbol collision across chapters: W is used for two unrelated quantities (weight bytes in Ch 2; mean time in system in Ch 4, where it is also the multiplier in the book's most-used formula L = λW). The book goes out of its way to reserve other symbols explicitly (\"the active-user population is written U; C is reserved throughout the book for a host's KV slot capacity\"), so this is an inconsistency with the book's own notation discipline; a reader crossing from Ch 2's \"W = 140 GB\" into Ch 4's \"λW\" can misread one as the other.",
+   "fix_instruction": "Rename the Ch 2 weight-footprint symbol (e.g. W_bytes or M_weights) and keep W reserved for mean time in system throughout, adding the reservation to the Preface's reading-conventions list alongside U and C.",
+   "confidence": "high",
+   "_tid": "R10-009"
+  },
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "R10-03",
+   "severity": "P3",
+   "page": "54",
+   "chapter": "Ch. 2 — What Actually Happens During Inference (§2.3, Canonical host verdict)",
+   "evidence": "\"1.29 PFLOP / (8 × 0.989 PFLOPS) = 0.16 s at peak, ~0.47 s at 35% MFU [2°: industry benchmarks][ASSUMPTION — the book's planning MFU, with 25/35/45% sensitivity in Ch 8, Table 8-1]\" (PDF p. 54, book p. 30)",
+   "issue": "Evidence-label pairing violates the book's own definition. The Preface evidence panel and Table 4-2 Note 1 define ASSUMPTION as \"a deliberately chosen scenario input, paired with a scenario provenance ([canonical scenario] or [ILLUSTRATIVE])\". Here ASSUMPTION is paired with [2°], while the parenthetical itself identifies the value as a book-chosen planning constant (\"the book's planning MFU\"). By the book's taxonomy an externally benchmarked norm used to set a target takes [2°] provenance (Table 4-1 table-level note), but the epistemic partner for an author-chosen planning value should be a scenario provenance.",
+   "fix_instruction": "Relabel as [canonical scenario][ASSUMPTION] (keeping the 25/35/45% sensitivity pointer to Ch 8 Table 8-1), or amend the ASSUMPTION definition to permit benchmark-informed planning constants.",
+   "confidence": 0.7,
+   "_tid": "R10-014"
+  }
+ ],
+ "count": 4
+}
