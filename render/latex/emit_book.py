@@ -145,13 +145,20 @@ def make_copyrightpage():
     lines.append(r"\noindent\textbf{SPDX identifier:} \mbox{\texttt{LicenseRef-ZhiqiResearch-FromTokenToFleet-1.0}}. The identifier is a custom \texttt{LicenseRef}, not an OSI-approved standard licence: this work's terms are its own, and no standard-licence text can be substituted for them.\par")
     # Round-8 finding FTTF-005: a bare URL is a fragile pointer in print, so the
     # page names the retrieval date and says which object is authoritative.
-    lines.append(r"\noindent\textbf{Full terms:} \href{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd5/LICENSE}}")
+    # Round-9 finding P2-024: the licence's operative pointer is the pinned
+    # commit, so the URL a reader copies must carry the full 40-character hash
+    # -- the short form is a convenience for the eye, not the identifier the
+    # page says is authoritative.  Visible text is therefore the full hash URL;
+    # \nolinkurl lets hyperref break it at its slashes without breaking the
+    # hash itself.  The copyright page must stay one page (R5-004), so the
+    # surrounding prose was tightened to pay for the longer printed URL.
+    lines.append(r"\noindent\textbf{Full terms:} \href{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\nolinkurl{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}}")
     lines.append("")
     # Round-8 findings F-003 / FTTF-005: the printed URL shows the abbreviated
     # commit for legibility, so say plainly that it is the abbreviation of the
     # pinned 40-character hash and that the commit -- not the URL -- is the
     # immutable reference, with the date the pointer was checked.
-    lines.append(r"\noindent\textbf{Edition source revision.}\ This edition is built from commit \mbox{\texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3}} (short \texttt{27f4cd5}) of the repository. The link above resolves that commit's \texttt{LICENSE} file directly, so the terms quoted here can be read in their exact published form without locating the revision elsewhere (raw file: \href{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd5/LICENSE}}). Both printed URLs show that short form for legibility; it abbreviates the full hash above and resolves to the same commit. The URLs are convenience pointers, checked 2026-11-24: the pinned commit, not the URL, is the immutable reference.\par}")
+    lines.append(r"\noindent\textbf{Edition source revision.}\ This edition is built from commit \mbox{\texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3}} (short \texttt{27f4cd5}). The link above resolves that commit's \texttt{LICENSE} file directly, so the terms quoted here can be read in their exact published form (raw file: \href{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\nolinkurl{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}}). Both printed URLs carry the full 40-character hash, so the identifier this page treats as authoritative is the one a reader can copy; \texttt{27f4cd5} is only a legible abbreviation of it. The URLs are convenience pointers, checked 2026-11-24: the pinned commit, not the URL, is the immutable reference.\par}")
     lines.append("")
     lines.append(r"\noindent\textbf{Edition identification.} First edition, 2026 --- build identifier \texttt{v20260913}; single evidence cutoff \textbf{2026-08-30}. Both identifiers are restated in the Preface and the Edition-history panel of the Sources, Method, and Reproducibility chapter.")
     lines.append("")

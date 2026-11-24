@@ -28,12 +28,19 @@ different role:
   do. Requests per second (rps) and the token profile (input length,
   output length, context length). These are the independent variables
   --- the \emph{offered} load; we do not control them, we characterize
-  them. Admitted concurrency is a serving/scheduler state (Little's
-  law), not a workload input. For the canonical enterprise-Q\&A RAG
-  workload these are fixed by canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}):
-  \textasciitilde10 rps average with \textasciitilde40 rps peaks,
-  \textasciitilde9,200 input + \textasciitilde300 output tokens per
-  request.
+  them. Concurrency is not a workload input: it is a serving-side
+  quantity derived from the arrival rate and the time in system
+  (Little's law), so it belongs with queue depth on the scheduler side,
+  not in this layer. The chain is population (active users) → arrival
+  rate λ → in-flight requests (λ·W) → resident KV slots (Ch 4 §4.3,
+  §4.6), and every link after λ is derived. \hyperref[fig:6.1]{Fig 6.1}'s workload box
+  therefore carries the request rate, the token profile, and a
+  \emph{concurrency} entry that denotes the request rate λ that the
+  traffic offers, not a concurrency value. For the canonical
+  enterprise-Q\&A RAG workload these are fixed by canonical scenario (Ch
+  4, \hyperref[tab:4.2]{Table 4-2}): \textasciitilde10 rps average with \textasciitilde40
+  rps peaks, \textasciitilde9,200 input + \textasciitilde300 output
+  tokens per request.
 \item
   \textbf{Serving metrics} --- how \emph{well} the system performs under
   that workload. Time-to-first-token (TTFT), time-per-output-token
@@ -63,8 +70,8 @@ slow, let's buy GPUs'' --- instead of a mechanism.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE conceptual{]}}. The three metric layers and the direction of causal flow (down) vs.~diagnostic flow (up): causation runs downward (workload → resource metrics → serving behavior), diagnosis runs upward (serving symptom → resource evidence → workload/context); see §6.3 for the p95 TTFT worked example.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0601.pdf}}
-\caption[The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE conceptual{]}}]{The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE conceptual{]}}. The three metric layers and the direction of causal flow (down) vs.~diagnostic flow (up): causation runs downward (workload → resource metrics → serving behavior), diagnosis runs upward (serving symptom → resource evidence → workload/context); see §6.3 for the p95 TTFT worked example.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE conceptual{]}}. The three metric layers and the direction of causal flow (down) vs.~diagnostic flow (up): causation runs downward (workload → resource metrics → serving behavior), diagnosis runs upward (serving symptom → resource evidence → workload/context); see §6.3 for the p95 TTFT worked example. Label caveat: a concurrency entry in the workload box denotes the request rate λ that the traffic offers, not a concurrency value --- request concurrency is derived on the serving side (in-flight = λ × W, Little's law), the same classification this figure gives queue depth; see §6.1.1.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0601.pdf}}
+\caption[The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE conceptual{]}}]{The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE conceptual{]}}. The three metric layers and the direction of causal flow (down) vs.~diagnostic flow (up): causation runs downward (workload → resource metrics → serving behavior), diagnosis runs upward (serving symptom → resource evidence → workload/context); see §6.3 for the p95 TTFT worked example. Label caveat: a \texttt{concurrency} entry in the workload box denotes the request rate λ that the traffic offers, not a concurrency value --- request concurrency is derived on the serving side (in-flight = λ × W, Little's law), the same classification this figure gives queue depth; see §6.1.1.}
 
 \label{fig:6.1}\end{figure}
 
@@ -129,68 +136,92 @@ Mean}\label{latency-is-a-distribution-not-a-mean}
 A very common measurement error is reporting (and SLO-ing) the
 \emph{average} latency. \hyperref[fig:6.2]{Fig 6.2} shows a synthetic request stream: the
 body of requests follows a log‑normal distribution centered near 0.8 s
-(99\% of observations), with a 1\% straggler cluster at 5.0 s. That
-combination is deliberately \emph{not} a two‑point ``99\% at 0.8, 1\% at
-5'' distribution; it is a realistic spread, so the percentiles below are
-read off the plotted histogram rather than guessed. The plotted stream
-is a synthetic sample of N = 10,000 requests --- 99\% drawn from a
-log‑normal with median 0.8 s, 1\% a straggler cluster at 5.0 s --- and
+(99\% of observations), with a 1\% straggler cluster at 5.0 s
+\mbox{{[}ILLUSTRATIVE synthetic mixture{]}}. That combination is deliberately
+\emph{not} a two‑point ``99\% at 0.8, 1\% at 5'' distribution; it is a
+realistic spread, so the percentiles below are read off the plotted
+histogram rather than guessed. The plotted stream is a synthetic sample
+of N = 10,000 requests --- 99\% drawn from a log‑normal with median 0.8
+s and log-scale dispersion σ ≈ 0.12 (generated as exp(μ + σZ), with μ =
+ln 0.8 and Z standard normal), 1\% a straggler cluster at 5.0 s --- and
 the percentiles are read by linear interpolation on the sorted sample.
 The two-point approximation of the mean is \[
 \mathbb{E}[L] \approx 0.99 \times 0.8 + 0.01 \times 5.0 \approx 0.84 \text{ s}
-\] --- looks fine. But the distribution actually has a long tail: p50 ≈
-0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s --- a knife-edge
-property of \emph{this} N = 10,000 sample, not of the distribution:
-linear interpolation lands just past the largest non-straggler draw,
-between it and the first straggler (percentile position 1 + (N−1)×0.99 =
-9,900.01; sorted-sample ranks: 9,900 → 1.30 s, 9,901 → 5.0 s; 1.30 +
-0.01 × (5.0 − 1.30) ≈ 1.33 s; population p99 → 5.0 s), while the
-population p99 of the stated 99 \% log-normal + 1 \% straggler mixture
-is 5.0 s (one extra straggler, 101 of 10,000, moves the sample p99 to
-5.0 s too). The mean hides the tail; percentiles expose it --- but
-notice how far one has to go to expose \emph{this} tail. Under the
-canonical p95 TTFT SLO of ≤ 2 s, \textbf{even this sample's p99 (≈ 1.33
-s) still looks healthy --- the population p99 is 5.0 s, sitting on the
-straggler cluster.} Request latency ≥ TTFT, so a TTFT-budget line drawn
-on request latency flags a superset of TTFT violations. The 5 s
-stragglers are the top 1\% of the stream --- in this sample they sit
-\emph{between} the 99th and 100th percentile, so the interpolated p99
-line alone does not bring them into view. Only the p99.9 / maximum
-reading (or the full distribution) surfaces them. This is the sharper
-lesson: a tail can hide not just behind the mean but behind any single
-percentile, and the choice of which percentile to SLO against matters.
-It is why we log the full distribution and also watch the \emph{outlier
-fraction} (how much probability mass sits beyond the SLO line), not just
-one percentile.
+\] --- looks fine. Three \emph{different} quantities circulate in this
+paragraph, so we fix them once here, at first presentation, because they
+are not interchangeable. (a) The two-point approximation above
+substitutes the 0.8 s median for the whole 99\% body: 0.99 × 0.8 + 0.01
+× 5.0 = 0.842 s (the display above rounds it to 0.84 s). (b) The
+analytic mean of the mixture as specified is slightly higher, because a
+log-normal with median 0.8 s and log-scale dispersion σ = 0.12 has mean
+0.8 × exp(σ²/2) ≈ 0.8058 s: 0.99 × 0.8058 + 0.01 × 5.0 ≈ 0.848 s. (c)
+The \emph{sample} mean of this particular draw of N = 10,000 is 0.85 s
+--- the value \hyperref[fig:6.2]{Fig 6.2} displays --- and it is draw-dependent in the same
+way the sample p99 is: another draw moves the last digit, while the
+population value does not move. The percentiles below are read off this
+sample, not off the distribution.
+
+Read off the sample, the long tail looks like this: p50 ≈ 0.80 s, p90 ≈
+0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s. Every one of these is a property
+of the N = 10,000 \emph{sample}, not of the distribution: the population
+p99 of this 99 \% log‑normal + 1 \% straggler mixture is 5.0 s. The
+sample p99 is knife-edge --- one straggler moves it. With exactly 100
+stragglers (1 \% of 10,000) the interpolated sample p99 is 1.33 s. With
+101 of 10,000 a straggler sits at rank 9,900 itself, both interpolation
+endpoints become 5.0 s draws, and the sample p99 is 5.0 s.
+
+\emph{Reproducibility (percentile interpolation).} The p99 position is 1
++ (N−1) × 0.99 = 9,900.01. The sorted-sample ranks are 9,900 → 1.30 s
+and 9,901 → 5.0 s, so 1.30 + 0.01 × (5.0 − 1.30) ≈ 1.33 s: the
+interpolation lands just past the largest non-straggler draw, between it
+and the first straggler.
+
+The mean hides the tail; percentiles expose it --- but notice how far
+one has to go to expose \emph{this} tail. Under the canonical p95 TTFT
+SLO of ≤ 2 s, \textbf{even this sample's p99 (≈ 1.33 s) still looks
+healthy --- the population p99 is 5.0 s, sitting on the straggler
+cluster.} Request latency ≥ TTFT, so a p95 TTFT-ceiling line drawn on
+request latency flags a superset of TTFT violations. The 5 s stragglers
+are the top 1\% of the stream --- in this sample they sit \emph{between}
+the 99th and 100th percentile, so the interpolated p99 line alone does
+not bring them into view. Only the p99.9 / maximum reading (or the full
+distribution) surfaces them. This is the sharper lesson: a tail can hide
+not just behind the mean but behind any single percentile, and the
+choice of which percentile to SLO against matters. It is why we log the
+full distribution and also watch the \emph{outlier fraction} (how much
+probability mass sits beyond the SLO line), not just one percentile.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Request-latency distribution: the mean looks healthy and the p95 SLO is met (p95 ≈ 0.99 s ≤ 2 s), while 1\% of requests exceed the 2 s request-latency line --- a superset of TTFT violations, and a tail a p95 SLO does not surface. Assumption: a synthetic stream of 99\% log-normal requests around 0.8 s plus 1\% at 5 s, with p50/p90/p95/p99 read off this stream \mbox{{[}ILLUSTRATIVE synthetic profile{]}}. Caveat: the light band shades the full SLO-violating region (\textgreater{} 2 s, everything right of the SLO line) and the darker hatched band marks the 5 s straggler cluster inside it --- the shading marks violations of the one 2 s SLO, not a second threshold. Request latency ≥ TTFT, so a TTFT-budget line drawn on request latency flags a superset of TTFT violations.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0602.pdf}}
-\caption[Request-latency distribution]{Request-latency distribution: the mean looks healthy and the p95 SLO is met (p95 ≈ 0.99 s ≤ 2 s), while 1\% of requests exceed the 2 s request-latency line --- a superset of TTFT violations, and a tail a p95 SLO does not surface. Assumption: a synthetic stream of 99\% log-normal requests around 0.8 s plus 1\% at 5 s, with p50/p90/p95/p99 read off this stream \mbox{{[}ILLUSTRATIVE synthetic profile{]}}. Caveat: the light band shades the \textbf{full} SLO-violating region (\textgreater{} 2 s, everything right of the SLO line) and the darker hatched band marks the 5 s straggler cluster inside it --- the shading marks violations of the one 2 s SLO, not a second threshold. Request latency ≥ TTFT, so a TTFT-budget line drawn on request latency flags a superset of TTFT violations.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Request-latency distribution: the mean looks healthy and the p95 SLO is met (p95 ≈ 0.99 s ≤ 2 s), while 1\% of requests exceed the 2 s request-latency line --- the p95 TTFT ceiling (\hyperref[tab:4.2]{Table 4-2}), not the 1.2 s design budget --- a superset of TTFT violations, and a tail a p95 SLO does not surface. Assumption: a synthetic stream of 99\% log-normal requests around 0.8 s plus 1\% at 5 s, with p50/p90/p95/p99 read off this stream \mbox{{[}ILLUSTRATIVE synthetic profile{]}}. Reproducibility: the sample p99 of 1.33 s is contingent on exactly 100 stragglers in this draw --- with 101 of 10,000 the interpolated sample p99 is 5.0 s, while the population p99 is 5.0 s in either case; reproduce with the stated stream definition (99\% log-normal, median 0.8 s, log-scale dispersion σ ≈ 0.12 as exp(μ + σZ) with μ = ln 0.8, + 1\% at 5.0 s, N = 10,000). SLO relevance: judge the tail against the population p99 (5.0 s, above the 2 s line), not against the draw-dependent sample p99 (1.33 s at 100 stragglers, 5.0 s at 101) --- the sample p99 is a draw artifact, the population value is the SLO-relevant one. Caveat: the light band shades the full SLO-violating region (\textgreater{} 2 s, everything right of the SLO line) and the darker hatched band marks the 5 s straggler cluster inside it --- the shading marks violations of the one 2 s SLO, not a second threshold. Request latency ≥ TTFT, so a p95 TTFT-ceiling line drawn on request latency flags a superset of TTFT violations.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0602.pdf}}
+\caption[Request-latency distribution]{Request-latency distribution: the mean looks healthy and the p95 SLO is met (p95 ≈ 0.99 s ≤ 2 s), while 1\% of requests exceed the 2 s request-latency line --- the p95 TTFT \textbf{ceiling} (\hyperref[tab:4.2]{Table 4-2}), not the 1.2 s design budget --- a superset of TTFT violations, and a tail a p95 SLO does not surface. Assumption: a synthetic stream of 99\% log-normal requests around 0.8 s plus 1\% at 5 s, with p50/p90/p95/p99 read off this stream \mbox{{[}ILLUSTRATIVE synthetic profile{]}}. Reproducibility: the sample p99 of 1.33 s is contingent on exactly 100 stragglers in this draw --- with 101 of 10,000 the interpolated sample p99 is 5.0 s, while the population p99 is 5.0 s in either case; reproduce with the stated stream definition (99\% log-normal, median 0.8 s, log-scale dispersion σ ≈ 0.12 as exp(μ + σZ) with μ = ln 0.8, + 1\% at 5.0 s, N = 10,000). SLO relevance: judge the tail against the population p99 (5.0 s, above the 2 s line), not against the draw-dependent sample p99 (1.33 s at 100 stragglers, 5.0 s at 101) --- the sample p99 is a draw artifact, the population value is the SLO-relevant one. Caveat: the light band shades the \textbf{full} SLO-violating region (\textgreater{} 2 s, everything right of the SLO line) and the darker hatched band marks the 5 s straggler cluster inside it --- the shading marks violations of the one 2 s SLO, not a second threshold. Request latency ≥ TTFT, so a p95 TTFT-ceiling line drawn on request latency flags a superset of TTFT violations.}
 
 \label{fig:6.2}\end{figure}
 
 Why the mean is not a signal. The same request stream of 99\% @ 0.8 s +
-1\% @ 5 s reported as a single number looks healthy (mean ≈ 0.84 s; the
-figure's exact simulated stream mean ≈ 0.85 s --- the 0.84 is the
-two-point analytic approximation), yet the population p99 paints a very
-different picture against the 2 s tail budget (the SLO itself is stated
-at p95, Ch 4). Log the distribution; SLO against the percentile.
+1\% @ 5 s reported as a single number looks healthy. The two-point
+approximation gives 0.84 s (≈ 0.848 s for the mixture as specified); the
+simulated stream's \emph{sample} mean is 0.85 s. Yet the population p99
+paints a very different picture against the 2 s tail budget (the SLO
+itself is stated at p95, Ch 4). Log the distribution; SLO against the
+percentile.
 
 Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval
 \textasciitilde120 ms + prefill \textasciitilde1.08 s) with a p95 ≤ 2 s.
 Suppose a flash crowd (the \textasciitilde40 rps peak) causes prefill
-requests to queue on a fleet sized for that peak ---
-\textasciitilde19--22 hosts (Ch 8 §3). If on average the batch is
-well-behaved, p50 TTFT might sit at \textasciitilde1.0 s. But the jobs
-that arrive behind \textasciitilde1--2 same-time prefill requests each
-pay the full 1.08 s prefill of the job(s) ahead of them, so p95 TTFT
-drifts to \textasciitilde2.5 s. \emph{(Fleet scope: this 1--2-jobs-ahead
+requests to queue on a fleet provisioned at the full-utilization compute
+screen (\textasciitilde19--22 hosts, Ch 8 §3) --- that screen is not an
+SLO-goodput guarantee, so residual queueing under bursts can still push
+p95 TTFT above target. If on average the batch is well-behaved, p50 TTFT
+might sit at \textasciitilde1.0 s. But the jobs that arrive behind
+\textasciitilde1--2 same-time prefill requests each pay the full 1.08 s
+prefill of the job(s) ahead of them, so p95 TTFT drifts to
+\textasciitilde2.5 s. \emph{(Fleet scope: this 1--2-jobs-ahead
 illustration is the fleet-sized case. On a single 8×H100 host at the
 same 40 rps peak, prefill demand is \textasciitilde18.6× that host's
-sustained capacity --- §8, \hyperref[tab:8.1]{Table 8-1} --- so the queue is unbounded and
-p95 TTFT grows until admission control intervenes; the 2.5 s figure does
-not describe that case.)} The \emph{average} says ``fine''; the
+sustained capacity --- Ch 8 §3, \hyperref[tab:8.1]{Table 8-1} --- so the queue is unbounded
+and p95 TTFT grows until admission control intervenes; the 2.5 s figure
+does not describe that case.)} The \emph{average} says ``fine''; the
 \emph{p95} says ``we just violated our SLO.'' We hence log p50, p90,
 p95, and p99 independently and run the SLO against the percentile, never
 the mean. \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} author-chosen SLO
@@ -200,27 +231,47 @@ the point, not a citation.
 \subsection{Goodput vs Raw Throughput}\label{goodput-vs-raw-throughput}
 
 Deploying a higher-throughput configuration can \emph{reduce} goodput:
-goodput = raw\_rate × compliant\_fraction, so a throughput increase
-helps goodput only if the compliant fraction holds. Concretely: suppose
-we enable larger dynamic batching to raise raw tokens/s from 50 tok/s to
-70 tok/s, but the batch window pushes p95 TTFT from 1.8 s to 2.3 s ---
-above the 2 s SLO. Scenario A \mbox{{[}ILLUSTRATIVE{]}}: the extra 20 tok/s are
-produced, but they land in the tail that misses the SLO, so goodput does
-not grow. Raw throughput is up 40\%; \textbf{goodput} (tokens that met
-the SLO) is effectively unchanged \emph{in this case}, because the batch
-of SLO-compliant tokens didn't grow.
+goodput = raw\_rate × compliant\_fraction, where the compliant fraction
+is the share of emitted tokens whose arrival time is within the SLO
+deadline for their request --- so a throughput increase helps goodput
+only if the compliant fraction holds. Concretely: suppose we enable
+larger dynamic batching to raise raw tokens/s from 50 tok/s to 70 tok/s,
+but the batch window pushes p95 TTFT from 1.8 s to 2.3 s --- above the 2
+s SLO. (Register: the 50 tok/s baseline is Ch 5's single-stream
+illustrative point and the 70 tok/s figure is a batched configuration.
+The pair is therefore a cross-register comparison, not a like-for-like
+batch-to-batch measurement; the goodput arithmetic below holds at either
+register.) Scenario A \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}: if all of the
+extra 20 tok/s land in the tail that misses the SLO, the compliant
+fraction falls to f = 48 ÷ 70 ≈ 68.6 \% (the split is derived below),
+and goodput is 70 × 0.686 ≈ 48 tok/s --- level, not higher. Raw
+throughput is up 40\%; \textbf{goodput} (tokens that met the SLO) is
+unchanged \emph{in this case}, because the SLO-compliant token count did
+not grow.
 
 The ``unchanged'' claim holds only when the extra tokens all land in the
 SLO-missing tail, i.e.~the compliant fraction drops proportionally to
-the raw-rate gain. Scenario B \mbox{{[}ILLUSTRATIVE{]}}: if the compliant
-fraction falls from 96\% to 94\%, goodput is 50×0.96 = 48 vs 70×0.94 =
-65.8 --- it \emph{rises} despite the p95 breach. A p95 breach is a
-\emph{configuration-level} acceptance signal. Request-level SLO-goodput
-is a separate measurement: compute it from the compliant fraction, not
-from the p95 alone.
+the raw-rate gain. Scenario B \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}: if the
+compliant fraction falls from 96\% to 94\%, goodput is 50×0.96 = 48 vs
+70×0.94 = 65.8 --- it \emph{rises} despite the p95 breach. Scenario C
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}: if the compliant fraction falls to 65\%
+--- a constructed split, not a measured stream --- goodput is 70×0.65 =
+45.5 tok/s --- \emph{below} the 48 tok/s baseline. The dividing line is
+the compliant fraction f at which the throughput gain cancels: 70 × f =
+48, i.e.~f ≈ 68.6\%, so goodput falls only when the compliant fraction
+drops below \textasciitilde69\%. That is what Scenario A's ``unchanged''
+result requires, and it is a 27-point collapse from 96\%, not the
+2-point drop of Scenario B. The three scenarios are therefore comparable
+only when each states its f: \textasciitilde68.6\% leaves goodput
+unchanged, below \textasciitilde68.6\% reduces it, 94\% raises it. A p95
+breach is a \emph{configuration-level} acceptance signal. Request-level
+SLO-goodput is a separate measurement: compute it from the compliant
+fraction, not from the p95 alone.
 
-\emph{Scope note: the 50→70 tok/s figures are low-batch decode operating
-points (Ch 5's illustrative basis, \textasciitilde14--20 ms/token across
+\emph{Scope note: the 50→70 tok/s pair is a cross-register comparison
+--- 50 tok/s is Ch 5's single-stream illustrative point and 70 tok/s is
+a batched configuration --- and both sit in the same low-batch decode
+range (Ch 5's illustrative basis, \textasciitilde14--20 ms/token across
 the 50--70 tok/s range; canonical batch-1 is 40 tok/s at 25 ms/token),
 not the host's aggregate serving rate (Ch 15: \textasciitilde8.5K tok/s
 prefill-side, \textasciitilde35,000--56,000 tok/s batched) --- the
@@ -255,27 +306,40 @@ bandwidth-bound or compute-bound? We recall the arithmetic from \hyperref[chap:2
   \textasciitilde3.35 TB/s peak \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}. \textbf{Scope
   warning: this 5.6-vs-3.35 TB/s comparison is an \emph{illustrative
   single-device roofline} argument, not the canonical 8×H100 host's
-  actual deployment verdict.} Two scope notes keep this honest. First,
-  5.6 TB/s is the \textbf{aggregate} model-wide weight-read rate for a
+  actual deployment verdict.} The 5.6 TB/s is a \emph{theoretical
+  demand} that holds at batch 1 only, where one token pays the full
+  weight read: the weights amortize across the b tokens of a step, so
+  the required weight-read rate falls roughly as 140 GB ÷ (b × 0.025 s)
+  --- the 5.6\textgreater3.35 shortfall characterizes a batch-1 stream,
+  not a batched server. Two scope notes keep this honest. First, 5.6
+  TB/s is the \textbf{aggregate} model-wide weight-read rate for a
   hypothetical single-device implementation; under tensor parallelism
   (the canonical 8×H100 host) the 140 GB is sharded, so each GPU only
   needs \textasciitilde0.70 TB/s against its own 3.35 TB/s
-  (\textasciitilde21--25\% achieved HBM utilization: the canonical 25 ms
-  TPOT is a \emph{budget} covering TP collectives, kernel inefficiency,
-  sampling and scheduling, not a bandwidth-saturated point) --- the
-  single-device 5.6\textgreater3.35 bound does not itself show a per-GPU
-  bandwidth shortfall. Second, the intensity reason stated first above
-  is what makes this a roofline classification rather than a device
-  verdict (the roofline and its ridge are developed in Ch 8). So the
-  honest statement is: decode is memory-bound because its intensity is
-  low and batching raises it, not merely because an aggregate 5.6 TB/s
-  exceeds one GPU's 3.35 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. (This is
-  an operating-point property, not an identity, and it is a
-  \textbf{weight-only} statement: at high batch decode climbs the
-  intensity slope and can become compute-bound. With the canonical 9.2K
-  KV re-read included, intensity saturates at \textasciitilde6.8
-  FLOP/byte, so decode stays bandwidth-bound at every batch size --- Ch
-  8.)
+  (\textasciitilde21\% achieved HBM utilization --- 0.70 TB/s ÷ 3.35
+  TB/s = 20.9\%: the canonical 25 ms TPOT is a \emph{budget} covering TP
+  collectives, kernel inefficiency, sampling and scheduling, not a
+  bandwidth-saturated point) --- the single-device 5.6\textgreater3.35
+  bound does not itself show a per-GPU bandwidth shortfall. Second, the
+  intensity reason stated first above is what makes this a roofline
+  classification rather than a device verdict (the roofline and its
+  ridge are developed in Ch 8). So the honest statement is: decode is
+  memory-bound because its intensity is low and batching raises it, not
+  merely because an aggregate 5.6 TB/s exceeds one GPU's 3.35
+  \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. (This is an operating-point
+  property, not an identity, and it is a \textbf{weight-only} statement:
+  at high batch decode climbs the intensity slope. With the canonical
+  9.2K KV re-read included, use one denominator rule --- count the
+  weight bytes and the KV bytes whenever both terms are in the
+  numerator. At batch 1 the intensity is 164.1 GFLOP (140 projection +
+  24.1 attention; the attention term is 4·L·d\_model·n\_layers = 4 ×
+  9,200 × 8,192 × 80 ≈ 24.1 GFLOP) ÷ (140 GB weights + 24.1 GB of
+  canonical 9.2K FP16 KV) ≈ \textbf{1.0 FLOP/byte}. At batch 32 it is 32
+  × 164.1 = 5,251 GFLOP ÷ (140 + 32 × 24.1 = 911 GB) ≈ \textbf{5.8
+  FLOP/byte}, and it approaches the KV-only asymptote 164.1 ÷ 24.1 ≈ 6.8
+  FLOP/byte as batch grows. Every one of these values is far below the
+  \textasciitilde295 FLOP/byte ridge, so decode stays bandwidth-bound
+  across this batch range --- Ch 8.)
 \item
   \textbf{Prefill is compute-bound at the canonical long-prompt
   operating point.} The reason prefill lands on the compute plateau of
@@ -285,7 +349,7 @@ bandwidth-bound or compute-bound? We recall the arithmetic from \hyperref[chap:2
   stream --- are the binding resource. Only after establishing that
   regime do we check the deadline: the prefill pass for 9,200 input
   tokens costs ≈ 2 ×70e9 params × 9.2e3 tokens ≈ \textbf{1.29 PFLOP of
-  linear (2PL) FLOPs} (the quadratic attention term adds ≈ 0.2 PFLOP at
+  linear (2NL) FLOPs} (the quadratic attention term adds ≈ 0.2 PFLOP at
   9.2K --- ≈ 1.5 PFLOP full-square total, Ch 22 \hyperref[tab:22.1]{Table 22-1}), which
   against the \textasciitilde1.08 s prefill budget implies a required
   rate of ≈ 1.19 PFLOPS --- above a \emph{single} H100's
@@ -303,29 +367,38 @@ bandwidth-bound or compute-bound? We recall the arithmetic from \hyperref[chap:2
 \end{itemize}
 
 At the resource layer, the tell is utilization: a decode kernel pinned
-at \textasciitilde95\% of HBM bandwidth but \textasciitilde30\% of FLOPs
-is bandwidth-bound; a prefill kernel with \textasciitilde90\% FLOP
-utilization is compute-bound. \textbf{The same hardware, the same model
---- the boundary flips between prefill and decode.} This is precisely
-why Splitwise/DistServe (and Mooncake's KV-centric disaggregation) split
-prefill from decode onto different pools: the bottleneck-regime
-difference is the primary motivation for disaggregation --- see §6 for
-the conditions under which it pays. \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (source
-keys: each \texttt{{[}S\#{]}} names one entry in the References chapter,
-where \texttt{\mbox{{[}S3{]}}}--\texttt{\mbox{{[}S7{]}}} resolve; Ch 11 lists
-\texttt{\mbox{{[}S1{]}}}--\texttt{\mbox{{[}S6{]}}} inline.) \emph{These percentages
-are \textbf{hypothetical telemetry signatures} used to illustrate how to
-read utilization --- not a measured benchmark find from any trace. They
-are representative operating-point values (a low-intensity decode kernel
-at high HBM-utilization/low FLOP-utilization, a high-intensity prefill
-kernel at high FLOP-utilization), useful to classify a kernel's regime;
-an actual deployment's percentages come from its own counters, and a
-real utilization reading (observed vs.~theoretical peak vs.~required
-minimum) must be distinguished from these example values. See Ch 8 for
-the underlying intensity/roofline arithmetic that shows why these
-regimes occur.}
+at \textasciitilde95\% of HBM bandwidth / \textasciitilde30\% of FLOPs
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- a hypothetical telemetry
+signature --- is bandwidth-bound; a prefill kernel with
+\textasciitilde90\% FLOP utilization \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}
+is compute-bound. \textbf{The same hardware, the same model --- the
+boundary flips between prefill and decode.} This is precisely why
+Splitwise/DistServe (and Mooncake's KV-centric disaggregation) split
+prefill from decode onto different pools \mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}: the
+bottleneck-regime difference is the primary motivation for
+disaggregation --- see §6.6 for the conditions under which it pays.
+\mbox{{[}S4{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} (Source keys: each \texttt{{[}S\#{]}}
+names one entry in the References chapter, and the keys are book-wide,
+\texttt{\mbox{{[}S1{]}}}--\texttt{\mbox{{[}S7{]}}}. Ch 11 lists
+\texttt{\mbox{{[}S1{]}}}--\texttt{\mbox{{[}S6{]}}} inline; this chapter also uses
+\texttt{\mbox{{[}S7{]}}} (see §6.6), which resolves in the References chapter.)
+\emph{These percentages are \textbf{hypothetical telemetry signatures}
+used to illustrate how to read utilization --- not a measured benchmark
+find from any trace. They are representative operating-point values (a
+low-intensity decode kernel at high HBM-utilization/low
+FLOP-utilization, a high-intensity prefill kernel at high
+FLOP-utilization), useful to classify a kernel's regime; an actual
+deployment's percentages come from its own counters, and a real
+utilization reading (observed vs.~theoretical peak vs.~required minimum)
+must be distinguished from these example values. See Ch 8 for the
+underlying intensity/roofline arithmetic that shows why these regimes
+occur.}
 
 \Needspace{250pt}
+
+\hyperref[tab:6.1]{Table 6-1} collects this regime arithmetic for both phases --- the
+demand, the single-device capacity, and the telemetry tell that
+separates them.
 
 \subsubsection{Table 6-1 --- Detecting the bottleneck regime from
 resource
@@ -348,7 +421,7 @@ H100 capacity
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 Verdict
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Resource tell
+Resource tell \mbox{{[}ILLUSTRATIVE{]}}
 \end{minipage} \\
 \midrule\noalign{}
 \endhead
@@ -359,28 +432,37 @@ Prefill (9.2K input) & \textasciitilde1.19 PFLOPS (1.29 PFLOP ÷ 1.08 s)
 \textasciitilde9,200 FLOP/byte = 1.29 PFLOP linear ÷ 140 GB weights ≫
 ridge \textasciitilde295, not this rate comparison) & high FLOP / MFU
 util, mid bandwidth \\
+\noalign{\label{tab:6.1}}
 Decode (per token) & \textasciitilde140 GB weight-read →
 \textasciitilde5.6 TB/s rate (batch-1-equivalent) & \textasciitilde3.35
-TB/s HBM (single-device) & bandwidth-bound (25 ms TPOT is a budget;
-\textasciitilde21--25\% achieved HBM util at the canonical point) & high
-HBM util, low FLOP util \\
-
-\noalign{\label{tab:6.1}}\end{longtable}
+TB/s HBM (single-device) & memory-bound by intensity (\textasciitilde1.0
+FLOP/byte ≪ ridge \textasciitilde295); weight-read bandwidth is
+\emph{not} binding at the canonical point --- 0.70 TB/s ÷ 3.35 TB/s =
+20.9\% achieved HBM util (the 25 ms TPOT is a budget covering TP
+collectives, kernel inefficiency, sampling and scheduling, not a
+bandwidth-saturated point) & batch-1 single-device illustration only:
+high HBM util, low FLOP util (at the canonical point HBM util is
+\textasciitilde21\%, not saturated) \\
+\end{longtable}
 
 \emph{(All figures \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} hardware / \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} arithmetic traced to the canonical scenario (Ch
-4, \hyperref[tab:4.2]{Table 4-2}) and \hyperref[chap:2]{Chapter 2}. The regime verdict follows from arithmetic
-intensity, not from the demand-vs-capacity rate comparison: prefill
-\textasciitilde9,200 FLOP/byte = 1.29 PFLOP linear FLOPs ÷ 140 GB
-weights (adding the quadratic attention term raises it to
-\textasciitilde10.8K, activation traffic lowers it --- either way ≫ 295)
-(compute-bound), decode \textasciitilde1.0 FLOP/byte ≪ ridge
-(bandwidth-bound). The 1.19-vs-0.989 PFLOPS and 5.6-vs-3.35 TB/s rate
-comparisons are illustrative single-device roofline arguments (a
-hypothetical single-GPU rate against that GPU's own peak), not verdicts
-on the canonical 8×H100 host's bandwidth adequacy --- under tensor
-parallelism the 140 GB is sharded, so each GPU only needs
-\textasciitilde0.70 TB/s against its own \textasciitilde3.35 TB/s.)}
+4, \hyperref[tab:4.2]{Table 4-2}) and \hyperref[chap:2]{Chapter 2}; the hardware constants --- H100 dense BF16
+peak \textasciitilde0.989 PFLOPS without sparsity, HBM3 peak
+\textasciitilde3.35 TB/s --- take their first-party provenance from the
+NVIDIA H100 datasheet (SXM5), named here as in \hyperref[tab:8.1]{Table 8-1}. The regime
+verdict follows from arithmetic intensity, not from the
+demand-vs-capacity rate comparison: prefill \textasciitilde9,200
+FLOP/byte = 1.29 PFLOP linear FLOPs ÷ 140 GB weights (adding the
+quadratic attention term raises it to \textasciitilde10.8K, activation
+traffic lowers it --- either way ≫ 295) (compute-bound), decode
+\textasciitilde1.0 FLOP/byte ≪ ridge (bandwidth-bound). The
+1.19-vs-0.989 PFLOPS and 5.6-vs-3.35 TB/s rate comparisons are
+illustrative single-device roofline arguments (a hypothetical single-GPU
+rate against that GPU's own peak), not verdicts on the canonical 8×H100
+host's bandwidth adequacy --- under tensor parallelism the 140 GB is
+sharded, so each GPU only needs \textasciitilde0.70 TB/s against its own
+\textasciitilde3.35 TB/s.)}
 
 \subsection{Reading Telemetry Into a
 Decision}\label{reading-telemetry-into-a-decision}
@@ -395,17 +477,21 @@ the \textasciitilde40 rps peak --- each \textasciitilde1.29 PFLOP (case
 × 1.29 ≈ 51.6 PFLOP/s against the 8×H100 sustained prefill capacity of
 \textasciitilde2.77 PFLOP/s (35\% MFU, Ch 8 §3) --- \textasciitilde18.6×
 oversubscribed (the datasheet-peak \textasciitilde7.9 PFLOPS gives
-\textasciitilde6.5×, the theoretical ceiling only), consistent with Ch
-8's 19-host screen at this peak, so the prefill queue grows until
-backpressure or prefix caching intervenes. The decision: enable prefix /
-RadixAttention-style caching (SGLang) or Automatic Prefix Caching (vLLM)
-so the byte-identical shared prefix is reused instead of re-prefilled -
-in the canonical workload (1,200 prompt + 8,000 per-query retrieved, Ch
-4 \hyperref[tab:4.2]{Table 4-2}) that shared prefix is at most the
-\textasciitilde1,200-token prompt (\textasciitilde13\% of prefill
-FLOPs), because the 8K retrieved block differs per query; prefix caching
-is therefore a partial mitigation, not the fix for the 40 rps prefill
-queue (§7 keeps the actual reduction \mbox{{[}UNRESOLVED{]}}).
+\textasciitilde6.5×, the theoretical ceiling only; under case (ii),
+full-square attention, the same peak screens at \textasciitilde22 hosts
+--- Ch 8 §3), consistent with Ch 8's 19-host screen at this peak (case
+(i)), so the prefill queue grows until backpressure or prefix caching
+intervenes. The decision: enable prefix / RadixAttention-style caching
+(SGLang) or Automatic Prefix Caching (vLLM) so the byte-identical shared
+prefix is reused instead of re-prefilled --- in the canonical workload
+(1,200 prompt + 8,000 per-query retrieved, Ch 4 \hyperref[tab:4.2]{Table 4-2}) the
+byte-identical share is at most the fixed system/instruction portion of
+the \textasciitilde1,200-token prompt, because the 8K retrieved block
+differs per query and the 1,200-token slot carries the query itself (Ch
+4 \hyperref[tab:4.1]{Table 4-1}), so \textasciitilde13\% of prefill FLOPs (the whole-slot
+case) is an upper bound on the cacheable fraction; prefix caching is
+therefore a partial mitigation, not the fix for the 40 rps prefill queue
+(§6.7 keeps the actual reduction \mbox{{[}UNRESOLVED{]}}).
 \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} Prefix caching is a compute-saving move ---
 its TTFT benefit arrives through the prefill work it removes, not
 through a latency knob of its own --- and the telemetry told us that.
@@ -490,20 +576,24 @@ workload:
   \textbf{Repeat-prefix RAG ⇒ enable prefix caching}
   (RadixAttention/APC), which reuses the shared prompt prefix of the
   9.2K prefills (\textasciitilde13\% of prefill work in the canonical
-  workload; the 8K retrieved block is query-specific) and so partially
-  defends the p95 TTFT against the 40 rps peaks.
-  \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
+  workload --- an upper bound, §6.3.4; the 8K retrieved block is
+  query-specific) and so partially defends the p95 TTFT against the 40
+  rps peaks. \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
 \item
   \textbf{KV cache pressure ⇒ quantize or offload KV.} FP8 KV = raw
   tensor byte-halving = 1.31 MB/token (exactly 50\% of FP16)
   \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}; any block-allocation/metadata
   overhead is NOT vendor-measured here and must be filled by a
-  deployment benchmark. (The vLLM FP8-KV blog's `54\%' is a decode-ITL
-  latency slope, not a memory ratio.) And vLLM KV-offloading (its own
-  2026-01-08 blog \mbox{{[}S7{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}) cuts TTFT by 2--22× in a
-  particular warm-cache-hit/reuse benchmark, not a generic cold-cache
-  improvement --- both are memory-layer fixes the telemetry would call
-  for when KV occupancy nears capacity.
+  deployment benchmark. (The vLLM FP8-KV blog's `54\%' \mbox{{[}S6{]}} is a
+  decode inter-token-latency (ITL) slope, not a memory ratio or
+  footprint coefficient --- on this book's own reading of that post's
+  Table 3, not a vendor-stated interpretation \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}HYPOTHESIS{]}};
+  re-verify it against the post, as Ch 1 does at its KV-cache section.)
+  And vLLM KV-offloading (its own 2026-01-08 blog
+  \mbox{{[}S7{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}) cuts TTFT by 2--22× in a particular
+  warm-cache-hit/reuse benchmark, not a generic cold-cache improvement
+  --- both are memory-layer fixes the telemetry would call for when KV
+  occupancy nears capacity.
 \item
   \textbf{Speculative decoding where decode bandwidth is the wall} ---
   DFlash \emph{reports} over 6× lossless acceleration, up to 2.5× over
@@ -549,30 +639,51 @@ memory pressure) with low prefix-hit ratio (resource, FLOP/reuse ---
 prefill recomputation). Following the chain rather than guessing, the
 architect reads: a concurrency spike (workload) with repeated full 9.2K
 prefills (low prefix hit) drives prefill FLOP demand several times past
-the host aggregate capacity (compute-bound). The architecture is
-memory-sane at the 10 rps design point but was never compute-sized for
-it, let alone for the lunch peak: 10 rps already demands 10 × 1.29 ≈
-12.9 PFLOP/s of prefill, ≈ \textbf{4.7 host-equivalents} of one 8×H100
-host's \textasciitilde2.77 PFLOP/s sustained prefill capacity, and the
-40 rps peak demands 40 × 1.29 ≈ 51.6 PFLOP/s ≈ \textbf{18.6
-host-equivalents}. On the single host this mini-case assumes (deployed
-host count H = 1) that is a 4.66× oversubscription at baseline and 18.6×
-at the peak; the fleet oversubscription at peak is 51.6 ÷ (H × 2.77) =
-18.6/H, so an H-host fleet sized at 10 rps with H ≈ 5 would be
-\textasciitilde3.7× oversubscribed at the peak. The diagnosis is
+the host aggregate capacity (compute-bound). The deployment had passed
+the single-request residency check --- \textasciitilde140 GB weights +
+\textasciitilde24.9 GB KV ≈ 165 GB \textless{} 640 GB (Ch 7) --- but was
+never sized for concurrency or for compute, let alone for the lunch
+peak: 10 rps already demands 10 × 1.29 ≈ 12.9 PFLOP/s of prefill, ≈
+\textbf{4.7 host-equivalents} of one 8×H100 host's \textasciitilde2.77
+PFLOP/s sustained prefill capacity, and the 40 rps peak demands 40 ×
+1.29 ≈ 51.6 PFLOP/s ≈ \textbf{18.6 host-equivalents}. On the single host
+this mini-case assumes (deployed host count H = 1) that is a
+\textasciitilde4.7× oversubscription at baseline and 18.6× at the peak
+(case (i), linear-only FLOP count); the fleet oversubscription at peak
+is 51.6 ÷ (H × 2.77) = 18.6/H, so an H-host fleet sized at 10 rps --- H
+≈ 6, set by the KV-residency screen rather than by prefill (86 in-flight
+÷ 17 slots = 5.06 → 6 hosts, Ch 4 §4.3) --- would be \textasciitilde3.1×
+oversubscribed at the peak (51.6 ÷ (6 × 2.77) ≈ 3.1). The diagnosis is
 therefore stated against a named denominator: the peak demands
 \textasciitilde18.6× \emph{one host's} prefill capacity (18.6
 host-equivalents); prefix caching is a partial mitigation
-(\textasciitilde13\% of prefill FLOPs), not the fix. The resolution is
-capacity/scheduling --- additional hosts, chunked prefill, admission
-control/backpressure, or P/D disaggregation. The architect re-checks the
-dashboard an hour later: p95 TTFT is back under 2 s, and the mechanism
-check confirms the \emph{capacity/scheduling} change rather than the
-cache: a \textasciitilde13\% prefill reduction alone cannot close an
-\textasciitilde18.6 host-equivalent gap (it still leaves
-\textasciitilde44.9 PFLOP/s of demand against \textasciitilde2.77
-PFLOP/s of sustained capacity, \textasciitilde16.2 host-equivalents), so
-hosts were added to raise sustained prefill capacity and admission
-control held the queue inside it, with the \textasciitilde13\% prefill
-reduction from prefix caching contributing on top; goodput restored ---
-because they measured the right thing at the right layer.
+(\textasciitilde13\% of prefill FLOPs --- an upper bound, §6.3.4: the
+cacheable fraction is smaller once the query tokens are excluded), not
+the fix. The resolution is capacity/scheduling --- additional hosts,
+chunked prefill, admission control/backpressure, or P/D disaggregation.
+The architect re-checks the dashboard an hour later: p95 TTFT is back
+under 2 s, and the mechanism check confirms the
+\emph{capacity/scheduling} change rather than the cache: a
+\textasciitilde13\% prefill reduction alone cannot close an
+\textasciitilde18.6 host-equivalent gap: against \textasciitilde2.77
+PFLOP/s of sustained capacity, the residual demand is \textbf{at least}
+\textasciitilde44.9 PFLOP/s (51.6 × (1 − 0.13) --- this assumes the
+\textasciitilde13\% upper bound is fully achieved, so the true saving is
+≤ 13\% and the true residual is ≥ 44.9), i.e.~≥ \textasciitilde16.2
+host-equivalents. That figure is bound-derived, not measured. Hosts were
+raised from H = 1 to H = 21. That is the capacity floor, which is the
+max of the named screens, not the prefill compute screen alone: case
+(i)'s prefill screen needs ⌈18.6⌉ = 19 hosts, but the KV-residency /
+Little's-Law screen needs ⌈344/17⌉ = 21 hosts at the peak and therefore
+binds (Ch 8 §3; Ch 17). At 21 hosts the 344 in-flight peak requests fit
+the 21 × 17 = 357 resident slots, and the peak prefill oversubscription
+falls from 18.6× to 51.6 ÷ (21 × 2.77) ≈ 0.9× (measured against the
+21-host prefill capacity and before any cache saving; the ≤ 13\%
+prefix-cache reduction can only lower it, so 0.9× is an upper bound on
+the post-cache ratio at this host count); admission control then held
+the residual queue inside the 2 s p95 TTFT SLO, with the
+\textasciitilde13\% prefill reduction from prefix caching contributing
+on top. That restores the p95; goodput restoration is expected but not
+claimed here, because goodput is raw rate × compliant fraction and the
+p95 alone does not establish the compliant fraction --- they measured
+the right thing at the right layer.

@@ -75,15 +75,15 @@ the actual position count before quoting FLOPs. \mbox{{[}DERIVED{]}}\footnote{Wo
   3.584 TFLOP. The block example has one quarter as many sequential
   evaluations but eight times as much output-side projection work. These
   are different quantities, not contradictory results.
-  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} This arithmetic omits
-  prompt encoding, context attention, block-finalization encoding, the
-  output head, refresh, classifier-free guidance, verification and
-  communication. It also simplifies the book's first-token-from-prefill
-  convention. It compares counters, not equal-quality models, and
-  predicts neither a fourfold speedup nor an eightfold end-to-end
-  slowdown. A network-evaluation count must include extra verification
-  passes and the shapes of any combined guidance branches, rather than
-  count only outer sampler rounds. \mbox{{[}DERIVED{]}}}
+  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} This arithmetic omits prompt encoding,
+  context attention, block-finalization encoding, the output head,
+  refresh, classifier-free guidance, verification and communication. It
+  also simplifies the book's first-token-from-prefill convention. It
+  compares counters, not equal-quality models, and predicts neither a
+  fourfold speedup nor an eightfold end-to-end slowdown. A
+  network-evaluation count must include extra verification passes and
+  the shapes of any combined guidance branches, rather than count only
+  outer sampler rounds. \mbox{{[}DERIVED{]}}}
 
 Why might the higher-work path still finish earlier? Processing more
 positions together can reuse loaded weights across more matrix rows and
@@ -129,10 +129,11 @@ for bytes.
 
 \begin{quote}
 \textbf{Three different ``bounds'' --- keep them apart.} Throughout this
-book, three words that all contain ``bound'' mean three different
-things, and conflating them is a real error. \textbf{Compute-bound}
-means performance is limited primarily by arithmetic throughput (the
-kernel sits above the ridge; the compute units are the bottleneck).
+book, three terms that each name a limit --- two ending in ``-bound'',
+one in ``-constrained'' --- mean three different things, and conflating
+them is a real error. \textbf{Compute-bound} means performance is
+limited primarily by arithmetic throughput (the kernel sits above the
+ridge; the compute units are the bottleneck).
 \textbf{Memory-bandwidth-bound} (what the roofline calls
 ``memory-bound'') means performance is limited by memory-transfer
 bandwidth (the kernel sits below the ridge; it is starved for bytes
@@ -149,9 +150,11 @@ prefill and decode from different requests overlap on the same devices,
 so the regimes coexist rather than partition the timeline.
 ``Input-heavy'' does \textbf{not} by itself mean ``memory-bound'' --- it
 tends to raise prefill compute \emph{and} KV-capacity pressure, two
-distinct effects. When the book says ``memory-bound'' without
-qualification, it means \emph{bandwidth-bound} in the roofline sense;
-capacity pressure is stated explicitly.
+distinct effects. When the book writes ``memory-bound'' without
+qualification, it means \emph{memory-bandwidth-bound} in the roofline
+sense. Capacity pressure always appears as the explicit form
+\emph{memory-capacity-constrained} --- the book does not use a
+``-bound'' term for it.
 \end{quote}
 
 \subsection{A resource model survives a backend change; an
@@ -294,7 +297,8 @@ movement pattern --- prefill reads the full context once, while decode
 re-reads weights per decode step (a \textbf{batch-1-equivalent} read per
 sequence, amortized across the batch at batch \textgreater{} 1).
 
-The cited implementation reports were inspected on 2026-10-28. The 2N
+\textbf{Scope of this qualification: alternative execution paths.} The
+cited implementation reports were inspected on 2026-10-28. The 2N
 estimate (two FLOPs per parameter --- the 2 ×N rule above) applies to
 the parameterized matrix work in a specified execution path. It does not
 account for all history-dependent attention, indexing, routing, or
@@ -302,7 +306,11 @@ repeated-depth computation. A shared core executed several times reuses
 weights but repeats arithmetic. A phase-dependent architecture can also
 activate different paths during prefill and decode. The parameter
 estimate therefore needs a phase and an execution count before it enters
-the roofline analysis.
+the roofline analysis. None of this changes the canonical arithmetic
+below: the reference model is a standard autoregressive dense
+transformer, evaluated once per token, so the 2 × N × L prefill count
+holds for it. Apply the execution-count correction only when the serving
+path repeats or branches the network.
 (\href{https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash/resolve/main/DeepSeek_V41_Tech_Report.pdf}{DeepSeek-V4.1-Flash
 technical report};
 \href{https://huggingface.co/tomg-group-umd/huginn-0125/raw/main/README.md}{Huginn
@@ -404,11 +412,11 @@ At 10 requests/s, the sustained prefill throughput demand is:
 
 \textbf{\hyperref[tab:8.1]{Table 8-1}} --- Per-token FLOP cost, prefill PFLOP, and the
 derived prefill and roofline rates for the canonical 70B workload.
-\emph{(Per-token FLOP and prefill PFLOP computations are
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} from 2 × params × tokens; hardware peaks
-{[}1P: vendor datasheet{]} or \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}; the 30--40\% MFU range
-is {[}2°: industry benchmarks{]}; the \textasciitilde295 FLOP/byte ridge
-is \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} = 989 TFLOPS ÷ 3.35 TB/s (both inputs
+\emph{(Per-token FLOP and prefill PFLOP computations are \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} from 2 × params × tokens; hardware peaks {[}1P:
+vendor datasheet{]} or \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}; the 30--40\% MFU range is
+{[}2°: industry benchmarks{]}; the \textasciitilde295 FLOP/byte ridge is
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} = 989 TFLOPS ÷ 3.35 TB/s (both inputs
 first-party).)}
 
 \nopagebreak[4]
@@ -431,6 +439,7 @@ derivation
 per-token FLOPs (forward) & \textasciitilde140 GFLOP/token & 2 ×70B
 params {[}DERIVED; standard dense-forward arithmetic --- the same 2×N
 rule gives 175B ≈ 0.35 TFLOP/token{]} \\
+\noalign{\label{tab:8.1}}
 prefill FLOPs for 9.2K input (linear only) & \textasciitilde1.29 PFLOP &
 2 ×70 ×10⁹ × 9.2 ×10³ {[}DERIVED; \textbf{case (i) parameterized-linear
 lower bound --- excludes the quadratic attention term}, see Ch 22{]} \\
@@ -449,23 +458,35 @@ H100 peak FP16 TFLOPS & \textasciitilde989 TFLOPS {[}1P: NVIDIA H100
 datasheet{]} & NVIDIA H100 SXM5 datasheet, without sparsity \\
 H100 sustained MFU (typical) & 30--40\% {[}2°: industry benchmarks{]} &
 \textasciitilde346 TFLOPS sustained at 35\% MFU \\
-prefill throughput per GPU & \textasciitilde2,471 tokens/s & 346 TFLOPS
-÷ 140 GFLOP/token {[}DERIVED; \textbf{per-GPU scope; case (i)
-linear-only, 140 GFLOP/token} --- including case (ii) full-square
-attention at 9.2K gives \textasciitilde2,110 tokens/s{]} \\
+prefill throughput per GPU & \textasciitilde2,472 tokens/s & 346.15
+TFLOPS ÷ 140 GFLOP/token = 2,472.5 → 2,472 {[}DERIVED; \textbf{per-GPU
+scope; case (i) linear-only, 140 GFLOP/token} --- including case (ii)
+full-square attention at 9.2K gives \textasciitilde2,110 tokens/s{]} \\
 prefill throughput per host (8×H100) & \textasciitilde19,800 tokens/s &
-8 × 2,471 {[}DERIVED; \textbf{idealized aggregate, before TP/system
-loss; case (i) linear-only} --- including attention at 9.2K
-\textasciitilde16,900 tokens/s{]} \\
+2,472.5 tokens/s per GPU (unrounded) × 8 = 19,780 ≈ 19,800 {[}DERIVED;
+\textbf{idealized aggregate, before TP/system loss; case (i)
+linear-only} --- including attention at 9.2K \textasciitilde16,900
+tokens/s{]} \\
 H100 ridge point (dense FP16) & \textasciitilde295 FLOP/byte & 989 ÷
 3.35 {[}DERIVED: peak TFLOPS ÷ HBM bandwidth{]} \\
-
-\noalign{\label{tab:8.1}}\end{longtable}
+\end{longtable}
 
 \emph{All figures trace to the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}) and
-validated sources; none are measurement claims.} This is the prefill
-compute demand. An 8×H100 node can sustain some fraction of this at MFU
-(model FLOPs utilization), which we estimate next.
+validated sources; none are measurement claims.}
+
+\emph{Precision convention in this table.} Approximate figures carry
+three significant figures (for example \textasciitilde1.29 PFLOP,
+\textasciitilde19,800 tokens/s). The two case (ii) and case (iii) rows
+print four decimal places (1.5099, 1.3989) because those totals are
+exact sums of the stated inputs, and the same unrounded values carry
+into the Ch 15/17/20/22 screens. Read the extra digits as arithmetic
+bookkeeping, not as a claim of measured precision: the 70B parameter
+count, the 9,200-token input and the 80-layer geometry are themselves
+planning values from \hyperref[tab:4.2]{Table 4-2}.
+
+This is the prefill compute demand. An 8×H100 node can sustain some
+fraction of this at MFU (model FLOPs utilization), which we estimate
+next.
 
 \subsection{Sustained vs.~peak: H100
 MFU}\label{sustained-vs.-peak-h100-mfu}
@@ -495,7 +516,7 @@ inherits the provenance of its weakest input, the 2° MFU, while the peak
 is first-party{]}
 
 \textbf{Scope matters here.} The 346 TFLOPS figure is the sustained rate
-of a \emph{single} H100, and the 2,471 tokens/s derived from it is
+of a \emph{single} H100, and the 2,472 tokens/s derived from it is
 therefore a \textbf{per-GPU} number. The canonical host is an
 \emph{8×H100} node, so we must not multiply demand by a per-GPU rate as
 if it were per-node. Track the scope explicitly as we scale.
@@ -503,21 +524,24 @@ if it were per-node. Track the scope explicitly as we scale.
 Per \textbf{GPU} (one H100 at 35\% MFU):
 
 \[
-\text{prefill tokens/s (per GPU)} = \frac{346 \text{ TFLOPS}}{140 \text{ GFLOP/token}} \approx 2{,}471 \text{ tokens/s}
+\text{prefill tokens/s (per GPU)} = \frac{346.15 \text{ TFLOPS}}{140 \text{ GFLOP/token}} = 2{,}472.5 \approx 2{,}472 \text{ tokens/s}
 \]
 
-{[}DERIVED: sustained FLOPS ÷ per-token FLOPs; \textbf{per-GPU scope}{]}
+{[}DERIVED: 989 TFLOPS × 0.35 = 346.15 TFLOPS; 346.15 ÷ 140 = 2,472.5,
+quoted as \textasciitilde2,472 --- the same planning rate Ch 4 §4.8, Ch
+17 and Ch 20 print as \textasciitilde2,472; \textbf{per-GPU scope}{]}
 
 Per \textbf{host} (8×H100, idealized before TP communication, imbalance,
 and kernel/system overhead):
 
 \[
-\text{prefill tokens/s (per 8×H100 host)} = 8 \times 2{,}471 \approx 19{,}800 \text{ tokens/s}
+\text{prefill tokens/s (per 8×H100 host)} = 8 \times 2{,}472 \approx 19{,}800 \text{ tokens/s}
 \]
 
-or, equivalently, \texttt{8\ ×\ 346\ TFLOPS\ ≈\ 2.77\ PFLOPS} sustained
-÷ 140 GFLOP/token. {[}DERIVED: per-GPU × 8; \textbf{idealized aggregate,
-first-order only}{]}
+or, equivalently, \texttt{8\ ×\ 346.15\ TFLOPS\ ≈\ 2.77\ PFLOPS}
+sustained ÷ 140 GFLOP/token (19,780 before the 19,800 rounding).
+{[}DERIVED: per-GPU × 8; \textbf{idealized aggregate, first-order
+only}{]}
 
 For 10 rps with 9.2K input tokens each, the prefill demand is
 \textasciitilde92,000 tokens/s (from the canonical workload). At
@@ -557,12 +581,12 @@ hosts = ⌈demand ÷ 2.7692 PFLOP/s⌉
 \endlastfoot
 (i) linear-only lower bound & 1.288 PFLOP & 5.152 ×10¹⁶ FLOP/s & ⌈18.60⌉
 = \textbf{19 hosts} \\
+\noalign{\label{tab:8.2}}
 (iii) causal-triangle sensitivity & 1.3989 PFLOP & 5.596 ×10¹⁶ FLOP/s &
 ⌈20.21⌉ = \textbf{21 hosts} \\
 (ii) full-square conservative & 1.5099 PFLOP & 6.040 ×10¹⁶ FLOP/s &
 ⌈21.81⌉ = \textbf{22 hosts} \\
-
-\noalign{\label{tab:8.2}}\end{longtable}
+\end{longtable}
 
 Under case (ii) the compute screen \textbf{binds above} the KV-residency
 / Little's-Law fleet sizing derived in \hyperref[chap:17]{Chapter 17} (⌈344/17⌉ = 21 hosts
@@ -581,20 +605,22 @@ within one host of each other for cases (ii) and (iii) --- and two hosts
 apart for case (i) --- is the useful cross-check that they point at the
 same order of fleet. \textbf{Host counts, scannable (Ch 16/17).}
 Full-utilization compute screens, cases (i) / (iii) / (ii): \textbf{19 /
-21 / 22}. The policy behind them, stated once (Ch 16/17): with N
-full-utilization hosts, \textbf{total = ⌈N ÷ (0.7 × 0.95)⌉ = ⌈N ÷
-0.665⌉} and \textbf{working = total − 1} (one host held for failure
-reserve). Written as working/total pairs: case (i) N = 19 gives 28/29
-compute and 31/32 for the fleet (N = 21); case (iii) N = 21 gives 31/32;
-case (ii) N = 22 gives 33/34; the KV-only N = 21 gives 31/32. The
-utilization-only (ρ = 1, no 95\% N+1 term) screen is total = ⌈N ÷ 0.7⌉
---- 30 for KV-only, 32 for case (ii) --- and is reported as a floor, not
-a deployment count. All of these are illustrative planning screens under
-the stated FLOP-counting case and the 35\% MFU assumption --- NOT
-measured SLO-goodput.
+21 / 22}. The policy behind them, stated once (Ch 16/17, \hyperref[tab:17.1]{Table 17-1}),
+uses one symbol per factor: u = 0.70 utilization target, ρ = 0.95
+throughput-efficiency derating (load-balancer/scheduling), applied
+independently. With N full-utilization hosts, \textbf{total = ⌈N ÷ (u ×
+ρ)⌉ = ⌈N ÷ 0.665⌉} and \textbf{working = total − 1} (one host held for
+failure reserve). Written as working/total pairs: case (i) N = 19 gives
+28/29 compute and 31/32 for the fleet (N = 21); case (iii) N = 21 gives
+31/32; case (ii) N = 22 gives 33/34; the KV-only N = 21 gives 31/32. The
+utilization-only screen (u = 0.70 alone: no ρ derating, no +1 spare) is
+total = ⌈N ÷ u⌉ = ⌈N ÷ 0.70⌉ --- 30 for KV-only, 32 for case (ii) ---
+and is reported as a floor, not a deployment count. All of these are
+illustrative planning screens under the stated FLOP-counting case and
+the 35\% MFU assumption --- NOT measured SLO-goodput.
 
 \textbf{Honest boundary on both numbers.} The per-GPU
-\texttt{2,471\ tokens/s} is itself an \emph{analytical} figure at an
+\texttt{2,472\ tokens/s} is itself an \emph{analytical} figure at an
 assumed 35\% MFU --- not a measured throughput. The \texttt{8×}
 aggregate (\texttt{\textasciitilde{}19,800}/host) is a
 \textbf{theoretical first-order estimate} that assumes perfect
@@ -624,8 +650,9 @@ planning rate} for capacity arithmetic. Size the host screens against
 the planning rate; if a deployment sustained only the 1.08 s-implied
 rate, the peak prefill demand of \textasciitilde51.6 PFLOP/s (1.288
 PFLOP × 40 rps) would need 51.6 ÷ 1.19 = 43.4 → ⌈43.4⌉ = \textbf{44
-hosts}, not 19 --- the gap a benchmark (Ch 14) has to close before
-either number is quoted as capacity. \mbox{{[}DERIVED{]}}
+hosts}, not 19 (the 1.19 PFLOP/s divisor is the whole-host rate: 8 × 149
+TFLOPS) --- the gap a benchmark (Ch 14) has to close before either
+number is quoted as capacity. \mbox{{[}DERIVED{]}}
 
 This rough sizing illustrates that prefill is FLOP-bound at this scale
 --- its arithmetic intensity sits far above the ridge, so memory
@@ -675,7 +702,7 @@ FLOPs/token), which has no place in a byte expression --- multiplying it
 into N × 2 B doubles the FP16 footprint, so writing 2 ×70 ×10⁹ × 2 B
 counts the weight bytes twice. Any KV-cache reads are a separate term on
 top; the output projection is already included in the 140 GB weight
-footprint.) The effective arithmetic intensity is therefore:
+footprint.) The effective arithmetic intensity at batch 1 is therefore:
 
 \[
 \text{arithmetic intensity}_{\text{decode}} \approx \frac{140 \text{ GFLOP}}{140 \text{ GB}} \approx 1.0 \text{ FLOP/byte}
@@ -686,30 +713,50 @@ real kernels also read activations and KV, so measured intensity is
 typically below this and heavily dependent on fusion and cache
 residency{]}
 
+\textbf{Units, and the batched form.} GFLOP ÷ GB is already FLOP/byte.
+The 10⁹ in each unit cancels, so the ratio needs no further conversion.
+The 1.0 FLOP/byte value is the B = 1 case. At batch B, one weight pass
+serves B tokens, so the weight-only intensity is:
+
+\[
+\text{arithmetic intensity}_{\text{decode}}(B) \approx \frac{140 \text{ GFLOP} \times B}{140 \text{ GB}} \approx B \text{ FLOP/byte}
+\]
+
+Only the FLOP side carries the ×B. The 140 GB weight stream is read once
+per step at every batch size. A reader who scales the numerator alone
+gets the batch-1 value and understates intensity by a factor of B.
+
 This is well below the H100 dense-FP16 ridge of \textasciitilde295
 FLOP/byte, meaning single-stream decode is overwhelmingly
 memory-bandwidth-bound. Throughput improves with batching because the
 weight-reread amortizes across tokens --- decode intensity ≈ batch size
-(weight-only), so at batch=32 the effective intensity is
-\textasciitilde32 FLOP/byte, still \textasciitilde9× below the 295 ridge
-(compute-bound decode needs batch ≈ 295 at FP16 --- weight-only
+(weight-only, the B-term above), so at batch=32 the effective intensity
+is \textasciitilde32 FLOP/byte, still \textasciitilde9× below the 295
+ridge (compute-bound decode needs batch ≈ 295 at FP16 --- weight-only
 first-order estimate; FP8 weights halve the bytes but also double the
 peak, so the ridge doubles to ≈591 FLOP/byte and the required batch is
 unchanged --- quantization raises achieved bandwidth utilization, it
 does not move the classification), and TFLOP/s utilization increases
 accordingly. \textbf{KV-read caveat:} the weight-only intensity above
-omits the per-sequence KV re-read (\textasciitilde24 GB at the canonical
-9.2K context, FP16 full-MHA). Including it, the decode intensity is
-(164·b)/(140 + 24·b) FLOP/byte --- (164 GFLOP × b) ÷ (140 GB + 24 GB ×
-b) for batch b, where 164 = 140 linear + 24 attention --- which
-\emph{saturates} at \textasciitilde6.8 FLOP/byte as b→∞ --- far below
-the 295 ridge. So with the KV term, decode stays bandwidth-bound at
-every batch size; the ``batch ≈ 295'' figure is the weight-only
-first-order estimate (valid when the KV re-read is small relative to the
-weight stream, e.g.~short contexts or KV quantization). This is why
-continuous-batching systems (Orca, vLLM) prioritize batch growth: it is
-the primary lever for pushing decode arithmetic intensity toward the
-ridge (on the weight-only term).
+omits the per-sequence KV re-read: 2.62 MB/token × 9,200 tokens ≈ 24.1
+GB (FP16, full-MHA; Ch 7, \hyperref[tab:7.1]{Table 7-1}). Including it, the decode intensity
+for batch b is I(b) = (164.1 GFLOP × b) ÷ (140 GB + 24.1 GB × b), where
+164.1 GFLOP = 140 GFLOP projection + 24.1 GFLOP attention at 9.2K
+(4·n\_layers·L·d). The quotient stays in FLOP/byte for the same reason
+as above (GFLOP ÷ GB). The 24.1 GFLOP and the 24.1 GB coincide by
+construction: both scale as 4·n\_layers·d·L, the FLOPs counting two
+matmuls at two FLOPs each and the bytes counting two FP16 tensors at two
+bytes each. As b→∞ the KV term dominates the denominator, so I(b)
+\emph{saturates} at 164.1 ÷ 24.1 ≈ \textbf{6.8 FLOP/byte} (b=32 gives
+\textasciitilde5.8) --- far below the 295 ridge. This is a
+weight-plus-KV-traffic bound; it omits activation traffic, so it is an
+upper bound on measured intensity. So with the KV term, decode stays
+bandwidth-bound at every batch size; the ``batch ≈ 295'' figure is the
+weight-only first-order estimate (valid when the KV re-read is small
+relative to the weight stream, e.g.~short contexts or KV quantization).
+This is why continuous-batching systems (Orca, vLLM) prioritize batch
+growth: it is the primary lever for pushing decode arithmetic intensity
+toward the ridge (on the weight-only term).
 
 \emph{Scope note on the single-device roofline here:} the 140 GB
 weight-read and the per-GPU \textasciitilde3.35 TB/s HBM bandwidth are
@@ -1000,14 +1047,17 @@ Scenario}\label{end-of-chapter-mini-case-continuous-deployment-scenario}
 An architect is brought into an ongoing deployment of a 70B-class Q\&A
 system on a fleet of 8×H100 GPU nodes (tensor-parallel 8 per node; at
 \textasciitilde10 rps the prefill leg alone demands \textasciitilde12.9
-PFLOP/s, so the fleet spans several nodes --- Ch 24's prefill screen:
-1.63 nodes at 100\% MFU, \textasciitilde5 at 35\% MFU). The system is
-serving \textasciitilde10 requests/s average with \textasciitilde9.2K
-input + 300 output tokens per request, and the TTFT budget is being
-missed: p95 TTFT is 2.8 s, exceeding the 2 s p95 TTFT SLO (the 1.2 s
-figure is the internal design budget). The TPOT of 28 ms/token is within
-the 35 ms p95 TPOT SLO (though above the 25 ms design budget), but the
-prefill delay is the bottleneck.
+PFLOP/s under case (i) linear-only, so the fleet spans several nodes ---
+§8.3.4's prefill screen: 1.63 nodes at 100\% MFU, \textasciitilde5 hosts
+at 35\% MFU under case (i); case (ii) full-square attention gives
+\textasciitilde6 hosts at the same 10 rps, per the case table, and Ch 24
+§3.3 carries the 40 rps peak form of the same screen at 40\% MFU). The
+system is serving \textasciitilde10 requests/s average with
+\textasciitilde9.2K input + 300 output tokens per request, and the TTFT
+budget is being missed: p95 TTFT is 2.8 s, exceeding the 2 s p95 TTFT
+SLO (the 1.2 s figure is the internal design budget). The TPOT of 28
+ms/token is within the 35 ms p95 TPOT SLO (though above the 25 ms design
+budget), but the prefill delay is the bottleneck.
 
 The temptation is to reach for a roofline and ``prove'' prefill is
 memory-bound. That reasoning is wrong here, and the error is worth
@@ -1027,7 +1077,10 @@ prefill is compute-bound, exactly as the rest of this chapter teaches.
 So a high TTFT is \emph{not} evidence of a bandwidth problem. The
 architect does the correct thing: profile the prefill kernel and
 determine which of several distinct causes is actually limiting it,
-rather than assuming memory. The profile separates four candidates:
+rather than assuming memory. Mixed serving puts prefill and decode from
+different requests on the same devices (§8.1), so the per-kernel profile
+must first attribute FLOPs and bytes to the prefill requests before this
+four-candidate diagnosis applies. The profile separates four candidates:
 
 \begin{itemize}
 \tightlist

@@ -45,6 +45,16 @@ e.g.~counting the first token's forward pass as the first decode step
 --- but the difference is one token's worth of latency, and every
 formula and figure in this book uses the convention above.)
 
+\emph{Written as a sum, end-to-end TTFT is}
+\(\text{TTFT}_{\text{e2e}} = \text{retrieval} + \text{admission/queue} + \text{tokenization/transfer} + \text{prefill}\).
+It carries \textbf{no separate ``first decode step'' term}: under the
+convention above, the first token's forward pass is sampled inside
+prefill, so a term for it would count that work twice. The same formula
+is quoted verbatim in §4.3, and the \textasciitilde1.08 s prefill
+residual used in §2.3 is the two-term part of it (retrieval + prefill)
+with no allowance for the other terms. \emph{This is the book's defining
+convention for TTFT, not an evidence-tagged measurement claim.}
+
 \textbf{Decode} is the per-token generation that follows. After prefill,
 each new token only attends to the cached keys and values from the
 prefix plus all previously generated tokens. In the
@@ -66,31 +76,32 @@ The critical architectural insight, at the canonical low-batch operating
 point: prefill \emph{tends} to be compute-bound (high arithmetic
 intensity --- the whole prompt is processed in one parallel pass), while
 decode \emph{tends} to be bandwidth-bound (low weight-reuse efficiency
---- the 140 GB weight matrix is re-read every step for a single token).
-These are the typical bottlenecks, and confusing them is the most common
-architectural misstep. But neither is a universal physical law: the
-characterization is an operating-point property of model × workload ×
-kernel × hardware (batch size, attention length, and kernel fusion all
+--- each step re-reads the model weights for a single token: 140 GB in
+aggregate, or a 17.5 GB shard per GPU on the canonical 8×H100 host at TP
+= 8). These are the typical bottlenecks, and confusing them is the most
+common architectural misstep. But neither is a universal physical law:
+the characterization is an operating-point property of model × workload
+× kernel × hardware (batch size, attention length, and kernel fusion all
 shift it), and the roofline framework in Ch 8 is what identifies which
 regime a given kernel actually sits in.
 
 One detail the figure makes explicit is \emph{when} a token's K/V enters
 the cache. The first decode step, precisely: (a) prefill populates the
 cache with the prefix K/V and samples the first token; (b) that first
-token is the \emph{input} that seeds the decode loop (the green
-initialize path in \hyperref[fig:2.1]{Fig 2.1}); (c) each decode step takes one input token,
-runs the transformer on it --- which \textbf{computes and appends that
-input token's K/V} to the cache --- attends over the cached K/V, and
-samples the next token from the logits; (d) the sampled next token is
-the \emph{output} of this step and the \emph{input} of the following
-step, whose forward pass then computes and appends its K/V. A token's
-K/V therefore enters the cache on the step in which it is the
-\emph{input}, not on the step in which it is sampled.
+token is the \emph{input} that seeds the decode loop (the initialize
+path in \hyperref[fig:2.1]{Fig 2.1}); (c) each decode step takes one input token, runs the
+transformer on it --- which \textbf{computes and appends that input
+token's K/V} to the cache --- attends over the cached K/V, and samples
+the next token from the logits; (d) the sampled next token is the
+\emph{output} of this step and the \emph{input} of the following step,
+whose forward pass then computes and appends its K/V. A token's K/V
+therefore enters the cache on the step in which it is the \emph{input},
+not on the step in which it is sampled.
 
 \begin{figure}
 \centering
 \pandocbounded{\includegraphics[keepaspectratio,alt={The canonical end-to-end inference pipeline, in two process bands plus the persistent KV cache. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT (time per output token; equivalently the mean ITL, inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The initialize path (labelled initialize) seeds the loop with the first sampled token. Color is figure-local decoration --- each box is titled. The two bands and the single PERSISTENT KV CACHE box are conceptual groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0202.pdf}}
-\caption[The canonical end-to-end inference pipeline, in two process bands plus the…]{The canonical end-to-end inference pipeline, in two process bands plus the persistent KV cache. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT (time per output token; equivalently the mean ITL, inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The initialize path (labelled initialize) seeds the loop with the first sampled token. Color is figure-local decoration --- each box is titled. The two bands and the single PERSISTENT KV CACHE box are \emph{conceptual} groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\caption[The canonical end-to-end inference pipeline]{The canonical end-to-end inference pipeline, in two process bands plus the persistent KV cache. PREFILL (top) is the one-shot parallel pass over the whole prompt; it populates the persistent KV cache and is the dominant contributor to TTFT (time to first token --- though TTFT also includes queueing, preprocessing, and transport, so model prefill latency is a component of, not identical to, user-observed TTFT). DECODE (bottom) is the single-token autoregressive loop, measured by TPOT (time per output token; equivalently the mean ITL, inter-token latency); each step reads the cached K/V, appends the new K/V, and samples the next token. The initialize path (labelled initialize) seeds the loop with the first sampled token. Color is figure-local decoration --- each box is titled. The two bands and the single PERSISTENT KV CACHE box are \emph{conceptual} groupings for teaching, not runtime components: a real serving stack has per-layer, per-request KV state and no literal ``prefill band'' object. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
 
 \label{fig:2.1}\end{figure}
 
@@ -153,6 +164,7 @@ what it is \textbf{not}
 \textbf{KV cache} & the stored K and V tensors per token per layer,
 saved so decode does not recompute the prefix & not an
 \emph{optimization} over a shared prefix \\
+\noalign{\label{tab:2.3}}
 \textbf{PagedAttention} & a memory-\emph{allocation} scheme for the KV
 cache (splits it into fixed-size pages, cuts fragmentation/waste) & not
 a way to \emph{reduce} the amount of KV state \\
@@ -167,17 +179,19 @@ to mean \emph{reusing the KV of a shared prompt prefix across requests}
 \textbf{KV offloading} & moving some KV state out of GPU HBM (to host
 DRAM/SSD), trading capacity against transfer latency & not shrinking the
 state itself \\
+\end{longtable}
 
-\noalign{\label{tab:2.2}}\end{longtable}
-
-The short version: the \textbf{KV cache} is \emph{the state};
-\textbf{PagedAttention} manages \emph{where that state lives} on the
-device; \textbf{prefix caching} avoids \emph{computing it twice} for a
-shared prefix; \textbf{quantization} shrinks \emph{each element};
-\textbf{offloading} moves \emph{some of it elsewhere}. Each attacks a
-different constraint (capacity, fragmentation, redundant compute, byte
-count, residency), and each has its own trade-off --- later chapters put
-numbers on them.
+The short version, each mechanism bound to the one constraint it
+attacks: the \textbf{KV cache} itself \emph{is} the capacity demand (it
+is the state, and its size per sequence is what must fit);
+\textbf{PagedAttention} → \emph{fragmentation} (it manages where that
+state lives on the device and wastes less of it); \textbf{prefix
+caching} → \emph{redundant compute} (prefix caching avoids computing a
+shared prefix's K/V twice); \textbf{quantization} → \emph{bytes per
+element} (quantization shrinks each element); \textbf{offloading} →
+\emph{residency} (offloading moves some of that state elsewhere). One
+mechanism, one constraint, in that order --- and each pairing carries
+its own trade-off; later chapters put numbers on them.
 
 \textbf{The resource model (the book's recurring framework).} Inference
 consumes several \emph{fundamentally different} resources, and the
@@ -185,7 +199,11 @@ single most useful habit an architect can build is to name which one a
 given optimization or bottleneck is about. The pipeline figure above
 surfaces four of them, and the metric chapter (Ch. 6) and the design
 chapter (Ch. 12) build on the same set. The book will use these names
-consistently:
+consistently.
+
+\subsection{Table 2-1 --- The resource model: seven resources, and the
+constraint each one
+names}\label{table-2-1-the-resource-model-seven-resources-and-the-constraint-each-one-names}
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -208,21 +226,21 @@ first surfaces in
 \bottomrule\noalign{}
 \endlastfoot
 \textbf{compute capacity} & FLOP/s & how much arithmetic per unit time &
-prefill (Ch. 2, 8) \\
+prefill (Ch. 2, Ch. 8) \\
+\noalign{\label{tab:2.1}}
 \textbf{memory bandwidth} & bytes/s & how fast data can move & decode
-(Ch. 2, 8) \\
+(Ch. 2, Ch. 8) \\
 \textbf{memory capacity} & bytes resident & how much state fits (weights
 + KV) & KV cache / concurrency (Ch. 7) \\
 \textbf{interconnect bandwidth/latency} & bytes/s, delay & cross-GPU /
 cross-host movement & communication (Ch. 9) and parallelism (Ch. 10) \\
-\textbf{scheduling capacity} & useful work resident & keeping hardware
-busy despite request raggedness & serving (Ch. 11) \\
-\textbf{latency budget} & TTFT, TPOT/ITL, end-to-end & the SLO the
+\textbf{scheduling capacity} & resident sequences (slot count) & keeping
+hardware busy despite request raggedness & serving (Ch. 11) \\
+\textbf{latency budget} & s (TTFT, TPOT/ITL, end-to-end) & the SLO the
 system must meet & workload (Ch. 4) \\
 \textbf{throughput / goodput} & useful tokens/s under SLO & completed
 work, not just tokens/s & metrics (Ch. 6) \\
-
-\noalign{\label{tab:2.3}}\end{longtable}
+\end{longtable}
 
 The discipline the book applies everywhere: \textbf{every optimization
 is a hypothesis about which resource it shifts and what it trades away.}
@@ -235,9 +253,9 @@ disaggregation trades a \emph{homogeneous pool's} simplicity for
 separate \emph{compute- vs bandwidth-optimized} pools. When the book
 introduces a technique, it will name the resource it targets and the
 resource it costs --- that is the difference between reasoning and a
-vendor catalog. The optimization decision map (Ch. 15) is this framework
-read backwards: from an observed symptom to the resource that is likely
-starved.
+vendor catalog. The optimization decision map (Ch 15, the
+\emph{Optimization Decision Map} section) is \hyperref[tab:2.1]{Table 2-1} read backwards:
+from an observed symptom to the resource that is likely starved.
 
 \textbf{The causal chain (how the chapters hold together).} The book is
 one argument, not a set of topics. The thread is:
@@ -252,6 +270,15 @@ count and model topology determine interconnect and fleet architecture →
 fleet architecture determines cost, resilience, placement, and
 operational complexity.
 
+The order above is the \emph{physical dependency} order: what is
+computed from what. It is not the architect's working order. The
+Preface's six-question checklist (Q1--Q6) answers ``How many hosts?''
+(Q4) from the per-host bound before it reaches ``Who serves it, and
+how?'' (Q5), because a host count can be sized from a per-host bound
+before the serving mechanism that sets its utilization is fixed. Read
+the chain as what depends on what, and the checklist as the sequence in
+which an architect resolves those dependencies.
+
 Every chapter is one link of that chain, and each \emph{deepens} the
 same mental model from Ch. 2 rather than restarting it. By the time the
 argument reaches Ch. 11 (serving) or Ch. 17 (fleet), the concepts were
@@ -265,15 +292,16 @@ generator}\label{the-work-unit-changes-with-the-generator}
 \begin{quote}
 \textbf{Reader orientation (scope note).} This subsection is a scoped
 aside on non-text generative workloads; the prefill/decode thread
-resumes in §2 (Mental Model). Ch 3's subsection \emph{Alternative
+resumes in §2.2 (Mental Model). Ch 3's subsection \emph{Alternative
 inference: the token is not the execution step} covers the
 diffusion/LLaDA case --- read the two as one treatment.
 \end{quote}
 
-\emph{Implementation note inspected on 28 October 2026, outside the 30
-August 2026 evidence snapshot. The pinned source establishes the
-execution pattern below, not a measurement of latency, memory use or
-service capacity.}
+\emph{Implementation note inspected on 28 October 2026 (post-cutoff
+addendum \texttt{v20260913+addendum-20261028}), outside the 30 August
+2026 evidence snapshot. The pinned source establishes the execution
+pattern below, not a measurement of latency, memory use or service
+capacity.}
 
 The prefill/decode split describes the autoregressive text path
 developed here. It does not describe every generative workload. In
@@ -283,7 +311,9 @@ current clip representation. A later VAE decoder maps the final
 representation into frames. Its name, ``decode,'' does not make it the
 single-token decode loop in \hyperref[fig:2.1]{Fig 2.1}. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
 (\href{https://github.com/Wan-Video/Wan2.2/tree/1ea34ff48f87168174e12956e200b1d908b1c5ff}{Wan2.2
-sampling loop}, pinned revision \texttt{1ea34ff}, retrieved 2026-10-28.)
+sampling loop}, pinned revision \texttt{1ea34ff}, retrieved 2026-10-28
+--- post-cutoff addendum \texttt{v20260913+addendum-20261028}, outside
+the book's 2026-08-30 evidence cutoff.)
 
 The causal method still holds. We first identify the generated object
 and its execution schedule. Those determine compute, live state,
@@ -296,7 +326,9 @@ case, not a template for replacing video frames with text tokens.
 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 (\href{https://github.com/Wan-Video/Wan2.2/blob/1ea34ff48f87168174e12956e200b1d908b1c5ff/wan/configs/wan_ti2v_5B.py}{Wan2.2
 TI2V-5B configuration}, pinned revision \texttt{1ea34ff}, retrieved
-2026-10-28.)
+2026-10-28 --- post-cutoff addendum
+\texttt{v20260913+addendum-20261028}, outside the book's 2026-08-30
+evidence cutoff.)
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -318,13 +350,15 @@ explicit.)
 
 \textbf{In the canonical operating point --- low batch --- decode is
 bandwidth-bound.} It is like pushing the water of that same 140 GB
-reservoir through a standard garden hose: the whole volume must flow
-every 25 milliseconds just to deliver one glass of water --- one
-generated token. (The 140 GB hose is the single-device illustration: on
-the canonical 8×H100 host the step's weight shard is 17.5 GB/GPU, which
-streams in \textasciitilde5.2 ms at peak --- 21\% of the 25 ms step.)
-The reservoir is not drained --- the same 140 GB is re-read every step.
-The pump (compute) is more than powerful enough, but the diameter of the
+reservoir through a standard garden hose. On a single device, the full
+140 GB must stream within each 25 ms step to produce one token: each
+step delivers one glass of water at its end, not a continuous flow. (The
+140 GB hose is the single-device illustration. On the canonical 8×H100
+host, each GPU streams only its 17.5 GB shard per step, which takes
+\textasciitilde5.2 ms at peak --- 21\% of the 25 ms step.) The reservoir
+is not drained --- the same weight volume is re-read every step: 140 GB
+in aggregate on one device, 17.5 GB per GPU on the canonical host. The
+pump (compute) is more than powerful enough, but the diameter of the
 hose (HBM bandwidth) physically cannot move that volume of water in that
 time frame. (Again an operating-point property, not an identity: at high
 batch decode can become compute-bound.)
@@ -347,12 +381,12 @@ caption states the intended reading.
 
 
 To make the distinction concrete, let us walk through the canonical
-enterprise Q\&A scenario from canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}): a
-70B-class dense model in FP16, 1 host with 8×H100 GPUs, prompt of 1,200
-tokens + 8K retrieved context (\textasciitilde9.2K input), 300-token
-output, TTFT budget 1.2 s (retrieval \textasciitilde120 ms + prefill),
-TPOT budget \textasciitilde25 ms/token. All numbers are derived from the
-canonical scenario; none are measurement claims. Where the book writes
+enterprise Q\&A scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}): a 70B-class dense model in
+FP16, 1 host with 8×H100 GPUs, prompt of 1,200 tokens + 8K retrieved
+context (\textasciitilde9.2K input), 300-token output, TTFT budget 1.2 s
+(retrieval \textasciitilde120 ms + prefill), TPOT budget
+\textasciitilde25 ms/token. All numbers are derived from the canonical
+scenario; none are measurement claims. Where the book writes
 \emph{Analytical bound --- not a benchmark}, it marks a first-order
 model check under a stated bounding assumption, not a measurement of
 actual serving throughput. \emph{Scope of the single-host premise.}
@@ -366,16 +400,17 @@ The per-request arithmetic here answers ``does one host's
 compute/bandwidth/memory satisfy one request's latency budget''; the
 \emph{capacity} question --- how many such hosts to absorb λ = 40 rps,
 where in-flight concurrency λ·W ≈ 344 at the \textasciitilde8.6 s
-service time --- is answered later (Ch 16--17), and is a different
-computation that must not be conflated with per-request feasibility.
-Keeping the two questions separate is the difference between sizing a
-host and sizing a fleet.
+service time (that occupancy and the canonical 8×H100 host definition
+are derived in Ch 4 §4.3 and \hyperref[tab:4.2]{Table 4-2}) --- is answered later (Ch
+16--17), and is a different computation that must not be conflated with
+per-request feasibility. Keeping the two questions separate is the
+difference between sizing a host and sizing a fleet.
 
 \Needspace{32\baselineskip}
 
-\subsection{Table 2-1 --- Decode bandwidth and prefill FLOPs (worked
+\subsection{Table 2-2 --- Decode bandwidth and prefill FLOPs (worked
 example, not
-reference)}\label{table-2-1-decode-bandwidth-and-prefill-flops-worked-example-not-reference}
+reference)}\label{table-2-2-decode-bandwidth-and-prefill-flops-worked-example-not-reference}
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -395,57 +430,124 @@ derivation
 \bottomrule\noalign{}
 \endlastfoot
 Model params & 70B & canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}) \\
+\noalign{\label{tab:2.2}}
 Model weight bytes (FP16) & 140 GB & 2 bytes × 70B params \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Decode: weight-read per token & 140 GB & Autoregressive,
 batch-1-equivalent: one read of all weights per generated token before
-batching/amortization \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-Decode: required bandwidth (TPOT \textasciitilde25 ms) & 5.6 TB/s & 140
-GB / 0.025 s (batch-1-equivalent weight-streaming model, before
-amortization) \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+batching/amortization; aggregate across the model (8 × 17.5 GB shards on
+the canonical TP = 8 host) \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+Decode: required bandwidth, hypothetical single-device aggregate (TPOT
+\textasciitilde25 ms) & 5.6 TB/s & 140 GB / 0.025 s --- the whole model
+read once per step on \textbf{one} device (batch-1-equivalent
+weight-streaming model, before amortization); an aggregate figure, not a
+per-GPU one \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 H100 HBM3 peak bandwidth & 3.35 TB/s & NVIDIA H100 specs
 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} \\
-Decode: bandwidth verdict & bandwidth-bound & 5.6 \textgreater{} 3.35 →
-under the batch-1-equivalent model, a single H100 cannot meet the
-demand; batching/amortization change this (see later chapters)
+Decode: bandwidth verdict, hypothetical single-device aggregate &
+bandwidth-bound & 5.6 \textgreater{} 3.35 → one device holding the whole
+140 GB model cannot meet the demand. This row compares aggregate bytes
+against a \emph{single} device's bandwidth, and a 140-GB FP16 model does
+not fit on one 80-GB H100: the row illustrates the roofline point, not a
+deployable layout; batching/amortization also change it (see later
+chapters) \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+Decode: required bandwidth per GPU (sharded, TP = 8) & 700 GB/s per GPU
+& 17.5 GB / 0.025 s, where 70B / 8 = 8.75B params = 17.5 GB shard per
+GPU per step. Same per-GPU denominator as the 3.35 TB/s peak, so the two
+rows are directly comparable \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+Decode: bandwidth verdict, canonical 8×H100 host (TP = 8) & bandwidth
+not binding at this point (weight-read only) & 700 GB/s \textless{} 3.35
+TB/s → the shard streams in \textasciitilde5.2 ms at peak, 21\% of the
+25 ms TPOT step, so weight-read bandwidth is not the binding constraint
+at this operating point. \emph{Scope:} the 5.2 ms covers the weight read
+only; the per-token attention over the 9.2K-token KV cache, the TP
+collectives, kernel inefficiency, sampling and scheduling are not in it,
+so this is not a full-step feasibility result --- the \textasciitilde25
+ms TPOT is a budget that covers those terms, not a bandwidth-saturated
+point (Ch 6 states the same caveat). The verdict is the opposite of the
+aggregate row because the denominator is one GPU, not the sum of eight
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Prefill: input tokens & 9,200 & 1,200 prompt + 8K context \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-Prefill: FLOPs (2 × params × tokens) & 1.29 PFLOP & 2 ×70e9 ×9.2e3 ≈
-1.29 ×10¹⁵ \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+Prefill: FLOPs, linear term only (2 × params × tokens) & 1.29 PFLOP & 2
+×70e9 ×9.2e3 ≈ 1.29 ×10¹⁵; excludes the quadratic attention term, which
+adds \textasciitilde0.22 PFLOP (+17\%) at 9.2K → \textasciitilde1.51
+PFLOP total, Ch 8 case (ii) \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 H100 BF16 dense compute & 989 TFLOPS & NVIDIA H100 BF16 tensor-core peak
 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} \\
-Prefill: regime verdict & compute-bound regime & arithmetic intensity
-\textasciitilde9.2K FLOP/byte \textgreater{} ridge \textasciitilde295 →
-on the compute-bound side of the roofline \mbox{{[}canonical
+Prefill: regime verdict & compute-bound regime & weight-only arithmetic
+intensity ≈ 9,200 FLOP/byte --- an upper bound that omits the
+\textasciitilde24 GB KV write; adding that write to the denominator
+\emph{lowers} the intensity to ≈ 7,850 FLOP/byte (Ch 8), because the
+same prefill FLOPs are divided by more bytes --- both values ≫ ridge
+\textasciitilde295 → compute-bound side of the roofline \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Prefill: single-H100 capacity & insufficient for real-time prefill &
 1.29 PFLOP / \textasciitilde1.08 s ≈ 1.19 PFLOPS demand \textgreater{}
-0.989 PFLOPS H100 peak → one H100 cannot meet the TTFT deadline under
-this analytical model \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+0.989 PFLOPS H100 peak; with the attention term included
+(\textasciitilde1.51 PFLOP) the demand is \textasciitilde1.40 PFLOPS, so
+the verdict holds and strengthens → one H100 cannot meet the TTFT
+deadline under this analytical model (single-device feasibility
+illustration only --- the canonical 8×H100 host's aggregate peak of
+\textasciitilde7.9 PFLOPS satisfies the \textasciitilde1.19 PFLOPS
+demand; this row says nothing about the host's adequacy) \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\end{longtable}
 
-\noalign{\label{tab:2.1}}\end{longtable}
+\emph{\hyperref[tab:2.2]{Table 2-2} scope note --- prefill FLOPs.} The 1.29 PFLOP row is the
+\textbf{parameterized-linear term only} (\(2NL\)), case (i) in the
+book's single prefill-FLOP convention. The three cases are: \textbf{case
+(i)} \(2NL\) linear-only; \textbf{case (ii)} \(2NL\) plus the
+full-square attention term
+\(4 \cdot n_\text{layers} \cdot L^2 \cdot d\); \textbf{case (iii)}
+\(2NL\) plus the causal-triangle attention term
+\(2 \cdot n_\text{layers} \cdot L^2 \cdot d\) --- stated here at first
+use, defined in full at Ch 8 §3.3. The 1.29 PFLOP row excludes the
+quadratic attention term,
+\(\approx 4 \times n_\text{layers} \times L^2 \times d\) ---
+\textasciitilde0.22 PFLOP (+17.23\%) at the canonical 9.2K-token,
+80-layer, hidden-8192 geometry --- so total prefill compute is
+\textasciitilde1.51 PFLOP (Ch 8 case (ii), full-square) or
+\textasciitilde1.40 PFLOP (case (iii), causal-triangle). The verdict
+rows use the linear term, which makes them lower bounds on the demand:
+at the same \textasciitilde1.08 s budget the case (ii) total implies
+\textasciitilde1.40 PFLOPS against the 0.989 PFLOPS single-H100 peak, so
+the shortfall only grows. \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Prefill and decode split by the roofline ridge. Low-batch decode (streaming weights per token) lands at \textasciitilde1 FLOP/byte --- the memory-bound side; long-prompt prefill lands at high intensity --- the compute-bound side. These are operating points, not fixed identities: batch, context, precision, kernel and hardware all move a point across the ridge. {[}ILLUSTRATIVE conceptual, roofline developed in Ch 8{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0201.pdf}}
-\caption[Prefill and decode split by the roofline ridge]{Prefill and decode split by the roofline ridge. Low-batch decode (streaming weights per token) lands at \textasciitilde1 FLOP/byte --- the memory-bound side; long-prompt prefill lands at high intensity --- the compute-bound side. These are operating points, not fixed identities: batch, context, precision, kernel and hardware all move a point across the ridge. {[}ILLUSTRATIVE conceptual, roofline developed in Ch 8{]}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Prefill and decode split by the roofline ridge. Low-batch decode (streaming weights per token) lands at \textasciitilde1 FLOP/byte --- the memory-bound side; long-prompt prefill lands at high intensity --- the compute-bound side. Both plotted intensities are weight-only: the prefill marker is the \textasciitilde9.2K FLOP/byte figure before the \textasciitilde24 GB KV write is counted, and counting that write lowers the same point to \textasciitilde7,850 FLOP/byte (Ch 8) --- still well right of the ridge. These are operating points, not fixed identities: batch, context, precision, kernel and hardware all move a point across the ridge. {[}ILLUSTRATIVE conceptual, roofline developed in Ch 8{]}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-02-0201.pdf}}
+\caption[Prefill and decode split by the roofline ridge]{Prefill and decode split by the roofline ridge. Low-batch decode (streaming weights per token) lands at \textasciitilde1 FLOP/byte --- the memory-bound side; long-prompt prefill lands at high intensity --- the compute-bound side. Both plotted intensities are weight-only: the prefill marker is the \textasciitilde9.2K FLOP/byte figure before the \textasciitilde24 GB KV write is counted, and counting that write \emph{lowers} the same point to \textasciitilde7,850 FLOP/byte (Ch 8) --- still well right of the ridge. These are operating points, not fixed identities: batch, context, precision, kernel and hardware all move a point across the ridge. {[}ILLUSTRATIVE conceptual, roofline developed in Ch 8{]}}
 
-\label{fig:2.2}\emph{Two distinct conclusions, kept deliberately separate. (1)
-\textbf{Regime:} arithmetic intensity places the canonical prefill point
-\textasciitilde9.2K FLOP/byte, well to the right of the
-\textasciitilde295 ridge --- so prefill sits in the compute-bound
+\label{fig:2.2}\end{figure}
+
+\emph{Two distinct conclusions, kept deliberately separate. (1)
+\textbf{Regime:} weight-only arithmetic intensity places the canonical
+prefill point \textasciitilde9.2K FLOP/byte (\textasciitilde7,850
+FLOP/byte once the \textasciitilde24 GB KV write is added to the
+denominator, which lowers the intensity, Ch 8) --- well to the right of
+the \textasciitilde295 ridge --- so prefill sits in the compute-bound
 regime; decode at \textasciitilde1 FLOP/byte sits in the memory-bound
-regime. (2) \textbf{Capacity:} the stated TTFT deadline implies
-\textasciitilde1.19 PFLOPS demand, exceeding the compared single-H100
-theoretical peak (0.989 PFLOPS) --- so one H100 is insufficient under
-that analytical deadline model. The regime classification and the
-capacity shortfall are independent: a workload can be compute-bound in
-regime yet still fit on the device, and vice versa. (Analytical bounds
---- not a benchmark: these are first-order model checks, not a
-measurement of actual serving throughput.)}
+regime. }Basis of these intensity figures, so the chapters reconcile:*
+every value here divides the \textbf{linear-term} prefill FLOPs,
+\(2NL\), by \textbf{weight bytes}. Adding the attention FLOPs to the
+\textbf{numerator} instead raises the weight-only value to
+\textasciitilde10.8K FLOP/byte (the figure Ch 6, \hyperref[tab:6.1]{Table 6-1} quotes),
+while adding the \textasciitilde24 GB KV write to the
+\textbf{denominator} is the correction that gives \textasciitilde7,850.
+The two corrections act on different terms, so they are not competing
+estimates; all three bases sit far to the right of the
+\textasciitilde295 ridge, and the regime verdict does not depend on
+which one is quoted. (2) \textbf{Capacity:} the stated TTFT deadline
+implies \textasciitilde1.19 PFLOPS demand, exceeding the compared
+single-H100 theoretical peak (0.989 PFLOPS) --- so one H100 is
+insufficient under that analytical deadline model. The regime
+classification and the capacity shortfall are independent: a workload
+can be compute-bound in regime yet still fit on the device, and vice
+versa. (Analytical bounds --- not a benchmark: these are first-order
+model checks, not a measurement of actual serving throughput.)*
 
-\end{figure}\textbf{Worked example arithmetic details:}
+\textbf{Worked example arithmetic details:}
 
 \begin{itemize}
 \tightlist
@@ -537,7 +639,7 @@ overhead, kernel inefficiency, and sub-100\% model FLOPs utilization
 (MFU), this first-order lower bound already exceeds the H100's
 theoretical peak.} Therefore one H100 cannot satisfy the stated prefill
 budget under these assumptions. The prefill phase is compute-bound for
-the separate reason given in \hyperref[tab:2.1]{Table 2-1}: arithmetic intensity
+the separate reason given in \hyperref[tab:2.2]{Table 2-2}: weight-only arithmetic intensity
 \textasciitilde9.2K FLOP/byte \textgreater{} ridge \textasciitilde295
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Note the direction of this
 argument: exceeding the \emph{theoretical peak} proves the target is
@@ -557,15 +659,30 @@ point (arithmetic intensity \textasciitilde9.2K FLOP/byte
 the gap. Attention kernels are a lever for the bandwidth side of the
 ridge. - \textbf{Canonical host verdict.} On the canonical 8×H100 host
 (TP = 8): prefill 1.29 PFLOP / (8 × 0.989 PFLOPS) = 0.16 s at peak,
-\textasciitilde0.47 s at 35\% MFU, inside the 1.08 s budget; decode
-shard 70B/8 = 8.75B params = 17.5 GB/GPU per step → 17.5 GB / 3.35 TB/s
-= 5.2 ms, inside the 25 ms TPOT budget; KV 24.1 GB per request (24.9 GB
-at the 9.5K resident basis) against the 640 GB pool (\textasciitilde228
-GB total resident: 140 GB weights + \textasciitilde64 GB
-runtime/workspace reserve + 24.1 GB KV --- the reserve is introduced in
-Ch 4 and derived in Ch 7). The single-H100 arithmetic above is a
-device-feasibility illustration, not this host's verdict. \mbox{{[}canonical
-scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+\textasciitilde0.47 s at 35\% MFU {[}2°: industry
+benchmarks{]}{[}ASSUMPTION --- the book's planning MFU, with 25/35/45\%
+sensitivity in Ch 8, \hyperref[tab:8.1]{Table 8-1}{]}, inside the 1.08 s budget (a single
+request monopolizing the host; not the per-host aggregate rate of
+\textasciitilde19,800 tok/s --- see Ch 8 §3.4); decode shard 70B/8 =
+8.75B params = 17.5 GB/GPU per step → 17.5 GB / 3.35 TB/s = 5.2 ms at
+peak, inside the 25 ms TPOT budget (sustained-bandwidth sensitivity: at
+60--80\% of peak the same shard takes \textasciitilde8.7--6.5 ms ---
+still inside 25 ms, so the verdict does not rest on the peak figure;
+§2.5); KV 24.1 GB per request (24.9 GB on the 9.5K-token slot-counting
+basis) against the 640 GB pool --- i.e.~the \textasciitilde436 GB KV
+budget after the 140 GB of weights and the \textasciitilde64 GB reserve
+(640 − 140 − 64 = 436). Two KV bases, named: at the pre-generation
+9.2K-input point the request's KV is 24.1 GB, so the host footprint is
+\textasciitilde228 GB (140 GB weights + \textasciitilde64 GB
+runtime/workspace reserve + 24.1 GB KV); at the end-of-generation 9.5K
+resident basis the same host holds \textasciitilde229 GB (140 + 64 +
+24.9 GB --- the figure Ch 7 \hyperref[fig:7.8]{Fig 7.8} uses). Here \emph{footprint} is the
+byte total on the host, and \emph{resident basis} is only the token
+count the KV slots are sized against (Ch 4, \hyperref[tab:4.2]{Table 4-2}); the two are
+different quantities and the labels keep them apart. The reserve is
+introduced in Ch 4 and derived in Ch 7. The single-H100 arithmetic above
+is a device-feasibility illustration, not this host's verdict.
+\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 \textbf{Occupancy thresholds.} Two thresholds bound the
 \emph{weight-matmul portion} of the step, and they rest on opposite
@@ -670,16 +787,17 @@ the wrong optimization lever.
   \textbf{Using manufacturer-peak bandwidth/FLOPS without mapping to
   real kernels.} H100 3.35 TB/s HBM3 is the theoretical peak; actual
   sustained bandwidth for weight-read kernels may be 60--80\% of peak
-  {[}2° rule-of-thumb; not measured here{]}. H100 989 TFLOPS BF16 dense
-  is the tensor-core peak; actual matmul throughput depends on kernel
-  fusion, batching, and precision. Cross-technology numbers follow the
-  same rule --- name the SKU, not the memory class: the H200 (HBM3e
-  successor to the H100) is 4.8 TB/s, B200-class HBM3e is
-  \textasciitilde8 TB/s, and AMD MI300X is \textasciitilde5.3 TB/s
-  \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} --- vendor-published specifications as of the
-  2026-08-30 cutoff; verify against the specific generation in use.
-  Citing raw numbers without kernel context is an anti-catalog error ---
-  the number must be matched to the actual serving kernel in use.
+  \mbox{{[}HYPOTHESIS{]}} --- a rule of thumb, not measured or cited here. H100
+  989 TFLOPS BF16 dense is the tensor-core peak; actual matmul
+  throughput depends on kernel fusion, batching, and precision.
+  Cross-technology numbers follow the same rule --- name the SKU, not
+  the memory class: the H200 (HBM3e successor to the H100) is 4.8 TB/s,
+  B200-class HBM3e is \textasciitilde8 TB/s, and AMD MI300X is
+  \textasciitilde5.3 TB/s \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} --- vendor-published
+  specifications as of the 2026-08-30 cutoff; verify against the
+  specific generation in use. Citing raw numbers without kernel context
+  is an anti-catalog error --- the number must be matched to the actual
+  serving kernel in use.
 \end{itemize}
 
 \ntsection{Architecture Consequence}\label{architecture-consequence}
@@ -771,15 +889,17 @@ worth benchmarking, not a concluded win.) This is the central theme of
 \item
   \textbf{Effect of quantization on decode bandwidth vs prefill FLOPs.}
   Int4 or FP8 quantization reduces the weight bytes (e.g., 70B at FP8 =
-  70 GB instead of 140 GB), which directly lowers the HBM read demand in
-  decode; it does \emph{not} reduce the algorithmic operation count of
-  the matmuls (the 2 × params × tokens FLOPs are approximately
-  unchanged), though lower precision can raise the \emph{effective}
-  throughput of the tensor cores at which those ops run. The direction
-  of the shift is clear (decode bandwidth improves; prefill ceiling
-  rises in effective rate), but the precise trade-off point where decode
-  becomes compute-bound rather than bandwidth-bound depends on the
-  quantization scheme and hardware support. --- workload-dependent.
+  70 GB instead of 140 GB \mbox{{[}canonical scenario{]}}{[}DERIVED: 70B × 1 B
+  per parameter, against 2 B at FP16{]}), which directly lowers the HBM
+  read demand in decode; it does \emph{not} reduce the algorithmic
+  operation count of the matmuls (the 2 × params × tokens FLOPs are
+  approximately unchanged), though lower precision can raise the
+  \emph{effective} throughput of the tensor cores at which those ops
+  run. The direction of the shift is clear (decode bandwidth improves;
+  prefill ceiling rises in effective rate), but the precise trade-off
+  point where decode becomes compute-bound rather than bandwidth-bound
+  depends on the quantization scheme and hardware support. ---
+  workload-dependent.
 \end{itemize}
 
 \section{End-of-Chapter Mini-Case: TTFT and the Prefill/Decode
@@ -802,15 +922,22 @@ system must sustain \textasciitilde92,000 input tokens/s in prefill and
 numbers jump to \textasciitilde368,000 and \textasciitilde12,000
 respectively. The architect can also state the two opposite bottlenecks:
 prefill will be compute-bound (\textasciitilde1.29 PFLOP per request at
-9.2K input), and decode will be bandwidth-bound (a \textasciitilde140
-GB/token weight-read requiring \textasciitilde5.6 TB/s sustained over
-each \textasciitilde25 ms decode step (aggregate, hypothetical
-single-device figure; sharded across 8 GPUs it is 17.5 GB/GPU = 700 GB/s
-per GPU)). The team's immediate architectural choice is whether to build
-a single homogeneous GPU cluster or to separate prefill and decode pools
---- the differing bottleneck profiles make disaggregation worth
-evaluating, though whether it uses fewer GPUs must be measured rather
-than assumed (Ch 11).
+9.2K input, the linear term alone; \textasciitilde1.51 PFLOP with the
+attention term, Ch 8), and decode sits in the bandwidth-bound
+\emph{regime} on intensity (low-batch decode runs at \textasciitilde1
+FLOP/byte, well left of the roofline ridge). The regime label is not a
+forecast that the weight read binds on this host. Each GPU streams only
+its 17.5 GB shard, which takes \textasciitilde5.2 ms at the 3.35 TB/s
+peak --- \textasciitilde21\% of the 25 ms step --- so weight-read
+bandwidth is not the binding term at this operating point (\hyperref[tab:2.2]{Table 2-2};
+§2.5). The \textasciitilde140 GB/token, \textasciitilde5.6 TB/s figure
+is the single-device aggregate: it shows the roofline point, and it is
+not a deployable layout, because a 140 GB FP16 model does not fit on one
+80 GB H100. Do not size decode for 5.6 TB/s. The team's immediate
+architectural choice is whether to build a single homogeneous GPU
+cluster or to separate prefill and decode pools --- the differing
+bottleneck profiles make disaggregation worth evaluating, though whether
+it uses fewer GPUs must be measured rather than assumed (Ch 11).
 
 Before passing this workload to \hyperref[chap:4]{Chapter 4} (workload anatomy), the
 architect locks in one more number: the tokens-per-request split. This

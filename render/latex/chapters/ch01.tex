@@ -17,7 +17,7 @@ reads and writes. It is not necessarily a word, a character, or a byte
 --- it is a vocabulary item, often a byte sequence, chosen by the
 model's \emph{tokenizer}. A single token can be a whole word
 (\texttt{handbook}), a common subword (\texttt{hand}), a single
-character, a short punctuation+space pair, or in worst cases a single
+character, a short punctuation+space pair, or, in edge cases, a single
 byte (a fragment of a character). (This chapter scopes to
 \emph{text-tokenized} autoregressive models. Modern multimodal systems
 also use non-text token-like representations --- image patches, audio
@@ -54,7 +54,7 @@ semantics: the characters of \texttt{architecture} and
 frequency. The encode/decode round-trip is usually lossless for the
 byte-level mapping, but the \emph{token boundaries} are not semantically
 meaningful. Second, token counts are \textbf{not proportional to
-character counts in any fixed way}. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} A high-frequency
+character counts in any fixed way}. \mbox{{[}2°{]}}\hspace{0pt}\mbox{{[}FACT{]}} A high-frequency
 English word is often one token (verifiable on most vendor tokenizer
 demos --- e.g.~common words like \emph{the}, \emph{we}, \emph{run}
 render as single tokens); a rare technical term, a long digit string, or
@@ -74,30 +74,37 @@ maximum, not a law of physics --- some models use sliding-window or
 rolling attention that retains only a bounded recent context, and a few
 support positional-scaling or provider-side context extension, so the
 \emph{model's} positional capability and the \emph{serving stack's}
-configured cap can differ; the distinction is developed in Ch 7 and Ch
-22.) Current-gen models commonly ship windows ranging from roughly 8K up
-to a million-plus tokens, varying by model and vendor
-(\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} vendor model cards, e.g.~128K/1M+ windows as of
-2026); the advertised number is a fixed, checkable property of the model
-we choose --- verify it on the card, never assume it from the family
-name. Note there are three related but distinct limits: the
-\emph{model-advertised maximum} (the card's window), the
-\emph{engine-configured maximum} (what the serving stack is set to
-allow, which can be lower to bound memory), and the \emph{request-level
-available input budget} (the advertised window minus the reserved
-generation budget and any positional-scaling or provider-API cap). The
-context window is one of the first numbers we will be quoted, and one of
-the easiest to overcommit against. But it is a \emph{configured
-maximum}, not a per-request charge: a 9.2K request in a 128K window is
-computed, cached, and billed on the \textasciitilde9.2K tokens actually
-used, not on the full 128K. What the window \emph{does} bound is the
-worst case --- the memory a single request could reserve and the
-admission capacity the engine must hold --- and some engines reserve or
-pre-allocate against that maximum (a policy choice that varies by
-engine), while others allocate only for the tokens actually processed.
-So the window sets the ceiling on reservation and admission, not the
-floor on per-request cost; the cost tracks the tokens actually cached
-and billed (developed in Ch 7 and Ch 16).
+configured cap can differ; the distinction is developed in Ch. 7 and Ch.
+22.) Current-gen models commonly ship windows ranging from roughly 8K
+tokens in older or small-tier deployments up to a million-plus tokens at
+the frontier, varying by model and vendor --- for example, the
+Qwen3.8-Flash-Next card states a native 262K-token window with YaRN
+extension to 1M, and the GLM-5.3-Flash and DeepSeek-V4 cards state 1M
+(\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} model cards: HF Qwen/Qwen3.8-Flash-Next; HF
+zai-org/GLM-5.3-Flash; DeepSeek-V4 technical report, arXiv 2606.19348,
+and model card HF deepseek-ai/DeepSeek-V4-Pro --- all accessed
+2026-08-30, the book's evidence cutoff; A.10); the low end of that range
+is the older/edge tier rather than a published figure for a current
+frontier model \mbox{{[}HYPOTHESIS{]}}. The advertised number is a fixed,
+checkable property of the model we choose --- verify it on the card,
+never assume it from the family name. Note there are three related but
+distinct limits: the \emph{model-advertised maximum} (the card's
+window), the \emph{engine-configured maximum} (what the serving stack is
+set to allow, which can be lower to bound memory), and the
+\emph{request-level available input budget} (the advertised window minus
+the reserved generation budget and any positional-scaling or
+provider-API cap). The context window is one of the first numbers we
+will be quoted, and one of the easiest to overcommit against. But it is
+a \emph{configured maximum}, not a per-request charge: a 9.2K request in
+a 128K window is computed, cached, and billed on the \textasciitilde9.2K
+tokens actually used, not on the full 128K. What the window \emph{does}
+bound is the worst case --- the memory a single request could reserve
+and the admission capacity the engine must hold --- and some engines
+reserve or pre-allocate against that maximum (a policy choice that
+varies by engine), while others allocate only for the tokens actually
+processed. So the window sets the ceiling on reservation and admission,
+not the floor on per-request cost; the cost tracks the tokens actually
+cached and billed (developed in Ch. 7 and Ch. 16).
 
 \subsection{Embeddings}\label{embeddings}
 
@@ -156,15 +163,21 @@ term is a \textbf{prefill} cost --- it describes computing attention
 across all position pairs in one pass over the full input. During
 \textbf{decode}, each generated token attends once to the growing
 prefix, so the per-token step is a \emph{linear} cost in context length
---- an attention term that \emph{is} per-step compute --- and the length
-also shows up as a \emph{growing KV cache memory footprint} (per-token
-key/values). The practical read is therefore \emph{``long context is
-quadratic in prefill compute, and linear-but-memory-growing in decode''}
---- a distinction as important as the quadratic fact itself, and one we
-return to in \hyperref[chap:2]{Chapter 2} (prefill and decode regimes), \hyperref[chap:7]{Chapter 7} (memory
-arithmetic) and \hyperref[chap:8]{Chapter 8} (roofline). Keeping prefill and decode
-separate is what prevents the over-simple ``long context = quadratic
-inference'' once we optimize context in later chapters.
+--- an attention term that \emph{is} per-step compute --- and that term
+holds a \emph{constant} arithmetic intensity, because its FLOPs and the
+KV bytes it reads both grow linearly in L: \textasciitilde1 FLOP/byte
+for full MHA at FP16 --- 4·n\_layers·L·d FLOPs (two matmuls at two FLOPs
+each) against 4·n\_layers·L·d bytes (two FP16 tensors at two bytes each)
+--- far below the H100 roofline ridge of \textasciitilde295 FLOP/byte
+(Ch. 2, Ch. 8). The length also shows up in the \emph{growing KV cache
+memory footprint} (per-token key/values). The practical read is
+therefore \emph{``long context is quadratic in prefill compute, and
+linear-but-memory-growing in decode''} --- a distinction as important as
+the quadratic fact itself, and one we return to in \hyperref[chap:2]{Chapter 2} (prefill
+and decode regimes), \hyperref[chap:7]{Chapter 7} (memory arithmetic) and \hyperref[chap:8]{Chapter 8}
+(roofline). Keeping prefill and decode separate is what prevents the
+over-simple ``long context = quadratic inference'' once we optimize
+context in later chapters.
 
 One architectural consequence to hold now: \emph{which layers emit a
 per-token cache is a property of the attention architecture}, not the
@@ -204,21 +217,26 @@ Bytes/token
 Constant-state & no --- fixed-size recurrent state & hybrid/linear
 attention (Mamba-style state, linear-attention kernels) & no per-token
 term \\
+\noalign{\label{tab:1.2}}
 Reduced-width per-token & yes, linearly & MLA-style latent attention,
-GQA, MQA head sharing & fewer than full MHA (MLA \textasciitilde50--60×
-less for DeepSeek-class geometry: 2·n\_h·d\_h = 2×128×128 = 32,768 dims
-per layer per token for full MHA vs d\_c + d\_h\^{}R = 512+64 = 576 for
-MLA, 32,768/576 ≈ 57× \mbox{{[}DERIVED{]}}) \\
+GQA, MQA head sharing & fewer than full MHA --- MLA ≈57× smaller than
+full MHA for DeepSeek-class geometry: 2·n\_h·d\_h = 2×128×128 = 32,768
+dims per layer per token for full MHA vs d\_c + d\_h\^{}R = 512+64 = 576
+for MLA, so 32,768/576 ≈ 56.9 ≈ 57× \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Geometry n\_h
+= 128, d\_h = 128, d\_c = 512, d\_h\^{}R = 64 as specified in DeepSeek's
+MLA report (DeepSeek-V2, arXiv:2405.04434) \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}. The
+\textasciitilde50--60× envelope around that single geometry is the
+book's own characterization, not a figure from the report
+\mbox{{[}HYPOTHESIS{]}} \\
 Full-MHA per-token & yes, linearly & dense full multi-head attention & 2
 × n\_layers × n\_KV-heads × d\_head × bytes-per-value \\
-
-\noalign{\label{tab:1.2}}\end{longtable}
+\end{longtable}
 
 This is why ``the KV problem'' and its fixes are really a
 \emph{model-architecture} question (Ch. 3) that lands as a \emph{memory}
 question (Ch. 7) --- and why the token layer is the right place to have
-met it. We only need the concept here; the mechanism inventory
-(GQA/MQA/MLA) and the arithmetic are both \hyperref[chap:7]{Chapter 7}'s.
+met the KV problem. We only need the concept here; the mechanism
+inventory (GQA/MQA/MLA) and the arithmetic are both \hyperref[chap:7]{Chapter 7}'s.
 
 \subsection{KV cache as a concept}\label{kv-cache-as-a-concept}
 
@@ -245,32 +263,59 @@ form matters once we meet \textbf{grouped-query (GQA)} and
 \textbf{multi-query (MQA)} attention, which share a small number of
 KV-heads across many query heads and can make the cache several times
 smaller than the full-MHA figure (Ch. 7) --- so \texttt{d\_hidden} alone
-is \emph{not} the correct KV width for those architectures. It is on the
-order of \textbf{\textasciitilde256 KiB (0.26 MB) per token for a
-7B-class model (32 layers, d\_hidden 4096, full-MHA) and
-\textasciitilde1.25 MiB (1.31 MB) per token for a 70B-class model (80
-layers, d\_hidden 8192, full-MHA)} at 8-bit precision. The arithmetic is
-the formula above with one byte per value: 2 × 32 × 4096 = 262,144 B and
-2 × 80 × 8192 = 1,310,720 B. That 8-bit figure is the \emph{raw tensor
-byte-halving} of the FP16 value: 1.31 MB/token vs 2.62 MB/token, exactly
-50\%, with any block-allocation/metadata overhead NOT vendor-measured
-here and to be filled by a deployment benchmark; the vLLM FP8-KV blog
-post's often-quoted `54\%' --- from its Llama-3.1-8B Table 3 (vLLM blog,
-post dated 2026-04-22; retrieved 2026-11-15) \mbox{{[}S6{]}} --- is, on this
-book's reading, a decode inter-token-latency (ITL) slope, not a memory
-ratio or footprint coefficient. At 9.2K tokens the raw byte-halving
-figure gives \textasciitilde12.06 GB (not \textasciitilde13.4 GB --- the
-figure one gets by assuming \textasciitilde11\% block/metadata overhead
-on top of the raw tensor bytes). A different engine or a
-GQA/hybrid-attention model has a different per-token footprint, so
-re-derive it for the target stack; the standing FP8-KV qualifiers are
-stated once in the \textbf{Evidence boundary} panel (Preface), and the
-geometry and ``do not generalize'' caveat are in Ch. 7.
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Either way, a long context (say 32K
-tokens) alone can be tens of GB of memory. A first non-obvious
-architectural lesson hides here: \emph{MoE expert sparsity alone does
-not reduce per-token KV state.} A Mixture-of-Experts model activates
-only a fraction of its neurons per token, which saves compute, but the
+is \emph{not} the correct KV width for those architectures.
+(\emph{Units:} MiB = 2\^{}20 bytes and MB = 10\^{}6 bytes; every MB
+figure below is a decimal-megabyte conversion of the exact byte count,
+consistent with the book's SI convention of K = 1,000 and M = 1,000,000
+(Ch. 4).) It is on the order of \textbf{\textasciitilde256 KiB (0.26 MB)
+per token at 8-bit for a 7B-class model (32 layers, d\_hidden 4096,
+full-MHA) and \textasciitilde1.25 MiB (1.31 MB) per token at 8-bit
+(\textasciitilde2.5 MiB, 2.62 MB at FP16) for a 70B-class model (80
+layers, d\_hidden 8192, full-MHA)} --- two reference geometries chosen
+for the arithmetic, not claims about a specific vendor model (Ch. 4,
+\hyperref[tab:4.2]{Table 4-2} marks the canonical 70B geometry a constructed reference, not
+a named vendor model). The arithmetic is the formula above with one byte
+per value: 2 × 32 × 4096 = 262,144 B (= 256 KiB = 0.26 MB) and 2 × 80 ×
+8192 = 1,310,720 B (= 1.25 MiB = 1.31 MB). That 8-bit figure is the
+\emph{raw tensor byte-halving} of the FP16 value: 1.31 MB/token vs 2.62
+MB/token, exactly 50\%, with any block-allocation/metadata overhead NOT
+vendor-measured here and to be filled by a deployment benchmark.
+\textbf{The canonical scenario's KV constant is the FP16 figure,
+\textasciitilde2.62 MB/token (Ch. 4, \hyperref[tab:4.2]{Table 4-2}; Ch. 7); the 8-bit number
+is the FP8 variant, exactly half of it.} The vLLM FP8-KV blog post's
+often-quoted `54\%' --- from its Llama-3.1-8B Table 3 (vLLM blog, post
+dated 2026-04-22 --- inside the 2026-08-30 evidence cutoff; retrieved
+2026-11-15, an access date only, since access dates are not evidence
+dates, so no addendum revision applies) \mbox{{[}S6{]}} --- is, on this book's
+reading of that table, a decode inter-token-latency (ITL) slope, not a
+memory ratio or footprint coefficient \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}HYPOTHESIS{]}}. That
+reading is the book's own, not a vendor-stated interpretation; re-verify
+it against the post. At 9.2K tokens the canonical FP16 KV per request is
+\textasciitilde24.1 GB --- 9,200 × 2,621,440 B = 24,117,248,000 B ≈
+24.12 GB --- and the 8-bit raw byte-halving variant is
+\textasciitilde12.06 GB --- 9,200 × 1,310,720 B = 12,058,624,000 B ≈
+12.06 GB, derived from the exact per-token byte count rather than the
+rounded 1.31 MB constant (the convention Ch. 7 follows); the 8-bit
+variant is not \textasciitilde13.4 GB, because that is the
+\emph{overhead-inclusive} estimate --- 12.06 GB × 1.11 ≈ 13.39 GB, from
+adding an assumed \textasciitilde11\% block/metadata overhead to the raw
+tensor bytes (the \textasciitilde11\% is
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}; the 13.39 GB is
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}); the book quotes the raw-tensor figure
+(\textasciitilde12.06 GB) as the sizing floor, because that overhead is
+not vendor-measured for this stack, and the floor is the number a reader
+can re-derive. Size against the floor, then add measured overhead from a
+deployment benchmark. A different engine or a GQA/hybrid-attention model
+has a different per-token footprint, so re-derive it for the target
+stack; the standing FP8-KV qualifiers are stated once in Ch. 7 §4 (the
+accounting-basis note), which also carries the geometry and the ``do not
+generalize'' caveat; the \textbf{Evidence boundary} panel (Preface)
+defines the labels themselves, not these qualifiers. \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Either way, a long context (say 32K tokens)
+alone can be tens of GB of memory. A first non-obvious architectural
+lesson hides here: \emph{MoE expert sparsity alone does not reduce
+per-token KV state.} A Mixture-of-Experts model activates only a
+fraction of its neurons per token, which saves compute, but the
 attention layers still process every token densely and emit a key/value
 per token --- so MoE shrinks compute-per-token, not memory-per-context.
 What actually determines KV memory is the \emph{attention architecture
@@ -291,8 +336,8 @@ arithmetic against the canonical scenario.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The KV cache: every token adds one K/V per layer per head --- for a generated token, written when that token is next processed as input, one step after it is sampled; prompt-token K/V is written during prefill. This is a single-layer detail view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄); the full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the end-to-end pipeline in \hyperref[fig:2.1]{Fig 2.1}, where the cache persists across the whole loop. \mbox{{[}ILLUSTRATIVE conceptual{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-kv-cache.pdf}}
-\caption[The KV cache: every token adds one K/V per layer per head]{The KV cache: every token adds one K/V per layer per head --- for a generated token, written when that token is next processed as input, one step after it is sampled; prompt-token K/V is written during prefill. This is a \textbf{single-layer detail} view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄); the full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the end-to-end pipeline in \hyperref[fig:2.1]{Fig 2.1}, where the cache persists across the whole loop. \mbox{{[}ILLUSTRATIVE conceptual{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The KV cache: every token adds one K/V per layer per head --- for a generated token, written when that token is next processed as input, one step after it is sampled; prompt-token K/V is written during prefill. This is a single-layer detail view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄), with the head glyphs schematic: the canonical model has 64 query and 64 KV heads per layer (Ch. 4, \hyperref[tab:4.2]{Table 4-2}), so the four drawn heads stand for the enumeration, not the model's head count. The token labels mark sequence positions, not the sampled-versus-input distinction, so the one-step write offset described above is stated in this caption rather than drawn. The full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the end-to-end pipeline in \hyperref[fig:2.1]{Fig 2.1}, where the cache persists across the whole loop. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- the schematic is drawn from the documented mechanism (\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, Ch. 4, \hyperref[tab:4.2]{Table 4-2}), and it is not a screenshot or a measurement},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-kv-cache.pdf}}
+\caption[The KV cache: every token adds one K/V per layer per head]{The KV cache: every token adds one K/V per layer per head --- for a generated token, written when that token is next processed as input, one step after it is sampled; prompt-token K/V is written during prefill. This is a \textbf{single-layer detail} view: one layer's stored K and stored V drawn separately, each enumerated per head (h₁--h₄), with the head glyphs \textbf{schematic}: the canonical model has 64 query and 64 KV heads per layer (Ch. 4, \hyperref[tab:4.2]{Table 4-2}), so the four drawn heads stand for the enumeration, not the model's head count. The token labels mark sequence positions, not the sampled-versus-input distinction, so the one-step write offset described above is stated in this caption rather than drawn. The full token-travel pipeline is in \hyperref[fig:1.2]{Fig 1.2} and the end-to-end pipeline in \hyperref[fig:2.1]{Fig 2.1}, where the cache persists across the whole loop. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- the schematic is drawn from the documented mechanism (\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, Ch. 4, \hyperref[tab:4.2]{Table 4-2}), and it is not a screenshot or a measurement}
 
 \label{fig:1.1}\emph{The KV cache: attention keeps every past token's key and value, so
 cache memory grows linearly with sequence length (concept; the verified
@@ -304,18 +349,19 @@ arithmetic is Ch. 7's).}
 A token is best understood as a \textbf{metered unit of model I/O}, the
 way electricity is metered by the kilowatt-hour --- important not
 because a single kilowatt-hour is meaningful by itself, but because
-\emph{every} downstream cost and capacity number is denominated in it.
-(It is a computational/textual unit, not a unit of thought: two
-tokenizers can render the same semantic content in different token
-counts, and a reasoning model can spend very different compute per
-visible token.)
+\emph{every} downstream cost and capacity number is denominated in
+tokens --- or, for non-autoregressive generation, in model evaluations
+(§2.1.2; §3.1.1 and Appendix A §9A). (It is a computational input unit,
+not a semantic unit: two tokenizers can render the same semantic content
+in different token counts, and a reasoning model can spend very
+different compute per visible token.)
 
 A useful image for the full pipeline:
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. Conceptual only: what is drawn is the one-time token-to-state construction --- a one-pass abstraction of how a token becomes state, not the full transformer and not the step-to-step loop. The K/V are produced within every applicable layer (not after a single ``attention'' stage), and the KV cache is a persistent state --- written (append) and read (read past K,V, the backward read arrow from the KV cache back to attention) across steps --- not a processing stage. The full read-side mechanics and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1} (the backward read arrow drawn here is schematic). \mbox{{[}ILLUSTRATIVE conceptual{]}} Color is figure-local decoration --- each box is titled; do not carry a color meaning from \hyperref[fig:1.1]{Fig 1.1} into this figure.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-token-travel.pdf}}
-\caption[How a token travels: text → tokenizer → IDs → embedding → attention → KV cache]{How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. \textbf{Conceptual only:} what is drawn is the \textbf{one-time token-to-state construction} --- a one-pass abstraction of how a token becomes state, not the full transformer and not the step-to-step loop. The K/V are produced \emph{within every applicable layer} (not after a single ``attention'' stage), and the KV cache is a \emph{persistent state} --- written (append) and read (read past K,V, the backward read arrow from the KV cache back to attention) across steps --- not a processing stage. The full read-side mechanics and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1} (the backward read arrow drawn here is schematic). \mbox{{[}ILLUSTRATIVE conceptual{]}} Color is figure-local decoration --- each box is titled; do not carry a color meaning from \hyperref[fig:1.1]{Fig 1.1} into this figure.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. Conceptual only: what is drawn is the one-time token-to-state construction --- a one-pass abstraction of how a token becomes state, not the full transformer and not the step-to-step loop. The K/V are produced within every applicable layer (not after a single ``attention'' stage), and the KV cache is a persistent state --- written (append) and read (read past K,V, the backward read arrow from the KV cache back to attention) across steps --- not a processing stage. The full read-side mechanics and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1} (the backward read arrow drawn here is schematic). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} Color is local to this figure --- each box is titled; do not carry a color meaning from \hyperref[fig:1.1]{Fig 1.1} into this figure.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-01-token-travel.pdf}}
+\caption[How a token travels: text → tokenizer → IDs → embedding → attention → KV cache]{How a token travels: text → tokenizer → IDs → embedding → attention → KV cache. \textbf{Conceptual only:} what is drawn is the \textbf{one-time token-to-state construction} --- a one-pass abstraction of how a token becomes state, not the full transformer and not the step-to-step loop. The K/V are produced \emph{within every applicable layer} (not after a single ``attention'' stage), and the KV cache is a \emph{persistent state} --- written (append) and read (read past K,V, the backward read arrow from the KV cache back to attention) across steps --- not a processing stage. The full read-side mechanics and the iterative loop are shown in \hyperref[fig:2.1]{Fig 2.1} (the backward read arrow drawn here is schematic). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} Color is local to this figure --- each box is titled; do not carry a color meaning from \hyperref[fig:1.1]{Fig 1.1} into this figure.}
 
 \label{fig:1.2}\emph{How a token travels. The token is the interface between a human's
 request and the machine's arithmetic: carved by the tokenizer, embedded
@@ -341,13 +387,17 @@ We do not need to hold all of this as a practitioner. The durable mental
 model is: \textbf{tokens are the interface between a human's request and
 a machine's arithmetic}, and \emph{anything} we are asked to size or
 price in an LLM system reduces, one way or another, to ``how many
-tokens, in what context, with what precision.''
+tokens, in what context, with what precision.'' That holds for the
+autoregressive text path this chapter scopes to; for non-AR generation
+the same reasoning runs on model evaluations instead of output tokens;
+§2.1.2 (the work unit changes with the generator) and §3.1.1
+(diffusion/LLaDA-style) carry the extension.
 
 \ntsection{Worked Example}\label{worked-example}
 
 
-The canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2} --- the one set of numbers every
-chapter cites) is an enterprise Q\&A system: \textasciitilde2,000
+The canonical scenario (Ch. 4, \hyperref[tab:4.2]{Table 4-2} --- the one set of numbers
+every chapter cites) is an enterprise Q\&A system: \textasciitilde2,000
 registered users, \textasciitilde10 requests/s average, prompt of
 \textasciitilde1,200 tokens plus \textasciitilde8K retrieved context
 (\textasciitilde9.2K input), \textasciitilde300-token output, on a
@@ -369,8 +419,17 @@ system ingests:
   \textbf{Output tokens/s}: 300 ×10 = \textbf{3,000 tokens/s} output.
 \item
   Roughly \textbf{30× more input tokens than output tokens} in this
-  workload (9.2K ÷ 300).
+  workload (9,200 ÷ 300 ≈ 30.7, carried book-wide as the canonical
+  \textasciitilde30×, Ch. 4, \hyperref[tab:4.2]{Table 4-2}).
 \end{itemize}
+
+\emph{Rate basis and notation.} The \textasciitilde10 req/s is the
+canonical \textbf{active-hours} average: Ch. 4 §3 defines it over an
+8-hour × 260-workday schedule, not 24×7 wall-clock, so the rates above
+are busy-period token rates, not 24×7 fleet rates. Token counts follow
+the book's SI convention (K = 1,000, M = 1,000,000; Ch. 4), so 9.2K
+means 9,200; the tilde marks a canonical value as approximate, and it is
+not repeated at every later occurrence of the same value.
 
 \textbf{\hyperref[tab:1.1]{Table 1-1}} --- Token throughput of the canonical workload
 (worked example, not reference).
@@ -392,11 +451,13 @@ derivation
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-input tokens / request & \textasciitilde9,200 & canonical scenario (Ch
+input tokens / request & \textasciitilde9,200 & canonical scenario (Ch.
 4, \hyperref[tab:4.2]{Table 4-2}) (1,200 prompt + 8K context) \\
-output tokens / request & \textasciitilde300 & canonical scenario (Ch 4,
-\hyperref[tab:4.2]{Table 4-2}) \\
-input / output ratio & \textasciitilde30× & 9,200 ÷ 300 \mbox{{[}canonical
+\noalign{\label{tab:1.1}}
+output tokens / request & \textasciitilde300 & canonical scenario (Ch.
+4, \hyperref[tab:4.2]{Table 4-2}) \\
+input / output ratio & \textasciitilde30× & 9,200 ÷ 300 ≈ 30.7, shown at
+the canonical \textasciitilde30× \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 input tokens/s @ 10 rps & \textasciitilde92,000 & 9,200 ×10 \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
@@ -404,30 +465,31 @@ input tokens/s @ peak 40 rps & \textasciitilde368,000 & 9,200 ×40
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 output tokens/s @ 10 rps & \textasciitilde3,000 & 300 ×10 \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\end{longtable}
 
-\noalign{\label{tab:1.1}}\end{longtable}
-
-\emph{(All figures trace to the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2});
+\emph{(All figures trace to the canonical scenario (Ch. 4, \hyperref[tab:4.2]{Table 4-2});
 none are measurement claims.)}
 
-This ratio --- input-heavy --- is a \emph{hypothesis} that memory (KV
-cache) and prefill dominate this system's cost rather than decode, not a
-conclusion token counts alone establish. Be precise about which quantity
-does what: the ratio sets the relative prefill-versus-decode \emph{work}
-split, while the \textasciitilde9,200-token absolute context length sets
-KV residency per request and therefore the concurrency ceiling --- the
-canonical workload's concurrency ceiling is set by KV residency because
-of the long context, not by the input/output ratio --- whether KV
-capacity dominates overall cost is what Ch 7/Ch 8 measurement confirms.
-Decode's serial nature, per-step weight reads, batching, cache
-residency, and the latency SLO can still dominate capacity economics
-even on an input-heavy workload; the token mix is the first signal, and
-the measured per-phase utilization and goodput (throughput that meets
-the SLO; defined in Ch 6, applied in Ch 7, Ch 8, Ch 14) are what confirm
-it. We will not act on it here; \hyperref[chap:7]{Chapter 7} (Memory) and \hyperref[chap:8]{Chapter 8}
-(Compute) do. The point of the worked example in this chapter is to fix
-\emph{the unit}: every one of those numbers is a statement about tokens,
-and we can now say it without translating from words or pages.
+This ratio --- input-heavy --- is \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}};
+the \emph{hypothesis} it supports, which token counts alone do not
+establish, is that memory (KV cache) and prefill dominate this system's
+cost rather than decode. Be precise about which quantity does what: the
+ratio sets the relative prefill-versus-decode \emph{work} split, while
+the \textasciitilde9,200-token absolute context length sets KV residency
+per request and therefore the concurrency ceiling --- the canonical
+workload's concurrency ceiling is set by KV residency because of the
+long context, not by the input/output ratio --- whether KV capacity
+dominates overall cost is what the Ch. 7/Ch. 8 analytical screens
+establish (measurement pending, Ch. 14). Decode's serial nature,
+per-step weight reads, batching, cache residency, and the latency SLO
+can still dominate capacity economics even on an input-heavy workload;
+the token mix is the first signal, and the measured per-phase
+utilization and goodput (throughput that meets the SLO; defined in Ch.
+6, applied in Ch. 7, Ch. 8, Ch. 14) are what confirm it. We will not act
+on it here; \hyperref[chap:7]{Chapter 7} (Memory) and \hyperref[chap:8]{Chapter 8} (Compute) do. The point of
+the worked example in this chapter is to fix \emph{the unit}: every one
+of those numbers is a statement about tokens, and we can now say it
+without translating from words or pages.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -484,7 +546,7 @@ decision is made.
   decode-dominant (run-time per generated token) --- opposite
   bottlenecks with opposite fixes. (Note: ``capacity pressure'' is a
   memory-\emph{capacity} constraint, not a memory-\emph{bandwidth}
-  bound; see Ch 4/8.)
+  bound; see Ch. 4/8.)
 \item
   \textbf{Quoting context window as free capacity.} The window is an
   upper bound, not a recommendation; using it fully is expensive.
@@ -524,8 +586,11 @@ characterized --- we flag it as an open area rather than a settled fact.
 \section{End-of-Chapter Mini-Case: The Internal Q\&A Tool, From First
 Principles}\label{end-of-chapter-mini-case-the-internal-qa-tool-from-first-principles}
 
-\emph{(Chains the continuous scenario --- this is its first
-appearance.)}
+\emph{(Chains the continuous scenario --- this is its first appearance:
+the canonical enterprise Q\&A over internal documents, sized at Ch. 4,
+\hyperref[tab:4.2]{Table 4-2}. A 5,000-employee growth variant of this scenario is a
+separate population input, not a projection from this one; it is worked
+at Ch. 4 §8 and Ch. 7 §8.)}
 
 An architect is pulled into an early-stage design conversation about a
 new internal Q\&A tool. There is no model, no server, no budget --- just
@@ -537,7 +602,7 @@ statement.
 From the token-level work alone (which we worked through in this
 chapter), the architect can already establish: the unit is tokens; the
 request shape will be prompt + retrieved context + output; the working
-hypothesis is input-heavy (Ch 4 quantifies it); and the first number to
+hypothesis is input-heavy (Ch. 4 quantifies it); and the first number to
 lock down is tokens-per-request, because every downstream decision
 (which model fits, how much memory, what latency is possible) is priced
 against it. The specific sizing --- turning ``thousands of employees''

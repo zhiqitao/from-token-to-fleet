@@ -25,7 +25,7 @@ Each tier is a **box with a fixed memory budget and a fixed cross-node bandwidth
 The mental model is a **ladder with explicit rungs**: we climb a rung when a binding constraint can no longer be met. The classic triggers for climbing:
 
 - **Memory**: model + KV no longer fits one node → cluster (split weights) — the Single host → Multi-host climb in Fig 13.1.
-- **KV residency per GPU**: model + KV no longer fits one GPU → single host — the within-tier step Fig 13.1 shows between Single GPU and Single host.
+- **KV residency per GPU**: model + KV no longer fits one GPU → single host — the Single GPU → Single host step Fig 13.1 shows.
 - **Traffic**: one host's throughput ceiling (goodput) below demand → more replicas (DP across nodes) or P/D disaggregation → cluster.
 - **Contention / phase interference**: SLO can't be met because prefill and decode contend for the same resources → split prefill/decode (within-tier if spare hosts exist, otherwise a tier escalation with new pools and fabric).
 - **Distance / geography**: SLO can't be met because the users are too far from the serving site → move the serving edge closer or add regional replicas (a *placement* move, not a climb).

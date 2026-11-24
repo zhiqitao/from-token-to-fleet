@@ -26,11 +26,13 @@ training objective and the routing mechanism.
   \textbf{Dense models} activate \emph{all} parameters for every token.
   A 70B dense model reads all 70B weights (or close to it) on every
   batch-1 decode step --- the weight-read-per-token figures in this
-  chapter are all batch-1 single-token decode values, amortized across
-  the batch at batch size B --- because every layer's full hidden
-  dimension participates in every attention and feed-forward
-  computation. The parameter count on the model card is the inference
-  cost count.
+  chapter are all batch-1 single-token decode values --- because every
+  layer's full hidden dimension participates in every attention and
+  feed-forward computation. At batch size B, the reads for B requests
+  amortize across the batch. The batch-1 figure is an idealized
+  weight-streaming read (one request's full weight pass), not a measured
+  physical-traffic number (Ch 2); the parameter count on the model card
+  is the inference cost count.
 \item
   \textbf{Mixture-of-Experts (MoE) models} route each token to a
   \emph{fraction} of the total parameters. A MoE model may have several
@@ -65,8 +67,8 @@ step}\label{alternative-inference-the-token-is-not-the-execution-step}
 alternative-inference thread --- diffusion/LLaDA-style generation where
 the token is not the execution step. It is the book's coverage of the
 2026 alternative-inference frontier; the core dense/MoE/KV thread
-resumes in §2 (Mental Model). Read now for the frontier signal, or skip
-to §2 and return through the cross-references in Ch 27.
+resumes in §3.2 (Mental Model). Read now for the frontier signal, or
+skip to §3.2 and return through the cross-references in Appendix A §9A.
 \end{quote}
 
 Dense versus MoE describes parameter allocation. Autoregressive versus
@@ -78,8 +80,8 @@ count the model's work on their own: we need the sequence of model
 evaluations, the positions recomputed in each evaluation, and the point
 at which output becomes final. The paper-by-paper treatment ---
 corruption processes, masked samplers, flow matching, cache boundaries
---- is carried in Appendix A's alternative-inference note, citations
-with it.
+--- is carried in Appendix A §9A (alternative inference in detail),
+citations with it.
 
 The transfer rule is the durable part: identify the generated object,
 then the execution schedule, then the resource demands. Different
@@ -103,8 +105,8 @@ second marks where reusable state lives across evaluations.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Dependency order and cache lifetime: an autoregressive causal prefix, a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional states, and a block-causal sampler that finalizes an active block before advancing. Convention: the source box's fixed tokens are drawn outside the canvas; cells show output positions only, and accepted IDs extend the prefix. Solid brackets identify finalized prefix state; accepted token IDs alone do not establish reusable K/V. Loops represent repeated evaluations, not fixed counts or proportional time. Dependency diagram, not a timing diagram.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-03-0303-diffusion-cache-lifetime.pdf}}
-\caption[Dependency order and cache lifetime]{Dependency order and cache lifetime: an autoregressive causal prefix, a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional states, and a block-causal sampler that finalizes an active block before advancing. Convention: the source box's fixed tokens are drawn outside the canvas; cells show output positions only, and accepted IDs extend the prefix. Solid brackets identify finalized prefix state; accepted token IDs alone do not establish reusable K/V. Loops represent repeated evaluations, not fixed counts or proportional time. Dependency diagram, not a timing diagram.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Dependency order and cache lifetime: an autoregressive causal prefix, a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional states, and a block-causal sampler that finalizes an active block before advancing. Convention: the source box's fixed tokens are drawn outside the canvas; cells show output positions only. In the autoregressive and valid block-causal panels, accepted IDs extend the prefix; in the full-canvas masked panel, accepted IDs become resolved (accepted) positions whose K/V may still be recomputed --- accepted out of order, and they do not form a contiguous prefix. Solid brackets identify finalized prefix state; the full-canvas panel has no bracket, because that sampler has no contiguous finalized prefix. Accepted token IDs alone do not establish reusable K/V. Loops represent repeated evaluations, not fixed counts or proportional time. Dependency diagram, not a timing diagram.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-03-0303-diffusion-cache-lifetime.pdf}}
+\caption[Dependency order and cache lifetime]{Dependency order and cache lifetime: an autoregressive causal prefix, a full-canvas masked sampler that accepts positions out of order while recomputing bidirectional states, and a block-causal sampler that finalizes an active block before advancing. Convention: the source box's fixed tokens are drawn outside the canvas; cells show output positions only. In the autoregressive and valid block-causal panels, accepted IDs extend the prefix; in the full-canvas masked panel, accepted IDs become resolved (accepted) positions whose K/V may still be recomputed --- accepted out of order, and they do not form a contiguous prefix. Solid brackets identify finalized prefix state; the full-canvas panel has no bracket, because that sampler has no contiguous finalized prefix. Accepted token IDs alone do not establish reusable K/V. Loops represent repeated evaluations, not fixed counts or proportional time. Dependency diagram, not a timing diagram.}
 
 \label{fig:3.2}\end{figure}
 
@@ -112,7 +114,7 @@ The one point that carries forward: in diffusion and other alternative
 inference, the execution unit is a model evaluation over a canvas, not a
 token. The total-versus-active and KV-residency frameworks of this
 chapter still apply, but per-token accounting becomes per-evaluation
-accounting. The full treatment is in Ch 27.
+accounting. The full treatment is in Appendix A §9A.
 
 \ntsection{Mental Model}\label{mental-model}
 
@@ -140,9 +142,9 @@ differently depending on the routing regime.
 \end{itemize}
 
 The durable mental model: \textbf{total parameters set the memory
-ceiling --- and, in a dense model, the residency floor; active
-parameters per token set the compute floor.} The architect must track
-both numbers.
+requirement floor --- in a dense model, that floor is the full resident
+set --- and active parameters per token set the per-token compute
+requirement.} The architect must track both numbers.
 
 \ntsection{Worked Example}\label{worked-example}
 
@@ -155,8 +157,9 @@ host 8×H100). The numbers below are worked out explicitly; where a
 model's exact spec is not first-party verified, it is flagged
 \mbox{{[}UNRESOLVED{]}}.
 
-\subsection{Dense 70B model (canonical teaching model, \mbox{{[}canonical
-scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}})}\label{dense-70b-model-canonical-teaching-model-canonical-scenarioassumption}
+\subsection{Dense 70B model (canonical teaching model) --- geometry
+\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}; arithmetic \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}\label{dense-70b-model-canonical-teaching-model-geometry-canonical-scenarioassumption-arithmetic-canonical-scenarioderived}
 
 The 70B dense full-MHA model below is a \emph{constructed teaching
 reference} (the canonical scenario, Ch 4 \hyperref[tab:4.2]{Table 4-2}), not a named vendor
@@ -186,6 +189,7 @@ Derivation
 \endlastfoot
 Total parameters & 70B & canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2})
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} reference model \\
+\noalign{\label{tab:3.1}}
 FP16 residency (total) & 140 GB & 70B × 2 bytes = 140 GB \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 Active parameters per token & 70B & All parameters active for every
@@ -193,16 +197,28 @@ token (dense) \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 FLOPs per token (batch-1 decode forward pass, approx.) &
 \textasciitilde0.14T & 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8)
 \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\end{longtable}
 
-\noalign{\label{tab:3.1}}\end{longtable}
-
-\subsection{MoE model representative (Mixtral 8x7B class,
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}})}\label{moe-model-representative-mixtral-8x7b-class-illustrativeassumption}
+\subsection{MoE model representative (Mixtral 8x7B class) --- published
+totals and published config \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}; component-derived
+arithmetic
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}\label{moe-model-representative-mixtral-8x7b-class-published-totals-and-published-config-1pfact-component-derived-arithmetic-illustrativederived}
 
 We contrast with a representative MoE model in the Mixtral lineage. Its
-published model card gives 46.7B total and 12.9B active parameters per
-token \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}; the numbers below round those to
-\textsubscript{47B/}12.8B and carry the illustrative flag.
+published announcement gives 46.7B total and 12.9B active parameters per
+token \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (source: Mistral AI, ``Mixtral of Experts'',
+\url{https://mistral.ai/news/mixtral-of-experts/} retrieved 2026-11-23). That
+announcement publishes those totals, not a per-expert split, so the
+decomposition below is our derivation from them: subtract an assumed
+\textasciitilde1.4B always-on block (attention, shared and embedding
+weights) from the 46.7B total and divide the remainder across 8 experts
+--- 45.3B ÷ 8 ≈ 5.7B per expert (the ``8×7B'' class label is not a
+per-expert count, since eight 7B experts plus shared layers would exceed
+the published 46.7B total). On that reading the numbers below use the
+component-derived \textasciitilde47B / \textasciitilde12.8B (2 × 5.7B
+routed experts + \textasciitilde1.4B always-on); the component sum sits
+0.1B below the published 12.9B active count, and the numbers carry the
+illustrative flag.
 
 \Needspace{9\baselineskip}
 
@@ -234,6 +250,7 @@ Total parameters (across 8 experts) & \textasciitilde47B &
 \textasciitilde5.7B per expert × 8 = 45.6B + \textasciitilde1.4B
 always-on (attention/shared + embeddings) = 47B
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\noalign{\label{tab:3.2}}
 Active parameters per token (top-2 routing) & \textasciitilde12.8B & 2 ×
 5.7B routed experts + \textasciitilde1.4B always-on attention/shared =
 12.8B (\textasciitilde27\% of the \textasciitilde47B total;
@@ -248,33 +265,36 @@ GB & 12.8B × 2 bytes = 25.6 GB read per token at batch 1
 FLOPs per token (batch-1 decode forward pass, approx.) &
 \textasciitilde0.0256T & 12.8B active × 2 FLOP/param = 25.6B
 \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-Compute ratio vs dense 70B & \textasciitilde0.183× (\textasciitilde5.5×
-less) & (12.8B × 2) ÷ (70B × 2) = 25.6 GFLOP ÷ 140 GFLOP
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
-
-\noalign{\label{tab:3.2}}\end{longtable}
+Compute ratio vs dense 70B & \textasciitilde0.183× (≈18\% of dense 70B
+compute) & (12.8B × 2) ÷ (70B × 2) = 25.6 GFLOP ÷ 140 GFLOP ≈ 0.183×,
+i.e.~the canonical 70B dense baseline costs about 5.5× the compute per
+token; against a same-total (47B) dense model the saving is 3.7× (12.8B
+÷ 47B ≈ 27\%) \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\end{longtable}
 
 \subsection{Why MoE saves compute but not KV cache
 memory}\label{why-moe-saves-compute-but-not-kv-cache-memory}
 
 The compute savings are straightforward: if only \(n_a = 12.8\)B of
 \(n_t = 47\)B total parameters are active per token, the FLOP count
-drops by the active fraction relative to a \emph{same-size dense} model.
+drops to the active fraction relative to a \emph{same-size dense} model.
 But note the active fraction for top-2-of-8 routing is
 \textasciitilde{}\(12.8/47 \approx 27\%\), not single-digit --- so the
 relative saving is about 5.5× versus the canonical 70B \emph{dense}
-comparison, not 20× or 30×. Concretely,
+comparison --- or 3.7× versus a same-total 47B dense model --- not 20×
+or 30×. Concretely,
 
 \[
 \text{FLOP}_{\text{MoE/token}} = n_a \times 2 \text{ FLOP/param} = 12.8\text{ B} \times 2 \approx 0.0256\text{ T}
 \]
 
 which is \(0.0256/0.14 \approx 0.183\times\) of the dense 70B figure ---
-roughly a \textbf{5.5× reduction} in compute per token. (It is also
-\(12.8/47 \approx 27\%\) of a hypothetical dense model of the
-\emph{same} 47B total; the 5.5× figure uses the book's canonical 70B
-dense as the comparison, so always state which baseline the ratio is
-against.)
+roughly a \textbf{5.5× reduction} in compute per token against the
+canonical 70B dense baseline. (Against a \emph{same-total} 47B dense
+model the saving is instead \textbf{3.7×}, since
+\(12.8/47 \approx 27\%\); the two named baselines are therefore 5.5× vs
+the canonical 70B dense model and 3.7× vs a same-total 47B dense model,
+and every ratio should say which one it uses.)
 
 The KV cache story is the surprising part. Recall from \hyperref[chap:1]{Chapter 1} (KV
 cache as a concept) that the KV cache stores one key and one value
@@ -292,48 +312,66 @@ sparsity operates in the feed-forward sub-layer; it does not change the
 attention sub-layer's behavior.
 
 Therefore, for the canonical dense 70B (80 layers, hidden 8192, full MHA
---- Ch 7) and for the \textasciitilde47B challenger's own attention
-shape (32 layers, hidden 4096, GQA with 8 KV-heads × 128), at 8K--9.2K
-input context:
+--- Ch 7) and for the \textasciitilde47B challenger, at 8K--9.2K input
+context: the dense geometry is \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}};
+the challenger's attention geometry is \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, with the KV
+arithmetic built on it \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. Two separate
+claims support the challenger figures. The attention shape --- 32
+layers, hidden 4096, GQA with 8 KV-heads × 128 --- is
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, taken from the published config of the Mixtral
+8x7B-class model (\texttt{config.json} at pinned revision fc7ac94,
+\url{https://huggingface.co/mistralai/Mixtral-8x7B-v0.1} retrieved
+2026-11-23). The \textasciitilde47B total and \textasciitilde12.8B
+active counts are not vendor specification: they are
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} component arithmetic on the published
+46.7B/12.9B totals (\hyperref[tab:3.2]{Table 3-2}). The two cases at 9.2K input context:
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Dense 70B}: KV cache \textasciitilde1.31 MB per token × 9,200
-  tokens ≈ 12.06 GB (at 8-bit, the raw tensor byte-halving figure = 1.31
-  MB/token, exactly 50\% of FP16 --- the block-overhead and `54\%'
-  ITL-slope caveats are stated once in Ch 1; see Ch 7) or
-  \textasciitilde24 GB (at FP16 precision for the key/value storage
-  pattern discussed in Ch. 7).
+  \textbf{Dense 70B}: KV cache ≈ \textbf{12.06 GB at 8-bit} (9,200 ×
+  1,310,720 B = 12,058,624,000 B ≈ 12.06 GB) or ≈ \textbf{24.1 GB at
+  FP16} (9,200 × 2,621,440 B = 24,117,248,000 B ≈ 24.1 GB; the key/value
+  storage pattern is discussed in Ch 7) \mbox{{[}canonical
+  scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. The 8-bit figure is the FP8 variant of the
+  canonical FP16 constant, exactly 50\% of it --- the block-overhead and
+  `54\%' ITL-slope caveats are stated once in Ch 1; see Ch 7. Both
+  figures use the same 80-layer, 8,192-hidden full-MHA geometry, so only
+  the storage precision differs.
 \item
   \textbf{\textasciitilde47B MoE challenger (Mixtral 8x7B class)}: KV
   per token = 2 × 32 × 8 × 128 = 65,536 B = 0.0655 MB/token at 8-bit, so
-  9,200 × 0.0655 MB ≈ \textbf{0.60 GB} (≈1.2 GB at FP16) ---
-  \emph{smaller than the dense 70B's \textasciitilde12 GB, and the whole
-  difference is the attention shape, not the routing}: 32 layers × a
-  1,024-wide GQA KV width instead of the canonical 80 layers × 8,192
-  full-MHA width. The attention layers still emit one key and one value
-  per token per layer; routing neither reduces nor increases that count:
-  the fact that only 12.8B of 47B total parameters are active in the
-  feed-forward layers changes nothing about the keys/values the
-  attention layers store. A \textbf{dense} model with the challenger's
-  32L/4096H GQA shape would hold the same \textasciitilde0.60 GB ---
-  hold the attention geometry fixed and dense vs MoE KV is
-  \emph{identical}.
+  9,200 × 0.0655 MB ≈ \textbf{0.60 GB} (≈1.2 GB at FP16)
+  \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} --- \emph{smaller than the dense 70B's
+  \textasciitilde12 GB, and the whole difference is the attention shape,
+  not the routing}: 32 layers × a 1,024-wide GQA KV width instead of the
+  canonical 80 layers × 8,192 full-MHA width. The attention layers still
+  emit one key and one value per token per layer; routing neither
+  reduces nor increases that count: the fact that only 12.8B of 47B
+  total parameters are active in the feed-forward layers changes nothing
+  about the keys/values the attention layers store. A \textbf{dense}
+  model with the challenger's 32L/4096H GQA shape would hold the same
+  \textasciitilde0.60 GB --- hold the attention geometry fixed and dense
+  vs MoE KV is \emph{identical}.
 \end{itemize}
 
 In other words: MoE sparsity = compute sparsity (fewer FLOPs per token).
 MoE sparsity ≠ memory sparsity (KV cache still grows linearly with
 context length, exactly as a dense model's does at the same attention
 shape). Only changing the attention mechanism itself (e.g.,
-hybrid/linear attention) can stop the cache from growing --- KV offload
-changes where the cache resides, not how fast it grows. MLA-style latent
-attention does not stop the growth: it cuts the bytes/token constant
-(\textasciitilde50--60× for DeepSeek-class geometry \mbox{{[}DERIVED{]}}) but
-the cache still grows linearly with length. It belongs to Ch 1's
-reduced-width per-token family, not the constant-state family. This
-distinction --- compute-sparsity versus memory-sparsity --- is one an
-architect has to get exactly right.
+hybrid/linear attention) can reduce the growth rate: the layers it
+replaces hold a fixed-size recurrent state instead of a growing
+per-token cache, so a hybrid that still keeps some full-attention layers
+keeps growing --- only more slowly --- and only a model with no
+full-attention layers stops growing entirely (Ch 7, \hyperref[fig:7.2]{Fig 7.2}) --- KV
+offload changes where the cache resides, not how fast it grows.
+MLA-style latent attention does not stop the growth: it cuts the
+bytes/token constant to about 1/57 for DeepSeek-class geometry
+(32,768/576 ≈ 57× per Ch 1, DeepSeek-V2 MLA report, arXiv:2405.04434
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}) but the cache still grows linearly with length.
+It belongs to Ch 1's reduced-width per-token family, not the
+constant-state family. This distinction --- compute-sparsity versus
+memory-sparsity --- is one an architect has to get exactly right.
 
 \begin{quote}
 \textbf{Key takeaway:} MoE provides \textbf{compute sparsity} (far fewer
@@ -363,8 +401,8 @@ parameters/token → approximate compute per token.} The routed top-k
 fraction (e.g.~\textasciitilde12.8B active) sets the FLOPs per token
 (\textasciitilde25.6 GFLOP) and the active weight-read traffic
 (\textasciitilde25.6 GB of weights read per batch-1 decode token,
-amortized across a batch). This is not a memory-freeing lever unless
-offloading is in play.
+amortized across a batch). The active-parameter count is not a
+memory-freeing lever unless offloading is in play.
 \end{quote}
 
 \ntsection{Measurement}\label{measurement}
@@ -394,10 +432,10 @@ trained?
   parameters-per-expert gives the total; the routing hyperparameter
   (top-k) × parameters-per-expert gives the \emph{routed} active per
   token --- add the always-on attention/shared/embedding parameters for
-  total active per token (the Mixtral-class example below is 2 × 5.7B
-  routed + \textasciitilde1.4B always-on = 12.8B, not 11.4B). This is a
-  derived fact from the source code/release, not always on the model
-  card.
+  total active per token (the Mixtral-class example above --- \hyperref[tab:3.2]{Table 3-2},
+  §3.3.2 --- is 2 × 5.7B routed + \textasciitilde1.4B always-on = 12.8B,
+  not 11.4B). This is a derived fact from the source code/release, not
+  always on the model card.
 \end{enumerate}
 
 \begin{quote}
@@ -522,8 +560,8 @@ in 2026 for exactly the constrained-deployment reasons this chapter
 teaches: \textbf{Qwen3.8-27B} (\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, model card:
 \url{https://huggingface.co/Qwen/Qwen3.8-27B} is a dense 27.8B model whose
 4-bit weights fit on a single 24 GB consumer GPU, and \textbf{Muse
-Glimmer 30B} (\mbox{{[}2°{]}}\hspace{0pt}\mbox{{[}FACT{]}}, source: Meta model card, via
-vLLM-Recipes) is a dense 29.6B local-agentic model that runs in
+Glimmer 30B} (\mbox{{[}2°{]}}\hspace{0pt}\mbox{{[}FACT{]}}, source: vLLM-Recipes, citing the Meta
+model card) is a dense 29.6B local-agentic model that runs in
 \textasciitilde18 GB at \textasciitilde5-bit weights \mbox{{[}2°{]}}. These
 exist because the dense-vs-MoE trade is itself a \emph{deployment}
 decision, not a date: MoE buys active-parameter efficiency at the cost
@@ -542,41 +580,47 @@ model.} If the trend is MoE + hybrid, why does this book's canonical
 still size a dense 70B full-MHA workload? Because a dense model with
 full multi-head attention gives the cleanest single-constant KV formula
 (\texttt{2\ ×\ layers\ ×\ hidden\ ×\ bytes}) and the largest KV
-footprint --- the conservative worst case an architect should always
-size against first. Teaching against that bound means the reader learns
-the framework on the hardest memory case and then relaxes it. It is a
-deliberate teaching simplification, not a claim that in 2026 an
-enterprise RAG fleet really runs on dense 70B.
+footprint for a given layer count and hidden width --- the conservative
+worst case within the canonical 80-layer/8192-hidden geometry, and the
+bound this chapter sizes against. It is not the largest KV constant in
+the book: Ch 7 §7.4 re-derives the per-token value for other geometries,
+where a 100-layer, 12,288-hidden model at FP16 gives \textasciitilde4.9
+MB/token. Teaching against the canonical bound means the reader learns
+the framework on the hardest memory case within that geometry and then
+relaxes it. It is a deliberate teaching simplification, not a claim that
+in 2026 an enterprise RAG fleet really runs on dense 70B.
 
 \textbf{One verified 2026 transfer: Qwen3.8-Flash-Next.} The model card
-\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (source: HF Qwen/Qwen3.8-Flash-Next) is the
-Qwen4-architecture preview: \textbf{125B total / 6B active} (plus a
-separate 51B of offloadable N-gram embedding parameters), \textbf{512
-MoE experts} (10 routed + 1 shared per token), and \textbf{hybrid
-attention} --- Gated DeltaNet (GDN) on three of every four layers plus
-Qwen Sparse Attention (QSA) on the fourth. This is exactly the ``125B/6B
-active MoE + Gated DeltaNet/QSA'' class of model a 2026 architect
-actually considers. Stepping through this book's own arithmetic:
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (source: model card HF Qwen/Qwen3.8-Flash-Next,
+accessed 2026-08-30; A.10) is the Qwen4-architecture preview:
+\textbf{125B total / 6B active} (plus a separate 51B of offloadable
+N-gram embedding parameters), \textbf{512 MoE experts} (10 routed + 1
+shared per token), and \textbf{hybrid attention} --- Gated DeltaNet
+(GDN) on three of every four layers plus Qwen Sparse Attention (QSA) on
+the fourth. This is exactly the ``125B/6B active MoE + Gated
+DeltaNet/QSA'' class of model a 2026 architect actually considers.
+Stepping through this book's own arithmetic:
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Weight residency} (Ch. 7's floor): the active-weight working
-  set for Qwen is \textasciitilde6 × 10⁹ params × 2 bytes/param =
-  \textasciitilde12 GB read per batch-1 decode token ---
-  \textasciitilde12× less per-token weight traffic than the canonical
-  dense 70B (140 GB → 12 GB), and \textasciitilde21× less than Qwen's
-  own total weight footprint (\textasciitilde250 GB → 12 GB). But this
-  is a \emph{compute/bandwidth} statement, not a residency one: the
-  total weights dominate the memory ceiling, \textasciitilde125 × 10⁹
-  params × 2 bytes/param ≈ 250 GB (plus the offloadable N-gram). So the
-  \emph{total-vs-active} split of this chapter is not a footnote --- it
-  is the difference between fitting on one host and sharding across
-  several, and the \textasciitilde250 GB total (not the
+  \textbf{Active-weight read traffic per batch-1 decode token} (Ch 7's
+  floor): the weights that must be resident for Qwen are its total set,
+  \textasciitilde125 × 10⁹ params × 2 bytes/param ≈ 250 GB (plus the
+  offloadable N-gram); of that total, only \textasciitilde6 × 10⁹ params
+  are read per batch-1 decode token, at 2 bytes/param =
+  \textasciitilde12 GB. That read is \textasciitilde1/12 the per-token
+  weight traffic of the canonical dense 70B (140 GB → 12 GB) and
+  \textasciitilde1/21 of Qwen's own total weight footprint
+  (\textasciitilde250 GB → 12 GB), but it is a \emph{compute/bandwidth}
+  statement, not a residency one: the total weights dominate the memory
+  ceiling. So the \emph{total-vs-active} split of this chapter is not a
+  footnote --- it is the difference between fitting on one host and
+  sharding across several, and the \textasciitilde250 GB total (not the
   \textasciitilde12 GB active working set) is what must be resident
   unless experts are explicitly offloaded.
 \item
-  \textbf{KV cache} (Ch. 7/8): the canonical
+  \textbf{KV cache} (Ch 7/8): the canonical
   \texttt{2\ ×\ layers\ ×\ hidden\ ×\ bytes} KV formula is the full-MHA
   bound. Qwen's hybrid attention attacks the KV constant at the
   mechanism level: GDN layers keep a fixed-size recurrent state instead
@@ -585,18 +629,19 @@ actually considers. Stepping through this book's own arithmetic:
   attention-layer fraction are what change stored KV. QSA's sparse
   micro-block attention cuts attention \emph{reads}; it does not change
   the bytes stored per token. So per-token KV no longer follows the
-  dense formula, and no KV metric for this model is stated anywhere in
-  this book. \hyperref[chap:7]{Chapter 7} works a configuration-backed version of exactly
-  this two-term budget --- Qwen3.8-27B's 16 full-attention layers priced
-  separately from its 48 Gated DeltaNet layers --- into its own
-  history-state arithmetic, so we do not re-derive it here. The
-  framework question (``does it fit?'') is unchanged; the
-  \emph{function} plugged in for KV is not the dense one.
+  dense formula, and no KV metric for Qwen3.8-Flash-Next itself is
+  stated anywhere in this book (the related Qwen3.8-27B is a different
+  checkpoint in the same family). \hyperref[chap:7]{Chapter 7} works a configuration-backed
+  version of exactly this two-term budget --- Qwen3.8-27B's 16
+  full-attention layers priced separately from its 48 Gated DeltaNet
+  layers --- into its own history-state arithmetic (§7.3), so we do not
+  re-derive it here. The framework question (``does it fit?'') is
+  unchanged; the \emph{function} plugged in for KV is not the dense one.
 \item
-  \textbf{Compute} (Ch. 8): active-parameter FLOPs drop to
+  \textbf{Compute} (Ch 8): active-parameter FLOPs drop to
   \textasciitilde2 ×6B per token, but the QSA/GDN layers ride different
   roofline points than a dense 70B prefill/decode split, so the
-  throttled-resource conclusion must be re-derived per model (Ch. 8's
+  throttled-resource conclusion must be re-derived per model (Ch 8's
   measurement discipline, not a one-time number).
 \end{itemize}
 
@@ -605,10 +650,10 @@ model this book sizes memory, compute, and fleet with one clean constant
 set. For a 2026 MoE/hybrid model the architect does the \emph{same}
 decision loop --- read the model card, get total vs active, get the KV
 scheme's per-token function, size residency and roofline, then decide
-parallelism (Ch. 10) and serving (Ch. 11). Only the constants differ;
-the framework does not. Appendix A walks the four frontier models
-through exactly this re-derivation and flags which vendor numbers still
-carry a verify-on-own-hardware caveat.
+parallelism (Ch 10) and serving (Ch 11). Only the constants differ; the
+framework does not. Appendix A walks the four frontier models through
+exactly this re-derivation and flags which vendor numbers still carry a
+verify-on-own-hardware caveat.
 
 \begin{quote}
 \textbf{Recorded as future work.} This forward-looking view is
@@ -629,9 +674,10 @@ experts as per-token top-k routing: its high-noise and low-noise experts
 are selected from the current timestep rather than by a per-token gate,
 at about 27B total and about 14B active parameters as published
 (\href{https://github.com/Wan-Video/Wan2.2/tree/1ea34ff48f87168174e12956e200b1d908b1c5ff}{Wan2.2
-source}). The implementation-level inspection (which function picks the
-expert, and what offload costs) is in Appendix A's alternative-inference
-note. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
+source}, pinned revision 1ea34ff, retrieved 2026-10-28). The
+implementation-level inspection (which function picks the expert, and
+what offload costs) is in Appendix A §9A, `Noise-stage expert selection
+(Wan2.2 A14B)'. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
 
 \begin{figure}
 \centering
@@ -659,7 +705,7 @@ As of 2026-08, several questions remain open and are flagged
 \item
   \textbf{How often variable-k routing or capacity dropping fires in
   production.} The deterministic part is settled by the worked example
-  in §3: top-k × parameters-per-expert plus the always-on block fixes
+  in §3.3: top-k × parameters-per-expert plus the always-on block fixes
   the nominal active count per token, so model cards do not need to
   publish the routing distribution to make the arithmetic reproducible.
   The residual open question is the \emph{effective} active count under
@@ -702,32 +748,33 @@ challenger under consideration. They ask: ``If we go MoE, can we cut our
 GPU memory budget?''
 
 From the model-understanding chapter, the architect can answer:
-Active-compute memory yes --- only \textasciitilde12.8B of the
-\textasciitilde47B total is active per token, so \textasciitilde25.6 GB
-of \emph{active} weight footprint is read per batch-1 decode token
-vs.~140 GB for a dense 70B. \emph{Resident} memory yes as well, for this
-challenger --- but for a reason worth stating precisely. An MoE model
-normally keeps its \textbf{full expert set resident} --- the non-active
-experts still occupy HBM unless we explicitly use expert
-offload/swapping (Ch 3 §6, Ch. 18), which itself costs bandwidth --- so
-the resident budget is \textasciitilde47B × 2 bytes ≈ 94 GB rather than
-140 GB: a drop of 46 GB, \textasciitilde32.9\% of FP16 weight memory.
-That drop is earned by the challenger's smaller \emph{total} parameter
-count (47B vs 70B), not by routing itself --- a dense model of the same
-47B total would hold the same 94 GB --- and offloading some experts is a
-further, bandwidth-costed option on top. And KV cache memory no ---
-routing does not change it: the attention layers still process every
-token densely and emit one key and one value per token per layer, so at
-a fixed attention geometry the 9.2K-context budget is the same whether
-the model is dense or MoE. The challenger's own shape (32 layers, hidden
-4096, GQA 8 KV-heads × 128) needs only \textasciitilde0.6 GB at 8-bit
+Active-compute \emph{traffic} yes --- a per-token read volume, not a
+memory budget: only \textasciitilde12.8B of the \textasciitilde47B total
+is active per token, so \textasciitilde25.6 GB of \emph{active} weight
+is read per batch-1 decode token vs.~140 GB for a dense 70B.
+\emph{Resident} memory yes as well, for this challenger --- but for a
+reason worth stating precisely. An MoE model normally keeps its
+\textbf{full expert set resident} --- the non-active experts still
+occupy HBM unless we explicitly use expert offload/swapping (Ch 3 §3.6,
+Ch 18), which itself costs bandwidth --- so the resident budget is
+\textasciitilde47B × 2 bytes ≈ 94 GB rather than 140 GB: a drop of 46
+GB, \textasciitilde32.9\% of FP16 weight memory. That drop is earned by
+the challenger's smaller \emph{total} parameter count (47B vs 70B), not
+by routing itself --- a dense model of the same 47B total would hold the
+same 94 GB --- and offloading some experts is a further,
+bandwidth-costed option on top. And KV cache memory no --- routing does
+not change it: the attention layers still process every token densely
+and emit one key and one value per token per layer, so at a fixed
+attention geometry the 9.2K-context budget is the same whether the model
+is dense or MoE. The challenger's own shape (32 layers, hidden 4096, GQA
+8 KV-heads × 128) needs only \textasciitilde0.6 GB at 8-bit
 (\textasciitilde1.2 GB at FP16) for that input --- but that is its
 attention shape, not its routing, and a dense model with the same shape
 holds the same bytes; where the shape is not known we provision at the
-dense full-MHA rate, \textasciitilde12 GB (at 8-bit) or
-\textasciitilde24 GB (at the precision pattern discussed in Ch. 7) per
-request, as the conservative bound. We'll also need expert-routing
-infrastructure on top of that.
+dense full-MHA rate --- \textasciitilde24.1 GB at FP16 per 9.2K request,
+the canonical scenario's KV precision (Ch 4, \hyperref[tab:4.2]{Table 4-2}), or
+\textasciitilde12.06 GB at 8-bit --- as the conservative bound. We'll
+also need expert-routing infrastructure on top of that.
 
 The architect's decision therefore rests on two findings, both stated
 plainly. \textbf{(a) Resident weights do drop:} \textasciitilde140 GB
@@ -738,13 +785,14 @@ model. \textbf{(b) Routing does not change the KV bytes:} with the same
 attention geometry the 9.2K-context budget is unchanged; the
 challenger's own 32L/4096H GQA shape would need only \textasciitilde0.6
 GB (8-bit) / \textasciitilde1.2 GB (FP16), and where the shape is
-unknown we provision at the dense-70B full-MHA rate (\textasciitilde12
-GB at 8-bit, \textasciitilde24 GB at FP16) as the conservative bound;
-when the shape is known, use the model's own shape (\textasciitilde0.6
-GB for the challenger). What this accounting does \emph{not} settle is
-whether the challenger is the better system. Routing and expert dispatch
-are integrated in serving runtimes --- vLLM, for example, dispatches
-experts over all-to-all communication behind a runtime flag
+unknown we provision at the dense-70B full-MHA rate (\textasciitilde24.1
+GB at FP16 --- the canonical precision --- or \textasciitilde12.06 GB at
+8-bit) as the conservative bound; when the shape is known, use the
+model's own shape (\textasciitilde0.6 GB for the challenger). What this
+accounting does \emph{not} settle is whether the challenger is the
+better system. Routing and expert dispatch are integrated in serving
+runtimes --- vLLM, for example, dispatches experts over all-to-all
+communication behind a runtime flag
 (\href{https://docs.vllm.ai/en/latest/serving/expert_parallel_deployment/}{Expert
 Parallel Deployment}) --- so a \emph{GPU dedicated to the routing
 dispatcher} is an optional design hypothesis
@@ -752,10 +800,10 @@ dispatcher} is an optional design hypothesis
 real added cost is placement, and it must be compared on an actual
 arrangement --- on the canonical single 8×H100 host (640 GB, Ch 4 \hyperref[tab:4.2]{Table 4-2}) both 140 GB and 94 GB of FP16 weights fit, so the 46 GB saving buys
 KV headroom rather than feasibility, while an expert-parallel layout
-across GPUs trades that headroom for cross-GPU all-to-all traffic (§6).
-The team therefore does \textbf{not} select the challenger yet: quality
-at equal task performance, placement on the actual single-host or
-expert-parallel arrangement, and measured service goodput under the
+across GPUs trades that headroom for cross-GPU all-to-all traffic
+(§3.6). The team therefore does \textbf{not} select the challenger yet:
+quality at equal task performance, placement on the actual single-host
+or expert-parallel arrangement, and measured service goodput under the
 target workload remain unresolved \mbox{{[}UNRESOLVED{]}}. The \hyperref[chap:2]{Chapter 2} dense
 70B decision stands as the provisional choice, and the KV cache budget
 is provisioned at the dense-model rate either way.
@@ -764,8 +812,8 @@ is provisioned at the dense-model rate either way.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Dense vs MoE parameter allocation and KV cache behavior. Controlled comparison: same context length and cache dtype --- while weight residency (140 GB dense vs \textasciitilde94 GB for the \textasciitilde47B MoE challenger), the active-compute fraction (\textasciitilde100\% vs \textasciitilde27\%) and the attention shape (canonical dense 80L/8192H full-MHA vs the challenger's 32L/4096H GQA) all differ, so the KV bytes differ by shape, not by routing (\textasciitilde12 GB vs \textasciitilde0.6 GB at 9.2K/8-bit; a dense model with the challenger's shape holds the same \textasciitilde0.6 GB). Schematic, not to scale. Routing alone never changes KV: hold the attention geometry fixed and dense vs MoE KV is identical (Ch. 7). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-03-0301.pdf}}
-\caption[Dense vs MoE parameter allocation and KV cache behavior]{Dense vs MoE parameter allocation and KV cache behavior. Controlled comparison: same context length and cache dtype --- while weight residency (140 GB dense vs \textasciitilde94 GB for the \textasciitilde47B MoE challenger), the active-compute fraction (\textasciitilde100\% vs \textasciitilde27\%) and the attention shape (canonical dense 80L/8192H full-MHA vs the challenger's 32L/4096H GQA) all differ, so the KV bytes differ by \textbf{shape, not by routing} (\textasciitilde12 GB vs \textasciitilde0.6 GB at 9.2K/8-bit; a dense model with the challenger's shape holds the same \textasciitilde0.6 GB). Schematic, not to scale. Routing alone never changes KV: hold the attention geometry fixed and dense vs MoE KV is identical (Ch. 7). \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
+\pandocbounded{\includegraphics[keepaspectratio,alt={Dense vs MoE parameter allocation and KV cache behavior. Partially controlled comparison: only context length and cache dtype are held fixed --- weight residency (140 GB dense vs \textasciitilde94 GB for the \textasciitilde47B MoE challenger), the active-compute fraction (\textasciitilde100\% vs \textasciitilde27\%) and the attention shape (canonical dense 80L/8192H full-MHA vs the challenger's 32L/4096H GQA) all differ, so the KV bytes differ by shape, not by routing (\textasciitilde12 GB vs \textasciitilde0.6 GB at 9.2K/8-bit; a dense model with the challenger's shape holds the same \textasciitilde0.6 GB). Schematic, not to scale. Routing alone never changes KV: hold the attention geometry fixed and dense vs MoE KV is identical (Ch 7). Provenance: the MoE column's per-expert figures (\textasciitilde5.7B per expert ≈ 11.4 GB FP16, \textasciitilde1.4B always-on) are a component-derived decomposition of the cited 46.7B/12.9B published totals (§3.3.2, \hyperref[tab:3.2]{Table 3-2}), not vendor specification. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-03-0301.pdf}}
+\caption[Dense vs MoE parameter allocation and KV cache behavior]{Dense vs MoE parameter allocation and KV cache behavior. Partially controlled comparison: only context length and cache dtype are held fixed --- weight residency (140 GB dense vs \textasciitilde94 GB for the \textasciitilde47B MoE challenger), the active-compute fraction (\textasciitilde100\% vs \textasciitilde27\%) and the attention shape (canonical dense 80L/8192H full-MHA vs the challenger's 32L/4096H GQA) all differ, so the KV bytes differ by \textbf{shape, not by routing} (\textasciitilde12 GB vs \textasciitilde0.6 GB at 9.2K/8-bit; a dense model with the challenger's shape holds the same \textasciitilde0.6 GB). Schematic, not to scale. Routing alone never changes KV: hold the attention geometry fixed and dense vs MoE KV is identical (Ch 7). \textbf{Provenance:} the MoE column's per-expert figures (\textasciitilde5.7B per expert ≈ 11.4 GB FP16, \textasciitilde1.4B always-on) are a component-derived decomposition of the cited 46.7B/12.9B published totals (§3.3.2, \hyperref[tab:3.2]{Table 3-2}), not vendor specification. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}}
 
 \label{fig:3.4}\emph{Parameter-activation contrast. A dense 70B activates all 70B
 parameters per token (resident weights ≈ 140 GB, KV grows linearly with
@@ -774,10 +822,14 @@ context). An 8-expert MoE keeps its full expert set as resident weights
 \textasciitilde12.8B is active per token: the always-on attention/shared
 weights (\textasciitilde1.4B) plus the two routed experts
 (\textasciitilde11.4B = 2 × 5.7B), an active compute footprint of ≈ 25.6
-GB read per token. KV cache growth with context is linear in both ---
-attention still processes every token --- but the bytes per token follow
-each model's own attention shape: 1.31 MB/token (dense 80L/8192H
-full-MHA) vs 0.0655 MB/token (challenger 32L/4096H GQA) at 8-bit,
+GB read per token. The figure's \textasciitilde23 GB label for the two
+active experts is their \textbf{resident} weight (2 × 11.4 GB = 22.8 GB,
+rounded to 23 GB); the 25.6 GB per-token read adds the
+\textasciitilde2.8 GB of always-on attention/shared weights (1.4B × 2
+bytes). KV cache growth with context is linear in both --- attention
+still processes every token --- but the bytes per token follow each
+model's own attention shape: 1.31 MB/token (dense 80L/8192H full-MHA) vs
+0.0655 MB/token (challenger 32L/4096H GQA) at 8-bit,
 i.e.~\textasciitilde12 GB vs \textasciitilde0.6 GB for the 9.2K input.
 The gap is the shape, not the routing: a dense model with the
 challenger's shape holds the same \textasciitilde0.6 GB.}
@@ -807,8 +859,10 @@ derivation
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-total parameters & 70B & \textasciitilde47B &
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} expert split \\
+total parameters & 70B & \textasciitilde47B & \textasciitilde5.7B per
+expert × 8 = 45.6B + \textasciitilde1.4B always-on = 47B, the same
+component sum as \hyperref[tab:3.2]{Table 3-2} \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\noalign{\label{tab:3.3}}
 active params per token & 70B & \textasciitilde12.8B & top-2 from 8 =
 2/8 = 25\% of expert mass ≈ 11.4B + \textasciitilde1.4B always-on =
 12.8B \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
@@ -819,23 +873,32 @@ FP16 residency (total) & 140 GB & \textasciitilde94 GB & 70B × 2 / 47B ×
 FP16 weight-read per token (batch-1 decode) & 140 GB &
 \textasciitilde25.6 GB & 70B × 2 / 12.8B × 2 (read per token, not
 residency) \\
-KV cache per request (9.2K ctx, 8-bit) & \textasciitilde12 GB &
-\textasciitilde0.6 GB & set by attention shape, not routing: dense
-80L/8192H full-MHA = 1.31 MB/token × 9,200 ≈ 12.06 GB; the challenger's
-own 32L/4096H GQA (8 KV-heads × 128) = 0.0655 MB/token × 9,200 ≈ 0.60 GB
+KV cache per request (9.2K ctx, FP16) & \textasciitilde24.1 GB &
+\textasciitilde1.2 GB & set by attention shape, not routing: dense
+80L/8192H full-MHA = 2.62 MB/token × 9,200 ≈ 24.1 GB; the challenger's
+own 32L/4096H GQA (8 KV-heads × 128) = 0.131 MB/token × 9,200 ≈ 1.20 GB
 --- a dense model with the challenger's shape holds the same
-\textasciitilde0.6 GB \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\textasciitilde1.2 GB \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+KV cache per request (9.2K ctx, 8-bit) & \textasciitilde12.06 GB &
+\textasciitilde0.60 GB & same geometry at 8-bit, i.e.~exactly half the
+FP16 bytes: dense 80L/8192H full-MHA = 1.31 MB/token × 9,200 ≈ 12.06 GB;
+the challenger's own 32L/4096H GQA (8 KV-heads × 128) = 0.0655 MB/token
+× 9,200 ≈ 0.60 GB --- a dense model with the challenger's shape holds
+the same \textasciitilde0.6 GB \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
 FLOPs per token (batch-1 decode) & \textasciitilde0.14T &
 \textasciitilde0.0256T & 70B × 2 / 12.8B × 2 \\
-compute ratio vs dense 70B & 1× & \textasciitilde0.183×
-(\textasciitilde5.5× less) & (12.8B × 2) ÷ (70B × 2) = 25.6 GFLOP ÷ 140
-GFLOP \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+compute ratio vs dense 70B & 1× & \textasciitilde0.183× (≈18\% of dense
+70B compute) & (12.8B × 2) ÷ (70B × 2) = 25.6 GFLOP ÷ 140 GFLOP; the
+ratio is against the canonical 70B dense reference, not against a dense
+model of the challenger's own \textasciitilde47B total --- against that
+baseline the saving is \textasciitilde3.7× (12.8B ÷ 47B ≈ 27\%)
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} \\
+\end{longtable}
 
-\noalign{\label{tab:3.3}}\end{longtable}
-
-\emph{All figures trace to the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}); the
-MoE column is an \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} worked variant, not
-a measurement claim.}
+\emph{The dense-70B column traces to the canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}); the MoE column carries \mbox{{[}ILLUSTRATIVE{]}} provenance with the
+per-row \mbox{{[}ASSUMPTION{]}}/\mbox{{[}DERIVED{]}} split shown in its derivation
+column --- the same tags \hyperref[tab:3.2]{Table 3-2} gives the same quantities --- and it
+is a worked variant, not a measurement claim.}
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
