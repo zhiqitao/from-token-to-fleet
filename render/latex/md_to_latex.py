@@ -381,17 +381,34 @@ def short_title(full):
         if cut is None or len(cut) >= len(s):
             break
         s = cut
-    # last-resort hard cap ~80 chars; cut at a word boundary so the ellipsis
-    # never lands mid-word (e.g. "rooflin…"), and keep it brace-safe.
+    # Last resort: prefer a clean clause break inside the ~84-char window over a
+    # mid-clause ellipsis, so the List of Figures never shows a title that stops
+    # mid-thought ("... in two process bands plus the…").  Only when no clause
+    # boundary exists do we truncate at a word boundary and mark it with "…".
     if len(s) > 84:
-        cut = s[:81]
-        if " " in cut:
-            cut = cut[:cut.rfind(" ")]
-        while not balanced(cut) and len(cut) < len(s):
-            cut = s[:len(cut) + 1]
-        s = cut.rstrip() + "…"
+        best = -1
+        for sep in (",", ";", " --- ", " — ", "——", " - ", ":"):
+            j = s.rfind(sep, 0, 85)
+            if j >= 40 and j > best and balanced(s[:j]) \
+                    and s[:j].count("(") == s[:j].count(")"):
+                best = j
+        if best > 0:
+            s = s[:best]
+        else:
+            cut = s[:81]
+            if " " in cut:
+                cut = cut[:cut.rfind(" ")]
+            while not balanced(cut) and len(cut) < len(s):
+                cut = s[:len(cut) + 1]
+            s = cut.rstrip() + "…"
+    # A cut that lands inside a parenthetical (e.g. "not a stack (they interact")
+    # drops the whole parenthetical rather than leaving an unclosed "(".
+    if s.count("(") > s.count(")"):
+        i = s.rfind("(")
+        if i > 0:
+            s = s[:i]
     # strip trailing punctuation and any leftover bracket marker
-    s = s.rstrip(" .:;")
+    s = s.rstrip(" .:;,-—")
     return s.strip() or ""
 
 
@@ -651,9 +668,31 @@ def fix_crossrefs(tex_path, chnum):
     named = {}
     printed_ids = set()
     for cap in cap_pat.finditer(tex):
-        if any(t.start() <= cap.start() < t.end() for t in tables):
-            continue
         label = f"tab:{cap.group(1)}.{cap.group(2)}"
+        enclosing = next((i for i, t in enumerate(tables)
+                          if t.start() <= cap.start() < t.end()), None)
+        if enclosing is not None:
+            # A pandoc ': **Table N-M** --- ...' caption is carried INTO the
+            # longtable as \caption[...]{...}, so its printed ID sits inside
+            # the table it names. Map it to that table instead of letting the
+            # unnamed allocator steal the next free number (round-8 findings
+            # FTTF-001 / R2-12: Table 26-3's caption was inside its longtable,
+            # so the real table was labelled tab:26.4 while an unnumbered
+            # decision matrix took tab:26.3 -- the List of Tables then pointed
+            # "Table 26-3" at that earlier, unnumbered table).
+            if cap.group(1) != str(chnum):
+                # A caption inside a table that merely cites another chapter's
+                # table is not a printed ID for this table.
+                continue
+            if label in printed_ids:
+                # The same \caption is matched twice (optional short title and
+                # mandatory title), not a duplicate printed ID.
+                continue
+            printed_ids.add(label)
+            if enclosing in named:
+                raise ValueError(f"Two printed captions address the same table in chapter {chnum}")
+            named[enclosing] = label
+            continue
         if cap.group(1) != str(chnum):
             raise ValueError(f"Printed table ID {label} belongs to another chapter, not {chnum}")
         if label in printed_ids:
@@ -693,7 +732,23 @@ def fix_crossrefs(tex_path, chnum):
         # longtable header-duplication artifact on tables that break across a
         # page - head emitted on the same page twice with a blank gap - so it is
         # removed; \\\\nopagebreak[4] alone is the safe form.)
-        return f"\\nopagebreak[4]\n{body}\n\\noalign{{\\label{{{lab}}}}}{end}"
+        # Round-8 finding F-004: the label used to be written at the END of the
+        # longtable (\noalign{\label{...}} before \end{longtable}), so \pageref
+        # reported the page the table's LAST row landed on -- one to four pages
+        # past its printed start (Table 4-2 began on p. 71 and was indexed as
+        # 75). Write it immediately after the table's FIRST data row instead:
+        # that row is typeset on the page the table begins, so \pageref names
+        # the page a reader should turn to. The label needs \noalign to stay
+        # out of the alignment row (a bare label after a row starts an empty
+        # alignment row at a page boundary).
+        anchors = list(re.finditer(r"\\end(?:firsthead|head|lastfoot)", body))
+        if anchors:
+            row_end = re.search(r"\\\\\s*\n", body[anchors[-1].end():])
+            if row_end:
+                pos = anchors[-1].end() + row_end.end()
+                body = (body[:pos] + "\\noalign{\\label{%s}}\n" % lab + body[pos:])
+                return f"\\nopagebreak[4]\n{body}{end}"
+        return f"\\nopagebreak[4]\n\\label{{{lab}}}\n{body}{end}"
     tex = tab_pat.sub(tab_repl, tex)
 
     # 3) Body refs -> \\hyperref. Stash caption/alt definitions first so a

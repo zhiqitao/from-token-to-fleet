@@ -108,14 +108,26 @@ def make_copyrightpage():
     # \small (conventional for a copyright page) inside its own group, with the
     # heading gap reclaimed, so the added edition/licence wording cannot push
     # the warranty onto a verso.
-    lines.append(r"\vspace{0.25cm}")
+    lines.append(r"\vspace{0.15cm}")
     lines.append(r"{\small")
-    lines.append(r"\noindent\textbf{License.} This work --- the book text, diagrams, figures, and build scripts --- is distributed under the \emph{source-available} grant stated below. That grant is the operative license for this edition: the default is all rights reserved, and the two permissions below are the stated exception. The full text of the license, including the redistribution restrictions and the channel-specific terms (e.g.\ Amazon KDP), is the \texttt{LICENSE} file in the repository, which is the authoritative statement of rights for this work. The two bullets are a plain-language summary, not the license text; they are not operative in their own right, and the \texttt{LICENSE} file at the pinned commit below governs wherever the two differ.")
+    lines.append(r"\noindent\textbf{License.} This work --- the book text, diagrams, figures, and build scripts --- is distributed under the \emph{source-available} grant stated below: the default is all rights reserved, and the two permissions in the panel below are the stated exception. The full licence text, including the redistribution restrictions and the channel-specific terms (e.g.\ Amazon KDP), is reproduced verbatim at the end of this book (\emph{License: Full Text}) and is also the \texttt{LICENSE} file at the pinned commit; where the two differ, the \texttt{LICENSE} file governs.")
     lines.append("")
+    # Round-8 finding EVIDENCE-001: the two plain-language bullets were set as
+    # ordinary body text directly under a disclaimer saying they are not
+    # operative, so a reader holding only the PDF could take them for the grant.
+    # Set them in a tinted "Summary only" panel that repeats the non-operative
+    # status and names the operative text.
+    lines.append(r"\begin{center}")
+    lines.append(r"\setlength{\fboxsep}{6pt}%")
+    lines.append(r"\noindent\colorbox{black!4}{%")
+    lines.append(r"\begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}")
+    lines.append(r"{\footnotesize\textbf{Summary only --- not operative.} These two permissions summarize the \texttt{LICENSE} text reproduced in full at the end of this book; that text states the operative grant.}")
     lines.append(r"\begin{itemize}")
     lines.append(r"\item \textbf{\color{memory}You may} freely read, study, learn from, and \textbf{redistribute} the work (verbatim, with attribution) for personal and non-commercial ends --- no permission needed.")
     lines.append(r"\item \textbf{\color{compute}Commercial use or publication} --- a paid product, course, book, or report --- requires the author's \textbf{prior written approval}.")
     lines.append(r"\end{itemize}")
+    lines.append(r"\end{minipage}}")
+    lines.append(r"\end{center}")
     lines.append("")
     lines.append(r"\noindent To request commercial permission, contact \texttt{zhiqi.tao@gmail.com}.")
     lines.append("")
@@ -125,19 +137,28 @@ def make_copyrightpage():
     # hash is unbreakable, so LaTeX justified the short line before it to full
     # measure.  Fix: set this reference block ragged-right (no justification
     # stretch is possible) and \mbox the SPDX identifier so it never breaks.
-    lines.append(r"{\raggedright")
+    lines.append(r"{\raggedright\footnotesize")
     # R6 LICENSE-LINK-001: the visible link text previously showed only the
     # repository root while the prose promised a direct link to the pinned
     # LICENSE file.  Print the pinned path in the link text so the visible URL
     # and the sentence agree.
     lines.append(r"\noindent\textbf{SPDX identifier:} \mbox{\texttt{LicenseRef-ZhiqiResearch-FromTokenToFleet-1.0}}. The identifier is a custom \texttt{LicenseRef}, not an OSI-approved standard licence: this work's terms are its own, and no standard-licence text can be substituted for them.\par")
+    # Round-8 finding FTTF-005: a bare URL is a fragile pointer in print, so the
+    # page names the retrieval date and says which object is authoritative.
     lines.append(r"\noindent\textbf{Full terms:} \href{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd5/LICENSE}}")
     lines.append("")
-    lines.append(r"\noindent\textbf{Edition source revision.}\ This edition is built from commit \mbox{\texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3}} (short \texttt{27f4cd5}) of the repository. The link above resolves that commit's \texttt{LICENSE} file directly, so the terms quoted here can be read in their exact published form without locating the revision elsewhere (raw file: \href{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd5/LICENSE}}).\par}")
+    # Round-8 findings F-003 / FTTF-005: the printed URL shows the abbreviated
+    # commit for legibility, so say plainly that it is the abbreviation of the
+    # pinned 40-character hash and that the commit -- not the URL -- is the
+    # immutable reference, with the date the pointer was checked.
+    lines.append(r"\noindent\textbf{Edition source revision.}\ This edition is built from commit \mbox{\texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3}} (short \texttt{27f4cd5}) of the repository. The link above resolves that commit's \texttt{LICENSE} file directly, so the terms quoted here can be read in their exact published form without locating the revision elsewhere (raw file: \href{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd5/LICENSE}}). Both printed URLs show that short form for legibility; it abbreviates the full hash above and resolves to the same commit. The URLs are convenience pointers, checked 2026-11-24: the pinned commit, not the URL, is the immutable reference.\par}")
     lines.append("")
     lines.append(r"\noindent\textbf{Edition identification.} First edition, 2026 --- build identifier \texttt{v20260913}; single evidence cutoff \textbf{2026-08-30}. Both identifiers are restated in the Preface and the Edition-history panel of the Sources, Method, and Reproducibility chapter.")
     lines.append("")
-    lines.append(r"\noindent\textbf{Applicable terms and edition.} The SPDX identifier above names the licence version this edition is published under, and the commit above is the immutable source revision that carries it; together they identify the terms for online verification. The operative licence text is \emph{not} reproduced in this artifact --- the paragraphs above are a plain-language summary --- so a reader holding only this file must retrieve the grant from the pinned commit.")
+    # Round-8 finding F-002: the page used to admit that the operative grant was
+    # not in the artifact at all.  It now points at the verbatim licence chapter
+    # that closes the book.
+    lines.append(r"\noindent\textbf{Applicable terms and edition.} The SPDX identifier above names the licence version this edition is published under, and the commit above is the immutable source revision that carries it; together they identify the terms for online verification. The operative licence text is reproduced in full at the end of this book, under \emph{License: Full Text}; the paragraphs above are a plain-language summary of it.")
     lines.append("")
     lines.append(r"\noindent\textbf{Technical disclaimer.} This book describes an evolving field. Model names, parameter counts, prices, context limits, throughput and latency figures, licences, and benchmark results change quickly and differ by region, hardware SKU, precision and sparsity, batch size, software stack, and measurement method. Every quantitative value here carries explicit evidence labels on the book's three axes --- provenance (where the number came from), epistemic status (what was done to it: FACT, DERIVED, ASSUMPTION, HYPOTHESIS, or UNRESOLVED), and an optional measurement status (ANALYTICAL, SCENARIO-DERIVED, MODELED, MEASURED, or UNMEASURED). The axes and the full label set are defined in the Preface, and the labels are catalogued in the Sources, Method, and Reproducibility chapter. Each value is a snapshot as of the evidence cutoff recorded above, and must be re-verified against the vendor's current documentation before any procurement or deployment decision.")
     lines.append("")
@@ -233,9 +254,16 @@ def make_list_of_tables():
     lines.append(r"\addcontentsline{toc}{chapter}{List of Tables}")
     lines.append(r"\chapter*{List of Tables}")
     lines.append(r"\markboth{List of Tables}{List of Tables}")
-    lines.append(r"{\footnotesize Every table the book numbers, with a page on which it "
-                 r"appears. Unnumbered tables --- inline worked calculations and continuation "
+    lines.append(r"{\footnotesize Every table the book numbers, with the page on which it "
+                 r"begins. Unnumbered tables --- inline worked calculations and continuation "
                  r"panels --- carry no printed ID and are not indexed here.\par}")
+    # Round-8 finding finding-006: the canonical-scenario ledger is the anchor
+    # every downstream worked example draws its inputs from, so the index says
+    # so rather than leaving the reader to infer it from the table's title.
+    lines.append(r"{\footnotesize Table 4-2, the canonical-scenario provenance ledger, is the "
+                 r"anchor table of the book's arithmetic: the assumed inputs every later "
+                 r"worked example builds on are fixed there and labelled as assumptions "
+                 r"rather than measured facts.\par}")
     lines.append(r"\vspace{0.6em}")
     lines.append(r"{\small")
     lines.append(r"\begin{list}{}{%")
@@ -244,13 +272,125 @@ def make_list_of_tables():
     lines.append(r"  \setlength{\parsep}{3pt}\setlength{\itemsep}{0pt}%")
     lines.append(r"  \setlength{\rightmargin}{0pt}}")
     for printed_id, key, title in rows:
-        lines.append(r"\item \mbox{%s}\hspace{0.7em}%s\dotfill\ \pageref{tab:%s}"
+        # Round-8 finding F-019: a fixed space before the dot leader keeps a
+        # title that ends in a period from fusing with the dots, matching the
+        # spaced form used in the Contents and the List of Figures.
+        lines.append(r"\item \mbox{%s}\hspace{0.7em}%s\hspace{0.6em}\dotfill\ \pageref{tab:%s}"
                      % (printed_id, tex_escape(title), key))
     lines.append(r"\end{list}")
     lines.append(r"}")
     if not rows:
         lines.append(r"\noindent No numbered tables.")
     return "\n".join(lines)
+
+
+_LIC_ESCAPES = [
+    ("\\", r"\textbackslash{}"),
+    ("&", r"\&"), ("%", r"\%"), ("$", r"\$"), ("#", r"\#"),
+    ("_", r"\_"), ("{", r"\{"), ("}", r"\}"),
+    ("~", r"\textasciitilde{}"), ("^", r"\textasciicircum{}"),
+    ("<", r"\textless{}"), (">", r"\textgreater{}"),
+    ("\u00a9", r"\textcopyright{}"), ("\u00b7", r"\textperiodcentered{}"),
+]
+
+
+def _license_inline(s):
+    """Escape one line of LICENSE text for LaTeX, then restore the markdown
+    emphasis the file uses (**bold**, `code`, straight double quotes)."""
+    for a, b in _LIC_ESCAPES:
+        s = s.replace(a, b)
+    s = re.sub(r"\*\*([^*]+)\*\*", r"\\textbf{\1}", s)
+    s = re.sub(r"`([^`]+)`", r"\\texttt{\1}", s)
+    out, opening = [], True
+    for ch in s:
+        if ch == '"':
+            out.append("``" if opening else "''")
+            opening = not opening
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def make_license_chapter():
+    """Return the closing 'License: Full Text' chapter, converted from LICENSE.
+
+    Round-8 finding F-002: the copyright page said the operative grant was not
+    in the artifact, so a reader holding only the PDF could not read the terms
+    of redistribution.  The text is taken from the repository LICENSE file at
+    build time rather than retyped, so the chapter cannot drift from it; only
+    markdown markers (headings, bold, code, the hrule) are converted, and the
+    wording is untouched.
+    """
+    src = os.path.join(REPO, "LICENSE")
+    out = [
+        r"\chapter{License: Full Text}",
+        r"\label{chap:license}",
+        r"\markboth{License: Full Text}{License: Full Text}",
+        "",
+        r"\noindent This is the operative licence for the work, reproduced verbatim "
+        r"from the \texttt{LICENSE} file at the edition's pinned commit "
+        r"(\texttt{27f4cd5}, full hash \texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3}). "
+        r"Where this text and the plain-language summary on the copyright page "
+        r"differ, this text governs.",
+        "",
+    ]
+    state, buf = None, []
+
+    def close():
+        # Conversion happens on the joined block, not per line: bold spans in
+        # LICENSE wrap across lines ("**Publish, republish, sell, or distribute
+        # this work as a book, article,\n   report, ...**") and a per-line
+        # converter would leave the markers as literal asterisks.
+        nonlocal state, buf
+        if state == "para" and buf:
+            out.extend([_license_inline(" ".join(buf)), ""])
+        elif state == "enum" and buf:
+            out.extend([r"\begin{enumerate}"]
+                       + [r"\item %s" % _license_inline(t) for t in buf]
+                       + [r"\end{enumerate}", ""])
+        elif state == "quote" and buf:
+            out.extend([r"\begin{quote}", _license_inline(" ".join(buf)),
+                        r"\end{quote}", ""])
+        state, buf = None, []
+
+    for raw in open(src, encoding="utf-8").read().split("\n"):
+        line = raw.rstrip()
+        if not line.strip():
+            close()
+            continue
+        if line.startswith("# "):
+            close()          # the chapter title stands in for the H1
+            continue
+        if line.startswith("## "):
+            close()
+            out.append(r"\subsection*{%s}" % _license_inline(line[3:].strip()))
+            continue
+        if line.strip() == "---":
+            close()
+            continue
+        if line.startswith("> "):
+            if state != "quote":
+                close()
+                state = "quote"
+            buf.append(line[2:].strip())
+            continue
+        m = re.match(r"^(\d+)\.\s+(.*)$", line)
+        if m:
+            if state != "enum":
+                close()
+                state = "enum"
+            buf.append(m.group(2).strip())
+            continue
+        text = line.strip()
+        if state in ("enum", "quote"):
+            buf[-1] = buf[-1] + " " + text     # continuation of the last item
+            continue
+        if state != "para":
+            close()
+            state = "para"
+        buf.append(text)
+    close()
+    return "\n".join(out)
 
 
 def emit_book():
@@ -345,6 +485,11 @@ def emit_book():
     lines.append(r"\input{backmatter/references}")
     lines.append(r"\input{backmatter/sources}")
     lines.append(r"\input{backmatter/worksheet}")
+    # Round-8 finding F-002: the operative licence text closes the book, so a
+    # reader holding only this file can read the grant (see
+    # make_license_chapter -- the text is converted from LICENSE at build time).
+    lines.append("")
+    lines.append(make_license_chapter())
     lines.append("")
     lines.append(r"\end{document}")
     return "\n".join(lines)
