@@ -2,7 +2,12 @@
 """Per-model miss analysis: send each model its own brief (findings + missed pages) and ask
 why it missed them + a customized prompt for next round. Card sampling + streaming.
 Writes miss_analysis/<model>_response.txt and parses a JSON object from the content."""
-import json, re, os, time, urllib.request, concurrent.futures
+import json, re, os, sys, time, urllib.request, concurrent.futures
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import book_meta
+
+PDF = "/home/ubuntu/hermes-work/from-token-to-fleet/render/build/from-token-to-fleet-v20260913.pdf"
 
 OUTDIR = "/home/ubuntu/.hermes/profiles/muta/cache/scratch/reviewer_fleet"
 ANALYSIS = os.path.join(OUTDIR, "miss_analysis")
@@ -22,7 +27,7 @@ def load_key():
         if m: return m.group(1).strip()
     raise SystemExit("no key")
 
-PROMPT_TMPL = """You are a book reviewer on a 7-model reviewer panel. You reviewed the book "from-token-to-fleet" (519 pages) and filed the findings in your brief. Other panel members found defects on pages YOU missed.
+PROMPT_TMPL = """You are a book reviewer on a 7-model reviewer panel. You reviewed the book "from-token-to-fleet" (__BOOK_META__) and filed the findings in your brief. Other panel members found defects on pages YOU missed.
 
 Your brief (JSON) is attached as the user message. It contains:
 - own_findings: what you filed
@@ -39,6 +44,8 @@ Output STRICT JSON only (no prose, no fences):
   "blind_spots": ["<specific gap 1>", "<specific gap 2>", ...],
   "customized_prompt": "<the full drop-in review prompt for you next round, 150-400 words, preserving the anti-fabrication rule and JSON-output schema>"
 }"""
+
+PROMPT_TMPL = PROMPT_TMPL.replace("__BOOK_META__", book_meta.describe(PDF))
 
 def call(model, brief_json, max_tokens=8000, timeout=600):
     s = CARD[model]

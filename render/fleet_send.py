@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""Fan the 5.36MB book PDF to the remaining 6 review-fleet models.
+"""Fan the current book PDF to the remaining 6 review-fleet models.
+Page count and file size are read from the PDF at send time (book_meta), never
+hardcoded — a stale "(519 pages)" vs the real 553-page build was reported back
+by a round-12 reviewer as a scope/input defect.
 Concurrency=2 (avoid gateway 500 storm). Writes per-model findings to reviewer_fleet/.
 Resumable: skips models that already have a *_findings.json on disk."""
-import os, re, json, base64, urllib.request, time, concurrent.futures, hashlib
+import os, re, sys, json, base64, urllib.request, time, concurrent.futures, hashlib
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import book_meta
 
 PDF = "/home/ubuntu/hermes-work/from-token-to-fleet/render/build/from-token-to-fleet-v20260913.pdf"
 OUTDIR = "/home/ubuntu/.hermes/profiles/muta/cache/scratch/reviewer_fleet"
@@ -110,7 +116,7 @@ def main():
     if not todo:
         print("[fleet] nothing to do", flush=True); return
 
-    prompt = """You are an independent reviewer on a 7-model reviewer fleet reviewing the book "from-token-to-fleet" (519 pages). The PDF is attached — read the WHOLE document (your context is 1M tokens). This is the current deliverable build (5.36 MB, vector figures, merged font subsets).
+    prompt = """You are an independent reviewer on a 7-model reviewer fleet reviewing the book "from-token-to-fleet" (__BOOK_META__). The PDF is attached — read the WHOLE document (your context is 1M tokens). __BOOK_META__ is read from the attached file itself; if your reader reports a different total, trust the file and say so rather than stopping. This is the current deliverable build (vector figures, merged font subsets).
 
 Report genuine defects only, across these dimensions:
 (a) internal contradictions between chapters/sections;
@@ -125,6 +131,7 @@ ANTI-FABRICATION: cite the real PDF page number and a verbatim quote for every f
 Output STRICT JSON only (no prose, no markdown fences): a JSON array of objects, each:
 {"id","severity"(P0/P1/P2/P3),"dimension","page","chapter","evidence"(verbatim quote),"issue"(one sentence),"fix_instruction"(one concrete fix),"confidence"(high/med/low)}
 Aim for signal over volume."""
+    prompt = prompt.replace("__BOOK_META__", book_meta.describe(PDF))
 
 
     def call(model, max_tokens=12000, timeout=1800):
