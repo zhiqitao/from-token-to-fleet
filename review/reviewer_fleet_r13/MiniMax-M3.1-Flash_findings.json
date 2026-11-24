@@ -1,0 +1,82 @@
+[
+ {
+  "id": "R12-001",
+  "severity": "P2",
+  "page": 91,
+  "chapter": "4",
+  "evidence": "Active-hours volume is ~6.24M requests/month (10 × 3,600 × 8 × 260/12 = 6,240,000). Over 24×7 the same 10 rps would extrapolate to ~18.7M requests/month on the same 260-workday calendar (10 × 3,600 × 24 × 260/12 = 18,720,000)",
+  "issue": "The 24×7 extrapolation formula is arithmetically wrong as written: 10 × 3,600 × 24 × 260/12 = 187,200,000, not 18,720,000. The stated result 18.7M is off by a factor of 10. Check: 10 × 3,600 = 36,000 s/hr-worth of requests; × 24 hr = 864,000; × 260 workdays = 224,640,000; ÷ 12 months = 18,720,000 per month when multiplied by 260/12 — but that is 18,720,000 only if the 260/12 factor is applied to a month count of 260 days giving 21.67 days per month... The correct arithmetic for a 260-workday year spread over 12 months is 36,000 × 24 × 260/12 = 18,720,000 per month, i.e. the factor 260/12 must multiply 36,000 × 24 × 12/12; as printed the expression evaluates to 187.2M. The reader cannot reproduce the stated 18.7M from the printed formula, and the '3× the active-hours volume' claim (6.24M × 3 = 18.72M) is consistent only with the intended value, not the printed expression.",
+  "fix_instruction": "Correct the formula to 10 × 3,600 × 24 × 260 ÷ 12 = 18,720,000 (or equivalently 36,000 × 24 × 21.67 days/month ≈ 18.72M), and state the days-per-month step explicitly so the expression evaluates to the printed result.",
+  "confidence": "high"
+ },
+ {
+  "id": "R12-002",
+  "severity": "P2",
+  "page": 65,
+  "chapter": "4",
+  "evidence": "Average arrival rate ~10 rps [canonical scenario][ASSUMPTION] declared traffic input (2,000 users × one request ~every 200 s ≈ 10 rps) — declared, not derived (walk-through below).",
+  "issue": "The declared traffic input is arithmetically inconsistent with its own stated derivation: 2,000 users × one request every 200 s = 2,000/200 = 10 requests/s only if every registered user issues a request every 200 s continuously. The derivation is fine in isolation, but the chapter elsewhere (Preface p. xiv, Ch. 4 §4.8) treats the same 2,000-user population as 5% active (~100 users), which would imply 100/200 = 0.5 rps, not 10 rps — a 20× discrepancy between the population model and the declared rate. The chapter's own walk-through §4.3 step 3 insists the rate is 'declared, not derived', but the printed parenthetical supplies a derivation that conflicts with the stated 5% active fraction. A reader re-deriving the rate from either population figure cannot land on 10 rps.",
+  "fix_instruction": "Either make the parenthetical derivation self-consistent (state which sub-population of the 2,000 registered users issues one request per 200 s — e.g. 2,000 registered users including automation/API callers, or ~2,000 concurrent-capable seats — and remove the implication that this equals the 5% active-user population), or explicitly annotate that the 200 s interval applies to the full registered population while the 5% figure is a concurrent-activity measure, and note that the two are not the same denominator.",
+  "confidence": "medium"
+ },
+ {
+  "id": "R12-003",
+  "severity": "P2",
+  "page": 68,
+  "chapter": "4",
+  "evidence": "Execution occupancy ~86 requests at 10 rps; ~344 at 40 rps — [canonical scenario][DERIVED] via Little's Law Lexec = λ × Wexec ... service time Wexec ≈ 8.6 s",
+  "issue": "The canonical box states Wexec ≈ 8.6 s (prefill 1.08 s + decode 7.5 s = 8.58 s). Little's Law with λ=10 and W=8.58 gives 85.8 → ~86 ✓ and λ=40 gives 343.2 → ~344 ✓, so the occupancy figures are arithmetically sound. However the box prints the prefill term as 1.08 s, which Table 4-2 and Ch. 2 explicitly label a 'two-term-only upper cap, NOT a feasible deployed prefill target' (budget_prefill ≤ 1.08 s − B_other). Using the upper cap as the Wexec input makes the occupancy figures and every downstream host count (⌈344/17⌉ = 21, Ch. 17) inherit the cap rather than a modelled runtime, but neither the box nor Ch. 16–17 states this inheritance explicitly; Ch. 4 §4.3 does add 'So Wexec ≈ 8.6 s is an upper bound on the execution window'. The defect is a labelling gap: the '~86' and '~344' rows carry [canonical scenario][DERIVED] with no marker that the input is a budget cap and therefore an upper bound on occupancy (and thus on host count), which understates the fleet requirement.",
+  "fix_instruction": "Mark the Execution occupancy row's status as an upper-bound derivation (e.g. [canonical scenario][DERIVED] — upper bound, Wexec input is the 1.08 s prefill cap; occupancy falls if B_other is measured) and add the same caveat to the host-count figures that consume 86/344 in Ch. 17 Table 17-1.",
+  "confidence": "medium"
+ },
+ {
+  "id": "R12-004",
+  "severity": "P3",
+  "page": 118,
+  "chapter": "4",
+  "evidence": "nhosts = ⌈50 rps × 8.6 s / 17 slots⌉ = ⌈430/17⌉ = ⌈25.29⌉ = 26 hosts (full utilization) and on the u-only screen at a 70% target utilization the normative host-count form of Ch 17 Table 17-1 gives ⌈26 ÷ 0.70⌉ = ⌈37.14⌉ = 38 hosts",
+  "issue": "Internal inconsistency in the u-only cross-check. The chapter states '⌈26 ÷ 0.70⌉ = ⌈37.14⌉ = 38 hosts' but 26 ÷ 0.70 = 37.14 and ⌈37.14⌉ = 38 ✓; however it then states 'the occupancy cross-check ⌈430/(17 × 0.7)⌉ = ⌈430/11.9⌉ = ⌈36.13⌉ = 37 sits one host below it'. The two forms are then declared to 'reproduce the normative result at the policy stage (40 provisioned / 39 working)' — but the cross-check form at the policy stage is given as ⌈430/(17 × 0.70 × 0.95)⌉ = ⌈430/11.305⌉ = ⌈38.04⌉ = 39, and the host-count form ⌈26 ÷ 0.665⌉ = ⌈39.10⌉ = 40. The narrative therefore reports two different 'reproduces the normative result' claims (one at 38 vs 37 and one at 39 vs 40) and each time the two forms differ by one host — the text says the cross-check 'reproduces the normative result' while simultaneously showing it does not. The rule that the cross-check 'may differ by one host' is correct, but the claim that it 'reproduces the normative result' at the policy stage is false for the stated numbers (39 ≠ 40).",
+  "fix_instruction": "Correct the sentence: state that the occupancy cross-check differs from the normative host-count form by one host at every stage (38 vs 37 at u-only; 40 vs 39 at policy), and that the normative form is the one quoted (40 provisioned / 39 working), with the cross-check reported as a bound rather than as reproducing the result.",
+  "confidence": "high"
+ },
+ {
+  "id": "R12-005",
+  "severity": "P2",
+  "page": 111,
+  "chapter": "4",
+  "evidence": "Cost-basis reconciliation ... (c) ~$0.0033 per request (≈$3.33 per 1K) — owned fleet, 6-host average at full utilization on the hour-matched active-hours basis ($120/hr × 173.33 h ≈ $20,800/mo ÷ 6.24M requests); (d) ~$0.0140 per request (≈$14.04 per 1K) — the same owned 6-host fleet paid for all 730 h/mo and divided by the same active-hours volume",
+  "issue": "The (c)/(d) reconciliation is arithmetically correct ($20,800/6.24M = $0.00333; $87,600/6.24M = $0.01404; ratio 4.21 = 730/173.33 ✓) but the derived figures contradict the per-request owned-fleet figure quoted earlier in the same chapter on p. 84: '(6 × $20/hr) ÷ (10 × 3600) ≈ ~$0.0033 per request at average'. The $0.0033 figure there is obtained by dividing hourly spend by hourly request rate (a pure rate ratio), which equals the hour-matched monthly figure only by coincidence of the 173.33/10 arithmetic — and the chapter's own hour-basis-mismatch argument applies to it: $120/hr ÷ 10 rps = $0.0033/req is a rate-basis figure that happens to match the active-hours monthly figure because both use the same hour count, but the p. 84 text presents the 6/21-host 'full-util basis' as a third and fourth number ($0.0056 / $0.0044 on the policy fleet) without noting these are also hour-basis artifacts. The result is five or more per-request owned-fleet figures across §4.3 with no single canonical statement of which one is quotable, and the canonical-box sidebar (p. 72) explicitly says 'None of those three is an alternative unit cost' while §4.3 quotes them side by side as if they were.",
+  "fix_instruction": "Add a single named canonical per-request owned-fleet figure with its basis (e.g. 'owned fleet, hour-matched active-hours basis, 6-host average: ~$0.0033/req') and mark every other per-request figure ($0.0140, $0.0056, $0.0044) explicitly as an hour-basis artifact or policy-fleet variant in a single consolidated table, rather than restating them across §4.3's prose, the cost-basis table and the sidebar.",
+  "confidence": "medium"
+ },
+ {
+  "id": "R12-006",
+  "severity": "P2",
+  "page": 155,
+  "chapter": "7",
+  "evidence": "Unit basis (locked): the H100's quoted 80 GB is treated as decimal 80×10^9 B throughout, so the canonical 8×H100 pool reads 640 GB. The vendor-binary reading is 81,559 MiB ≈ 85.5×10^9 B per part ... On the vendor-binary basis the aggregate test flips to passing (164.1 < 171.0 GB), but the per-rank test still fails (70 + 12.05 (per-rank FP16 KV, 24.1 ÷ 2) + ~32 GB reserve (the same ~64 GB host reserve divided across the 2 ranks, 64 ÷ 2) = 114.05 GB > 85.5 GB)",
+  "issue": "The vendor-binary per-rank arithmetic is wrong: 70 + 12.05 + 32 = 114.05 GB, which the text compares against 85.5 GB — but the components are in inconsistent units. On the vendor-binary basis the per-rank weight footprint is 140 GB ÷ 2 = 70 GB (decimal basis) while the per-part capacity is 85.5×10^9 B (also decimal), so that part is consistent; the error is that the per-rank KV of 24.1 ÷ 2 = 12.05 GB is the 9.2K input-only KV divided by 2 ranks, but the per-rank reserve is taken as 64 ÷ 2 = 32 GB, i.e. the entire 8-GPU host's reserve split across only 2 ranks. That assumption is stated, but it is then inconsistent with the 3-GPU conclusion it supports: if the reserve is a host-level pool that scales with host width, the 2-rank case should divide by 8 (the canonical host width) or the 64 GB figure should be scaled; the text picks whichever reading reproduces 'fails' in one place and 'passes' elsewhere. Worse, the decimal-basis per-rank test the chapter actually relies on (17.5 + 54.48 + 8 = 79.98 GB of 80 GB, p. 91) uses 8 GB = 64 ÷ 8, i.e. the reserve is per-GPU-share on a 8-GPU host — so a 2-GPU host would carry 8 GB per rank, not 32 GB, under the same rule. Using the same rule (64 ÷ 8 = 8 GB per rank) on the vendor-binary basis gives 70 + 12.05 + 8 = 90.05 GB > 85.5 GB — still fails, but by a different margin than the printed 114.05 GB, and the printed figure overstates the reserve threefold relative to the book's own rule.",
+  "fix_instruction": "State one reserve rule explicitly (e.g. 'the ~64 GB runtime/workspace reserve is a host-level planning pool that scales with host width; per-rank reserve = 64 ÷ (GPUs per host)') and apply it consistently: 8 GB per rank on the canonical 8-GPU host, and on the 2-rank vendor-binary alternative either state the alternative reserve assumption explicitly and its justification, or use the same per-rank rule and recompute the total (90.05 GB > 85.5 GB) rather than the printed 114.05 GB.",
+  "confidence": "medium"
+ },
+ {
+  "id": "R12-007",
+  "severity": "P2",
+  "page": 89,
+  "chapter": "4",
+  "evidence": "a canonical-box availability-topology note ... The canonical cost figures (Ch 16 $/1K req, Ch 17 host counts) therefore understate the cost of the canonical workload's own stated 99.9% availability requirement. Treat the TCO/fleet totals as single-region, N−1-only numbers, and add a separate multi-region capacity + replication cost line before the availability SLA can be considered met. The only multi-region price anywhere in the chapter is the illustrative ~2× infrastructure multiplier in §4.6, and it carries the same UNPRICED / NOT VALIDATED status inline",
+  "issue": "The chapter states the ~2× multi-region multiplier is the 'only multi-region price anywhere in the chapter' and is UNPRICED / NOT VALIDATED, yet the Canonical Workload box itself (Table 4-1 Operational constraints row, p. 63) records the requirement as '[canonical scenario][ASSUMPTION] author-chosen availability/operational requirement (99.9% SLA, multi-region active-active, daily embedding refresh)' and the Canonical Workload box's Availability row records '99.9%' as a canonical field with no UNPRICED marker — so the workload ledger presents the multi-region active-active topology as a settled canonical input while the cost arithmetic refuses to price it. The contradiction is that the canonical box is the book's single authoritative reference set ('When a chapter states a workload parameter, it comes from here and nowhere else'), so a downstream reader who pulls '99.9% availability, multi-region active-active' from the ledger and a '$3.33/1K' fleet cost from Ch. 16 is combining an unpriced topology with a single-region price without the ledger saying so.",
+  "fix_instruction": "In the Canonical Workload box and Table 4-1's Operational constraints row, tag the multi-region active-active topology explicitly as 'UNPRICED — no cost line exists in this edition (see availability-topology note)' so the ledger cannot be read as pricing a multi-region deployment, and add a one-line pointer in the Availability row to the same note.",
+  "confidence": "medium"
+ },
+ {
+  "id": "R12-008",
+  "severity": "P3",
+  "page": 165,
+  "chapter": "7",
+  "evidence": "The full-attention component of Qwen/Qwen3.8-27B illustrates the transfer from a configuration to a memory estimate. Its language configuration has 16 full-attention layers, four KV-heads per layer, and a head dimension of 256 ... With BF16 KV storage, the raw component is: 2 × 16 × 4 × 256 × 2 = 65,536 bytes per cached token. At 262,144 cached tokens, this component occupies 16 GiB (17,179,869,184 B ≈ 17.18 GB on the chapter's decimal GB basis, §7.1).",
+  "issue": "Arithmetic check: 262,144 × 65,536 = 17,179,869,184 B = 16 GiB exactly ✓, and 17,179,869,184 / 10^9 = 17.18 GB ✓ — this row is correct. The defect is a consistency one across the two usages of the same configuration: the same Qwen3.8-27B is described in Ch. 3 (p. 73) as having '16 full-attention layers' with '48 Gated DeltaNet layers', and Ch. 7 here confirms 16 full-attention layers, but Ch. 3 §3.6.1's Qwen3.8-Flash-Next paragraph describes a different sibling checkpoint (125B/6B) with 'Gated DeltaNet (GDN) on three of every four layers plus Qwen Sparse Attention (QSA) on the fourth' — i.e. a 3:1 GDN:QSA ratio, whereas the 27B checkpoint is 48:16 = 3:1 as well, which is consistent. The actual inconsistency is that Ch. 3 states 'Chapter 7 works a configuration-backed version of exactly this two-term budget — Qwen3.8-27B's 16 full-attention layers priced separately from its 48 Gated DeltaNet layers' while Ch. 7 §7.3.2 never states the 48 Gated DeltaNet layer count or prices the recurrent-state term M_recurrent; the formula 'M_history(L) = L × 65,536 bytes + M_recurrent' is given with M_recurrent as an undefined symbol, so the 'two-term budget' Ch. 3 advertises is not actually completed in Ch. 7.",
+  "fix_instruction": "In §7.3.2, state the second term explicitly: name the 48 Gated DeltaNet (plus convolution) language layers, state that their recurrent/convolution state is fixed-shape and independent of L, give its size or state clearly that it is unmeasured and excluded, and then the M_history expression is a completed two-term budget rather than a formula with an undefined symbol.",
+  "confidence": "medium"
+ }
+]

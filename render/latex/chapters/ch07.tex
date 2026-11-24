@@ -4,14 +4,14 @@ After this chapter we should be able to answer the architect's
 fundamental constraint question: \emph{does the model and its context
 fit in the memory floor before we ask whether it can compute or
 communicate?} We will build the arithmetic for the KV cache from first
-principles, reconcile it with the canonical \textasciitilde1.31 MB/token
-figure from \hyperref[chap:1]{Chapter 1}, and contrast inference residency (weights + KV)
-with fine-tuning residency (weights + gradients + optimizer states). The
-goal is to make ``does it fit?'' a concrete, quantified check --- not a
-back-of-the-envelope guess. Throughout, the arithmetic anchors to the
-canonical enterprise-Q\&A RAG scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}):
-\textasciitilde10 rps average / \textasciitilde40 rps peak traffic
-served by a 70B \textbf{FP16} model on an 8×H100 host. KV cache
+principles, reconcile it with the \textasciitilde1.31 MB/token 8-bit
+reference figure from \hyperref[chap:1]{Chapter 1}, and contrast inference residency
+(weights + KV) with fine-tuning residency (weights + gradients +
+optimizer states). The goal is to make ``does it fit?'' a concrete,
+quantified check --- not a back-of-the-envelope guess. Throughout, the
+arithmetic anchors to the canonical enterprise-Q\&A RAG scenario (Ch 4,
+\hyperref[tab:4.2]{Table 4-2}): \textasciitilde10 rps average / \textasciitilde40 rps peak
+traffic served by a 70B \textbf{FP16} model on an 8×H100 host. KV cache
 per-token figures are given at the referenced precision throughout:
 \textasciitilde1.31 MB/token at \textbf{8-bit} (this is \hyperref[chap:1]{Chapter 1}'s
 reference figure; 8-bit here is FP8 raw byte-halving, not a block-scaled
@@ -175,7 +175,7 @@ lifetimes --- not weight precision alone --- decide the practical
 requirement. None of this changes the canonical autoregressive budget
 derived in Section 7.3; it changes what must be inventoried before that
 budget's arithmetic is reused for a different generation mechanism.
-\mbox{{[}DERIVED{]}}
+\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 \end{quote}
 
 \ntsection{Mental Model}\label{mental-model}
@@ -203,7 +203,7 @@ autoregressive steps. A whole-clip denoiser has a different lifetime
 model. Its latent video changes after each scheduler update, so video
 keys and values cannot simply be retained as immutable prefix entries
 for every later step. Static prompt embeddings can remain reusable, but
-that is not the growing autoregressive cache. \mbox{{[}DERIVED{]}}
+that is not the growing autoregressive cache.
 
 \ntsection{Worked Example}\label{worked-example}
 
@@ -297,15 +297,22 @@ scenario{]}}{[}DERIVED from 70B × 2 bytes{]} \\
 inference residency (weights + KV, 9.5K max) & ≈ 165 GB & 140 + 24.9
 GB \\
 inference residency (weights + KV, 32K) & ≈ 224 GB & 140 + 83.9 GB \\
-inference residency (weights + KV, 128K) & ≈ 475 GB & 140 + 335.5 GB \\
-2×H100 total VRAM & 2 ×80 GB = 160 GB & \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (NVIDIA H100
-80 GB specification) \\
-8×H100 total VRAM & 8 ×80 GB = 640 GB & \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (NVIDIA H100
-80 GB specification) \\
-3×H100 total VRAM & 3 ×80 GB = 240 GB & 3 × the vendor's 80 GB per-part
-constant \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (NVIDIA H100 80 GB specification); like the
-2× and 8× rows and the 640 GB pool in \hyperref[tab:7.2]{Table 7-2}, the capacity is a
-\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} vendor constant \\
+inference residency (weights + KV, 128K) & ≈ 475.5 GB & 140 + 335.5
+GB \\
+2×H100 total VRAM & 2 ×80 GB = 160 GB & 2 × the \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} 80 GB
+per-part constant (NVIDIA H100 80 GB specification) →
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}; the 2-GPU host composition is \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
+8×H100 total VRAM & 8 ×80 GB = 640 GB & 8 × the \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} 80 GB
+per-part constant (NVIDIA H100 80 GB specification) →
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}; the 8-GPU host composition is \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
+3×H100 total VRAM & 3 ×80 GB = 240 GB & 3 × the \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} 80 GB
+per-part constant (NVIDIA H100 80 GB specification) →
+\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}; like the 2× and 8× rows and the 640 GB pool in
+\hyperref[tab:7.2]{Table 7-2}, the aggregate capacity is derived arithmetic, not a
+vendor-stated total, and the 3-GPU host composition is \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
 fits 2×H100 at 9.2K? & Fail --- 164.1 GB \textgreater{} 160 GB & does
 not fit in 2×H100; needs ≥3×H100 by aggregate capacity (or lower
 precision / more GPUs) \\
@@ -525,10 +532,12 @@ decimal). Doubling history therefore adds 8 GiB (≈8.59 GB decimal) to
 this component under the stated assumptions; it does not double every
 memory object in the request. In notation, the simplified history budget
 is \texttt{M\_history(L)\ =\ L\ ×\ 65,536\ bytes\ +\ M\_recurrent},
-where \texttt{M\_recurrent} covers fixed-shape recurrent and convolution
-state for this decode path. Temporary prefill workspaces remain outside
-that expression. These are derived storage estimates, not measured
-allocations. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+where \texttt{M\_recurrent} covers the fixed-shape recurrent and
+convolution state of the other 48 language layers for this decode path.
+That state does not grow with L, and this section does not measure its
+size, so it stays outside the numeric estimates above. Temporary prefill
+workspaces remain outside that expression. These are derived storage
+estimates, not measured allocations. \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 The serving consequence follows from the state lifetimes. Capacity
 planning needs both terms, including any replication or sharding imposed
@@ -563,11 +572,13 @@ fine-tuning variants for the canonical 80-layer, hidden-8192, full-MHA
 training floor. \textbf{Label convention (applies to every row):} each
 total is \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} from the bytes-per-param
 column --- 70B × the stated bytes/param, plus the stated KV term where
-one applies --- and the two vendor constants it divides by, the 640 GB
-aggregate pool and the 80 GB per-part capacity, are \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}
-(NVIDIA H100 80 GB specification). Two rows carry an assumption inside
-the derivation: the Adam fine-tuning row's 16 B/param decomposition and
-the QLoRA row's nominal 0.5 B/param base are \mbox{{[}canonical
+one applies --- and the per-part capacity it divides by, the 80 GB H100
+constant, is \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (NVIDIA H100 80 GB specification), while
+the 640 GB aggregate pool is \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} from that constant at
+eight parts, with the eight-part host composition \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}. Two rows carry an assumption inside the
+derivation: the Adam fine-tuning row's 16 B/param decomposition and the
+QLoRA row's nominal 0.5 B/param base are \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}. Activations are excluded from every row
 (note below), and so is the \textasciitilde64 GB runtime/workspace
 reserve, which is stated once in §7.1 as \mbox{{[}canonical
@@ -830,17 +841,19 @@ runtime reserve: the KV budget is 640 − 39.24375 − 64 = 536.75625 GB. At
 sequences, so the storage-only integer ceiling rises from 17 (436 ÷
 24.90368 = 17.51) to 21 --- not in proportion to the weight compression.
 The raised ceiling also survives this chapter's binding per-rank test:
-per-rank weights are 39.24375 ÷ 8 = 4.906 GB, leaving 80 − 4.906 − 8 =
-67.09 GB of KV budget per rank, which holds 67.09 ÷ 3.11296 = 21.55 →
-floor 21 sequences --- the same integer the aggregate division gives, so
-the ceiling is not an aggregate artifact. The 64 GB reserve is held
-constant at its uncompressed value as an explicit assumption: it is a
-planning reserve, not a measured constant (§7.1), and a repack or load
-peak could consume part of the freed budget. The added KV budget does
-not prove that the ranks can place it or that 21 requests meet the
-latency SLO. Workspace, fragmentation, per-rank fit and per-rank balance
-still need measurement, and the reserve itself may change.
-\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
+per-rank weights are 39.24375 ÷ 8 = 4.906 GB, and the reserve at a rank
+is the same planning reserve used in the aggregate step above --- the 64
+GB host reserve divided by 8 ranks = 8 GB per rank, not a measured
+per-rank allocation --- leaving 80 − 4.906 − 8 = 67.09 GB of KV budget
+per rank, which holds 67.09 ÷ 3.11296 = 21.55 → floor 21 sequences ---
+the same integer the aggregate division gives, so the ceiling is not an
+aggregate artifact. The 64 GB reserve is held constant at its
+uncompressed value as an explicit assumption: it is a planning reserve,
+not a measured constant (§7.1), and a repack or load peak could consume
+part of the freed budget. The added KV budget does not prove that the
+ranks can place it or that 21 requests meet the latency SLO. Workspace,
+fragmentation, per-rank fit and per-rank balance still need measurement,
+and the reserve itself may change. \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
 
 The causal consequence is narrower than ``quantization solves memory.''
 Weight compression frees one term in the memory ledger. If KV dominates
@@ -1098,8 +1111,8 @@ consequences follow for the canonical enterprise-Q\&A workload:
   context from 9.2K to 18.4K doubles KV (\textasciitilde24.1 GB →
   \textasciitilde48 GB); 128K context drives KV to \textasciitilde335 GB
   --- on a single 80 GB GPU that forces quantization, offloading or
-  model parallelism; on the canonical 8×H100 host \textasciitilde475 GB
-  total residency fits in 640 GB but leaves little headroom for
+  model parallelism; on the canonical 8×H100 host \textasciitilde475.5
+  GB total residency fits in 640 GB but leaves little headroom for
   concurrency. The architecture must set a context-length ceiling to
   keep the served model within host memory.
   \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}
