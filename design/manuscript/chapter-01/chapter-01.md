@@ -80,9 +80,9 @@ The canonical scenario (Ch. 4, Table 4-2 — the one set of numbers every chapte
 
 *Worked example, not reference.* If average request is ~9.2K input + ~300 output ≈ **9.5K tokens** per request, and traffic is ~10 req/s, then the system ingests:
 
-- **Input tokens/s**: 9,200 tokens/req × 10 req/s = **92,000 tokens/s** (peaks higher at ~40 req/s → ~368k).
-- **Output tokens/s**: 300 ×10 = **3,000 tokens/s** output.
-- Roughly **30× more input tokens than output tokens** in this workload (9,200 ÷ 300 ≈ 30.7, carried book-wide as the canonical ~30×, Ch. 4, Table 4-2).
+- **Input tokens/s**: 9,200 tokens/req × 10 req/s = **92,000 tokens/s** (peaks at ~40 req/s → **~368,000 input tokens/s**).
+- **Output tokens/s**: 300 ×10 = **3,000 tokens/s** output (peaks at ~40 req/s → **~12,000 output tokens/s**).
+- Roughly **30× more input tokens than output tokens** in this workload (9,200 ÷ 300 ≈ 30.7, carried book-wide as the canonical ~30×; the ratio's own row is Table 1-1, derived from the Table 4-2 inputs and stated in Ch. 4 §4.3).
 
 *Rate basis and notation.* The ~10 req/s is the canonical **active-hours** average: Ch. 4 §3 defines it over an 8-hour × 260-workday schedule, not 24×7 wall-clock, so the rates above are busy-period token rates, not 24×7 fleet rates. Token counts follow the book's SI convention (K = 1,000, M = 1,000,000; Ch. 4), so 9.2K means 9,200; the tilde marks a canonical value as approximate, and it is not repeated at every later occurrence of the same value.
 
@@ -96,6 +96,7 @@ The canonical scenario (Ch. 4, Table 4-2 — the one set of numbers every chapte
 | input tokens/s @ 10 rps | ~92,000 | 9,200 ×10 [canonical scenario][DERIVED] |
 | input tokens/s @ peak 40 rps | ~368,000 | 9,200 ×40 [canonical scenario][DERIVED] |
 | output tokens/s @ 10 rps | ~3,000 | 300 ×10 [canonical scenario][DERIVED] |
+| output tokens/s @ peak 40 rps | ~12,000 | 300 ×40 [canonical scenario][DERIVED] |
 
 *(All figures trace to the canonical scenario (Ch. 4, Table 4-2); none are measurement claims.)*
 
@@ -114,7 +115,7 @@ This measurement habit is the token-layer answer to the book's recurring questio
 ## 5. Common Mistakes
 
 - **Assuming one token ≈ one word.** A token is often a *word fragment*, not a whole word: a high-frequency English word is frequently one token, but a longer or rarer word is usually split into several subword tokens, and code, numerics, and non-Latin scripts can run 2–5× (rule of thumb; the multiplier is tokenizer- and language-specific) the naive word-count estimate. The mapping is tokenizer-dependent (it depends on the corpus the tokenizer was trained on), so the "one token ≈ 4 characters" rule of thumb is for rough estimation of general-English prose only — confirm against the model's own tokenizer before pricing anything.
-- **Ignoring the input/output asymmetry.** Treating a request as "one unit" hides that input-heavy workloads tend toward high prefill compute and KV-capacity pressure, while output-heavy ones are decode-dominant (run-time per generated token) — opposite bottlenecks with opposite fixes. (Note: "capacity pressure" is a memory-*capacity* constraint, not a memory-*bandwidth* bound; see Ch. 4/8.)
+- **Ignoring the input/output asymmetry.** Treating a request as "one unit" hides that input-heavy workloads tend toward high prefill compute and KV-capacity pressure, while output-heavy ones are decode-dominant (run-time per generated token) — opposite bottlenecks with opposite fixes. (Note: "capacity pressure" is a memory-*capacity* constraint, not a memory-*bandwidth* bound; see § 7.3, the concurrency ceiling, and § 8.2, the roofline diagnostic that separates memory-capacity-constrained from memory-bandwidth-bound.)
 - **Quoting context window as free capacity.** The window is an upper bound, not a recommendation; using it fully is expensive. Keeping a 9.2K average inside a 128K window still costs for the length we actually use.
 - **Trusting a vendor's tokenizer count without checking.** Tokenizer versions change and report differently; measure on *our* traffic, not the marketing figure.
 
