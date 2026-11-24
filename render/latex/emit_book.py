@@ -76,13 +76,13 @@ def make_titlepage():
     lines.append(r"\vspace*{3cm}")
     lines.append(r"{\Huge\bfseries From Token to Fleet\par}")
     lines.append(r"\vspace{1.5cm}")
-    lines.append(r"{\Large\itshape An AI Solution Architect's Handbook\par}")
+    lines.append(r"{\Large\itshape An AI Solution Architect’s Handbook\par}")
     lines.append(r"\vspace{0.8cm}")
     lines.append(r"{\normalsize First edition, 2026\par}")
     lines.append(r"\vfill")
     lines.append(r"{\large Zhiqi Tao\par}")
     lines.append(r"\vspace{0.8cm}")
-    lines.append(r"{\small\itshape From a single token's cost to the fleet that carries it, every architectural decision can be traced — and defended — with arithmetic.\par}")
+    lines.append(r"{\small\itshape From a single token’s cost to the fleet that carries it, every architectural decision can be traced — and defended — with arithmetic.\par}")
     lines.append(r"\vfill")
     lines.append(r"\end{titlepage}")
     return "\n".join(lines)
@@ -96,11 +96,20 @@ def make_copyrightpage():
     lines = []
     lines.append(r"\begin{titlepage}")
     lines.append(r"\thispagestyle{empty}")
+    # The legal block below must fit one page (R5-004: a spilling one-line
+    # warranty printed "ii" inside roman front matter).  Two extra baselines of
+    # text height absorb the edition/licence wording without touching the page
+    # geometry elsewhere in the book.
+    lines.append(r"\enlargethispage{2\baselineskip}")
     lines.append(r"{\centering\MakeUppercase{Copyright \textcopyright{} 2026 Zhiqi Tao}\\[2pt] All rights reserved, except as explicitly granted below.\par}")
     # R5-004 follow-on: the page must stay a single page.  It previously spilled
     # the one-line warranty onto a second page (which printed "2", an arabic
-    # number inside roman front matter).  Reclaim the slack in the heading gap.
-    lines.append(r"\vspace{0.5cm}")
+    # number inside roman front matter).  The legal block is therefore set in
+    # \small (conventional for a copyright page) inside its own group, with the
+    # heading gap reclaimed, so the added edition/licence wording cannot push
+    # the warranty onto a verso.
+    lines.append(r"\vspace{0.25cm}")
+    lines.append(r"{\small")
     lines.append(r"\noindent\textbf{License.} This work --- the book text, diagrams, figures, and build scripts --- is distributed under the \emph{source-available} grant stated below. That grant is the operative license for this edition: the default is all rights reserved, and the two permissions below are the stated exception. The full text of the license, including the redistribution restrictions and the channel-specific terms (e.g.\ Amazon KDP), is the \texttt{LICENSE} file in the repository, which is the authoritative statement of rights for this work. The two bullets are a plain-language summary, not the license text; they are not operative in their own right, and the \texttt{LICENSE} file at the pinned commit below governs wherever the two differ.")
     lines.append("")
     lines.append(r"\begin{itemize}")
@@ -121,21 +130,127 @@ def make_copyrightpage():
     # repository root while the prose promised a direct link to the pinned
     # LICENSE file.  Print the pinned path in the link text so the visible URL
     # and the sentence agree.
-    lines.append(r"\noindent\textbf{SPDX identifier:} \mbox{\texttt{LicenseRef-ZhiqiResearch-FromTokenToFleet-1.0}}.\par")
-    lines.append(r"\noindent\textbf{Full terms:} \href{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{github.com/zhiqitao/from-token-to-fleet/blob/27f4cd5/LICENSE}}")
+    lines.append(r"\noindent\textbf{SPDX identifier:} \mbox{\texttt{LicenseRef-ZhiqiResearch-FromTokenToFleet-1.0}}. The identifier is a custom \texttt{LicenseRef}, not an OSI-approved standard licence: this work's terms are its own, and no standard-licence text can be substituted for them.\par")
+    lines.append(r"\noindent\textbf{Full terms:} \href{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{https://github.com/zhiqitao/from-token-to-fleet/blob/27f4cd5/LICENSE}}")
     lines.append("")
-    lines.append(r"\noindent\textbf{Edition source revision.}\ This edition is built from commit \mbox{\texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3}} (short \texttt{27f4cd5}) of the repository. The link above resolves that commit's \texttt{LICENSE} file directly, so the terms quoted here can be read in their exact published form without locating the revision elsewhere (raw file: \href{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd5/LICENSE}}).\par}")
+    lines.append(r"\noindent\textbf{Edition source revision.}\ This edition is built from commit \mbox{\texttt{27f4cd571d53ecb2ac549d5825a77c87f8736ad3}} (short \texttt{27f4cd5}) of the repository. The link above resolves that commit's \texttt{LICENSE} file directly, so the terms quoted here can be read in their exact published form without locating the revision elsewhere (raw file: \href{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd571d53ecb2ac549d5825a77c87f8736ad3/LICENSE}{\texttt{https://raw.githubusercontent.com/zhiqitao/from-token-to-fleet/27f4cd5/LICENSE}}).\par}")
     lines.append("")
-    lines.append(r"\noindent\textbf{Applicable terms and edition.} The SPDX identifier above names the exact license version this edition is published under, and the commit above is the immutable source revision that carries it; together they are the authoritative reference, so a buyer can confirm the exact text rather than infer it from the summary here.")
+    lines.append(r"\noindent\textbf{Edition identification.} First edition, 2026 --- build identifier \texttt{v20260913}; single evidence cutoff \textbf{2026-08-30}. Both identifiers are restated in the Preface and the Edition-history panel of the Sources, Method, and Reproducibility chapter.")
     lines.append("")
-    lines.append(r"\noindent\textbf{Technical disclaimer.} This book describes an evolving field. Model names, parameter counts, prices, context limits, throughput and latency figures, licenses, and benchmark results change quickly and may differ by regional cloud pricing, hardware SKU, precision/sparsity configuration, batch and concurrency, software stack, and measurement methodology. Every quantitative value here carries an explicit evidence label --- a dated measurement, a figure derived from cited inputs, an illustrative assumption, or a stated hypothesis; the three label axes behind those labels are defined in the Preface, and the full label set in the Sources, Method, and Reproducibility chapter. Each is a snapshot as of the book's dated version, and must be re-verified against the vendor's current documentation before any procurement or deployment decision.")
+    lines.append(r"\noindent\textbf{Applicable terms and edition.} The SPDX identifier above names the licence version this edition is published under, and the commit above is the immutable source revision that carries it; together they identify the terms for online verification. The operative licence text is \emph{not} reproduced in this artifact --- the paragraphs above are a plain-language summary --- so a reader holding only this file must retrieve the grant from the pinned commit.")
+    lines.append("")
+    lines.append(r"\noindent\textbf{Technical disclaimer.} This book describes an evolving field. Model names, parameter counts, prices, context limits, throughput and latency figures, licences, and benchmark results change quickly and differ by region, hardware SKU, precision and sparsity, batch size, software stack, and measurement method. Every quantitative value here carries explicit evidence labels on the book's three axes --- provenance (where the number came from), epistemic status (what was done to it: FACT, DERIVED, ASSUMPTION, HYPOTHESIS, or UNRESOLVED), and an optional measurement status (ANALYTICAL, SCENARIO-DERIVED, MODELED, MEASURED, or UNMEASURED). The axes and the full label set are defined in the Preface, and the labels are catalogued in the Sources, Method, and Reproducibility chapter. Each value is a snapshot as of the evidence cutoff recorded above, and must be re-verified against the vendor's current documentation before any procurement or deployment decision.")
     lines.append("")
     lines.append(r"\noindent\footnotesize \textbf{Currency.} Technical content is current as of the dated build; the fastest-moving claims (Appendix A and the economics chapters) are flagged in-text as items that require re-checking against current vendor documentation.")
     lines.append(r"\vfill")
     lines.append(r"\noindent\footnotesize The work is provided ``as is'', without warranty of any kind.")
+    lines.append(r"}")
     lines.append(r"\end{titlepage}")
     return "\n".join(lines)
 
+
+
+def _lot_short_title(raw):
+    """Short title for the List of Tables: the caption's leading phrase, with
+    the long qualifier clauses trimmed.  Hand-tuned overrides sit below so the
+    index stays readable where a caption is itself a paragraph."""
+    OVERRIDES = {
+        "7-1": "KV cache size per token and per-context arithmetic (canonical 80-layer, full-MHA 70B, FP16)",
+        "7-2": "Memory floors by regime: inference and fine-tuning",
+        "8-1": "Per-token FLOP cost, prefill PFLOP, and derived prefill and roofline rates",
+        "12-1": "Candidate architectures scored against the three gates",
+        "16-1": "TCO comparison across delivery modes",
+        "16-2": "Availability-scope reconciliation and remaining gaps",
+        "17-1": "Provisioning policy: symbols, canonical values, and independent factors",
+        "17-2": "Fleet sizing matrix: KV-residency ceiling and minimum hosts",
+    }
+    return OVERRIDES.get(raw)
+
+
+def table_catalogue():
+    """Return [(printed_id, label, title)] for every numbered table that has a
+    printed ID in the manuscript, in document order.
+
+    The manuscript captions a table either as a heading ('#### Table 4-1 — T')
+    or as a bold run-in ('**Table 4-1 — T**', '**Table 4-1** — T'); both forms
+    are matched here.  Only tables whose LaTeX \\label exists are emitted, so a
+    caption without a labelled longtable can never produce a '??' page number.
+    """
+    labels = set()
+    for tex in sorted(glob.glob(os.path.join(LATEX, "chapters", "ch*.tex"))):
+        labels.update(re.findall(r"\\label\{tab:([^}]+)\}",
+                                 open(tex, encoding="utf-8").read()))
+    pats = [
+        r"^#{2,5}\s+Table\s+(\d+)-(\d+)\s*[—]\s*(.+)$",
+        r"^\*\*Table\s+(\d+)-(\d+)\s*[—]\s*(.+)$",
+        r"^\*\*Table\s+(\d+)-(\d+)\*\*\s*[—]\s*(.+)$",
+        r"^\*Table\s+(\d+)-(\d+)\s*[—]\s*(.+)$",
+        r"^:\s*\*\*Table\s+(\d+)-(\d+)\*\*\s*[—]\s*(.+)$",
+    ]
+    rows = []
+    for md in sorted(glob.glob(os.path.join(REPO, "design", "manuscript",
+                                            "chapter-*", "chapter-*.md"))):
+        seen = {}
+        for line in open(md, encoding="utf-8").read().split("\n"):
+            for p in pats:
+                m = re.match(p, line)
+                if m:
+                    seen.setdefault((m.group(1), m.group(2)), m.group(3))
+                    break
+        for (n, m), raw in seen.items():
+            key = f"{n}.{m}"
+            if key not in labels:
+                continue
+            title = _lot_short_title(f"{n}-{m}")
+            if title is None:
+                title = re.sub(r"\*\*|\*|`", "", raw)
+                title = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", title)
+                title = re.sub(r"\s+", " ", title).strip().rstrip(".")
+                for sep in (". ", " (", " [", "; "):
+                    i = title.find(sep)
+                    if 12 < i:
+                        title = title[:i]
+                        break
+            rows.append((int(n), int(m), f"Table {n}-{m}", key, title.strip().rstrip(".")))
+    # Order by chapter, then by table number --- a reader looks a table up by
+    # its number, not by where it happens to fall in the chapter's flow (Ch. 26
+    # prints 26-3 before 26-1).
+    rows.sort()
+    return [(pid, key, title) for (_, _, pid, key, title) in rows]
+
+
+def make_list_of_tables():
+    """Return the List of Tables block: printed ID, short title, folio.
+
+    Folios come from \\pageref on the table's own label, so the page numbers are
+    resolved by LaTeX at build time and can never drift from the body.  Tables
+    the manuscript never numbers are not listed --- an unnumbered table has no
+    printed ID for a reader to look up.
+    """
+    rows = table_catalogue()
+    lines = []
+    lines.append(r"\phantomsection")
+    lines.append(r"\addcontentsline{toc}{chapter}{List of Tables}")
+    lines.append(r"\chapter*{List of Tables}")
+    lines.append(r"\markboth{List of Tables}{List of Tables}")
+    lines.append(r"{\footnotesize Every table the book numbers, with a page on which it "
+                 r"appears. Unnumbered tables --- inline worked calculations and continuation "
+                 r"panels --- carry no printed ID and are not indexed here.\par}")
+    lines.append(r"\vspace{0.6em}")
+    lines.append(r"{\small")
+    lines.append(r"\begin{list}{}{%")
+    lines.append(r"  \setlength{\leftmargin}{0pt}\setlength{\labelwidth}{0pt}%")
+    lines.append(r"  \setlength{\labelsep}{0pt}\setlength{\itemindent}{0pt}%")
+    lines.append(r"  \setlength{\parsep}{3pt}\setlength{\itemsep}{0pt}%")
+    lines.append(r"  \setlength{\rightmargin}{0pt}}")
+    for printed_id, key, title in rows:
+        lines.append(r"\item \mbox{%s}\hspace{0.7em}%s\dotfill\ \pageref{tab:%s}"
+                     % (printed_id, tex_escape(title), key))
+    lines.append(r"\end{list}")
+    lines.append(r"}")
+    if not rows:
+        lines.append(r"\noindent No numbered tables.")
+    return "\n".join(lines)
 
 
 def emit_book():
@@ -196,6 +311,12 @@ def emit_book():
     lines.append(r"\listoffigures")
     lines.append("")
     lines.append(r"\clearpage")
+    # List of Tables: the book numbers 41 tables and cross-references them by
+    # number, so the apparatus indexes them alongside the figures rather than
+    # leaving them reachable only from a chapter's own prose (round-7 findings
+    # F-001 / P1-002 / APP-01 / NAV-001 / R7-125).
+    lines.append(make_list_of_tables())
+    lines.append("")
     lines.append(r"\chapter{Preface}")
     lines.append(r"\input{preface}")
     lines.append("")

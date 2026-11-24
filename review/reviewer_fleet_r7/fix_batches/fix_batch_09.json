@@ -1,0 +1,42 @@
+{
+ "target": "design/manuscript/chapter-08/chapter-08.md",
+ "findings": [
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-051",
+   "severity": "P1",
+   "page": 177,
+   "chapter": "Ch. 8 §8.1.2",
+   "evidence": "Page 177: \"Three different 'bounds' — keep them apart. Throughout this book, three words that all contain 'bound' mean three different things ... Compute-bound means ... Memory-bandwidth-bound (what the roofline calls 'memory-bound') means ... Memory-capacity-constrained (often KV-capacity-constrained in long-context inference) means ... 'Input-heavy' does not by itself mean 'memory-bound' — it tends to raise prefill compute and KV-capacity pressure, two distinct effects. When the book says 'memory-bound' without qualification, it means bandwidth-bound in the roofline sense; capacity pressure is stated explicitly.\"",
+   "issue": "The chapter declares a strict three-way distinction and states that the book 'says memory-bound without qualification' meaning bandwidth-bound — but Ch. 4 (p. 78) uses 'memory-capacity-bound' as the primary characterisation ('the system is first-order memory-capacity-bound (the KV cache's HBM footprint limits how many concurrent requests fit — KV HBM capacity limits concurrency, not bandwidth — at the Ch 17 concurrency screen)'), and Ch. 4 §4.5 (p. 85) warns 'it does not by itself make the system memory-bandwidth-bound'. Meanwhile Ch. 2 (p. 22) and Ch. 6 (p. 135) say 'decode is bandwidth-bound' and 'prefill is compute-bound'. The terminology is broadly consistent, but the rule 'the book says memory-bound without qualification, it means bandwidth-bound' is violated by the very phrase 'memory-capacity-bound' used unqualified on p. 78, which is a fourth construction not in the three-word list.",
+   "fix_instruction": "Extend the three-word list to include 'memory-capacity-bound' as the name of the third construct, so the p. 78 usage falls inside the declared vocabulary, and change 'without qualification' to name the exact permitted forms ('bandwidth-bound' and 'capacity-bound').",
+   "confidence": "medium",
+   "_tid": "R7-066"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-052",
+   "severity": "P1",
+   "page": 174,
+   "chapter": "Ch. 8 §8.1",
+   "evidence": "Page 174: \"FLOPs scale linearly with parameter count and token count for projection-dominated work (~2N per token), while attention adds a term quadratic in context length (~4·n_layers·L²·d, where d is the model hidden dimension, d = n_heads × d_head = 8192 here; the term counts both the QK^T and AV matmuls for full dense attention and excludes projections and softmax; derived in §8.3 (Table 8-1) and Ch 22)\". Page 45 (Ch. 2): \"The 1.29 PFLOP row excludes the quadratic attention term, ≈4 × nlayers × L2 × d — ~0.22 PFLOP (+17.23%) at the canonical 9.2K-token, 80-layer, hidden-8192 geometry — so total prefill compute is ~1.51 PFLOP (Ch 8 case (ii), full-square) or ~1.40 PFLOP (case (iii), causal-triangle).\"",
+   "issue": "Substituting the book's own stated formula: 4 × 80 × (9,200)² × 8,192 = 4 × 80 × 84,640,000 × 8,192. 4 × 80 = 320; 320 × 84,640,000 = 2.70848e10; × 8,192 = 2.2190e14... i.e. 2.219e14 FLOP = 0.222 PFLOP — not 2.219 PFLOP. So the printed ~0.22 PFLOP is correct and my earlier concern is resolved: 4·n·L²·d with L=9,200 gives 0.222 PFLOP, and 1.29 + 0.22 = 1.51 ✓; case (iii) = 2·n·L²·d = 0.111 PFLOP → 1.40 ✓. The defect is therefore not the arithmetic but the SIZE of the attention term relative to intuition: the causal-triangle variant halves it, and the book's '+17%' framing is right. However, the same book elsewhere (p. 174) notes the attention term 'counts both the QK^T and AV matmuls for full dense attention and excludes projections and softmax' — yet the 4·n·L²·d form does not include the head-count factor that makes the per-layer attention cost 4·L²·d_head·n_heads = 4·L²·d (correct) — so no error there. The genuine defect in this item is a units/label issue on p. 45: it writes '≈4 × nlayers × L2 × d' using 'L2' where the book's own notation elsewhere is 'L²' (p. 174) and 'n_layers' where the book uses 'n_layers' on p. 174 but 'nlayers' on p. 45 and 'n_layers' on p. 27 — three spellings of one symbol across three pages, and 'L2' collides with the book's own distinct term 'L2' never defined vs 'L²' defined.",
+   "fix_instruction": "Normalize the symbols to one form throughout (n_layers, L², d_hidden) and set them in the same typography, so 'L2' cannot be read as a different quantity from 'L²' and 'nlayers' does not look like a different variable.",
+   "confidence": "medium",
+   "_tid": "R7-067"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-053",
+   "severity": "P1",
+   "page": 175,
+   "chapter": "Ch. 8 §8.1.1",
+   "evidence": "Page 175: \"A projection-dominated work proxy is Fprojection ≈ Σj 2PjQj. ... For a full dense-attention evaluation over length L, attention work grows quadratically with L. For K active queries over a cached prefix of length C, the attention main term grows with K(C + K), before the architecture's head and layer factors.\"",
+   "issue": "The book's own canonical attention formula (p. 174) is 4·n_layers·L²·d for full dense attention over L positions. The Ch. 8 §8.1.1 statement 'attention work grows quadratically with L' is correct for the full-length case, but the K(C+K) form for a cached-prefix evaluation is a different quantity from L² and the book never reconciles them: for the autoregressive decode case K=1, C=L−1, K(C+K) = L — linear, matching the book's decode model (p. 21: 'the per-step cost is approximately constant in context length' but 'the attention term grows with context'). The defect is that the book's canonical prefill figure (case ii/iii) uses the L² form and its decode attention form is K(C+K), yet Ch. 8's canonical decode arithmetic (p. 137 in Ch. 6: '164.1 GFLOP — 140 projection + 24.1 attention') attributes 24.1 GFLOP of decode attention per token. Check: the decode attention FLOPs for one token against a 9.2K-token cache with 64 heads × 128 head_dim across 80 layers = 2 × 2 × 9,200 × 64 × 128 × 80 = 1.927e13 = 19.3 TFLOP — not 24.1 GFLOP. The Ch. 6 figure of '24.1' appears to be the KV byte count (24.1 GB) misread as a FLOP count.",
+   "fix_instruction": "Recompute and correct the decode attention FLOP term: with a 9.2K-token cache the per-token decode attention work is ~19.3 TFLOP (2 matmuls × 2 FLOPs × L × d_model × n_layers), not 24.1 GFLOP — and correct the Ch. 6 §6.3.3 figure '164.1 GFLOP — 140 projection + 24.1 attention' plus the resulting intensity (which becomes ~140 + 19,300 GFLOP ÷ 24.1 GB ≈ 810 FLOP/byte, not ~6.8).",
+   "confidence": "high",
+   "_tid": "R7-068"
+  }
+ ],
+ "count": 3
+}

@@ -1,0 +1,90 @@
+{
+ "target": "design/manuscript/chapter-06/chapter-06.md",
+ "findings": [
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-040",
+   "severity": "P1",
+   "page": 132,
+   "chapter": "Ch. 6 §6.3.1 / Fig 6.2",
+   "evidence": "Page 132: \"Read off the sample, the long tail looks like this: p50 ≈ 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s.\" Page 134, Fig 6.2 labels: 'p50 0.80', 'p90 0.94', 'p95 0.99', 'p99 = 1.33 s', 'mean = 0.85s', 'sample p99 (interpolation) = 1.33s', 'population p99 = 5.0 s'. Page 132 also: \"The two-point analytic mean is 0.842 s ... The plotted synthetic stream's exact mean is 0.85 s\".",
+   "issue": "The figure's own caption (p. 134) says the sample p99 of 1.33 s 'is contingent on exactly 100 stragglers in this draw — with 101 of 10,000 the interpolated sample p99 is 5.0 s'. A percentile that flips by a factor of 3.8 on a single-sample change, sitting on a SLO boundary, is the chapter's headline illustration. The chapter does disclose this, but the figure's visual annotation 'p99 = 1.33 s' is rendered as the headline value with the knife-edge caveat only in the caption's reproducibility paragraph, and the figure additionally prints 'population p99 = 5.0 s' as a separate label — so the figure carries two mutually contradictory p99 values as co-equal labels with no visual hierarchy indicating which one the SLO should be judged against. The text (p. 132) adds that 'even this sample's p99 (≈1.33 s) still looks healthy' while the population p99 of 5.0 s sits above the 2 s SLO.",
+   "fix_instruction": "In Fig 6.2, visually subordinate or re-label the two p99 values so it is unambiguous which is the SLO-relevant one (e.g. 'sample p99 (draw-dependent: 1.33 s at 100 stragglers, 5.0 s at 101)'), and align the figure's caption with the text's own statement that the population p99 (5.0 s) is the SLO-relevant value.",
+   "confidence": "medium",
+   "_tid": "R7-056"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-041",
+   "severity": "P1",
+   "page": 133,
+   "chapter": "Ch. 6 §6.3.2",
+   "evidence": "Page 133: \"Concretely: suppose we enable larger dynamic batching to raise raw tokens/s from 50 tok/s to 70 tok/s, but the batch window pushes p95 TTFT from 1.8 s to 2.3 s — above the 2 s SLO. Scenario A [ILLUSTRATIVE][DERIVED]: the extra 20 tok/s are produced, but they land in the tail that misses the SLO, so goodput does not grow — goodput is unchanged only at f ≈ 68.6 % (48 ÷ 70)\" and: \"Scope note: the 50→70 tok/s figures are low-batch decode operating points (Ch 5's illustrative basis, ~14–20 ms/token across the 50–70 tok/s range; canonical batch-1 is 40 tok/s at 25 ms/token)\".",
+   "issue": "Check the arithmetic: 48 ÷ 70 = 68.57% ✓; 50 × 0.96 = 48 ✓; 70 × 0.94 = 65.8 ✓; 70 × 0.65 = 45.5 ✓. The logic is correct and the three scenarios are properly qualified. The defect is the register: the chapter presents this as the worked 'Goodput vs Raw Throughput' example, and the p95 breach (1.8 → 2.3 s) is the trigger — but the canonical p95 TTFT SLO is ≤ 2 s (p. 84), so both 1.8 s and 2.3 s straddle the same 2 s line the chapter elsewhere uses; that is fine. The real issue is that the 50 tok/s baseline used here is the Ch. 5 ILLUSTRATIVE single-stream rate, while the 70 tok/s target is presented as a 'larger dynamic batching' outcome — i.e. an illustrative input is being compared against a batched outcome without a batched baseline, so the 'throughput increase' and the 'compliant fraction' are drawn from different operating points. The scope note acknowledges the rate range but does not resolve the baseline mismatch.",
+   "fix_instruction": "State in Scenario A that the 50 tok/s baseline is the Ch. 5 single-stream illustrative point while 70 tok/s represents a batched configuration, so the two are not like-for-like, and either supply a batched-to-batched pair or label the comparison explicitly as cross-register.",
+   "confidence": "medium",
+   "_tid": "R7-057"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-043",
+   "severity": "P2",
+   "page": 141,
+   "chapter": "Ch. 6 §6.8 mini-case",
+   "evidence": "Page 141: \"the peak demands ~18.6× one host's prefill capacity (18.6 host-equivalents); prefix caching is a partial mitigation (~13% of prefill FLOPs — an upper bound, §6.3.4: the cacheable fraction is smaller once the query tokens are excluded), not the fix. ... at 21 hosts the 344 in-flight peak requests fit the 21 × 17 = 357 resident slots, and the peak prefill oversubscription falls from 18.6× to 51.6 ÷ (21 × 2.77) ≈ 0.9×\".",
+   "issue": "51.6 ÷ (21 × 2.77) = 51.6/58.17 = 0.887 ≈ 0.9× ✓. The arithmetic checks. The defect is the ~13% prefix-cache figure: p. 138 derives it as 'the byte-identical share is at most the fixed system/instruction portion of the ~1,200-token prompt ... so ~13% of prefill FLOPs (the whole-slot case) is an upper bound on the cacheable fraction' — 1,200/9,200 = 13.04% ✓. But the mini-case then uses ~13% as the mitigation quantity to compute the residual demand: 'it still leaves ~44.9 PFLOP/s of demand against ~2.77 PFLOP/s of sustained capacity, ~16.2 host-equivalents'. Check: 51.6 × (1 − 0.13) = 44.93 ✓ and 44.9/2.77 = 16.2 ✓. The arithmetic is right, but the 13% is an upper bound on the cacheable fraction — the residual computed from an upper bound is therefore an upper bound on the residual, and at 21 hosts the true residual could be lower or higher than 0.9× depending on the actual hit rate. The mini-case presents '0.9×' as the post-fix oversubscription fact without the bound's direction attached.",
+   "fix_instruction": "State the residual as a bound (≤0.9× on the ~13% upper-bound assumption, ≥0.9× if the cacheable fraction is smaller), and mark the ~16.2 host-equivalents residual as bound-derived rather than measured.",
+   "confidence": "medium",
+   "_tid": "R7-058"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-054",
+   "severity": "P1",
+   "page": 137,
+   "chapter": "Ch. 6 §6.3.3",
+   "evidence": "Page 137: \"With the canonical 9.2K KV re-read included, intensity saturates at ~6.8 FLOP/byte (164.1 GFLOP — 140 projection + 24.1 attention — ÷ 24.1 GB of canonical 9.2K FP16 KV; ~5.8 at batch 32), so decode stays bandwidth-bound at every batch size — Ch 8.\"",
+   "issue": "Three problems in one sentence. (a) '24.1 attention' GFLOP is not a FLOP count: the decode attention work against a 9.2K cache is ~19.3 TFLOP (2×2×L×d_model×n_layers as above) — the number 24.1 is the KV cache's byte count in GB, i.e. a unit slip between bytes and FLOPs. (b) The stated conclusion 'decode stays bandwidth-bound at every batch size' is contradicted by the corrected arithmetic: with 19.3 TFLOP of attention FLOPs against 24.1 GB of KV, the attention portion alone runs at ~800 FLOP/byte, far above the ~295 ridge, so the KV-attention portion is compute-bound, not bandwidth-bound — and the book states the opposite on p. 50 ('the attention portion reads KV cache at an intensity of only ~1 FLOP/byte for the full-MHA canonical model ... and stays bandwidth-bound at every realistic batch size'). (c) The '~1 FLOP/byte' figure on p. 50 is likewise wrong for the same reason: decode attention per token is ~19.3 TFLOP against 24.1 GB, i.e. ~800 FLOP/byte, not ~1.",
+   "fix_instruction": "Recompute the decode attention intensity from the model's own geometry (2·2·L·d_model·n_layers FLOPs against 2·n_layers·L·d_model bytes) — which simplifies to 2 FLOP/byte for full dense attention, ~16 FLOP/byte for GQA-8 — and correct the ~1, ~6.8 and ~5.8 FLOP/byte figures in Ch. 6 §6.3.3 and Ch. 2 §2.3 accordingly, including the 'stays bandwidth-bound at every batch size' conclusion.",
+   "confidence": "high",
+   "_tid": "R7-069"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-102",
+   "severity": "P1",
+   "page": 129,
+   "chapter": "Ch. 6 §6.1.1",
+   "evidence": "Page 129: \"1. Workload metrics — what the system is being asked to do. Requests per second (rps) and the token profile (input length, output length, context length). These are the independent variables — the offered load; we do not control them, we characterize them. Admitted concurrency is a serving/scheduler state (Little's law), not a workload input. Fig 6.1's workload box lists concurrency alongside rps and the token profile: read that entry as offered concurrency — the arrival-side λ that the traffic offers — not as admitted or queued concurrency, which sits on the serving/scheduler side with queue depth.\"",
+   "issue": "The chapter reads 'Admitted concurrency is a serving/scheduler state (Little's law)' and then instructs the reader to read Fig 6.1's 'concurrency' entry as *offered* concurrency. But Ch. 4 (pp. 84, 96) is emphatic that request concurrency is a Little's-law-derived quantity (Lexec = λ × Wexec ≈ 86 / 344) and that 'concurrent users' is the population measure — there is no 'offered concurrency' quantity anywhere in the canonical scenario. Ch. 4 §4.6 (p. 106) even says 'Requests in flight ≠ KV-resident sequences'. So Ch. 6 introduces a third concurrency concept ('offered concurrency, the arrival-side λ') that does not exist in the book's canonical vocabulary, and describes concurrency as 'the arrival-side λ' — which is a rate, not a concurrency.",
+   "fix_instruction": "Remove 'offered concurrency' from Fig 6.1's workload box (or rename it 'request rate / arrival pattern'), and align Ch. 6's classification with Ch. 4's: population (active users) → arrival rate (λ) → in-flight requests (λ·W) → resident KV slots, with the note that concurrency is a derived serving-side quantity.",
+   "confidence": "high",
+   "_tid": "R7-111"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "P1-104",
+   "severity": "P2",
+   "page": 132,
+   "chapter": "Ch. 6 §6.3.1",
+   "evidence": "Page 132: \"Under the canonical p95 TTFT SLO of ≤ 2 s, even this sample's p99 (≈ 1.33 s) still looks healthy — the population p99 is 5.0 s, sitting on the straggler cluster.\" Page 134 Fig 6.2 annotation: 'SLO 2 s (TTFT budget)' — the figure labels the 2 s line as the 'TTFT budget'.",
+   "issue": "Ch. 4 (p. 84) and the Preface distinguish 'TTFT SLO 1.2 s (retrieval ~120 ms + prefill); p95 ≤ 2 s' — i.e. 1.2 s is the budget and 2 s is the p95 ceiling. The figure's axis label 'SLO 2 s (TTFT budget)' calls the 2 s ceiling the 'budget', which contradicts the canonical ledger's terminology and makes the 1.2 s budget invisible in the figure. This is the same terminology collision as P1-070, but in the figure's own annotation.",
+   "fix_instruction": "Relabel Fig 6.2's line as 'p95 TTFT ceiling: 2 s' (and, if the figure permits, add the 1.2 s design budget as a second, distinct line), so the figure's annotation matches Table 4-2's terminology.",
+   "confidence": "high",
+   "_tid": "R7-112"
+  },
+  {
+   "model": "HY4-Flash",
+   "id": "MATH-001",
+   "severity": "P2",
+   "page": "135 (printed 115)",
+   "chapter": "6 — Measuring What Matters: From Telemetry to Architecture Decisions",
+   "evidence": "'With the canonical 9.2K KV re-read included, intensity saturates at ~6.8 FLOP/byte (164.1 GFLOP — 140 projection + 24.1 attention — ÷ 24.1 GB of canonical 9.2K FP16 KV; ~5.8 at batch 32), so decode stays bandwidth-bound at every batch size — Ch 8.'",
+   "issue": "The denominator is not the same at the two displayed operating points. 164.1 ÷ 24.1 = 6.8 counts both the projection and attention FLOPs but divides by KV bytes only, silently dropping the 140 GB weight read that appears in the same sentence's numerator. The quoted ~5.8 at batch 32 is obtained only if weight bytes are included: 32 × 164.1 = 5251.2 GFLOP ÷ (32 × 24.1 + 140) = 911.2 GB = 5.76 ≈ 5.8. A consistent batch-1 combined intensity is 164.1 ÷ (140 + 24.1) ≈ 1.0 FLOP/byte, not 6.8. Separately, 'saturates' contradicts the displayed decline from 6.8 to 5.8. The bandwidth-bound conclusion may still hold (both values are far below the ridge ~295), but the displayed arithmetic does not support the stated numbers.",
+   "fix_instruction": "State one denominator rule and apply it at both points: if weight bytes are counted when weights appear in the numerator, batch 1 is ~1.0 FLOP/byte and batch 32 is ~5.8 FLOP/byte. Remove 'saturates' or show a monotonic curve with its formula, and reconcile the wording with the Ch. 8 roofline treatment.",
+   "confidence": "high",
+   "_tid": "R7-127"
+  }
+ ],
+ "count": 7
+}
