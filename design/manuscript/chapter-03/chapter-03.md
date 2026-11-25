@@ -70,7 +70,7 @@ We contrast with a representative MoE model in the Mixtral lineage. Its publishe
 |---|---|---|
 | Total parameters (across 8 experts) | ~47B | ~5.7B per expert × 8 = 45.6B + ~1.4B always-on (attention/shared + embeddings) = 47B [ILLUSTRATIVE][DERIVED] |
 | Active parameters per token (top-2 routing) | ~12.8B | 2 × 5.7B routed experts + ~1.4B always-on attention/shared = 12.8B (~27% of the ~47B total; ~24% counting expert-FFN mass alone) [ILLUSTRATIVE][DERIVED] |
-| Active/total fraction | ~27% | 12.8B ÷ 47B ≈ 27.23% (≈24–27% for top-2-from-8) [ILLUSTRATIVE][DERIVED] |
+| Active/total fraction | ~27% | 12.8B ÷ 47B ≈ 27.23%, giving the ~24–27% band for top-2-from-8: the ~27% end counts all active parameters (11.4B routed + 1.4B always-on = 12.8B), the ~24% end counts expert-FFN mass alone (11.4B ÷ 47B ≈ 24.3%); the band exists because the always-on block counts as active compute but not as expert mass [ILLUSTRATIVE][DERIVED] |
 | FP16 active weight-read per token (batch-1 decode) | ~25.6 GB | 12.8B × 2 bytes = 25.6 GB read per token at batch 1 (compute/bandwidth; does NOT set residency) [ILLUSTRATIVE][DERIVED] |
 | FLOPs per token (batch-1 decode forward pass, approx.) | ~0.0256T | 12.8B active × 2 FLOP/param = 25.6B [ILLUSTRATIVE][DERIVED] |
 | Compute ratio vs dense 70B | ~0.183× (≈18% of dense 70B compute) | (12.8B × 2) ÷ (70B × 2) = 25.6 GFLOP ÷ 140 GFLOP ≈ 0.183×, i.e. the canonical 70B dense baseline costs about 5.5× the compute per token; against a same-total (47B) dense model the saving is 3.7× (12.8B ÷ 47B ≈ 27%) [ILLUSTRATIVE][DERIVED] |

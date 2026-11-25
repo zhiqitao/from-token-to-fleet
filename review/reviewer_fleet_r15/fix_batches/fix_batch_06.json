@@ -1,0 +1,78 @@
+{
+ "target": "design/manuscript/chapter-06/chapter-06.md",
+ "findings": [
+  {
+   "model": "MiMo-V2.6-Flash-RL",
+   "id": "R15-021",
+   "severity": "P3",
+   "page": "126",
+   "chapter": "6",
+   "evidence": "Page 126, §6.3.3: \"At batch 1 the intensity is 164.1 GFLOP (140 projection + 24.1 attention; the attention term is 4·L·d_model·n_layers = 4 × 9,200 × 8,192 × 80 ≈ 24.1 GFLOP) ÷ (140 GB weights + 24.1 GB of canonical 9.2K FP16 KV) ≈ 1.0 FLOP/byte.\" Check attention term: 4 × 9200 × 8192 × 80 = 4 × 9200 × 655,360 = 4 × 6,029,312,000 = 24,117,248,000 FLOP = 24.12 GFLOP ≈ 24.1 GFLOP ✓. Check total FLOPs: 140 + 24.1 = 164.1 GFLOP ✓. Check total bytes: 140 + 24.1 = 164.1 GB ✓. Check intensity: 164.1/164.1 = 1.0 FLOP/byte ✓. Then: \"At batch 32 it is 32 × 164.1 = 5,251 GFLOP ÷ (140 + 32 × 24.1 = 911 GB) ≈ 5.8 FLOP/byte.\" Check: 32 × 164.1 = 5,251.2 ✓. Check bytes: 140 + 32 × 24.1 = 140 + 771.2 = 911.2 ✓. Check: 5251.2/911.2 = 5.76 ≈ 5.8 ✓. Then asymptote: \"164.1 ÷ 24.1 ≈ 6.8 FLOP/byte\" — check: 164.1/24.1 = 6.809... ✓. All correct.",
+   "issue": "No arithmetic defect — decode arithmetic intensity at batch 1, batch 32, and asymptote all recompute correctly.",
+   "fix_instruction": "No fix needed; verified.",
+   "confidence": 0.9,
+   "_tid": "R15-026"
+  },
+  {
+   "model": "MiMo-V2.6-Flash-RL",
+   "id": "R15-027",
+   "severity": "P3",
+   "page": "123",
+   "chapter": "6",
+   "evidence": "Page 123, Figure 6.2 caption: \"p50 ≈ 0.80 s, p90 ≈ 0.94 s, p95 ≈ 0.99 s, and p99 ≈ 1.33 s\". Then p.122 explains the p99 interpolation: \"p99 position is 1 + (N−1) × 0.99 = 9,900.01 ... rank 9,900 = 1.30 s and rank 9,901 = 5.0 s ... interpolated p99 is 1.30 + 0.01 × (5.0 − 1.30) = 1.337 s\". Check: 1 + 9999 × 0.99 = 1 + 9899.01 = 9900.01 ✓; 1.30 + 0.01 × 3.70 = 1.30 + 0.037 = 1.337 ✓ (displayed as 1.33). But the figure itself (p.123) displays \"p99 = 1.33 s\" while the text says the exact interpolated value is 1.337 s. The rounding 1.337 → 1.33 is a floor/round-down (1.337 rounds to 1.34 by standard rounding, not 1.33). However, the figure label and caption may be truncating rather than rounding.",
+   "issue": "The p99 value displayed as 1.33 s in Figure 6.2 and its caption is derived from 1.337 s (as shown in the text on p.122). Standard rounding of 1.337 to two decimal places gives 1.34, not 1.33. The displayed 1.33 appears to be a truncation rather than a rounding, which is inconsistent with how other values in the same figure are presented (e.g., p95 = 0.99 which is presented to 2 decimals).",
+   "fix_instruction": "Either round the p99 display value from 1.337 to 1.34 s consistently in both the figure and caption, or note that the value is truncated rather than rounded. The text already states the precise 1.337 s figure on p.122.",
+   "confidence": 0.7,
+   "_tid": "R15-032"
+  },
+  {
+   "model": "MiMo-V2.6-Flash-RL",
+   "id": "R15-028",
+   "severity": "P2",
+   "page": "131",
+   "chapter": "6",
+   "evidence": "Page 131, mini-case: \"10 rps already demands 10 × 1.29 ≈ 12.9 PFLOP/s of prefill, ≈ 4.7 host-equivalents of one 8×H100 host's ~2.77 PFLOP/s sustained prefill capacity\". Check: 10 × 1.29 = 12.9 ✓; 12.9/2.77 = 4.66 ≈ 4.7 ✓. \"the 40 rps peak demands 40 × 1.29 ≈ 51.6 PFLOP/s ≈ 18.6 host-equivalents\". Check: 40 × 1.29 = 51.6 ✓; 51.6/2.77 = 18.63 ≈ 18.6 ✓. \"H ≈ 6, set by the KV-residency screen ... 86 in-flight ÷ 17 slots = 5.06 → 6 hosts\". Check: 86/17 = 5.058..., ceil = 6 ✓. \"would be ~3.1× oversubscribed at the peak (51.6 ÷ (6 × 2.77) ≈ 3.1)\". Check: 6 × 2.77 = 16.62; 51.6/16.62 = 3.105 ≈ 3.1 ✓. \"at 21 hosts ... 51.6 ÷ (21 × 2.77) ≈ 0.9×\". Check: 21 × 2.77 = 58.17; 51.6/58.17 = 0.887 ≈ 0.9 ✓. \"the residual demand is at least ~44.9 PFLOP/s (51.6 × (1 − 0.13))\" — check: 51.6 × 0.87 = 44.89 ≈ 44.9 ✓. \"i.e. ≥ ~16.2 host-equivalents\" — check: 44.9/2.77 = 16.21 ✓. All correct.",
+   "issue": "No arithmetic defect — all mini-case oversubscription figures recompute correctly from the stated inputs.",
+   "fix_instruction": "No fix needed; verified.",
+   "confidence": 0.9,
+   "_tid": "R15-033"
+  },
+  {
+   "model": "MiMo-V2.6-Flash-RL",
+   "id": "R15-038",
+   "severity": "P2",
+   "page": "124",
+   "chapter": "6",
+   "evidence": "Page 124, §6.3.2 goodput: \"Scenario A: if all of the extra 20 tok/s land in the tail that misses the SLO, the compliant fraction falls to f = 48 ÷ 70 ≈ 68.6%, and goodput is 70 × 0.686 ≈ 48 tok/s — level, not higher.\" Check: 48/70 = 0.6857 ≈ 68.6% ✓; 70 × 0.686 = 48.02 ≈ 48 ✓. \"Scenario B: if the compliant fraction falls from 96% to 94%, goodput is 50×0.96 = 48 vs 70×0.94 = 65.8\". Check: 50 × 0.96 = 48 ✓; 70 × 0.94 = 65.8 ✓. \"Scenario C: if the compliant fraction falls to 65%, goodput is 70×0.65 = 45.5 tok/s\". Check: 70 × 0.65 = 45.5 ✓. \"The dividing line is the compliant fraction f at which the throughput gain cancels: 70 × f = 48, i.e. f ≈ 68.6%\". Check: 48/70 = 0.6857 ✓. \"it is a 27-point collapse from 96%, not the 2-point drop of Scenario B\". Check: 96 − 68.6 = 27.4 ≈ 27 ✓. All correct.",
+   "issue": "No arithmetic defect — goodput scenarios A, B, C and the crossover fraction all recompute correctly.",
+   "fix_instruction": "No fix needed; verified.",
+   "confidence": 0.9,
+   "_tid": "R15-043"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "R14-005",
+   "severity": "P2",
+   "page": 154,
+   "chapter": "Ch 6 (§6.6)",
+   "evidence": "Page 154: \"vLLM KV-offloading (its own 2026-01-08 blog [S7][1P][FACT]) cuts TTFT by 2–22× in a particular warm-cache-hit/reuse benchmark, not a generic cold-cache improvement\"",
+   "issue": "Cross-reference/evidence defect: the [S7] source key is used for a claim attributed to 'its own 2026-01-08 blog', but the Preface states the source keys are 'book-wide, [S1]–[S7]' and Ch 6 §6.3.3 says 'this chapter also uses [S7] (see §6.6), which resolves in the References chapter'. The claim therefore depends on [S7] resolving correctly in the References chapter, which is outside the pages provided for this review pass; however the inline attribution 'its own 2026-01-08 blog' is ambiguous about whose blog it is (vLLM's, i.e. the engine vendor's) and the label [1P][FACT] asserts first-party vendor status for a blog post rather than a vendor spec. The 2–22× range is presented as a hard performance figure without the caveat the same paragraph applies to other claims ('not a generic cold-cache improvement' covers scope but not the provenance form). Separately, the same page states DFlash 'reports over 6× lossless acceleration, up to 2.5× over EAGLE-3, in its paper's evaluated configurations [S5][1P][FACT]' — a paper-reported figure labelled [1P][FACT], where the book's own rule is that a paper report is [1P][FACT] only for what the paper states, and the chapter does add 'These are paper-reported results, not portable serving-speed figures'.",
+   "fix_instruction": "Name the vLLM blog's first-party URL/revision inline (as Ch 5 and Ch 7 do for pinned sources), and make the label form explicit for blog- and paper-sourced performance claims: e.g. '[S7][1P][FACT] (vLLM blog, 2026-01-08, pinned revision …, retrieved …) — vendor-reported, warm-cache case only'. Apply the same explicit attribution to the [S5] DFlash claim so the reader can resolve [S5] without the References chapter.",
+   "confidence": "medium",
+   "_tid": "R15-060"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "R14-008",
+   "severity": "P2",
+   "page": 155,
+   "chapter": "Ch 6 (§6.8 mini-case)",
+   "evidence": "Page 155: \"The resolution is capacity/scheduling — additional hosts, chunked prefill, admission control/backpressure, or P/D disaggregation. The architect re-checks the dashboard an hour later: p95 TTFT is back under 2 s, and the mechanism check confirms the capacity/scheduling change rather than the cache ... Hosts were raised from H = 1 to H = 21.\"",
+   "issue": "Cross-chapter consistency / unsupported outcome claim: the mini-case narrates a restored p95 TTFT ('back under 2 s') after raising the host count from 1 to 21, but the chapter's own arithmetic shows that at 21 hosts the peak prefill demand is still oversubscribed — 'the peak prefill oversubscription falls from 18.6× to 51.6 ÷ (21 × 2.77) ≈ 0.9×' — and the page itself concedes 'That p95 restoration is an [ILLUSTRATIVE][HYPOTHESIS] — an expectation from the analytical screens above, pending benchmark confirmation'. A concrete outcome ('back under 2 s') is nonetheless narrated as an observed fact in the mini-case's prose before the caveat, and no measurement is cited, which reads as a measured result inside a chapter whose stated discipline (Ch 6 §6.7, Ch 14) is that goodput/p95 restoration must be measured. The same page also asserts the resolution was 'capacity/scheduling ... rather than the cache' and 'the mechanism check confirms the capacity/scheduling change' — an attribution claim with no instrument named, whereas the chapter's diagnostic method (§6.3.4) is to read counters, not to assert a cause.",
+   "fix_instruction": "Rewrite the restoration sentence so the status travels with it: e.g. 'the dashboard is expected to return p95 TTFT under 2 s (an [ILLUSTRATIVE][HYPOTHESIS] from the screen, pending the Ch 14 benchmark), since the prefix-cache saving of ≤13% cannot close an ~18.6 host-equivalent gap' — and either name the instrument that would confirm the attribution (prefix-hit ratio, prefill queue depth) or remove the 'mechanism check confirms' clause.",
+   "confidence": "medium",
+   "_tid": "R15-063"
+  }
+ ],
+ "count": 6
+}

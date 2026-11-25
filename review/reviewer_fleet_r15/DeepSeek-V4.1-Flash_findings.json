@@ -1,0 +1,52 @@
+[
+ {
+  "id": "R14-001",
+  "severity": "P2",
+  "page": 90,
+  "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+  "evidence": "The Canonical Workload box states: \"Mean request service time (planning headline — not used for occupancy) ~10 s [canonical scenario][ASSUMPTION] — an author-chosen round planning headline. The budget-derived components are retrieval ~120 ms + prefill budget cap ~1.08 s + decode ~7.5 s = ~8.7 s, plus ~15% planning headroom to ~10 s.\"",
+  "issue": "The component sum is internally inconsistent. 120 ms + 1.08 s + 7.5 s = 8.70 s, not ~8.7 s rounded from a sum that should include 0.12 s. Adding ~15% headroom to 8.70 s gives 10.005 s, so the arithmetic is acceptable, but the prose says the component sum is \"~8.7 s\" and then says \"plus ~15% planning headroom to ~10 s\"—the reader must infer whether 8.7 s already includes retrieval or not. The same page earlier says Wexec = prefill + decode ≈ 8.58 s and excludes retrieval, while this row includes retrieval in the 8.7 s component sum. The two quantities are close but differently composed, and the prose does not name the discrepancy explicitly.",
+  "fix_instruction": "Rewrite the Mean request service time row to separate the two bases explicitly: (1) planning headline components including retrieval = 0.12 + 1.08 + 7.5 = 8.70 s, plus 15% headroom ≈ 10.0 s; (2) execution service time Wexec used for Little's law = 1.08 + 7.5 = 8.58 s, excluding retrieval. State that 8.70 s and 8.58 s differ by the 0.12 s retrieval term, and that neither is a measured p95/p99.",
+  "confidence": "high"
+ },
+ {
+  "id": "R14-002",
+  "severity": "P2",
+  "page": 106,
+  "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+  "evidence": "\"At 10 rps average, the system processes ~92,000 input tokens/s + ~3,000 output tokens/s. The dollar denominator must be the whole fleet that serves this rate, not one host. At the ~6-host average the whole-fleet spend is ~$120/hour (≈ $0.0333 per second), so ~92,000 / 0.0333 ≈ ~2.76 million input tokens per $1 of fleet spend and ~3,000 / 0.0333 ≈ ~90,000 output tokens per $1 — the active-hours basis ...\"",
+  "issue": "The tokens-per-dollar arithmetic divides a per-second token rate by a per-second dollar rate, which is dimensionally valid only if both rates are on the same time basis. The prose then mixes this with an active-hours monthly spend ($20,800/mo over 173.33 h) and a paid-occupancy monthly spend ($87,600/mo over 730 h). The ~2.76M and ~655K figures are later correctly identified as an hour-basis mismatch, but the initial sentence presents ~2.76M as if it were a clean per-dollar figure without naming the active-hours basis in the same sentence. The row is salvageable, but the presentation invites the exact cross-basis comparison the chapter warns against.",
+  "fix_instruction": "State the active-hours basis directly in the sentence that derives ~2.76M: \"on the active-hours basis, $120/hr × 173.33 h/mo ≈ $20,800/mo over 6.24M requests, giving ~2.76M input tokens per $1.\" Then present ~655K only as the wall-clock paid-occupancy artifact, and repeat that neither is a per-request marginal cost.",
+  "confidence": "high"
+ },
+ {
+  "id": "R14-003",
+  "severity": "P2",
+  "page": 113,
+  "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+  "evidence": "\"At 10 concurrent full-context requests the MHA figure is ~241 GB of KV on top of the 140 GB weights — 381 GB of the 640 GB pool — and the pool presses well before concurrency reaches 100 (~17 full-context requests once the ~64 GB runtime is reserved: 436 GB ÷ 24.9 GB ≈ 17.5, floored to 17 — the input-only 24.1 GB figure above would give 436 ÷ 24.1 ≈ 18 before the output tokens are counted). That 17-slot ceiling is a per-host figure, and its binding limit is per-rank: an 80 GB rank runs 99.97% full at 17.5 slots ...\"",
+  "issue": "The paragraph says the 17-slot ceiling is a per-host figure, then immediately says its binding limit is per-rank and gives a per-rank calculation at 17.5 slots. The 17.5-slot value is the analytical quotient before flooring; the deployed whole-slot ceiling is 17. The per-rank note uses 17.5 slots, which is the unfloored quotient, and the sentence does not reconcile 17.5 with the stated whole-slot convention (17). A reader can mistake 17.5 for a deployable slot count.",
+  "fix_instruction": "Rewrite the sentence to distinguish three quantities explicitly: (1) analytical quotient C = 436 ÷ 24.9 ≈ 17.5; (2) deployable whole-context slots = floor(17.5) = 17; (3) per-rank check at the analytical quotient (17.5 slots) shows the rank is 99.97% full, so 17 whole slots is the conservative deployed ceiling. Do not use 17.5 as if it were a whole-slot count.",
+  "confidence": "high"
+ },
+ {
+  "id": "R14-004",
+  "severity": "P3",
+  "page": 132,
+  "chapter": "Chapter 5 — From Workload to Model Selection",
+  "evidence": "\"The ~50 tok/s here (this worked example’s low-batch decode point, ~20 ms/token — the canonical batch-1 rate at 25 ms/token is ~40 tok/s, Ch 2) and Chapter 15’s prefill-side rate are therefore different phases of the same host, not two values for one quantity. The per-dollar figures therefore scale up substantially at batch, and the 9,000 tokens-per-dollar figure should be read as a floor set by the single-stream assumption, not as the host’s economic optimum.\"",
+  "issue": "The prose correctly distinguishes the illustrative 50 tok/s single-stream point from the canonical 40 tok/s batch-1 budget point and from Chapter 15’s batched serving rate. However, the same paragraph earlier says \"the same host’s per-GPU shard batch-1 weight-read floor is only ~5.2 ms/token ... so a ~20 ms single-stream step needs no batching.\" That sentence can be read as implying a 50 tok/s single-stream rate is supported by the weight-read floor alone, which the text then explicitly denies. The local contrast is present but easy to misread because the 5.2 ms floor and the 20 ms illustrative step are separated from the denial.",
+  "fix_instruction": "Tighten the sentence to say: \"The ~5.2 ms weight-read floor is not a single-stream latency prediction; it only shows that weight streaming alone would not force a ~20 ms step. The 50 tok/s rate remains an illustrative chosen point, not a rate derived from that floor.\"",
+  "confidence": "medium"
+ },
+ {
+  "id": "R14-005",
+  "severity": "P3",
+  "page": 108,
+  "chapter": "Chapter 4 — The Anatomy of an AI Workload",
+  "evidence": "\"The ~$3.33/1K (6-host average) and ~$49.13/1K (21-host peak) lines are quoted only after naming the fleet and the hour basis; (a) is the figure to quote when the alternative under evaluation is a managed API, and it is the number the ~$0.0030 post-2K-input figure in §4.6 belongs to.\"",
+  "issue": "The phrase \"the ~$0.0030 post-2K-input figure in §4.6\" is ambiguous. Section 4.6 later presents a ~$0.0030 per-request API-basis figure after reducing input to 2K, but it also presents owned-fleet host-count screens. The cross-reference does not say whether ~$0.0030 is the API list-price figure or an owned-fleet figure. The surrounding cost-basis reconciliation table is specifically about not cross-comparing API and owned-fleet bases, so the ambiguity is material.",
+  "fix_instruction": "Change to: \"the ~$0.0030 per-request API-list-price figure after reducing input to 2K in §4.6 (API basis, not owned-fleet basis).\"",
+  "confidence": "medium"
+ }
+]

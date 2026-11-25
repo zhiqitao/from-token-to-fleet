@@ -319,8 +319,11 @@ population; that coincidence is a warning sign, not the reason for the
 rule, and it is exactly the population ≠ occupancy conflation this box
 separates. The occupancy service time is the derived
 \(W_{\mathrm{exec}}\) = prefill + decode ≈ 8.58 s (shown as 8.6 s; it
-excludes the \textasciitilde120 ms retrieval term), and that is the
-value used for all occupancy and fleet sizing} \\
+excludes the \textasciitilde120 ms retrieval term, so the
+\textasciitilde8.70 s component sum above and the 8.58 s execution time
+differ by exactly that 0.12 s retrieval term --- neither is a measured
+p95/p99), and that is the value used for all occupancy and fleet
+sizing} \\
 Average arrival rate & \textasciitilde10 rps \emph{\mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} declared traffic input (2,000 users × one
 request \textasciitilde every 200 s ≈ 10 rps) --- declared, not derived
@@ -428,10 +431,14 @@ on-demand --- Ch 16/17). Meeting the canonical \textasciitilde10 rps
 average / \textasciitilde40 rps peak needs \textasciitilde6--21 hosts,
 so the workload's full-utilization (no-headroom) spend is
 \textasciitilde\$87.6K--\$306.6K/mo --- \textasciitilde\$146K--\$467K/mo
-on the 70\% × 95\% + N−1 policy fleet (6 hosts → ⌈6 ÷ 0.665⌉ = 10
-provisioned, 9 working; 21 hosts → ⌈21 ÷ 0.665⌉ = 32 provisioned, 31
-working; 10 × \$14.6K ≈ \$146K and 32 × \$14.6K ≈ \$467K, priced on
-provisioned hosts because the N−1 spare is paid for):
+on the 70\% × 95\% + N−1 policy fleet (two steps, so the figures are
+reproducible: \textbf{(1)} full-utilization hosts N = ⌈λ ×
+\(W_{\mathrm{exec}}\) ÷ 17 slots⌉ → ⌈86 ÷ 17⌉ = 6 at average and ⌈344 ÷
+17⌉ = 21 at peak; \textbf{(2)} provisioned total = ⌈N ÷ (u × ρ)⌉ = ⌈N ÷
+0.665⌉, working = total − 1 → 6 hosts → ⌈6 ÷ 0.665⌉ = 10 provisioned, 9
+working; 21 hosts → ⌈21 ÷ 0.665⌉ = 32 provisioned, 31 working; 10 ×
+\$14.6K ≈ \$146K and 32 × \$14.6K ≈ \$467K, priced on provisioned hosts
+because the N−1 spare is paid for):
 
 \nopagebreak[4]
 \begin{longtable}[]{@{}
@@ -632,10 +639,11 @@ denominator, not the 5\% concurrent figure --- see the Canonical
 Workload box) \\
 Execution occupancy & \textasciitilde86 / \textasciitilde344 requests
 (at \(W_{\mathrm{exec}}\) ≈ 8.6 s, where \(W_{\mathrm{exec}}\) = 1.08 s
-prefill + 7.5 s decode = 8.58 s, shown as 8.6 s throughout the book) &
-\mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Little's Law L = λ ×
-\(W_{\mathrm{exec}}\); a separate occupancy from the active-user
-population \\
+prefill + 7.5 s decode = 8.58 s, shown as 8.6 s throughout the book;
+\textbf{upper bound} --- \(W_{\mathrm{exec}}\) contains the 1.08 s
+two-term prefill cap, so B\_other is not deducted) & \mbox{{[}canonical
+scenario{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} Little's Law L = λ × \(W_{\mathrm{exec}}\); a
+separate occupancy from the active-user population \\
 Input tokens & 9,200 (1,200 prompt + 8,000 retrieved) & \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
 Output tokens & 300 & \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} \\
@@ -1330,8 +1338,9 @@ The \textasciitilde\$3.33/1K (6-host average) and
 \textasciitilde\$49.13/1K (21-host peak) lines are quoted only after
 naming the fleet \emph{and} the hour basis; (a) is the figure to quote
 when the alternative under evaluation is a managed API, and it is the
-number the \textasciitilde\$0.0030 post-2K-input figure in §4.6 belongs
-to.
+number the \textasciitilde\$0.0030 per-request API-list-price figure
+after reducing input to 2K in §4.6 belongs to (API basis, not
+owned-fleet basis).
 
 \textbf{A note on the canonical example's limits.} The input-heavy
 enterprise-RAG workload above is one shape, not the whole space. The
@@ -1377,6 +1386,15 @@ vector-index locality, not KV & No decode, no KV cache; the bottleneck
 is the embedding model and the retrieval index, not the LLM serving
 stack \\
 \end{longtable}
+
+\emph{(Table-level provenance for the workload-shape transfer aid ---
+applies to every row: each row is a \textbf{qualitative
+characterization} of a non-canonical workload shape,
+\mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}DERIVED{]}} by analogy from the six-dimension
+framework and the canonical RAG baseline. No cell carries a measured
+value; the dominant-constraint and decision-reversal entries are
+directional statements to be re-derived for the actual workload, not
+sizing inputs.)}
 
 The canonical RAG case is \emph{input-heavy} (9,200 in / 300 out), so
 prefill compute and KV residency dominate. Each row above is a workload
@@ -1544,16 +1562,17 @@ multi-region vs.~single-region.}
   floored to 17 --- the input-only 24.1 GB figure above would give 436 ÷
   24.1 ≈ 18 before the output tokens are counted). That 17-slot ceiling
   is a \textbf{per-host} figure, and its binding limit is
-  \textbf{per-rank}: an 80 GB rank runs 99.97\% full at 17.5 slots (Ch
-  7, Technical note --- per-rank fit: 17.5 GB weights + 54.48 GB KV + 8
-  GB runtime/NCCL = 79.98 GB of 80 GB), so the per-rank test --- not
-  this pool-level arithmetic --- decides residency. Read the 381
-  GB-of-640 GB sentence as a pool-level illustration, not as the
-  headroom test. The architecture must therefore limit concurrency,
-  quantize KV (FP8 → \textasciitilde1.31 MB/token, \textasciitilde12.06
-  GB/request at the same 9,200-token context), or use a GQA
-  architecture. This is the same KV-residency discipline developed fully
-  in Chapters 7 and 17.
+  \textbf{per-rank}: an 80 GB rank runs 99.97\% full at 17.5 slots ---
+  17.5 is the analytical quotient C = 436 ÷ 24.9 before the whole-slot
+  floor, so it is a bound, not a deployable whole-slot count (Ch 7,
+  Technical note --- per-rank fit: 17.5 GB weights + 54.48 GB KV + 8 GB
+  runtime/NCCL = 79.98 GB of 80 GB), so the per-rank test --- not this
+  pool-level arithmetic --- decides residency. Read the 381 GB-of-640 GB
+  sentence as a pool-level illustration, not as the headroom test. The
+  architecture must therefore limit concurrency, quantize KV (FP8 →
+  \textasciitilde1.31 MB/token, \textasciitilde12.06 GB/request at the
+  same 9,200-token context), or use a GQA architecture. This is the same
+  KV-residency discipline developed fully in Chapters 7 and 17.
 \item
   \textbf{Economic feasibility}: Two cost bases meet here and are not
   interchangeable: \textasciitilde\$20/hour per 8×H100 host (owned-fleet
