@@ -1,0 +1,52 @@
+[
+ {
+  "id": "R18-01",
+  "severity": "P2",
+  "page": "PDF p. 169 (printed p. 145); conflicting statement at PDF p. 133 (printed p. 110)",
+  "chapter": "Ch 7 (Memory) vs Ch 5 (Model Selection)",
+  "evidence": "Ch 7 §7.3 'Attention-family sensitivity note' (PDF p. 169): \"Real 70B-class dense models commonly use grouped-query attention (GQA): LLaMA-2 70B, for instance, has 64 query heads but only 8 KV-heads, so per-token KV shrinks by the head ratio to KVGQA per-token = 2 × 80 × (8 × 128) × 2 B ≈0.33 MB/token — about 8× smaller.\"  Ch 5 §5.3(b) (PDF p. 133) states the opposite about the same checkpoint: \"(Llama-2 70B is not a GQA-8 example: it uses 64 KV heads, so its per-token KV matches the ~2.62 MB full-MHA form above.)\"",
+  "issue": "The book contradicts itself about the KV-head count of a named vendor model. Ch 5 explicitly rules Llama-2 70B out of the GQA-8 class and says its per-token KV matches the ~2.62 MB full-MHA form; Ch 7 then uses Llama-2 70B as its worked GQA-8 exemplar and derives ~0.33 MB/token from it — an 8× difference for the same model. The two derived constants are used in different sizing contexts (Ch 5 §5.3(b) / Table 5-2 for the Llama-3 70B GQA-8 row; Ch 7 §7.3 for the KV-residency and concurrency-ceiling argument), so a reader who carries Ch 7's number will under-provision the KV budget by ~8× for a Llama-2-class checkpoint. The factual error is on Ch 7's side (Llama-2 70B has 64 KV heads; GQA-8 arrived with Llama-3), so the recurrence sweep confirms the Ch 5 instance as the correct one and Ch 7 as the outlier.",
+  "fix_instruction": "In Ch 7 §7.3's 'Attention-family sensitivity note', delete the 'LLaMA-2 70B, for instance, has 64 query heads but only 8 KV-heads' clause and replace the exemplar with a GQA-8 checkpoint that the book already treats as GQA-8 elsewhere (e.g. 'LLaMA-3 70B uses grouped-query attention with 8 KV heads of head_dim 128'), or restate it as 'a 70B-class model such as LLaMA-3 70B (GQA-8; note that LLaMA-2 70B has 64 KV heads and would carry the full-MHA ~2.62 MB/token figure, as Ch 5 §5.3(b) notes)'. Then re-check the derived '~3 GB of KV instead of ~24 GB' sentence and the Figure 7.1 caption's '8:1' example so the named exemplar is consistent with the GQA-8 numbers.",
+  "confidence": 0.96
+ },
+ {
+  "id": "R18-02",
+  "severity": "P3",
+  "page": "PDF p. 146 (printed p. 122); governing text at PDF p. 145 (printed p. 121)",
+  "chapter": "Ch 6 (Measuring What Matters)",
+  "evidence": "§6.1.1 (PDF p. 145): \"Concurrency is not a workload input: it is a serving-side quantity derived from the arrival rate and the time in system (Little's law), so it belongs with queue depth on the scheduler side, not in this layer.\"  Figure 6.1's top box (PDF p. 146) nevertheless reads \"Workload metrics / rps · token profile · concurrency\", and the caption admits the mismatch: \"Label caveat: a concurrency entry in the workload box denotes the request rate λ that the traffic offers, not a concurrency value — request concurrency is derived on the serving side (in-flight = λ × W, Little's law), the same classification this figure gives queue depth; see §6.1.1.\"",
+  "issue": "Figure 6.1's Workload-metrics box lists 'concurrency' as a workload metric, which directly contradicts the chapter's own classification in §6.1.1 (concurrency is serving-side, derived via Little's law). The caption tries to repair the figure by re-defining the box label to mean something else ('concurrency' = arrival rate λ), so the figure's printed text and its caption say different things about the same word. A reader reading the figure alone will log concurrency as a workload metric, which is exactly the population-vs-occupancy conflation Ch 4 §4.5 warns against. Note that the caption handles queue depth correctly ('queue depth: scheduler state, not a serving metric'), so the defect is confined to the concurrency entry.",
+  "fix_instruction": "Edit the Figure 6.1 Workload-metrics box to replace 'concurrency' with 'arrival rate λ' (or 'rps · token profile · arrival rate λ'), so the box agrees with §6.1.1 and with the caption; then delete the caption's 'Label caveat' paragraph, since the caveat exists only to explain the mismatch. If the box must keep 'concurrency', move it out of the Workload box and draw it on the serving/scheduler side as a derived quantity (in-flight = λ × W).",
+  "confidence": 0.9
+ },
+ {
+  "id": "R18-03",
+  "severity": "P3",
+  "page": "PDF p. 34 (printed p. 10) and PDF p. 43 (printed p. 19); counter-evidence at PDF p. 103-104 (printed p. 79-80)",
+  "chapter": "Ch 1 (Token) and Ch 2 (Inference)",
+  "evidence": "Fig 1.1 caption (PDF p. 34): \"[ILLUSTRATIVE][DERIVED] — the schematic is drawn from the documented mechanism ([1P][FACT], Ch 4, Table 4-2), and it is not a screenshot or a measurement\". Fig 2.1 caption (PDF p. 43): \"[ILLUSTRATIVE][DERIVED] — the schematic is drawn from the documented mechanism ([1P][FACT], Ch 4)\". But Table 4-2 (PDF p. 103-104) labels exactly the geometry these figures draw as scenario assumptions: \"Attention architecture | full-MHA reference model (K/V width = hidden_dim) | [canonical scenario][ASSUMPTION]\" and \"Reference geometry — layers (n_layers) | 80 | [canonical scenario][ASSUMPTION] constructed teaching geometry, not a named vendor model\".",
+  "issue": "Provenance-label mismatch: both figure captions cite '[1P][FACT]' and point at Ch 4/Table 4-2 for a geometry that Table 4-2 labels [canonical scenario][ASSUMPTION] (the only [1P][FACT] rows in Table 4-2 are the H100 hardware constants). Fig 1.1's caption goes further and asserts \"the canonical model has 64 query and 64 KV heads per layer (Ch 4, Table 4-2)\" — a constructed teaching geometry being presented as a first-party vendor fact. Under the book's own three-axis rule (Preface: provenance = where the number came from; a vendor hardware constant is [1P][FACT], a constructed reference geometry is [canonical scenario][ASSUMPTION]), this mislabels the scenario baseline as first-party.",
+  "fix_instruction": "In the Fig 1.1 and Fig 2.1 captions, replace '([1P][FACT], Ch 4, Table 4-2)' / '([1P][FACT], Ch 4)' with the correct provenance for the drawn geometry — e.g. '([canonical scenario][ASSUMPTION], Ch 4, Table 4-2)' for the 80-layer/8,192-hidden/64-head geometry, reserving '[1P][FACT]' for the documented KV-cache mechanism (e.g. the DeepSeek-V2 MLA report, arXiv:2405.04434, and the H100 datasheet already cited elsewhere). Add a one-clause note to the Fig 1.1 caption that the 64-head geometry is the book's constructed teaching baseline, not a vendor checkpoint.",
+  "confidence": 0.78
+ },
+ {
+  "id": "R18-04",
+  "severity": "P3",
+  "page": "PDF p. 121 (printed p. 97)",
+  "chapter": "Ch 4 (Anatomy of an AI Workload)",
+  "evidence": "§4.6, 'Memory planning' bullet: \"The architecture must therefore limit concurrency, quantize KV (FP8 → ~1.31 MB/token, ~12.06 GB/request at the same 9,200-token context), or use a GQA architecture. ... a GQA model (8 KV-heads, d_head=128) would carry only ~0.33 MB/token, ~8× less figure (Ch 7).\"",
+  "issue": "Broken/garbled phrase: '~8× less figure' is not grammatical and has no referent — the intended statement is that the per-token KV constant is ~8× smaller than the 2.62 MB/token full-MHA figure. This sits in the load-bearing 'Memory planning' bullet that decides the KV budget for the canonical workload, and the same construction ('~8× less figure') appears in the immediately preceding sentence of the same bullet, so a reader cannot resolve what is being compared. The arithmetic itself is correct (2×80×(8×128)×2 B = 327,680 B ≈ 0.33 MB/token ≈ 2.62/8, matching Ch 5 §5.3(b) and Ch 7 §7.3).",
+  "fix_instruction": "Rewrite the two affected sentences in §4.6's 'Memory planning' bullet as: '... or use a GQA architecture: a GQA model (8 KV-heads, head_dim 128) would carry only ~0.33 MB/token, ~8× less than the ~2.62 MB/token full-MHA figure (Ch 7).' and '... quantize KV (FP8 → ~1.31 MB/token, ~12.06 GB/request at the same 9,200-token context, i.e. ~8× less than the ~24.1 GB FP16 figure, Ch 7) ...'. Sweep the chapter and Ch 7 for the same truncated '... less figure' construction.",
+  "confidence": 0.93
+ },
+ {
+  "id": "R18-05",
+  "severity": "P3",
+  "page": "PDF p. 164-165 (printed p. 140-141)",
+  "chapter": "Ch 7 (Memory)",
+  "evidence": "Table 7-1 carries two rows for the same quantity: \"KV cache per token (8-bit payload / FP8) | 2 ×80 ×8192 ×1 B ≈ 1.31 MB | = 1,310,720 B = 1.25 MiB; 8-bit here means FP8 (one byte per K/V element), not an INT8 scale-offset layout; reconciles with Ch.1\" and, immediately below, \"KV cache per token (FP8) | 1.31 MB | = 1,310,720 B = 1.25 MiB; raw tensor byte-halving, exactly 50% of the 16-bit (FP16/BF16) baseline; any block-layout/scale-offset metadata overhead is NOT vendor-measured (see §7.4)\".",
+  "issue": "Duplicate table rows: the same metric (KV bytes per token at 8-bit = 1,310,720 B ≈ 1.31 MB) is printed twice with different row labels and different derivation text. The load-bearing qualifier — that block-layout/scale-offset metadata overhead is not vendor-measured and the 1.31 MB figure is a raw-tensor floor — is attached only to the second row, so a reader who takes the first (earlier, more explicitly labelled '8-bit payload / FP8') row can carry the 1.31 MB constant into a sizing calculation without the caveat. Ch 1 and Ch 6 both repeat this caveat elsewhere ('block-allocation/metadata overhead NOT vendor-measured here'), so the duplication risks three partially-overlapping presentations of one number rather than one.",
+  "fix_instruction": "Merge the two rows in Table 7-1 into a single row labelled e.g. 'KV cache per token (FP8, raw byte-halving)', keeping both derivations in one cell: '= 2 ×80 ×8192 ×1 B = 1,310,720 B = 1.25 MiB ≈ 1.31 MB — exactly 50% of the FP16/BF16 baseline; 8-bit here means FP8 (one byte per K/V element), not an INT8 scale-offset layout; any block-layout/scale-offset metadata overhead is NOT vendor-measured (see §7.4); reconciles with Ch 1.' Then confirm no other table in Ch 7 repeats the same per-token constant.",
+  "confidence": 0.88
+ }
+]

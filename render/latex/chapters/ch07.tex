@@ -4,8 +4,8 @@ After this chapter we should be able to answer the architect's
 fundamental constraint question: \emph{does the model and its context
 fit in the memory floor before we ask whether it can compute or
 communicate?} We will build the arithmetic for the KV cache from first
-principles, reconcile it with the \textasciitilde1.31 MB/token 8-bit
-reference figure from \hyperref[chap:1]{Chapter 1}, and contrast inference residency
+principles, reconcile it with the \hyperref[chap:1]{Chapter 1} 70B-class 8-bit figure
+(\textasciitilde1.31 MB/token), and contrast inference residency
 (weights + KV) with fine-tuning residency (weights + gradients +
 optimizer states). The goal is to make ``does it fit?'' a concrete,
 quantified check --- not a back-of-the-envelope guess. Throughout, the
@@ -14,7 +14,7 @@ arithmetic anchors to the canonical enterprise-Q\&A RAG scenario (Ch 4,
 traffic served by a 70B \textbf{FP16} model on an 8×H100 host. KV cache
 per-token figures are given at the referenced precision throughout:
 \textasciitilde1.31 MB/token at \textbf{8-bit} (this is \hyperref[chap:1]{Chapter 1}'s
-reference figure; 8-bit here is FP8 raw byte-halving, not a block-scaled
+70B-class figure; 8-bit here is FP8 raw byte-halving, not a block-scaled
 INT8 layout), \textasciitilde2.62 MB/token (exactly 2.5 MiB/token) at
 \textbf{FP16} --- and the canonical scenario's KV constant is the
 \textbf{FP16} 2.62 MB/token figure, not the 8-bit \textasciitilde1.31
@@ -269,13 +269,12 @@ KV cache per token per layer & 2 × hidden\_dim × bytes & one key + one
 value per layer \\
 KV cache per token (FP16) & 2 ×80 ×8192 ×2 B ≈ 2.62 MB & = 2,560 KiB =
 2.5 MiB; 2.62144 MB exact, approx 2.62 MB displayed \\
-KV cache per token (8-bit payload / FP8) & 2 ×80 ×8192 ×1 B ≈ 1.31 MB &
-= 1,310,720 B = 1.25 MiB; 8-bit here means FP8 (one byte per K/V
-element), not an INT8 scale-offset layout; reconciles with Ch.1 \\
-KV cache per token (FP8) & 1.31 MB & = 1,310,720 B = 1.25 MiB; raw
-tensor byte-halving, exactly 50\% of the 16-bit (FP16/BF16) baseline;
-any block-layout/scale-offset metadata overhead is NOT vendor-measured
-(see §7.4) \\
+KV cache per token (FP8, raw byte-halving) & 2 ×80 ×8192 ×1 B ≈ 1.31 MB
+& = 1,310,720 B = 1.25 MiB; exactly 50\% of the 16-bit (FP16/BF16)
+baseline; 8-bit here means FP8 (one byte per K/V element), not a
+block-scaled INT8 scale-offset layout; any block-layout/scale-offset
+metadata overhead is NOT vendor-measured (see §7.4); reconciles with Ch
+1 \\
 9.2K input KV cache (initial, input-only basis) & 9,200 ×2.62 MB ≈ 24.1
 GB & 9,200 ×2,621,440 B = 24,117,248,000 B ≈ 24.12 GB; initial prefill
 KV, input-only basis (Ch.1's reference context) \\
@@ -393,8 +392,8 @@ KV_{\text{MHA per-token}} = 2 \times n_\text{layers} \times d_\text{hidden} \tim
 \]
 
 Real 70B-class dense models commonly use \textbf{grouped-query attention
-(GQA)}: LLaMA-2 70B, for instance, has 64 query heads but only 8
-KV-heads, so per-token KV shrinks by the head ratio to
+(GQA)}: LLaMA-3 70B, for instance, has 64 query heads but only 8
+KV-heads of head\_dim 128, so per-token KV shrinks by the head ratio to
 
 \[
 KV_{\text{GQA per-token}} = 2 \times n_\text{layers} \times n_\text{KV-heads} \times d_\text{head} \times B = 2 \times 80 \times (8 \times 128) \times 2 \text{ B} \approx 0.33 \text{ MB/token}
@@ -959,12 +958,14 @@ reference). Do not assume the 1.3 MB/token figure applies at FP16 --- it
 does not; it is an 8-bit (FP8) number. When evaluating a model whose
 geometry differs from this chapter's 80-layer / 8192-hidden full-MHA
 reference geometry, recompute the constant factor from the general form
-(2 × layers × n\_KV-heads × head\_dim × bytes) --- a real LLaMA-2 70B is
-GQA-8 (8 KV heads) at \textasciitilde0.33 MB/token, not 2.62 (see the
-sensitivity note) --- a model with 64 layers and 8192 dim will have
-\textasciitilde2.1 MB/token at FP16 (2 × 64 × 8192 × 2 B = 2,097,152 B),
-while a model with 100 layers and 12288 dim will have \textasciitilde4.9
-MB/token (2 × 100 × 12288 × 2 B = 4,915,200 B).
+(2 × layers × n\_KV-heads × head\_dim × bytes) --- a real LLaMA-3 70B is
+GQA-8 (8 KV heads of head\_dim 128) at \textasciitilde0.33 MB/token, not
+2.62, while LLaMA-2 70B keeps 64 KV heads and does carry the
+\textasciitilde2.62 MB/token full-MHA figure (see the sensitivity note)
+--- a model with 64 layers and 8192 dim will have \textasciitilde2.1
+MB/token at FP16 (2 × 64 × 8192 × 2 B = 2,097,152 B), while a model with
+100 layers and 12288 dim will have \textasciitilde4.9 MB/token (2 × 100
+× 12288 × 2 B = 4,915,200 B).
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -1276,13 +1277,17 @@ fragmentation, workspace requirements and communication topology, so
 ``total bytes \textless{} total GPU memory'' is necessary but not
 sufficient. Worked TP=8 example: the KV budget per rank is 436 ÷ 8 =
 54.5 GB. At the deployed integer slot count C = 17, the KV term at a
-rank is 17 × 3.11296 GB = 52.92 GB. Adding 17.5 GB of weights (140 ÷ 8)
-and 8 GB of runtime/NCCL gives a 78.42 GB rank total, or 98\% of its 80
-GB --- workable, with \textasciitilde1.6 GB of headroom. The
+rank is 17 × 3.11296 GB = 52.92 GB. Adding the 17.5 GB weight shard (140
+÷ 8) and 8 GB of runtime/NCCL gives a 78.42 GB rank total, or 98\% of
+its 80 GB --- workable, with \textasciitilde1.6 GB of headroom. The
 byte-accurate ceiling is 17.51 slots: at 17.5 slots the same rank
-reaches 17.5 + 8 + 54.48 = 79.98 GB = 99.97\% of 80 GB, so the ceiling
-is exactly full, with zero per-rank headroom, not a comfortable
-operating point. The per-rank quantities:
+reaches 17.5 GB of weights + 8 GB of runtime/NCCL + 54.48 GB of KV =
+79.98 GB = 99.97\% of 80 GB, so the ceiling is exactly full, with zero
+per-rank headroom, not a comfortable operating point. The 17.5 GB weight
+shard and the 17.5-slot ceiling are distinct quantities that share a
+numeral: one is a resident byte figure per rank, the other is a
+fractional whole-host slot count. The per-slot KV price per rank is
+3.11296 GB. The per-rank quantities:
 
 \begin{itemize}
 \tightlist
@@ -1307,15 +1312,17 @@ operating point. The per-rank quantities:
 Per-rank budget: 17.5 GB of weights + 54.5 GB of KV budget + 8 GB of
 runtime/NCCL = 80 GB --- exactly the rank's capacity. At the deployed C
 = 17 the rank consumes 17 × 3.11296 = 52.92 GB of KV, so occupancy is
-17.5 + 52.92 + 8 = 78.42 GB = 98\% of 80 GB; at 17.5 slots (the
-displayed rounding) consumption is 54.48 GB, inside the 54.5 GB budget,
-and occupancy is 79.98 GB = 99.97\%. A rank can be the binding
-constraint even when the aggregate fits, so per-rank fit and sharding
-must be validated separately (Chapters 9--10). Byte-accurate, 436 ÷
-24.9037 = 17.51, so the conservative integer ``requests that fit'' floor
-is 17, not 18. The integer 17 is therefore traceable to the binding
-constraint and not to a rounding of the aggregate quotient: rank ceiling
-= ⌊(80 − 17.5 − 8) ÷ 3.11296⌋ = ⌊17.51⌋ = 17 slots. On the vendor-binary
+17.5 GB of weights + 52.92 GB of KV + 8 GB of runtime = 78.42 GB = 98\%
+of 80 GB; at 17.5 slots (the displayed rounding) consumption is 54.48
+GB, inside the 54.5 GB budget, and occupancy is 79.98 GB = 99.97\%. A
+rank can be the binding constraint even when the aggregate fits, so
+per-rank fit and sharding must be validated separately (Chapters 9--10).
+Byte-accurate, 436 ÷ 24.9037 = 17.51, so the conservative integer
+``requests that fit'' floor is 17, not 18. The integer 17 is therefore
+traceable to the binding constraint and not to a rounding of the
+aggregate quotient: rank ceiling = ⌊(80 − 17.5 − 8) ÷ 3.11296⌋ = ⌊17.51⌋
+= 17 slots, where the 17.5 is the weight shard in GB, the 8 is the
+runtime reserve in GB, and 3.11296 is GB per slot. On the vendor-binary
 unit basis declared in §7.1 the same subtraction gives 684 − 140 − 64 =
 480 GB of KV budget; per rank 480 ÷ 8 = 60 GB holds 60 ÷ 3.11296 = 19.3
 → floor 19 slots, against 17 on the decimal basis.

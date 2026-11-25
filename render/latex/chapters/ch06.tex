@@ -34,13 +34,11 @@ different role:
   not in this layer. The chain is population (active users) → arrival
   rate λ → in-flight requests (λ·W) → resident KV slots (Ch 4 §3, §6),
   and every link after λ is derived. \hyperref[fig:6.1]{Fig 6.1}'s workload box therefore
-  carries the request rate, the token profile, and a \emph{concurrency}
-  entry that denotes the request rate λ that the traffic offers, not a
-  concurrency value. For the canonical enterprise-Q\&A RAG workload
-  these are fixed by canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}):
-  \textasciitilde10 rps average with \textasciitilde40 rps peaks,
-  \textasciitilde9,200 input + \textasciitilde300 output tokens per
-  request.
+  carries only offered quantities --- the request rate λ (rps) and the
+  token profile. For the canonical enterprise-Q\&A RAG workload these
+  are fixed by canonical scenario (Ch 4, \hyperref[tab:4.2]{Table 4-2}): \textasciitilde10
+  rps average with \textasciitilde40 rps peaks, \textasciitilde9,200
+  input + \textasciitilde300 output tokens per request.
 \item
   \textbf{Serving metrics} --- how \emph{well} the system performs under
   that workload. Time-to-first-token (TTFT), time-per-output-token
@@ -72,8 +70,8 @@ slow, let's buy GPUs'' --- instead of a mechanism.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- a conceptual schematic; the three-layer grouping is a framing choice, not a measured classification. The figure shows the three metric layers and the direction of causal flow (down) vs.~diagnostic flow (up): causation runs downward (workload → resource metrics → serving behavior), diagnosis runs upward (serving symptom → resource evidence → workload/context); see §6.3 for the p95 TTFT worked example. Label caveat: a concurrency entry in the workload box denotes the request rate λ that the traffic offers, not a concurrency value --- request concurrency is derived on the serving side (in-flight = λ × W, Little's law), the same classification this figure gives queue depth; see §6.1.1.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0601.pdf}}
-\caption[The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}]{The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- a conceptual schematic; the three-layer grouping is a framing choice, not a measured classification. The figure shows the three metric layers and the direction of causal flow (down) vs.~diagnostic flow (up): causation runs downward (workload → resource metrics → serving behavior), diagnosis runs upward (serving symptom → resource evidence → workload/context); see §6.3 for the p95 TTFT worked example. Label caveat: a \texttt{concurrency} entry in the workload box denotes the request rate λ that the traffic offers, not a concurrency value --- request concurrency is derived on the serving side (in-flight = λ × W, Little's law), the same classification this figure gives queue depth; see §6.1.1.}
+\pandocbounded{\includegraphics[keepaspectratio,alt={The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- a conceptual schematic; the three-layer grouping is a framing choice, not a measured classification. The figure shows the three metric layers and the direction of causal flow (down) vs.~diagnostic flow (up): causation runs downward (workload → resource metrics → serving behavior), diagnosis runs upward (serving symptom → resource evidence → workload/context); see §6.3 for the p95 TTFT worked example. Figure-art note: the third printed entry in the workload box (concurrency) is an erratum in the figure art for the offered request rate λ; it is not a workload metric. Concurrency proper is derived on the serving side (in-flight = λ × W, Little's law), the same classification this figure gives queue depth; see §6.1.1.},width=\maxwidth{\textwidth},keepaspectratio]{figures/fig-06-0601.pdf}}
+\caption[The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}]{The metric hierarchy as a diagnostic chain \mbox{{[}ILLUSTRATIVE{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- a conceptual schematic; the three-layer grouping is a framing choice, not a measured classification. The figure shows the three metric layers and the direction of causal flow (down) vs.~diagnostic flow (up): causation runs downward (workload → resource metrics → serving behavior), diagnosis runs upward (serving symptom → resource evidence → workload/context); see §6.3 for the p95 TTFT worked example. Figure-art note: the third printed entry in the workload box (\texttt{concurrency}) is an erratum in the figure art for the offered request rate λ; it is not a workload metric. Concurrency proper is derived on the serving side (in-flight = λ × W, Little's law), the same classification this figure gives queue depth; see §6.1.1.}
 
 \label{fig:6.1}\end{figure}
 
@@ -483,7 +481,7 @@ sharded, so each GPU only needs \textasciitilde0.70 TB/s against its own
 Decision}\label{reading-telemetry-into-a-decision}
 
 A concrete dashboard-read → decision trace. We see: p95 TTFT climbing
-(serving), KV cache hit ratio low (resource: FLOP/reuse --- prefill
+(serving), prefix-cache hit ratio low (resource: FLOP/reuse --- prefill
 recomputation), and prefill queue depth growing (scheduler state --- a
 leading indicator of the serving symptom, per §6.1.1). Workload is
 unchanged. Reading up the chain: low prefix-cache hit means many
@@ -662,17 +660,18 @@ lunch.'' The dashboard shows rps at the \textasciitilde40 rps peak
 SLO (serving, breached), and KV cache occupancy at 85\% (resource,
 memory pressure) with low prefix-hit ratio (resource, FLOP/reuse ---
 prefill recomputation). Following the chain rather than guessing, the
-architect reads: a concurrency spike (workload) with repeated full 9.2K
-prefills (low prefix hit) drives prefill FLOP demand several times past
-the host aggregate capacity (compute-bound). The deployment had passed
-the single-request residency check --- \textasciitilde140 GB weights +
-\textasciitilde24.9 GB KV ≈ 165 GB \textless{} 640 GB (Ch 7) --- but was
-never sized for concurrency or for compute, let alone for the lunch
-peak: 10 rps already demands 10 × 1.29 ≈ 12.9 PFLOP/s of prefill, ≈
-\textbf{4.7 host-equivalents} of one 8×H100 host's \textasciitilde2.77
-PFLOP/s sustained prefill capacity, and the 40 rps peak demands 40 ×
-1.29 ≈ 51.6 PFLOP/s ≈ \textbf{18.6 host-equivalents}. On the single host
-this mini-case assumes (deployed host count H = 1) that is a
+architect reads: an arrival-rate spike (workload, up to the
+\textasciitilde40 rps peak) with repeated full 9.2K prefills (low prefix
+hit) drives prefill FLOP demand several times past the host aggregate
+capacity (compute-bound). The deployment had passed the single-request
+residency check --- \textasciitilde140 GB weights + \textasciitilde24.9
+GB KV ≈ 165 GB \textless{} 640 GB (Ch 7) --- but was never sized for
+concurrency or for compute, let alone for the lunch peak: 10 rps already
+demands 10 × 1.29 ≈ 12.9 PFLOP/s of prefill, ≈ \textbf{4.7
+host-equivalents} of one 8×H100 host's \textasciitilde2.77 PFLOP/s
+sustained prefill capacity, and the 40 rps peak demands 40 × 1.29 ≈ 51.6
+PFLOP/s ≈ \textbf{18.6 host-equivalents}. On the single host this
+mini-case assumes (deployed host count H = 1) that is a
 \textasciitilde4.7× oversubscription at baseline and 18.6× at the peak
 (case (i), linear-only FLOP count); the fleet oversubscription at peak
 is 51.6 ÷ (H × 2.77) = 18.6/H, so an H-host fleet sized at 10 rps --- H
