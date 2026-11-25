@@ -1,0 +1,54 @@
+{
+ "target": "design/manuscript/chapter-03/chapter-03.md",
+ "findings": [
+  {
+   "model": "DeepSeek-V4.1-Flash",
+   "id": "R20-002",
+   "severity": "P3",
+   "page": "51",
+   "chapter": "Ch. 3 (Understanding the Model), §3.6.1",
+   "evidence": "Page 27 cites the Qwen3.8-Flash-Next context window as \"Appendix A §10\", while page 51 cites the same model card as \"(source: model card HF Qwen/Qwen3.8-Flash-Next, accessed 2026-08-30; A.10)\".",
+   "issue": "Two different reference forms (\"Appendix A §10\" and \"A.10\") point at the same appendix location, and neither matches the appendix's own stated numbering convention from the Preface (\"Appendix A § 9A means Appendix A, the section labelled 9A; the appendix's figures carry A.N\"). Under that convention \"A.10\" reads as a figure, but the List of Figures stops at A.5.",
+   "fix_instruction": "Pick one form for appendix sections (the Preface's letter-suffix form, e.g. \"§ 10A\", or a plain \"A §10\") and apply it at both page 27 and page 51; do not use the A.N figure-style token for a section.",
+   "confidence": "low",
+   "_tid": "R21-002"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "R20-001",
+   "severity": "P2",
+   "page": 78,
+   "chapter": "3",
+   "evidence": "Table 3-3 — Parameter and KV cache arithmetic: dense 70B vs MoE (8×7B class) lists the row \"KV cache per request (9.2K ctx, FP16)\" with the MoE column value \"~1.2 GB\" and derivation \"9,200 × 0.131 MB/token ≈ 1.20 GB\". But the same chapter's §3.3.3 text states: \"KV per token = 2 × 32 × 8 × 128 = 65,536 B = 0.0655 MB/token at 8-bit, so 9,200 × 0.0655 MB ≈ 0.60 GB (≈1.2 GB at FP16)\". The derivation in Table 3-3 says 0.131 MB/token, which is the FP16 rate, but the text immediately above it labels 0.0655 MB/token as the 8-bit rate and 1.2 GB as the FP16 figure — so the table row's per-token constant (0.131 MB) is FP16, not 8-bit, while the neighbouring 8-bit row derives 0.0655 MB from the same geometry. Both are internally consistent per-row, but a reader scanning the two rows sees 0.131 MB and 0.0655 MB for what the text calls the same 'challenger's own 32L/4096H GQA (8 KV-heads × 128)' geometry without the table stating that 0.131 is the FP16 figure and 0.0655 the 8-bit figure; the row labels carry the precision, so this is a presentation-clarity defect rather than an arithmetic error.",
+   "issue": "Table 3-3's two KV rows for the MoE column use per-token constants (0.131 MB vs 0.0655 MB) that differ by exactly 2x (FP16 vs 8-bit) but the table does not label the precision of the per-token constant in the derivation cell, unlike Table 7-1 which explicitly states '8-bit here means FP8 (one byte per K/V element), not a block-scaled INT8 scale-offset layout'.",
+   "fix_instruction": "In Table 3-3, add the precision qualifier to each per-token constant in the derivation cells (e.g. '0.131 MB/token at FP16' and '0.0655 MB/token at 8-bit, raw byte-halving'), matching the labelling discipline already used in Table 7-1 and in the §3.3.3 prose.",
+   "confidence": "medium",
+   "_tid": "R21-009"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "R20-005",
+   "severity": "P2",
+   "page": 66,
+   "chapter": "3",
+   "evidence": "Table 4-2's canonical-scenario ledger row \"Execution occupancy\" gives \"~86 / ~344 requests (at Wexec ≈ 8.6 s, where Wexec = 1.08 s prefill + 7.5 s decode = 8.58 s, shown as 8.6 s throughout the book; upper bound — Wexec contains the 1.08 s two-term prefill cap, so B_other is not deducted)\". §4.3's Canonical Workload box repeats \"Mean request service time (planning headline — not used for occupancy) ~10 s\" and the execution-occupancy note: \"The occupancy service time is Wexec ≈ 8.6 s: prefill + decode, shown as 8.58 s in Table 4-2. It excludes the ~120 ms retrieval term.\" Chapter 2 §2.3 states the same occupancy: \"the capacity question — how many such hosts to absorb λ = 40 rps, where in-flight concurrency Lexec = λWexec ≈344 at the ~8.6 s service time (that occupancy is derived in Ch 4 §3 and carried in Table 4-2)\". Recomputing: 40 rps × 8.58 s = 343.2 → ~344 ✓; 10 rps × 8.58 s = 85.8 → ~86 ✓. But Chapter 4 §4.6 uses the per-host slot screen as '86 in-flight ÷ 17 slots = 5.06' and Chapter 17's host count ⌈344/17⌉ = 21. With Wexec shown as '8.6 s' in the ledger and '8.58 s' in the prose, a reader recomputing 40 × 8.6 = 344 exactly, and one recomputing 40 × 8.58 = 343.2, get the same headline; however Chapter 4 §4.3's own cost-basis arithmetic elsewhere in the chapter uses a distinct third number: 'the same fleet is ~$3.33 per 1K requests (hour-matched, active-hours basis, 6-host average at the ~10 rps average)' derived from '10 × 3,600 × 8 × 260/12 = 6,240,000' — while the per-request decode figure quoted repeatedly for the same workload is '300 × 25 ms = 7.5 s'. The 8.58 s figure therefore embeds the 1.08 s prefill cap (which Table 4-2 flags as 'NOT a feasible deployed prefill target', since budget_prefill ≤ 1.08 s − B_other), so every occupancy, host-count and $/1K figure in Chs 4, 6, 8, 16, 17 and 20 inherits an upper-bound service time that the book itself says cannot be met in deployment.",
+   "issue": "The service time Wexec = 8.58 s used as the denominator for every Little's-law occupancy, host-count and per-1K-request figure book-wide is built on the 1.08 s prefill figure that Table 4-2 explicitly labels 'two-term-only upper cap, NOT a feasible deployed prefill target' with 'B_other' (admission/queue and tokenization/transfer) not deducted; the upper-bound status is noted on the Table 4-2 row and in the Canonical Workload box, but the derived occupancies (~86/~344), the 17-slot host screen (⌈344/17⌉ = 21) and the cost-per-1K figures do not repeat it, so a reader can carry them into a sizing deck as measured quantities.",
+   "fix_instruction": "Add the 'upper-bound, B_other not deducted' qualifier inline to the execution-occupancy row's downstream consumers — at minimum where ~86/~344 is first used for the 17-slot host screen in §4.6 and where the host counts are quoted in the §4.8 mini-case — so the inherited bound travels with the numbers rather than only with the Table 4-2 source row.",
+   "confidence": "medium",
+   "_tid": "R21-013"
+  },
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "F01",
+   "severity": "P3",
+   "page": "74 (printed p. 50)",
+   "chapter": "Ch 3, §3.6.1 'Why the trend signal should not be read as \"dense is dead\"'",
+   "evidence": "\"Qwen3.8-27B ([1P][FACT], model card: https://huggingface.co/Qwen/Qwen3.8-27B is a dense 27.8B model whose 4-bit weights fit on a single 24 GB consumer GPU, and Muse Glimmer 30B ([2°][FACT], source: vLLM-Recipes, citing the Meta model card) is a dense 29.6B local-agentic model...\"",
+   "issue": "Unbalanced parenthesis: the '(' opened after 'Qwen3.8-27B' is never closed, so the source-citation parenthetical swallows the main clause ('is a dense 27.8B model...'). The parallel construction for 'Muse Glimmer 30B (...)' closes its parenthesis before 'is a dense 29.6B', confirming the intended closure point after the URL.",
+   "fix_instruction": "Insert the closing parenthesis after the model-card URL: 'Qwen3.8-27B ([1P][FACT], model card: https://huggingface.co/Qwen/Qwen3.8-27B) is a dense 27.8B model...'.",
+   "confidence": 0.95,
+   "_tid": "R21-014"
+  }
+ ],
+ "count": 4
+}

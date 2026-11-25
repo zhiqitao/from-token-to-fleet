@@ -218,11 +218,11 @@ Apply this to the canonical workload. We budget TTFT ≤ 1.2 s (retrieval
 \textasciitilde120 ms + prefill \textasciitilde1.08 s), with a p95
 ceiling of ≤ 2 s that the budget relaxes to. Suppose a flash crowd (the
 \textasciitilde40 rps peak) causes prefill requests to queue on a fleet
-provisioned at the full-utilization compute screen
-(\textasciitilde19--22 hosts, Ch 8 §3) --- that screen is not an
-SLO-goodput guarantee, so residual queueing under bursts can still push
-p95 TTFT above target. If on average the batch is well-behaved, p50 TTFT
-might sit at \textasciitilde1.0 s \mbox{{[}canonical
+provisioned at the full-utilization compute screen (\textasciitilde19
+hosts under Ch 8 §3 case (i), \textasciitilde22 under case (ii)) ---
+that screen is not an SLO-goodput guarantee, so residual queueing under
+bursts can still push p95 TTFT above target. If on average the batch is
+well-behaved, p50 TTFT might sit at \textasciitilde1.0 s \mbox{{[}canonical
 scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}} --- a supposition about a well-behaved
 batch, not a queueing-model result. But the jobs that arrive behind
 \textasciitilde1--2 same-time prefill requests each pay the full 1.08 s
@@ -448,18 +448,27 @@ util, mid bandwidth \\
 \noalign{\label{tab:6.1}}
 Decode (per token) & \textasciitilde140 GB weight-read →
 \textasciitilde5.6 TB/s rate (batch-1-equivalent) & \textasciitilde3.35
-TB/s HBM (single-device) & memory-bound by intensity (\textasciitilde1.0
-FLOP/byte ≪ ridge \textasciitilde295); weight-read bandwidth is
-\emph{not} binding at the canonical point --- 0.70 TB/s ÷ 3.35 TB/s =
-20.9\% achieved HBM util (the 25 ms TPOT is a budget covering TP
-collectives, kernel inefficiency, sampling and scheduling, not a
-bandwidth-saturated point) & two cases. (i) Batch-1 single-device
-illustration: high HBM util, low FLOP util --- the textbook
-bandwidth-bound signature. (ii) Canonical 8×H100, TP=8 operating point:
-low-to-moderate HBM util (\textasciitilde21\% of 3.35 TB/s), so HBM
-saturation is \emph{not} the tell here --- the binding evidence is
-TP-collective, kernel and scheduling overhead plus KV-attention traffic,
-and MFU and queue depth are the observable \\
+TB/s HBM (single-device) & \textbf{(a) regime (roofline):} memory-bound
+by intensity (\textasciitilde1.0 FLOP/byte ≪ ridge \textasciitilde295)
+--- this verdict comes from the arithmetic intensity, not from any
+bandwidth rate. \textbf{(b) achieved HBM utilization on the canonical
+host:} 0.70 TB/s ÷ 3.35 TB/s = 20.9\% per GPU, so weight-read bandwidth
+is \emph{not} binding at the canonical point (the 25 ms TPOT is a budget
+covering TP collectives, kernel inefficiency, sampling and scheduling,
+not a bandwidth-saturated point). These are two different senses of
+``memory-bound'': (a) names the roofline regime, (b) names the
+utilization shortfall. The \textasciitilde5.6-vs-3.35 TB/s comparison in
+the Demand and capacity columns applies to the hypothetical
+single-device case only, not to the 8×H100 host. & two cases. (i)
+Batch-1 single-device illustration: high HBM util, low FLOP util --- the
+textbook bandwidth-bound signature. (ii) Canonical 8×H100, TP=8
+operating point: low-to-moderate HBM util (\textasciitilde21\% of 3.35
+TB/s). That figure is an \emph{artifact of TP=8 weight sharding} ---
+each GPU reads only its \textasciitilde1/8 shard of the weights --- not
+a symptom of the roofline regime, so HBM saturation is \emph{not} the
+tell here; the binding evidence is TP-collective, kernel and scheduling
+overhead plus KV-attention traffic, and MFU and queue depth are the
+observable \\
 \end{longtable}
 
 \emph{(All figures \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} hardware / \mbox{{[}canonical
@@ -493,27 +502,28 @@ independent 9.2K prefixes are being prefill-processed from scratch on
 the \textasciitilde40 rps peak --- each \textasciitilde1.29 PFLOP (case
 (i), linear-only) --- aggregate prefill demand at the 40 rps peak is 40
 × 1.29 ≈ 51.6 PFLOP/s against the 8×H100 sustained prefill capacity of
-\textasciitilde2.77 PFLOP/s (35\% MFU, Ch 8 §3) --- \textasciitilde18.6×
-oversubscribed (the datasheet-peak \textasciitilde7.9 PFLOPS gives
-\textasciitilde6.5×, a theoretical ceiling only; under case (ii),
-full-square attention, the same 40 rps traffic peak at the same 35\% MFU
-planning rate screens \textasciitilde22 hosts --- Ch 8 §3), consistent
-with Ch 8's 19-host screen at this peak (case (i)), so the prefill queue
-grows until backpressure or prefix caching intervenes. The decision:
-enable prefix / RadixAttention-style caching (SGLang) or Automatic
-Prefix Caching (vLLM) so the byte-identical shared prefix is reused
-instead of re-prefilled --- in the canonical workload (1,200 prompt +
-8,000 per-query retrieved, Ch 4 \hyperref[tab:4.2]{Table 4-2}) the byte-identical share is
-at most the fixed system/instruction portion of the
-\textasciitilde1,200-token prompt, because the 8K retrieved block
-differs per query and the 1,200-token slot carries the query itself (Ch
-4 \hyperref[tab:4.1]{Table 4-1}), so \textasciitilde13\% of prefill FLOPs (the whole-slot
-case) is an upper bound on the cacheable fraction; prefix caching is
-therefore a partial mitigation, not the fix for the 40 rps prefill queue
-(§6.7 keeps the actual reduction \mbox{{[}UNRESOLVED{]}}).
-\mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} Prefix caching is a compute-saving move ---
-its TTFT benefit arrives through the prefill work it removes, not
-through a latency knob of its own --- and the telemetry told us that.
+\textasciitilde2.77 PFLOP/s (35\% MFU, Ch 8 §3, \hyperref[tab:8.1]{Table 8-1}) ---
+\textasciitilde18.6× oversubscribed (the datasheet-peak
+\textasciitilde7.9 PFLOPS gives \textasciitilde6.5×, a theoretical
+ceiling only; under case (ii), full-square attention, the same 40 rps
+traffic peak at the same 35\% MFU planning rate screens
+\textasciitilde22 hosts --- Ch 8 §3, case (ii)), consistent with the Ch
+8 §3 case (i) 19-host screen at this peak, so the prefill queue grows
+until backpressure or prefix caching intervenes. The decision: enable
+prefix / RadixAttention-style caching (SGLang) or Automatic Prefix
+Caching (vLLM) so the byte-identical shared prefix is reused instead of
+re-prefilled --- in the canonical workload (1,200 prompt + 8,000
+per-query retrieved, Ch 4 \hyperref[tab:4.2]{Table 4-2}) the byte-identical share is at most
+the fixed system/instruction portion of the \textasciitilde1,200-token
+prompt, because the 8K retrieved block differs per query and the
+1,200-token slot carries the query itself (Ch 4 \hyperref[tab:4.1]{Table 4-1}), so
+\textasciitilde13\% of prefill FLOPs (the whole-slot case) is an upper
+bound on the cacheable fraction; prefix caching is therefore a partial
+mitigation, not the fix for the 40 rps prefill queue (§6.7 keeps the
+actual reduction \mbox{{[}UNRESOLVED{]}}). \mbox{{[}S3{]}}\hspace{0pt}\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} Prefix
+caching is a compute-saving move --- its TTFT benefit arrives through
+the prefill work it removes, not through a latency knob of its own ---
+and the telemetry told us that.
 
 \ntsection{Measurement}\label{measurement}
 
@@ -673,18 +683,18 @@ GB KV ≈ 165 GB \textless{} 640 GB (Ch 7) --- but was never sized for
 concurrency or for compute, let alone for the lunch peak: 10 rps already
 demands 10 × 1.29 ≈ 12.9 PFLOP/s of prefill, ≈ \textbf{4.7
 host-equivalents} of one 8×H100 host's \textasciitilde2.77 PFLOP/s
-sustained prefill capacity, and the 40 rps peak demands 40 × 1.29 ≈ 51.6
-PFLOP/s ≈ \textbf{18.6 host-equivalents}. On the single host this
-mini-case assumes (deployed host count H = 1) that is a
-\textasciitilde4.7× oversubscription at baseline and 18.6× at the peak
-(case (i), linear-only FLOP count); the fleet oversubscription at peak
-is 51.6 ÷ (H × 2.77) = 18.6/H, so an H-host fleet sized at 10 rps --- H
-≈ 6, set by the KV-residency screen rather than by prefill (86 in-flight
-÷ 17 slots = 5.06 → 6 hosts, Ch 4 §3) --- would be \textasciitilde3.1×
-oversubscribed at the peak (51.6 ÷ (6 × 2.77) ≈ 3.1). The diagnosis is
-therefore stated against a named denominator: the peak demands
-\textasciitilde18.6× \emph{one host's} prefill capacity (18.6
-host-equivalents); prefix caching is a partial mitigation
+sustained prefill capacity (Ch 8 §3, \hyperref[tab:8.1]{Table 8-1}), and the 40 rps peak
+demands 40 × 1.29 ≈ 51.6 PFLOP/s ≈ \textbf{18.6 host-equivalents}. On
+the single host this mini-case assumes (deployed host count H = 1) that
+is a \textasciitilde4.7× oversubscription at baseline and 18.6× at the
+peak (case (i), linear-only FLOP count); the fleet oversubscription at
+peak is 51.6 ÷ (H × 2.77) = 18.6/H, so an H-host fleet sized at 10 rps
+--- H ≈ 6, set by the KV-residency screen rather than by prefill (86
+in-flight ÷ 17 slots = 5.06 → 6 hosts, Ch 4 §3) --- would be
+\textasciitilde3.1× oversubscribed at the peak (51.6 ÷ (6 × 2.77) ≈
+3.1). The diagnosis is therefore stated against a named denominator: the
+peak demands \textasciitilde18.6× \emph{one host's} prefill capacity
+(18.6 host-equivalents); prefix caching is a partial mitigation
 (\textasciitilde13\% of prefill FLOPs --- an upper bound, §6.3.4: the
 cacheable fraction is smaller once the query tokens are excluded), not
 the fix. The resolution is capacity/scheduling --- additional hosts,
@@ -707,15 +717,15 @@ raised from H = 1 to H = 21. That is the capacity floor, which is the
 max of the named screens, not the prefill compute screen alone: case
 (i)'s prefill screen needs ⌈18.6⌉ = 19 hosts, but the KV-residency /
 Little's-Law screen needs ⌈344/17⌉ = 21 hosts at the peak and therefore
-binds (Ch 8 §3; Ch 17). That slot screen runs on this mini-case's own
-host geometry, not on an imported one: the residency check above already
-fixes the host at \textasciitilde640 GB and the request slot at
-\textasciitilde24.9 GB (9.5K tokens), so the same 436 GB KV budget and
-17-slot whole-context ceiling apply (640 − 140 GB weights −
-\textasciitilde64 GB runtime ≈ 436 GB; 436 ÷ 24.9 ≈ 17.5, floored to 17
---- Ch 4 §6; Ch 17). H = 21 therefore follows from this case's own 344
-in-flight peak, and it agrees with Ch 17's canonical screen because both
-use that one geometry; it is an ANALYTICAL floor screen, not a
+binds (Ch 8 §3, case (i); Ch 17). That slot screen runs on this
+mini-case's own host geometry, not on an imported one: the residency
+check above already fixes the host at \textasciitilde640 GB and the
+request slot at \textasciitilde24.9 GB (9.5K tokens), so the same 436 GB
+KV budget and 17-slot whole-context ceiling apply (640 − 140 GB weights
+− \textasciitilde64 GB runtime ≈ 436 GB; 436 ÷ 24.9 ≈ 17.5, floored to
+17 --- Ch 4 §6; Ch 17). H = 21 therefore follows from this case's own
+344 in-flight peak, and it agrees with Ch 17's canonical screen because
+both use that one geometry; it is an ANALYTICAL floor screen, not a
 measurement, and not a benchmarked fleet size (Ch 17). At 21 hosts the
 344 in-flight peak requests fit the 21 × 17 = 357 resident slots, and
 the peak prefill oversubscription falls from 18.6× to 51.6 ÷ (21 × 2.77)
