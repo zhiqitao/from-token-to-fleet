@@ -1055,22 +1055,23 @@ which translate user‑experience goals into concrete time budgets:
   tok/s at 35\% MFU, so a single GPU needs \textasciitilde3.7 s for it
   (9,200 ÷ 2,472 = 3.72 s) and fails the cap, while ⌈1.19 PFLOPS ÷
   (0.989 × 0.35)⌉ ≈ 4 GPUs meet it --- the 8-GPU host needs
-  \textasciitilde0.47 s (9,200 ÷ 19,780 = 0.465 s). That four is a
-  per-request prefill-feasibility \emph{floor} under the 35\% MFU
-  planning assumption \mbox{{[}canonical scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}: real MFU
-  below 35\% raises the count, so verify it by benchmark before sizing
-  on it (Ch 14). It is not a determined count, not a deployable GPU
-  count, and not a deployment recommendation. The canonical 8-GPU choice
-  is driven by concurrency, KV capacity and headroom, and the deployable
-  host count is Ch 17's (\hyperref[tab:17.1]{Table 17-1}), not this cap's. Per Ch 2 and Ch
-  8). The \textbf{p95 TTFT ceiling (≤ 2 s)} must hold --- a tail ceiling
-  above the 1.2 s design budget, allowing occasional cache misses or
-  network jitter to land between the 1.2 s design budget and the 2 s
-  ceiling. The two thresholds are not interchangeable: 1.2 s is the
-  design budget, ≤ 2 s is the p95 ceiling the budget relaxes to, and any
-  pass/fail judgement on a measured distribution is made against the p95
-  ceiling, not the budget. \textbf{TTFT\_e2e convention (used
-  throughout):}
+  \textasciitilde0.47 s (9,200 ÷ 19,780 = 0.465 s; 19,780 = 8 × 2,472.5
+  tok/s, the unrounded form of the \textasciitilde19,800 tok/s planning
+  rate). That four is a per-request prefill-feasibility \emph{floor}
+  under the 35\% MFU planning assumption \mbox{{[}canonical
+  scenario{]}}\hspace{0pt}\mbox{{[}ASSUMPTION{]}}: real MFU below 35\% raises the count, so
+  verify it by benchmark before sizing on it (Ch 14). It is not a
+  determined count, not a deployable GPU count, and not a deployment
+  recommendation. The canonical 8-GPU choice is driven by concurrency,
+  KV capacity and headroom, and the deployable host count is Ch 17's
+  (\hyperref[tab:17.1]{Table 17-1}), not this cap's. Per Ch 2 and Ch 8). The \textbf{p95 TTFT
+  ceiling (≤ 2 s)} must hold --- a tail ceiling above the 1.2 s design
+  budget, allowing occasional cache misses or network jitter to land
+  between the 1.2 s design budget and the 2 s ceiling. The two
+  thresholds are not interchangeable: 1.2 s is the design budget, ≤ 2 s
+  is the p95 ceiling the budget relaxes to, and any pass/fail judgement
+  on a measured distribution is made against the p95 ceiling, not the
+  budget. \textbf{TTFT\_e2e convention (used throughout):}
   \(\text{TTFT}_{\text{e2e}} = \text{retrieval} + \text{admission/queue} + \text{tokenization/transfer} + \text{prefill}\).
   Here the 1.2 s budget names the \emph{two dominant modeled terms} ---
   retrieval (\textasciitilde120 ms) + prefill (\textasciitilde1.08 s)
@@ -1190,8 +1191,10 @@ cost structure:
   as (N\_hosts × \$20/hr) ÷ (rps × 3600) ≈ (6 × \$20) ÷ (10 × 3600) ≈
   \textbf{\textasciitilde\$0.0033 per request} at average, and (21 ×
   \$20) ÷ (40 × 3600) ≈ \textbf{\textasciitilde\$0.0029 per request} at
-  peak (6/21-host full-util basis; the 70\% × 95\% + N−1 policy fleet
-  --- 10 provisioned hosts at average, 32 at peak --- gives
+  peak (the × 3,600 converts requests per second to requests per hour,
+  so each denominator is an hourly request count matched to the hourly
+  \$/hr spend; 6/21-host full-util basis; the 70\% × 95\% + N−1 policy
+  fleet --- 10 provisioned hosts at average, 32 at peak --- gives
   \textasciitilde\$0.0056 / \textasciitilde\$0.0044) --- average and
   peak no longer coincide exactly, because the floor-17 KV screen rounds
   10 rps up to 6 hosts and 40 rps up to 21 (6/10 ≠ 21/40), so the peak
@@ -1718,18 +1721,19 @@ research and demand modeling independently set the busy-period peak to
 \textbf{50 requests/s} (a declared scenario input at this growth scale,
 not a figure derived from the 500-user count --- Little's Law cannot
 convert an active-user population into an arrival rate without knowing
-in-flight request occupancy). With the illustrative \textasciitilde8.6 s
-engine response duration, Little's Law implies approximately 50 × 8.6 ≈
-\textbf{430 requests in the system} across the fleet at that rate ---
-distinct from the 500 active people. It is the \emph{arrival rate}, not
-the user count, that sizes the fleet. Using the canonical per-host bound
-from § 7.3 (the whole-slot floor of 17 KV-resident requests) and Ch 20
-(17 slots ÷ 8.6 s = 1.977 rps --- a single 8×H100 host serves
-\textasciitilde2.0 rps at full modeled utilization --- C ≈ 17.5 (= 436
-GB ÷ 24.9 GB, the 9.5K-token resident basis of §4.6) is the analytical
-quotient, floored to 17 deployable whole-context slots per the book's
-whole-slot convention; applied in Ch 17), the fleet rounds up by the
-same whole-slot ceiling the canonical 40 rps case uses (⌈344/17⌉ = 21):
+in-flight request occupancy). With the canonical-scenario
+\textasciitilde8.6 s engine response duration, Little's Law implies
+approximately 50 × 8.6 ≈ \textbf{430 requests in the system} across the
+fleet at that rate --- distinct from the 500 active people. It is the
+\emph{arrival rate}, not the user count, that sizes the fleet. Using the
+canonical per-host bound from § 7.3 (the whole-slot floor of 17
+KV-resident requests) and Ch 20 (17 slots ÷ 8.6 s = 1.977 rps --- a
+single 8×H100 host serves \textasciitilde2.0 rps at full modeled
+utilization --- C ≈ 17.5 (= 436 GB ÷ 24.9 GB, the 9.5K-token resident
+basis of §4.6) is the analytical quotient, floored to 17 deployable
+whole-context slots per the book's whole-slot convention; applied in Ch
+17), the fleet rounds up by the same whole-slot ceiling the canonical 40
+rps case uses (⌈344/17⌉ = 21):
 
 \[
 n_\text{hosts} = \left\lceil \frac{50 \text{ rps} \times 8.6 \text{ s}}{17 \text{ slots}} \right\rceil = \lceil 430/17 \rceil = \lceil 25.29 \rceil = 26 \text{ hosts} \quad (\text{full utilization})

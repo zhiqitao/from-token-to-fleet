@@ -1,0 +1,54 @@
+{
+ "target": "design/manuscript/chapter-02/chapter-02.md",
+ "findings": [
+  {
+   "model": "MiMo-V2.6-Flash-RL",
+   "id": "F1",
+   "severity": "P2",
+   "page": "56",
+   "chapter": "2",
+   "evidence": "Figure 2.2 caption, book page 32 (PDF p.56): \"[ILLUSTRATIVE][DERIVED] — both plotted intensities are computed from the stated inputs, not measured\"",
+   "issue": "Provenance label mismatch. The Preface (p.14) defines [ILLUSTRATIVE] as \"a non-canonical worked example or scenario input chosen to make a calculation concrete\" and [canonical scenario] as \"the book's own internally defined workload and model (Ch. 4, Table 4-2).\" Both plotted intensities — prefill ~9,200 FLOP/byte (= 1.29 PFLOP / 140 GB) and decode ~1 FLOP/byte (= 140 GFLOP / 140 GB) — are computed from the canonical scenario's own inputs (Table 4-2: 70B model, 9,200 tokens, FP16, H100 specs). The caption itself says they are \"computed from the stated inputs.\" Per the Preface's rule (p.16: \"a value arithmetically derived from those assumed inputs ... is [canonical scenario][DERIVED]\"), the correct provenance should be [canonical scenario][DERIVED], not [ILLUSTRATIVE][DERIVED]. The same pattern recurs on Figure 1.1 (PDF p.56, \"[ILLUSTRATIVE][DERIVED] — the schematic is drawn from the documented mechanism ([1P][FACT], Ch. 4, Table 4-2)\") and Figure 2.1 (PDF p.44, \"[ILLUSTRATIVE][DERIVED] — the schematic is drawn from the documented mechanism ([1P][FACT], Ch 4)\") — all three label canonical-scenario-derived content with the non-canonical provenance tag.",
+   "fix_instruction": "Change [ILLUSTRATIVE][DERIVED] to [canonical scenario][DERIVED] on Figure 2.2's caption where the label specifically attributes to \"both plotted intensities.\" For Figures 1.1 and 2.1, where [ILLUSTRATIVE] may describe the schematic artifact (a simplified drawing) rather than the data, either add a clarifying note that [ILLUSTRATIVE] refers to the drawing's simplification (not the data provenance) or restructure the label to separate figure-artifact provenance from data provenance. Recurrence sweep: check all figure captions that carry [ILLUSTRATIVE] but whose plotted/drawn values derive from Table 4-2.",
+   "confidence": "moderate",
+   "_tid": "R17-004"
+  },
+  {
+   "model": "MiMo-V2.6-Flash-RL",
+   "id": "F2",
+   "severity": "P3",
+   "page": "30",
+   "chapter": "2",
+   "evidence": "Table 2-2, \"Prefill: FLOPs, linear term only\" row, derivation column: \"2 ×70e9 ×9.2e3 ≈ 1.29 ×10¹⁵; excludes the quadratic attention term, which adds ~0.22 PFLOP (+17%) at 9.2K → ~1.51 PFLOP total, Ch 8 case (ii)\"",
+   "issue": "Inconsistent rounding precision for the same quantity across locations. Table 2-2 (PDF p.30) states the attention-term contribution as \"(+17%)\" (no decimal places), while the Table 2-2 scope note on the same page states \"~0.22 PFLOP (+17.23%)\" (two decimal places). Recomputed: 0.222e15 / 1.288e15 = 17.23%. Both values are arithmetically correct at their respective precision, but quoting 17% and 17.23% for the same figure in adjacent text blocks (both within Table 2-2's scope note) is inconsistent presentation — a reader comparing the table row to its own scope note sees two different precisions for one quantity. Note: this is a presentation inconsistency, not an arithmetic error.",
+   "fix_instruction": "Standardize the precision of the attention-term percentage within Table 2-2. Either use \"~17%\" in both the table row and the scope note, or use \"~17.2%\" in both. The table row already uses \"~\" so a rounded value is expected; the scope note's two-decimal precision is the outlier.",
+   "confidence": "high",
+   "_tid": "R17-005"
+  },
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "R16-F4",
+   "severity": "P3",
+   "page": "PDF p. 41 (printed 17) vs PDF p. 32 (printed 8); convention noted at PDF p. 22 (printed xviii)",
+   "chapter": "Ch. 2 (Prefill/Decode) — symbol overloading of L",
+   "evidence": "PDF p. 41 (Ch. 2, §2.1): \"The full prefill also has a substantial linear-in-L component — the weight-matmul FLOPs, 2NL (where N = model parameters and L = tokens processed)\" — and the same chapter uses L for sequence length again on PDF p. 41: \"the attention work grows with the square of the context length\" and PDF p. 32 (Ch. 1): \"4·n_layers·L·d FLOPs ... 4·n_layers·L·d bytes\". Against this, PDF p. 32 (Ch. 1, KV cache section) states: \"(The symbol is Mweights, not W: throughout the book W is reserved for mean time in system in Little's law, L = λW, Ch 4.)\" — i.e. L is also the Little's-law population of requests in system, as it is in Ch. 2's own use of \"L = λW\" and in Ch. 4's \"Lexec = λ × Wexec\".",
+   "issue": "L carries two unrelated meanings across the same chapters: sequence length (tokens processed) in the FLOP/byte formulas — 2NL, 4·n_layers·L·d, 4·n_layers·L²·d — and the number of requests resident in the system in Little's law (L = λW). The book anticipated one half of this collision (it reserves W against Mweights) but left L doubly bound, and the collision lands inside one chapter: a reader following Ch. 2's \"2NL\" and then the same chapter's \"L = λW\" has to re-derive which L applies. Ch. 4 already avoids it by renaming the population L_exec, so the fix is available in the book's own vocabulary.",
+   "fix_instruction": "Adopt the Ch. 4 convention book-wide: use L_exec (or N_in_system) for the Little's-law population in every occurrence — the Ch. 2 note on PDF p. 32 and the causal-chain/Little's-law passages in Ch. 2 and Ch. 4 — and state both bindings in the Preface's reading conventions next to the existing \"Mweights, not W\" note, so that 2NL and L = λW can never be confused.",
+   "confidence": "medium",
+   "_tid": "R17-010"
+  },
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "R17-03",
+   "severity": "P3",
+   "page": "55 (PDF; also 41, 107, 110, 128, 149)",
+   "chapter": "Notation discipline (Ch 2 §2.3; collisions span Ch 1–8)",
+   "evidence": "p.55: \"(The symbol is Mweights, not W: throughout the book W is reserved for mean time in system in Little's law, L = λW, Ch 4.)\" But L is also defined as sequence length: p.41 \"the weight-matmul FLOPs, 2NL (where N = model parameters and L = tokens processed)\"; p.128 \"the attention term is 4·L·d_model·n_layers = 4 × 9,200 × 8,192 × 80\"; p.149 \"M_history(L) = L × 65,536 bytes\". Little's-law use of bare L: p.107 \"Little's Law, L = λW, relates the average number of requests in the defined system L\"; p.110 \"L (in-flight requests)\".",
+   "issue": "The book explicitly reserves W (and disambiguates Mweights) but double-books L: sequence length/tokens processed in the FLOP and history-state formulas (Ch 1 §1.1.4, Ch 2, Ch 6 §6.3.3, Ch 7 §7.3.2) vs in-flight request count in Little's law (Ch 4 §4.3 walk-through). The Ch 4 usage is mostly mitigated by the Lexec subscript, but the bare 'L = λW' statements collide with the FLOP-formula L across chapters.",
+   "fix_instruction": "Reserve a distinct symbol for the Little's-law in-flight count (e.g., N_inflight or Q) or restrict bare-L Little's-law statements to 'Lexec = λ × Wexec'; add L to the reservation note on p.55 alongside W.",
+   "confidence": "high",
+   "_tid": "R17-013"
+  }
+ ],
+ "count": 4
+}
