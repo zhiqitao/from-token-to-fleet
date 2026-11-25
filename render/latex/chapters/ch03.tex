@@ -567,18 +567,19 @@ teaches: \textbf{Qwen3.8-27B} (\mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}}, mod
 4-bit weights fit on a single 24 GB consumer GPU, and \textbf{Muse
 Glimmer 30B} (\mbox{{[}2°{]}}\hspace{0pt}\mbox{{[}FACT{]}}, source: vLLM-Recipes, citing the Meta
 model card) is a dense 29.6B local-agentic model that runs in
-\textasciitilde18 GB at \textasciitilde5-bit weights \mbox{{[}2°{]}}. These
-exist because the dense-vs-MoE trade is itself a \emph{deployment}
-decision, not a date: MoE buys active-parameter efficiency at the cost
-of total-parameter memory and routing complexity --- worthwhile when
-serving many requests from a large pool of resident weights, but hard to
-justify when the whole budget is one consumer GPU whose total weights
-already overrun. That is precisely why this book keeps its canonical on
-the dense tier: the canonical must serve the architect whose \emph{whole
-fleet} is a handful of boxes, not only the one sizing a 2.8T datacenter
-model. The framework does not change between tiers --- total vs active,
-KV per-token, and residency budgeting apply identically to a 27B dense
-laptop model and a 125B/6B MoE fleet model.
+\textasciitilde18 GB at \textasciitilde5-bit weights (29.6 × 10⁹ × 5/8 B
+≈ 18.5 GB) \mbox{{[}2°{]}}\hspace{0pt}\mbox{{[}DERIVED{]}}. These exist because the dense-vs-MoE
+trade is itself a \emph{deployment} decision, not a date: MoE buys
+active-parameter efficiency at the cost of total-parameter memory and
+routing complexity --- worthwhile when serving many requests from a
+large pool of resident weights, but hard to justify when the whole
+budget is one consumer GPU whose total weights already overrun. That is
+precisely why this book keeps its canonical on the dense tier: the
+canonical must serve the architect whose \emph{whole fleet} is a handful
+of boxes, not only the one sizing a 2.8T datacenter model. The framework
+does not change between tiers --- total vs active, KV per-token, and
+residency budgeting apply identically to a 27B dense laptop model and a
+125B/6B MoE fleet model.
 
 \textbf{Why the rest of this chapter's canonical stays a dense full-MHA
 model.} If the trend is MoE + hybrid, why does this book's canonical
@@ -588,18 +589,21 @@ full multi-head attention gives the cleanest single-constant KV formula
 footprint for a given layer count and hidden width --- the conservative
 worst case within the canonical 80-layer/8192-hidden geometry, and the
 bound this chapter sizes against. It is not the largest KV constant in
-the book: Ch 7 §7.4 re-derives the per-token value for other geometries,
-where a 100-layer, 12,288-hidden model at FP16 gives \textasciitilde4.9
-MB/token. Teaching against the canonical bound means the reader learns
-the framework on the hardest memory case within that geometry and then
-relaxes it. It is a deliberate teaching simplification, not a claim that
-in 2026 an enterprise RAG fleet really runs on dense 70B.
+the book: § 7.4 (Measurement) re-derives the per-token value for other
+geometries, where a 100-layer, 12,288-hidden model at FP16 gives
+\textasciitilde4.9 MB/token. Teaching against the canonical bound means
+the reader learns the framework on the hardest memory case within that
+geometry and then relaxes it. It is a deliberate teaching
+simplification, not a claim that in 2026 an enterprise RAG fleet really
+runs on dense 70B.
 
 \textbf{One verified 2026 transfer: Qwen3.8-Flash-Next.} The model card
 \mbox{{[}1P{]}}\hspace{0pt}\mbox{{[}FACT{]}} (source: model card HF Qwen/Qwen3.8-Flash-Next,
 accessed 2026-08-30; A.10) is the Qwen4-architecture preview:
-\textbf{125B total / 6B active} (plus a separate 51B of offloadable
-N-gram embedding parameters), \textbf{512 MoE experts} (10 routed + 1
+\textbf{125B total / 6B active} in the transformer backbone, plus a
+separate 51B of offloadable N-gram embedding parameters (the 51B is
+additional to the 125B --- a 176B inventory in all, of which only the
+125B backbone must be resident), \textbf{512 MoE experts} (10 routed + 1
 shared per token), and \textbf{hybrid attention} --- Gated DeltaNet
 (GDN) on three of every four layers plus Qwen Sparse Attention (QSA) on
 the fourth. This is exactly the ``125B/6B active MoE + Gated
@@ -610,20 +614,24 @@ Stepping through this book's own arithmetic:
 \tightlist
 \item
   \textbf{Active-weight read traffic per batch-1 decode token} (Ch 7's
-  floor): the weights that must be resident for Qwen are its total set,
-  \textasciitilde125 × 10⁹ params × 2 bytes/param ≈ 250 GB (plus the
-  offloadable N-gram); of that total, only \textasciitilde6 × 10⁹ params
-  are read per batch-1 decode token, at 2 bytes/param =
-  \textasciitilde12 GB. That read is \textasciitilde1/12 the per-token
-  weight traffic of the canonical dense 70B (140 GB → 12 GB) and
-  \textasciitilde1/21 of Qwen's own total weight footprint
-  (\textasciitilde250 GB → 12 GB), but it is a \emph{compute/bandwidth}
-  statement, not a residency one: the total weights dominate the memory
-  ceiling. So the \emph{total-vs-active} split of this chapter is not a
-  footnote --- it is the difference between fitting on one host and
-  sharding across several, and the \textasciitilde250 GB total (not the
-  \textasciitilde12 GB active working set) is what must be resident
-  unless experts are explicitly offloaded.
+  floor): the weights that must be resident for Qwen are its 125B
+  transformer backbone, \textasciitilde125 × 10⁹ params × 2 bytes/param
+  ≈ 250 GB; the separate 51B N-gram table (\textasciitilde102 GB at the
+  same precision) is offloadable to host memory, so it sits outside that
+  resident figure (125B backbone + 51B table ≈ 352 GB if nothing is
+  offloaded). Of the \textasciitilde250 GB backbone, only
+  \textasciitilde6 × 10⁹ params are read per batch-1 decode token, at 2
+  bytes/param = \textasciitilde12 GB. That read is \textasciitilde1/12
+  the per-token weight traffic of the canonical dense 70B (140 GB → 12
+  GB) and \textasciitilde1/21 of Qwen's own 125B-backbone weight
+  footprint (\textasciitilde250 GB → 12 GB), but it is a
+  \emph{compute/bandwidth} statement, not a residency one: the total
+  weights dominate the memory ceiling. So the \emph{total-vs-active}
+  split of this chapter is not a footnote --- it is the difference
+  between fitting on one host and sharding across several, and the
+  \textasciitilde250 GB backbone (not the \textasciitilde12 GB active
+  working set) is what must be resident unless experts are explicitly
+  offloaded.
 \item
   \textbf{KV cache} (Ch 7/8): the canonical
   \texttt{2\ ×\ layers\ ×\ hidden\ ×\ bytes} KV formula is the full-MHA
