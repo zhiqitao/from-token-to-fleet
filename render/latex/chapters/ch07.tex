@@ -317,15 +317,18 @@ not fit in 2×H100; needs ≥3×H100 by aggregate capacity (or lower
 precision / more GPUs) \\
 fits 8×H100 at 9.2K? & Pass --- 164.1 GB \textless{} 640 GB & 164.1 GB
 \textless{} 640 GB; aggregate gate and TP=8 shard check clear \\
-fits 3×H100 at 9.2K? & Conditional Pass --- aggregate gate only; TP=3
-placement not established & 164.1 GB \textless{} 240 GB, but tensor
-parallelism shards attention heads, not the hidden dim, and the
-canonical 64-query-head full-MHA geometry does not partition evenly into
-3 ranks (64 query heads and 64 KV heads; splitting 64 heads across 3
-ranks gives 64/3 = 21.3, and the GQA variant's 8 KV heads split as 8/3 =
-2.67 --- neither divides evenly; the MLP intermediate size must divide
-too); viable TP=3 requires a supported head-partition plan, per-rank
-allocation and a working engine benchmark --- see the note below \\
+fits 3×H100 at 9.2K? & Conditional Pass --- aggregate bytes only; TP=3
+is not a supported even head partition for the canonical 64-head
+geometry, so this is not a deployable TP=3 layout & 164.1 GB \textless{}
+240 GB, but tensor parallelism shards attention heads, not the hidden
+dim, and the canonical 64-query-head full-MHA geometry does not
+partition evenly into 3 ranks (64 query heads and 64 KV heads; splitting
+64 heads across 3 ranks gives 64/3 = 21.3, and the GQA variant's 8 KV
+heads split as 8/3 = 2.67 --- neither divides evenly; the MLP
+intermediate size must divide too); if a 3-GPU deployment is intended,
+it requires a supported head/MLP partition plan, per-rank allocation and
+a working engine benchmark before it is treated as feasible --- see the
+note below \\
 fits 8×H100 at 32K? & Pass --- 224.0 GB \textless{} 640 GB & 224.0 GB
 \textless{} 640 GB; aggregate gate and TP=8 shard check clear \\
 fits 8×H100 at 128K? & Conditional Pass --- aggregate and TP=8 per-rank
@@ -374,13 +377,18 @@ clears and a named later gate does not). 8×H100 (no sharding ambiguity
 at 8 shards) rates Pass for the 9.2K and 32K rows. The 3×H100 row rates
 Conditional Pass on gate 1 alone (neither the full-MHA 64 heads nor the
 GQA variant's 8 KV heads divide into 3 ranks), so its placement is not
-established. The 128K row --- also 8×H100, so TP=8 sharding is integral
---- clears gate 1 and the shard check, and its per-rank budget fits at
-the stated reserve (17.5 + 41.94 + 8 = 67.4 GB of 80 GB, where the 8 GB
-is the full \textasciitilde64 GB host reserve divided by the 8 ranks);
-what it does not carry is a measured context-scaled activation/workspace
-reserve at 128K, so it rates Conditional Pass for a different reason:
-the long-context reserve is unmeasured.}
+established: TP=3 is not a supported even head partition for the
+canonical 64-head geometry, and an aggregate-bytes screen does not
+establish a deployable TP=3 layout. If a 3-GPU deployment is intended,
+require a supported head/MLP partition plan and an engine benchmark
+before treating it as feasible. The 128K row --- also 8×H100, so TP=8
+sharding is integral --- clears gate 1 and the shard check, and its
+per-rank budget fits at the stated reserve (17.5 + 41.94 + 8 = 67.4 GB
+of 80 GB, where the 8 GB is the full \textasciitilde64 GB host reserve
+divided by the 8 ranks); what it does not carry is a measured
+context-scaled activation/workspace reserve at 128K, so it rates
+Conditional Pass for a different reason: the long-context reserve is
+unmeasured.}
 
 \emph{Attention-family sensitivity note.} The \textasciitilde2.62
 MB/token (2.5 MiB) figure is the \textbf{full-MHA} (multi-head
