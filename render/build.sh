@@ -66,6 +66,11 @@ cd "$REPO"
 python3 render/fix_pdf_meta.py render/latex/book.fig.pdf \
         render/build/from-token-to-fleet-v20260913.pdf
 
+echo "== pack_objstm (object-stream compression: ~42% smaller, gates must pass) =="
+cd "$REPO"
+python3 render/pack_objstm.py render/build/from-token-to-fleet-v20260913.pdf \
+        render/build/from-token-to-fleet-v20260913.packtmp.pdf
+
 echo "== verify =="
 python3 - <<'PY'
 import pymupdf
@@ -76,6 +81,7 @@ for p in range(len(d)):
     for f in d[p].get_fonts():
         if f[2] == "Type3": t3.add(f[3])
 print("pages:", len(d))
+print("size: %.2f MB" % (__import__("os").path.getsize("render/build/from-token-to-fleet-v20260913.pdf")/1e6))
 print("tagged (StructTreeRoot):", d.xref_get_key(cat, "StructTreeRoot"))
 print("MarkInfo:", d.xref_get_key(cat, "MarkInfo"))
 print("Type3 fonts:", len(t3))
