@@ -1,0 +1,78 @@
+{
+ "target": "design/manuscript/chapter-03/chapter-03.md",
+ "findings": [
+  {
+   "model": "GLM-5.3-Flash",
+   "id": "XF-002",
+   "severity": "P3",
+   "page": "75; 102",
+   "chapter": "Ch 3 §3.6.1 and Ch 4 Table 4-2 (CANONICAL TEACHING MODEL box)",
+   "evidence": "PDF p.75: \"so ~2.62 MB/token is a deliberate upper bound and Appendix A's §A.7 (Fig A.2, vendor-relative KV/compute ratios) is its deliberate relaxation, not a correction.\" PDF p.102 repeats verbatim inside the Table 4-2 teaching-geometry box. The Preface convention (p.24) assigns letter suffixes to appendix SECTIONS (\"§ 9A\") and reserves the A.N form for appendix FIGURES (\"the appendix's figures carry A.N\"); the List of Figures (p.10) contains only A.1–A.5, so \"A.7\" cannot resolve as a figure either.",
+   "issue": "Appendix section cited in the figure-numbering form (§A.7) at two locations, both in load-bearing provenance caveats. The form contradicts the book's own cross-reference convention; the referenced content (\"vendor-relative KV/compute ratios\") is Fig A.2's title, so the intended section target (likely §7A) is not reachable under either declared scheme. (Related pattern: the Preface itself refers to appendix locations as \"Appendix A, A.6\" / \"Appendix A, A.3\" (pp.21–22), a third form, confirming the scheme is applied inconsistently.)",
+   "fix_instruction": "Replace both \"§A.7\" occurrences with the correct letter-suffixed section label (e.g. \"§7A\"), or restate the convention in the Preface to match actual appendix usage; reconcile the Preface's own \"A.3\"/\"A.6\" addendum pointers to the same scheme.",
+   "confidence": 0.75,
+   "_tid": "R23-010"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": "F09",
+   "severity": "P2",
+   "page": 51,
+   "chapter": "Ch 3",
+   "evidence": "Table 3-1 — Dense 70B model parameter arithmetic (worked example, not reference). Metric Value Derivation Total parameters 70B [canonical scenario][ASSUMPTION] reference model FLOPs per token (batch-1 decode forward pass, approx.) ~0.14T 70B × 2 FLOP/param",
+   "issue": "Table 3-1 lists the FLOPs per token for a dense 70B model as 0.14 TFLOPs (70B * 2). While this correctly calculates the linear term for a dense feed-forward layer approximation, it omits the attention operation cost (O(L²)) and the normalization overhead. This is a simplified approximation often cited in roofline analyses, but in a reference table labeled 'worked example', it should be noted that this is a linear-layer approximation.",
+   "fix_instruction": "Add a footnote to Table 3-1: 'Note: FLOP calculation represents the 2*P approximation for linear layers, excluding attention and activation costs.'",
+   "confidence": 0.8,
+   "_tid": "R23-020"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": "F10",
+   "severity": "P2",
+   "page": 56,
+   "chapter": "Ch 3",
+   "evidence": "Figure 3.4: Dense vs MoE parameter allocation and KV cache behavior. Partially controlled comparison: only context length and cache dtype are held fixed — weight residency (140 GB dense vs ~94 GB for the ~47B MoE challenger), the active-compute fraction (~100% vs ~27%) and the attention shape (canonical dense 80L/8192H full-MHA vs the challenger’s 32L/4096H GQA) all differ, so the KV bytes differ by shape, not by routing (~12 GB vs ~0.6 GB at 9.2K/8-bit",
+   "issue": "The comparison in Table 3-3 (dense 70B vs 47B MoE) and Figure 3.4 is misleading because the KV sizes differ primarily due to the attention shape (32L vs 80L, hidden 4096 vs 8192), not the MoE routing. The dense column uses the canonical teaching geometry (80L), while the MoE column uses the Mixtral 8x7B geometry (32L). This makes it look like MoE saves KV memory, when in reality, the model is just smaller/shallower.",
+   "fix_instruction": "State explicitly that the KV difference is primarily due to depth (32 vs 80 layers) and hidden size, not the MoE mechanism. A dense model with the same 32L/4096H geometry would have the same ~0.6GB KV footprint. The comparison should ideally be against a dense model with the same geometry to isolate the MoE effect (which is zero for KV).",
+   "confidence": 0.9,
+   "_tid": "R23-021"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": "F11",
+   "severity": "P2",
+   "page": 57,
+   "chapter": "Ch 3",
+   "evidence": "Table 3-3 — Parameter and KV cache arithmetic: dense 70B vs MoE (8×7B class) metric dense 70B MoE (8×7B class) derivation ... KV cache per request (9.2K ctx, FP16) ~24.1 GB ~1.21 GB set by attention shape, not routing: dense 80L/8192H full-MHA ... the challenger’s own 32L/4096H GQA (8 KV-heads × 128)",
+   "issue": "The derivation notes 'a dense model with the challenger’s shape holds the same ~1.21 GB'. This is correct, but it undermines the utility of Table 3-3 if read as a dense-vs-MoE comparison. It is effectively comparing a 70B model (canonical geometry) to a ~12B parameter active model (Mixtral geometry). The comparison is confounded by the difference in total parameter scale and depth, not just the MoE routing.",
+   "fix_instruction": "Reframe Table 3-3. Either use a 70B-dense vs 70B-MoE comparison (if a valid geometry exists) to isolate the routing effect, or change the title to 'Parameter/Compute/KV Accounting for Different Model Scales' to avoid implying MoE reduces KV size inherently.",
+   "confidence": 0.85,
+   "_tid": "R23-022"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": "F13",
+   "severity": "P2",
+   "page": 58,
+   "chapter": "Ch 3",
+   "evidence": "Figure 3.4 caption: ...weight residency (140 GB dense vs ~94 GB for the ~47B MoE challenger)... MoE (8 experts) ... per token: top-2 = 11.4B (2 × 5.7B) + 1.4B always-on = 12.8B → 25.6 GB ... MoE KV ≈ 0.6 GB ... KV grows linearly with context\".",
+   "issue": "Figure 3.4's caption and visual layout suggest the 'MoE total resident ≈ 94 GB' and the KV cache is '~0.6 GB'. However, the caption states the figure is 'not to scale' and the calculation 91+3=94 uses rounded integers (11.4*8=91.2, + 2.8 = 94). This introduces minor rounding errors and potentially misleads a reader looking at a proportional bar chart.",
+   "fix_instruction": "Ensure the figure uses precise values (94.0 GB) and that the KV bars reflect the relative size (24 GB vs 0.6 GB is a ~40x difference). If drawn to scale, the MoE KV bar should be barely visible next to the dense bar.",
+   "confidence": 0.7,
+   "_tid": "R23-024"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": "F17",
+   "severity": "P3",
+   "page": 52,
+   "chapter": "Ch 3",
+   "evidence": "Table 3-2 — MoE model parameter arithmetic ... FP16 active weight-read per token (batch-1 decode) | ~25.6 GB | 12.8B × 2 bytes = 25.6 GB read per token at batch 1 (compute/bandwidth; does NOT set residency) [ILLUSTRATIVE][DERIVED]",
+   "issue": "The row states 'does NOT set residency'. This is technically correct (it's the traffic per token), but it could be clearer. It's not the *residency* (which is 94GB), but it *is* the read traffic.",
+   "fix_instruction": "Clarify the label to 'FP16 active weight-read volume per token' and 'does NOT set total model residency'.",
+   "confidence": 0.75,
+   "_tid": "R23-028"
+  }
+ ],
+ "count": 6
+}

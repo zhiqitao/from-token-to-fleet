@@ -58,6 +58,8 @@ The 70B dense full-MHA model below is a *constructed teaching reference* (the ca
 | Active parameters per token | 70B | All parameters active for every token (dense) [canonical scenario][DERIVED] |
 | FLOPs per token (batch-1 decode forward pass, approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [canonical scenario][DERIVED] |
 
+*Note on the FLOP row: the ~0.14T value is the 2·P linear-layer approximation — 2 FLOPs for each parameter in the linear layers of one forward pass. It leaves out the attention term, which grows with context length, and it leaves out activation and normalization overhead. Read it as a first-order compute floor, not a measured count.*
+
 ### MoE model representative (Mixtral 8x7B class) — published totals and published config [1P][FACT]; component-derived arithmetic [ILLUSTRATIVE][DERIVED]
 
 We contrast with a representative MoE model in the Mixtral lineage. Its published announcement gives 46.7B total and 12.9B active parameters per token [1P][FACT] (source: Mistral AI, "Mixtral of Experts", https://mistral.ai/news/mixtral-of-experts/, retrieved 2026-11-23). That announcement publishes those totals, not a per-expert split, so the decomposition below is our derivation from them: subtract an assumed ~1.4B always-on block (attention, shared and embedding weights) from the 46.7B total and divide the remainder across 8 experts — 45.3B ÷ 8 ≈ 5.7B per expert (the "8×7B" class label is not a per-expert count, since eight 7B experts plus shared layers would exceed the published 46.7B total). On that reading the numbers below use the component-derived ~47B / ~12.8B (2 × 5.7B routed experts + ~1.4B always-on); the component sum sits 0.1B below the published 12.9B active count, and the numbers carry the illustrative flag.
@@ -71,7 +73,7 @@ We contrast with a representative MoE model in the Mixtral lineage. Its publishe
 | Total parameters (across 8 experts) | ~47B | ~5.7B per expert × 8 = 45.6B + ~1.4B always-on (attention/shared + embeddings) = 47B [ILLUSTRATIVE][DERIVED] |
 | Active parameters per token (top-2 routing) | ~12.8B | 2 × 5.7B routed experts + ~1.4B always-on attention/shared = 12.8B (~27% of the ~47B total; ~24% counting expert-FFN mass alone) [ILLUSTRATIVE][DERIVED] |
 | Active/total fraction | ~27% | 12.8B ÷ 47B ≈ 27.23%, giving the ~24–27% band for top-2-from-8: the ~27% end counts all active parameters (11.4B routed + 1.4B always-on = 12.8B), the ~24% end counts expert-FFN mass alone (11.4B ÷ 47B ≈ 24.3%); the band exists because the always-on block counts as active compute but not as expert mass [ILLUSTRATIVE][DERIVED] |
-| FP16 active weight-read per token (batch-1 decode) | ~25.6 GB | 12.8B × 2 bytes = 25.6 GB read per token at batch 1 (compute/bandwidth; does NOT set residency) [ILLUSTRATIVE][DERIVED] |
+| FP16 active weight-read volume per token (batch-1 decode) | ~25.6 GB | 12.8B × 2 bytes = 25.6 GB read per token at batch 1 (compute/bandwidth traffic; does NOT set total model residency) [ILLUSTRATIVE][DERIVED] |
 | FLOPs per token (batch-1 decode forward pass, approx.) | ~0.0256T | 12.8B active × 2 FLOP/param = 25.6B [ILLUSTRATIVE][DERIVED] |
 | Compute ratio vs dense 70B | ~0.183× (≈18% of dense 70B compute) | (12.8B × 2) ÷ (70B × 2) = 25.6 GFLOP ÷ 140 GFLOP ≈ 0.183×, i.e. the canonical 70B dense baseline costs about 5.5× the compute per token; against a same-total (47B) dense model the saving is 3.7× (12.8B ÷ 47B ≈ 27%) [ILLUSTRATIVE][DERIVED] |
 
@@ -186,7 +188,7 @@ The architect's decision therefore rests on two findings, both stated plainly. *
 
 \needspace{11\baselineskip}
 
-**Table 3-3** — Parameter and KV cache arithmetic: dense 70B vs MoE (8×7B class)
+**Table 3-3** — Parameter, compute and KV accounting for two model scales: dense 70B (canonical 80L/8192H full-MHA geometry) vs MoE 8×7B class (~47B total, its own 32L/4096H GQA geometry). This is a scale-and-shape contrast, not a routing-only ablation: the two columns differ in total parameters, depth and attention shape, so no column difference isolates the MoE routing effect. At equal attention shape, dense and MoE KV is identical.
 
 | metric | dense 70B | MoE (8×7B class) | derivation |
 |---|---|---|---|
@@ -197,7 +199,7 @@ The architect's decision therefore rests on two findings, both stated plainly. *
 | FP16 weight-read per token (batch-1 decode) | 140 GB | ~25.6 GB | 70B × 2 / 12.8B × 2 (read per token, not residency) |
 | KV cache per request (9.2K ctx, FP16) | ~24.1 GB | ~1.21 GB | set by attention shape, not routing: dense 80L/8192H full-MHA = 2.62 MB/token at FP16 × 9,200 ≈ 24.1 GB; the challenger's own 32L/4096H GQA (8 KV-heads × 128) = 0.131 MB/token at FP16 × 9,200 = 1,205,862,400 B ≈ 1.21 GB — a dense model with the challenger's shape holds the same ~1.21 GB [ILLUSTRATIVE][DERIVED] |
 | KV cache per request (9.2K ctx, 8-bit) | ~12.06 GB | ~0.603 GB | same geometry at 8-bit, i.e. exactly half the FP16 bytes: dense 80L/8192H full-MHA = 1.31 MB/token at 8-bit (raw byte-halving) × 9,200 ≈ 12.06 GB; the challenger's own 32L/4096H GQA (8 KV-heads × 128) = 0.0655 MB/token at 8-bit (raw byte-halving) × 9,200 = 602,931,200 B ≈ 0.603 GB — a dense model with the challenger's shape holds the same ~0.603 GB [ILLUSTRATIVE][DERIVED] |
-| FLOPs per token (batch-1 decode) | ~0.14T | ~0.0256T | 70B × 2 / 12.8B × 2 |
+| FLOPs per token (batch-1 decode) | ~0.14T | ~0.0256T | 70B × 2 / 12.8B × 2 — the 2·P linear-layer approximation of Table 3-1, attention and activation costs excluded |
 | compute ratio vs dense 70B | 1× | ~0.183× (≈18% of dense 70B compute) | (12.8B × 2) ÷ (70B × 2) = 25.6 GFLOP ÷ 140 GFLOP; the ratio is against the canonical 70B dense reference, not against a dense model of the challenger's own ~47B total — against that baseline the saving is ~3.7× (12.8B ÷ 47B ≈ 27%) [ILLUSTRATIVE][DERIVED] |
 
 *The dense-70B column traces to the canonical scenario (Ch 4, Table 4-2); the MoE column carries [ILLUSTRATIVE] provenance with the per-row [ASSUMPTION]/[DERIVED] split shown in its derivation column — the same tags Table 3-2 gives the same quantities — and it is a worked variant, not a measurement claim.*
