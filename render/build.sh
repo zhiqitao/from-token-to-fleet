@@ -68,7 +68,14 @@ python3 render/fix_pdf_meta.py render/latex/book.fig.pdf \
 
 echo "== pack_objstm (object-stream compression: ~42% smaller, gates must pass) =="
 cd "$REPO"
-python3 render/pack_objstm.py render/build/from-token-to-fleet-v20260913.pdf \
+# pikepdf lives only in the Hermes venv; fall back to it if base python3 lacks it.
+_VENV_PY="$HOME/.hermes/hermes-agent/venv/bin/python3"
+if "$VENV_PY" -c "import pikepdf" >/dev/null 2>&1; then
+    _PACKPY="$_VENV_PY"
+else
+    _PACKPY="python3"
+fi
+"$_PACKPY" render/pack_objstm.py render/build/from-token-to-fleet-v20260913.pdf \
         render/build/from-token-to-fleet-v20260913.packtmp.pdf
 
 echo "== verify =="

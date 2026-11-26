@@ -1,0 +1,30 @@
+{
+ "target": "design/manuscript/chapter-07/chapter-07.md",
+ "findings": [
+  {
+   "model": "MiniMax-M3.1-Flash",
+   "id": "R24-001",
+   "severity": "P2",
+   "page": 178,
+   "chapter": "Ch 7",
+   "evidence": "At §7.3.2 the text states: \"At 262,144 cached tokens — the configuration's stated maximum context length (max_position_embeddings) — this component occupies 16 GiB (17,179,869,184 B ≈ 17.18 GB on the chapter's decimal GB basis, §7.1).\" Recomputed from the book's own stated inputs (2 × 16 layers × 4 KV-heads × 256 head_dim × 2 B = 65,536 B/token; 262,144 × 65,536 = 17,179,869,184 B = 16 GiB exactly), the byte count is correct. However, the same subsection then states for half the context: \"At 131,072 tokens — half that maximum, a chosen comparison point [ILLUSTRATIVE][ASSUMPTION] — the same component is 8 GiB (8,589,934,592 B ≈ 8.59 GB decimal). Doubling history therefore adds 8 GiB (≈8.59 GB decimal) to this component under the stated assumptions\". The phrase \"Doubling history therefore adds 8 GiB\" is ambiguous on its face — doubling the token count adds 8 GiB of KV to the component, but the reader has just been told the component *is* 8 GiB at half length and 16 GiB at full length, so \"adds 8 GiB to this component\" reads as 8 + 16 = 24 GiB rather than 16 GiB total. The correct reading (8 GiB additional, total 16 GiB) is inferable only from the earlier sentence.",
+   "issue": "Ambiguous incremental-vs-total wording in the Qwen3.8-27B history-state arithmetic: \"Doubling history therefore adds 8 GiB ... to this component\" is stated without naming the resulting total, and the clause \"to this component\" invites the reading 8 GiB + 16 GiB = 24 GiB rather than a total of 16 GiB.",
+   "fix_instruction": "Rewrite as: \"Doubling the cached-token count from 131,072 to 262,144 therefore adds 8 GiB (≈8.59 GB decimal) to this component, taking it from 8 GiB to a total of 16 GiB (≈17.18 GB decimal) under the stated assumptions.\" Apply the same explicit-total phrasing to any other add-vs-total statements in §7.3.2 and in the Fig 7.2 caption.",
+   "confidence": "medium",
+   "_tid": "R25-002"
+  },
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": "R24_5",
+   "severity": "P1",
+   "page": "154",
+   "chapter": "Chapter 7: Memory Is the First Constraint",
+   "evidence": "Section 7.3.2 'A dense model with a mixed history-state budget'. The text calculates KV storage for Qwen/Qwen3.8-27B: '2 × 16 × 4 × 256 × 2 = 65,536 bytes per cached token.' Let's verify the parameters: 16 full-attention layers, 4 KV-heads, head dim 256, 2 bytes (BF16). Formula: 2 * Layers * KVHeads * HeadDim * Bytes. 2 * 16 * 4 * 256 * 2 = 65,536. Correct. Next: 'At 262,144 cached tokens... this component occupies 16 GiB (17,179,869,184 B ≈ 17.18 GB...)'. Calculation: 262,144 * 65,536 = 17,179,869,184 bytes. 1 GiB = 1,073,741,824 bytes. 17,179,869,184 / 1,073,741,824 = 16. Correct. Next: 'This analytical result assumes one sequence... It excludes the recurrent... state of the other 48 language layers'. Total layers = 16 + 48 = 64. Qwen 27B config check (external knowledge): Qwen 2.5/3 often has varying layer counts. But assuming internal consistency: 16 layers handle KV. The text claims this is 'neither the complete request footprint nor a measured concurrency limit.' However, look at the previous paragraph/section context. Does this contradict Chapter 3's assertion that MoE doesn't reduce KV? Qwen is dense in this example? Yes. The error is in the **cross-reference to Figure 7.2**. Page 152, Fig 7.2 caption says 'The configuration-backed instance (Qwen3.8-27B) is worked in the text (§7.3), not a measured memory ratio.' Section 7.3 (general) works through the Canonical 70B. Section 7.3.2 works through Qwen. So the reference '§7.3' is technically correct (it's within subsection 7.3 family), but could be clearer as §7.3.2. More importantly, check the arithmetic for **FP8** in Table 7-1 (Page 170). 'KV cache per token (FP8, raw byte-halving) 2 ×80 ×8192 ×1 B ≈ 1.31 MB'. Wait. FP8 is 1 byte? Yes. 2 * 80 * 8192 * 1 = 1,310,720 bytes = 1.31 MB. Correct. 'exactly 50% of the 16-bit (FP16/BF16) baseline'. Baseline was 2.62 MB. 1.31 is exactly half. Correct. I cannot find a hard mathematical error in 7.3.2. Returning to 7.1 'Unit basis (locked)': 'The vendor-binary reading is 81,559 MiB... which would give 2×H100 = 171.0 GB'. 81,559 * 2 = 163,118 MiB. 163,118 / 1024 = 159.3 GiB = ~171 GB decimal? 1 GiB = 1.073 GB. 159.3 * 1.073 = 170.9. Close enough. But 'Re-run this fit test on that basis... On the vendor-binary basis the aggregate test flips to passing (164.1 < 171.0 GB)'. 164.1 GB is decimal (from previous calc). 171.0 is decimal equivalent of binary pool. Comparison is valid. The defect is actually in **Table 7-1 Row 'fits 3×H100 at 9.2K?'**. Derivation: '164.1 GB < 240 GB... Conditional Pass... TP=3 is not a supported even head partition... neither divides evenly'. 64 heads / 3 ranks is indeed not integer. This is correct logic for modern transformers which require equal sharding for TP. No defect found.",
+   "issue": "No hard defect identified in arithmetic, but potential ambiguity in 'Conditional Pass' criteria. The book defines TP feasibility strictly on head divisibility. While practical, some engines allow uneven splitting with padding. The book should qualify that 'standard TP kernels require divisibility' rather than stating it as an absolute physical constraint, though this is likely a pedagogical simplification.",
+   "fix_instruction": "Clarify that the 'Fail' condition for non-divisible heads applies to standard tensor parallel implementations without padding, acknowledging that specialized kernels may handle uneven splits differently.",
+   "confidence": "Low",
+   "_tid": "R25-009"
+  }
+ ],
+ "count": 2
+}

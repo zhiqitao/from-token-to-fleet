@@ -1,0 +1,18 @@
+{
+ "target": "design/manuscript/chapter-02/chapter-02.md",
+ "findings": [
+  {
+   "model": "Qwen3.8-Flash-Next",
+   "id": "R24_2",
+   "severity": "P1",
+   "page": "49",
+   "chapter": "Chapter 2: What Actually Happens During Inference",
+   "evidence": "In Table 2-2, the row 'Decode: required bandwidth, hypothetical single-device aggregate (TPOT ~25 ms)' derives 5.6 TB/s from 140 GB / 0.025 s. The next row 'H100 HBM3 peak bandwidth' lists 3.35 TB/s. The verdict row says 'bandwidth-bound — illustrative single-device only'. However, the text in section 2.3 immediately below the table states: 'On the canonical 8×H100 host each GPU streams only its 17.5 GB shard — 17.5×10^9 B read against 3.35×10^12 B/s over the 0.025 s step, or ~21% of peak bandwidth'. The derivation of 21% is correct (700 GB/s demand vs 3350 GB/s supply = 20.9%). BUT, the text also says 'the binding terms at that operating point are the TP collectives... and the ~9.2K-token KV attention read, not the weight read.' The defect is in the 'Decode: required bandwidth per GPU (sharded, TP = 8)' row in Table 2-2 itself. It lists '700 GB/s per GPU' and derivation '17.5 GB / 0.025 s'. This assumes the *entire* decode time budget (25ms) is spent reading weights. If the verdict is 'not binding', implying other terms take up the time, the calculation of 21% usage is a static snapshot of *demand* vs *capacity*, which is technically correct arithmetic, but the presentation in the table mixes 'required bandwidth to meet TPOT' with 'actual bandwidth utilized'. The inconsistency is subtle: if TPOT is met *despite* other overheads, the weight read must fit *inside* 25ms. If other overheads exist, the available time for weight read shrinks, increasing required instantaneous bandwidth > 700 GB/s. The table presents 700 GB/s as the requirement, ignoring contention.",
+   "issue": "Arithmetic flaw in bandwidth modeling: Table 2-2 calculates the 'required bandwidth per GPU' as Weight_Bytes / TPOT_Budget. This implicitly assumes 100% of the TPOT window is available for weight streaming. Since the text elsewhere admits that TPOT includes 'TP collectives, kernel efficiency, sampling and scheduling', the actual *available* bandwidth time is < 25ms. Therefore, the true required instantaneous bandwidth is higher than 700 GB/s. By comparing this underestimated requirement to peak capacity, the book risks under-reporting bandwidth pressure.",
+   "fix_instruction": "Add a caveat to Table 2-2's 'Decode: required bandwidth per GPU' row stating that this is a theoretical floor assuming zero-overhead step time, and that real-world overheads reduce the effective time window, raising the instantaneous bandwidth demand above 700 GB/s.",
+   "confidence": "Medium",
+   "_tid": "R25-006"
+  }
+ ],
+ "count": 1
+}
