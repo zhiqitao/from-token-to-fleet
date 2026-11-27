@@ -261,9 +261,19 @@ def make_list_of_tables():
     lines.append(r"\addcontentsline{toc}{chapter}{List of Tables}")
     lines.append(r"\chapter*{List of Tables}")
     lines.append(r"\markboth{List of Tables}{List of Tables}")
-    lines.append(r"{\footnotesize Every table the book numbers, with the page on which it "
-                 r"begins. Unnumbered tables --- inline worked calculations and continuation "
-                 r"panels --- carry no printed ID and are not indexed here.\par}")
+    # Round-26 R25-002: the folio comes from \pageref on a label written after
+    # the longtable's first data row, so it names the page the rows begin on.
+    # That is normally the page the caption sits on, but not always --- a caption
+    # can close one page while the rows open on a later one (Table 3-3: caption
+    # p. 56, rows p. 58 after a full-page figure). State the convention the
+    # folios actually follow instead of claiming the caption's page.
+    lines.append(r"{\footnotesize Every table the book numbers, with the page on which its "
+                 r"first rows begin. Unnumbered tables --- inline worked calculations and "
+                 r"continuation panels --- carry no printed ID and are not indexed here. "
+                 r"A folio names the page where a table's rows start, which is normally the "
+                 r"page its caption opens on; where a caption closes one page and the rows "
+                 r"begin on a later one --- Table 3-3 is that case in this edition --- the "
+                 r"folio follows the rows, not the caption.\par}")
     # Round-8 finding finding-006: the canonical-scenario ledger is the anchor
     # every downstream worked example draws its inputs from, so the index says
     # so rather than leaving the reader to infer it from the table's title.

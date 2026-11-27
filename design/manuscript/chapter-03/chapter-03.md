@@ -55,7 +55,7 @@ The 70B dense full-MHA model below is a *constructed teaching reference* (the ca
 |---|---|---|
 | Total parameters | 70B | canonical scenario (Ch 4, Table 4-2) [canonical scenario][ASSUMPTION] reference model |
 | FP16 residency (total) | 140 GB | 70B × 2 bytes = 140 GB [canonical scenario][DERIVED] |
-| Active parameters per token | 70B | All parameters active for every token (dense) [canonical scenario][DERIVED] |
+| Active parameters per token | 70B | restates the 70B input: all parameters are active for every token in a dense model, so no separate quantity is computed [canonical scenario][ASSUMPTION] |
 | FLOPs per token (batch-1 decode forward pass, approx.) | ~0.14T | 70B × 2 FLOP/param (multiply-add = 2 FLOPs, Ch 8) [canonical scenario][DERIVED] |
 
 *Note on the FLOP row: the ~0.14T value is the 2·P linear-layer approximation — 2 FLOPs for each parameter in the linear layers of one forward pass. It leaves out the attention term, which grows with context length, and it leaves out activation and normalization overhead. Read it as a first-order compute floor, not a measured count.*
@@ -194,17 +194,17 @@ The architect's decision therefore rests on two findings, both stated plainly. *
 
 | metric | dense 70B | MoE (8×7B class) | derivation |
 |---|---|---|---|
-| total parameters | 70B | ~47B | ~5.7B per expert × 8 = 45.6B + ~1.4B always-on = 47B, the same component sum as Table 3-2 [ILLUSTRATIVE][DERIVED] |
-| active params per token | 70B | ~12.8B | top-2 from 8 = 2/8 = 25% of expert mass ≈ 11.4B + ~1.4B always-on = 12.8B [ILLUSTRATIVE][DERIVED] |
+| total parameters | 70B | ~47B | ~5.7B per expert × 8 = 45.6B + ~1.4B always-on = 47B, the same component sum as Table 3-2 [canonical scenario][ASSUMPTION] (dense column, the Ch 4 Table 4-2 input) · [ILLUSTRATIVE][DERIVED] (MoE column) |
+| active params per token | 70B | ~12.8B | top-2 from 8 = 2/8 = 25% of expert mass ≈ 11.4B + ~1.4B always-on = 12.8B [canonical scenario][ASSUMPTION] (dense column: all 70B active, the 70B input restated) · [ILLUSTRATIVE][DERIVED] (MoE column) |
 | active/total fraction | 100% | ~27% | 12.8B ÷ 47B ≈ 27.23% [ILLUSTRATIVE][DERIVED] |
 | FP16 residency (total) | 140 GB | ~94 GB | 70B × 2 bytes = 140 GB / 47B × 2 bytes ≈ 94 GB [canonical scenario][DERIVED] (dense column) · [ILLUSTRATIVE][DERIVED] (MoE column) |
 | FP16 weight-read per token (batch-1 decode) | 140 GB | ~25.6 GB | 70B × 2 / 12.8B × 2 (read per token, not residency) [canonical scenario][DERIVED] (dense column) · [ILLUSTRATIVE][DERIVED] (MoE column) |
-| KV cache per request (9.2K ctx, FP16) | ~24.1 GB | ~1.21 GB | set by attention shape, not routing: dense 80L/8192H full-MHA = 2.62 MB/token at FP16 × 9,200 ≈ 24.1 GB; the challenger's own 32L/4096H GQA (8 KV-heads × 128) = 0.131 MB/token at FP16 × 9,200 = 1,205,862,400 B ≈ 1.21 GB — a dense model with the challenger's shape holds the same ~1.21 GB [ILLUSTRATIVE][DERIVED] |
-| KV cache per request (9.2K ctx, 8-bit) | ~12.06 GB | ~0.603 GB | same geometry at 8-bit, i.e. exactly half the FP16 bytes: dense 80L/8192H full-MHA = 1.31 MB/token at 8-bit (raw byte-halving) × 9,200 ≈ 12.06 GB; the challenger's own 32L/4096H GQA (8 KV-heads × 128) = 0.0655 MB/token at 8-bit (raw byte-halving) × 9,200 = 602,931,200 B ≈ 0.603 GB — a dense model with the challenger's shape holds the same ~0.603 GB [ILLUSTRATIVE][DERIVED] |
+| KV cache per request (9.2K ctx, FP16) | ~24.1 GB | ~1.21 GB | set by attention shape, not routing: dense 80L/8192H full-MHA = 2.62 MB/token at FP16 × 9,200 ≈ 24.1 GB; the challenger's own 32L/4096H GQA (8 KV-heads × 128) = 0.131 MB/token at FP16 × 9,200 = 1,205,862,400 B ≈ 1.21 GB — a dense model with the challenger's shape holds the same ~1.21 GB [canonical scenario][DERIVED] (dense column) · [ILLUSTRATIVE][DERIVED] (MoE column) |
+| KV cache per request (9.2K ctx, 8-bit) | ~12.06 GB | ~0.603 GB | same geometry at 8-bit, i.e. exactly half the FP16 bytes: dense 80L/8192H full-MHA = 1.31 MB/token at 8-bit (raw byte-halving) × 9,200 ≈ 12.06 GB; the challenger's own 32L/4096H GQA (8 KV-heads × 128) = 0.0655 MB/token at 8-bit (raw byte-halving) × 9,200 = 602,931,200 B ≈ 0.603 GB — a dense model with the challenger's shape holds the same ~0.603 GB [canonical scenario][DERIVED] (dense column) · [ILLUSTRATIVE][DERIVED] (MoE column) |
 | FLOPs per token (batch-1 decode) | ~0.14T | ~0.0256T | 70B × 2 / 12.8B × 2 — the 2·P linear-layer approximation of Table 3-1, attention and activation costs excluded [canonical scenario][DERIVED] (dense column) · [ILLUSTRATIVE][DERIVED] (MoE column) |
 | compute ratio vs dense 70B | 1× | ~0.183× (≈18% of dense 70B compute) | (12.8B × 2) ÷ (70B × 2) = 25.6 GFLOP ÷ 140 GFLOP; the ratio is against the canonical 70B dense reference, not against a dense model of the challenger's own ~47B total — against that baseline the saving is ~3.7× (12.8B ÷ 47B ≈ 27%) [ILLUSTRATIVE][DERIVED] |
 
-*The dense-70B column traces to the canonical scenario (Ch 4, Table 4-2); the MoE column carries [ILLUSTRATIVE] provenance with per-row [DERIVED] tags in its derivation column — the same tags Table 3-2 gives the same quantities — and it is a worked variant, not a measurement claim. The one [ASSUMPTION] behind those MoE rows is the ~1.4B always-on block size, stated in §3.3.2.*
+*The dense-70B column traces to the canonical scenario (Ch 4, Table 4-2): its parameter counts are that table's assumed inputs ([canonical scenario][ASSUMPTION]), and its residency, per-token read, KV and FLOP figures are arithmetic on them ([canonical scenario][DERIVED]); the MoE column carries [ILLUSTRATIVE] provenance with per-row [DERIVED] tags in its derivation column — the same tags Table 3-2 gives the same quantities — and it is a worked variant, not a measurement claim. The one [ASSUMPTION] behind those MoE rows is the ~1.4B always-on block size, stated in §3.3.2.*
 
 ---
 *Next chapter: Chapter 4 — The Anatomy of an AI Workload, which characterizes the enterprise Q&A RAG workload across the six dimensions (quality, traffic, token profile, latency, economic, operational constraints) and uses the same continuous mini-case scenario.*
